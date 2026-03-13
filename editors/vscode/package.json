@@ -1,0 +1,86 @@
+{
+  "name": "zenscript",
+  "displayName": "ZenScript",
+  "description": "Language support for ZenScript (.zs) - syntax highlighting, diagnostics, and LSP integration",
+  "version": "0.1.0",
+  "publisher": "zenscript",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/milkyskies/zenscript"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:zenscript"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "zenscript",
+        "aliases": [
+          "ZenScript",
+          "zenscript"
+        ],
+        "extensions": [
+          ".zs"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/zs-light.png",
+          "dark": "./icons/zs-dark.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "zenscript",
+        "scopeName": "source.zenscript",
+        "path": "./syntaxes/zenscript.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "zenscript",
+        "path": "./snippets/zenscript.json"
+      }
+    ],
+    "configuration": {
+      "title": "ZenScript",
+      "properties": {
+        "zenscript.serverPath": {
+          "type": "string",
+          "default": "zsc",
+          "description": "Path to the zsc binary"
+        },
+        "zenscript.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace communication between VS Code and the ZenScript language server"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  }
+}

@@ -1,0 +1,232 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "ZenScript",
+  "scopeName": "source.zenscript",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#template-literals" },
+    { "include": "#keywords" },
+    { "include": "#storage" },
+    { "include": "#constants" },
+    { "include": "#types" },
+    { "include": "#operators" },
+    { "include": "#functions" },
+    { "include": "#jsx" },
+    { "include": "#numbers" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.zenscript",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.zenscript",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.zenscript",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.zenscript",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "template-literals": {
+      "patterns": [
+        {
+          "name": "string.template.zenscript",
+          "begin": "`",
+          "end": "`",
+          "patterns": [
+            {
+              "name": "constant.character.escape.zenscript",
+              "match": "\\\\."
+            },
+            {
+              "name": "meta.template.expression.zenscript",
+              "begin": "\\$\\{",
+              "end": "\\}",
+              "beginCaptures": {
+                "0": { "name": "punctuation.definition.template-expression.begin.zenscript" }
+              },
+              "endCaptures": {
+                "0": { "name": "punctuation.definition.template-expression.end.zenscript" }
+              },
+              "patterns": [
+                { "include": "source.zenscript" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.zenscript",
+          "match": "\\b(match|if|else|return|await|async)\\b"
+        },
+        {
+          "name": "keyword.control.import.zenscript",
+          "match": "\\b(import|from|export)\\b"
+        },
+        {
+          "name": "keyword.other.zenscript",
+          "match": "\\b(opaque)\\b"
+        },
+        {
+          "name": "variable.language.zenscript",
+          "match": "\\b(Ok|Err|Some|None)\\b"
+        },
+        {
+          "name": "constant.language.boolean.zenscript",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "invalid.illegal.keyword.zenscript",
+          "match": "\\b(let|var|class|enum|throw|null|undefined|any|as)\\b"
+        }
+      ]
+    },
+    "storage": {
+      "patterns": [
+        {
+          "name": "storage.type.zenscript",
+          "match": "\\b(const|function|type)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.underscore.zenscript",
+          "match": "\\b_\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.zenscript",
+          "match": "\\b(number|string|bool|void|unknown)\\b"
+        },
+        {
+          "name": "support.type.builtin.zenscript",
+          "match": "\\b(Result|Option|Brand|Array)\\b"
+        },
+        {
+          "comment": "User-defined types (PascalCase identifiers)",
+          "name": "entity.name.type.zenscript",
+          "match": "\\b[A-Z][a-zA-Z0-9]*\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.pipe.zenscript",
+          "match": "\\|>"
+        },
+        {
+          "name": "keyword.operator.arrow.zenscript",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.fat-arrow.zenscript",
+          "match": "=>"
+        },
+        {
+          "name": "keyword.operator.unwrap.zenscript",
+          "match": "\\?"
+        },
+        {
+          "name": "keyword.operator.spread.zenscript",
+          "match": "\\.\\.(?!\\.)"
+        },
+        {
+          "name": "keyword.operator.comparison.zenscript",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.logical.zenscript",
+          "match": "&&|\\|\\||!"
+        },
+        {
+          "name": "keyword.operator.arithmetic.zenscript",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "name": "keyword.operator.assignment.zenscript",
+          "match": "="
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "comment": "Function declarations",
+          "match": "\\b(function)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.function.zenscript" },
+            "2": { "name": "entity.name.function.zenscript" }
+          }
+        },
+        {
+          "comment": "Function calls",
+          "match": "\\b([a-z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.zenscript" }
+          }
+        }
+      ]
+    },
+    "jsx": {
+      "patterns": [
+        {
+          "comment": "JSX self-closing tag",
+          "match": "<([A-Z][a-zA-Z0-9]*|[a-z][a-zA-Z0-9-]*)\\s*[^>]*/\\s*>",
+          "captures": {
+            "1": { "name": "entity.name.tag.zenscript" }
+          }
+        },
+        {
+          "comment": "JSX opening tag name",
+          "match": "</?([A-Z][a-zA-Z0-9]*|[a-z][a-zA-Z0-9-]*)",
+          "captures": {
+            "1": { "name": "entity.name.tag.zenscript" }
+          }
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.zenscript",
+          "match": "\\b\\d+(\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.zenscript",
+          "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}

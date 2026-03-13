@@ -1,0 +1,114 @@
+{
+  "Function Declaration": {
+    "prefix": "fn",
+    "body": [
+      "function ${1:name}(${2:params}): ${3:ReturnType} {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Function declaration"
+  },
+  "Export Function": {
+    "prefix": "efn",
+    "body": [
+      "export function ${1:name}(${2:params}): ${3:ReturnType} {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Exported function declaration"
+  },
+  "Match Expression": {
+    "prefix": "match",
+    "body": [
+      "match ${1:expr} {",
+      "\t${2:pattern} -> ${3:body},",
+      "\t_ -> ${0:default},",
+      "}"
+    ],
+    "description": "Match expression"
+  },
+  "Match Result": {
+    "prefix": "matchr",
+    "body": [
+      "match ${1:result} {",
+      "\tOk(${2:value}) -> ${3:body},",
+      "\tErr(${4:error}) -> ${0:errorBody},",
+      "}"
+    ],
+    "description": "Match on Result"
+  },
+  "Match Option": {
+    "prefix": "matcho",
+    "body": [
+      "match ${1:option} {",
+      "\tSome(${2:value}) -> ${3:body},",
+      "\tNone -> ${0:default},",
+      "}"
+    ],
+    "description": "Match on Option"
+  },
+  "Type Record": {
+    "prefix": "type",
+    "body": [
+      "type ${1:Name} = {",
+      "\t${2:field}: ${3:Type},",
+      "}"
+    ],
+    "description": "Record type declaration"
+  },
+  "Type Union": {
+    "prefix": "union",
+    "body": [
+      "type ${1:Name} =",
+      "\t| ${2:Variant1}",
+      "\t| ${3:Variant2}"
+    ],
+    "description": "Union type declaration"
+  },
+  "React Component": {
+    "prefix": "comp",
+    "body": [
+      "export function ${1:Component}() {",
+      "\treturn <div>",
+      "\t\t$0",
+      "\t</div>",
+      "}"
+    ],
+    "description": "React component"
+  },
+  "Import": {
+    "prefix": "imp",
+    "body": [
+      "import { ${2:name} } from \"${1:module}\""
+    ],
+    "description": "Import statement"
+  },
+  "Pipe": {
+    "prefix": "pipe",
+    "body": [
+      "${1:value} |> ${0:transform}"
+    ],
+    "description": "Pipe expression"
+  },
+  "Const": {
+    "prefix": "co",
+    "body": [
+      "const ${1:name} = ${0:value}"
+    ],
+    "description": "Const declaration"
+  },
+  "Branded Type": {
+    "prefix": "brand",
+    "body": [
+      "type ${1:Name} = Brand<${2:string}, \"${1:Name}\">"
+    ],
+    "description": "Branded type"
+  },
+  "Opaque Type": {
+    "prefix": "opaque",
+    "body": [
+      "opaque type ${1:Name} = ${2:BaseType}"
+    ],
+    "description": "Opaque type"
+  }
+}
