@@ -1,0 +1,10 @@
+---
+source: tests/snapshot_codegen.rs
+assertion_line: 56
+expression: output
+---
+type User = { id: string; name: string; email: string };
+
+type Status = { tag: "Active" } | { tag: "Inactive"; reason: string };
+
+type UserId = string;

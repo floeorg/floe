@@ -1,0 +1,14 @@
+---
+source: tests/snapshot_errors.rs
+assertion_line: 92
+expression: output
+---
+[31m[E005] Error:[0m unhandled Result
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.zs:1:1 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m1 │[0m [31mO[0m[31mk[0m[31m([0m[31m4[0m[31m2[0m[31m)[0m
+ [38;5;240m  │[0m [31m─[0m[31m─[0m[31m─[0m[31m┬[0m[31m─[0m[31m─[0m  
+ [38;5;240m  │[0m    [31m╰[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m this Result is not used
+ [38;5;240m  │[0m 
+ [38;5;240m  │[0m [38;5;115mHelp[0m: Use `?`, `match`, or assign to `_`
+[38;5;246m───╯[0m

@@ -1,0 +1,14 @@
+---
+source: tests/snapshot_errors.rs
+assertion_line: 71
+expression: output
+---
+[31m[E008] Error:[0m cannot compare `number` with `string`
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.zs:1:12 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m1 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m_[0m[38;5;249mx[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[31m1[0m[31m [0m[31m=[0m[31m=[0m[31m [0m[31m"[0m[31mh[0m[31me[0m[31ml[0m[31ml[0m[31mo[0m[31m"[0m
+ [38;5;240m  │[0m            [31m─[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m[31m┬[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m  
+ [38;5;240m  │[0m                  [31m╰[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m type mismatch in comparison
+ [38;5;240m  │[0m 
+ [38;5;240m  │[0m [38;5;115mHelp[0m: Convert one side to match the other
+[38;5;246m───╯[0m

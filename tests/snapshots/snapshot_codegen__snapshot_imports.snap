@@ -1,0 +1,8 @@
+---
+source: tests/snapshot_codegen.rs
+assertion_line: 68
+expression: output
+---
+import { useState, useEffect } from "react";
+
+import { fetchUser } from "./api";

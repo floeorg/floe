@@ -3,6 +3,10 @@ name = "zenscript"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "zenscript"
+path = "src/lib.rs"
+
 [[bin]]
 name = "zsc"
 path = "src/main.rs"
@@ -12,3 +16,6 @@ anyhow = "1"
 ariadne = "0.5"
 clap = { version = "4", features = ["derive"] }
 notify = "7"
+
+[dev-dependencies]
+insta = "1.46.3"

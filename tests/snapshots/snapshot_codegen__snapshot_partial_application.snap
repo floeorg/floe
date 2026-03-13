@@ -1,0 +1,8 @@
+---
+source: tests/snapshot_codegen.rs
+assertion_line: 80
+expression: output
+---
+const addTen = (_x) => add(10, _x);
+
+const items = map([1, 2, 3], (_x) => multiply(_x, 2));

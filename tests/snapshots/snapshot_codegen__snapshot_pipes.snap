@@ -1,0 +1,8 @@
+---
+source: tests/snapshot_codegen.rs
+assertion_line: 32
+expression: output
+---
+const result = format(transform(data));
+
+const placed = wrap("(", value, ")");

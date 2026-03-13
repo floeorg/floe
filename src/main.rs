@@ -1,17 +1,12 @@
-pub mod checker;
-pub mod codegen;
-pub mod diagnostic;
-pub mod lexer;
-pub mod parser;
-
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 
-use checker::Checker;
-use codegen::Codegen;
-use parser::Parser as ZsParser;
+use zenscript::checker::Checker;
+use zenscript::codegen::Codegen;
+use zenscript::diagnostic;
+use zenscript::parser::Parser as ZsParser;
 
 #[derive(Parser)]
 #[command(name = "zsc", version, about = "The ZenScript compiler")]

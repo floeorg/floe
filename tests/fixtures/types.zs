@@ -1,0 +1,11 @@
+type User = {
+    id: string,
+    name: string,
+    email: string,
+}
+
+type Status =
+    | Active
+    | Inactive(reason: string)
+
+type UserId = Brand<string, UserId>

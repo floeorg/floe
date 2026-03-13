@@ -1,0 +1,8 @@
+---
+source: tests/snapshot_codegen.rs
+assertion_line: 38
+expression: output
+---
+type Route = { tag: "Home" } | { tag: "Profile"; id: string } | { tag: "NotFound" };
+
+const page = route.tag === "Home" ? "home" : route.tag === "Profile" ? (() => { const id = route.value; return id; })() : route.tag === "NotFound" ? "404" : (() => { throw new Error("non-exhaustive match"); })();

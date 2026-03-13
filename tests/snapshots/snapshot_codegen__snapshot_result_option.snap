@@ -1,0 +1,12 @@
+---
+source: tests/snapshot_codegen.rs
+assertion_line: 44
+expression: output
+---
+const ok = { ok: true as const, value: 42 };
+
+const err = { ok: false as const, error: "failed" };
+
+const some = "hello";
+
+const none = undefined;

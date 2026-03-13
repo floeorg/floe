@@ -1,0 +1,6 @@
+---
+source: tests/snapshot_codegen.rs
+assertion_line: 26
+expression: output
+---
+const greeting = "Hello, ZenScript!";
