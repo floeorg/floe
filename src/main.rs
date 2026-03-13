@@ -43,6 +43,8 @@ enum Command {
         /// Project directory (defaults to current directory)
         path: Option<PathBuf>,
     },
+    /// Start the language server (LSP)
+    Lsp,
 }
 
 fn main() -> Result<()> {
@@ -53,6 +55,10 @@ fn main() -> Result<()> {
         Command::Check { path } => cmd_check(&path),
         Command::Watch { path, out_dir } => cmd_watch(&path, out_dir.as_deref()),
         Command::Init { path } => cmd_init(path.as_deref()),
+        Command::Lsp => {
+            tokio::runtime::Runtime::new()?.block_on(zenscript::lsp::run_lsp());
+            Ok(())
+        }
     }
 }
 
