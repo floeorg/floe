@@ -1538,27 +1538,28 @@ impl Parser {
                     let element = self.parse_jsx_element()?;
                     children.push(JsxChild::Element(element));
                 }
-                // Text content — collect identifier tokens as text
-                TokenKind::Identifier(text) => {
-                    let mut text_buf = text.clone();
-                    self.advance();
-                    // Collect subsequent text-like tokens
-                    while !self.is_at_end()
-                        && !self.check(&TokenKind::LeftBrace)
-                        && !self.check(&TokenKind::LessThan)
-                    {
-                        match self.current_kind() {
-                            TokenKind::Identifier(t) => {
+                // Text content — collect text-like tokens
+                _ => {
+                    if let Some(text) = self.token_as_jsx_text() {
+                        let mut text_buf = text;
+                        self.advance();
+                        while !self.is_at_end()
+                            && !self.check(&TokenKind::LeftBrace)
+                            && !self.check(&TokenKind::LessThan)
+                        {
+                            if let Some(t) = self.token_as_jsx_text() {
                                 text_buf.push(' ');
-                                text_buf.push_str(&t.clone());
+                                text_buf.push_str(&t);
                                 self.advance();
+                            } else {
+                                break;
                             }
-                            _ => break,
                         }
+                        children.push(JsxChild::Text(text_buf));
+                    } else {
+                        break;
                     }
-                    children.push(JsxChild::Text(text_buf));
                 }
-                _ => break,
             }
         }
 
@@ -1619,6 +1620,16 @@ impl Parser {
 
     fn is_identifier(&self) -> bool {
         matches!(self.tokens[self.pos].kind, TokenKind::Identifier(_))
+    }
+
+    /// Try to interpret the current token as JSX text content.
+    fn token_as_jsx_text(&self) -> Option<String> {
+        match &self.tokens[self.pos].kind {
+            TokenKind::Identifier(s) => Some(s.clone()),
+            TokenKind::Number(s) => Some(s.clone()),
+            TokenKind::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 
     /// Check if the current token is `|` used in union type declarations.
