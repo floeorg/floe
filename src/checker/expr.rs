@@ -203,7 +203,25 @@ impl Checker {
                             );
                         }
 
-                        // Check argument types
+                        // If explicit type args are provided, substitute generic params
+                        let return_type = if !type_args.is_empty() {
+                            let resolved_type_args: Vec<Type> =
+                                type_args.iter().map(|t| self.resolve_type(t)).collect();
+                            // Collect generic param names from the function signature
+                            let generic_params =
+                                Self::collect_generic_params(&params, &return_type);
+                            let substitutions: HashMap<String, Type> =
+                                generic_params.into_iter().zip(resolved_type_args).collect();
+                            if substitutions.is_empty() {
+                                *return_type
+                            } else {
+                                Self::substitute_generics(&return_type, &substitutions)
+                            }
+                        } else {
+                            *return_type
+                        };
+
+                        // Check argument types (after substitution)
                         for (i, (arg_ty, param_ty)) in
                             arg_types.iter().zip(params.iter()).enumerate()
                         {
@@ -227,17 +245,9 @@ impl Checker {
                             }
                         }
 
-                        *return_type
+                        return_type
                     }
-                    _ => {
-                        // For unknown external functions with type args (e.g., useState<Array<Todo>>),
-                        // use the first type arg as the return type
-                        if !type_args.is_empty() {
-                            self.resolve_type(&type_args[0])
-                        } else {
-                            Type::Unknown
-                        }
-                    }
+                    _ => Type::Unknown,
                 }
             }
 
@@ -847,6 +857,83 @@ impl Checker {
                     }
                 }
             }
+        }
+    }
+
+    /// Collect single-letter type param names used in a function signature.
+    /// These are `Named("S")`, `Named("T")`, etc. that represent generic params.
+    fn collect_generic_params(params: &[Type], return_type: &Type) -> Vec<String> {
+        let mut names = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for ty in params.iter().chain(std::iter::once(return_type)) {
+            Self::collect_generic_params_from_type(ty, &mut names, &mut seen);
+        }
+        names
+    }
+
+    fn collect_generic_params_from_type(
+        ty: &Type,
+        names: &mut Vec<String>,
+        seen: &mut std::collections::HashSet<String>,
+    ) {
+        match ty {
+            Type::Named(n) if n.len() == 1 && n.chars().next().unwrap().is_ascii_uppercase() => {
+                if seen.insert(n.clone()) {
+                    names.push(n.clone());
+                }
+            }
+            Type::Array(inner) | Type::Option(inner) => {
+                Self::collect_generic_params_from_type(inner, names, seen);
+            }
+            Type::Tuple(types) => {
+                for t in types {
+                    Self::collect_generic_params_from_type(t, names, seen);
+                }
+            }
+            Type::Function {
+                params,
+                return_type,
+            } => {
+                for p in params {
+                    Self::collect_generic_params_from_type(p, names, seen);
+                }
+                Self::collect_generic_params_from_type(return_type, names, seen);
+            }
+            Type::Result { ok, err } => {
+                Self::collect_generic_params_from_type(ok, names, seen);
+                Self::collect_generic_params_from_type(err, names, seen);
+            }
+            _ => {}
+        }
+    }
+
+    /// Substitute generic type params (e.g. Named("S") → Array<Todo>) in a type.
+    fn substitute_generics(ty: &Type, subs: &HashMap<String, Type>) -> Type {
+        match ty {
+            Type::Named(n) if subs.contains_key(n) => subs[n].clone(),
+            Type::Array(inner) => Type::Array(Box::new(Self::substitute_generics(inner, subs))),
+            Type::Option(inner) => Type::Option(Box::new(Self::substitute_generics(inner, subs))),
+            Type::Tuple(types) => Type::Tuple(
+                types
+                    .iter()
+                    .map(|t| Self::substitute_generics(t, subs))
+                    .collect(),
+            ),
+            Type::Function {
+                params,
+                return_type,
+            } => Type::Function {
+                params: params
+                    .iter()
+                    .map(|t| Self::substitute_generics(t, subs))
+                    .collect(),
+                return_type: Box::new(Self::substitute_generics(return_type, subs)),
+            },
+            Type::Result { ok, err } => Type::Result {
+                ok: Box::new(Self::substitute_generics(ok, subs)),
+                err: Box::new(Self::substitute_generics(err, subs)),
+            },
+            other => other.clone(),
         }
     }
 

@@ -324,28 +324,55 @@ const _x = greet(User(name: "Ryan"), "Hello")
 
 #[test]
 fn call_site_type_args_infer_return() {
-    let (diags, types) = {
-        let program = crate::parser::Parser::new(
-            r#"
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
 import { useState } from "react"
 type Todo = { text: string }
-const [todos, setTodos] = useState<Array<Todo>>([])
+const [todos, _setTodos] = useState<Array<Todo>>([])
 const _x = todos
 "#,
-        )
-        .parse_program()
-        .expect("should parse");
-        Checker::new().check_with_types(&program)
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Provide a mock useState type: <S>(initialState: S) => [S, (S) => void]
+    let use_state_export = DtsExport {
+        name: "useState".to_string(),
+        ts_type: TsType::Function {
+            params: vec![TsType::Named("S".to_string())],
+            return_type: Box::new(TsType::Tuple(vec![
+                TsType::Named("S".to_string()),
+                TsType::Function {
+                    params: vec![TsType::Named("S".to_string())],
+                    return_type: Box::new(TsType::Primitive("void".to_string())),
+                },
+            ])),
+        },
     };
-    // todos should be Array<Todo>, not Unknown
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("react".to_string(), vec![use_state_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, types) = checker.check_with_types(&program);
+
     assert!(
         !has_error_containing(&diags, "not defined"),
         "unexpected errors: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
-    // Check that todos has Array type via the name map
+    // todos should be Array<Todo> (first element of the substituted tuple)
     if let Some(ty) = types.get("todos") {
         assert!(ty.contains("Array"), "expected Array type, got: {ty}");
+    }
+    // _setTodos should be a function (second element of the substituted tuple)
+    if let Some(ty) = types.get("_setTodos") {
+        assert!(
+            ty.contains("->"),
+            "expected function type for setter, got: {ty}"
+        );
     }
 }
 

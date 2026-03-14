@@ -12,6 +12,7 @@ use std::collections::{HashMap, HashSet};
 pub type ExprTypeMap = HashMap<(usize, usize), Type>;
 
 use crate::diagnostic::Diagnostic;
+use crate::interop::{self, DtsExport};
 use crate::lexer::span::Span;
 use crate::parser::ast::*;
 use crate::resolve::ResolvedImports;
@@ -46,6 +47,8 @@ pub struct Checker {
     registering_types: bool,
     /// Pre-resolved imports from other .fl files, keyed by import source string.
     resolved_imports: HashMap<String, ResolvedImports>,
+    /// Pre-resolved .d.ts exports for npm imports, keyed by specifier (e.g. "react").
+    dts_imports: HashMap<String, Vec<DtsExport>>,
     /// When inside a pipe, holds the type of the piped (left) value.
     /// The Call handler uses this to account for the implicit first argument.
     pipe_input_type: Option<Type>,
@@ -76,6 +79,7 @@ impl Checker {
             inside_try: false,
             registering_types: false,
             resolved_imports: HashMap::new(),
+            dts_imports: HashMap::new(),
             pipe_input_type: None,
             name_types: HashMap::new(),
         }
@@ -85,6 +89,18 @@ impl Checker {
     pub fn with_imports(imports: HashMap<String, ResolvedImports>) -> Self {
         Self {
             resolved_imports: imports,
+            ..Self::new()
+        }
+    }
+
+    /// Create a checker with both .fl and .d.ts imports.
+    pub fn with_all_imports(
+        fl_imports: HashMap<String, ResolvedImports>,
+        dts_imports: HashMap<String, Vec<DtsExport>>,
+    ) -> Self {
+        Self {
+            resolved_imports: fl_imports,
+            dts_imports,
             ..Self::new()
         }
     }
@@ -424,6 +440,7 @@ impl Checker {
     fn check_import(&mut self, decl: &ImportDecl) {
         // Look up resolved symbols for this import source
         let resolved = self.resolved_imports.get(&decl.source).cloned();
+        let dts_exports = self.dts_imports.get(&decl.source).cloned();
 
         for spec in &decl.specifiers {
             let effective_name = spec.alias.as_deref().unwrap_or(&spec.name);
@@ -431,6 +448,13 @@ impl Checker {
             // Try to find the actual type from resolved imports
             let ty = if let Some(ref resolved) = resolved {
                 self.lookup_resolved_symbol(&spec.name, resolved)
+            } else if let Some(ref exports) = dts_exports {
+                // Look up in .d.ts exports
+                exports
+                    .iter()
+                    .find(|e| e.name == spec.name)
+                    .map(|e| interop::wrap_boundary_type(&e.ts_type))
+                    .unwrap_or(Type::Unknown)
             } else {
                 Type::Unknown
             };
