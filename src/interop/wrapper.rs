@@ -29,13 +29,20 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
 
         TsType::Generic { name, args } => {
             match name.as_str() {
-                "Promise" if args.len() == 1 => {
-                    // Promise<T> stays as a named type
-                    Type::Named(format!("Promise<{:?}>", wrap_boundary_type(&args[0])))
+                "Array" | "ReadonlyArray" if args.len() == 1 => {
+                    Type::Array(Box::new(wrap_boundary_type(&args[0])))
                 }
+                "Promise" if args.len() == 1 => Type::Named(format!(
+                    "Promise<{}>",
+                    wrap_boundary_type(&args[0]).display_name()
+                )),
                 _ => {
-                    // Generic named type
-                    Type::Named(name.clone())
+                    // Preserve generic args in the display name
+                    let args_str: Vec<String> = args
+                        .iter()
+                        .map(|a| wrap_boundary_type(a).display_name())
+                        .collect();
+                    Type::Named(format!("{}<{}>", name, args_str.join(", ")))
                 }
             }
         }

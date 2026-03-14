@@ -203,15 +203,18 @@ impl Checker {
                             );
                         }
 
-                        // If explicit type args are provided, substitute generic params
-                        let return_type = if !type_args.is_empty() {
-                            let resolved_type_args: Vec<Type> =
-                                type_args.iter().map(|t| self.resolve_type(t)).collect();
-                            // Collect generic param names from the function signature
-                            let generic_params =
-                                Self::collect_generic_params(&params, &return_type);
-                            let substitutions: HashMap<String, Type> =
-                                generic_params.into_iter().zip(resolved_type_args).collect();
+                        // Substitute generic params if we can resolve them
+                        let generic_params = Self::collect_generic_params(&params, &return_type);
+                        let return_type = if !generic_params.is_empty() {
+                            let substitutions = if !type_args.is_empty() {
+                                // Explicit type args: useState<Array<Todo>>
+                                let resolved: Vec<Type> =
+                                    type_args.iter().map(|t| self.resolve_type(t)).collect();
+                                generic_params.into_iter().zip(resolved).collect()
+                            } else {
+                                // Infer from arguments: useState("") → S = string
+                                Self::infer_generic_params(&generic_params, &params, &arg_types)
+                            };
                             if substitutions.is_empty() {
                                 *return_type
                             } else {
@@ -902,6 +905,52 @@ impl Checker {
             Type::Result { ok, err } => {
                 Self::collect_generic_params_from_type(ok, names, seen);
                 Self::collect_generic_params_from_type(err, names, seen);
+            }
+            _ => {}
+        }
+    }
+
+    /// Infer generic params by matching argument types against parameter types.
+    /// e.g., param `S` with arg `string` → S = string
+    fn infer_generic_params(
+        generic_params: &[String],
+        param_types: &[Type],
+        arg_types: &[Type],
+    ) -> HashMap<String, Type> {
+        let mut subs = HashMap::new();
+        for (param_ty, arg_ty) in param_types.iter().zip(arg_types.iter()) {
+            Self::unify_for_inference(param_ty, arg_ty, generic_params, &mut subs);
+        }
+        subs
+    }
+
+    /// Try to unify a parameter type with an argument type to infer generic params.
+    fn unify_for_inference(
+        param: &Type,
+        arg: &Type,
+        generics: &[String],
+        subs: &mut HashMap<String, Type>,
+    ) {
+        match (param, arg) {
+            // Named("S") matches anything if S is a generic param
+            (Type::Named(n), _) if generics.contains(n) && !matches!(arg, Type::Unknown) => {
+                subs.entry(n.clone()).or_insert_with(|| arg.clone());
+            }
+            // Recurse into compound types
+            (Type::Array(p), Type::Array(a)) => {
+                Self::unify_for_inference(p, a, generics, subs);
+            }
+            (Type::Option(p), Type::Option(a)) => {
+                Self::unify_for_inference(p, a, generics, subs);
+            }
+            (Type::Result { ok: po, err: pe }, Type::Result { ok: ao, err: ae }) => {
+                Self::unify_for_inference(po, ao, generics, subs);
+                Self::unify_for_inference(pe, ae, generics, subs);
+            }
+            // Union param: try matching arg against first non-generic member
+            // e.g., S | (() => S) with arg "hello" → S = string
+            (Type::Named(n), _) if generics.contains(n) => {
+                subs.entry(n.clone()).or_insert_with(|| arg.clone());
             }
             _ => {}
         }
