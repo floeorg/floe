@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZenScript Playground</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #1e1e2e;
+      --surface: #181825;
+      --overlay: #313244;
+      --text: #cdd6f4;
+      --subtext: #a6adc8;
+      --accent: #89b4fa;
+      --green: #a6e3a1;
+      --red: #f38ba8;
+      --yellow: #f9e2af;
+      --border: #45475a;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    header h1 span {
+      color: var(--subtext);
+      font-weight: 400;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .header-actions button {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .header-actions button:hover {
+      background: var(--overlay);
+    }
+
+    .editor-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .pane + .pane {
+      border-left: 1px solid var(--border);
+    }
+
+    .pane-header {
+      padding: 8px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--subtext);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pane-header .status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .pane-header .status.error {
+      background: var(--red);
+    }
+
+    textarea {
+      flex: 1;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      border: none;
+      resize: none;
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      tab-size: 2;
+      outline: none;
+    }
+
+    .output-area {
+      flex: 1;
+      padding: 16px;
+      overflow: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre;
+    }
+
+    .diagnostics {
+      padding: 8px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+      font-size: 12px;
+    }
+
+    .diagnostic-item {
+      padding: 4px 0;
+      display: flex;
+      gap: 8px;
+    }
+
+    .diagnostic-item .severity {
+      font-weight: 600;
+    }
+
+    .diagnostic-item .severity.error { color: var(--red); }
+    .diagnostic-item .severity.warning { color: var(--yellow); }
+    .diagnostic-item .location { color: var(--subtext); }
+    .diagnostic-item .message { color: var(--text); }
+
+    .no-diagnostics {
+      color: var(--subtext);
+      font-style: italic;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: var(--subtext);
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ZenScript <span>Playground</span></h1>
+    <div class="header-actions">
+      <button id="share-btn">Share</button>
+      <button id="format-btn">Format</button>
+    </div>
+  </header>
+
+  <div class="editor-container">
+    <div class="pane">
+      <div class="pane-header">
+        <span>input.zs</span>
+      </div>
+      <textarea id="input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">import { useState } from "react"
+
+type Todo = {
+  id: string,
+  text: string,
+  done: bool,
+}
+
+export function App(): JSX.Element {
+  const [todos, setTodos] = useState([])
+
+  const completed = todos
+    |> filter(t => t.done)
+    |> length
+
+  return &lt;div&gt;
+    &lt;h1&gt;Todos ({completed} done)&lt;/h1&gt;
+    {todos |> map(t =&gt; &lt;p key={t.id}&gt;{t.text}&lt;/p&gt;)}
+  &lt;/div&gt;
+}</textarea>
+    </div>
+
+    <div class="pane">
+      <div class="pane-header">
+        <div class="status" id="status-dot"></div>
+        <span>output.tsx</span>
+      </div>
+      <div class="output-area" id="output">
+        <div class="loading" id="loading">Loading compiler...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="diagnostics" id="diagnostics">
+    <span class="no-diagnostics">No diagnostics</span>
+  </div>
+
+  <script type="module">
+    import init, { compile, version } from './pkg/zenscript_wasm.js';
+
+    let compileTimeout = null;
+
+    async function main() {
+      await init();
+
+      const input = document.getElementById('input');
+      const output = document.getElementById('output');
+      const diagnosticsEl = document.getElementById('diagnostics');
+      const statusDot = document.getElementById('status-dot');
+      const loading = document.getElementById('loading');
+      const shareBtn = document.getElementById('share-btn');
+
+      loading.remove();
+
+      // Load source from URL hash if present
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        try {
+          input.value = decodeURIComponent(atob(hash));
+        } catch { /* ignore invalid hash */ }
+      }
+
+      function doCompile() {
+        const source = input.value;
+        const result = compile(source);
+
+        // Show output
+        if (result.output) {
+          output.textContent = result.output;
+        } else {
+          output.textContent = '// No output';
+        }
+
+        // Show diagnostics
+        if (result.diagnostics && result.diagnostics.length > 0) {
+          statusDot.className = 'status error';
+          diagnosticsEl.innerHTML = result.diagnostics.map(d => {
+            const sev = d.severity.toLowerCase();
+            const sevClass = sev.includes('error') ? 'error' : 'warning';
+            return `<div class="diagnostic-item">
+              <span class="severity ${sevClass}">${sev}</span>
+              <span class="location">${d.line}:${d.column}</span>
+              <span class="message">${escapeHtml(d.message)}</span>
+            </div>`;
+          }).join('');
+        } else {
+          statusDot.className = 'status';
+          diagnosticsEl.innerHTML = '<span class="no-diagnostics">No diagnostics</span>';
+        }
+      }
+
+      // Debounced compile on input
+      input.addEventListener('input', () => {
+        clearTimeout(compileTimeout);
+        compileTimeout = setTimeout(doCompile, 150);
+      });
+
+      // Tab key inserts spaces
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          const start = input.selectionStart;
+          const end = input.selectionEnd;
+          input.value = input.value.substring(0, start) + '  ' + input.value.substring(end);
+          input.selectionStart = input.selectionEnd = start + 2;
+          clearTimeout(compileTimeout);
+          compileTimeout = setTimeout(doCompile, 150);
+        }
+      });
+
+      // Share button
+      shareBtn.addEventListener('click', () => {
+        const encoded = btoa(encodeURIComponent(input.value));
+        window.location.hash = encoded;
+        navigator.clipboard.writeText(window.location.href).then(() => {
+          shareBtn.textContent = 'Copied!';
+          setTimeout(() => { shareBtn.textContent = 'Share'; }, 1500);
+        });
+      });
+
+      // Initial compile
+      doCompile();
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    main().catch(console.error);
+  </script>
+</body>
+</html>
