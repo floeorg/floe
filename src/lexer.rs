@@ -30,6 +30,7 @@ impl<'src> Lexer<'src> {
     }
 
     /// Tokenize the entire source, returning all tokens including Eof.
+    /// Trivia (whitespace, comments) is skipped.
     pub fn tokenize(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
         loop {
@@ -43,7 +44,72 @@ impl<'src> Lexer<'src> {
         tokens
     }
 
-    /// Advance to the next token.
+    /// Tokenize the entire source, including trivia tokens (whitespace, comments).
+    pub fn tokenize_with_trivia(&mut self) -> Vec<Token> {
+        let mut tokens = Vec::new();
+        loop {
+            let token = self.next_token_with_trivia();
+            let is_eof = token.kind == TokenKind::Eof;
+            tokens.push(token);
+            if is_eof {
+                break;
+            }
+        }
+        tokens
+    }
+
+    /// Advance to the next token, emitting trivia tokens for whitespace/comments.
+    pub fn next_token_with_trivia(&mut self) -> Token {
+        if self.is_at_end() {
+            return self.make_token(TokenKind::Eof, self.pos);
+        }
+
+        // Check for trivia first
+        match self.peek() {
+            Some(b' ' | b'\t' | b'\r' | b'\n') => {
+                let start = self.pos;
+                while !self.is_at_end()
+                    && matches!(self.peek(), Some(b' ' | b'\t' | b'\r' | b'\n'))
+                {
+                    self.advance();
+                }
+                return self.make_token(TokenKind::Whitespace, start);
+            }
+            Some(b'/') if self.peek_at(1) == Some(b'/') => {
+                let start = self.pos;
+                while !self.is_at_end() && self.peek() != Some(b'\n') {
+                    self.advance();
+                }
+                return self.make_token(TokenKind::Comment, start);
+            }
+            Some(b'/') if self.peek_at(1) == Some(b'*') => {
+                let start = self.pos;
+                self.advance(); // /
+                self.advance(); // *
+                let mut depth = 1;
+                while !self.is_at_end() && depth > 0 {
+                    if self.peek() == Some(b'*') && self.peek_at(1) == Some(b'/') {
+                        self.advance();
+                        self.advance();
+                        depth -= 1;
+                    } else if self.peek() == Some(b'/') && self.peek_at(1) == Some(b'*') {
+                        self.advance();
+                        self.advance();
+                        depth += 1;
+                    } else {
+                        self.advance();
+                    }
+                }
+                return self.make_token(TokenKind::BlockComment, start);
+            }
+            _ => {}
+        }
+
+        // Non-trivia token — delegate to the core scanning logic
+        self.scan_non_trivia_token()
+    }
+
+    /// Advance to the next token (skipping trivia).
     pub fn next_token(&mut self) -> Token {
         self.skip_whitespace_and_comments();
 
@@ -51,6 +117,11 @@ impl<'src> Lexer<'src> {
             return self.make_token(TokenKind::Eof, self.pos);
         }
 
+        self.scan_non_trivia_token()
+    }
+
+    /// Scan a non-trivia token. Assumes we are NOT at whitespace/comment/EOF.
+    fn scan_non_trivia_token(&mut self) -> Token {
         let start = self.pos;
         let ch = self.advance();
 

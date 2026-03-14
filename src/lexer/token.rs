@@ -138,6 +138,14 @@ pub enum TokenKind {
     // -- Banned tokens (produce compile errors) --
     /// A banned keyword was used — carries the keyword and a help message.
     Banned(BannedKeyword),
+
+    // -- Trivia --
+    /// Whitespace (spaces, tabs, newlines)
+    Whitespace,
+    /// Line comment: `// ...`
+    Comment,
+    /// Block comment: `/* ... */`
+    BlockComment,
 }
 
 /// Template literal parts: either a raw string segment or an interpolation hole.
