@@ -12,6 +12,12 @@ pub fn format(source: &str) -> String {
     formatter.finish()
 }
 
+enum JsxChildInfo {
+    Text(String),
+    Expr(SyntaxNode),
+    Element(SyntaxNode),
+}
+
 enum PipeSegment {
     Node(SyntaxNode),
     Token(String),
@@ -1214,11 +1220,297 @@ impl<'src> Formatter<'src> {
     }
 
     fn fmt_jsx(&mut self, node: &SyntaxNode) {
-        // For now, emit JSX verbatim from source
-        let range = node.text_range();
-        let start: usize = range.start().into();
-        let end: usize = range.end().into();
-        self.write(&self.source[start..end]);
+        // Detect fragment vs element by looking for tag name
+        let tag_name = self.jsx_tag_name(node);
+        let is_fragment = tag_name.is_none();
+        let is_self_closing =
+            self.has_token(node, SyntaxKind::SLASH) && !self.jsx_has_children(node);
+
+        let props: Vec<_> = node
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::JSX_PROP)
+            .collect();
+
+        let children = self.jsx_collect_children(node);
+
+        if is_fragment {
+            // <>children</>
+            self.write("<>");
+            if children.is_empty() {
+                self.write("</>");
+                return;
+            }
+            self.fmt_jsx_children(&children);
+            self.write("</>");
+            return;
+        }
+
+        let name = tag_name.unwrap();
+
+        // Opening tag
+        self.write("<");
+        self.write(&name);
+
+        // Props
+        if !props.is_empty() {
+            if props.len() <= 3 && self.jsx_props_short(&props) {
+                // Inline props
+                for prop in &props {
+                    self.write(" ");
+                    self.fmt_jsx_prop(prop);
+                }
+            } else {
+                // Multi-line props
+                self.indent += 1;
+                for prop in &props {
+                    self.newline();
+                    self.write_indent();
+                    self.fmt_jsx_prop(prop);
+                }
+                self.indent -= 1;
+                self.newline();
+                self.write_indent();
+            }
+        }
+
+        if is_self_closing {
+            self.write(" />");
+            return;
+        }
+
+        self.write(">");
+
+        if children.is_empty() {
+            self.write("</");
+            self.write(&name);
+            self.write(">");
+            return;
+        }
+
+        // Single text or single expr child → inline
+        let inline = children.len() == 1
+            && matches!(&children[0], JsxChildInfo::Text(_) | JsxChildInfo::Expr(_));
+
+        if inline {
+            self.fmt_jsx_children_inline(&children);
+        } else {
+            // Multi-line children
+            self.indent += 1;
+            self.fmt_jsx_children(&children);
+            self.indent -= 1;
+            self.newline();
+            self.write_indent();
+        }
+
+        self.write("</");
+        self.write(&name);
+        self.write(">");
+    }
+
+    fn fmt_jsx_prop(&mut self, node: &SyntaxNode) {
+        let name = self.first_ident(node);
+        if let Some(name) = name {
+            self.write(&name);
+        }
+
+        // Check for value
+        let has_eq = self.has_token(node, SyntaxKind::EQUAL);
+        if !has_eq {
+            return; // Boolean prop
+        }
+
+        self.write("=");
+
+        // Find value: string literal or {expr}
+        let has_lbrace = self.has_token(node, SyntaxKind::L_BRACE);
+        if has_lbrace {
+            self.write("{");
+            // Find the expression inside braces
+            let mut inside = false;
+            for child_or_tok in node.children_with_tokens() {
+                match child_or_tok {
+                    rowan::NodeOrToken::Token(tok) => {
+                        if tok.kind() == SyntaxKind::L_BRACE {
+                            inside = true;
+                            continue;
+                        }
+                        if tok.kind() == SyntaxKind::R_BRACE {
+                            break;
+                        }
+                        if inside && !tok.kind().is_trivia() {
+                            self.write(tok.text());
+                        }
+                    }
+                    rowan::NodeOrToken::Node(child) => {
+                        if inside {
+                            self.fmt_node(&child);
+                        }
+                    }
+                }
+            }
+            self.write("}");
+        } else {
+            // String value
+            for t in node.children_with_tokens() {
+                if let Some(tok) = t.as_token()
+                    && tok.kind() == SyntaxKind::STRING
+                {
+                    self.write(tok.text());
+                    break;
+                }
+            }
+        }
+    }
+
+    fn fmt_jsx_children_inline(&mut self, children: &[JsxChildInfo]) {
+        for child in children {
+            match child {
+                JsxChildInfo::Text(text) => {
+                    self.write(text.trim());
+                }
+                JsxChildInfo::Expr(node) => {
+                    self.write("{");
+                    let mut inside = false;
+                    for child_or_tok in node.children_with_tokens() {
+                        match child_or_tok {
+                            rowan::NodeOrToken::Token(tok) => {
+                                if tok.kind() == SyntaxKind::L_BRACE {
+                                    inside = true;
+                                    continue;
+                                }
+                                if tok.kind() == SyntaxKind::R_BRACE {
+                                    break;
+                                }
+                                if inside && !tok.kind().is_trivia() {
+                                    self.write(tok.text());
+                                }
+                            }
+                            rowan::NodeOrToken::Node(child) => {
+                                if inside {
+                                    self.fmt_node(&child);
+                                }
+                            }
+                        }
+                    }
+                    self.write("}");
+                }
+                JsxChildInfo::Element(node) => {
+                    self.fmt_jsx(node);
+                }
+            }
+        }
+    }
+
+    fn fmt_jsx_children(&mut self, children: &[JsxChildInfo]) {
+        for child in children {
+            match child {
+                JsxChildInfo::Text(text) => {
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        self.newline();
+                        self.write_indent();
+                        self.write(trimmed);
+                    }
+                }
+                JsxChildInfo::Expr(node) => {
+                    self.write("{");
+                    // Find the expression inside the JSX_EXPR_CHILD
+                    let mut inside = false;
+                    for child_or_tok in node.children_with_tokens() {
+                        match child_or_tok {
+                            rowan::NodeOrToken::Token(tok) => {
+                                if tok.kind() == SyntaxKind::L_BRACE {
+                                    inside = true;
+                                    continue;
+                                }
+                                if tok.kind() == SyntaxKind::R_BRACE {
+                                    break;
+                                }
+                                if inside && !tok.kind().is_trivia() {
+                                    self.write(tok.text());
+                                }
+                            }
+                            rowan::NodeOrToken::Node(child) => {
+                                if inside {
+                                    self.fmt_node(&child);
+                                }
+                            }
+                        }
+                    }
+                    self.write("}");
+                }
+                JsxChildInfo::Element(node) => {
+                    self.newline();
+                    self.write_indent();
+                    self.fmt_jsx(node);
+                }
+            }
+        }
+    }
+
+    fn jsx_tag_name(&self, node: &SyntaxNode) -> Option<String> {
+        // The tag name is the first IDENT token (after <)
+        let mut past_lt = false;
+        for t in node.children_with_tokens() {
+            if let Some(tok) = t.as_token() {
+                if tok.kind() == SyntaxKind::LESS_THAN {
+                    past_lt = true;
+                    continue;
+                }
+                if past_lt && tok.kind() == SyntaxKind::IDENT {
+                    return Some(tok.text().to_string());
+                }
+                if past_lt && !tok.kind().is_trivia() {
+                    // Hit > or / before finding ident — fragment
+                    return None;
+                }
+            }
+        }
+        None
+    }
+
+    fn jsx_has_children(&self, node: &SyntaxNode) -> bool {
+        node.children().any(|c| {
+            matches!(
+                c.kind(),
+                SyntaxKind::JSX_ELEMENT | SyntaxKind::JSX_EXPR_CHILD | SyntaxKind::JSX_TEXT
+            )
+        })
+    }
+
+    fn jsx_collect_children(&self, node: &SyntaxNode) -> Vec<JsxChildInfo> {
+        let mut children = Vec::new();
+        for child in node.children() {
+            match child.kind() {
+                SyntaxKind::JSX_TEXT => {
+                    let text = child.text().to_string();
+                    if !text.trim().is_empty() {
+                        children.push(JsxChildInfo::Text(text));
+                    }
+                }
+                SyntaxKind::JSX_EXPR_CHILD => {
+                    children.push(JsxChildInfo::Expr(child));
+                }
+                SyntaxKind::JSX_ELEMENT => {
+                    children.push(JsxChildInfo::Element(child));
+                }
+                _ => {}
+            }
+        }
+        children
+    }
+
+    fn jsx_props_short(&self, props: &[SyntaxNode]) -> bool {
+        // Estimate total prop text length
+        let total: usize = props
+            .iter()
+            .map(|p| {
+                let range = p.text_range();
+                let len: usize = (range.end() - range.start()).into();
+                len
+            })
+            .sum();
+        total < 60
     }
 
     // ── Verbatim fallback ───────────────────────────────────────
@@ -1586,5 +1878,38 @@ mod tests {
             "type UserId = Brand<string,UserId>",
             "type UserId = Brand<string, UserId>",
         );
+    }
+
+    // ── JSX ─────────────────────────────────────────────────────
+
+    #[test]
+    fn format_jsx_self_closing() {
+        assert_fmt("<Button />", "<Button />");
+    }
+
+    #[test]
+    fn format_jsx_self_closing_with_props() {
+        assert_fmt(
+            r#"<Button label="Save" onClick={handleSave} />"#,
+            r#"<Button label="Save" onClick={handleSave} />"#,
+        );
+    }
+
+    #[test]
+    fn format_jsx_with_expr_child() {
+        assert_fmt("<div>{x}</div>", "<div>{x}</div>");
+    }
+
+    #[test]
+    fn format_jsx_with_nested_elements() {
+        assert_fmt(
+            "<div><h1>Title</h1><p>Body</p></div>",
+            "<div>\n    <h1>Title</h1>\n    <p>Body</p>\n</div>",
+        );
+    }
+
+    #[test]
+    fn format_jsx_fragment() {
+        assert_fmt("<>{x}</>", "<>{x}</>");
     }
 }
