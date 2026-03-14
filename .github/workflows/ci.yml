@@ -13,7 +13,7 @@ env:
 jobs:
   check:
     name: Check & Test
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - uses: actions/checkout@v4
 
@@ -45,7 +45,7 @@ jobs:
 
   example-app:
     name: Build Example App
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - uses: actions/checkout@v4
 
