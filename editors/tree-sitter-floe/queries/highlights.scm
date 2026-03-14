@@ -11,6 +11,8 @@
 "export" @keyword
 "async" @keyword
 "await" @keyword
+"try" @keyword
+"trusted" @keyword
 "opaque" @keyword
 
 ; ── Built-in constructors ────────────────────────────────

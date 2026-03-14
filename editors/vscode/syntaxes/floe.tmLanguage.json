@@ -79,11 +79,11 @@
       "patterns": [
         {
           "name": "keyword.control.floe",
-          "match": "\\b(match|if|else|return|await|async)\\b"
+          "match": "\\b(match|if|else|return|await|async|try)\\b"
         },
         {
           "name": "keyword.control.import.floe",
-          "match": "\\b(import|from|export)\\b"
+          "match": "\\b(import|from|export|trusted)\\b"
         },
         {
           "name": "keyword.other.floe",
