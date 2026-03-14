@@ -400,7 +400,7 @@ export fn hash(raw: string): HashedPassword {
   bcrypt(raw)  // only this module can create one
 }
 
-export fn verify(raw: string, hashed: HashedPassword): bool {
+export fn verify(raw: string, hashed: HashedPassword): boolean {
   bcryptCompare(raw, hashed)  // only this module can read it
 }
 
@@ -494,8 +494,8 @@ type ButtonProps = {
   onClick: () -> ()                   // required
   variant: Variant = Primary         // default
   size: Size = Medium                // default
-  disabled: bool = false             // default
-  loading: bool = false              // default
+  disabled: boolean = false             // default
+  loading: boolean = false              // default
   icon: Option<Icon> = None          // default
 }
 
@@ -551,7 +551,7 @@ import { useState } from "react"
 type Todo = {
   id: string
   text: string
-  done: bool
+  done: boolean
 }
 
 type Tab = Overview | Team | Analytics
@@ -895,8 +895,8 @@ Suggestions:
   Option.map(fn)           Option<string> -> Option<U>
   Option.unwrapOr(default) Option<string> -> string
   Option.flatMap(fn)       Option<string> -> Option<U>
-  Option.isSome            Option<string> -> bool
-  Option.isNone            Option<string> -> bool
+  Option.isSome            Option<string> -> boolean
+  Option.isNone            Option<string> -> boolean
   toUpper                  string -> string  (if unwrapped)
   ...
 

@@ -25,12 +25,12 @@ All array functions return new arrays — they never mutate the original.
 | `Array.sort` | `Array<number> -> Array<number>` | Sort numerically (returns new array) |
 | `Array.sortBy` | `Array<T>, (T -> number) -> Array<T>` | Sort by key function |
 | `Array.map` | `Array<T>, (T -> U) -> Array<U>` | Transform each element |
-| `Array.filter` | `Array<T>, (T -> bool) -> Array<T>` | Keep elements matching predicate |
-| `Array.find` | `Array<T>, (T -> bool) -> Option<T>` | First element matching predicate |
-| `Array.findIndex` | `Array<T>, (T -> bool) -> Option<number>` | Index of first match |
+| `Array.filter` | `Array<T>, (T -> boolean) -> Array<T>` | Keep elements matching predicate |
+| `Array.find` | `Array<T>, (T -> boolean) -> Option<T>` | First element matching predicate |
+| `Array.findIndex` | `Array<T>, (T -> boolean) -> Option<number>` | Index of first match |
 | `Array.flatMap` | `Array<T>, (T -> Array<U>) -> Array<U>` | Map then flatten one level |
 | `Array.at` | `Array<T>, number -> Option<T>` | Safe index access |
-| `Array.contains` | `Array<T>, T -> bool` | Check if element exists (structural equality) |
+| `Array.contains` | `Array<T>, T -> boolean` | Check if element exists (structural equality) |
 | `Array.head` | `Array<T> -> Option<T>` | First element |
 | `Array.last` | `Array<T> -> Option<T>` | Last element |
 | `Array.take` | `Array<T>, number -> Array<T>` | First n elements |
@@ -75,8 +75,8 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 | `Option.map` | `Option<T>, (T -> U) -> Option<U>` | Transform the inner value if present |
 | `Option.flatMap` | `Option<T>, (T -> Option<U>) -> Option<U>` | Chain option-returning operations |
 | `Option.unwrapOr` | `Option<T>, T -> T` | Extract value or use default |
-| `Option.isSome` | `Option<T> -> bool` | Check if value is present |
-| `Option.isNone` | `Option<T> -> bool` | Check if value is absent |
+| `Option.isSome` | `Option<T> -> boolean` | Check if value is present |
+| `Option.isNone` | `Option<T> -> boolean` | Check if value is absent |
 | `Option.toResult` | `Option<T>, E -> Result<T, E>` | Convert to Result with error for None |
 
 ### Examples
@@ -112,8 +112,8 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 | `Result.mapErr` | `Result<T, E>, (E -> F) -> Result<T, F>` | Transform the Err value |
 | `Result.flatMap` | `Result<T, E>, (T -> Result<U, E>) -> Result<U, E>` | Chain result-returning operations |
 | `Result.unwrapOr` | `Result<T, E>, T -> T` | Extract Ok value or use default |
-| `Result.isOk` | `Result<T, E> -> bool` | Check if result is Ok |
-| `Result.isErr` | `Result<T, E> -> bool` | Check if result is Err |
+| `Result.isOk` | `Result<T, E> -> boolean` | Check if result is Ok |
+| `Result.isErr` | `Result<T, E> -> boolean` | Check if result is Err |
 | `Result.toOption` | `Result<T, E> -> Option<T>` | Convert to Option (drops error) |
 
 ### Examples
@@ -149,9 +149,9 @@ Pipe-friendly string operations.
 | `String.trimEnd` | `string -> string` | Remove trailing whitespace |
 | `String.split` | `string, string -> Array<string>` | Split by separator |
 | `String.replace` | `string, string, string -> string` | Replace first occurrence |
-| `String.startsWith` | `string, string -> bool` | Check prefix |
-| `String.endsWith` | `string, string -> bool` | Check suffix |
-| `String.contains` | `string, string -> bool` | Check if substring exists |
+| `String.startsWith` | `string, string -> boolean` | Check prefix |
+| `String.endsWith` | `string, string -> boolean` | Check suffix |
+| `String.contains` | `string, string -> boolean` | Check if substring exists |
 | `String.toUpper` | `string -> string` | Convert to uppercase |
 | `String.toLower` | `string -> string` | Convert to lowercase |
 | `String.length` | `string -> number` | Character count |
@@ -187,8 +187,8 @@ Safe numeric operations. Parsing returns `Result` instead of `NaN`.
 |----------|-----------|-------------|
 | `Number.parse` | `string -> Result<number, ParseError>` | Strict parse (no partial, no NaN) |
 | `Number.clamp` | `number, number, number -> number` | Clamp between min and max |
-| `Number.isFinite` | `number -> bool` | Check if finite |
-| `Number.isInteger` | `number -> bool` | Check if integer |
+| `Number.isFinite` | `number -> boolean` | Check if finite |
+| `Number.isInteger` | `number -> boolean` | Check if integer |
 | `Number.toFixed` | `number, number -> string` | Format with fixed decimals |
 | `Number.toString` | `number -> string` | Convert to string |
 

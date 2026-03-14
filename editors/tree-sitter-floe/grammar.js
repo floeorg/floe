@@ -151,7 +151,7 @@ module.exports = grammar({
       seq($.type_identifier, ".", $.type_identifier),
 
     primitive_type: ($) =>
-      choice("number", "string", "bool", "unknown"),
+      choice("number", "string", "boolean", "unknown"),
 
     type_identifier: ($) => /[A-Z][a-zA-Z0-9]*/,
 

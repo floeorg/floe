@@ -80,7 +80,7 @@ const x = match 42 {
 fn non_exhaustive_bool_match() {
     let diags = check(
         r#"
-const x: bool = true
+const x: boolean = true
 const y = match x {
     true -> "yes",
 }

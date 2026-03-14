@@ -84,7 +84,7 @@ Use `->` to describe function types:
 
 ```floe
 type Transform = (string) -> number
-type Predicate = (Todo) -> bool
+type Predicate = (Todo) -> boolean
 type Callback = () -> ()
 ```
 

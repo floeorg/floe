@@ -204,7 +204,7 @@ impl Checker {
         match name {
             "number" => Type::Number,
             "string" => Type::String,
-            "bool" => Type::Bool,
+            "boolean" => Type::Bool,
             "()" => Type::Unit,
             "undefined" => Type::Undefined,
             "unknown" => Type::Unknown,

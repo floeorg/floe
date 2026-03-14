@@ -753,7 +753,7 @@ fn full_program() {
     let input = r#"
 import { useState } from "react"
 
-type Todo = { id: string, text: string, done: bool }
+type Todo = { id: string, text: string, done: boolean }
 
 export fn TodoApp() {
     const [todos, setTodos] = useState([])

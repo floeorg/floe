@@ -25,7 +25,7 @@ import { useState } from "react"
 type Todo = {
   id: string,
   text: string,
-  done: bool,
+  done: boolean,
 }
 
 export fn App() -> JSX.Element {

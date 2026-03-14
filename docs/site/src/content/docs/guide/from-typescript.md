@@ -65,16 +65,6 @@ const count = 0
 const newCount = count + 1
 ```
 
-### `bool` instead of `boolean`
-
-```typescript
-// TypeScript
-const active: boolean = true
-
-// Floe
-const active: bool = true
-```
-
 ### `==` is `===`
 
 Floe's `==` compiles to `===`. There is no loose equality.

@@ -337,12 +337,6 @@ impl Codegen {
                     return;
                 }
 
-                // bool → boolean in TypeScript
-                if name == "bool" {
-                    self.push("boolean");
-                    return;
-                }
-
                 self.push(name);
                 if !type_args.is_empty() {
                     self.push("<");

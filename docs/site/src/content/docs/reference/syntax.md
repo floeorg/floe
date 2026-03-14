@@ -73,8 +73,8 @@ opaque type Email = string
 3.14            // number
 "hello"         // string
 `hello ${name}` // template literal
-true            // bool
-false           // bool
+true            // boolean
+false           // boolean
 [1, 2, 3]      // array
 ```
 
@@ -156,7 +156,7 @@ Dot shorthand for field access:
 ```floe
 () -> ()                  // takes nothing, returns nothing
 (string) -> number        // takes string, returns number
-(number, number) -> bool  // takes two numbers, returns bool
+(number, number) -> boolean  // takes two numbers, returns boolean
 ```
 
 ### JSX
@@ -181,7 +181,7 @@ import { a, b, c } from "module"
 ```floe
 42                    // literal
 "hello"               // string literal
-true                  // boolean literal
+true                  // booleanean literal
 x                     // binding
 _                     // wildcard
 Ok(x)                 // variant

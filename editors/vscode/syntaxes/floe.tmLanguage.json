@@ -123,7 +123,7 @@
       "patterns": [
         {
           "name": "support.type.primitive.floe",
-          "match": "\\b(number|string|bool|void|unknown)\\b"
+          "match": "\\b(number|string|boolean|void|unknown)\\b"
         },
         {
           "name": "support.type.builtin.floe",

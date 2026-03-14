@@ -103,7 +103,7 @@ match value {
 The compiler checks that your match is exhaustive:
 
 ```floe
-// Compile error: non-exhaustive match on bool
+// Compile error: non-exhaustive match on boolean
 match enabled {
   true -> "on",
   // missing: false

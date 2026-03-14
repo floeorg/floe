@@ -7,10 +7,8 @@ title: Types
 ```floe
 const name: string = "Alice"
 const age: number = 30
-const active: bool = true
+const active: boolean = true
 ```
-
-Note: Floe uses `bool`, not `boolean`.
 
 ## Record Types
 

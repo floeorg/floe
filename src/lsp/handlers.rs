@@ -912,8 +912,8 @@ pub(super) fn lambda_event_completions(
             ("preventDefault()", "void", true),
             ("stopPropagation()", "void", true),
             ("key", "string", false),
-            ("bubbles", "bool", false),
-            ("defaultPrevented", "bool", false),
+            ("bubbles", "boolean", false),
+            ("defaultPrevented", "boolean", false),
             ("timeStamp", "number", false),
         ];
 
@@ -938,14 +938,14 @@ pub(super) fn lambda_event_completions(
         // Second level: e.target.value, e.target.checked, etc.
         let target_props = [
             ("value", "string"),
-            ("checked", "bool"),
+            ("checked", "boolean"),
             ("name", "string"),
             ("id", "string"),
             ("tagName", "string"),
             ("className", "string"),
             ("textContent", "string"),
             ("innerHTML", "string"),
-            ("disabled", "bool"),
+            ("disabled", "boolean"),
         ];
 
         for (name, ty) in &target_props {
