@@ -143,8 +143,11 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::From);
-        self.eat_trivia();
+        // `from` is required with specifiers, optional for bare imports
+        if self.at(TokenKind::From) {
+            self.bump();
+            self.eat_trivia();
+        }
         self.expect_kind(TokenKind::String("".into()));
 
         self.builder.finish_node();

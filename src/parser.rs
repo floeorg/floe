@@ -190,7 +190,10 @@ impl Parser {
             Vec::new()
         };
 
-        self.expect(&TokenKind::From)?;
+        // `from` is required when there are specifiers, optional for bare imports
+        if self.check(&TokenKind::From) {
+            self.advance();
+        }
         let source = self.expect_string()?;
 
         Ok(ImportDecl {
