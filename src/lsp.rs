@@ -55,8 +55,12 @@ struct SymbolIndex {
 impl SymbolIndex {
     fn build(program: &Program) -> Self {
         let mut symbols = Vec::new();
+        Self::collect_items(&program.items, &mut symbols);
+        Self { symbols }
+    }
 
-        for item in &program.items {
+    fn collect_items(items: &[Item], symbols: &mut Vec<Symbol>) {
+        for item in items {
             match &item.kind {
                 ItemKind::Import(decl) => {
                     for spec in &decl.specifiers {
@@ -177,6 +181,9 @@ impl SymbolIndex {
                             return_type_str: None,
                         });
                     }
+
+                    // Recurse into function body
+                    Self::collect_expr(&decl.body, symbols);
                 }
                 ItemKind::TypeDecl(decl) => {
                     let vis = if decl.exported { "export " } else { "" };
@@ -208,11 +215,42 @@ impl SymbolIndex {
                         }
                     }
                 }
-                ItemKind::Expr(_) => {}
+                ItemKind::Expr(expr) => {
+                    Self::collect_expr(expr, symbols);
+                }
             }
         }
+    }
 
-        Self { symbols }
+    /// Walk an expression tree to find symbols inside blocks, arrows, etc.
+    fn collect_expr(expr: &Expr, symbols: &mut Vec<Symbol>) {
+        match &expr.kind {
+            ExprKind::Block(items) => {
+                Self::collect_items(items, symbols);
+            }
+            ExprKind::Arrow { body, .. } => {
+                Self::collect_expr(body, symbols);
+            }
+            ExprKind::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                Self::collect_expr(then_branch, symbols);
+                if let Some(eb) = else_branch {
+                    Self::collect_expr(eb, symbols);
+                }
+            }
+            ExprKind::Match { arms, .. } => {
+                for arm in arms {
+                    Self::collect_expr(&arm.body, symbols);
+                }
+            }
+            ExprKind::Return(Some(inner)) | ExprKind::Await(inner) | ExprKind::Grouped(inner) => {
+                Self::collect_expr(inner, symbols);
+            }
+            _ => {}
+        }
     }
 
     fn find_by_name(&self, name: &str) -> Vec<&Symbol> {
@@ -1482,5 +1520,125 @@ mod tests {
         assert_eq!(syms.len(), 1);
         assert_eq!(syms[0].first_param_type.as_deref(), Some("Array<T>"));
         assert_eq!(syms[0].return_type_str.as_deref(), Some("Array<T>"));
+    }
+
+    // ── Integration tests on jsx_component.zs ──────────────
+
+    fn jsx_component_source() -> &'static str {
+        r#"import { useState, JSX } from "react"
+
+export function Counter(): JSX.Element {
+    const [_count, setCount] = useState(0)
+
+    return <div>
+        <h1>Count</h1>
+        <button onClick={setCount}>Increment</button>
+    </div>
+}"#
+    }
+
+    fn build_index_and_types(source: &str) -> (SymbolIndex, HashMap<String, String>) {
+        let program = Parser::new(source).parse_program().unwrap();
+        let index = SymbolIndex::build(&program);
+        let (_, type_map) = crate::checker::Checker::new().check_with_types(&program);
+        (index, type_map)
+    }
+
+    #[test]
+    fn jsx_fixture_all_symbols_indexed() {
+        let (index, _) = build_index_and_types(jsx_component_source());
+        let all_names: Vec<&str> = index.symbols.iter().map(|s| s.name.as_str()).collect();
+        println!("All indexed symbols: {:?}", all_names);
+
+        // Imports
+        assert!(
+            !index.find_by_name("useState").is_empty(),
+            "useState not indexed"
+        );
+        assert!(!index.find_by_name("JSX").is_empty(), "JSX not indexed");
+
+        // Function
+        assert!(
+            !index.find_by_name("Counter").is_empty(),
+            "Counter not indexed"
+        );
+
+        // Destructured variables
+        assert!(
+            !index.find_by_name("_count").is_empty(),
+            "_count not indexed"
+        );
+        assert!(
+            !index.find_by_name("setCount").is_empty(),
+            "setCount not indexed"
+        );
+    }
+
+    #[test]
+    fn jsx_fixture_hover_on_destructured_var() {
+        let (index, _) = build_index_and_types(jsx_component_source());
+
+        // Hover on _count should work
+        let syms = index.find_by_name("_count");
+        assert!(!syms.is_empty(), "_count should be found for hover");
+        assert!(
+            syms[0].detail.contains("_count"),
+            "detail should mention _count, got: {}",
+            syms[0].detail
+        );
+
+        // Hover on setCount should work
+        let syms = index.find_by_name("setCount");
+        assert!(!syms.is_empty(), "setCount should be found for hover");
+        assert!(
+            syms[0].detail.contains("setCount"),
+            "detail should mention setCount, got: {}",
+            syms[0].detail
+        );
+    }
+
+    #[test]
+    fn jsx_fixture_goto_def_setcount_from_jsx() {
+        let source = jsx_component_source();
+        let (index, _) = build_index_and_types(source);
+
+        // Find the offset of setCount in onClick={setCount} (line 8)
+        let jsx_setcount_offset = source.find("onClick={setCount}").unwrap() + "onClick={".len();
+        let word = word_at_offset(source, jsx_setcount_offset);
+        assert_eq!(
+            word, "setCount",
+            "should extract 'setCount' from JSX attribute"
+        );
+
+        // find_by_name should find it
+        let syms = index.find_by_name("setCount");
+        assert!(!syms.is_empty(), "setCount should be in index");
+
+        // The definition's span should NOT contain the JSX usage offset
+        let sym = &syms[0];
+        let cursor_in_def = jsx_setcount_offset >= sym.start && jsx_setcount_offset <= sym.end;
+        assert!(
+            !cursor_in_def,
+            "JSX usage offset {} should NOT be inside definition span {}..{} (go-to-def would skip it!)",
+            jsx_setcount_offset, sym.start, sym.end
+        );
+    }
+
+    #[test]
+    fn jsx_fixture_hover_on_usestate() {
+        let (index, _) = build_index_and_types(jsx_component_source());
+        let syms = index.find_by_name("useState");
+        assert!(!syms.is_empty());
+        assert!(syms[0].detail.contains("useState"));
+    }
+
+    #[test]
+    fn jsx_fixture_type_map_has_counter() {
+        let (_, type_map) = build_index_and_types(jsx_component_source());
+        println!("Type map: {:?}", type_map);
+        assert!(
+            type_map.contains_key("Counter"),
+            "Counter should be in type map"
+        );
     }
 }
