@@ -104,14 +104,20 @@ fn is_word_char(b: u8) -> bool {
 }
 
 /// Find the project root directory (where node_modules lives).
-fn find_project_dir(start: &Path) -> PathBuf {
+/// Prioritizes finding `node_modules` over `package.json` to handle
+/// pnpm workspaces where node_modules is hoisted to the workspace root.
+pub(super) fn find_project_dir(start: &Path) -> PathBuf {
     let mut dir = start.to_path_buf();
+    let mut package_json_dir: Option<PathBuf> = None;
     loop {
-        if dir.join("node_modules").is_dir() || dir.join("package.json").is_file() {
+        if dir.join("node_modules").is_dir() {
             return dir;
         }
+        if package_json_dir.is_none() && dir.join("package.json").is_file() {
+            package_json_dir = Some(dir.clone());
+        }
         if !dir.pop() {
-            return start.to_path_buf();
+            return package_json_dir.unwrap_or_else(|| start.to_path_buf());
         }
     }
 }
@@ -349,6 +355,66 @@ impl FloeLsp {
 
         matched.extend(unmatched);
         matched
+    }
+
+    /// Resolve an import specifier to a Location in the source file (.d.ts or .fl).
+    /// For `.d.ts` files, finds the line where the symbol is exported.
+    /// For relative imports, finds the file and looks for the symbol definition.
+    fn resolve_import_location(
+        source_uri: &Url,
+        specifier: &str,
+        symbol_name: &str,
+    ) -> Option<Location> {
+        let source_path = source_uri.to_file_path().ok()?;
+        let source_dir = source_path.parent()?;
+
+        let is_relative = specifier.starts_with("./") || specifier.starts_with("../");
+
+        let resolved_path = if is_relative {
+            resolution::resolve_relative_import(specifier, source_dir)?
+        } else {
+            let project_dir = find_project_dir(source_dir);
+            resolution::resolve_npm_dts(specifier, &project_dir)?
+        };
+
+        let file_content = std::fs::read_to_string(&resolved_path).ok()?;
+        let target_uri = Url::from_file_path(&resolved_path).ok()?;
+
+        // Search for the export line containing the symbol name
+        for (line_num, line) in file_content.lines().enumerate() {
+            let trimmed = line.trim();
+            // Match patterns like: export function symbolName, export const symbolName,
+            // export type symbolName, export interface symbolName, export declare ...
+            let is_export_of_symbol = trimmed.contains("export")
+                && (trimmed.contains(&format!("function {symbol_name}"))
+                    || trimmed.contains(&format!("const {symbol_name}"))
+                    || trimmed.contains(&format!("type {symbol_name}"))
+                    || trimmed.contains(&format!("interface {symbol_name}"))
+                    || trimmed.contains(&format!("fn {symbol_name}")));
+
+            if is_export_of_symbol {
+                // Find the column where the symbol name starts on this line
+                let col = line.find(symbol_name).unwrap_or(0) as u32;
+                let pos = Position::new(line_num as u32, col);
+                let end_pos = Position::new(line_num as u32, col + symbol_name.len() as u32);
+                return Some(Location {
+                    uri: target_uri,
+                    range: Range {
+                        start: pos,
+                        end: end_pos,
+                    },
+                });
+            }
+        }
+
+        // Fallback: jump to the top of the resolved file
+        Some(Location {
+            uri: target_uri,
+            range: Range {
+                start: Position::new(0, 0),
+                end: Position::new(0, 0),
+            },
+        })
     }
 }
 
