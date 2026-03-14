@@ -54,26 +54,30 @@ impl TsgoResolver {
         // Create temp directory with probe file and tsconfig
         let tmp = match create_probe_dir(&self.project_dir, &probe) {
             Ok(dir) => dir,
-            Err(_) => return HashMap::new(),
+            Err(e) => {
+                eprintln!("[floe] tsgo: failed to create probe dir: {e}");
+                return HashMap::new();
+            }
         };
 
         let probe_dir = tmp.path();
 
         // Run tsgo
-        eprintln!("[tsgo] probe content:\n{probe}");
         let dts_content = match run_tsgo(probe_dir) {
             Ok(content) => content,
             Err(e) => {
-                eprintln!("[tsgo] error: {e}");
+                eprintln!("[floe] tsgo: {e}");
                 return HashMap::new();
             }
         };
-        eprintln!("[tsgo] output .d.ts:\n{dts_content}");
 
         // Parse the output .d.ts
         let exports = match parse_dts_exports_from_str(&dts_content) {
             Ok(exports) => exports,
-            Err(_) => return HashMap::new(),
+            Err(e) => {
+                eprintln!("[floe] tsgo: failed to parse output: {e}");
+                return HashMap::new();
+            }
         };
 
         // Cache the result

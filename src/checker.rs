@@ -552,23 +552,11 @@ impl Checker {
                 ConstBinding::Object(names) => names.join("_"),
             };
             let probe_key = format!("__probe_{binding_name}");
-            let all_dts_names: Vec<&str> = self
-                .dts_imports
-                .values()
-                .flatten()
-                .map(|e| e.name.as_str())
-                .collect();
-            eprintln!(
-                "[checker] looking for probe_key={probe_key}, dts_imports has: {all_dts_names:?}"
-            );
             self.dts_imports
                 .values()
                 .flatten()
                 .find(|e| e.name == probe_key)
-                .map(|e| {
-                    eprintln!("[checker] found probe type: {:?}", e.ts_type);
-                    interop::wrap_boundary_type(&e.ts_type)
-                })
+                .map(|e| interop::wrap_boundary_type(&e.ts_type))
         };
 
         let final_type = if let Some(tsgo_ty) = tsgo_type {

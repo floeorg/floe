@@ -218,22 +218,8 @@ impl FloeLsp {
                     import_diags_early = import_diags;
 
                     // Use tsgo for fully-resolved types — no fallback
-                    eprintln!(
-                        "[lsp] running tsgo resolver for project_dir={}",
-                        project_dir.display()
-                    );
                     let mut tsgo_resolver = crate::interop::TsgoResolver::new(&project_dir);
                     dts_map = tsgo_resolver.resolve_imports(&program);
-                    eprintln!(
-                        "[lsp] tsgo dts_map keys: {:?}, total exports: {}",
-                        dts_map.keys().collect::<Vec<_>>(),
-                        dts_map.values().map(|v| v.len()).sum::<usize>()
-                    );
-                    for (spec, exports) in &dts_map {
-                        for e in exports {
-                            eprintln!("[lsp]   {spec}: {} -> {:?}", e.name, e.ts_type);
-                        }
-                    }
 
                     if !new_cache.is_empty() {
                         let mut cache_write = self.dts_cache.write().await;
