@@ -22,13 +22,14 @@ The compiler is a single Rust binary (`floe`) that takes `.fl` files and emits `
 
 A React developer should read Floe and understand it in 30 minutes. We keep familiar syntax and add targeted upgrades.
 
-### Three Operators, One Character Each
+### Three Operators
 
 ```
-=>  arrow functions          (a) => a + 1
-->  match arms               Ok(x) -> x
-|>  pipe data through        data |> transform
-?   unwrap Result/Option     fetchUser(id)?
+|x|  anonymous functions     |a| a + 1
+->   match arms              Ok(x) -> x
+|>   pipe data through       data |> transform
+?    unwrap Result/Option    fetchUser(id)?
+.x   dot shorthand           .name (implicit lambda for field access)
 ```
 
 All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now means exactly one thing: unwrap or short-circuit.
@@ -36,8 +37,9 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 ### What Stays from TypeScript
 
 - `const`, `export`, `import`, type annotations
-- `function` for named/exported functions
-- Arrow functions `=>` for inline/anonymous
+- `fn` for named/exported functions
+- Pipe lambdas `|x|` for inline/anonymous functions
+- Dot shorthand `.field` for implicit field-access lambdas
 - JSX / TSX (full support)
 - Generics, template literals
 - `async`/`await`
@@ -67,7 +69,11 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Type constructors | `User(name: "Ryan", email: e)` | `{ name: "Ryan", email: e }` (compiler adds tags for unions) |
 | Record spread | `User(..user, name: "New")` | `{ ...user, name: "New" }` |
 | Named arguments | `fetchUsers(page: 3, limit: 50)` | `fetchUsers(3, 50)` (labels erased) |
-| Default values | `function f(x: number = 10)` | caller can omit, compiler fills in |
+| Pipe lambdas | `\|x\| x + 1` | `(x) => x + 1` |
+| Dot shorthand | `.name` in callback position | `(x) => x.name` |
+| Dot shorthand (predicate) | `.id != id` in callback position | `(x) => x.id != id` |
+| Implicit member expr | `.Variant` when type is known | `TypeName.Variant` |
+| Default values | `fn f(x: number = 10)` | caller can omit, compiler fills in |
 | Structural equality | `==` on objects compares by value | deep equality check |
 | Unit type | `()` as return type, usable in generics | `undefined` / `void` in TS |
 | Immutable sort | `Array.sort` returns new array | sorted copy, no mutation |
@@ -91,6 +97,8 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `x?: T` | Optional fields | `x: Option<T>` |
 | `+` on strings | Silent coercion bugs | Template literals only (warning) |
 | `void` | Not a real type, can't use in generics | Unit type `()` — a real value |
+| `=>` | Two syntaxes for functions is one too many | `\|x\| expr` for anonymous functions |
+| `function` | Verbose keyword | `fn` |
 
 ---
 
