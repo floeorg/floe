@@ -67,7 +67,7 @@ local parser_config = require("nvim-treesitter.parsers").get_parser_configs()
 
 parser_config.floe = {
   install_info = {
-    url = "https://github.com/milkyskies/zenscript",
+    url = "https://github.com/milkyskies/floe",
     location = "editors/tree-sitter-floe",
     files = { "src/parser.c" },
     branch = "main",

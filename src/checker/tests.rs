@@ -605,3 +605,92 @@ type Item = { name: string }
     );
     assert!(!has_error_containing(&diags, "unknown type `Item`"));
 }
+
+// ── Function argument type validation ─────────────────────
+
+#[test]
+fn function_call_wrong_arg_type() {
+    let diags = check(
+        r#"
+fn add(a: number, b: number) -> number { a + b }
+const _r = add("hello", true)
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "expected `number`, found `string`"
+    ));
+    assert!(has_error_containing(
+        &diags,
+        "expected `number`, found `boolean`"
+    ));
+}
+
+#[test]
+fn function_call_correct_types_no_error() {
+    let diags = check(
+        r#"
+fn add(a: number, b: number) -> number { a + b }
+const _r = add(1, 2)
+"#,
+    );
+    assert!(!has_error(&diags, "E001"));
+}
+
+#[test]
+fn function_call_wrong_arg_count() {
+    let diags = check(
+        r#"
+fn add(a: number, b: number) -> number { a + b }
+const _r = add(1)
+"#,
+    );
+    assert!(has_error_containing(&diags, "expects 2 arguments, found 1"));
+}
+
+#[test]
+fn function_call_too_many_args() {
+    let diags = check(
+        r#"
+fn greet(name: string) -> string { name }
+const _r = greet("Alice", "Bob")
+"#,
+    );
+    assert!(has_error_containing(&diags, "expects 1 argument, found 2"));
+}
+
+#[test]
+fn pipe_call_accounts_for_implicit_arg() {
+    let diags = check(
+        r#"
+fn double(x: number) -> number { x + x }
+const _r = 5 |> double
+"#,
+    );
+    assert!(!has_error(&diags, "E001"));
+}
+
+#[test]
+fn pipe_call_with_extra_args_no_false_positive() {
+    let diags = check(
+        r#"
+fn add(a: number, b: number) -> number { a + b }
+const _r = 5 |> add(3)
+"#,
+    );
+    assert!(!has_error(&diags, "E001"));
+}
+
+#[test]
+fn pipe_call_wrong_type() {
+    let diags = check(
+        r#"
+fn double(x: number) -> number { x + x }
+const _r = "hello" |> double
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "expected `number`, found `string`"
+    ));
+}

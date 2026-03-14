@@ -46,6 +46,9 @@ pub struct Checker {
     registering_types: bool,
     /// Pre-resolved imports from other .fl files, keyed by import source string.
     resolved_imports: HashMap<String, ResolvedImports>,
+    /// When inside a pipe, holds the type of the piped (left) value.
+    /// The Call handler uses this to account for the implicit first argument.
+    pipe_input_type: Option<Type>,
 }
 
 impl Default for Checker {
@@ -70,6 +73,7 @@ impl Checker {
             inside_try: false,
             registering_types: false,
             resolved_imports: HashMap::new(),
+            pipe_input_type: None,
         }
     }
 

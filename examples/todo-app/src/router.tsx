@@ -13,7 +13,7 @@ const rootRoute = createRootRoute({
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <nav className="border-b border-zinc-800 px-6 py-4">
         <div className="mx-auto flex max-w-2xl items-center gap-6">
-          <span className="text-lg font-bold text-indigo-400">ZenScript</span>
+          <span className="text-lg font-bold text-indigo-400">Floe</span>
           <Link
             to="/"
             className="text-zinc-400 hover:text-zinc-100 transition-colors [&.active]:text-zinc-100"

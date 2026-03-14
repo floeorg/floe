@@ -160,16 +160,75 @@ impl Checker {
                     );
                 }
 
+                // Save pipe context before checking callee (which would consume it)
+                let piped_ty = self.pipe_input_type.take();
+
                 let callee_ty = self.check_expr(callee);
-                for arg in args {
-                    match arg {
-                        Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                            self.check_expr(e);
-                        }
-                    }
+                let mut arg_types: Vec<Type> = args
+                    .iter()
+                    .map(|arg| match arg {
+                        Arg::Positional(e) | Arg::Named { value: e, .. } => self.check_expr(e),
+                    })
+                    .collect();
+
+                // In a pipe like `x |> f(y)`, the piped value is the implicit first arg
+                if let Some(piped_ty) = piped_ty {
+                    arg_types.insert(0, piped_ty);
                 }
+
                 match callee_ty {
-                    Type::Function { return_type, .. } => *return_type,
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        let callee_name = match &callee.kind {
+                            ExprKind::Identifier(name) => name.as_str(),
+                            _ => "<anonymous>",
+                        };
+
+                        // Check argument count
+                        if arg_types.len() != params.len() {
+                            self.diagnostics.push(
+                                Diagnostic::error(
+                                    format!(
+                                        "`{callee_name}` expects {} argument{}, found {}",
+                                        params.len(),
+                                        if params.len() == 1 { "" } else { "s" },
+                                        arg_types.len()
+                                    ),
+                                    expr.span,
+                                )
+                                .with_label("wrong number of arguments")
+                                .with_code("E001"),
+                            );
+                        }
+
+                        // Check argument types
+                        for (i, (arg_ty, param_ty)) in
+                            arg_types.iter().zip(params.iter()).enumerate()
+                        {
+                            if !self.types_compatible(param_ty, arg_ty) {
+                                self.diagnostics.push(
+                                    Diagnostic::error(
+                                        format!(
+                                            "argument {} to `{callee_name}`: expected `{}`, found `{}`",
+                                            i + 1,
+                                            param_ty.display_name(),
+                                            arg_ty.display_name()
+                                        ),
+                                        expr.span,
+                                    )
+                                    .with_label(format!(
+                                        "expected `{}`",
+                                        param_ty.display_name()
+                                    ))
+                                    .with_code("E001"),
+                                );
+                            }
+                        }
+
+                        *return_type
+                    }
                     _ => {
                         // For unknown external functions with type args (e.g., useState<Array<Todo>>),
                         // use the first type arg as the return type
@@ -705,15 +764,38 @@ impl Checker {
             }
         }
 
-        // Default: check normally
+        // Default: check normally, with pipe context for arg validation
+        let prev_pipe = self.pipe_input_type.take();
+        self.pipe_input_type = Some(left_ty.clone());
         let right_ty = self.check_expr(right);
+        self.pipe_input_type = prev_pipe;
 
         // If the right side is a bare function identifier (not a call),
         // the pipe effectively calls it: `a |> f` means `f(a)`.
         // Return the function's return type, not the function type itself.
-        if matches!(right.kind, ExprKind::Identifier(_))
-            && let Type::Function { return_type, .. } = right_ty
+        if let ExprKind::Identifier(name) = &right.kind
+            && let Type::Function {
+                params,
+                return_type,
+            } = right_ty
         {
+            // Validate the piped value as the first (and only) argument
+            if let Some(first_param) = params.first()
+                && !self.types_compatible(first_param, left_ty)
+            {
+                self.diagnostics.push(
+                    Diagnostic::error(
+                        format!(
+                            "argument 1 to `{name}`: expected `{}`, found `{}`",
+                            first_param.display_name(),
+                            left_ty.display_name()
+                        ),
+                        right.span,
+                    )
+                    .with_label(format!("expected `{}`", first_param.display_name()))
+                    .with_code("E001"),
+                );
+            }
             return *return_type;
         }
 
