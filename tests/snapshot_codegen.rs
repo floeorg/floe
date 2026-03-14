@@ -91,3 +91,9 @@ fn snapshot_structural_equality() {
     let output = compile_fixture("structural_equality");
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_stdlib() {
+    let output = compile_fixture("stdlib");
+    insta::assert_snapshot!(output);
+}

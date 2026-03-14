@@ -6,3 +6,4 @@ pub mod lexer;
 pub mod lsp;
 pub mod parser;
 pub mod sourcemap;
+pub mod stdlib;

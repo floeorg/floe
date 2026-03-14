@@ -1,4 +1,5 @@
 use crate::parser::ast::*;
+use crate::stdlib::StdlibRegistry;
 
 /// Code generation result: the emitted TypeScript source and whether it contains JSX.
 pub struct CodegenOutput {
@@ -12,6 +13,7 @@ pub struct Codegen {
     indent: usize,
     has_jsx: bool,
     needs_deep_equal: bool,
+    stdlib: StdlibRegistry,
 }
 
 impl Codegen {
@@ -21,6 +23,7 @@ impl Codegen {
             indent: 0,
             has_jsx: false,
             needs_deep_equal: false,
+            stdlib: StdlibRegistry::new(),
         }
     }
 
@@ -407,8 +410,11 @@ impl Codegen {
             }
 
             ExprKind::Call { callee, args } => {
-                // Check if this is a partial application (has placeholder args)
-                if has_placeholder_arg(args) {
+                // Check for stdlib call: Array.sort(arr), Option.map(opt, fn), etc.
+                if let Some(output) = self.try_emit_stdlib_call(callee, args) {
+                    self.push(&output);
+                } else if has_placeholder_arg(args) {
+                    // Check if this is a partial application (has placeholder args)
                     self.emit_partial_application(callee, args);
                 } else {
                     self.emit_expr(callee);
@@ -560,8 +566,101 @@ impl Codegen {
 
     // ── Pipe Lowering ────────────────────────────────────────────
 
+    /// Try to emit a stdlib call. Returns Some(output) if the callee is a stdlib function.
+    fn try_emit_stdlib_call(&mut self, callee: &Expr, args: &[Arg]) -> Option<String> {
+        if let ExprKind::Member { object, field } = &callee.kind
+            && let ExprKind::Identifier(module) = &object.kind
+            && let Some(stdlib_fn) = self.stdlib.lookup(module, field)
+        {
+            // Collect emitted args
+            let arg_strings: Vec<String> = args
+                .iter()
+                .map(|arg| {
+                    let mut sub = Codegen::new();
+                    match arg {
+                        Arg::Positional(e) => sub.emit_expr(e),
+                        Arg::Named { value, .. } => sub.emit_expr(value),
+                    }
+                    sub.output
+                })
+                .collect();
+
+            if stdlib_fn.codegen.contains("__zenEq") {
+                self.needs_deep_equal = true;
+            }
+
+            Some(expand_codegen_template(stdlib_fn.codegen, &arg_strings))
+        } else {
+            None
+        }
+    }
+
+    /// Try to emit a stdlib call in pipe context (piped value is first arg).
+    fn try_emit_stdlib_pipe(
+        &mut self,
+        left: &Expr,
+        callee: &Expr,
+        extra_args: &[Arg],
+    ) -> Option<String> {
+        if let ExprKind::Member { object, field } = &callee.kind
+            && let ExprKind::Identifier(module) = &object.kind
+            && let Some(stdlib_fn) = self.stdlib.lookup(module, field)
+        {
+            // First arg is the piped value
+            let mut sub = Codegen::new();
+            sub.emit_expr(left);
+            let mut arg_strings = vec![sub.output];
+
+            // Remaining args
+            for arg in extra_args {
+                let mut sub = Codegen::new();
+                match arg {
+                    Arg::Positional(e) => sub.emit_expr(e),
+                    Arg::Named { value, .. } => sub.emit_expr(value),
+                }
+                arg_strings.push(sub.output);
+            }
+
+            if stdlib_fn.codegen.contains("__zenEq") {
+                self.needs_deep_equal = true;
+            }
+
+            Some(expand_codegen_template(stdlib_fn.codegen, &arg_strings))
+        } else {
+            None
+        }
+    }
+
     fn emit_pipe(&mut self, left: &Expr, right: &Expr) {
         match &right.kind {
+            // Stdlib pipe: `arr |> Array.sort` or `arr |> Array.map(fn)`
+            ExprKind::Call { callee, args } if !has_placeholder_arg(args) => {
+                if let Some(output) = self.try_emit_stdlib_pipe(left, callee, args) {
+                    self.push(&output);
+                    return;
+                }
+                // Fall through to normal call handling below
+                self.emit_expr(callee);
+                self.push("(");
+                self.emit_expr(left);
+                if !args.is_empty() {
+                    self.push(", ");
+                    self.emit_args(args);
+                }
+                self.push(")");
+            }
+            ExprKind::Member { .. } => {
+                // Bare stdlib: `arr |> Array.sort` (no args)
+                if let Some(output) = self.try_emit_stdlib_pipe(left, right, &[]) {
+                    self.push(&output);
+                    return;
+                }
+                // Fallback: treat as function call
+                self.emit_expr(right);
+                self.push("(");
+                self.emit_expr(left);
+                self.push(")");
+            }
             // `a |> f(b, _, c)` → `f(b, a, c)` — placeholder replacement
             ExprKind::Call { callee, args } if has_placeholder_arg(args) => {
                 self.emit_expr(callee);
@@ -585,17 +684,6 @@ impl Codegen {
                             }
                         }
                     }
-                }
-                self.push(")");
-            }
-            // `a |> f(b, c)` → `f(a, b, c)` — first arg insertion
-            ExprKind::Call { callee, args } => {
-                self.emit_expr(callee);
-                self.push("(");
-                self.emit_expr(left);
-                if !args.is_empty() {
-                    self.push(", ");
-                    self.emit_args(args);
                 }
                 self.push(")");
             }
@@ -936,6 +1024,16 @@ impl Default for Codegen {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
+
+/// Expand a codegen template like `$0.map($1)` with actual arg strings.
+fn expand_codegen_template(template: &str, args: &[String]) -> String {
+    let mut result = template.to_string();
+    // Replace in reverse order so $10 doesn't get matched by $1
+    for (i, arg) in args.iter().enumerate().rev() {
+        result = result.replace(&format!("${i}"), arg);
+    }
+    result
+}
 
 fn binop_str(op: BinOp) -> &'static str {
     match op {

@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::diagnostic::Diagnostic;
 use crate::lexer::span::Span;
 use crate::parser::ast::*;
+use crate::stdlib::StdlibRegistry;
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -186,6 +187,8 @@ pub struct Checker {
     defined_names: Vec<(String, Span)>,
     /// Track imported names with spans for unused import detection.
     imported_names: Vec<(String, Span)>,
+    /// Standard library function registry.
+    stdlib: StdlibRegistry,
 }
 
 impl Default for Checker {
@@ -204,6 +207,7 @@ impl Checker {
             used_names: HashSet::new(),
             defined_names: Vec::new(),
             imported_names: Vec::new(),
+            stdlib: StdlibRegistry::new(),
         }
     }
 
@@ -727,6 +731,23 @@ impl Checker {
             }
 
             ExprKind::Call { callee, args } => {
+                // Check for stdlib call: Array.sort(arr), Option.map(opt, fn), etc.
+                if let ExprKind::Member { object, field } = &callee.kind
+                    && let ExprKind::Identifier(module) = &object.kind
+                    && let Some(stdlib_fn) = self.stdlib.lookup(module, field)
+                {
+                    self.used_names.insert(module.clone());
+                    let ret = stdlib_fn.return_type.clone();
+                    for arg in args {
+                        match arg {
+                            Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                                self.check_expr(e);
+                            }
+                        }
+                    }
+                    return ret;
+                }
+
                 let callee_ty = self.check_expr(callee);
                 for arg in args {
                     match arg {

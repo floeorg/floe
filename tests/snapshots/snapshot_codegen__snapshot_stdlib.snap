@@ -1,0 +1,47 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+const _sorted = [...[3, 1, 2]].sort((a, b) => a - b);
+
+const _mapped = [1, 2, 3].map((n) => n * 2);
+
+const _filtered = [1, 2, 3, 4].filter((n) => n > 2);
+
+const _found = [1, 2, 3].find((n) => __zenEq(n, 2));
+
+const _first = [1, 2, 3][0];
+
+const _taken = [1, 2, 3, 4, 5].slice(0, 3);
+
+const _reversed = [...[1, 2, 3]].reverse();
+
+const _len = [1, 2, 3].length;
+
+const _mapped_opt = 42 !== undefined ? ((n) => n * 2)(42) : undefined;
+
+const _unwrapped = undefined !== undefined ? undefined : 0;
+
+const _is_some = 1 !== undefined;
+
+const _mapped_res = { ok: true as const, value: 42 }.ok ? { ok: true as const, value: ((n) => n + 1)({ ok: true as const, value: 42 }.value) } : { ok: true as const, value: 42 };
+
+const _is_ok = { ok: true as const, value: 1 }.ok;
+
+const _to_opt = { ok: true as const, value: 42 }.ok ? { ok: true as const, value: 42 }.value : undefined;
+
+const _trimmed = "  hello  ".trim();
+
+const _upper = "hello".toUpperCase();
+
+const _contains = "hello world".includes("world");
+
+const _split = "a,b,c".split(",");
+
+const _parsed = (() => { const _n = Number("42"); return Number.isNaN(_n) || "42".trim() === "" ? { ok: false as const, error: { message: `Failed to parse "${"42"}" as number` } } : { ok: true as const, value: _n }; })();
+
+const _clamped = Math.min(Math.max(15, 0), 10);
+
+const _piped = [...[3, 1, 2]].sort((a, b) => a - b);
+
+const _pipe_chain = [...[1, 2, 3, 4, 5].filter((n) => n > 2).map((n) => n * 10)].reverse();
