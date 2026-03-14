@@ -544,7 +544,25 @@ impl Checker {
 
         let declared_type = decl.type_ann.as_ref().map(|t| self.resolve_type(t));
 
-        let final_type = if let Some(ref declared) = declared_type {
+        // Check if tsgo resolved a more precise type for this const
+        let tsgo_type = {
+            let binding_name = match &decl.binding {
+                ConstBinding::Name(n) => n.clone(),
+                ConstBinding::Array(names) => names.join("_"),
+                ConstBinding::Object(names) => names.join("_"),
+            };
+            let probe_key = format!("__probe_{binding_name}");
+            self.dts_imports
+                .values()
+                .flatten()
+                .find(|e| e.name == probe_key)
+                .map(|e| interop::wrap_boundary_type(&e.ts_type))
+        };
+
+        let final_type = if let Some(tsgo_ty) = tsgo_type {
+            // tsgo gave us a fully-resolved type — use it
+            tsgo_ty
+        } else if let Some(ref declared) = declared_type {
             if !self.types_compatible(declared, &value_type) {
                 self.diagnostics.push(
                     Diagnostic::error(

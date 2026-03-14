@@ -208,18 +208,14 @@ fn generate_probe(program: &Program) -> String {
         }
     }
 
-    // For each imported name that wasn't used in a call, create a re-export
-    // so we still get its type
-    let called_names: std::collections::HashSet<String> =
-        probe_calls.iter().map(|c| c.callee.clone()).collect();
+    // Re-export ALL imported names so we get their types
+    // (even if they were also used in calls above)
     for name in imported_names.keys() {
-        if !called_names.contains(name) {
-            probe_reexports.push(ProbeReexport {
-                index: probe_index,
-                name: name.clone(),
-            });
-            probe_index += 1;
-        }
+        probe_reexports.push(ProbeReexport {
+            index: probe_index,
+            name: name.clone(),
+        });
+        probe_index += 1;
     }
 
     // Emit probe const declarations
@@ -588,21 +584,19 @@ fn build_specifier_map(
         }
     }
 
-    // Map re-export probe results
+    // Map re-export probe results — ALL imported names
     for (name, specifier) in &imported_names {
-        if !called_names.contains(name) {
-            let probe_name = format!("_r{probe_index}");
-            if let Some(export) = probe_exports.iter().find(|e| e.name == probe_name) {
-                result
-                    .entry(specifier.clone())
-                    .or_default()
-                    .push(DtsExport {
-                        name: name.clone(),
-                        ts_type: export.ts_type.clone(),
-                    });
-            }
-            probe_index += 1;
+        let probe_name = format!("_r{probe_index}");
+        if let Some(export) = probe_exports.iter().find(|e| e.name == probe_name) {
+            result
+                .entry(specifier.clone())
+                .or_default()
+                .push(DtsExport {
+                    name: name.clone(),
+                    ts_type: export.ts_type.clone(),
+                });
         }
+        probe_index += 1;
     }
 
     result
@@ -663,9 +657,11 @@ const [count, setCount] = useState(0)"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program);
 
-        // useState should be a probe call, useEffect should be a re-export
+        // useState should be a probe call, both should be re-exported
         assert!(probe.contains("export const _r0 = useState(0);"));
-        assert!(probe.contains("export const _r1 = useEffect;"));
+        // All imports are re-exported (useState and useEffect)
+        assert!(probe.contains("= useState;"), "should re-export useState");
+        assert!(probe.contains("= useEffect;"), "should re-export useEffect");
     }
 
     #[test]
