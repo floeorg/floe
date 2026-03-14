@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -8,6 +9,7 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::checker::Checker;
 use crate::diagnostic::{self as zs_diag, Severity};
+use crate::interop;
 use crate::parser::Parser;
 use crate::parser::ast::*;
 
@@ -461,6 +463,151 @@ fn is_pipe_compatible(fn_first_param: &str, piped_type: &str) -> bool {
     false
 }
 
+// ── Module Resolution (lightweight, no tsc) ────────────────────
+
+/// Resolve an npm package specifier to its .d.ts file path.
+/// Walks node_modules looking for package.json types/typings field.
+fn resolve_npm_dts(specifier: &str, project_dir: &Path) -> Option<PathBuf> {
+    // Walk up directories looking for node_modules
+    let mut dir = project_dir.to_path_buf();
+    loop {
+        let pkg_dir = dir.join("node_modules").join(specifier);
+        if pkg_dir.is_dir() {
+            // Check package.json for types/typings field
+            let pkg_json = pkg_dir.join("package.json");
+            if let Ok(content) = std::fs::read_to_string(&pkg_json)
+                && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+            {
+                // Try "types", then "typings"
+                for field in &["types", "typings"] {
+                    if let Some(types_path) = json.get(field).and_then(|v| v.as_str()) {
+                        let full = pkg_dir.join(types_path);
+                        if full.exists() {
+                            return Some(full);
+                        }
+                    }
+                }
+            }
+            // Fallback: index.d.ts
+            let index_dts = pkg_dir.join("index.d.ts");
+            if index_dts.exists() {
+                return Some(index_dts);
+            }
+        }
+
+        // Also check @types/<pkg>
+        let at_types = dir.join("node_modules").join("@types").join(specifier);
+        if at_types.is_dir() {
+            let index_dts = at_types.join("index.d.ts");
+            if index_dts.exists() {
+                return Some(index_dts);
+            }
+        }
+
+        if !dir.pop() {
+            break;
+        }
+    }
+    None
+}
+
+/// Resolve a relative import to an actual file path.
+/// Checks .zs, .ts, .tsx extensions and /index variants.
+fn resolve_relative_import(specifier: &str, source_dir: &Path) -> Option<PathBuf> {
+    let base = source_dir.join(specifier);
+    for ext in &[".zs", ".ts", ".tsx", "/index.zs", "/index.ts", "/index.tsx"] {
+        let path = PathBuf::from(format!("{}{}", base.display(), ext));
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    // Maybe it already has an extension
+    if base.exists() && base.is_file() {
+        return Some(base);
+    }
+    None
+}
+
+/// Enrich a symbol index with type info from resolved .d.ts files.
+/// Also returns diagnostics for unresolvable relative imports.
+fn enrich_from_imports(
+    program: &Program,
+    project_dir: &Path,
+    source_dir: &Path,
+    index: &mut SymbolIndex,
+    dts_cache: &HashMap<String, Vec<interop::DtsExport>>,
+) -> (
+    Vec<zs_diag::Diagnostic>,
+    HashMap<String, Vec<interop::DtsExport>>,
+) {
+    let mut import_diags = Vec::new();
+    let mut new_cache = HashMap::new();
+
+    for item in &program.items {
+        let ItemKind::Import(decl) = &item.kind else {
+            continue;
+        };
+
+        let specifier = &decl.source;
+        let is_relative = specifier.starts_with("./") || specifier.starts_with("../");
+
+        if is_relative {
+            // Validate relative imports exist
+            if resolve_relative_import(specifier, source_dir).is_none() {
+                import_diags.push(
+                    zs_diag::Diagnostic::error(
+                        format!("cannot find module \"{}\"", specifier),
+                        item.span,
+                    )
+                    .with_label("module not found")
+                    .with_help("Check the file path and extension")
+                    .with_code("E012"),
+                );
+            }
+            continue;
+        }
+
+        // npm package — try to resolve .d.ts
+        let exports = if let Some(cached) = dts_cache.get(specifier) {
+            cached.clone()
+        } else if let Some(dts_path) = resolve_npm_dts(specifier, project_dir) {
+            match interop::parse_dts_exports(&dts_path) {
+                Ok(exports) => exports,
+                Err(_) => continue,
+            }
+        } else {
+            continue;
+        };
+
+        new_cache.insert(specifier.clone(), exports.clone());
+
+        // Enrich imported symbols with type info from .d.ts
+        for sym in &mut index.symbols {
+            if sym.import_source.as_deref() != Some(specifier) {
+                continue;
+            }
+            // Find matching export
+            if let Some(dts_export) = exports.iter().find(|e| e.name == sym.name) {
+                let type_str = interop::ts_type_to_string(&dts_export.ts_type);
+                sym.detail = format!("{} (from \"{}\")", type_str, specifier);
+
+                // If it's a function export, extract first param and return type
+                if let interop::TsType::Function {
+                    params,
+                    return_type,
+                } = &dts_export.ts_type
+                {
+                    sym.kind = SymbolKind::FUNCTION;
+                    sym.first_param_type = params.first().map(interop::ts_type_to_string);
+                    sym.return_type_str = Some(interop::ts_type_to_string(return_type));
+                }
+            }
+        }
+    }
+
+    (import_diags, new_cache)
+}
+
 // ── Document State ──────────────────────────────────────────────
 
 /// State for an open document.
@@ -476,6 +623,8 @@ struct Document {
 pub struct ZenScriptLsp {
     client: Client,
     documents: Arc<RwLock<HashMap<Url, Document>>>,
+    /// Cache of resolved .d.ts exports per module specifier
+    dts_cache: Arc<RwLock<HashMap<String, Vec<interop::DtsExport>>>>,
 }
 
 impl ZenScriptLsp {
@@ -483,6 +632,7 @@ impl ZenScriptLsp {
         Self {
             client,
             documents: Arc::new(RwLock::new(HashMap::new())),
+            dts_cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -498,8 +648,25 @@ impl ZenScriptLsp {
                 )
             }
             Ok(program) => {
-                let index = SymbolIndex::build(&program);
-                let (check_diags, type_map) = Checker::new().check_with_types(&program);
+                let mut index = SymbolIndex::build(&program);
+                let (mut check_diags, type_map) = Checker::new().check_with_types(&program);
+
+                // Resolve imports: enrich symbols from .d.ts, validate relative paths
+                if let Ok(source_path) = uri.to_file_path() {
+                    let source_dir = source_path.parent().unwrap_or(Path::new("."));
+                    // Walk up to find project root (where node_modules lives)
+                    let project_dir = find_project_dir(source_dir);
+                    let cache = self.dts_cache.read().await.clone();
+                    let (import_diags, new_cache) =
+                        enrich_from_imports(&program, &project_dir, source_dir, &mut index, &cache);
+                    check_diags.extend(import_diags);
+                    // Update cache with newly resolved modules
+                    if !new_cache.is_empty() {
+                        let mut cache_write = self.dts_cache.write().await;
+                        cache_write.extend(new_cache);
+                    }
+                }
+
                 (
                     self.convert_diagnostics(source, &check_diags),
                     index,
@@ -1213,6 +1380,19 @@ fn word_prefix_at_offset(source: &str, offset: usize) -> String {
 
 fn is_word_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
+}
+
+/// Find the project root directory (where node_modules lives).
+fn find_project_dir(start: &Path) -> PathBuf {
+    let mut dir = start.to_path_buf();
+    loop {
+        if dir.join("node_modules").is_dir() || dir.join("package.json").is_file() {
+            return dir;
+        }
+        if !dir.pop() {
+            return start.to_path_buf();
+        }
+    }
 }
 
 /// Start the LSP server on stdin/stdout.

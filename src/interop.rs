@@ -156,6 +156,49 @@ pub enum TsType {
     Tuple(Vec<TsType>),
 }
 
+/// Convert a TsType to a human-readable string for display.
+pub fn ts_type_to_string(ty: &TsType) -> String {
+    match ty {
+        TsType::Primitive(s) => s.clone(),
+        TsType::Null => "null".to_string(),
+        TsType::Undefined => "undefined".to_string(),
+        TsType::Any => "any".to_string(),
+        TsType::Unknown => "unknown".to_string(),
+        TsType::Named(n) => n.clone(),
+        TsType::Generic { name, args } => {
+            let args_str: Vec<String> = args.iter().map(ts_type_to_string).collect();
+            format!("{}<{}>", name, args_str.join(", "))
+        }
+        TsType::Union(parts) => {
+            let parts_str: Vec<String> = parts.iter().map(ts_type_to_string).collect();
+            parts_str.join(" | ")
+        }
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            let params_str: Vec<String> = params.iter().map(ts_type_to_string).collect();
+            format!(
+                "({}) => {}",
+                params_str.join(", "),
+                ts_type_to_string(return_type)
+            )
+        }
+        TsType::Array(inner) => format!("Array<{}>", ts_type_to_string(inner)),
+        TsType::Object(fields) => {
+            let fs: Vec<String> = fields
+                .iter()
+                .map(|(n, t)| format!("{}: {}", n, ts_type_to_string(t)))
+                .collect();
+            format!("{{ {} }}", fs.join(", "))
+        }
+        TsType::Tuple(parts) => {
+            let ps: Vec<String> = parts.iter().map(ts_type_to_string).collect();
+            format!("[{}]", ps.join(", "))
+        }
+    }
+}
+
 /// An export entry from a .d.ts file.
 #[derive(Debug, Clone)]
 pub struct DtsExport {
