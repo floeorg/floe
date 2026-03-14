@@ -5,17 +5,24 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["vite", "vite-plugin", "zenscript"],
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "zenscript"
+  ],
   "license": "MIT",
   "peerDependencies": {
     "vite": "^5.0.0 || ^6.0.0"
   },
   "devDependencies": {
+    "@types/node": "^25.5.0",
     "typescript": "^5.0.0",
     "vite": "^6.0.0"
   }

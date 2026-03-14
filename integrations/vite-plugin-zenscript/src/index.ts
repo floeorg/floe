@@ -29,13 +29,6 @@ export default function zenscript(options: ZenScriptOptions = {}): Plugin {
     name: "vite-plugin-zenscript",
     enforce: "pre",
 
-    resolveId(source) {
-      // Let Vite resolve .zs files
-      if (source.endsWith(".zs")) {
-        return null; // defer to default resolution
-      }
-    },
-
     transform(code, id) {
       if (!id.endsWith(".zs")) return null;
 
@@ -74,8 +67,6 @@ function compileZenScript(
   filename: string,
 ): CompileResult {
   try {
-    // Use zsc build --stdin to compile from stdin
-    // Falls back to writing a temp file if stdin mode isn't available
     const output = execFileSync(compiler, ["build", "--emit-stdout", "-"], {
       input: source,
       encoding: "utf-8",
@@ -86,15 +77,8 @@ function compileZenScript(
       },
     });
 
-    // Check if output contains JSX
-    const hasJsx =
-      output.includes("React") ||
-      output.includes("jsx") ||
-      output.includes("<");
-
     return {
       code: output,
-      // Source maps will be added when zsc supports --source-map
       map: null,
     };
   } catch (error) {

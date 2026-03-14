@@ -19,11 +19,14 @@ struct Cli {
 enum Command {
     /// Compile .zs files to .ts/.tsx
     Build {
-        /// File or directory to compile
+        /// File or directory to compile ("-" for stdin)
         path: PathBuf,
         /// Output directory (defaults to same directory as input)
         #[arg(short, long)]
         out_dir: Option<PathBuf>,
+        /// Emit compiled output to stdout instead of writing files
+        #[arg(long)]
+        emit_stdout: bool,
     },
     /// Type-check .zs files without emitting output
     Check {
@@ -51,7 +54,17 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Build { path, out_dir } => cmd_build(&path, out_dir.as_deref()),
+        Command::Build {
+            path,
+            out_dir,
+            emit_stdout,
+        } => {
+            if emit_stdout || path.as_os_str() == "-" {
+                cmd_build_stdin()
+            } else {
+                cmd_build(&path, out_dir.as_deref())
+            }
+        }
         Command::Check { path } => cmd_check(&path),
         Command::Watch { path, out_dir } => cmd_watch(&path, out_dir.as_deref()),
         Command::Init { path } => cmd_init(path.as_deref()),
@@ -60,6 +73,41 @@ fn main() -> Result<()> {
             Ok(())
         }
     }
+}
+
+// ── Build (stdin → stdout) ───────────────────────────────────────
+
+fn cmd_build_stdin() -> Result<()> {
+    use std::io::Read;
+
+    let mut source = String::new();
+    std::io::stdin()
+        .read_to_string(&mut source)
+        .context("failed to read from stdin")?;
+
+    let filename = std::env::var("ZSC_FILENAME").unwrap_or_else(|_| "<stdin>".to_string());
+
+    let program = ZsParser::new(&source).parse_program().map_err(|errs| {
+        let diags = diagnostic::from_parse_errors(&errs);
+        let rendered = diagnostic::render_diagnostics(&filename, &source, &diags);
+        anyhow::anyhow!("{rendered}")
+    })?;
+
+    // Type check
+    let check_diags = Checker::new().check(&program);
+    let type_errors: Vec<_> = check_diags
+        .iter()
+        .filter(|d| d.severity == diagnostic::Severity::Error)
+        .collect();
+    if !type_errors.is_empty() {
+        let rendered = diagnostic::render_diagnostics(&filename, &source, &check_diags);
+        return Err(anyhow::anyhow!("{rendered}"));
+    }
+
+    let output = Codegen::new().generate(&program);
+    print!("{}", output.code);
+
+    Ok(())
 }
 
 // ── Build ────────────────────────────────────────────────────────
