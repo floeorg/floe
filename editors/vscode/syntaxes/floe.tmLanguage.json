@@ -12,6 +12,7 @@
     { "include": "#types" },
     { "include": "#operators" },
     { "include": "#functions" },
+    { "include": "#lambda" },
     { "include": "#jsx" },
     { "include": "#numbers" },
     { "include": "#identifiers" }
@@ -98,7 +99,7 @@
         },
         {
           "name": "invalid.illegal.keyword.floe",
-          "match": "\\b(let|var|class|enum|throw|null|undefined|any|as)\\b"
+          "match": "\\b(let|var|class|enum|throw|null|undefined|any|as|function)\\b"
         }
       ]
     },
@@ -106,7 +107,7 @@
       "patterns": [
         {
           "name": "storage.type.floe",
-          "match": "\\b(const|function|type)\\b"
+          "match": "\\b(const|fn|type)\\b"
         }
       ]
     },
@@ -126,7 +127,7 @@
         },
         {
           "name": "support.type.builtin.floe",
-          "match": "\\b(Result|Option|Brand|Array)\\b"
+          "match": "\\b(Result|Option|Brand|Array|Promise|JSX)\\b"
         },
         {
           "comment": "User-defined types (PascalCase identifiers)",
@@ -167,7 +168,12 @@
         },
         {
           "name": "keyword.operator.arithmetic.floe",
-          "match": "[+\\-*/%]"
+          "match": "[+*/%]"
+        },
+        {
+          "comment": "Minus sign — but not when part of ->",
+          "name": "keyword.operator.arithmetic.floe",
+          "match": "-(?!>)"
         },
         {
           "name": "keyword.operator.assignment.floe",
@@ -178,8 +184,8 @@
     "functions": {
       "patterns": [
         {
-          "comment": "Function declarations",
-          "match": "\\b(function)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+          "comment": "fn declarations",
+          "match": "\\b(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
           "captures": {
             "1": { "name": "storage.type.function.floe" },
             "2": { "name": "entity.name.function.floe" }
@@ -194,20 +200,79 @@
         }
       ]
     },
+    "lambda": {
+      "patterns": [
+        {
+          "comment": "Pipe lambda parameters: |x| or |a, b|",
+          "match": "(\\|)([^|>]*?)(\\|)(?!>|\\|)",
+          "captures": {
+            "1": { "name": "punctuation.definition.parameters.begin.floe" },
+            "2": { "name": "variable.parameter.floe" },
+            "3": { "name": "punctuation.definition.parameters.end.floe" }
+          }
+        }
+      ]
+    },
     "jsx": {
       "patterns": [
         {
-          "comment": "JSX self-closing tag",
-          "match": "<([A-Z][a-zA-Z0-9]*|[a-z][a-zA-Z0-9-]*)\\s*[^>]*/\\s*>",
+          "comment": "JSX closing tag",
+          "match": "(</)([A-Z][a-zA-Z0-9]*|[a-z][a-zA-Z0-9-]*)(>)",
           "captures": {
-            "1": { "name": "entity.name.tag.floe" }
+            "1": { "name": "punctuation.definition.tag.begin.floe" },
+            "2": { "name": "entity.name.tag.floe" },
+            "3": { "name": "punctuation.definition.tag.end.floe" }
           }
         },
         {
-          "comment": "JSX opening tag name",
-          "match": "</?([A-Z][a-zA-Z0-9]*|[a-z][a-zA-Z0-9-]*)",
+          "comment": "JSX self-closing tag",
+          "begin": "(<)([A-Z][a-zA-Z0-9]*|[a-z][a-zA-Z0-9-]*)(?=\\s|/|>)",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.tag.begin.floe" },
+            "2": { "name": "entity.name.tag.floe" }
+          },
+          "end": "(/?>)",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.tag.end.floe" }
+          },
+          "patterns": [
+            { "include": "#jsx-attributes" }
+          ]
+        }
+      ]
+    },
+    "jsx-attributes": {
+      "patterns": [
+        {
+          "comment": "JSX expression attribute: prop={expr}",
+          "begin": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "entity.other.attribute-name.floe" },
+            "2": { "name": "keyword.operator.assignment.floe" },
+            "3": { "name": "punctuation.section.embedded.begin.floe" }
+          },
+          "end": "(\\})",
+          "endCaptures": {
+            "1": { "name": "punctuation.section.embedded.end.floe" }
+          },
+          "patterns": [
+            { "include": "source.floe" }
+          ]
+        },
+        {
+          "comment": "JSX string attribute: prop=\"value\"",
+          "match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)\\s*(\"[^\"]*\")",
           "captures": {
-            "1": { "name": "entity.name.tag.floe" }
+            "1": { "name": "entity.other.attribute-name.floe" },
+            "2": { "name": "keyword.operator.assignment.floe" },
+            "3": { "name": "string.quoted.double.floe" }
+          }
+        },
+        {
+          "comment": "JSX bare attribute name",
+          "match": "([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "entity.other.attribute-name.floe" }
           }
         }
       ]

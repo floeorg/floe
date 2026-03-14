@@ -2,7 +2,7 @@
   "Function Declaration": {
     "prefix": "fn",
     "body": [
-      "function ${1:name}(${2:params}): ${3:ReturnType} {",
+      "fn ${1:name}(${2:params}) -> ${3:ReturnType} {",
       "\t$0",
       "}"
     ],
@@ -11,7 +11,7 @@
   "Export Function": {
     "prefix": "efn",
     "body": [
-      "export function ${1:name}(${2:params}): ${3:ReturnType} {",
+      "export fn ${1:name}(${2:params}) -> ${3:ReturnType} {",
       "\t$0",
       "}"
     ],
@@ -68,7 +68,7 @@
   "React Component": {
     "prefix": "comp",
     "body": [
-      "export function ${1:Component}() {",
+      "export fn ${1:Component}() -> JSX.Element {",
       "\treturn <div>",
       "\t\t$0",
       "\t</div>",
