@@ -46,6 +46,14 @@ enum Command {
         /// Project directory (defaults to current directory)
         path: Option<PathBuf>,
     },
+    /// Format .zs files
+    Fmt {
+        /// File or directory to format
+        path: PathBuf,
+        /// Check formatting without writing (exit 1 if unformatted)
+        #[arg(long)]
+        check: bool,
+    },
     /// Start the language server (LSP)
     Lsp,
 }
@@ -66,6 +74,7 @@ fn main() -> Result<()> {
             }
         }
         Command::Check { path } => cmd_check(&path),
+        Command::Fmt { path, check } => cmd_fmt(&path, check),
         Command::Watch { path, out_dir } => cmd_watch(&path, out_dir.as_deref()),
         Command::Init { path } => cmd_init(path.as_deref()),
         Command::Lsp => {
@@ -226,6 +235,53 @@ fn cmd_check(path: &Path) -> Result<()> {
         bail!("{checked} ok, {errors} with errors");
     }
     println!("{checked} file(s) checked, no errors");
+    Ok(())
+}
+
+// ── Fmt ──────────────────────────────────────────────────────────
+
+fn cmd_fmt(path: &Path, check_only: bool) -> Result<()> {
+    let files = discover_zs_files(path)?;
+    if files.is_empty() {
+        bail!("no .zs files found in {}", path.display());
+    }
+
+    let mut unformatted = 0;
+    let mut formatted = 0;
+
+    for file in &files {
+        let source = std::fs::read_to_string(file)
+            .with_context(|| format!("failed to read {}", file.display()))?;
+
+        let result = zenscript::formatter::format(&source);
+
+        if result == source {
+            formatted += 1;
+            continue;
+        }
+
+        if check_only {
+            println!("  would reformat {}", file.display());
+            unformatted += 1;
+        } else {
+            std::fs::write(file, &result)
+                .with_context(|| format!("failed to write {}", file.display()))?;
+            println!("  formatted {}", file.display());
+            formatted += 1;
+        }
+    }
+
+    println!();
+    if check_only && unformatted > 0 {
+        bail!("{unformatted} file(s) would be reformatted");
+    }
+
+    let total = formatted + unformatted;
+    if check_only {
+        println!("{total} file(s) already formatted");
+    } else {
+        println!("{total} file(s) formatted");
+    }
     Ok(())
 }
 
