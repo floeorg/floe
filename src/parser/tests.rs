@@ -198,6 +198,39 @@ fn named_args() {
     }
 }
 
+#[test]
+fn named_arg_punning() {
+    let expr = first_expr("f(name:, limit:)");
+    match expr {
+        ExprKind::Call { args, .. } => {
+            assert_eq!(args.len(), 2);
+            assert!(
+                matches!(&args[0], Arg::Named { label, value } if label == "name" && matches!(&value.kind, ExprKind::Identifier(n) if n == "name"))
+            );
+            assert!(
+                matches!(&args[1], Arg::Named { label, value } if label == "limit" && matches!(&value.kind, ExprKind::Identifier(n) if n == "limit"))
+            );
+        }
+        _ => panic!("expected call"),
+    }
+}
+
+#[test]
+fn named_arg_punning_mixed() {
+    let expr = first_expr(r#"f("pos", name:, limit: 10)"#);
+    match expr {
+        ExprKind::Call { args, .. } => {
+            assert_eq!(args.len(), 3);
+            assert!(matches!(&args[0], Arg::Positional(_)));
+            assert!(
+                matches!(&args[1], Arg::Named { label, value } if label == "name" && matches!(&value.kind, ExprKind::Identifier(n) if n == "name"))
+            );
+            assert!(matches!(&args[2], Arg::Named { label, .. } if label == "limit"));
+        }
+        _ => panic!("expected call"),
+    }
+}
+
 // ── Constructors ─────────────────────────────────────────────
 
 #[test]

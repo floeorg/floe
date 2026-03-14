@@ -708,10 +708,24 @@ impl Parser {
     }
 
     fn parse_call_arg(&mut self) -> Result<Arg, ParseError> {
-        // Check for named argument: `label: expr`
+        // Check for named argument: `label: expr` or punned `label:`
         if self.is_identifier() && self.peek_kind() == Some(&TokenKind::Colon) {
+            let span = self.current_span();
             let label = self.expect_identifier()?;
             self.advance(); // consume ':'
+
+            // Punning: `label:` without a value (next token is `)` or `,`)
+            if matches!(
+                self.current_kind(),
+                TokenKind::RightParen | TokenKind::Comma
+            ) {
+                let value = Expr {
+                    kind: ExprKind::Identifier(label.clone()),
+                    span,
+                };
+                return Ok(Arg::Named { label, value });
+            }
+
             let value = self.parse_expr()?;
             return Ok(Arg::Named { label, value });
         }
