@@ -7,7 +7,7 @@ function log(msg: string): void {
 }
 
 function deleteUser(id: string): { ok: true; value: void } | { ok: false; error: string } {
-  { ok: true as const, value: undefined };
+  return { ok: true as const, value: undefined };
 }
 
 type ButtonProps = { onClick: () => void };

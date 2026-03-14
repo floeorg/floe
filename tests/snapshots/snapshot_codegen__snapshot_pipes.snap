@@ -5,15 +5,15 @@ expression: output
 const data = 42;
 
 function transform(x: number): string {
-  "transformed";
+  return "transformed";
 }
 
 function format(s: string): string {
-  s;
+  return s;
 }
 
 function wrap(prefix: string, value: string, suffix: string): string {
-  prefix;
+  return prefix;
 }
 
 const _result = format(transform(data));

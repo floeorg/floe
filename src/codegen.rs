@@ -184,13 +184,23 @@ impl Codegen {
         self.emit_params(&decl.params);
         self.push(")");
 
+        // Check if return type is unit/void — if so, no implicit return needed
+        let is_unit_return = decl
+            .return_type
+            .as_ref()
+            .is_some_and(|rt| matches!(&rt.kind, TypeExprKind::Named { name, .. } if name == "()"));
+
         if let Some(ret) = &decl.return_type {
             self.push(": ");
             self.emit_type_expr(ret);
         }
 
         self.push(" ");
-        self.emit_block_expr(&decl.body);
+        if is_unit_return {
+            self.emit_block_expr(&decl.body);
+        } else {
+            self.emit_block_expr_with_return(&decl.body);
+        }
     }
 
     fn emit_params(&mut self, params: &[Param]) {
@@ -1018,6 +1028,57 @@ impl Codegen {
 
     // ── Block ────────────────────────────────────────────────────
 
+    /// Like emit_block_expr but adds implicit return to the last expression.
+    fn emit_block_expr_with_return(&mut self, expr: &Expr) {
+        match &expr.kind {
+            ExprKind::Block(items) => {
+                self.push("{");
+                self.newline();
+                self.indent += 1;
+                for (i, item) in items.iter().enumerate() {
+                    let is_last = i == items.len() - 1;
+                    if is_last
+                        && matches!(item.kind, ItemKind::Expr(_))
+                        && !self.item_has_return(item)
+                    {
+                        self.emit_indent();
+                        self.push("return ");
+                        if let ItemKind::Expr(e) = &item.kind {
+                            self.emit_expr(e);
+                        }
+                        self.push(";");
+                    } else {
+                        self.emit_item(item);
+                    }
+                    self.newline();
+                }
+                self.indent -= 1;
+                self.emit_indent();
+                self.push("}");
+            }
+            _ => {
+                self.push("{");
+                self.newline();
+                self.indent += 1;
+                self.emit_indent();
+                if !matches!(expr.kind, ExprKind::Return(_)) {
+                    self.push("return ");
+                }
+                self.emit_expr(expr);
+                self.push(";");
+                self.newline();
+                self.indent -= 1;
+                self.emit_indent();
+                self.push("}");
+            }
+        }
+    }
+
+    /// Check if an item already contains an explicit return.
+    fn item_has_return(&self, item: &Item) -> bool {
+        matches!(&item.kind, ItemKind::Expr(e) if matches!(e.kind, ExprKind::Return(_)))
+    }
+
     fn emit_block_expr(&mut self, expr: &Expr) {
         match &expr.kind {
             ExprKind::Block(items) => {
@@ -1337,7 +1398,7 @@ mod tests {
         let result = emit("function add(a: number, b: number): number { a + b }");
         assert_eq!(
             result,
-            "function add(a: number, b: number): number {\n  a + b;\n}"
+            "function add(a: number, b: number): number {\n  return a + b;\n}"
         );
     }
 

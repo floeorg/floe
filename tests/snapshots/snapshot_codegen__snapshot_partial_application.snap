@@ -3,15 +3,15 @@ source: tests/snapshot_codegen.rs
 expression: output
 ---
 function add(a: number, b: number): number {
-  a + b;
+  return a + b;
 }
 
 function multiply(a: number, b: number): number {
-  a * b;
+  return a * b;
 }
 
 function map(arr: Array<number>, f: (_p0: number) => number): Array<number> {
-  arr;
+  return arr;
 }
 
 const _addTen = (_x) => add(10, _x);
