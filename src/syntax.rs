@@ -6,6 +6,7 @@ use crate::lexer::token::TokenKind;
 /// share the same enum so rowan can use a single `u16` tag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u16)]
+#[allow(non_camel_case_types)]
 pub enum SyntaxKind {
     // ── Tokens (1:1 with TokenKind) ─────────────────────────────
 
@@ -38,27 +39,27 @@ pub enum SyntaxKind {
     KW_NONE,
 
     // Operators
-    PIPE,        // |>
-    THIN_ARROW,  // ->
-    FAT_ARROW,   // =>
-    QUESTION,    // ?
-    UNDERSCORE,  // _
-    DOT_DOT,     // ..
-    PLUS,        // +
-    MINUS,       // -
-    STAR,        // *
-    SLASH,       // /
-    PERCENT,     // %
-    EQUAL_EQUAL, // ==
-    BANG_EQUAL,  // !=
-    LESS_THAN,   // <
-    GREATER_THAN, // >
-    LESS_EQUAL,  // <=
+    PIPE,          // |>
+    THIN_ARROW,    // ->
+    FAT_ARROW,     // =>
+    QUESTION,      // ?
+    UNDERSCORE,    // _
+    DOT_DOT,       // ..
+    PLUS,          // +
+    MINUS,         // -
+    STAR,          // *
+    SLASH,         // /
+    PERCENT,       // %
+    EQUAL_EQUAL,   // ==
+    BANG_EQUAL,    // !=
+    LESS_THAN,     // <
+    GREATER_THAN,  // >
+    LESS_EQUAL,    // <=
     GREATER_EQUAL, // >=
-    AMP_AMP,     // &&
-    PIPE_PIPE,   // ||
-    BANG,        // !
-    EQUAL,       // =
+    AMP_AMP,       // &&
+    PIPE_PIPE,     // ||
+    BANG,          // !
+    EQUAL,         // =
 
     // Delimiters
     L_PAREN,   // (
@@ -84,7 +85,6 @@ pub enum SyntaxKind {
     BLOCK_COMMENT,
 
     // ── Composite nodes (grammar productions) ───────────────────
-
     PROGRAM,
     IMPORT_DECL,
     IMPORT_SPECIFIER,

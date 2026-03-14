@@ -1,8 +1,10 @@
 pub mod ast;
 
+use crate::cst::CstParser;
 use crate::lexer::Lexer;
 use crate::lexer::span::Span;
 use crate::lexer::token::{TemplatePart as LexTemplatePart, Token, TokenKind};
+use crate::lower::lower_program;
 use ast::*;
 
 /// A parse error with location and message.
@@ -53,6 +55,26 @@ impl Parser {
             pos: 0,
             errors: Vec::new(),
         }
+    }
+
+    /// Parse a complete program using the CST pipeline (lexer → CST → lower → AST).
+    pub fn parse_program_cst(source: &str) -> Result<Program, Vec<ParseError>> {
+        let tokens = Lexer::new(source).tokenize_with_trivia();
+        let cst_parse = CstParser::new(source, tokens).parse();
+
+        if !cst_parse.errors.is_empty() {
+            return Err(cst_parse
+                .errors
+                .into_iter()
+                .map(|e| ParseError {
+                    message: e.message,
+                    span: e.span,
+                })
+                .collect());
+        }
+
+        let root = cst_parse.syntax();
+        lower_program(&root, source)
     }
 
     /// Parse a complete program.

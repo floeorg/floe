@@ -68,8 +68,7 @@ impl<'src> Lexer<'src> {
         match self.peek() {
             Some(b' ' | b'\t' | b'\r' | b'\n') => {
                 let start = self.pos;
-                while !self.is_at_end()
-                    && matches!(self.peek(), Some(b' ' | b'\t' | b'\r' | b'\n'))
+                while !self.is_at_end() && matches!(self.peek(), Some(b' ' | b'\t' | b'\r' | b'\n'))
                 {
                     self.advance();
                 }

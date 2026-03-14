@@ -1,6 +1,6 @@
 use crate::lexer::span::Span;
 use crate::lexer::token::{Token, TokenKind};
-use crate::syntax::{SyntaxKind, SyntaxNode, ZenLang, token_kind_to_syntax};
+use crate::syntax::{SyntaxKind, SyntaxNode, token_kind_to_syntax};
 use rowan::GreenNode;
 
 /// Result of CST parsing.
@@ -150,7 +150,9 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Check for `as alias` — "as" is a banned keyword but used contextually here
-        if self.at_identifier("as") || self.at(TokenKind::Banned(crate::lexer::token::BannedKeyword::As)) {
+        if self.at_identifier("as")
+            || self.at(TokenKind::Banned(crate::lexer::token::BannedKeyword::As))
+        {
             self.bump();
             self.eat_trivia();
             self.expect_ident();
@@ -525,8 +527,7 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         self.parse_unary_expr();
 
-        while self.at(TokenKind::Star) || self.at(TokenKind::Slash) || self.at(TokenKind::Percent)
-        {
+        while self.at(TokenKind::Star) || self.at(TokenKind::Slash) || self.at(TokenKind::Percent) {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
             self.bump();
@@ -998,10 +999,7 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Props
-        while !self.at(TokenKind::GreaterThan)
-            && !self.at(TokenKind::Slash)
-            && !self.at_end()
-        {
+        while !self.at(TokenKind::GreaterThan) && !self.at(TokenKind::Slash) && !self.at_end() {
             self.parse_jsx_prop();
             self.eat_trivia();
         }
@@ -1145,7 +1143,9 @@ impl<'src> CstParser<'src> {
     fn is_jsx_text_token(&self) -> bool {
         matches!(
             self.current_kind(),
-            Some(TokenKind::Identifier(_)) | Some(TokenKind::Number(_)) | Some(TokenKind::String(_))
+            Some(TokenKind::Identifier(_))
+                | Some(TokenKind::Number(_))
+                | Some(TokenKind::String(_))
                 | Some(TokenKind::Whitespace)
         )
     }
@@ -1223,8 +1223,7 @@ impl<'src> CstParser<'src> {
                 i += 1;
             }
             return i < self.tokens.len()
-                && std::mem::discriminant(&self.tokens[i].kind)
-                    == std::mem::discriminant(&kind);
+                && std::mem::discriminant(&self.tokens[i].kind) == std::mem::discriminant(&kind);
         }
         false
     }
@@ -1293,7 +1292,7 @@ impl<'src> CstParser<'src> {
         });
     }
 
-    fn parse_comma_separated(&mut self, mut parse_fn: fn(&mut Self), closing: TokenKind) {
+    fn parse_comma_separated(&mut self, parse_fn: fn(&mut Self), closing: TokenKind) {
         if self.at(closing.clone()) {
             return;
         }
