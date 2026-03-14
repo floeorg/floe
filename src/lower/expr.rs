@@ -136,8 +136,10 @@ impl<'src> Lowerer<'src> {
             }
 
             SyntaxKind::CONSTRUCT_EXPR => {
-                let idents = self.collect_idents_direct(node);
-                let type_name = idents.first()?.clone();
+                // For qualified variants like Route.Profile(...), there are multiple
+                // idents before '('. We want the last one (the variant name).
+                let idents = self.collect_idents_before_lparen(node);
+                let type_name = idents.last()?.clone();
 
                 let mut spread = None;
                 let mut args = Vec::new();

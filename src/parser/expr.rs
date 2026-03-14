@@ -490,6 +490,60 @@ impl Parser {
                     return self.parse_construct_expr();
                 }
 
+                // Qualified variant: `Filter.All` or `Route.Profile(id: "123")`
+                // Uppercase.Uppercase pattern
+                if name.starts_with(char::is_uppercase)
+                    && self.peek_kind() == Some(&TokenKind::Dot)
+                    && let Some(after_dot) = self.peek_nth_kind(2)
+                    && matches!(after_dot, TokenKind::Identifier(n) if n.starts_with(char::is_uppercase))
+                {
+                    self.advance(); // consume type name
+                    self.advance(); // consume '.'
+                    let variant_name = self.expect_identifier()?;
+
+                    // If followed by `(`, it's a qualified constructor: Route.Profile(id: "123")
+                    if self.check(&TokenKind::LeftParen) {
+                        self.advance(); // consume '('
+
+                        // Check for spread: `..expr`
+                        let spread = if self.check(&TokenKind::DotDot) {
+                            self.advance();
+                            let spread_expr = self.parse_expr()?;
+                            if self.check(&TokenKind::Comma) {
+                                self.advance();
+                            }
+                            Some(Box::new(spread_expr))
+                        } else {
+                            Option::None
+                        };
+
+                        let args = if !self.check(&TokenKind::RightParen) {
+                            self.parse_call_args()?
+                        } else {
+                            Vec::new()
+                        };
+
+                        self.expect(&TokenKind::RightParen)?;
+                        let end_span = self.previous_span();
+
+                        return Ok(Expr {
+                            kind: ExprKind::Construct {
+                                type_name: variant_name,
+                                spread,
+                                args,
+                            },
+                            span: self.merge_spans(start_span, end_span),
+                        });
+                    }
+
+                    // Unit variant: Filter.All → Identifier("All")
+                    let end_span = self.previous_span();
+                    return Ok(Expr {
+                        kind: ExprKind::Identifier(variant_name),
+                        span: self.merge_spans(start_span, end_span),
+                    });
+                }
+
                 self.advance();
                 Ok(Expr {
                     kind: ExprKind::Identifier(name),

@@ -439,8 +439,19 @@ impl Formatter<'_> {
     // ── Construct ───────────────────────────────────────────────
 
     pub(crate) fn fmt_construct(&mut self, node: &SyntaxNode) {
-        if let Some(name) = self.first_ident(node) {
-            self.write(&name);
+        // Collect idents before '(' to handle qualified variants: Route.Profile(...)
+        let idents = self.collect_idents_before_lparen(node);
+        if idents.is_empty() {
+            if let Some(name) = self.first_ident(node) {
+                self.write(&name);
+            }
+        } else {
+            for (i, ident) in idents.iter().enumerate() {
+                if i > 0 {
+                    self.write(".");
+                }
+                self.write(ident);
+            }
         }
         self.write("(");
 

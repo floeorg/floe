@@ -20,7 +20,7 @@ Familiar syntax for TS/React developers, but with pipes, exhaustive pattern matc
 cargo build
 ```
 
-This produces the `zsc` CLI binary.
+This produces the `floe` CLI binary.
 
 ### Install JS dependencies
 
@@ -42,15 +42,19 @@ This builds the Vite plugin, then starts the todo app with hot reload.
 
 ```floe
 users
-  |> filter(u => u.active)
-  |> sortBy(u => u.name)
-  |> take(10)
+  |> Array.filter(.active)
+  |> Array.sortBy(.name)
+  |> Array.take(10)
 
 // Placeholder for non-first position
 "hello" |> String.padStart(_, 10)
 
-// Partial application
-const addTen = add(10, _)
+// Dot shorthand for field access
+todos |> Array.filter(.done == false)
+todos |> Array.map(.text)
+
+// Pipe lambdas for more complex transforms
+todos |> Array.map(|t| Todo(..t, done: true))
 ```
 
 ### Exhaustive Pattern Matching
@@ -73,7 +77,7 @@ match fetchUser(id) {
 
 ```floe
 // No null, no undefined, no throw
-function loadProfile(id: UserId): Result<Profile, AppError> {
+fn loadProfile(id: UserId) -> Result<Profile, AppError> {
   const user  = fetchUser(id)?
   const posts = fetchPosts(user.id)?
   Ok({ user, posts })
@@ -89,16 +93,27 @@ const display = match user.nickname {
 ### Tagged Unions
 
 ```floe
+type Filter =
+  | All
+  | Active
+  | Completed
+
 type Route =
   | Home
   | Profile(id: string)
   | Settings(tab: string)
   | NotFound
 
-type ApiError =
-  | Network(NetworkError)
-  | Validation(ValidationError)
-  | Auth(AuthError)
+// Construct variants with qualified syntax
+const f = Filter.All
+const r = Route.Profile(id: "123")
+
+// Match arms stay bare
+match filter {
+  All       -> todos,
+  Active    -> todos |> Array.filter(.done == false),
+  Completed -> todos |> Array.filter(.done == true),
+}
 ```
 
 ### What's Removed
@@ -108,14 +123,14 @@ No `class`, `enum`, `any`, `null`, `undefined`, `throw`, `let`, or `as`. These a
 ## CLI Usage
 
 ```bash
-zsc build <file.fl>           # Compile .fl files to .tsx
-zsc build <file.fl> --out-dir dist  # Specify output directory
-zsc check <file.fl>           # Type-check without emitting
-zsc watch <dir> --out-dir dist     # Watch and recompile on change
-zsc fmt <file.fl>             # Format source files
-zsc fmt --check <file.fl>     # Check formatting (CI mode)
-zsc init [path]               # Scaffold a new Floe project
-zsc lsp                       # Start the language server
+floe build <file.fl>           # Compile .fl files to .tsx
+floe build <file.fl> --out-dir dist  # Specify output directory
+floe check <file.fl>           # Type-check without emitting
+floe watch <dir> --out-dir dist     # Watch and recompile on change
+floe fmt <file.fl>             # Format source files
+floe fmt --check <file.fl>     # Check formatting (CI mode)
+floe init [path]               # Scaffold a new Floe project
+floe lsp                       # Start the language server
 ```
 
 ## Project Structure
@@ -130,9 +145,9 @@ zsc lsp                       # Start the language server
 │   ├── formatter.rs      # Code formatter
 │   └── lsp.rs            # Language server
 ├── crates/
-│   └── zenscript-wasm/   # WASM build for browser playground
+│   └── floe-wasm/        # WASM build for browser playground
 ├── integrations/
-│   └── vite-plugin-zenscript/  # Vite plugin
+│   └── vite-plugin-floe/ # Vite plugin
 ├── examples/
 │   └── todo-app/         # Example React + Floe app
 ├── editors/

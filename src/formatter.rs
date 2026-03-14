@@ -182,6 +182,21 @@ impl<'src> Formatter<'src> {
         self.collect_idents(node)
     }
 
+    pub(crate) fn collect_idents_before_lparen(&self, node: &SyntaxNode) -> Vec<String> {
+        let mut idents = Vec::new();
+        for t in node.children_with_tokens() {
+            if let Some(tok) = t.as_token() {
+                if tok.kind() == SyntaxKind::L_PAREN {
+                    break;
+                }
+                if tok.kind() == SyntaxKind::IDENT {
+                    idents.push(tok.text().to_string());
+                }
+            }
+        }
+        idents
+    }
+
     pub(crate) fn collect_idents_before_eq(&self, node: &SyntaxNode) -> Vec<String> {
         let mut idents = Vec::new();
         for t in node.children_with_tokens() {

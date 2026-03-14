@@ -672,6 +672,10 @@ impl Parser {
         self.tokens.get(self.pos + 1).map(|t| &t.kind)
     }
 
+    fn peek_nth_kind(&self, n: usize) -> Option<&TokenKind> {
+        self.tokens.get(self.pos + n).map(|t| &t.kind)
+    }
+
     fn check(&self, kind: &TokenKind) -> bool {
         std::mem::discriminant(&self.tokens[self.pos].kind) == std::mem::discriminant(kind)
     }

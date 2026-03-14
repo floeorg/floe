@@ -721,6 +721,62 @@ impl<'src> CstParser<'src> {
                     return;
                 }
 
+                // Qualified variant: `Filter.All` or `Route.Profile(id: "123")`
+                if name.starts_with(char::is_uppercase)
+                    && self.peek_is(TokenKind::Dot)
+                    && let Some(TokenKind::Identifier(variant_name)) =
+                        self.peek_nth_non_trivia_kind(2)
+                    && variant_name.starts_with(char::is_uppercase)
+                {
+                    // Check if there's a `(` after the variant name (3rd non-trivia)
+                    let has_args =
+                        matches!(self.peek_nth_non_trivia_kind(3), Some(TokenKind::LeftParen));
+
+                    if has_args {
+                        // Qualified constructor: Route.Profile(id: "123")
+                        // Emit as CONSTRUCT_EXPR with variant_name as the type name
+                        self.builder.start_node(SyntaxKind::CONSTRUCT_EXPR.into());
+                        self.bump(); // type name (Filter/Route)
+                        self.eat_trivia();
+                        self.bump(); // .
+                        self.eat_trivia();
+                        self.bump(); // variant name (Profile) - this becomes the type_name ident
+                        self.eat_trivia();
+                        self.expect(TokenKind::LeftParen);
+                        self.eat_trivia();
+
+                        // Check for spread
+                        if self.at(TokenKind::DotDot) {
+                            self.builder.start_node(SyntaxKind::SPREAD_EXPR.into());
+                            self.bump();
+                            self.eat_trivia();
+                            self.parse_expr();
+                            self.builder.finish_node();
+                            self.eat_trivia();
+                            if self.at(TokenKind::Comma) {
+                                self.bump();
+                                self.eat_trivia();
+                            }
+                        }
+
+                        if !self.at(TokenKind::RightParen) {
+                            self.parse_comma_separated(Self::parse_call_arg, TokenKind::RightParen);
+                        }
+
+                        self.expect(TokenKind::RightParen);
+                        self.builder.finish_node();
+                        return;
+                    } else {
+                        // Qualified unit variant: Filter.All → just emit the variant name as IDENT
+                        self.bump(); // type name
+                        self.eat_trivia();
+                        self.bump(); // .
+                        self.eat_trivia();
+                        self.bump(); // variant name (emitted as IDENT token)
+                        return;
+                    }
+                }
+
                 self.bump();
             }
 
@@ -1167,6 +1223,22 @@ impl<'src> CstParser<'src> {
             i += 1;
         }
         false
+    }
+
+    /// Get the nth non-trivia token kind after the current position (1-indexed).
+    fn peek_nth_non_trivia_kind(&self, n: usize) -> Option<TokenKind> {
+        let mut count = 0;
+        let mut i = self.pos + 1;
+        while i < self.tokens.len() {
+            if !self.tokens[i].kind.is_trivia() {
+                count += 1;
+                if count == n {
+                    return Some(self.tokens[i].kind.clone());
+                }
+            }
+            i += 1;
+        }
+        None
     }
 
     fn is_jsx_text_token(&self) -> bool {

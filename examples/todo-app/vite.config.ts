@@ -14,7 +14,7 @@ export default defineConfig({
     extensions: [".fl", ".ts", ".tsx", ".js", ".jsx"],
   },
   esbuild: {
-    include: /\.(tsx?|jsx?|zs)$/,
+    include: /\.(tsx?|jsx?|fl)$/,
     loader: "tsx",
   },
 });

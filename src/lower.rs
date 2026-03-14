@@ -548,6 +548,23 @@ impl<'src> Lowerer<'src> {
         idents
     }
 
+    /// Collect ident tokens that appear before the first `(` token.
+    /// Used for CONSTRUCT_EXPR to handle qualified variants like `Route.Profile(...)`.
+    fn collect_idents_before_lparen(&self, node: &SyntaxNode) -> Vec<String> {
+        let mut idents = Vec::new();
+        for token in node.children_with_tokens() {
+            if let Some(token) = token.as_token() {
+                if token.kind() == SyntaxKind::L_PAREN {
+                    break;
+                }
+                if token.kind() == SyntaxKind::IDENT {
+                    idents.push(token.text().to_string());
+                }
+            }
+        }
+        idents
+    }
+
     fn collect_numbers(&self, node: &SyntaxNode) -> Vec<String> {
         let mut numbers = Vec::new();
         for token in node.children_with_tokens() {
