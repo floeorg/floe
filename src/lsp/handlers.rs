@@ -6,6 +6,7 @@ use tower_lsp::lsp_types::*;
 
 use super::completion::is_pipe_context;
 use super::completion::resolve_piped_type;
+use super::stdlib_hover;
 use super::symbols::symbol_kind_to_completion;
 use super::{
     BUILTINS, FloeLsp, KEYWORDS, is_word_char, offset_to_position, offset_to_range,
@@ -94,10 +95,33 @@ impl LanguageServer for FloeLsp {
         // Check symbol index first
         let symbols = doc.index.find_by_name(word);
         if let Some(sym) = symbols.first() {
+            let detail = enrich_hover_detail(sym, &doc.type_map);
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,
-                    value: format!("```floe\n{}\n```", sym.detail),
+                    value: format!("```floe\n{detail}\n```"),
+                }),
+                range: None,
+            }));
+        }
+
+        // Check stdlib module names (Array, String, Option, etc.)
+        if let Some(hover_text) = stdlib_hover::hover_stdlib_module(word) {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: hover_text,
+                }),
+                range: None,
+            }));
+        }
+
+        // Check bare stdlib function names (for pipe context)
+        if let Some(hover_text) = stdlib_hover::hover_stdlib_function(word) {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: hover_text,
                 }),
                 range: None,
             }));
@@ -590,6 +614,40 @@ impl LanguageServer for FloeLsp {
             Ok(Some(actions))
         }
     }
+}
+
+// ── Hover enrichment ─────────────────────────────────────────────
+
+use super::symbols::Symbol;
+
+/// Enrich a symbol's hover detail with the inferred type from the checker's
+/// type_map when the symbol doesn't already have a type annotation.
+pub(super) fn enrich_hover_detail(sym: &Symbol, type_map: &HashMap<String, String>) -> String {
+    let detail = &sym.detail;
+
+    // For consts/variables without explicit type annotations (no `:` in the detail),
+    // append the inferred type from the checker if available.
+    if (sym.kind == SymbolKind::CONSTANT || sym.kind == SymbolKind::VARIABLE)
+        && !detail.contains(':')
+        && sym.import_source.is_none()
+        && let Some(inferred) = type_map.get(&sym.name)
+        && !inferred.contains("?T")
+    {
+        return format!("{detail}: {inferred}");
+    }
+
+    // For functions without return type annotation, try to show the inferred return type
+    if sym.kind == SymbolKind::FUNCTION
+        && sym.import_source.is_none()
+        && !detail.contains("->")
+        && let Some(inferred) = type_map.get(&sym.name)
+        && let Some((_, ret)) = inferred.rsplit_once(" -> ")
+        && !ret.contains("?T")
+    {
+        return format!("{detail} -> {ret}");
+    }
+
+    detail.clone()
 }
 
 // ── Import quick-fix helpers ─────────────────────────────────────

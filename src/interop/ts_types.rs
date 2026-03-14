@@ -76,6 +76,9 @@ pub fn ts_type_to_string(ty: &TsType) -> String {
 }
 
 /// Parses a TypeScript type string into a TsType.
+///
+/// Legacy: only used by test helper functions now that the main parser uses oxc.
+#[cfg(test)]
 pub(super) fn parse_type_str(s: &str) -> TsType {
     let s = s.trim();
 
@@ -183,6 +186,7 @@ pub(super) fn parse_type_str(s: &str) -> TsType {
 }
 
 /// Parse parameter types from a param string like "x: string, y: number".
+#[cfg(test)]
 pub(super) fn parse_param_types(params_str: &str) -> Vec<TsType> {
     if params_str.trim().is_empty() {
         return Vec::new();
@@ -207,6 +211,7 @@ pub(super) fn parse_param_types(params_str: &str) -> Vec<TsType> {
 }
 
 /// Split a string at top-level occurrences of a delimiter (not inside <>, (), [], {}).
+#[cfg(test)]
 pub(super) fn split_at_top_level(s: &str, delim: char) -> Vec<String> {
     let mut parts = Vec::new();
     let mut current = String::new();
@@ -238,6 +243,7 @@ pub(super) fn split_at_top_level(s: &str, delim: char) -> Vec<String> {
 }
 
 /// Find the matching close parenthesis in a string starting with '('.
+#[cfg(test)]
 pub(super) fn find_matching_paren(s: &str) -> Option<usize> {
     let mut depth = 0;
     for (i, ch) in s.char_indices() {

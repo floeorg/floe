@@ -324,28 +324,55 @@ const _x = greet(User(name: "Ryan"), "Hello")
 
 #[test]
 fn call_site_type_args_infer_return() {
-    let (diags, types) = {
-        let program = crate::parser::Parser::new(
-            r#"
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
 import { useState } from "react"
 type Todo = { text: string }
-const [todos, setTodos] = useState<Array<Todo>>([])
+const [todos, _setTodos] = useState<Array<Todo>>([])
 const _x = todos
 "#,
-        )
-        .parse_program()
-        .expect("should parse");
-        Checker::new().check_with_types(&program)
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Provide a mock useState type: <S>(initialState: S) => [S, (S) => void]
+    let use_state_export = DtsExport {
+        name: "useState".to_string(),
+        ts_type: TsType::Function {
+            params: vec![TsType::Named("S".to_string())],
+            return_type: Box::new(TsType::Tuple(vec![
+                TsType::Named("S".to_string()),
+                TsType::Function {
+                    params: vec![TsType::Named("S".to_string())],
+                    return_type: Box::new(TsType::Primitive("void".to_string())),
+                },
+            ])),
+        },
     };
-    // todos should be Array<Todo>, not Unknown
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("react".to_string(), vec![use_state_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, types) = checker.check_with_types(&program);
+
     assert!(
         !has_error_containing(&diags, "not defined"),
         "unexpected errors: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
-    // Check that todos has Array type via the name map
+    // todos should be Array<Todo> (first element of the substituted tuple)
     if let Some(ty) = types.get("todos") {
         assert!(ty.contains("Array"), "expected Array type, got: {ty}");
+    }
+    // _setTodos should be a function (second element of the substituted tuple)
+    if let Some(ty) = types.get("_setTodos") {
+        assert!(
+            ty.contains("->"),
+            "expected function type for setter, got: {ty}"
+        );
     }
 }
 
@@ -742,4 +769,69 @@ const _r = [1, 2, 3] |> sort
 "#,
     );
     assert!(!has_error(&diags, "E001"));
+}
+
+// ── Variable shadowing tests (#189) ─────────────────────────
+
+#[test]
+fn shadow_const_redefinition_errors() {
+    // Defining the same const name twice in the same scope should error
+    let diags = check(
+        r#"
+const x = 5
+const x = 10
+"#,
+    );
+    assert!(has_error_containing(&diags, "already defined"));
+}
+
+#[test]
+fn shadow_const_shadows_function_errors() {
+    // A const shadowing a function name should error
+    let diags = check(
+        r#"
+fn double(x: number) -> number { x * 2 }
+const double = 42
+"#,
+    );
+    assert!(has_error_containing(&diags, "already defined"));
+}
+
+#[test]
+fn shadow_const_shadows_for_block_fn_errors() {
+    // A const shadowing a for-block function should error
+    let diags = check(
+        r#"
+type Todo = { text: string, done: boolean }
+for Array<Todo> {
+    export fn remaining(self) -> number { 0 }
+}
+const remaining = 5
+"#,
+    );
+    assert!(has_error_containing(&diags, "already defined"));
+}
+
+#[test]
+fn shadow_function_redefinition_errors() {
+    // Defining two functions with the same name should error
+    let diags = check(
+        r#"
+fn foo() -> number { 1 }
+fn foo() -> string { "hi" }
+"#,
+    );
+    assert!(has_error_containing(&diags, "already defined"));
+}
+
+#[test]
+fn shadow_allowed_in_inner_scope() {
+    // Shadowing in an inner scope (e.g., function params) should be OK
+    let diags = check(
+        r#"
+const x = 5
+fn double(x: number) -> number { x * 2 }
+"#,
+    );
+    assert!(!has_error_containing(&diags, "already defined"));
 }

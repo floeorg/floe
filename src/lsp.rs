@@ -1,6 +1,7 @@
 mod completion;
 mod handlers;
 mod resolution;
+mod stdlib_hover;
 mod symbols;
 
 #[cfg(test)]
@@ -204,28 +205,37 @@ impl FloeLsp {
                 } else {
                     Default::default()
                 };
-                let checker = if resolved_imports.is_empty() {
-                    Checker::new()
-                } else {
-                    Checker::with_imports(resolved_imports)
-                };
-                let (mut check_diags, type_map) = checker.check_with_types(&program);
 
-                // Resolve imports: enrich symbols from .d.ts, validate relative paths
+                // Resolve .d.ts imports BEFORE the checker so it gets npm type info
+                let mut dts_map = HashMap::new();
+                let mut import_diags_early = Vec::new();
                 if let Ok(source_path) = uri.to_file_path() {
                     let source_dir = source_path.parent().unwrap_or(Path::new("."));
-                    // Walk up to find project root (where node_modules lives)
                     let project_dir = find_project_dir(source_dir);
                     let cache = self.dts_cache.read().await.clone();
                     let (import_diags, new_cache) =
                         enrich_from_imports(&program, &project_dir, source_dir, &mut index, &cache);
-                    check_diags.extend(import_diags);
-                    // Update cache with newly resolved modules
+                    import_diags_early = import_diags;
+
+                    // Use tsgo for fully-resolved types — no fallback
+                    let mut tsgo_resolver = crate::interop::TsgoResolver::new(&project_dir);
+                    dts_map = tsgo_resolver.resolve_imports(&program);
+
                     if !new_cache.is_empty() {
                         let mut cache_write = self.dts_cache.write().await;
                         cache_write.extend(new_cache);
                     }
                 }
+
+                let checker = if resolved_imports.is_empty() && dts_map.is_empty() {
+                    Checker::new()
+                } else if dts_map.is_empty() {
+                    Checker::with_imports(resolved_imports)
+                } else {
+                    Checker::with_all_imports(resolved_imports, dts_map)
+                };
+                let (mut check_diags, type_map) = checker.check_with_types(&program);
+                check_diags.extend(import_diags_early);
 
                 (
                     self.convert_diagnostics(source, &check_diags),

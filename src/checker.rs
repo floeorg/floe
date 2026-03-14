@@ -12,6 +12,7 @@ use std::collections::{HashMap, HashSet};
 pub type ExprTypeMap = HashMap<(usize, usize), Type>;
 
 use crate::diagnostic::Diagnostic;
+use crate::interop::{self, DtsExport};
 use crate::lexer::span::Span;
 use crate::parser::ast::*;
 use crate::resolve::ResolvedImports;
@@ -46,9 +47,14 @@ pub struct Checker {
     registering_types: bool,
     /// Pre-resolved imports from other .fl files, keyed by import source string.
     resolved_imports: HashMap<String, ResolvedImports>,
+    /// Pre-resolved .d.ts exports for npm imports, keyed by specifier (e.g. "react").
+    dts_imports: HashMap<String, Vec<DtsExport>>,
     /// When inside a pipe, holds the type of the piped (left) value.
     /// The Call handler uses this to account for the implicit first argument.
     pipe_input_type: Option<Type>,
+    /// Maps variable/function names to their inferred type display names.
+    /// Accumulated as names are defined so inner-scope names aren't lost.
+    name_types: HashMap<String, String>,
 }
 
 impl Default for Checker {
@@ -73,7 +79,9 @@ impl Checker {
             inside_try: false,
             registering_types: false,
             resolved_imports: HashMap::new(),
+            dts_imports: HashMap::new(),
             pipe_input_type: None,
+            name_types: HashMap::new(),
         }
     }
 
@@ -81,6 +89,18 @@ impl Checker {
     pub fn with_imports(imports: HashMap<String, ResolvedImports>) -> Self {
         Self {
             resolved_imports: imports,
+            ..Self::new()
+        }
+    }
+
+    /// Create a checker with both .fl and .d.ts imports.
+    pub fn with_all_imports(
+        fl_imports: HashMap<String, ResolvedImports>,
+        dts_imports: HashMap<String, Vec<DtsExport>>,
+    ) -> Self {
+        Self {
+            resolved_imports: fl_imports,
+            dts_imports,
             ..Self::new()
         }
     }
@@ -186,22 +206,33 @@ impl Checker {
             }
         }
 
-        // Build type map from the top-level scope
-        let type_map: HashMap<String, String> = self
-            .env
-            .scopes
-            .iter()
-            .flat_map(|scope| scope.iter())
-            .map(|(name, ty)| (name.clone(), ty.display_name()))
-            .collect();
+        // Merge any remaining scope entries into name_types
+        for scope in &self.env.scopes {
+            for (name, ty) in scope {
+                self.name_types
+                    .entry(name.clone())
+                    .or_insert_with(|| ty.display_name());
+            }
+        }
 
-        (self.diagnostics, type_map, self.expr_types)
+        (self.diagnostics, self.name_types, self.expr_types)
     }
 
     fn fresh_type_var(&mut self) -> Type {
         let id = self.next_var;
         self.next_var += 1;
         Type::Var(id)
+    }
+
+    /// Emit an error if `name` is already defined in the current scope.
+    fn check_no_redefinition(&mut self, name: &str, span: Span) {
+        if self.env.is_defined_in_current_scope(name) {
+            self.diagnostics.push(
+                Diagnostic::error(format!("`{name}` is already defined in this scope"), span)
+                    .with_label("already defined")
+                    .with_code("E016"),
+            );
+        }
     }
 
     // ── Type Registration ────────────────────────────────────────
@@ -409,6 +440,7 @@ impl Checker {
     fn check_import(&mut self, decl: &ImportDecl) {
         // Look up resolved symbols for this import source
         let resolved = self.resolved_imports.get(&decl.source).cloned();
+        let dts_exports = self.dts_imports.get(&decl.source).cloned();
 
         for spec in &decl.specifiers {
             let effective_name = spec.alias.as_deref().unwrap_or(&spec.name);
@@ -416,6 +448,13 @@ impl Checker {
             // Try to find the actual type from resolved imports
             let ty = if let Some(ref resolved) = resolved {
                 self.lookup_resolved_symbol(&spec.name, resolved)
+            } else if let Some(ref exports) = dts_exports {
+                // Look up in .d.ts exports
+                exports
+                    .iter()
+                    .find(|e| e.name == spec.name)
+                    .map(|e| interop::wrap_boundary_type(&e.ts_type))
+                    .unwrap_or(Type::Unknown)
             } else {
                 Type::Unknown
             };
@@ -505,7 +544,25 @@ impl Checker {
 
         let declared_type = decl.type_ann.as_ref().map(|t| self.resolve_type(t));
 
-        let final_type = if let Some(ref declared) = declared_type {
+        // Check if tsgo resolved a more precise type for this const
+        let tsgo_type = {
+            let binding_name = match &decl.binding {
+                ConstBinding::Name(n) => n.clone(),
+                ConstBinding::Array(names) => names.join("_"),
+                ConstBinding::Object(names) => names.join("_"),
+            };
+            let probe_key = format!("__probe_{binding_name}");
+            self.dts_imports
+                .values()
+                .flatten()
+                .find(|e| e.name == probe_key)
+                .map(|e| interop::wrap_boundary_type(&e.ts_type))
+        };
+
+        let final_type = if let Some(tsgo_ty) = tsgo_type {
+            // tsgo gave us a fully-resolved type — use it
+            tsgo_ty
+        } else if let Some(ref declared) = declared_type {
             if !self.types_compatible(declared, &value_type) {
                 self.diagnostics.push(
                     Diagnostic::error(
@@ -527,6 +584,9 @@ impl Checker {
 
         match &decl.binding {
             ConstBinding::Name(name) => {
+                self.check_no_redefinition(name, span);
+                self.name_types
+                    .insert(name.clone(), final_type.display_name());
                 self.env.define(name, final_type);
                 if decl.exported {
                     self.used_names.insert(name.clone());
@@ -542,15 +602,19 @@ impl Checker {
                         // Unknown: no info
                         Type::Unknown | Type::Var(_) => Type::Unknown,
                         // Known type (e.g., Array<Todo> from useState<Array<Todo>>):
-                        // give each name the full type
-                        other => other.clone(),
+                        // first element gets the type, rest get Unknown
+                        other if i == 0 => other.clone(),
+                        _ => Type::Unknown,
                     };
+                    self.check_no_redefinition(name, span);
+                    self.name_types.insert(name.clone(), elem_ty.display_name());
                     self.env.define(name, elem_ty);
                     self.defined_names.push((name.clone(), span));
                 }
             }
             ConstBinding::Object(names) => {
                 for name in names {
+                    self.check_no_redefinition(name, span);
                     self.env.define(name, Type::Unknown);
                     self.defined_names.push((name.clone(), span));
                 }
@@ -597,6 +661,7 @@ impl Checker {
             params: param_types.clone(),
             return_type: Box::new(return_type.clone()),
         };
+        self.check_no_redefinition(&decl.name, span);
         self.env.define(&decl.name, fn_type);
         if decl.exported {
             self.used_names.insert(decl.name.clone());
@@ -691,6 +756,7 @@ impl Checker {
                 params: param_types.clone(),
                 return_type: Box::new(return_type.clone()),
             };
+            self.check_no_redefinition(&func.name, block.span);
             self.env.define(&func.name, fn_type);
             if func.exported {
                 self.used_names.insert(func.name.clone());
