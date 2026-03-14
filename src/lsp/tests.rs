@@ -423,6 +423,135 @@ fn jsx_fixture_type_map_has_counter() {
     );
 }
 
+// ── Hover type display tests (#180) ─────────────────────────
+
+use super::handlers::enrich_hover_detail;
+
+/// Simulate hover: look up symbol by name, then build the hover detail
+/// using the same enrich_hover_detail function the LSP handler uses.
+fn simulate_hover(source: &str, name: &str) -> Option<String> {
+    let (index, type_map) = build_index_and_types(source);
+    let syms = index.find_by_name(name);
+    let sym = syms.first()?;
+    Some(enrich_hover_detail(sym, &type_map))
+}
+
+#[test]
+fn hover_const_shows_inferred_type() {
+    // const without explicit type annotation should show inferred type
+    let hover = simulate_hover("const x = 42", "x");
+    assert!(hover.is_some());
+    let detail = hover.unwrap();
+    assert!(
+        detail.contains("number"),
+        "hover for const x = 42 should show 'number', got: {detail}"
+    );
+}
+
+#[test]
+fn hover_const_with_annotation_shows_annotation() {
+    // const with explicit type annotation should show the annotation
+    let hover = simulate_hover("const x: number = 42", "x");
+    assert!(hover.is_some());
+    let detail = hover.unwrap();
+    assert!(
+        detail.contains("number"),
+        "hover for annotated const should show type, got: {detail}"
+    );
+}
+
+#[test]
+fn hover_const_string_shows_type() {
+    let hover = simulate_hover(r#"const msg = "hello""#, "msg");
+    assert!(hover.is_some());
+    let detail = hover.unwrap();
+    assert!(
+        detail.contains("string"),
+        "hover for const msg = \"hello\" should show 'string', got: {detail}"
+    );
+}
+
+#[test]
+fn hover_const_bool_shows_type() {
+    let hover = simulate_hover("const flag = true", "flag");
+    assert!(hover.is_some());
+    let detail = hover.unwrap();
+    assert!(
+        detail.contains("boolean"),
+        "hover for const flag = true should show 'boolean', got: {detail}"
+    );
+}
+
+#[test]
+fn hover_function_shows_signature() {
+    let hover = simulate_hover("fn add(a: number, b: number) -> number { a + b }", "add");
+    assert!(hover.is_some());
+    let detail = hover.unwrap();
+    assert!(
+        detail.contains("fn add"),
+        "hover for function should show signature, got: {detail}"
+    );
+    assert!(
+        detail.contains("number"),
+        "hover for function should show types, got: {detail}"
+    );
+}
+
+#[test]
+fn hover_const_function_value_shows_type() {
+    // A const assigned to a function call should show the inferred return type
+    let source = r#"
+fn getNum() -> number { 42 }
+const result = getNum()
+"#;
+    let hover = simulate_hover(source, "result");
+    assert!(hover.is_some());
+    let detail = hover.unwrap();
+    assert!(
+        detail.contains("number"),
+        "hover for const result = getNum() should show inferred type 'number', got: {detail}"
+    );
+}
+
+#[test]
+fn hover_fn_with_return_type_shows_it() {
+    // A function with explicit return type should show it
+    let hover = simulate_hover("fn double(x: number) -> number { x * 2 }", "double");
+    assert!(hover.is_some());
+    let detail = hover.unwrap();
+    assert!(
+        detail.contains("-> number"),
+        "hover for fn with return type should show it, got: {detail}"
+    );
+}
+
+#[test]
+fn hover_fn_without_return_type_skips_unresolved() {
+    // When the checker can't fully resolve the return type, don't show ?T variables
+    let hover = simulate_hover("fn double(x: number) { x * 2 }", "double");
+    assert!(hover.is_some());
+    let detail = hover.unwrap();
+    assert!(
+        !detail.contains("?T"),
+        "hover should not show unresolved type variables, got: {detail}"
+    );
+}
+
+#[test]
+fn hover_const_without_annotation_detail_lacks_type_before_fix() {
+    // This test documents that the raw symbol detail for unannotated consts
+    // does NOT include the inferred type - which is what the hover handler
+    // currently returns. The fix should enrich this with type_map data.
+    let source = "const x = 42";
+    let (index, _type_map) = build_index_and_types(source);
+    let syms = index.find_by_name("x");
+    assert_eq!(syms.len(), 1);
+    // The raw detail is just "const x" with no type
+    assert_eq!(syms[0].detail, "const x");
+    // But the type_map has the inferred type
+    assert_eq!(_type_map.get("x").map(|s| s.as_str()), Some("number"));
+}
+
 // ── Match arm variant completion tests (#143) ──────────────
 
 #[test]

@@ -95,10 +95,11 @@ impl LanguageServer for FloeLsp {
         // Check symbol index first
         let symbols = doc.index.find_by_name(word);
         if let Some(sym) = symbols.first() {
+            let detail = enrich_hover_detail(sym, &doc.type_map);
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,
-                    value: format!("```floe\n{}\n```", sym.detail),
+                    value: format!("```floe\n{detail}\n```"),
                 }),
                 range: None,
             }));
@@ -613,6 +614,40 @@ impl LanguageServer for FloeLsp {
             Ok(Some(actions))
         }
     }
+}
+
+// ── Hover enrichment ─────────────────────────────────────────────
+
+use super::symbols::Symbol;
+
+/// Enrich a symbol's hover detail with the inferred type from the checker's
+/// type_map when the symbol doesn't already have a type annotation.
+pub(super) fn enrich_hover_detail(sym: &Symbol, type_map: &HashMap<String, String>) -> String {
+    let detail = &sym.detail;
+
+    // For consts/variables without explicit type annotations (no `:` in the detail),
+    // append the inferred type from the checker if available.
+    if (sym.kind == SymbolKind::CONSTANT || sym.kind == SymbolKind::VARIABLE)
+        && !detail.contains(':')
+        && sym.import_source.is_none()
+        && let Some(inferred) = type_map.get(&sym.name)
+        && !inferred.contains("?T")
+    {
+        return format!("{detail}: {inferred}");
+    }
+
+    // For functions without return type annotation, try to show the inferred return type
+    if sym.kind == SymbolKind::FUNCTION
+        && sym.import_source.is_none()
+        && !detail.contains("->")
+        && let Some(inferred) = type_map.get(&sym.name)
+        && let Some((_, ret)) = inferred.rsplit_once(" -> ")
+        && !ret.contains("?T")
+    {
+        return format!("{detail} -> {ret}");
+    }
+
+    detail.clone()
 }
 
 // ── Import quick-fix helpers ─────────────────────────────────────
