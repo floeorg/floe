@@ -1,0 +1,421 @@
+use std::collections::HashMap;
+
+use super::completion::*;
+use super::symbols::*;
+use super::*;
+
+use crate::diagnostic::{self as zs_diag, Severity};
+use crate::parser::Parser;
+use crate::parser::ast::*;
+
+#[test]
+fn offset_to_position_first_line() {
+    let source = "const x = 42";
+    let pos = offset_to_position(source, 6);
+    assert_eq!(pos.line, 0);
+    assert_eq!(pos.character, 6);
+}
+
+#[test]
+fn offset_to_position_second_line() {
+    let source = "const x = 42\nconst y = 10";
+    let pos = offset_to_position(source, 19);
+    assert_eq!(pos.line, 1);
+    assert_eq!(pos.character, 6);
+}
+
+#[test]
+fn offset_to_range_basic() {
+    let source = "const x = 42";
+    let range = offset_to_range(source, 6, 7);
+    assert_eq!(range.start.line, 0);
+    assert_eq!(range.start.character, 6);
+    assert_eq!(range.end.line, 0);
+    assert_eq!(range.end.character, 7);
+}
+
+#[test]
+fn position_to_offset_roundtrip() {
+    let source = "hello\nworld\nfoo";
+    let offset = position_to_offset(source, Position::new(1, 3));
+    assert_eq!(offset, 9);
+}
+
+#[test]
+fn word_at_offset_basic() {
+    let source = "const hello = 42";
+    assert_eq!(word_at_offset(source, 6), "hello");
+    assert_eq!(word_at_offset(source, 8), "hello");
+}
+
+#[test]
+fn word_at_offset_at_boundary() {
+    let source = "const x = 42";
+    assert_eq!(word_at_offset(source, 0), "const");
+}
+
+#[test]
+fn word_prefix_at_offset_partial() {
+    let source = "const hel";
+    assert_eq!(word_prefix_at_offset(source, 9), "hel");
+}
+
+#[test]
+fn word_prefix_at_offset_empty() {
+    let source = "const ";
+    assert_eq!(word_prefix_at_offset(source, 6), "");
+}
+
+#[test]
+fn banned_keyword_produces_parse_error() {
+    let source = "let x = 42";
+    let parse_result = Parser::new(source).parse_program();
+    assert!(parse_result.is_err());
+    let errs = parse_result.unwrap_err();
+    let zs_diags = zs_diag::from_parse_errors(&errs);
+    assert!(!zs_diags.is_empty());
+    assert_eq!(zs_diags[0].severity, Severity::Error);
+}
+
+#[test]
+fn symbol_index_function() {
+    let source = "function add(a: number, b: number): number { a + b }";
+    let program = Parser::new(source).parse_program().unwrap();
+    let index = SymbolIndex::build(&program);
+    let syms = index.find_by_name("add");
+    assert_eq!(syms.len(), 1);
+    assert_eq!(syms[0].kind, SymbolKind::FUNCTION);
+    assert!(syms[0].detail.contains("function add"));
+}
+
+#[test]
+fn symbol_index_const() {
+    let source = "const x = 42";
+    let program = Parser::new(source).parse_program().unwrap();
+    let index = SymbolIndex::build(&program);
+    let syms = index.find_by_name("x");
+    assert_eq!(syms.len(), 1);
+    assert_eq!(syms[0].kind, SymbolKind::CONSTANT);
+}
+
+#[test]
+fn symbol_index_type() {
+    let source = "type User = { name: string, age: number }";
+    let program = Parser::new(source).parse_program().unwrap();
+    let index = SymbolIndex::build(&program);
+    let syms = index.find_by_name("User");
+    assert_eq!(syms.len(), 1);
+    assert_eq!(syms[0].kind, SymbolKind::TYPE_PARAMETER);
+}
+
+#[test]
+fn symbol_index_import() {
+    let source = r#"import { useState } from "react""#;
+    let program = Parser::new(source).parse_program().unwrap();
+    let index = SymbolIndex::build(&program);
+    let syms = index.find_by_name("useState");
+    assert_eq!(syms.len(), 1);
+    assert_eq!(syms[0].import_source.as_deref(), Some("react"));
+}
+
+#[test]
+fn symbol_index_union_variants() {
+    let source = "type Color = | Red | Green | Blue";
+    let program = Parser::new(source).parse_program().unwrap();
+    let index = SymbolIndex::build(&program);
+    assert_eq!(index.find_by_name("Color").len(), 1);
+    assert_eq!(index.find_by_name("Red").len(), 1);
+    assert_eq!(index.find_by_name("Green").len(), 1);
+    assert_eq!(index.find_by_name("Blue").len(), 1);
+}
+
+#[test]
+fn type_expr_to_string_named() {
+    let ty = TypeExpr {
+        kind: TypeExprKind::Named {
+            name: "string".to_string(),
+            type_args: vec![],
+        },
+        span: crate::lexer::span::Span::new(0, 0, 1, 1),
+    };
+    assert_eq!(type_expr_to_string(&ty), "string");
+}
+
+#[test]
+fn type_expr_to_string_generic() {
+    let ty = TypeExpr {
+        kind: TypeExprKind::Named {
+            name: "Result".to_string(),
+            type_args: vec![
+                TypeExpr {
+                    kind: TypeExprKind::Named {
+                        name: "User".to_string(),
+                        type_args: vec![],
+                    },
+                    span: crate::lexer::span::Span::new(0, 0, 1, 1),
+                },
+                TypeExpr {
+                    kind: TypeExprKind::Named {
+                        name: "Error".to_string(),
+                        type_args: vec![],
+                    },
+                    span: crate::lexer::span::Span::new(0, 0, 1, 1),
+                },
+            ],
+        },
+        span: crate::lexer::span::Span::new(0, 0, 1, 1),
+    };
+    assert_eq!(type_expr_to_string(&ty), "Result<User, Error>");
+}
+
+// ── Pipe-aware completion tests ────────────────────────
+
+#[test]
+fn pipe_context_detected() {
+    assert!(is_pipe_context("users |> ", 9));
+    assert!(is_pipe_context("users |>  ", 10));
+    assert!(is_pipe_context("x |> f() |> ", 12));
+    assert!(!is_pipe_context("const x = 42", 12));
+    assert!(!is_pipe_context("const x = |", 11));
+}
+
+#[test]
+fn pipe_context_with_prefix() {
+    // User typed "users |> fi" — cursor is at offset 11
+    // The prefix would be "fi", and before that is "|> "
+    let source = "users |> fi";
+    // is_pipe_context checks before the prefix starts
+    assert!(is_pipe_context(&source[..9], 9)); // "users |> "
+}
+
+#[test]
+fn base_type_name_simple() {
+    assert_eq!(base_type_name("string"), "string");
+    assert_eq!(base_type_name("number"), "number");
+}
+
+#[test]
+fn base_type_name_generic() {
+    assert_eq!(base_type_name("Array<User>"), "Array");
+    assert_eq!(base_type_name("Option<string>"), "Option");
+    assert_eq!(base_type_name("Result<User, Error>"), "Result");
+}
+
+#[test]
+fn unwrap_result_type() {
+    assert_eq!(unwrap_type("Result<User, Error>"), "User");
+}
+
+#[test]
+fn unwrap_option_type() {
+    assert_eq!(unwrap_type("Option<string>"), "string");
+}
+
+#[test]
+fn unwrap_non_wrapper_type() {
+    assert_eq!(unwrap_type("string"), "string");
+}
+
+#[test]
+fn pipe_compatible_same_type() {
+    assert!(is_pipe_compatible("Array<T>", "Array<User>"));
+    assert!(is_pipe_compatible("string", "string"));
+    assert!(is_pipe_compatible("Option<T>", "Option<number>"));
+}
+
+#[test]
+fn pipe_compatible_generic_param() {
+    // Single-letter type params match anything
+    assert!(is_pipe_compatible("T", "string"));
+    assert!(is_pipe_compatible("A", "Array<User>"));
+}
+
+#[test]
+fn pipe_incompatible_types() {
+    assert!(!is_pipe_compatible("string", "number"));
+    assert!(!is_pipe_compatible("Array<T>", "Option<T>"));
+}
+
+#[test]
+fn extract_identifier_simple() {
+    assert_eq!(extract_trailing_identifier("users"), "users");
+}
+
+#[test]
+fn extract_identifier_call() {
+    assert_eq!(extract_trailing_identifier("getUsers()"), "getUsers");
+}
+
+#[test]
+fn extract_identifier_member() {
+    assert_eq!(extract_trailing_identifier("a.b.c"), "c");
+}
+
+#[test]
+fn infer_literal_string() {
+    assert_eq!(infer_literal_type("\"hello\""), Some("string".to_string()));
+}
+
+#[test]
+fn infer_literal_number() {
+    assert_eq!(infer_literal_type("42"), Some("number".to_string()));
+}
+
+#[test]
+fn infer_literal_bool() {
+    assert_eq!(infer_literal_type("true"), Some("bool".to_string()));
+}
+
+#[test]
+fn resolve_piped_type_from_type_map() {
+    let mut type_map = HashMap::new();
+    type_map.insert("users".to_string(), "Array<User>".to_string());
+    let source = "users |> ";
+    let result = resolve_piped_type(source, 9, &type_map);
+    assert_eq!(result, Some("Array<User>".to_string()));
+}
+
+#[test]
+fn resolve_piped_type_with_unwrap() {
+    let mut type_map = HashMap::new();
+    type_map.insert(
+        "fetchUser".to_string(),
+        "(number) => Result<User, Error>".to_string(),
+    );
+    let source = "result? |> ";
+    let mut tm = HashMap::new();
+    tm.insert("result".to_string(), "Result<User, Error>".to_string());
+    let resolved = resolve_piped_type(source, 11, &tm);
+    assert_eq!(resolved, Some("User".to_string()));
+}
+
+#[test]
+fn function_symbol_stores_first_param_type() {
+    let source = "function filter(arr: Array<T>, pred: (T) => bool): Array<T> { arr }";
+    let program = Parser::new(source).parse_program().unwrap();
+    let index = SymbolIndex::build(&program);
+    let syms = index.find_by_name("filter");
+    assert_eq!(syms.len(), 1);
+    assert_eq!(syms[0].first_param_type.as_deref(), Some("Array<T>"));
+    assert_eq!(syms[0].return_type_str.as_deref(), Some("Array<T>"));
+}
+
+// ── Integration tests on jsx_component.fl ──────────────
+
+fn jsx_component_source() -> &'static str {
+    r#"import { useState, JSX } from "react"
+
+export function Counter(): JSX.Element {
+    const [_count, setCount] = useState(0)
+
+    return <div>
+        <h1>Count</h1>
+        <button onClick={setCount}>Increment</button>
+    </div>
+}"#
+}
+
+fn build_index_and_types(source: &str) -> (SymbolIndex, HashMap<String, String>) {
+    let program = Parser::new(source).parse_program().unwrap();
+    let index = SymbolIndex::build(&program);
+    let (_, type_map) = crate::checker::Checker::new().check_with_types(&program);
+    (index, type_map)
+}
+
+#[test]
+fn jsx_fixture_all_symbols_indexed() {
+    let (index, _) = build_index_and_types(jsx_component_source());
+    let all_names: Vec<&str> = index.symbols.iter().map(|s| s.name.as_str()).collect();
+    println!("All indexed symbols: {:?}", all_names);
+
+    // Imports
+    assert!(
+        !index.find_by_name("useState").is_empty(),
+        "useState not indexed"
+    );
+    assert!(!index.find_by_name("JSX").is_empty(), "JSX not indexed");
+
+    // Function
+    assert!(
+        !index.find_by_name("Counter").is_empty(),
+        "Counter not indexed"
+    );
+
+    // Destructured variables
+    assert!(
+        !index.find_by_name("_count").is_empty(),
+        "_count not indexed"
+    );
+    assert!(
+        !index.find_by_name("setCount").is_empty(),
+        "setCount not indexed"
+    );
+}
+
+#[test]
+fn jsx_fixture_hover_on_destructured_var() {
+    let (index, _) = build_index_and_types(jsx_component_source());
+
+    // Hover on _count should work
+    let syms = index.find_by_name("_count");
+    assert!(!syms.is_empty(), "_count should be found for hover");
+    assert!(
+        syms[0].detail.contains("_count"),
+        "detail should mention _count, got: {}",
+        syms[0].detail
+    );
+
+    // Hover on setCount should work
+    let syms = index.find_by_name("setCount");
+    assert!(!syms.is_empty(), "setCount should be found for hover");
+    assert!(
+        syms[0].detail.contains("setCount"),
+        "detail should mention setCount, got: {}",
+        syms[0].detail
+    );
+}
+
+#[test]
+fn jsx_fixture_goto_def_setcount_from_jsx() {
+    let source = jsx_component_source();
+    let (index, _) = build_index_and_types(source);
+
+    // Find the offset of setCount in onClick={setCount} (line 8)
+    let jsx_setcount_offset = source.find("onClick={setCount}").unwrap() + "onClick={".len();
+    let word = word_at_offset(source, jsx_setcount_offset);
+    assert_eq!(
+        word, "setCount",
+        "should extract 'setCount' from JSX attribute"
+    );
+
+    // find_by_name should find it
+    let syms = index.find_by_name("setCount");
+    assert!(!syms.is_empty(), "setCount should be in index");
+
+    // The definition's span should NOT contain the JSX usage offset
+    let sym = &syms[0];
+    let cursor_in_def = jsx_setcount_offset >= sym.start && jsx_setcount_offset <= sym.end;
+    assert!(
+        !cursor_in_def,
+        "JSX usage offset {} should NOT be inside definition span {}..{} (go-to-def would skip it!)",
+        jsx_setcount_offset, sym.start, sym.end
+    );
+}
+
+#[test]
+fn jsx_fixture_hover_on_usestate() {
+    let (index, _) = build_index_and_types(jsx_component_source());
+    let syms = index.find_by_name("useState");
+    assert!(!syms.is_empty());
+    assert!(syms[0].detail.contains("useState"));
+}
+
+#[test]
+fn jsx_fixture_type_map_has_counter() {
+    let (_, type_map) = build_index_and_types(jsx_component_source());
+    println!("Type map: {:?}", type_map);
+    assert!(
+        type_map.contains_key("Counter"),
+        "Counter should be in type map"
+    );
+}

@@ -1,0 +1,706 @@
+use super::*;
+
+fn parse(input: &str) -> Result<Program, Vec<ParseError>> {
+    Parser::new(input).parse_program()
+}
+
+fn parse_ok(input: &str) -> Program {
+    parse(input).unwrap_or_else(|errs| {
+        panic!(
+            "parse failed:\n{}",
+            errs.iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    })
+}
+
+fn first_item(input: &str) -> ItemKind {
+    parse_ok(input).items.into_iter().next().unwrap().kind
+}
+
+fn first_expr(input: &str) -> ExprKind {
+    match first_item(input) {
+        ItemKind::Expr(e) => e.kind,
+        other => panic!("expected expression item, got {other:?}"),
+    }
+}
+
+// ── Literals ─────────────────────────────────────────────────
+
+#[test]
+fn number_literal() {
+    assert_eq!(first_expr("42"), ExprKind::Number("42".to_string()));
+}
+
+#[test]
+fn string_literal() {
+    assert_eq!(
+        first_expr(r#""hello""#),
+        ExprKind::String("hello".to_string())
+    );
+}
+
+#[test]
+fn bool_literal() {
+    assert_eq!(first_expr("true"), ExprKind::Bool(true));
+    assert_eq!(first_expr("false"), ExprKind::Bool(false));
+}
+
+#[test]
+fn none_literal() {
+    assert_eq!(first_expr("None"), ExprKind::None);
+}
+
+#[test]
+fn placeholder() {
+    assert_eq!(first_expr("_"), ExprKind::Placeholder);
+}
+
+// ── Identifiers ──────────────────────────────────────────────
+
+#[test]
+fn identifier() {
+    assert_eq!(
+        first_expr("myVar"),
+        ExprKind::Identifier("myVar".to_string())
+    );
+}
+
+// ── Binary Operators ─────────────────────────────────────────
+
+#[test]
+fn binary_add() {
+    let expr = first_expr("1 + 2");
+    assert!(matches!(expr, ExprKind::Binary { op: BinOp::Add, .. }));
+}
+
+#[test]
+fn binary_precedence() {
+    // 1 + 2 * 3 should parse as 1 + (2 * 3)
+    let expr = first_expr("1 + 2 * 3");
+    match expr {
+        ExprKind::Binary {
+            op: BinOp::Add,
+            right,
+            ..
+        } => {
+            assert!(matches!(
+                right.kind,
+                ExprKind::Binary { op: BinOp::Mul, .. }
+            ));
+        }
+        _ => panic!("expected binary add"),
+    }
+}
+
+#[test]
+fn comparison() {
+    let expr = first_expr("a == b");
+    assert!(matches!(expr, ExprKind::Binary { op: BinOp::Eq, .. }));
+}
+
+#[test]
+fn logical_and_or() {
+    // a || b && c should parse as a || (b && c)
+    let expr = first_expr("a || b && c");
+    match expr {
+        ExprKind::Binary {
+            op: BinOp::Or,
+            right,
+            ..
+        } => {
+            assert!(matches!(
+                right.kind,
+                ExprKind::Binary { op: BinOp::And, .. }
+            ));
+        }
+        _ => panic!("expected binary or"),
+    }
+}
+
+// ── Unary Operators ──────────────────────────────────────────
+
+#[test]
+fn unary_not() {
+    let expr = first_expr("!x");
+    assert!(matches!(
+        expr,
+        ExprKind::Unary {
+            op: UnaryOp::Not,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn unary_neg() {
+    let expr = first_expr("-42");
+    assert!(matches!(
+        expr,
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            ..
+        }
+    ));
+}
+
+// ── Pipe Operator ────────────────────────────────────────────
+
+#[test]
+fn pipe_simple() {
+    let expr = first_expr("x |> f(y)");
+    assert!(matches!(expr, ExprKind::Pipe { .. }));
+}
+
+#[test]
+fn pipe_chained() {
+    let expr = first_expr("x |> f |> g");
+    match expr {
+        ExprKind::Pipe { left, .. } => {
+            assert!(matches!(left.kind, ExprKind::Pipe { .. }));
+        }
+        _ => panic!("expected chained pipe"),
+    }
+}
+
+// ── Unwrap ───────────────────────────────────────────────────
+
+#[test]
+fn unwrap_operator() {
+    let expr = first_expr("fetchUser(id)?");
+    assert!(matches!(expr, ExprKind::Unwrap(_)));
+}
+
+// ── Function Calls ───────────────────────────────────────────
+
+#[test]
+fn function_call() {
+    let expr = first_expr("f(1, 2)");
+    match expr {
+        ExprKind::Call { args, .. } => {
+            assert_eq!(args.len(), 2);
+        }
+        _ => panic!("expected call"),
+    }
+}
+
+#[test]
+fn named_args() {
+    let expr = first_expr("f(name: x, limit: 10)");
+    match expr {
+        ExprKind::Call { args, .. } => {
+            assert!(matches!(&args[0], Arg::Named { label, .. } if label == "name"));
+            assert!(matches!(&args[1], Arg::Named { label, .. } if label == "limit"));
+        }
+        _ => panic!("expected call"),
+    }
+}
+
+// ── Constructors ─────────────────────────────────────────────
+
+#[test]
+fn constructor() {
+    let expr = first_expr(r#"User(name: "Ryan", email: e)"#);
+    match expr {
+        ExprKind::Construct {
+            type_name, args, ..
+        } => {
+            assert_eq!(type_name, "User");
+            assert_eq!(args.len(), 2);
+        }
+        _ => panic!("expected construct"),
+    }
+}
+
+#[test]
+fn constructor_with_spread() {
+    let expr = first_expr(r#"User(..user, name: "New")"#);
+    match expr {
+        ExprKind::Construct { spread, args, .. } => {
+            assert!(spread.is_some());
+            assert_eq!(args.len(), 1);
+        }
+        _ => panic!("expected construct"),
+    }
+}
+
+// ── Result/Option Constructors ───────────────────────────────
+
+#[test]
+fn ok_constructor() {
+    let expr = first_expr("Ok(42)");
+    assert!(matches!(expr, ExprKind::Ok(_)));
+}
+
+#[test]
+fn err_constructor() {
+    let expr = first_expr(r#"Err("not found")"#);
+    assert!(matches!(expr, ExprKind::Err(_)));
+}
+
+#[test]
+fn some_constructor() {
+    let expr = first_expr("Some(x)");
+    assert!(matches!(expr, ExprKind::Some(_)));
+}
+
+// ── Arrow Functions ──────────────────────────────────────────
+
+#[test]
+fn arrow_function_multi_arg() {
+    let expr = first_expr("(a, b) => a + b");
+    match expr {
+        ExprKind::Arrow { params, .. } => {
+            assert_eq!(params.len(), 2);
+            assert_eq!(params[0].name, "a");
+            assert_eq!(params[1].name, "b");
+        }
+        _ => panic!("expected arrow"),
+    }
+}
+
+#[test]
+fn arrow_function_single_arg() {
+    let expr = first_expr("x => x + 1");
+    match expr {
+        ExprKind::Arrow { params, .. } => {
+            assert_eq!(params.len(), 1);
+            assert_eq!(params[0].name, "x");
+        }
+        _ => panic!("expected arrow"),
+    }
+}
+
+#[test]
+fn arrow_function_typed() {
+    let expr = first_expr("(x: number) => x + 1");
+    match expr {
+        ExprKind::Arrow { params, .. } => {
+            assert!(params[0].type_ann.is_some());
+        }
+        _ => panic!("expected arrow"),
+    }
+}
+
+// ── Match Expressions ────────────────────────────────────────
+
+#[test]
+fn match_simple() {
+    let expr = first_expr("match x { Ok(v) -> v, Err(e) -> e }");
+    match expr {
+        ExprKind::Match { arms, .. } => {
+            assert_eq!(arms.len(), 2);
+        }
+        _ => panic!("expected match"),
+    }
+}
+
+#[test]
+fn match_wildcard() {
+    let expr = first_expr("match x { _ -> 0 }");
+    match expr {
+        ExprKind::Match { arms, .. } => {
+            assert!(matches!(arms[0].pattern.kind, PatternKind::Wildcard));
+        }
+        _ => panic!("expected match"),
+    }
+}
+
+#[test]
+fn match_nested_variant() {
+    let expr = first_expr("match err { Network(Timeout(ms)) -> ms, _ -> 0 }");
+    match expr {
+        ExprKind::Match { arms, .. } => match &arms[0].pattern.kind {
+            PatternKind::Variant { name, fields } => {
+                assert_eq!(name, "Network");
+                assert_eq!(fields.len(), 1);
+                assert!(
+                    matches!(&fields[0].kind, PatternKind::Variant { name, .. } if name == "Timeout")
+                );
+            }
+            _ => panic!("expected variant pattern"),
+        },
+        _ => panic!("expected match"),
+    }
+}
+
+#[test]
+fn match_range() {
+    let expr = first_expr("match n { 1..10 -> true, _ -> false }");
+    match expr {
+        ExprKind::Match { arms, .. } => {
+            assert!(matches!(arms[0].pattern.kind, PatternKind::Range { .. }));
+        }
+        _ => panic!("expected match"),
+    }
+}
+
+#[test]
+fn match_record_destructure() {
+    let expr = first_expr(r#"match action { Click(el, { x, y }) -> handle(el, x, y) }"#);
+    match expr {
+        ExprKind::Match { arms, .. } => match &arms[0].pattern.kind {
+            PatternKind::Variant { fields, .. } => {
+                assert_eq!(fields.len(), 2);
+                assert!(matches!(&fields[1].kind, PatternKind::Record { .. }));
+            }
+            _ => panic!("expected variant"),
+        },
+        _ => panic!("expected match"),
+    }
+}
+
+// ── Const Declaration ────────────────────────────────────────
+
+#[test]
+fn const_decl() {
+    match first_item("const x = 42") {
+        ItemKind::Const(decl) => {
+            assert_eq!(decl.binding, ConstBinding::Name("x".to_string()));
+            assert!(!decl.exported);
+        }
+        other => panic!("expected const, got {other:?}"),
+    }
+}
+
+#[test]
+fn const_decl_typed() {
+    match first_item("const x: number = 42") {
+        ItemKind::Const(decl) => {
+            assert!(decl.type_ann.is_some());
+        }
+        other => panic!("expected const, got {other:?}"),
+    }
+}
+
+#[test]
+fn export_const() {
+    match first_item("export const x = 42") {
+        ItemKind::Const(decl) => {
+            assert!(decl.exported);
+        }
+        other => panic!("expected const, got {other:?}"),
+    }
+}
+
+// ── Function Declaration ─────────────────────────────────────
+
+#[test]
+fn function_decl() {
+    match first_item("function add(a: number, b: number): number { a + b }") {
+        ItemKind::Function(decl) => {
+            assert_eq!(decl.name, "add");
+            assert_eq!(decl.params.len(), 2);
+            assert!(decl.return_type.is_some());
+            assert!(!decl.async_fn);
+        }
+        other => panic!("expected function, got {other:?}"),
+    }
+}
+
+#[test]
+fn async_function() {
+    match first_item("async function fetchUser(id: string): Result<User, ApiError> { Ok(user) }") {
+        ItemKind::Function(decl) => {
+            assert!(decl.async_fn);
+            assert_eq!(decl.name, "fetchUser");
+        }
+        other => panic!("expected function, got {other:?}"),
+    }
+}
+
+#[test]
+fn function_with_defaults() {
+    match first_item("function f(x: number = 10) { x }") {
+        ItemKind::Function(decl) => {
+            assert!(decl.params[0].default.is_some());
+        }
+        other => panic!("expected function, got {other:?}"),
+    }
+}
+
+// ── Import ───────────────────────────────────────────────────
+
+#[test]
+fn import_named() {
+    match first_item(r#"import { useState, useEffect } from "react""#) {
+        ItemKind::Import(decl) => {
+            assert_eq!(decl.specifiers.len(), 2);
+            assert_eq!(decl.specifiers[0].name, "useState");
+            assert_eq!(decl.specifiers[1].name, "useEffect");
+            assert_eq!(decl.source, "react");
+        }
+        other => panic!("expected import, got {other:?}"),
+    }
+}
+
+// ── Type Declarations ────────────────────────────────────────
+
+#[test]
+fn type_alias() {
+    match first_item("type UserId = Brand<string, UserId>") {
+        ItemKind::TypeDecl(decl) => {
+            assert_eq!(decl.name, "UserId");
+            assert!(matches!(decl.def, TypeDef::Alias(_)));
+        }
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
+fn type_record() {
+    match first_item("type User = { id: UserId, name: string }") {
+        ItemKind::TypeDecl(decl) => {
+            assert_eq!(decl.name, "User");
+            match decl.def {
+                TypeDef::Record(fields) => assert_eq!(fields.len(), 2),
+                other => panic!("expected record, got {other:?}"),
+            }
+        }
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
+fn type_union() {
+    let input = r#"type Route = | Home | Profile(id: string) | NotFound"#;
+    match first_item(input) {
+        ItemKind::TypeDecl(decl) => {
+            assert_eq!(decl.name, "Route");
+            match decl.def {
+                TypeDef::Union(variants) => {
+                    assert_eq!(variants.len(), 3);
+                    assert_eq!(variants[0].name, "Home");
+                    assert!(variants[0].fields.is_empty());
+                    assert_eq!(variants[1].name, "Profile");
+                    assert_eq!(variants[1].fields.len(), 1);
+                    assert_eq!(variants[2].name, "NotFound");
+                }
+                other => panic!("expected union, got {other:?}"),
+            }
+        }
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
+fn opaque_type() {
+    match first_item("opaque type HashedPassword = string") {
+        ItemKind::TypeDecl(decl) => {
+            assert!(decl.opaque);
+            assert_eq!(decl.name, "HashedPassword");
+        }
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+// ── Member Access ────────────────────────────────────────────
+
+#[test]
+fn member_access() {
+    let expr = first_expr("a.b.c");
+    match expr {
+        ExprKind::Member { object, field } => {
+            assert_eq!(field, "c");
+            assert!(matches!(object.kind, ExprKind::Member { field: ref f, .. } if f == "b"));
+        }
+        _ => panic!("expected member access"),
+    }
+}
+
+// ── Array Literal ────────────────────────────────────────────
+
+#[test]
+fn array_literal() {
+    let expr = first_expr("[1, 2, 3]");
+    match expr {
+        ExprKind::Array(elements) => {
+            assert_eq!(elements.len(), 3);
+        }
+        _ => panic!("expected array"),
+    }
+}
+
+// ── Index Access ─────────────────────────────────────────────
+
+#[test]
+fn index_access() {
+    let expr = first_expr("arr[0]");
+    assert!(matches!(expr, ExprKind::Index { .. }));
+}
+
+// ── JSX ──────────────────────────────────────────────────────
+
+#[test]
+fn jsx_self_closing() {
+    let expr = first_expr("<Button />");
+    match expr {
+        ExprKind::Jsx(JsxElement {
+            kind: JsxElementKind::Element {
+                name, self_closing, ..
+            },
+            ..
+        }) => {
+            assert_eq!(name, "Button");
+            assert!(self_closing);
+        }
+        _ => panic!("expected jsx element"),
+    }
+}
+
+#[test]
+fn jsx_with_props() {
+    let expr = first_expr(r#"<Button label="Save" onClick={handleSave} />"#);
+    match expr {
+        ExprKind::Jsx(JsxElement {
+            kind: JsxElementKind::Element { props, .. },
+            ..
+        }) => {
+            assert_eq!(props.len(), 2);
+            assert_eq!(props[0].name, "label");
+            assert_eq!(props[1].name, "onClick");
+        }
+        _ => panic!("expected jsx element"),
+    }
+}
+
+#[test]
+fn jsx_with_children() {
+    let expr = first_expr("<div>{x}</div>");
+    match expr {
+        ExprKind::Jsx(JsxElement {
+            kind: JsxElementKind::Element { children, .. },
+            ..
+        }) => {
+            assert_eq!(children.len(), 1);
+            assert!(matches!(&children[0], JsxChild::Expr(_)));
+        }
+        _ => panic!("expected jsx element"),
+    }
+}
+
+#[test]
+fn jsx_fragment() {
+    let expr = first_expr("<>{x}</>");
+    match expr {
+        ExprKind::Jsx(JsxElement {
+            kind: JsxElementKind::Fragment { children },
+            ..
+        }) => {
+            assert_eq!(children.len(), 1);
+        }
+        _ => panic!("expected fragment"),
+    }
+}
+
+// ── Banned Keywords ──────────────────────────────────────────
+
+#[test]
+fn banned_keyword_error() {
+    let result = parse("let x = 5");
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    assert!(errors[0].message.contains("banned keyword"));
+}
+
+// ── Block & Return ───────────────────────────────────────────
+
+#[test]
+fn block_with_return() {
+    match first_item("function f() { const x = 1\nreturn x }") {
+        ItemKind::Function(decl) => match decl.body.kind {
+            ExprKind::Block(items) => {
+                assert_eq!(items.len(), 2);
+            }
+            _ => panic!("expected block"),
+        },
+        other => panic!("expected function, got {other:?}"),
+    }
+}
+
+// ── Pipe with placeholder ────────────────────────────────────
+
+#[test]
+fn pipe_with_placeholder() {
+    let expr = first_expr("x |> f(y, _, z)");
+    match expr {
+        ExprKind::Pipe { right, .. } => match right.kind {
+            ExprKind::Call { args, .. } => {
+                assert_eq!(args.len(), 3);
+                assert!(
+                    matches!(&args[1], Arg::Positional(e) if matches!(e.kind, ExprKind::Placeholder))
+                );
+            }
+            _ => panic!("expected call in pipe rhs"),
+        },
+        _ => panic!("expected pipe"),
+    }
+}
+
+// ── Await ────────────────────────────────────────────────────
+
+#[test]
+fn await_expr() {
+    let expr = first_expr("await fetchUser(id)");
+    assert!(matches!(expr, ExprKind::Await(_)));
+}
+
+// ── If Expression ────────────────────────────────────────────
+
+#[test]
+fn if_else_expr() {
+    let expr = first_expr("if x { 1 } else { 2 }");
+    match expr {
+        ExprKind::If { else_branch, .. } => {
+            assert!(else_branch.is_some());
+        }
+        _ => panic!("expected if"),
+    }
+}
+
+// ── Grouped Expression ───────────────────────────────────────
+
+#[test]
+fn grouped() {
+    let expr = first_expr("(1 + 2)");
+    assert!(matches!(expr, ExprKind::Grouped(_)));
+}
+
+// ── Type Expression ──────────────────────────────────────────
+
+#[test]
+fn generic_type() {
+    match first_item("const x: Result<User, ApiError> = Ok(user)") {
+        ItemKind::Const(decl) => {
+            let type_ann = decl.type_ann.unwrap();
+            match type_ann.kind {
+                TypeExprKind::Named { name, type_args } => {
+                    assert_eq!(name, "Result");
+                    assert_eq!(type_args.len(), 2);
+                }
+                _ => panic!("expected named type"),
+            }
+        }
+        other => panic!("expected const, got {other:?}"),
+    }
+}
+
+// ── Full program ─────────────────────────────────────────────
+
+#[test]
+fn full_program() {
+    let input = r#"
+import { useState } from "react"
+
+type Todo = { id: string, text: string, done: bool }
+
+export function TodoApp() {
+    const [todos, setTodos] = useState([])
+    return <div>{todos |> map(t => <li>{t.text}</li>)}</div>
+}
+"#;
+    let program = parse_ok(input);
+    assert_eq!(program.items.len(), 3);
+}
