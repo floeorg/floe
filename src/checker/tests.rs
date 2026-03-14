@@ -450,3 +450,71 @@ const _v = Valid(text: "hello")
     );
     assert!(!has_error(&diags, "E015"));
 }
+
+// ── Unknown type errors ────────────────────────────────────
+
+#[test]
+fn unknown_type_in_record_field() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: asojSIDJA,
+}
+"#,
+    );
+    assert!(has_error_containing(&diags, "unknown type `asojSIDJA`"));
+}
+
+#[test]
+fn unknown_type_in_const_annotation() {
+    let diags = check("const x: Nonexistent = 42");
+    assert!(has_error_containing(&diags, "unknown type `Nonexistent`"));
+}
+
+#[test]
+fn unknown_type_in_function_param() {
+    let diags = check("fn foo(x: BadType) -> () {}");
+    assert!(has_error_containing(&diags, "unknown type `BadType`"));
+}
+
+#[test]
+fn unknown_type_in_function_return() {
+    let diags = check("fn foo() -> BadReturn { 42 }");
+    assert!(has_error_containing(&diags, "unknown type `BadReturn`"));
+}
+
+#[test]
+fn known_type_no_error() {
+    let diags = check(
+        r#"
+type User = { name: string }
+const _u: User = User(name: "Alice")
+"#,
+    );
+    assert!(!has_error_containing(&diags, "unknown type"));
+}
+
+#[test]
+fn builtin_types_no_error() {
+    let diags = check(
+        r#"
+const _a: number = 42
+const _b: string = "hi"
+const _c: bool = true
+"#,
+    );
+    assert!(!has_error_containing(&diags, "unknown type"));
+}
+
+#[test]
+fn forward_reference_in_union_no_error() {
+    let diags = check(
+        r#"
+type Container = { item: Item }
+type Item = { name: string }
+"#,
+    );
+    assert!(!has_error_containing(&diags, "unknown type `Item`"));
+}
