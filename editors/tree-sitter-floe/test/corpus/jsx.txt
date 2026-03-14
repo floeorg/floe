@@ -1,0 +1,163 @@
+===
+JSX element
+===
+
+const e = <div>hello</div>
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_element
+      (jsx_opening_element
+        name: (identifier))
+      (jsx_text)
+      (jsx_closing_element
+        name: (identifier)))))
+
+===
+JSX self-closing
+===
+
+const e = <input />
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_self_closing
+      name: (identifier))))
+
+===
+JSX fragment
+===
+
+const e = <>hello</>
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_fragment
+      (jsx_text))))
+
+===
+JSX with string attribute
+===
+
+const e = <div className="foo">text</div>
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_element
+      (jsx_opening_element
+        name: (identifier)
+        (jsx_attribute
+          name: (identifier)
+          value: (string
+            (string_content))))
+      (jsx_text)
+      (jsx_closing_element
+        name: (identifier)))))
+
+===
+JSX with expression attribute
+===
+
+const e = <div onClick={handler}>text</div>
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_element
+      (jsx_opening_element
+        name: (identifier)
+        (jsx_attribute
+          name: (identifier)
+          value: (jsx_expression
+            (primary_expression
+              (identifier)))))
+      (jsx_text)
+      (jsx_closing_element
+        name: (identifier)))))
+
+===
+JSX with expression child
+===
+
+const e = <p>{name}</p>
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_element
+      (jsx_opening_element
+        name: (identifier))
+      (jsx_expression
+        (primary_expression
+          (identifier)))
+      (jsx_closing_element
+        name: (identifier)))))
+
+===
+JSX with component name
+===
+
+const e = <MyComponent />
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_self_closing
+      name: (type_identifier))))
+
+===
+JSX boolean attribute
+===
+
+const e = <input disabled />
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_self_closing
+      name: (identifier)
+      (jsx_attribute
+        name: (identifier)))))
+
+===
+JSX nested elements
+===
+
+const e = <div><span>hi</span></div>
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_element
+      (jsx_opening_element
+        name: (identifier))
+      (jsx_element
+        (jsx_opening_element
+          name: (identifier))
+        (jsx_text)
+        (jsx_closing_element
+          name: (identifier)))
+      (jsx_closing_element
+        name: (identifier)))))

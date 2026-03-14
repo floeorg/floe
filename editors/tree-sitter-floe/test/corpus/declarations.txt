@@ -1,0 +1,308 @@
+===
+Import declaration
+===
+
+import { useState } from "react"
+
+---
+
+(source_file
+  (import_declaration
+    (import_specifier
+      (identifier))
+    (string
+      (string_content))))
+
+===
+Import with alias
+===
+
+import { foo as bar } from "baz"
+
+---
+
+(source_file
+  (import_declaration
+    (import_specifier
+      (identifier)
+      (identifier))
+    (string
+      (string_content))))
+
+===
+Multiple imports
+===
+
+import { a, b, c } from "mod"
+
+---
+
+(source_file
+  (import_declaration
+    (import_specifier
+      (identifier))
+    (import_specifier
+      (identifier))
+    (import_specifier
+      (identifier))
+    (string
+      (string_content))))
+
+===
+Function declaration
+===
+
+fn greet(name: string) -> string {
+    name
+}
+
+---
+
+(source_file
+  (function_declaration
+    name: (identifier)
+    parameters: (parameter_list
+      (parameter
+        name: (identifier)
+        type: (primitive_type)))
+    return_type: (primitive_type)
+    body: (block
+      (expression_statement
+        (primary_expression
+          (identifier))))))
+
+===
+Function with uppercase name
+===
+
+fn HomePage() -> JSX.Element {
+    return ()
+}
+
+---
+
+(source_file
+  (function_declaration
+    name: (type_identifier)
+    parameters: (parameter_list)
+    return_type: (qualified_type
+      (type_identifier)
+      (type_identifier))
+    body: (block
+      (expression_statement
+        (return_statement
+          (primary_expression
+            (unit_value)))))))
+
+===
+Async function
+===
+
+async fn fetchData() -> string {
+    "hello"
+}
+
+---
+
+(source_file
+  (function_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    return_type: (primitive_type)
+    body: (block
+      (expression_statement
+        (primary_expression
+          (string
+            (string_content)))))))
+
+===
+Const declaration
+===
+
+const x = 42
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (primary_expression
+      (number))))
+
+===
+Const with type annotation
+===
+
+const name: string = "hello"
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (primitive_type)
+    (primary_expression
+      (string
+        (string_content)))))
+
+===
+Const with destructuring array
+===
+
+const [a, b] = pair
+
+---
+
+(source_file
+  (const_declaration
+    (array_pattern
+      (identifier)
+      (identifier))
+    (primary_expression
+      (identifier))))
+
+===
+Const with destructuring object
+===
+
+const { x, y } = point
+
+---
+
+(source_file
+  (const_declaration
+    (object_pattern
+      (identifier)
+      (identifier))
+    (primary_expression
+      (identifier))))
+
+===
+Type declaration - record
+===
+
+type Todo = {
+    id: string,
+    text: string,
+    done: bool,
+}
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    definition: (record_type
+      (record_field
+        name: (identifier)
+        type: (primitive_type))
+      (record_field
+        name: (identifier)
+        type: (primitive_type))
+      (record_field
+        name: (identifier)
+        type: (primitive_type)))))
+
+===
+Type declaration - union
+===
+
+type Filter =
+    | All
+    | Active
+    | Completed
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    definition: (union_type_definition
+      (variant
+        name: (type_identifier))
+      (variant
+        name: (type_identifier))
+      (variant
+        name: (type_identifier)))))
+
+===
+Type declaration - union with fields
+===
+
+type Validation =
+    | Valid(text: string)
+    | TooShort
+    | Empty
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    definition: (union_type_definition
+      (variant
+        name: (type_identifier)
+        (variant_field
+          name: (identifier)
+          type: (primitive_type)))
+      (variant
+        name: (type_identifier))
+      (variant
+        name: (type_identifier)))))
+
+===
+Export function
+===
+
+export fn hello() -> string {
+    "world"
+}
+
+---
+
+(source_file
+  (export_declaration
+    (function_declaration
+      name: (identifier)
+      parameters: (parameter_list)
+      return_type: (primitive_type)
+      body: (block
+        (expression_statement
+          (primary_expression
+            (string
+              (string_content))))))))
+
+===
+Export const
+===
+
+export const pi = 3
+
+---
+
+(source_file
+  (export_declaration
+    (const_declaration
+      (identifier)
+      (primary_expression
+        (number)))))
+
+===
+Generic type
+===
+
+type Box<T> = {
+    value: T,
+}
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    (type_parameters
+      (type_identifier))
+    definition: (record_type
+      (record_field
+        name: (identifier)
+        type: (type_identifier)))))

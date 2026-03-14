@@ -1,0 +1,400 @@
+===
+Pipe expression
+===
+
+const result = text |> String.trim
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (pipe_expression
+      left: (primary_expression
+        (identifier))
+      right: (member_expression
+        object: (primary_expression
+          (type_identifier))
+        property: (identifier)))))
+
+===
+Chained pipe expression
+===
+
+fn count(todos: Array<Todo>) -> number {
+    todos
+        |> Array.filter(.done == false)
+        |> Array.length
+}
+
+---
+
+(source_file
+  (function_declaration
+    name: (identifier)
+    parameters: (parameter_list
+      (parameter
+        name: (identifier)
+        type: (array_type
+          (type_identifier))))
+    return_type: (primitive_type)
+    body: (block
+      (expression_statement
+        (pipe_expression
+          left: (pipe_expression
+            left: (primary_expression
+              (identifier))
+            right: (call_expression
+              function: (member_expression
+                object: (primary_expression
+                  (type_identifier))
+                property: (identifier))
+              (argument_list
+                (argument
+                  (binary_expression
+                    left: (dot_shorthand
+                      field: (identifier))
+                    operator: (operator)
+                    right: (primary_expression
+                      (boolean)))))))
+          right: (member_expression
+            object: (primary_expression
+              (type_identifier))
+            property: (identifier)))))))
+
+===
+Match expression
+===
+
+match len {
+    0 -> Empty,
+    _ -> Valid(trimmed),
+}
+
+---
+
+(source_file
+  (expression_statement
+    (match_expression
+      subject: (primary_expression
+        (identifier))
+      (match_arm
+        pattern: (literal_pattern
+          (number))
+        body: (primary_expression
+          (type_identifier)))
+      (match_arm
+        pattern: (wildcard_pattern)
+        body: (call_expression
+          function: (primary_expression
+            (type_identifier))
+          (argument_list
+            (argument
+              (primary_expression
+                (identifier)))))))))
+
+===
+Pipe lambda
+===
+
+const f = |x| x
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (pipe_lambda
+      (lambda_parameter
+        name: (identifier))
+      body: (primary_expression
+        (identifier)))))
+
+===
+Zero-arg lambda
+===
+
+const f = || handleAdd()
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (pipe_lambda
+      body: (call_expression
+        function: (primary_expression
+          (identifier))
+        (argument_list)))))
+
+===
+Call expression
+===
+
+const r = foo(1, 2)
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (call_expression
+      function: (primary_expression
+        (identifier))
+      (argument_list
+        (argument
+          (primary_expression
+            (number)))
+        (argument
+          (primary_expression
+            (number)))))))
+
+===
+Labeled arguments
+===
+
+const t = Todo(id: v4(), text: text, done: false)
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (call_expression
+      function: (primary_expression
+        (type_identifier))
+      (argument_list
+        (argument
+          label: (identifier)
+          value: (call_expression
+            function: (primary_expression
+              (identifier))
+            (argument_list)))
+        (argument
+          label: (identifier)
+          value: (primary_expression
+            (identifier)))
+        (argument
+          label: (identifier)
+          value: (primary_expression
+            (boolean)))))))
+
+===
+Member expression
+===
+
+const v = obj.field
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (member_expression
+      object: (primary_expression
+        (identifier))
+      property: (identifier))))
+
+===
+Variant expression
+===
+
+const f = Filter.All
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (variant_expression
+      type: (type_identifier)
+      variant: (type_identifier))))
+
+===
+Dot shorthand
+===
+
+const f = .done == true
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (binary_expression
+      left: (dot_shorthand
+        field: (identifier))
+      operator: (operator)
+      right: (primary_expression
+        (boolean)))))
+
+===
+If expression
+===
+
+if x {
+    1
+} else {
+    2
+}
+
+---
+
+(source_file
+  (expression_statement
+    (if_expression
+      condition: (primary_expression
+        (identifier))
+      consequence: (block
+        (expression_statement
+          (primary_expression
+            (number))))
+      alternative: (block
+        (expression_statement
+          (primary_expression
+            (number)))))))
+
+===
+Binary expression
+===
+
+const r = a + b * c
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (binary_expression
+      left: (primary_expression
+        (identifier))
+      operator: (operator)
+      right: (binary_expression
+        left: (primary_expression
+          (identifier))
+        operator: (operator)
+        right: (primary_expression
+          (identifier))))))
+
+===
+Unary expression
+===
+
+const r = !done
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (unary_expression
+      operator: (unary_operator)
+      operand: (primary_expression
+        (identifier)))))
+
+===
+Template literal
+===
+
+const s = `hello ${name}`
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (primary_expression
+      (template_literal
+        (template_string_content)
+        (template_interpolation
+          (primary_expression
+            (identifier)))))))
+
+===
+Array literal
+===
+
+const a = [1, 2, 3]
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (primary_expression
+      (array_literal
+        (primary_expression
+          (number))
+        (primary_expression
+          (number))
+        (primary_expression
+          (number))))))
+
+===
+Return statement
+===
+
+fn foo() -> number {
+    return 42
+}
+
+---
+
+(source_file
+  (function_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    return_type: (primitive_type)
+    body: (block
+      (expression_statement
+        (return_statement
+          (primary_expression
+            (number)))))))
+
+===
+Spread in constructor
+===
+
+const t = Todo(..old, done: true)
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (construct_expression
+      type: (type_identifier)
+      spread: (primary_expression
+        (identifier))
+      (construct_field
+        name: (identifier)
+        value: (primary_expression
+          (boolean))))))
+
+===
+Await expression
+===
+
+fn foo() -> string {
+    const data = await fetchData()
+    data
+}
+
+---
+
+(source_file
+  (function_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    return_type: (primitive_type)
+    body: (block
+      (const_declaration
+        (identifier)
+        (await_expression
+          (call_expression
+            function: (primary_expression
+              (identifier))
+            (argument_list))))
+      (expression_statement
+        (primary_expression
+          (identifier))))))

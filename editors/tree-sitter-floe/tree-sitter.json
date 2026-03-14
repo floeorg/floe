@@ -1,0 +1,18 @@
+{
+  "grammars": [
+    {
+      "name": "floe",
+      "camelCase": false,
+      "scope": "source.floe",
+      "path": ".",
+      "file-types": ["fl"],
+      "highlights": "queries/highlights.scm"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "links": {
+      "repository": "https://github.com/example/tree-sitter-floe"
+    }
+  }
+}
