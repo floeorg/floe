@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::checker::ExprTypeMap;
 use crate::parser::ast::*;
+use crate::resolve::ResolvedImports;
 use crate::stdlib::StdlibRegistry;
 
 /// Code generation result: the emitted TypeScript source and whether it contains JSX.
@@ -32,6 +33,10 @@ pub struct Codegen {
     /// Expression type map from the checker, keyed by span (start, end).
     /// Used for type-directed pipe resolution.
     expr_types: ExprTypeMap,
+    /// Resolved imports from other .fl files, for expanding bare imports.
+    resolved_imports: HashMap<String, ResolvedImports>,
+    /// Maps original import name -> aliased name for names that conflict with locals.
+    import_aliases: HashMap<String, String>,
 }
 
 impl Codegen {
@@ -46,6 +51,8 @@ impl Codegen {
             variant_info: HashMap::new(),
             local_names: HashSet::new(),
             expr_types: HashMap::new(),
+            resolved_imports: HashMap::new(),
+            import_aliases: HashMap::new(),
         }
     }
 
@@ -55,6 +62,36 @@ impl Codegen {
             expr_types,
             ..Self::new()
         }
+    }
+
+    /// Create a codegen with expression types and resolved import info.
+    pub fn with_imports(
+        expr_types: ExprTypeMap,
+        resolved: &HashMap<String, ResolvedImports>,
+    ) -> Self {
+        let mut codegen = Self::with_expr_types(expr_types);
+        codegen.resolved_imports = resolved.clone();
+        // Pre-register union variant info from imported types
+        for imports in resolved.values() {
+            for decl in &imports.type_decls {
+                if let TypeDef::Union(variants) = &decl.def {
+                    for variant in variants {
+                        let field_names: Vec<String> = variant
+                            .fields
+                            .iter()
+                            .filter_map(|f| f.name.clone())
+                            .collect();
+                        if variant.fields.is_empty() {
+                            codegen.unit_variants.insert(variant.name.clone());
+                        }
+                        codegen
+                            .variant_info
+                            .insert(variant.name.clone(), (decl.name.clone(), field_names));
+                    }
+                }
+            }
+        }
+        codegen
     }
 
     /// Generate TypeScript from a Floe program.
@@ -153,7 +190,47 @@ impl Codegen {
     fn emit_import(&mut self, decl: &ImportDecl) {
         self.emit_indent();
         if decl.specifiers.is_empty() {
-            self.push(&format!("import \"{}\";", decl.source));
+            // Bare import: expand to named imports if we have resolved exports
+            if let Some(resolved) = self.resolved_imports.get(&decl.source) {
+                let mut names: Vec<String> = Vec::new();
+                for func in &resolved.function_decls {
+                    if func.exported {
+                        names.push(func.name.clone());
+                    }
+                }
+                for block in &resolved.for_blocks {
+                    for func in &block.functions {
+                        if func.exported {
+                            names.push(func.name.clone());
+                        }
+                    }
+                }
+                for name in &resolved.const_names {
+                    names.push(name.clone());
+                }
+                if names.is_empty() {
+                    self.push(&format!("import \"{}\";", decl.source));
+                } else {
+                    // Always alias bare-import names to avoid TDZ conflicts
+                    // (e.g., `const remaining = todos |> remaining` would fail
+                    // without aliasing because JS const shadows the import)
+                    let specifiers: Vec<String> = names
+                        .iter()
+                        .map(|name| {
+                            let alias = format!("__{name}");
+                            self.import_aliases.insert(name.clone(), alias.clone());
+                            format!("{name} as {alias}")
+                        })
+                        .collect();
+                    self.push(&format!(
+                        "import {{ {} }} from \"{}\";",
+                        specifiers.join(", "),
+                        decl.source
+                    ));
+                }
+            } else {
+                self.push(&format!("import \"{}\";", decl.source));
+            }
         } else {
             self.push("import { ");
             for (i, spec) in decl.specifiers.iter().enumerate() {
@@ -278,6 +355,9 @@ impl Codegen {
 
     fn emit_for_block_function(&mut self, func: &FunctionDecl, for_type: &TypeExpr) {
         self.emit_indent();
+        if func.exported {
+            self.push("export ");
+        }
         if func.async_fn {
             self.push("async ");
         }
@@ -516,6 +596,8 @@ impl Codegen {
             variant_info: self.variant_info.clone(),
             local_names: self.local_names.clone(),
             expr_types: self.expr_types.clone(),
+            resolved_imports: self.resolved_imports.clone(),
+            import_aliases: self.import_aliases.clone(),
         }
     }
 }

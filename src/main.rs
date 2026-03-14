@@ -108,7 +108,7 @@ fn cmd_build_stdin() -> Result<()> {
     let resolved = resolve::resolve_imports(file_path, &program);
 
     // Type check
-    let (check_diags, expr_types) = Checker::with_imports(resolved).check_full(&program);
+    let (check_diags, expr_types) = Checker::with_imports(resolved.clone()).check_full(&program);
     let type_errors: Vec<_> = check_diags
         .iter()
         .filter(|d| d.severity == diagnostic::Severity::Error)
@@ -118,7 +118,7 @@ fn cmd_build_stdin() -> Result<()> {
         return Err(anyhow::anyhow!("{rendered}"));
     }
 
-    let output = Codegen::with_expr_types(expr_types).generate(&program);
+    let output = Codegen::with_imports(expr_types, &resolved).generate(&program);
     print!("{}", output.code);
 
     Ok(())
@@ -171,7 +171,7 @@ fn compile_file(file: &Path, out_dir: Option<&Path>) -> Result<PathBuf> {
     let resolved = resolve::resolve_imports(file, &program);
 
     // Type check
-    let (check_diags, expr_types) = Checker::with_imports(resolved).check_full(&program);
+    let (check_diags, expr_types) = Checker::with_imports(resolved.clone()).check_full(&program);
     let type_errors: Vec<_> = check_diags
         .iter()
         .filter(|d| d.severity == diagnostic::Severity::Error)
@@ -181,7 +181,7 @@ fn compile_file(file: &Path, out_dir: Option<&Path>) -> Result<PathBuf> {
         return Err(anyhow::anyhow!("{rendered}"));
     }
 
-    let output = Codegen::with_expr_types(expr_types).generate(&program);
+    let output = Codegen::with_imports(expr_types, &resolved).generate(&program);
     let ext = if output.has_jsx { "tsx" } else { "ts" };
 
     let out_path = if let Some(dir) = out_dir {

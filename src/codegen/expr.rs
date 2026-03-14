@@ -132,9 +132,21 @@ impl Codegen {
             }
 
             ExprKind::Member { object, field } => {
-                self.emit_expr(object);
-                self.push(".");
-                self.push(field);
+                // Check for union variant access: `Filter.All` → `{ tag: "All" }`
+                if let ExprKind::Identifier(type_name) = &object.kind
+                    && self
+                        .variant_info
+                        .get(field.as_str())
+                        .is_some_and(|(union_name, _)| union_name == type_name)
+                {
+                    self.push("{ tag: \"");
+                    self.push(field);
+                    self.push("\" }");
+                } else {
+                    self.emit_expr(object);
+                    self.push(".");
+                    self.push(field);
+                }
             }
 
             ExprKind::Index { object, index } => {
@@ -455,7 +467,17 @@ impl Codegen {
                     return;
                 }
                 // Fall through to normal call handling below
-                self.emit_expr(callee);
+                // Use aliased import name if available (avoids TDZ conflicts)
+                let callee_alias = if let ExprKind::Identifier(name) = &callee.kind {
+                    self.import_aliases.get(name.as_str()).cloned()
+                } else {
+                    None
+                };
+                if let Some(alias) = callee_alias {
+                    self.push(&alias);
+                } else {
+                    self.emit_expr(callee);
+                }
                 self.push("(");
                 self.emit_expr(left);
                 if !args.is_empty() {
@@ -503,12 +525,18 @@ impl Codegen {
                 self.push(")");
             }
             // `a |> f` → `f(a)` — bare function (also check stdlib)
-            ExprKind::Identifier(_) => {
+            ExprKind::Identifier(name) => {
                 if let Some(output) = self.try_emit_bare_stdlib_pipe(left, right, &[]) {
                     self.push(&output);
                     return;
                 }
-                self.emit_expr(right);
+                // Use aliased import name if available (avoids TDZ conflicts)
+                let alias = self.import_aliases.get(name.as_str()).cloned();
+                if let Some(alias) = alias {
+                    self.push(&alias);
+                } else {
+                    self.emit_expr(right);
+                }
                 self.push("(");
                 self.emit_expr(left);
                 self.push(")");

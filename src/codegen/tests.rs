@@ -618,3 +618,21 @@ fn type_directed_array_filter() {
     let result = emit_with_types(r#"const _x = [1, 2, 3] |> filter(|x| x > 1)"#);
     assert_eq!(result, "const _x = [1, 2, 3].filter((x) => x > 1);");
 }
+
+#[test]
+fn union_variant_dot_access() {
+    let result = emit(
+        r#"
+type Filter = | All | Active | Completed
+const _f = Filter.All
+"#,
+    );
+    assert!(result.contains(r#"{ tag: "All" }"#));
+}
+
+#[test]
+fn union_variant_dot_access_non_union_passthrough() {
+    // Regular member access should still work normally
+    let result = emit("const _x = foo.bar");
+    assert!(result.contains("foo.bar"));
+}
