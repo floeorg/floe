@@ -560,8 +560,9 @@ impl Checker {
                         // Unknown: no info
                         Type::Unknown | Type::Var(_) => Type::Unknown,
                         // Known type (e.g., Array<Todo> from useState<Array<Todo>>):
-                        // give each name the full type
-                        other => other.clone(),
+                        // first element gets the type, rest get Unknown
+                        other if i == 0 => other.clone(),
+                        _ => Type::Unknown,
                     };
                     self.check_no_redefinition(name, span);
                     self.name_types.insert(name.clone(), elem_ty.display_name());

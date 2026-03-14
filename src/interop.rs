@@ -29,8 +29,13 @@ pub use ts_types::{TsType, ts_type_to_string};
 pub use wrapper::wrap_boundary_type;
 
 // Re-export internal helpers so tests (and sibling submodules) can access via `use super::*`
+#[cfg(test)]
 #[allow(unused_imports)]
-use dts::{parse_const_export, parse_function_export, parse_interface_export, parse_type_export};
+use dts::{
+    parse_const_export, parse_dts_exports_from_str, parse_function_export, parse_interface_export,
+    parse_type_export,
+};
+#[cfg(test)]
 #[allow(unused_imports)]
 use ts_types::{find_matching_paren, parse_param_types, parse_type_str, split_at_top_level};
 

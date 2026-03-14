@@ -336,3 +336,203 @@ fn tsconfig_not_found() {
     let result = find_tsconfig(Path::new("/nonexistent/path"));
     assert!(result.is_none());
 }
+
+// ── Namespace + export = parsing (oxc_parser) ──────────────
+
+#[test]
+fn parse_dts_namespace_with_export_assignment() {
+    // React-like pattern: export = React; declare namespace React { function useState<S>(...): ...; }
+    let dts = r#"
+export = React;
+declare namespace React {
+    function useState<S>(initialState: S | (() => S)): [S, Dispatch<SetStateAction<S>>];
+    function useEffect(effect: () => void, deps?: any[]): void;
+    function useRef<T>(initialValue: T): MutableRefObject<T>;
+}
+"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+
+    assert_eq!(exports.len(), 3);
+
+    // useState
+    let use_state = exports.iter().find(|e| e.name == "useState").unwrap();
+    match &use_state.ts_type {
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            // Should have 1 param (the initialState union)
+            assert_eq!(params.len(), 1);
+            // Return type should be a tuple [S, Dispatch<SetStateAction<S>>]
+            assert!(matches!(return_type.as_ref(), TsType::Tuple(_)));
+        }
+        other => panic!("expected Function, got {other:?}"),
+    }
+
+    // useEffect
+    let use_effect = exports.iter().find(|e| e.name == "useEffect").unwrap();
+    match &use_effect.ts_type {
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            assert_eq!(params.len(), 2);
+            assert_eq!(return_type.as_ref(), &TsType::Primitive("void".to_string()));
+        }
+        other => panic!("expected Function, got {other:?}"),
+    }
+
+    // useRef
+    let use_ref = exports.iter().find(|e| e.name == "useRef").unwrap();
+    match &use_ref.ts_type {
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            assert_eq!(params.len(), 1);
+            match return_type.as_ref() {
+                TsType::Generic { name, args } => {
+                    assert_eq!(name, "MutableRefObject");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Generic return, got {other:?}"),
+            }
+        }
+        other => panic!("expected Function, got {other:?}"),
+    }
+}
+
+#[test]
+fn parse_dts_direct_export_function() {
+    let dts = r#"
+export declare function createElement(tag: string, props: any): Element;
+export declare const version: string;
+export declare type ID = string | number;
+"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+
+    assert_eq!(exports.len(), 3);
+
+    let create_element = exports.iter().find(|e| e.name == "createElement").unwrap();
+    match &create_element.ts_type {
+        TsType::Function { params, .. } => assert_eq!(params.len(), 2),
+        other => panic!("expected Function, got {other:?}"),
+    }
+
+    let version = exports.iter().find(|e| e.name == "version").unwrap();
+    assert_eq!(version.ts_type, TsType::Primitive("string".to_string()));
+
+    let id = exports.iter().find(|e| e.name == "ID").unwrap();
+    match &id.ts_type {
+        TsType::Union(parts) => assert_eq!(parts.len(), 2),
+        other => panic!("expected Union, got {other:?}"),
+    }
+}
+
+#[test]
+fn parse_dts_export_interface() {
+    let dts = r#"
+export interface Config {
+    debug: boolean;
+    port: number;
+    host: string;
+}
+"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    assert_eq!(exports.len(), 1);
+
+    let config = &exports[0];
+    assert_eq!(config.name, "Config");
+    match &config.ts_type {
+        TsType::Object(fields) => {
+            assert_eq!(fields.len(), 3);
+            assert_eq!(fields[0].0, "debug");
+            assert_eq!(fields[0].1, TsType::Primitive("boolean".to_string()));
+            assert_eq!(fields[1].0, "port");
+            assert_eq!(fields[1].1, TsType::Primitive("number".to_string()));
+            assert_eq!(fields[2].0, "host");
+            assert_eq!(fields[2].1, TsType::Primitive("string".to_string()));
+        }
+        other => panic!("expected Object, got {other:?}"),
+    }
+}
+
+#[test]
+fn parse_dts_overloaded_functions_use_first() {
+    // Overloaded functions: should use the first declaration
+    let dts = r#"
+export = MyModule;
+declare namespace MyModule {
+    function parse(text: string): object;
+    function parse(text: string, reviver: (key: string, value: any) => any): object;
+}
+"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+
+    // Should only have one "parse" entry (the first overload)
+    let parse_exports: Vec<_> = exports.iter().filter(|e| e.name == "parse").collect();
+    assert_eq!(parse_exports.len(), 1);
+
+    match &parse_exports[0].ts_type {
+        TsType::Function { params, .. } => {
+            // First overload has 1 param
+            assert_eq!(params.len(), 1);
+        }
+        other => panic!("expected Function, got {other:?}"),
+    }
+}
+
+#[test]
+fn parse_dts_namespace_without_export_assignment() {
+    // If there's no `export = X`, namespace members should NOT be exported
+    let dts = r#"
+declare namespace Internal {
+    function helper(): void;
+}
+export declare function publicFn(): string;
+"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+
+    // Only publicFn should be exported, not helper
+    assert_eq!(exports.len(), 1);
+    assert_eq!(exports[0].name, "publicFn");
+}
+
+#[test]
+fn parse_dts_namespace_const_and_type() {
+    let dts = r#"
+export = Lib;
+declare namespace Lib {
+    const VERSION: string;
+    type Options = { verbose: boolean; timeout: number };
+    interface Result {
+        success: boolean;
+        data: any;
+    }
+}
+"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+
+    assert_eq!(exports.len(), 3);
+
+    let version = exports.iter().find(|e| e.name == "VERSION").unwrap();
+    assert_eq!(version.ts_type, TsType::Primitive("string".to_string()));
+
+    let options = exports.iter().find(|e| e.name == "Options").unwrap();
+    match &options.ts_type {
+        TsType::Object(fields) => {
+            assert_eq!(fields.len(), 2);
+        }
+        other => panic!("expected Object, got {other:?}"),
+    }
+
+    let result = exports.iter().find(|e| e.name == "Result").unwrap();
+    match &result.ts_type {
+        TsType::Object(fields) => {
+            assert_eq!(fields.len(), 2);
+            assert_eq!(fields[0].0, "success");
+            assert_eq!(fields[1].0, "data");
+        }
+        other => panic!("expected Object, got {other:?}"),
+    }
+}

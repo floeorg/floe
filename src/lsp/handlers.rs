@@ -632,7 +632,6 @@ pub(super) fn enrich_hover_detail(sym: &Symbol, type_map: &HashMap<String, Strin
         && sym.import_source.is_none()
         && let Some(inferred) = type_map.get(&sym.name)
         && !inferred.contains("?T")
-        && inferred != "unknown"
     {
         return format!("{detail}: {inferred}");
     }
