@@ -65,16 +65,6 @@ const count = 0
 const newCount = count + 1
 ```
 
-### `bool` instead of `boolean`
-
-```typescript
-// TypeScript
-const active: boolean = true
-
-// Floe
-const active: bool = true
-```
-
 ### `==` is `===`
 
 Floe's `==` compiles to `===`. There is no loose equality.
@@ -96,9 +86,9 @@ const result = users
 
 // Floe
 const result = users
-  |> filter(.active)
-  |> map(.name)
-  |> join(", ")
+  |> Array.filter(.active)
+  |> Array.map(.name)
+  |> String.join(", ")
 ```
 
 ### Pattern matching instead of switch
@@ -119,22 +109,35 @@ match action.type {
 }
 ```
 
-### Result instead of try/catch
+### `try` instead of try/catch
 
 ```typescript
 // TypeScript
 try {
-  const data = await fetchData()
+  const data = JSON.parse(input)
   return data
 } catch (e) {
   return null
 }
 
-// Floe
-match await fetchData() {
+// Floe — wrap throwing functions with `try`
+const result = try JSON.parse(input)
+match result {
   Ok(data) -> Some(data),
   Err(_) -> None,
 }
+```
+
+The `try` keyword wraps any expression in a try/catch and returns a `Result<T, Error>`. All TypeScript imports are treated as potentially throwing by default — the compiler requires `try` when calling them. For TS functions you know won't throw, use `trusted`:
+
+```floe
+import { trusted capitalize, fetchUser } from "some-lib"
+
+capitalize("hello")          // string, no try needed
+const user = try fetchUser(id)  // Result<User, Error>
+
+// Or mark the whole import as trusted:
+import trusted { capitalize, slugify } from "string-utils"
 ```
 
 ### Option instead of null

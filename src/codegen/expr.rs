@@ -192,6 +192,14 @@ impl Codegen {
                 self.emit_expr(inner);
             }
 
+            // Try: `try expr` → IIFE with try/catch wrapping in Result
+            // Non-Error throws are coerced to Error for consistent typing
+            ExprKind::Try(inner) => {
+                self.push("(() => { try { return { ok: true as const, value: ");
+                self.emit_expr(inner);
+                self.push(" }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()");
+            }
+
             // Ok(value) → { ok: true, value: value }
             ExprKind::Ok(inner) => {
                 self.push("{ ok: true as const, value: ");

@@ -58,6 +58,11 @@ fn named_args_erased() {
 }
 
 #[test]
+fn named_arg_punning_erased() {
+    assert_eq!(emit("f(name:, limit:)"), "f(name, limit);");
+}
+
+#[test]
 fn template_literal() {
     assert_eq!(emit("`hello ${name}`"), "`hello ${name}`;");
 }

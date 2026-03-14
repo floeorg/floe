@@ -198,6 +198,39 @@ fn named_args() {
     }
 }
 
+#[test]
+fn named_arg_punning() {
+    let expr = first_expr("f(name:, limit:)");
+    match expr {
+        ExprKind::Call { args, .. } => {
+            assert_eq!(args.len(), 2);
+            assert!(
+                matches!(&args[0], Arg::Named { label, value } if label == "name" && matches!(&value.kind, ExprKind::Identifier(n) if n == "name"))
+            );
+            assert!(
+                matches!(&args[1], Arg::Named { label, value } if label == "limit" && matches!(&value.kind, ExprKind::Identifier(n) if n == "limit"))
+            );
+        }
+        _ => panic!("expected call"),
+    }
+}
+
+#[test]
+fn named_arg_punning_mixed() {
+    let expr = first_expr(r#"f("pos", name:, limit: 10)"#);
+    match expr {
+        ExprKind::Call { args, .. } => {
+            assert_eq!(args.len(), 3);
+            assert!(matches!(&args[0], Arg::Positional(_)));
+            assert!(
+                matches!(&args[1], Arg::Named { label, value } if label == "name" && matches!(&value.kind, ExprKind::Identifier(n) if n == "name"))
+            );
+            assert!(matches!(&args[2], Arg::Named { label, .. } if label == "limit"));
+        }
+        _ => panic!("expected call"),
+    }
+}
+
 // ── Constructors ─────────────────────────────────────────────
 
 #[test]
@@ -444,6 +477,54 @@ fn import_named() {
             assert_eq!(decl.source, "react");
         }
         other => panic!("expected import, got {other:?}"),
+    }
+}
+
+#[test]
+fn import_trusted_all() {
+    match first_item(r#"import trusted { capitalize, slugify } from "string-utils""#) {
+        ItemKind::Import(decl) => {
+            assert!(decl.trusted);
+            assert_eq!(decl.specifiers.len(), 2);
+            assert_eq!(decl.specifiers[0].name, "capitalize");
+            assert_eq!(decl.specifiers[1].name, "slugify");
+        }
+        other => panic!("expected import, got {other:?}"),
+    }
+}
+
+#[test]
+fn import_trusted_per_specifier() {
+    match first_item(r#"import { trusted capitalize, fetchUser } from "some-lib""#) {
+        ItemKind::Import(decl) => {
+            assert!(!decl.trusted);
+            assert_eq!(decl.specifiers.len(), 2);
+            assert!(decl.specifiers[0].trusted);
+            assert_eq!(decl.specifiers[0].name, "capitalize");
+            assert!(!decl.specifiers[1].trusted);
+            assert_eq!(decl.specifiers[1].name, "fetchUser");
+        }
+        other => panic!("expected import, got {other:?}"),
+    }
+}
+
+#[test]
+fn try_expression() {
+    match first_expr(r#"try fetchData("hello")"#) {
+        ExprKind::Try(inner) => {
+            assert!(matches!(&inner.kind, ExprKind::Call { .. }));
+        }
+        other => panic!("expected try expression, got {other:?}"),
+    }
+}
+
+#[test]
+fn try_await_expression() {
+    match first_expr(r#"try await fetchData("hello")"#) {
+        ExprKind::Try(inner) => {
+            assert!(matches!(&inner.kind, ExprKind::Await(_)));
+        }
+        other => panic!("expected try expression, got {other:?}"),
     }
 }
 
@@ -705,7 +786,7 @@ fn full_program() {
     let input = r#"
 import { useState } from "react"
 
-type Todo = { id: string, text: string, done: bool }
+type Todo = { id: string, text: string, done: boolean }
 
 export fn TodoApp() {
     const [todos, setTodos] = useState([])

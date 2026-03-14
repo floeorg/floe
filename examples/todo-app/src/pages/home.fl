@@ -1,10 +1,10 @@
-import { useState } from "react"
-import { v4 } from "uuid"
+import trusted { useState } from "react"
+import trusted { v4 } from "uuid"
 
 type Todo = {
     id: string,
     text: string,
-    done: bool,
+    done: boolean,
 }
 
 type Filter =

@@ -58,6 +58,7 @@ module.exports = grammar({
     import_declaration: ($) =>
       seq(
         "import",
+        optional("trusted"),
         "{",
         commaSep1($.import_specifier),
         "}",
@@ -66,7 +67,7 @@ module.exports = grammar({
       ),
 
     import_specifier: ($) =>
-      seq($.identifier, optional(seq("as", $.identifier))),
+      seq(optional("trusted"), $.identifier, optional(seq("as", $.identifier))),
 
     // ── Exports ─────────────────────────────────────────────
 
@@ -150,7 +151,7 @@ module.exports = grammar({
       seq($.type_identifier, ".", $.type_identifier),
 
     primitive_type: ($) =>
-      choice("number", "string", "bool", "unknown"),
+      choice("number", "string", "boolean", "unknown"),
 
     type_identifier: ($) => /[A-Z][a-zA-Z0-9]*/,
 
@@ -221,6 +222,7 @@ module.exports = grammar({
         $.block,
         $.assignment_expression,
         $.await_expression,
+        $.try_expression,
         $.return_statement,
       ),
 
@@ -544,6 +546,9 @@ module.exports = grammar({
 
     await_expression: ($) =>
       prec.right(seq("await", $._expression)),
+
+    try_expression: ($) =>
+      prec.right(seq("try", $._expression)),
 
     // ── Comments ────────────────────────────────────────────
 

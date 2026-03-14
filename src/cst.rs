@@ -943,13 +943,22 @@ impl<'src> CstParser<'src> {
     fn parse_call_arg(&mut self) {
         self.builder.start_node(SyntaxKind::ARG.into());
 
-        // Named arg: `label: expr`
+        // Named arg: `label: expr` or punned `label:`
         if self.is_ident() && self.peek_is(TokenKind::Colon) {
             self.bump(); // label
             self.eat_trivia();
             self.bump(); // :
-            self.eat_trivia();
-            self.parse_expr();
+
+            // Punning: `label:` without a value — next non-trivia is `)` or `,`
+            let next = self.next_non_trivia_kind();
+            let is_pun = matches!(
+                next,
+                Some(TokenKind::RightParen) | Some(TokenKind::Comma) | None
+            );
+            if !is_pun {
+                self.eat_trivia();
+                self.parse_expr();
+            }
         } else {
             self.parse_expr();
         }
@@ -1337,6 +1346,17 @@ impl<'src> CstParser<'src> {
                 if count == n {
                     return Some(self.tokens[i].kind.clone());
                 }
+            }
+            i += 1;
+        }
+        None
+    }
+
+    fn next_non_trivia_kind(&self) -> Option<TokenKind> {
+        let mut i = self.pos;
+        while i < self.tokens.len() {
+            if !self.tokens[i].kind.is_trivia() {
+                return Some(self.tokens[i].kind.clone());
             }
             i += 1;
         }

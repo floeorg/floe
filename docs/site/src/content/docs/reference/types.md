@@ -8,7 +8,7 @@ title: Types Reference
 |------|-------------|---------|
 | `string` | Text | `"hello"` |
 | `number` | Integer or float | `42`, `3.14` |
-| `bool` | Boolean | `true`, `false` |
+| `boolean` | Boolean | `true`, `false` |
 
 ## Built-in Generic Types
 

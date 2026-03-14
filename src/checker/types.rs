@@ -7,7 +7,7 @@ use crate::parser::ast::TypeDef;
 /// Internal type representation used by the checker.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    /// Primitive types: number, string, bool
+    /// Primitive types: number, string, boolean
     Number,
     String,
     Bool,
@@ -73,7 +73,7 @@ impl Type {
         match self {
             Type::Number => "number".to_string(),
             Type::String => "string".to_string(),
-            Type::Bool => "bool".to_string(),
+            Type::Bool => "boolean".to_string(),
             Type::Undefined => "undefined".to_string(),
             Type::Named(n) => n.clone(),
             Type::Brand { tag, .. } => tag.clone(),

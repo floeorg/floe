@@ -112,3 +112,12 @@ fn snapshot_error_missing_return() {
     );
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_error_untrusted_import() {
+    let output = get_diagnostics(
+        "test.fl",
+        "import { fetchUser } from \"some-lib\"\nconst _x = fetchUser(\"123\")",
+    );
+    insta::assert_snapshot!(output);
+}

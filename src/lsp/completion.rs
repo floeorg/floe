@@ -96,7 +96,7 @@ pub(super) fn infer_literal_type(s: &str) -> Option<String> {
     if s.starts_with('"') || s.starts_with('`') {
         Some("string".to_string())
     } else if s == "true" || s == "false" {
-        Some("bool".to_string())
+        Some("boolean".to_string())
     } else if s.starts_with('[') {
         Some("Array".to_string())
     } else if s.parse::<f64>().is_ok() {

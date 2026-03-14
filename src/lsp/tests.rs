@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
 use super::completion::*;
+use super::handlers::{
+    detect_match_context, is_in_jsx_tag, jsx_attribute_completions, lambda_event_completions,
+};
 use super::symbols::*;
 use super::*;
 
@@ -263,7 +266,7 @@ fn infer_literal_number() {
 
 #[test]
 fn infer_literal_bool() {
-    assert_eq!(infer_literal_type("true"), Some("bool".to_string()));
+    assert_eq!(infer_literal_type("true"), Some("boolean".to_string()));
 }
 
 #[test]
@@ -291,7 +294,7 @@ fn resolve_piped_type_with_unwrap() {
 
 #[test]
 fn function_symbol_stores_first_param_type() {
-    let source = "fn filter(arr: Array<T>, pred: (T) -> bool) -> Array<T> { arr }";
+    let source = "fn filter(arr: Array<T>, pred: (T) -> boolean) -> Array<T> { arr }";
     let program = Parser::new(source).parse_program().unwrap();
     let index = SymbolIndex::build(&program);
     let syms = index.find_by_name("filter");
@@ -417,5 +420,138 @@ fn jsx_fixture_type_map_has_counter() {
     assert!(
         type_map.contains_key("Counter"),
         "Counter should be in type map"
+    );
+}
+
+// ── Match arm variant completion tests (#143) ──────────────
+
+#[test]
+fn match_context_detects_variants() {
+    // Build the index from valid source with the type declaration
+    let valid_source = "type Color = | Red | Green | Blue";
+    let (index, _) = build_index_and_types(valid_source);
+
+    // Simulate incomplete source as it would appear in the editor
+    let editor_source = "type Color = | Red | Green | Blue\nmatch Color {\n    ";
+    let offset = editor_source.len();
+    let variants = detect_match_context(editor_source, offset, &index);
+    assert!(variants.is_some(), "should detect match context");
+    let names = variants.unwrap();
+    assert!(names.contains(&"Red".to_string()));
+    assert!(names.contains(&"Green".to_string()));
+    assert!(names.contains(&"Blue".to_string()));
+}
+
+#[test]
+fn match_context_not_detected_outside_match() {
+    let valid_source = "type Color = | Red | Green | Blue";
+    let (index, _) = build_index_and_types(valid_source);
+
+    let editor_source = "type Color = | Red | Green | Blue\nconst x = ";
+    let offset = editor_source.len();
+    let variants = detect_match_context(editor_source, offset, &index);
+    assert!(
+        variants.is_none(),
+        "should not detect match context outside match block"
+    );
+}
+
+// ── JSX attribute completion tests (#144) ──────────────────
+
+#[test]
+fn jsx_tag_detected() {
+    assert!(is_in_jsx_tag("<button on", 10));
+    assert!(is_in_jsx_tag("<div className", 14));
+    assert!(!is_in_jsx_tag("<button>content", 15));
+    assert!(!is_in_jsx_tag("const x = 42", 12));
+}
+
+#[test]
+fn jsx_attribute_completions_with_prefix() {
+    let items = jsx_attribute_completions("on");
+    assert!(!items.is_empty());
+    assert!(items.iter().any(|i| i.label == "onClick"));
+    assert!(items.iter().any(|i| i.label == "onChange"));
+    assert!(
+        items.iter().all(|i| i.label.starts_with("on")),
+        "all items should start with 'on'"
+    );
+}
+
+#[test]
+fn jsx_attribute_completions_all() {
+    let items = jsx_attribute_completions("");
+    assert!(items.iter().any(|i| i.label == "className"));
+    assert!(items.iter().any(|i| i.label == "onClick"));
+    assert!(items.iter().any(|i| i.label == "disabled"));
+}
+
+// ── Lambda event completion tests (#145) ───────────────────
+
+#[test]
+fn lambda_event_completions_on_change() {
+    let source = r#"<input onChange={|e| e.}"#;
+    let offset = source.len();
+    let items = lambda_event_completions(source, offset, "");
+    assert!(items.is_some(), "should provide event completions");
+    let items = items.unwrap();
+    assert!(items.iter().any(|i| i.label == "target"));
+    assert!(items.iter().any(|i| i.label == "preventDefault()"));
+}
+
+#[test]
+fn lambda_event_completions_target_value() {
+    let source = r#"<input onChange={|e| e.target.}"#;
+    let offset = source.len();
+    let items = lambda_event_completions(source, offset, "");
+    assert!(
+        items.is_some(),
+        "should provide target property completions"
+    );
+    let items = items.unwrap();
+    assert!(items.iter().any(|i| i.label == "value"));
+    assert!(items.iter().any(|i| i.label == "checked"));
+}
+
+#[test]
+fn lambda_event_completions_not_in_normal_lambda() {
+    let source = r#"const f = |x| x."#;
+    let offset = source.len();
+    let items = lambda_event_completions(source, offset, "");
+    assert!(
+        items.is_none(),
+        "should not provide event completions in normal lambda"
+    );
+}
+
+// ── Unresolved import diagnostic test (#142) ───────────────
+
+#[test]
+fn unresolved_npm_import_diagnostic() {
+    use crate::parser::Parser;
+    use std::path::Path;
+
+    let source = r#"import { nonexistent } from "fake-package-12345""#;
+    let program = Parser::new(source).parse_program().unwrap();
+    let mut index = SymbolIndex::build(&program);
+    let cache = HashMap::new();
+    // Use a directory that definitely has no node_modules
+    let project_dir = Path::new("/tmp/no-such-project-dir");
+    let source_dir = project_dir;
+    let (diags, _) = super::resolution::enrich_from_imports(
+        &program,
+        project_dir,
+        source_dir,
+        &mut index,
+        &cache,
+    );
+    assert!(
+        !diags.is_empty(),
+        "should report error for unresolved npm import"
+    );
+    assert!(
+        diags[0].message.contains("cannot find module"),
+        "diagnostic should say 'cannot find module', got: {}",
+        diags[0].message
     );
 }

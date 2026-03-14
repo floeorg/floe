@@ -174,6 +174,12 @@ impl Parser {
     fn parse_import(&mut self) -> Result<ImportDecl, ParseError> {
         self.expect(&TokenKind::Import)?;
 
+        // Check for `import trusted { ... }` (all specifiers trusted)
+        let trusted = self.check_identifier("trusted");
+        if trusted {
+            self.advance();
+        }
+
         let specifiers = if self.check(&TokenKind::LeftBrace) {
             self.advance();
             let specs = self.parse_comma_separated(|p| p.parse_import_specifier())?;
@@ -187,11 +193,22 @@ impl Parser {
         self.expect(&TokenKind::From)?;
         let source = self.expect_string()?;
 
-        Ok(ImportDecl { specifiers, source })
+        Ok(ImportDecl {
+            trusted,
+            specifiers,
+            source,
+        })
     }
 
     fn parse_import_specifier(&mut self) -> Result<ImportSpecifier, ParseError> {
         let start_span = self.current_span();
+
+        // Check for `trusted` modifier on individual specifier
+        let trusted = self.check_identifier("trusted");
+        if trusted {
+            self.advance();
+        }
+
         let name = self.expect_identifier()?;
 
         // Check for `as alias`
@@ -206,6 +223,7 @@ impl Parser {
         Ok(ImportSpecifier {
             name,
             alias,
+            trusted,
             span: self.merge_spans(start_span, end_span),
         })
     }

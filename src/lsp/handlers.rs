@@ -150,6 +150,40 @@ impl LanguageServer for FloeLsp {
             return Ok(Some(CompletionResponse::Array(items)));
         }
 
+        // ── Match arm variant completions (#143) ─────────────────
+        if let Some(variants) = detect_match_context(&doc.content, offset, &doc.index) {
+            let items: Vec<CompletionItem> = variants
+                .into_iter()
+                .filter(|v| prefix.is_empty() || v.starts_with(&prefix))
+                .map(|name| CompletionItem {
+                    label: name.clone(),
+                    kind: Some(CompletionItemKind::ENUM_MEMBER),
+                    detail: Some("match variant".to_string()),
+                    insert_text: Some(format!("{name} -> $0,")),
+                    insert_text_format: Some(InsertTextFormat::SNIPPET),
+                    ..Default::default()
+                })
+                .collect();
+            if !items.is_empty() {
+                return Ok(Some(CompletionResponse::Array(items)));
+            }
+        }
+
+        // ── JSX attribute completions (#144) ─────────────────────
+        if is_in_jsx_tag(&doc.content, offset) {
+            let items = jsx_attribute_completions(&prefix);
+            if !items.is_empty() {
+                return Ok(Some(CompletionResponse::Array(items)));
+            }
+        }
+
+        // ── Lambda event completions (#145) ──────────────────────
+        if let Some(items) = lambda_event_completions(&doc.content, offset, &prefix)
+            && !items.is_empty()
+        {
+            return Ok(Some(CompletionResponse::Array(items)));
+        }
+
         // ── Normal completions ──────────────────────────────────
         let mut items = Vec::new();
 
@@ -265,10 +299,19 @@ impl LanguageServer for FloeLsp {
 
         // Search current document
         for sym in doc.index.find_by_name(word) {
+            // If this symbol is an import, try to resolve to the source file
+            // (even if cursor is on the import itself — that's the point)
+            if let Some(source_spec) = &sym.import_source
+                && let Some(location) = Self::resolve_import_location(&uri, source_spec, word)
+            {
+                return Ok(Some(GotoDefinitionResponse::Scalar(location)));
+            }
+
             // Skip the symbol at the cursor position itself (don't jump to yourself)
             if offset >= sym.start && offset <= sym.end {
                 continue;
             }
+
             let range = offset_to_range(&doc.content, sym.start, sym.end);
             return Ok(Some(GotoDefinitionResponse::Scalar(Location {
                 uri: uri.clone(),
@@ -403,6 +446,86 @@ impl LanguageServer for FloeLsp {
                 .as_ref()
                 .is_some_and(|c| matches!(c, NumberOrString::String(s) if s == "E010"));
 
+            // E014: untrusted import — offer three quick fixes
+            let is_e014 = diag
+                .code
+                .as_ref()
+                .is_some_and(|c| matches!(c, NumberOrString::String(s) if s == "E014"));
+
+            if is_e014 {
+                // Extract function name from "calling untrusted import `X` requires `try`"
+                if let Some(fn_name) = diag
+                    .message
+                    .strip_prefix("calling untrusted import `")
+                    .and_then(|s| s.strip_suffix("` requires `try`"))
+                {
+                    let fn_name = fn_name.to_string();
+
+                    // Quick fix 1: Wrap call with `try`
+                    // Find the call expression start and insert `try ` before it
+                    let call_start = diag.range.start;
+                    let edit = TextEdit {
+                        range: Range {
+                            start: call_start,
+                            end: call_start,
+                        },
+                        new_text: "try ".to_string(),
+                    };
+                    let mut changes = HashMap::new();
+                    changes.insert(uri.clone(), vec![edit]);
+                    actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                        title: format!("Wrap `{fn_name}(...)` with `try`"),
+                        kind: Some(CodeActionKind::QUICKFIX),
+                        diagnostics: Some(vec![diag.clone()]),
+                        edit: Some(WorkspaceEdit {
+                            changes: Some(changes),
+                            ..Default::default()
+                        }),
+                        is_preferred: Some(true),
+                        ..Default::default()
+                    }));
+
+                    // Quick fix 2: Mark this specifier as trusted
+                    // Find `import { ... fn_name ... } from` and insert `trusted ` before fn_name
+                    if let Some(import_edit) =
+                        find_import_specifier_edit(&doc.content, &fn_name, false)
+                    {
+                        let mut changes = HashMap::new();
+                        changes.insert(uri.clone(), vec![import_edit]);
+                        actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                            title: format!("Mark `{fn_name}` as `trusted`"),
+                            kind: Some(CodeActionKind::QUICKFIX),
+                            diagnostics: Some(vec![diag.clone()]),
+                            edit: Some(WorkspaceEdit {
+                                changes: Some(changes),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        }));
+                    }
+
+                    // Quick fix 3: Mark whole import as trusted
+                    if let Some(import_edit) =
+                        find_import_specifier_edit(&doc.content, &fn_name, true)
+                    {
+                        let mut changes = HashMap::new();
+                        changes.insert(uri.clone(), vec![import_edit]);
+                        actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                            title: "Mark entire import as `trusted`".to_string(),
+                            kind: Some(CodeActionKind::QUICKFIX),
+                            diagnostics: Some(vec![diag.clone()]),
+                            edit: Some(WorkspaceEdit {
+                                changes: Some(changes),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        }));
+                    }
+                }
+
+                continue;
+            }
+
             if !is_e010 {
                 continue;
             }
@@ -467,4 +590,378 @@ impl LanguageServer for FloeLsp {
             Ok(Some(actions))
         }
     }
+}
+
+// ── Import quick-fix helpers ─────────────────────────────────────
+
+/// Find the text edit to insert `trusted` for an import.
+/// If `whole_module` is true, inserts `trusted ` after `import`.
+/// If `whole_module` is false, inserts `trusted ` before the specifier name.
+fn find_import_specifier_edit(source: &str, fn_name: &str, whole_module: bool) -> Option<TextEdit> {
+    // Find the import line containing this function name
+    for (line_idx, line) in source.lines().enumerate() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with("import") || !line.contains(fn_name) {
+            continue;
+        }
+
+        if whole_module {
+            // Insert `trusted ` after `import `
+            let import_pos = line.find("import")?;
+            let after_import = import_pos + "import".len();
+            let pos = Position {
+                line: line_idx as u32,
+                character: after_import as u32,
+            };
+            return Some(TextEdit {
+                range: Range {
+                    start: pos,
+                    end: pos,
+                },
+                new_text: " trusted".to_string(),
+            });
+        } else {
+            // Insert `trusted ` before the function name inside { ... }
+            let brace_start = line.find('{')?;
+            let content_after_brace = &line[brace_start + 1..];
+            // Find fn_name in the content after the brace, ensuring it's a word boundary
+            let name_in_braces = content_after_brace.find(fn_name)?;
+            let insert_col = brace_start + 1 + name_in_braces;
+            let pos = Position {
+                line: line_idx as u32,
+                character: insert_col as u32,
+            };
+            return Some(TextEdit {
+                range: Range {
+                    start: pos,
+                    end: pos,
+                },
+                new_text: "trusted ".to_string(),
+            });
+        }
+    }
+
+    None
+}
+
+// ── Completion heuristic helpers ─────────────────────────────────
+
+use super::symbols::SymbolIndex;
+
+/// Detect if cursor is inside a `match expr { ... }` block.
+/// If so, look up the matched expression's type and return its variant names.
+pub(super) fn detect_match_context(
+    source: &str,
+    offset: usize,
+    index: &SymbolIndex,
+) -> Option<Vec<String>> {
+    let before = &source[..offset];
+
+    // Find the innermost unclosed `match ... {` before the cursor
+    // Scan backwards for `{` that belongs to a match expression
+    let mut brace_depth: i32 = 0;
+    let mut search_pos = before.len();
+
+    while search_pos > 0 {
+        search_pos -= 1;
+        let ch = before.as_bytes()[search_pos];
+        match ch {
+            b'}' => brace_depth += 1,
+            b'{' => {
+                if brace_depth == 0 {
+                    // This is an unmatched open brace — check if preceded by `match <expr>`
+                    let before_brace = before[..search_pos].trim_end();
+                    // Extract the expression between `match` and `{`
+                    if let Some(match_pos) = before_brace.rfind("match ") {
+                        let expr_text = before_brace[match_pos + 6..].trim();
+                        // Look up the expression in the symbol index to find its type
+                        let variants = find_variants_for_expr(expr_text, index);
+                        if !variants.is_empty() {
+                            return Some(variants);
+                        }
+                    }
+                    // Not a match block, stop searching
+                    return None;
+                }
+                brace_depth -= 1;
+            }
+            _ => {}
+        }
+    }
+
+    None
+}
+
+/// Given a match expression text, try to find variant names for it.
+/// Looks up the expression as a type name in the symbol index.
+fn find_variants_for_expr(expr: &str, index: &SymbolIndex) -> Vec<String> {
+    // The expr could be a variable name; look for a type with the same name
+    // or look for a type whose variants are in the index
+    let expr = expr.trim();
+
+    // Strategy: check if expr matches a type name directly
+    let type_syms = index.find_by_name(expr);
+    for sym in &type_syms {
+        if sym.kind == SymbolKind::TYPE_PARAMETER {
+            // Found a type — collect its variants from the index
+            let prefix = format!("{}.", expr);
+            let variants: Vec<String> = index
+                .symbols
+                .iter()
+                .filter(|s| s.kind == SymbolKind::ENUM_MEMBER && s.detail.starts_with(&prefix))
+                .map(|s| s.name.clone())
+                .collect();
+            if !variants.is_empty() {
+                return variants;
+            }
+        }
+    }
+
+    // Strategy 2: the expr might be a variable — look for all ENUM_MEMBER symbols
+    // This is a best-effort fallback
+    let all_variants: Vec<String> = index
+        .symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::ENUM_MEMBER)
+        .map(|s| s.name.clone())
+        .collect();
+
+    // Only return if there are some variants to suggest
+    if !all_variants.is_empty() {
+        return all_variants;
+    }
+
+    Vec::new()
+}
+
+/// Detect if cursor is inside a JSX opening tag (e.g., `<button on|`).
+pub(super) fn is_in_jsx_tag(source: &str, offset: usize) -> bool {
+    let before = &source[..offset];
+
+    // Scan backwards for `<` that isn't closed by `>`
+    let mut angle_depth: i32 = 0;
+    for ch in before.chars().rev() {
+        match ch {
+            '>' => angle_depth += 1,
+            '<' => {
+                if angle_depth == 0 {
+                    // Found an unclosed `<` — we're inside a tag
+                    return true;
+                }
+                angle_depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Generate JSX attribute completion items.
+pub(super) fn jsx_attribute_completions(prefix: &str) -> Vec<CompletionItem> {
+    let event_handlers = [
+        "onClick",
+        "onChange",
+        "onKeyDown",
+        "onSubmit",
+        "onFocus",
+        "onBlur",
+        "onMouseEnter",
+        "onMouseLeave",
+        "onInput",
+        "onKeyUp",
+        "onKeyPress",
+    ];
+
+    let common_attrs = [
+        "className",
+        "id",
+        "style",
+        "key",
+        "ref",
+        "disabled",
+        "type",
+        "value",
+        "placeholder",
+        "href",
+        "src",
+        "alt",
+        "title",
+        "name",
+        "role",
+        "tabIndex",
+        "autoFocus",
+        "checked",
+        "readOnly",
+        "required",
+        "hidden",
+    ];
+
+    let mut items = Vec::new();
+
+    for attr in event_handlers.iter().chain(common_attrs.iter()) {
+        if !prefix.is_empty() && !attr.starts_with(prefix) {
+            continue;
+        }
+        let is_event = attr.starts_with("on");
+        items.push(CompletionItem {
+            label: attr.to_string(),
+            kind: Some(CompletionItemKind::PROPERTY),
+            detail: Some(if is_event {
+                "event handler".to_string()
+            } else {
+                "JSX attribute".to_string()
+            }),
+            insert_text: Some(format!("{attr}={{$1}}")),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..Default::default()
+        });
+    }
+
+    items
+}
+
+/// Detect if cursor is inside a lambda body used as an event handler callback,
+/// and provide event-type completions (e.g., `e.target`, `e.preventDefault()`).
+pub(super) fn lambda_event_completions(
+    source: &str,
+    offset: usize,
+    prefix: &str,
+) -> Option<Vec<CompletionItem>> {
+    let before = &source[..offset];
+
+    // Check if we're typing after a `.` on an expression chain
+    let dot_pos = before.rfind('.')?;
+    let before_dot = before[..dot_pos].trim_end();
+
+    // Extract the full dotted expression chain backwards (e.g., "e.target" or "e")
+    // Find where the expression chain starts (first non-word, non-dot character)
+    let chain_start = before_dot
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    let chain = &before_dot[chain_start..];
+
+    if chain.is_empty() {
+        return None;
+    }
+
+    // Split the chain by dots to get root param and path
+    let parts: Vec<&str> = chain.split('.').collect();
+    let param_name = parts[0];
+
+    if param_name.is_empty() {
+        return None;
+    }
+
+    // Check if this param is a lambda parameter by scanning backwards for `|param|`
+    let pre_chain = &before[..chain_start];
+    let pipe_pattern = format!("|{param_name}|");
+    if !pre_chain.contains(&pipe_pattern) {
+        let alt_pattern = format!("|{param_name}");
+        if !pre_chain.contains(&alt_pattern) {
+            return None;
+        }
+    }
+
+    // Now check if this lambda is used as an event handler callback
+    let event_handler_attrs = [
+        "onClick",
+        "onChange",
+        "onKeyDown",
+        "onSubmit",
+        "onFocus",
+        "onBlur",
+        "onMouseEnter",
+        "onMouseLeave",
+        "onInput",
+        "onKeyUp",
+        "onKeyPress",
+    ];
+
+    // Find the `={|` pattern before the lambda
+    let lambda_start = before.rfind(&format!("|{param_name}|"))?;
+    let before_lambda = before[..lambda_start].trim_end();
+    let before_eq = before_lambda.strip_suffix('{')?;
+    let before_eq = before_eq.trim_end().strip_suffix('=')?;
+    let attr_name_end = before_eq.trim_end();
+
+    // Extract the attribute name
+    let attr_start = attr_name_end
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    let attr_name = &attr_name_end[attr_start..];
+
+    if !event_handler_attrs.contains(&attr_name) {
+        return None;
+    }
+
+    // Determine completion level from the dot chain
+    // parts[0] = param_name, parts[1..] = property path so far
+    // dot_count = number of dots including the trailing one we're completing after
+    let dot_count = parts.len(); // e.g., ["e"] = 1 dot (e.), ["e", "target"] = 2 dots (e.target.)
+
+    let mut items = Vec::new();
+
+    if dot_count == 1 {
+        // First level: e.target, e.preventDefault(), etc.
+        let event_props = [
+            ("target", "EventTarget", false),
+            ("currentTarget", "EventTarget", false),
+            ("type", "string", false),
+            ("preventDefault()", "void", true),
+            ("stopPropagation()", "void", true),
+            ("key", "string", false),
+            ("bubbles", "boolean", false),
+            ("defaultPrevented", "boolean", false),
+            ("timeStamp", "number", false),
+        ];
+
+        for (name, ty, is_method) in &event_props {
+            if !prefix.is_empty() && !name.starts_with(prefix) {
+                continue;
+            }
+            items.push(CompletionItem {
+                label: name.to_string(),
+                kind: Some(if *is_method {
+                    CompletionItemKind::METHOD
+                } else {
+                    CompletionItemKind::PROPERTY
+                }),
+                detail: Some(ty.to_string()),
+                insert_text: Some(name.to_string()),
+                insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                ..Default::default()
+            });
+        }
+    } else if dot_count == 2 && parts.get(1) == Some(&"target") {
+        // Second level: e.target.value, e.target.checked, etc.
+        let target_props = [
+            ("value", "string"),
+            ("checked", "boolean"),
+            ("name", "string"),
+            ("id", "string"),
+            ("tagName", "string"),
+            ("className", "string"),
+            ("textContent", "string"),
+            ("innerHTML", "string"),
+            ("disabled", "boolean"),
+        ];
+
+        for (name, ty) in &target_props {
+            if !prefix.is_empty() && !name.starts_with(prefix) {
+                continue;
+            }
+            items.push(CompletionItem {
+                label: name.to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                detail: Some(ty.to_string()),
+                insert_text: Some(name.to_string()),
+                insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                ..Default::default()
+            });
+        }
+    }
+
+    if items.is_empty() { None } else { Some(items) }
 }

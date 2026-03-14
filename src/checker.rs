@@ -37,6 +37,12 @@ pub struct Checker {
     /// Maps expression spans (start, end) to their resolved types.
     /// Used by codegen for type-directed pipe resolution.
     expr_types: ExprTypeMap,
+    /// Names of untrusted (external TS) imports that require `try`.
+    untrusted_imports: HashSet<String>,
+    /// Whether we are currently inside a `try` expression.
+    inside_try: bool,
+    /// Whether we are in the type registration pass (suppress unknown type errors).
+    registering_types: bool,
 }
 
 impl Default for Checker {
@@ -57,6 +63,9 @@ impl Checker {
             imported_names: Vec::new(),
             stdlib: StdlibRegistry::new(),
             expr_types: HashMap::new(),
+            untrusted_imports: HashSet::new(),
+            inside_try: false,
+            registering_types: false,
         }
     }
 
@@ -86,11 +95,13 @@ impl Checker {
         program: &Program,
     ) -> (Vec<Diagnostic>, HashMap<String, String>, ExprTypeMap) {
         // First pass: register all type declarations
+        self.registering_types = true;
         for item in &program.items {
             if let ItemKind::TypeDecl(decl) = &item.kind {
                 self.register_type_decl(decl);
             }
         }
+        self.registering_types = false;
 
         // Second pass: check all items
         for item in &program.items {
@@ -183,9 +194,33 @@ impl Checker {
         }
     }
 
+    /// Second-pass validation of type annotations within type declarations.
+    /// The first pass (register_type_decl) skips unknown type errors for forward references.
+    fn validate_type_decl_annotations(&mut self, decl: &TypeDecl) {
+        match &decl.def {
+            TypeDef::Record(fields) => {
+                for field in fields {
+                    self.resolve_type(&field.type_ann);
+                }
+            }
+            TypeDef::Union(variants) => {
+                for variant in variants {
+                    for field in &variant.fields {
+                        self.resolve_type(&field.type_ann);
+                    }
+                }
+            }
+            TypeDef::Alias(type_expr) => {
+                self.resolve_type(type_expr);
+            }
+        }
+    }
+
     fn resolve_type(&mut self, type_expr: &TypeExpr) -> Type {
         match &type_expr.kind {
-            TypeExprKind::Named { name, type_args } => self.resolve_named_type(name, type_args),
+            TypeExprKind::Named { name, type_args } => {
+                self.resolve_named_type(name, type_args, type_expr.span)
+            }
             TypeExprKind::Record(fields) => {
                 let field_types: Vec<_> = fields
                     .iter()
@@ -211,7 +246,7 @@ impl Checker {
         }
     }
 
-    fn resolve_named_type(&mut self, name: &str, type_args: &[TypeExpr]) -> Type {
+    fn resolve_named_type(&mut self, name: &str, type_args: &[TypeExpr], span: Span) -> Type {
         // Mark type names as used (e.g. "JSX" from "JSX.Element", or "User")
         let root = name.split('.').next().unwrap_or(name);
         self.used_names.insert(root.to_string());
@@ -219,7 +254,7 @@ impl Checker {
         match name {
             "number" => Type::Number,
             "string" => Type::String,
-            "bool" => Type::Bool,
+            "boolean" => Type::Bool,
             "()" => Type::Unit,
             "undefined" => Type::Undefined,
             "unknown" => Type::Unknown,
@@ -271,7 +306,25 @@ impl Checker {
                     tag,
                 }
             }
-            _ => Type::Named(name.to_string()),
+            _ => {
+                // Check if this is a known user-defined type or imported name.
+                // Skip validation during type registration (forward references).
+                if self.registering_types
+                    || self.env.lookup_type(name).is_some()
+                    || self.env.lookup(name).is_some()
+                    || name.contains('.')
+                {
+                    Type::Named(name.to_string())
+                } else {
+                    self.diagnostics.push(
+                        Diagnostic::error(format!("unknown type `{name}`"), span)
+                            .with_label("not defined")
+                            .with_help("Check the spelling or import/define this type")
+                            .with_code("E002"),
+                    );
+                    Type::Unknown
+                }
+            }
         }
     }
 
@@ -282,7 +335,7 @@ impl Checker {
             ItemKind::Import(decl) => self.check_import(decl),
             ItemKind::Const(decl) => self.check_const(decl, item.span),
             ItemKind::Function(decl) => self.check_function(decl, item.span),
-            ItemKind::TypeDecl(_) => {} // already registered in first pass
+            ItemKind::TypeDecl(decl) => self.validate_type_decl_annotations(decl),
             ItemKind::ForBlock(block) => self.check_for_block(block, item.span),
             ItemKind::Expr(expr) => {
                 let ty = self.check_expr(expr);
@@ -305,6 +358,11 @@ impl Checker {
             self.env.define(effective_name, Type::Unknown);
             self.imported_names
                 .push((effective_name.to_string(), spec.span));
+
+            // Track untrusted imports (not trusted at module or specifier level)
+            if !decl.trusted && !spec.trusted {
+                self.untrusted_imports.insert(effective_name.to_string());
+            }
         }
     }
 

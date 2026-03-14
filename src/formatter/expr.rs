@@ -2,6 +2,12 @@ use crate::syntax::{SyntaxKind, SyntaxNode};
 
 use super::{Formatter, PipeSegment};
 
+enum NamedArgValue {
+    Ident(String),
+    Other,
+    None,
+}
+
 impl Formatter<'_> {
     pub(crate) fn fmt_block(&mut self, node: &SyntaxNode) {
         self.write("{");
@@ -404,7 +410,27 @@ impl Formatter<'_> {
     pub(crate) fn fmt_arg(&mut self, node: &SyntaxNode) {
         let has_colon = self.has_token(node, SyntaxKind::COLON);
         if has_colon {
-            if let Some(name) = self.first_ident(node) {
+            let name = self.first_ident(node);
+            let value_kind = self.named_arg_value_kind(node);
+
+            // Pun: emit `name:` when value is same identifier as label, or no value at all
+            if let Some(ref label) = name {
+                match &value_kind {
+                    NamedArgValue::Ident(val) if label == val => {
+                        self.write(label);
+                        self.write(":");
+                        return;
+                    }
+                    NamedArgValue::None => {
+                        self.write(label);
+                        self.write(":");
+                        return;
+                    }
+                    _ => {}
+                }
+            }
+
+            if let Some(name) = name {
                 self.write(&name);
                 self.write(": ");
             }
@@ -434,6 +460,29 @@ impl Formatter<'_> {
             }
             self.fmt_tokens_only(node);
         }
+    }
+
+    /// Classify the value part of a named arg (after the colon).
+    fn named_arg_value_kind(&self, node: &SyntaxNode) -> NamedArgValue {
+        let mut past_colon = false;
+        for child_or_tok in node.children_with_tokens() {
+            if let Some(tok) = child_or_tok.as_token() {
+                if tok.kind() == SyntaxKind::COLON {
+                    past_colon = true;
+                    continue;
+                }
+                if past_colon && !tok.kind().is_trivia() {
+                    if tok.kind() == SyntaxKind::IDENT {
+                        return NamedArgValue::Ident(tok.text().to_string());
+                    }
+                    return NamedArgValue::Other;
+                }
+            }
+            if child_or_tok.as_node().is_some() && past_colon {
+                return NamedArgValue::Other;
+            }
+        }
+        NamedArgValue::None
     }
 
     // ── Construct ───────────────────────────────────────────────

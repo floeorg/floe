@@ -49,6 +49,8 @@ pub enum TokenKind {
     For,
     /// `self` — explicit receiver parameter in for blocks
     SelfKw,
+    /// `try` — wrap throwing expression in Result
+    Try,
 
     // Built-in type constructors
     Ok,
@@ -233,6 +235,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "else" => Some(TokenKind::Else),
         "for" => Some(TokenKind::For),
         "self" => Some(TokenKind::SelfKw),
+        "try" => Some(TokenKind::Try),
         "true" => Some(TokenKind::Bool(true)),
         "false" => Some(TokenKind::Bool(false)),
 
@@ -268,6 +271,7 @@ mod tests {
         assert_eq!(lookup_keyword("fn"), Some(TokenKind::Fn));
         assert_eq!(lookup_keyword("match"), Some(TokenKind::Match));
         assert_eq!(lookup_keyword("opaque"), Some(TokenKind::Opaque));
+        assert_eq!(lookup_keyword("try"), Some(TokenKind::Try));
         assert_eq!(lookup_keyword("Ok"), Some(TokenKind::Ok));
         assert_eq!(lookup_keyword("Err"), Some(TokenKind::Err));
         assert_eq!(lookup_keyword("Some"), Some(TokenKind::Some));

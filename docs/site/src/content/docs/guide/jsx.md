@@ -27,7 +27,7 @@ Components are just exported `fn` declarations that return `JSX.Element`.
 type ButtonProps = {
   label: string,
   onClick: () -> (),
-  disabled: bool,
+  disabled: boolean,
 }
 
 export fn Button(props: ButtonProps) -> JSX.Element {

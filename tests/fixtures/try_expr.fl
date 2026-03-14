@@ -1,0 +1,5 @@
+const result = try fetchData("hello")
+
+const parsed = try JSON.parse(input)
+
+const asyncResult = try await fetchUser(id)

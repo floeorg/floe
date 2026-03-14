@@ -142,6 +142,24 @@ impl Checker {
                     return ret;
                 }
 
+                // Check for untrusted import call without try
+                if let ExprKind::Identifier(name) = &callee.kind
+                    && !self.inside_try
+                    && self.untrusted_imports.contains(name)
+                {
+                    self.diagnostics.push(
+                        Diagnostic::error(
+                            format!("calling untrusted import `{name}` requires `try`"),
+                            expr.span,
+                        )
+                        .with_label("untrusted TS import")
+                        .with_help(format!(
+                            "Use `try {name}(...)` or mark the import as `trusted`"
+                        ))
+                        .with_code("E014"),
+                    );
+                }
+
                 let callee_ty = self.check_expr(callee);
                 for arg in args {
                     match arg {
@@ -202,6 +220,106 @@ impl Checker {
                         .with_help("Use the module's exported constructor function instead")
                         .with_code("E003"),
                     );
+                }
+
+                // Collect valid field names for this type
+                let valid_fields: Option<Vec<String>> = if let Some(ref info) = type_info {
+                    match &info.def {
+                        TypeDef::Record(fields) => {
+                            Some(fields.iter().map(|f| f.name.clone()).collect())
+                        }
+                        _ => None,
+                    }
+                } else {
+                    // For variant constructors, look up parent union's type info
+                    self.env
+                        .lookup(type_name)
+                        .cloned()
+                        .and_then(|ty| {
+                            if let Type::Union { name, .. } = &ty {
+                                self.env.lookup_type(name).cloned()
+                            } else {
+                                None
+                            }
+                        })
+                        .and_then(|info| {
+                            if let TypeDef::Union(variants) = &info.def {
+                                variants.iter().find(|v| v.name == *type_name).map(|v| {
+                                    v.fields.iter().filter_map(|f| f.name.clone()).collect()
+                                })
+                            } else {
+                                None
+                            }
+                        })
+                };
+
+                // Validate named arguments against known fields
+                if let Some(ref fields) = valid_fields {
+                    let named_labels: Vec<&str> = args
+                        .iter()
+                        .filter_map(|a| {
+                            if let Arg::Named { label, .. } = a {
+                                Some(label.as_str())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    for label in &named_labels {
+                        if !fields.iter().any(|f| f == label) {
+                            self.diagnostics.push(
+                                Diagnostic::error(
+                                    format!("unknown field `{label}` on type `{type_name}`"),
+                                    expr.span,
+                                )
+                                .with_label(format!("`{label}` is not a field of `{type_name}`"))
+                                .with_help(format!("available fields: {}", fields.join(", ")))
+                                .with_code("E015"),
+                            );
+                        }
+                    }
+
+                    // Check for missing required fields (only when no spread)
+                    if spread.is_none() {
+                        let has_defaults: Vec<String> = if let Some(ref info) = type_info {
+                            if let TypeDef::Record(record_fields) = &info.def {
+                                record_fields
+                                    .iter()
+                                    .filter(|f| f.default.is_some())
+                                    .map(|f| f.name.clone())
+                                    .collect()
+                            } else {
+                                vec![]
+                            }
+                        } else {
+                            vec![]
+                        };
+
+                        let positional_count = args
+                            .iter()
+                            .filter(|a| matches!(a, Arg::Positional(_)))
+                            .count();
+
+                        for (i, field) in fields.iter().enumerate() {
+                            let provided_by_name = named_labels.contains(&field.as_str());
+                            let provided_by_position = i < positional_count;
+                            let has_default = has_defaults.contains(field);
+
+                            if !provided_by_name && !provided_by_position && !has_default {
+                                self.diagnostics.push(
+                                    Diagnostic::error(
+                                        format!(
+                                            "missing field `{field}` in `{type_name}` constructor"
+                                        ),
+                                        expr.span,
+                                    )
+                                    .with_label(format!("`{field}` is required"))
+                                    .with_code("E016"),
+                                );
+                            }
+                        }
+                    }
                 }
 
                 if let Some(spread_expr) = spread {
@@ -350,6 +468,17 @@ impl Checker {
             }
 
             ExprKind::Await(inner) => self.check_expr(inner),
+
+            ExprKind::Try(inner) => {
+                let prev_inside_try = self.inside_try;
+                self.inside_try = true;
+                let inner_ty = self.check_expr(inner);
+                self.inside_try = prev_inside_try;
+                Type::Result {
+                    ok: Box::new(inner_ty),
+                    err: Box::new(Type::Named("Error".to_string())),
+                }
+            }
 
             ExprKind::Ok(inner) => {
                 let inner_ty = self.check_expr(inner);

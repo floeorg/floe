@@ -1,7 +1,7 @@
 type Todo = {
     id: string,
     text: string,
-    done: bool,
+    done: boolean,
 }
 
 type Filter =

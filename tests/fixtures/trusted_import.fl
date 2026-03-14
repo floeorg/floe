@@ -1,0 +1,5 @@
+import trusted { capitalize, slugify } from "string-utils"
+
+import { trusted trim, fetchUser } from "some-lib"
+
+const name = capitalize("hello")

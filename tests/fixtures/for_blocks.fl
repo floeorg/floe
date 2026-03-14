@@ -1,7 +1,7 @@
 type User = {
   name: string,
   age: number,
-  active: bool
+  active: boolean
 }
 
 for User {
@@ -9,7 +9,7 @@ for User {
     `${self.name} (${self.age})`
   }
 
-  fn isAdult(self) -> bool {
+  fn isAdult(self) -> boolean {
     self.age >= 18
   }
 

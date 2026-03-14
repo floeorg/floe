@@ -7,3 +7,9 @@ type Point = { x: number; y: number };
 const origin = { x: 0, y: 0 };
 
 const moved = { ...origin, x: 10 };
+
+const x = 5;
+
+const y = 10;
+
+const punned = { x: x, y: y };

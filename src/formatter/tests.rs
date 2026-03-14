@@ -131,3 +131,20 @@ fn format_jsx_with_nested_elements() {
 fn format_jsx_fragment() {
     assert_fmt("<>{x}</>", "<>{x}</>");
 }
+
+// ── Named arg punning ──────────────────────────────────────
+
+#[test]
+fn format_named_arg_punning() {
+    assert_fmt("f(name: name, limit: 10)", "f(name:, limit: 10)");
+}
+
+#[test]
+fn format_named_arg_no_pun_when_different() {
+    assert_fmt("f(name: other)", "f(name: other)");
+}
+
+#[test]
+fn format_named_arg_punning_already_punned() {
+    assert_fmt("f(name:, limit:)", "f(name:, limit:)");
+}

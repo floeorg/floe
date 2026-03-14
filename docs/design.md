@@ -400,7 +400,7 @@ export fn hash(raw: string): HashedPassword {
   bcrypt(raw)  // only this module can create one
 }
 
-export fn verify(raw: string, hashed: HashedPassword): bool {
+export fn verify(raw: string, hashed: HashedPassword): boolean {
   bcryptCompare(raw, hashed)  // only this module can read it
 }
 
@@ -494,8 +494,8 @@ type ButtonProps = {
   onClick: () -> ()                   // required
   variant: Variant = Primary         // default
   size: Size = Medium                // default
-  disabled: bool = false             // default
-  loading: bool = false              // default
+  disabled: boolean = false             // default
+  loading: boolean = false              // default
   icon: Option<Icon> = None          // default
 }
 
@@ -594,7 +594,7 @@ import { useState } from "react"
 type Todo = {
   id: string
   text: string
-  done: bool
+  done: boolean
 }
 
 type Tab = Overview | Team | Analytics
@@ -825,18 +825,73 @@ Automatic conversions at import boundary:
 - `T | undefined` → `Option<T>`
 - `T | null | undefined` → `Option<T>`
 - External `any` → `unknown` (forces narrowing)
-- Functions that throw → compiler warns; can wrap with `boundary` block to get `Result`
+- All TS imports are unsafe by default — must use `try` to call them
+- Functions that throw → use `try` expression to wrap in `Result`
+- `trusted` modifier skips the `try` requirement for known-safe imports
+
+#### Unsafe-by-default TS imports
+
+Any function imported from TypeScript (not from Floe) is treated as potentially throwing:
+
+```floe
+import { fetchUser } from "some-ts-lib"
+
+const user = fetchUser(id)       // compiler error: unhandled throwable import
+const user = try fetchUser(id)   // ok, returns Result<User, Error>
+```
+
+#### trusted imports
+
+For TS functions you know will not throw, mark them as `trusted`:
+
+```floe
+// Per-function:
+import { trusted capitalize, fetchUser } from "some-ts-lib"
+capitalize("hello")          // string, no try needed
+try fetchUser(id)            // Result<User, Error>
+
+// Whole module:
+import trusted { capitalize, slugify } from "string-utils"
+capitalize("hello")          // string, no try needed
+```
+
+#### try expression
+
+`try` wraps a potentially throwing call in `Result<T, Error>`. Non-Error throws are coerced to `Error`:
+
+```floe
+const result = try JSON.parse(input)
+// result: Result<unknown, Error>
+
+// Async: try await (left to right matches execution order)
+const user = try await fetchUser(id)
+
+// Compose with ? for concise error handling:
+fn loadProfile(id: string) -> Result<Profile, Error> {
+  const user = try fetchUser(id)?
+  const posts = try fetchPosts(user.id)?
+  Ok(Profile(user, posts))
+}
+```
+
+#### Null boundary
 
 ```floe
 import { findElement } from "some-dom-lib"
 // .d.ts says: findElement(id: string): Element | null
 // Floe sees: findElement(id: string): Option<Element>
 
-match findElement("app") {
-  Some(el) -> render(el)
-  None     -> panic("no #app element")
+match try findElement("app") {
+  Ok(Some(el)) -> render(el),
+  _            -> panic("no #app element"),
 }
+```
 
+#### Codegen
+
+```typescript
+// try JSON.parse(input) →
+(() => { try { return { ok: true as const, value: JSON.parse(input) }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()
 ```
 
 ### Code Generator (`zs_codegen`)
@@ -853,6 +908,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `.id != id` (in callback) | `(x) => x.id != id` |
 | `.Variant` (implicit member) | `Variant` (resolved by compiler) |
 | `fn f(x: T) -> U { ... }` | `function f(x: T): U { ... }` |
+| `try expr` | `(() => { try { return { ok: true, value: expr }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
 | `match x { A -> ..., B -> ... }` | `x.tag === "A" ? ... : x.tag === "B" ? ... : absurd(x)` |
 | `fetchUser(id)?` | `const _r = fetchUser(id); if (!_r.ok) return _r; const val = _r.value;` |
 | `Ok(value)` | `{ ok: true, value }` |
@@ -895,8 +951,8 @@ Suggestions:
   Option.map(fn)           Option<string> -> Option<U>
   Option.unwrapOr(default) Option<string> -> string
   Option.flatMap(fn)       Option<string> -> Option<U>
-  Option.isSome            Option<string> -> bool
-  Option.isNone            Option<string> -> bool
+  Option.isSome            Option<string> -> boolean
+  Option.isNone            Option<string> -> boolean
   toUpper                  string -> string  (if unwrapped)
   ...
 

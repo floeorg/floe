@@ -118,6 +118,15 @@ pub(super) fn enrich_from_imports(
                 Err(_) => continue,
             }
         } else {
+            import_diags.push(
+                zs_diag::Diagnostic::error(
+                    format!("cannot find module '{}'", specifier),
+                    item.span,
+                )
+                .with_label("module not found")
+                .with_help("Check that the package is installed (npm install)")
+                .with_code("E013"),
+            );
             continue;
         };
 

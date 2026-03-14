@@ -140,7 +140,11 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        Some(ImportDecl { specifiers, source })
+        Some(ImportDecl {
+            trusted: false,
+            specifiers,
+            source,
+        })
     }
 
     fn lower_import_specifier(&mut self, node: &SyntaxNode) -> Option<ImportSpecifier> {
@@ -150,7 +154,12 @@ impl<'src> Lowerer<'src> {
         let name = idents.first()?.clone();
         let alias = idents.get(1).cloned();
 
-        Some(ImportSpecifier { name, alias, span })
+        Some(ImportSpecifier {
+            name,
+            alias,
+            trusted: false,
+            span,
+        })
     }
 
     fn lower_const(&mut self, node: &SyntaxNode, item_node: &SyntaxNode) -> Option<ConstDecl> {

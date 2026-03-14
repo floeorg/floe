@@ -80,7 +80,7 @@ const x = match 42 {
 fn non_exhaustive_bool_match() {
     let diags = check(
         r#"
-const x: bool = true
+const x: boolean = true
 const y = match x {
     true -> "yes",
 }
@@ -362,4 +362,246 @@ const _x = _user |> display
 "#,
     );
     assert!(!has_error_containing(&diags, "not defined"));
+}
+
+// ── Untrusted Import Enforcement ─────────────────────────────
+
+#[test]
+fn untrusted_import_requires_try() {
+    let diags = check(
+        r#"
+import { fetchUser } from "some-lib"
+const _x = fetchUser("id")
+"#,
+    );
+    assert!(has_error(&diags, "E014"));
+    assert!(has_error_containing(&diags, "untrusted import"));
+}
+
+#[test]
+fn untrusted_import_ok_with_try() {
+    let diags = check(
+        r#"
+import { fetchUser } from "some-lib"
+const _x = try fetchUser("id")
+"#,
+    );
+    assert!(!has_error(&diags, "E014"));
+}
+
+#[test]
+fn trusted_specifier_no_error() {
+    let diags = check(
+        r#"
+import { trusted capitalize } from "some-lib"
+const _x = capitalize("hello")
+"#,
+    );
+    assert!(!has_error(&diags, "E014"));
+}
+
+#[test]
+fn trusted_module_no_error() {
+    let diags = check(
+        r#"
+import trusted { capitalize, slugify } from "string-utils"
+const _x = capitalize("hello")
+const _y = slugify("hello world")
+"#,
+    );
+    assert!(!has_error(&diags, "E014"));
+}
+
+#[test]
+fn mixed_trusted_untrusted() {
+    let diags = check(
+        r#"
+import { trusted capitalize, fetchUser } from "some-lib"
+const _x = capitalize("hello")
+const _y = fetchUser("id")
+"#,
+    );
+    // capitalize is trusted — no error
+    assert!(!has_error_containing(&diags, "capitalize"));
+    // fetchUser is untrusted — error
+    assert!(has_error_containing(&diags, "fetchUser"));
+}
+
+// ── Constructor field validation ────────────────────────────
+
+#[test]
+fn constructor_unknown_field_error() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: bool,
+}
+const _t = Todo(id: "1", textt: "hello", done: false)
+"#,
+    );
+    assert!(has_error(&diags, "E015"));
+    assert!(has_error_containing(&diags, "unknown field `textt`"));
+}
+
+#[test]
+fn constructor_valid_fields_no_error() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: bool,
+}
+const _t = Todo(id: "1", text: "hello", done: false)
+"#,
+    );
+    assert!(!has_error(&diags, "E015"));
+    assert!(!has_error(&diags, "E016"));
+}
+
+#[test]
+fn constructor_missing_required_field() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: bool,
+}
+const _t = Todo(id: "1", text: "hello")
+"#,
+    );
+    assert!(has_error(&diags, "E016"));
+    assert!(has_error_containing(&diags, "missing field `done`"));
+}
+
+#[test]
+fn constructor_missing_field_with_default_ok() {
+    let diags = check(
+        r#"
+type Config = {
+    host: string,
+    port: number = 3000,
+}
+const _c = Config(host: "localhost")
+"#,
+    );
+    assert!(!has_error(&diags, "E016"));
+}
+
+#[test]
+fn constructor_spread_skips_missing_check() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: bool,
+}
+const original = Todo(id: "1", text: "hello", done: false)
+const _t = Todo(..original, text: "updated")
+"#,
+    );
+    assert!(!has_error(&diags, "E016"));
+}
+
+#[test]
+fn union_variant_unknown_field_error() {
+    let diags = check(
+        r#"
+type Validation =
+    | Valid(text: string)
+    | TooShort
+    | Empty
+
+const _v = Valid(texxt: "hello")
+"#,
+    );
+    assert!(has_error(&diags, "E015"));
+    assert!(has_error_containing(&diags, "unknown field `texxt`"));
+}
+
+#[test]
+fn union_variant_valid_field_no_error() {
+    let diags = check(
+        r#"
+type Validation =
+    | Valid(text: string)
+    | TooShort
+    | Empty
+
+const _v = Valid(text: "hello")
+"#,
+    );
+    assert!(!has_error(&diags, "E015"));
+}
+
+// ── Unknown type errors ────────────────────────────────────
+
+#[test]
+fn unknown_type_in_record_field() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: asojSIDJA,
+}
+"#,
+    );
+    assert!(has_error_containing(&diags, "unknown type `asojSIDJA`"));
+}
+
+#[test]
+fn unknown_type_in_const_annotation() {
+    let diags = check("const x: Nonexistent = 42");
+    assert!(has_error_containing(&diags, "unknown type `Nonexistent`"));
+}
+
+#[test]
+fn unknown_type_in_function_param() {
+    let diags = check("fn foo(x: BadType) -> () {}");
+    assert!(has_error_containing(&diags, "unknown type `BadType`"));
+}
+
+#[test]
+fn unknown_type_in_function_return() {
+    let diags = check("fn foo() -> BadReturn { 42 }");
+    assert!(has_error_containing(&diags, "unknown type `BadReturn`"));
+}
+
+#[test]
+fn known_type_no_error() {
+    let diags = check(
+        r#"
+type User = { name: string }
+const _u: User = User(name: "Alice")
+"#,
+    );
+    assert!(!has_error_containing(&diags, "unknown type"));
+}
+
+#[test]
+fn builtin_types_no_error() {
+    let diags = check(
+        r#"
+const _a: number = 42
+const _b: string = "hi"
+const _c: boolean = true
+"#,
+    );
+    assert!(!has_error_containing(&diags, "unknown type"));
+}
+
+#[test]
+fn forward_reference_in_union_no_error() {
+    let diags = check(
+        r#"
+type Container = { item: Item }
+type Item = { name: string }
+"#,
+    );
+    assert!(!has_error_containing(&diags, "unknown type `Item`"));
 }

@@ -1,0 +1,9 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+import { capitalize, slugify } from "string-utils";
+
+import { trim, fetchUser } from "some-lib";
+
+const name = capitalize("hello");
