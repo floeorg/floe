@@ -43,7 +43,8 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 - `async`/`await`
 - Destructuring, spread, rest params
 - `||`, `&&`, `!` (boolean operators)
-- `==` (but only between same types)
+- `==` (but only between same types — structural equality on objects)
+- Unit type `()` instead of `void`
 
 ### What's Added
 
@@ -67,6 +68,10 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Record spread | `User(..user, name: "New")` | `{ ...user, name: "New" }` |
 | Named arguments | `fetchUsers(page: 3, limit: 50)` | `fetchUsers(3, 50)` (labels erased) |
 | Default values | `function f(x: number = 10)` | caller can omit, compiler fills in |
+| Structural equality | `==` on objects compares by value | deep equality check |
+| Unit type | `()` as return type, usable in generics | `undefined` / `void` in TS |
+| Immutable sort | `Array.sort` returns new array | sorted copy, no mutation |
+| Strict parse | `Number.parse("123")` returns `Result` | no silent `NaN` or partial parse |
 
 ### What's Removed (compile errors)
 
@@ -85,6 +90,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `? :` | Ternary | `match` |
 | `x?: T` | Optional fields | `x: Option<T>` |
 | `+` on strings | Silent coercion bugs | Template literals only (warning) |
+| `void` | Not a real type, can't use in generics | Unit type `()` — a real value |
 
 ---
 
@@ -469,7 +475,7 @@ fetchUsers(limit: 50, sort: Descending)          // override two
 // On React component props
 type ButtonProps = {
   label: string                      // required
-  onClick: () => void                // required
+  onClick: () => ()                  // required
   variant: Variant = Primary         // default
   size: Size = Medium                // default
   disabled: bool = false             // default
@@ -597,6 +603,9 @@ These are enforced at compile time with clear error messages.
 | IO functions must return `Result` | `ERROR: fetch can fail — return Result` | Declare error type |
 | Dead code after exhaustive return | `ERROR: unreachable code` | Remove dead code |
 | String concat with `+` | `WARNING: use template literal` | Use `` `${x}` `` |
+| Non-unit function missing return | `ERROR: missing return value` | Add return expression |
+| Spread with overlapping keys | `WARNING: 'y' from 'a' is overwritten by 'b'` | Reorder or remove duplicate |
+| `void` keyword | `ERROR: use () instead of void` | Replace with `()` |
 
 ---
 
@@ -647,6 +656,7 @@ Banned tokens (immediate compile errors with helpful messages):
 - `null` → "Use Option<T> with Some/None"
 - `undefined` → "Use Option<T> with Some/None"
 - `enum` → "Use type with | variants"
+- `void` → "Use the unit type () instead"
 
 ### Parser (`zs_parser`)
 
@@ -764,6 +774,11 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `User(..user, name: "New")` | `{ ...user, name: "New" }` |
 | `f(name: "x", limit: 10)` | `f("x", 10)` (labels erased, reordered to match definition) |
 | `f(x: number = 10)` | caller omits → compiler inserts `10` at call site |
+| `a == b` (objects) | deep structural equality check |
+| `()` (unit value) | `undefined` |
+| `(): ()` (unit return type) | `(): void` |
+| `Array.sort(arr)` | `[...arr].sort((a, b) => a - b)` |
+| `Number.parse("123")` | strict parse returning `Result` |
 | `Brand<string, "UserId">` | `string` (erased) |
 | `opaque type X = T` | `T` (erased, access controlled at compile time) |
 
@@ -915,6 +930,112 @@ zsc migrate file.tsx     # attempt to convert .tsx to .zs
 
 ---
 
+## JS/TS Footgun Eliminations
+
+Beyond the banned keywords, ZenScript eliminates several categories of subtle runtime bugs that TypeScript allows.
+
+### Structural Equality (`==` on objects)
+
+In JS, `{a: 1} === {a: 1}` is `false` because objects compare by reference. ZenScript uses structural (deep) equality by default.
+
+```zenscript
+const a = User(name: "Ryan", email: Email("r@test.com"))
+const b = User(name: "Ryan", email: Email("r@test.com"))
+
+a == b  // true — compares fields, not references
+```
+
+This is safe because ZenScript has no `class` (no identity semantics) and all bindings are `const` (immutable). Consistent with Gleam, OCaml, and Elixir.
+
+**Codegen:** `==` on objects compiles to a deep structural comparison in the emitted TypeScript.
+
+### Unit Type `()` (replaces `void`)
+
+TypeScript's `void` is not a real type — you can't use it in generics like `Result<void, Error>`. ZenScript uses the unit type `()`, which is a real value.
+
+```zenscript
+// Functions with no meaningful return value
+function log(msg: string): () {
+  console.log(msg)
+}
+
+// Works naturally in generics
+function deleteUser(id: UserId): Result<(), ApiError> {
+  // ...
+  Ok(())
+}
+
+// Callbacks
+type ButtonProps = {
+  onClick: () => ()
+}
+```
+
+**Codegen:** `()` compiles to `undefined` in value positions and `void` in type positions in the emitted TypeScript.
+
+### Immutable Array Sort
+
+JS `Array.sort()` mutates in place AND sorts lexicographically by default (`[10, 2, 1].sort()` gives `[1, 10, 2]`).
+
+ZenScript's sort:
+- Returns a new sorted array (no mutation)
+- Sorts numerically by default for number arrays
+- Requires an explicit comparator for non-primitive types
+
+```zenscript
+const nums = [10, 2, 1]
+const sorted = nums |> Array.sort              // [1, 2, 10] — new array, numeric default
+nums                                            // [10, 2, 1] — unchanged
+
+const users = [u1, u2] |> Array.sortBy(u => u.name)  // explicit comparator
+```
+
+**Codegen:** compiles to `[...arr].sort((a, b) => a - b)` for numbers, `[...arr].sort(comparator)` for custom.
+
+### No Implicit Return
+
+JS functions without a return statement silently return `undefined`. ZenScript requires all non-unit functions to have an explicit return. Functions declared as returning `()` don't need one.
+
+```zenscript
+function getName(user: User): string {
+  // COMPILE ERROR: missing return value
+}
+
+function log(msg: string): () {
+  console.log(msg)    // OK — unit functions don't need explicit return
+}
+```
+
+### Safe Iteration
+
+JS `for...in` iterates over inherited prototype keys. ZenScript loop constructs only iterate own values.
+
+**Codegen:** compiles to `Object.entries()` or index-based iteration, never `for...in`.
+
+### Strict Numeric Parsing
+
+JS `parseInt("123abc")` silently returns `123`, `Number("")` returns `0`, and `parseInt("08")` has octal weirdness.
+
+ZenScript provides strict parse functions that return `Result`:
+
+```zenscript
+const n = Number.parse("123")       // Ok(123)
+const n = Number.parse("123abc")    // Err(ParseError)
+const n = Number.parse("")          // Err(ParseError)
+```
+
+### Overlapping Spread Warning
+
+`{...a, ...b}` silently overwrites keys from `a` when `b` has the same keys. ZenScript warns when spreading objects with statically-known overlapping keys.
+
+```zenscript
+const a = { x: 1, y: 2 }
+const b = { y: 3, z: 4 }
+const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
+```
+
+---
+
 ## Resolved Design Decisions
 
 | Question | Decision | Rationale |
@@ -935,6 +1056,13 @@ zsc migrate file.tsx     # attempt to convert .tsx to .zs
 | Record updates | `Type(..existing, field: newValue)` | Gleam-style spread with `..` — compiles to `{ ...existing, field: newValue }` |
 | Named arguments | Optional labels at call site: `f(name: "x")` | Self-documenting, order-independent when labelled |
 | Default values | `field: Type = default` on types and functions | Required for React DX (component props). Constants only, named-arg-only, required fields first. |
+| Object equality | Structural (deep) equality by default | No `class`, all `const` — reference equality is meaningless |
+| Unit type | `()` replaces `void` | Real value, works in generics like `Result<(), E>` |
+| Array sort | Returns new array, numeric default | No mutation footgun, no lexicographic surprise |
+| Numeric parsing | `Number.parse` returns `Result` | No silent `NaN`, no partial parse, no octal weirdness |
+| Iteration | Own values only, no prototype chain | `for...in` prototype leakage is eliminated |
+| Implicit return | Non-unit functions must return explicitly | No silent `undefined` returns |
+| Spread overlap | Warning on statically-known key overlap | Catches silent overwrites at compile time |
 | Compiler language | Rust | Fast, WASM-ready for browser playground, good LSP story |
 
 ---
