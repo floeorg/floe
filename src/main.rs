@@ -103,8 +103,12 @@ fn cmd_build_stdin() -> Result<()> {
         anyhow::anyhow!("{rendered}")
     })?;
 
+    // Resolve imports from other .fl files (using FLOE_FILENAME for path context)
+    let file_path = Path::new(&filename);
+    let resolved = resolve::resolve_imports(file_path, &program);
+
     // Type check
-    let (check_diags, expr_types) = Checker::new().check_full(&program);
+    let (check_diags, expr_types) = Checker::with_imports(resolved).check_full(&program);
     let type_errors: Vec<_> = check_diags
         .iter()
         .filter(|d| d.severity == diagnostic::Severity::Error)
