@@ -6,6 +6,7 @@ use tower_lsp::lsp_types::*;
 
 use super::completion::is_pipe_context;
 use super::completion::resolve_piped_type;
+use super::stdlib_hover;
 use super::symbols::symbol_kind_to_completion;
 use super::{
     BUILTINS, FloeLsp, KEYWORDS, is_word_char, offset_to_position, offset_to_range,
@@ -98,6 +99,28 @@ impl LanguageServer for FloeLsp {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,
                     value: format!("```floe\n{}\n```", sym.detail),
+                }),
+                range: None,
+            }));
+        }
+
+        // Check stdlib module names (Array, String, Option, etc.)
+        if let Some(hover_text) = stdlib_hover::hover_stdlib_module(word) {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: hover_text,
+                }),
+                range: None,
+            }));
+        }
+
+        // Check bare stdlib function names (for pipe context)
+        if let Some(hover_text) = stdlib_hover::hover_stdlib_function(word) {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: hover_text,
                 }),
                 range: None,
             }));

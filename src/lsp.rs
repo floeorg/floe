@@ -1,6 +1,7 @@
 mod completion;
 mod handlers;
 mod resolution;
+mod stdlib_hover;
 mod symbols;
 
 #[cfg(test)]
