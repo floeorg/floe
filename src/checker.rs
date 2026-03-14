@@ -211,7 +211,16 @@ impl Checker {
     }
 
     /// Check a program and return diagnostics.
-    pub fn check(mut self, program: &Program) -> Vec<Diagnostic> {
+    pub fn check(self, program: &Program) -> Vec<Diagnostic> {
+        self.check_with_types(program).0
+    }
+
+    /// Check a program and return (diagnostics, type_map).
+    /// The type_map maps variable/function names to their inferred type display names.
+    pub fn check_with_types(
+        mut self,
+        program: &Program,
+    ) -> (Vec<Diagnostic>, HashMap<String, String>) {
         // First pass: register all type declarations
         for item in &program.items {
             if let ItemKind::TypeDecl(decl) = &item.kind {
@@ -248,7 +257,16 @@ impl Checker {
             }
         }
 
-        self.diagnostics
+        // Build type map from the top-level scope
+        let type_map: HashMap<String, String> = self
+            .env
+            .scopes
+            .iter()
+            .flat_map(|scope| scope.iter())
+            .map(|(name, ty)| (name.clone(), ty.display_name()))
+            .collect();
+
+        (self.diagnostics, type_map)
     }
 
     fn fresh_type_var(&mut self) -> Type {

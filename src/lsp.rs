@@ -38,6 +38,11 @@ struct Symbol {
     import_source: Option<String>,
     /// Type signature for hover
     detail: String,
+    /// For functions: the type of the first parameter (for pipe-aware completions)
+    first_param_type: Option<String>,
+    /// For functions: the return type (for pipe chain type inference)
+    #[allow(dead_code)]
+    return_type_str: Option<String>,
 }
 
 /// Index of all symbols in a document.
@@ -63,6 +68,8 @@ impl SymbolIndex {
                             end: spec.span.end,
                             import_source: Some(decl.source.clone()),
                             detail: format!("import {{ {} }} from \"{}\"", spec.name, decl.source),
+                            first_param_type: None,
+                            return_type_str: None,
                         });
                     }
                 }
@@ -85,6 +92,8 @@ impl SymbolIndex {
                         end: item.span.end,
                         import_source: None,
                         detail: format!("{vis}const {name}{type_ann}"),
+                        first_param_type: None,
+                        return_type_str: None,
                     });
 
                     // Also index destructured names
@@ -98,6 +107,8 @@ impl SymbolIndex {
                                     end: item.span.end,
                                     import_source: None,
                                     detail: format!("const {{ {n} }}"),
+                                    first_param_type: None,
+                                    return_type_str: None,
                                 });
                             }
                         }
@@ -123,6 +134,16 @@ impl SymbolIndex {
                         .as_ref()
                         .map(|t| format!(": {}", type_expr_to_string(t)))
                         .unwrap_or_default();
+
+                    // Extract first param type for pipe-aware completions
+                    let first_param_type = decl
+                        .params
+                        .first()
+                        .and_then(|p| p.type_ann.as_ref())
+                        .map(type_expr_to_string);
+
+                    let return_type_str = decl.return_type.as_ref().map(type_expr_to_string);
+
                     symbols.push(Symbol {
                         name: decl.name.clone(),
                         kind: SymbolKind::FUNCTION,
@@ -134,6 +155,8 @@ impl SymbolIndex {
                             decl.name,
                             params.join(", ")
                         ),
+                        first_param_type,
+                        return_type_str,
                     });
 
                     // Index parameters
@@ -150,6 +173,8 @@ impl SymbolIndex {
                             end: param.span.end,
                             import_source: None,
                             detail: format!("parameter {}{type_ann}", param.name),
+                            first_param_type: None,
+                            return_type_str: None,
                         });
                     }
                 }
@@ -163,6 +188,8 @@ impl SymbolIndex {
                         end: item.span.end,
                         import_source: None,
                         detail: format!("{vis}{opaque}type {}", decl.name),
+                        first_param_type: None,
+                        return_type_str: None,
                     });
 
                     // Index union variants
@@ -175,6 +202,8 @@ impl SymbolIndex {
                                 end: variant.span.end,
                                 import_source: None,
                                 detail: format!("{}.{}", decl.name, variant.name),
+                                first_param_type: None,
+                                return_type_str: None,
                             });
                         }
                     }
@@ -231,6 +260,169 @@ fn type_expr_to_string(ty: &TypeExpr) -> String {
     }
 }
 
+// ── Pipe-Aware Completions ──────────────────────────────────────
+
+/// Detect if the cursor is in a pipe context (after `|>`).
+/// Returns true if we find `|>` before the cursor (ignoring whitespace).
+fn is_pipe_context(source: &str, offset: usize) -> bool {
+    let before = &source[..offset];
+    let trimmed = before.trim_end();
+    trimmed.ends_with("|>")
+}
+
+/// Extract the base type name from a full type string.
+/// e.g., "Array<User>" -> "Array", "Option<string>" -> "Option", "string" -> "string"
+fn base_type_name(type_str: &str) -> &str {
+    match type_str.find('<') {
+        Some(pos) => &type_str[..pos],
+        None => type_str,
+    }
+}
+
+/// Try to resolve the type of the expression being piped.
+/// Looks at the text before `|>` and tries to determine its type using the type map.
+fn resolve_piped_type(
+    source: &str,
+    offset: usize,
+    type_map: &HashMap<String, String>,
+) -> Option<String> {
+    let before = &source[..offset];
+    let trimmed = before.trim_end();
+    // Strip the `|>` suffix
+    let before_pipe = trimmed.strip_suffix("|>")?;
+    let before_pipe = before_pipe.trim_end();
+
+    // Check for `?` unwrap at the end
+    let (expr_text, unwrap) = if let Some(inner) = before_pipe.strip_suffix('?') {
+        (inner.trim_end(), true)
+    } else {
+        (before_pipe, false)
+    };
+
+    // Try to find the last identifier or call expression
+    let ident = extract_trailing_identifier(expr_text);
+
+    if ident.is_empty() {
+        // Try literal type inference
+        return infer_literal_type(expr_text);
+    }
+
+    // Look up the identifier in the type map
+    let type_str = type_map.get(ident)?;
+    let resolved = if unwrap {
+        unwrap_type(type_str)
+    } else {
+        type_str.clone()
+    };
+    Some(resolved)
+}
+
+/// Extract the trailing identifier from an expression string.
+/// e.g., "users" -> "users", "getUsers()" -> "getUsers", "a.b.c" -> "c"
+fn extract_trailing_identifier(s: &str) -> &str {
+    let s = s.trim_end();
+    // Strip trailing () for function calls
+    let s = if s.ends_with(')') {
+        // Find matching open paren
+        let mut depth = 0;
+        let mut paren_start = s.len();
+        for (i, c) in s.char_indices().rev() {
+            match c {
+                ')' => depth += 1,
+                '(' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        paren_start = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        &s[..paren_start]
+    } else {
+        s
+    };
+
+    // Extract last identifier (after `.` or standalone)
+    let start = s
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    &s[start..]
+}
+
+/// Infer the type of a literal expression.
+fn infer_literal_type(s: &str) -> Option<String> {
+    let s = s.trim();
+    if s.starts_with('"') || s.starts_with('`') {
+        Some("string".to_string())
+    } else if s == "true" || s == "false" {
+        Some("bool".to_string())
+    } else if s.starts_with('[') {
+        Some("Array".to_string())
+    } else if s.parse::<f64>().is_ok() {
+        Some("number".to_string())
+    } else {
+        None
+    }
+}
+
+/// Unwrap a Result or Option type: Result<T, E> -> T, Option<T> -> T
+fn unwrap_type(type_str: &str) -> String {
+    if let Some(inner) = type_str.strip_prefix("Result<") {
+        // Result<T, E> -> T (first type arg)
+        if let Some(comma_pos) = find_top_level_comma(inner) {
+            return inner[..comma_pos].to_string();
+        }
+    }
+    if let Some(inner) = type_str.strip_prefix("Option<") {
+        // Option<T> -> T
+        if let Some(end) = inner.strip_suffix('>') {
+            return end.to_string();
+        }
+    }
+    type_str.to_string()
+}
+
+/// Find the position of the first top-level comma (not inside angle brackets).
+fn find_top_level_comma(s: &str) -> Option<usize> {
+    let mut depth = 0;
+    for (i, c) in s.char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' => depth -= 1,
+            ',' if depth == 0 => return Some(i),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Check if a function's first parameter type is compatible with the piped type.
+/// Uses base type name matching: "Array<User>" matches "Array<T>", etc.
+fn is_pipe_compatible(fn_first_param: &str, piped_type: &str) -> bool {
+    let fn_base = base_type_name(fn_first_param);
+    let piped_base = base_type_name(piped_type);
+
+    // Exact base type match
+    if fn_base == piped_base {
+        return true;
+    }
+
+    // Generic type parameter (single uppercase letter like T, U, A) matches anything
+    if fn_base.len() == 1
+        && fn_base
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_uppercase())
+    {
+        return true;
+    }
+
+    false
+}
+
 // ── Document State ──────────────────────────────────────────────
 
 /// State for an open document.
@@ -238,6 +430,8 @@ fn type_expr_to_string(ty: &TypeExpr) -> String {
 struct Document {
     content: String,
     index: SymbolIndex,
+    /// Type map from the checker: variable/function name -> inferred type display name
+    type_map: HashMap<String, String>,
 }
 
 /// The ZenScript Language Server.
@@ -256,18 +450,23 @@ impl ZenScriptLsp {
 
     /// Parse and type-check a document, update symbol index, publish diagnostics.
     async fn update_document(&self, uri: Url, source: &str) {
-        let (diagnostics, index) = match Parser::new(source).parse_program() {
+        let (diagnostics, index, type_map) = match Parser::new(source).parse_program() {
             Err(parse_errors) => {
                 let zs_diags = zs_diag::from_parse_errors(&parse_errors);
                 (
                     self.convert_diagnostics(source, &zs_diags),
                     SymbolIndex::default(),
+                    HashMap::new(),
                 )
             }
             Ok(program) => {
                 let index = SymbolIndex::build(&program);
-                let check_diags = Checker::new().check(&program);
-                (self.convert_diagnostics(source, &check_diags), index)
+                let (check_diags, type_map) = Checker::new().check_with_types(&program);
+                (
+                    self.convert_diagnostics(source, &check_diags),
+                    index,
+                    type_map,
+                )
             }
         };
 
@@ -276,6 +475,7 @@ impl ZenScriptLsp {
             Document {
                 content: source.to_string(),
                 index,
+                type_map,
             },
         );
 
@@ -314,6 +514,94 @@ impl ZenScriptLsp {
                 }
             })
             .collect()
+    }
+
+    /// Generate pipe-aware completions.
+    /// Only shows functions (not keywords/types/consts), ranked by first-param compatibility.
+    fn pipe_completions(
+        &self,
+        docs: &HashMap<Url, Document>,
+        current_uri: &Url,
+        prefix: &str,
+        piped_type: Option<&str>,
+    ) -> Vec<CompletionItem> {
+        let mut matched: Vec<CompletionItem> = Vec::new();
+        let mut unmatched: Vec<CompletionItem> = Vec::new();
+
+        // Collect functions from all open documents
+        for (doc_uri, doc) in docs.iter() {
+            let is_current = doc_uri == current_uri;
+
+            for sym in &doc.index.symbols {
+                // Only suggest functions in pipe context
+                if sym.kind != SymbolKind::FUNCTION {
+                    continue;
+                }
+                // Must have at least one parameter to be pipe-compatible
+                if sym.first_param_type.is_none() {
+                    continue;
+                }
+                // Filter by prefix
+                if !prefix.is_empty() && !sym.name.starts_with(prefix) {
+                    continue;
+                }
+                // Skip re-exports
+                if !is_current && sym.import_source.is_some() {
+                    continue;
+                }
+
+                let compatible = piped_type
+                    .zip(sym.first_param_type.as_deref())
+                    .is_some_and(|(pt, fpt)| is_pipe_compatible(fpt, pt));
+
+                let sort_prefix = if compatible { "0" } else { "1" };
+
+                let mut item = CompletionItem {
+                    label: sym.name.clone(),
+                    kind: Some(CompletionItemKind::FUNCTION),
+                    detail: Some(sym.detail.clone()),
+                    insert_text: Some(sym.name.clone()),
+                    insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                    sort_text: Some(format!("{sort_prefix}{}", sym.name)),
+                    ..Default::default()
+                };
+
+                // Add auto-import for cross-file functions
+                if !is_current {
+                    let relative_path = doc_uri
+                        .path_segments()
+                        .and_then(|mut s| s.next_back())
+                        .unwrap_or("unknown")
+                        .trim_end_matches(".zs");
+
+                    item.detail = Some(format!(
+                        "{} (auto-import from {})",
+                        sym.detail, relative_path
+                    ));
+                    item.additional_text_edits = Some(vec![TextEdit {
+                        range: Range {
+                            start: Position::new(0, 0),
+                            end: Position::new(0, 0),
+                        },
+                        new_text: format!(
+                            "import {{ {} }} from \"./{}\"\n",
+                            sym.name, relative_path
+                        ),
+                    }]);
+                    // Cross-file sorts after same-file
+                    item.sort_text = Some(format!("{sort_prefix}1{}", sym.name));
+                }
+
+                if compatible {
+                    matched.push(item);
+                } else {
+                    unmatched.push(item);
+                }
+            }
+        }
+
+        matched.extend(unmatched);
+        matched
     }
 }
 
@@ -359,13 +647,18 @@ impl LanguageServer for ZenScriptLsp {
                 )),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec![".".to_string(), "|".to_string()]),
+                    trigger_characters: Some(vec![
+                        ".".to_string(),
+                        "|".to_string(),
+                        ">".to_string(),
+                    ]),
                     resolve_provider: Some(false),
                     ..Default::default()
                 }),
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -477,6 +770,14 @@ impl LanguageServer for ZenScriptLsp {
         let offset = position_to_offset(&doc.content, position);
         let prefix = word_prefix_at_offset(&doc.content, offset);
 
+        // ── Pipe-aware completions ──────────────────────────────
+        if is_pipe_context(&doc.content, offset) {
+            let piped_type = resolve_piped_type(&doc.content, offset, &doc.type_map);
+            let items = self.pipe_completions(&docs, &uri, &prefix, piped_type.as_deref());
+            return Ok(Some(CompletionResponse::Array(items)));
+        }
+
+        // ── Normal completions ──────────────────────────────────
         let mut items = Vec::new();
 
         // Symbols from the current document
@@ -501,7 +802,7 @@ impl LanguageServer for ZenScriptLsp {
             }
             for sym in &other_doc.index.symbols {
                 if sym.import_source.is_some() {
-                    continue; // Don't re-export imports from other files
+                    continue;
                 }
                 if !prefix.is_empty() && !sym.name.starts_with(&prefix) {
                     continue;
@@ -512,7 +813,6 @@ impl LanguageServer for ZenScriptLsp {
                     .unwrap_or("unknown")
                     .trim_end_matches(".zs");
 
-                // Auto-import: add the import statement as an additional edit
                 let import_edit =
                     format!("import {{ {} }} from \"./{}\"\n", sym.name, relative_path);
 
@@ -710,6 +1010,89 @@ impl LanguageServer for ZenScriptLsp {
             .collect();
 
         Ok(Some(DocumentSymbolResponse::Flat(symbols)))
+    }
+
+    // ── Code Actions ─────────────────────────────────────────
+
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let uri = params.text_document.uri;
+        let docs = self.documents.read().await;
+        let Some(doc) = docs.get(&uri) else {
+            return Ok(None);
+        };
+
+        let mut actions = Vec::new();
+
+        for diag in &params.context.diagnostics {
+            // E010: exported function missing return type — offer to insert inferred type
+            let is_e010 = diag
+                .code
+                .as_ref()
+                .is_some_and(|c| matches!(c, NumberOrString::String(s) if s == "E010"));
+
+            if !is_e010 {
+                continue;
+            }
+
+            // Find the function name from the diagnostic message
+            let fn_name = diag
+                .message
+                .strip_prefix("exported function `")
+                .and_then(|s| s.strip_suffix("` must declare a return type"));
+
+            let Some(fn_name) = fn_name else {
+                continue;
+            };
+
+            // Look up the inferred return type from the checker's type map
+            let inferred = doc.type_map.get(fn_name).and_then(|ty| {
+                // Type map stores the function type like "(number, number) => number"
+                // Extract the return type after " => "
+                ty.rsplit_once(" => ").map(|(_, ret)| ret.to_string())
+            });
+
+            let return_type = inferred.unwrap_or_else(|| "unknown".to_string());
+
+            // Find the `) {` or `)  {` in the function signature to insert before `{`
+            let start_offset = position_to_offset(&doc.content, diag.range.start);
+            let end_offset = position_to_offset(&doc.content, diag.range.end);
+            let fn_text = &doc.content[start_offset..end_offset];
+
+            // Find the closing paren before the opening brace
+            if let Some(brace_pos) = fn_text.find('{') {
+                let insert_offset = start_offset + brace_pos;
+                let insert_pos = offset_to_position(&doc.content, insert_offset);
+
+                let edit = TextEdit {
+                    range: Range {
+                        start: insert_pos,
+                        end: insert_pos,
+                    },
+                    new_text: format!(": {return_type} "),
+                };
+
+                let mut changes = HashMap::new();
+                changes.insert(uri.clone(), vec![edit]);
+
+                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: format!("Add return type `: {return_type}`"),
+                    kind: Some(CodeActionKind::QUICKFIX),
+                    diagnostics: Some(vec![diag.clone()]),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        ..Default::default()
+                    }),
+                    is_preferred: Some(true),
+                    ..Default::default()
+                }));
+            }
+        }
+
+        if actions.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(actions))
+        }
     }
 }
 
@@ -967,5 +1350,137 @@ mod tests {
             span: crate::lexer::span::Span::new(0, 0, 1, 1),
         };
         assert_eq!(type_expr_to_string(&ty), "Result<User, Error>");
+    }
+
+    // ── Pipe-aware completion tests ────────────────────────
+
+    #[test]
+    fn pipe_context_detected() {
+        assert!(is_pipe_context("users |> ", 9));
+        assert!(is_pipe_context("users |>  ", 10));
+        assert!(is_pipe_context("x |> f() |> ", 12));
+        assert!(!is_pipe_context("const x = 42", 12));
+        assert!(!is_pipe_context("const x = |", 11));
+    }
+
+    #[test]
+    fn pipe_context_with_prefix() {
+        // User typed "users |> fi" — cursor is at offset 11
+        // The prefix would be "fi", and before that is "|> "
+        let source = "users |> fi";
+        // is_pipe_context checks before the prefix starts
+        assert!(is_pipe_context(&source[..9], 9)); // "users |> "
+    }
+
+    #[test]
+    fn base_type_name_simple() {
+        assert_eq!(base_type_name("string"), "string");
+        assert_eq!(base_type_name("number"), "number");
+    }
+
+    #[test]
+    fn base_type_name_generic() {
+        assert_eq!(base_type_name("Array<User>"), "Array");
+        assert_eq!(base_type_name("Option<string>"), "Option");
+        assert_eq!(base_type_name("Result<User, Error>"), "Result");
+    }
+
+    #[test]
+    fn unwrap_result_type() {
+        assert_eq!(unwrap_type("Result<User, Error>"), "User");
+    }
+
+    #[test]
+    fn unwrap_option_type() {
+        assert_eq!(unwrap_type("Option<string>"), "string");
+    }
+
+    #[test]
+    fn unwrap_non_wrapper_type() {
+        assert_eq!(unwrap_type("string"), "string");
+    }
+
+    #[test]
+    fn pipe_compatible_same_type() {
+        assert!(is_pipe_compatible("Array<T>", "Array<User>"));
+        assert!(is_pipe_compatible("string", "string"));
+        assert!(is_pipe_compatible("Option<T>", "Option<number>"));
+    }
+
+    #[test]
+    fn pipe_compatible_generic_param() {
+        // Single-letter type params match anything
+        assert!(is_pipe_compatible("T", "string"));
+        assert!(is_pipe_compatible("A", "Array<User>"));
+    }
+
+    #[test]
+    fn pipe_incompatible_types() {
+        assert!(!is_pipe_compatible("string", "number"));
+        assert!(!is_pipe_compatible("Array<T>", "Option<T>"));
+    }
+
+    #[test]
+    fn extract_identifier_simple() {
+        assert_eq!(extract_trailing_identifier("users"), "users");
+    }
+
+    #[test]
+    fn extract_identifier_call() {
+        assert_eq!(extract_trailing_identifier("getUsers()"), "getUsers");
+    }
+
+    #[test]
+    fn extract_identifier_member() {
+        assert_eq!(extract_trailing_identifier("a.b.c"), "c");
+    }
+
+    #[test]
+    fn infer_literal_string() {
+        assert_eq!(infer_literal_type("\"hello\""), Some("string".to_string()));
+    }
+
+    #[test]
+    fn infer_literal_number() {
+        assert_eq!(infer_literal_type("42"), Some("number".to_string()));
+    }
+
+    #[test]
+    fn infer_literal_bool() {
+        assert_eq!(infer_literal_type("true"), Some("bool".to_string()));
+    }
+
+    #[test]
+    fn resolve_piped_type_from_type_map() {
+        let mut type_map = HashMap::new();
+        type_map.insert("users".to_string(), "Array<User>".to_string());
+        let source = "users |> ";
+        let result = resolve_piped_type(source, 9, &type_map);
+        assert_eq!(result, Some("Array<User>".to_string()));
+    }
+
+    #[test]
+    fn resolve_piped_type_with_unwrap() {
+        let mut type_map = HashMap::new();
+        type_map.insert(
+            "fetchUser".to_string(),
+            "(number) => Result<User, Error>".to_string(),
+        );
+        let source = "result? |> ";
+        let mut tm = HashMap::new();
+        tm.insert("result".to_string(), "Result<User, Error>".to_string());
+        let resolved = resolve_piped_type(source, 11, &tm);
+        assert_eq!(resolved, Some("User".to_string()));
+    }
+
+    #[test]
+    fn function_symbol_stores_first_param_type() {
+        let source = "function filter(arr: Array<T>, pred: (T) => bool): Array<T> { arr }";
+        let program = Parser::new(source).parse_program().unwrap();
+        let index = SymbolIndex::build(&program);
+        let syms = index.find_by_name("filter");
+        assert_eq!(syms.len(), 1);
+        assert_eq!(syms[0].first_param_type.as_deref(), Some("Array<T>"));
+        assert_eq!(syms[0].return_type_str.as_deref(), Some("Array<T>"));
     }
 }
