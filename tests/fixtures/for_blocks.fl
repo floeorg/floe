@@ -20,6 +20,11 @@ for User {
 
 for Array<User> {
   fn adults(self) -> Array<User> {
-    self |> Array.filter(.age >= 18)
+    self |> filter(.age >= 18)
   }
 }
+
+// Type-directed pipe resolution: bare stdlib names work in pipes
+const names = [User(name: "Ryan", age: 25, active: true)]
+  |> filter(.active)
+  |> map(.name)

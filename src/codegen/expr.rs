@@ -363,11 +363,62 @@ impl Codegen {
         }
     }
 
+    /// Try to resolve a bare function name in pipe context via stdlib lookup.
+    /// e.g., `arr |> map(fn)` → looks up "map" in stdlib, uses codegen template.
+    fn try_emit_bare_stdlib_pipe(
+        &mut self,
+        left: &Expr,
+        callee: &Expr,
+        extra_args: &[Arg],
+    ) -> Option<String> {
+        if let ExprKind::Identifier(name) = &callee.kind {
+            // Don't shadow locally defined functions
+            if self.local_names.contains(name.as_str()) {
+                return None;
+            }
+            let matches = self.stdlib.lookup_by_name(name);
+            if let Some(stdlib_fn) = matches.first() {
+                let template = stdlib_fn.codegen.to_string();
+                if template.contains("__zenEq") {
+                    self.needs_deep_equal = true;
+                }
+
+                let mut sub = self.sub_codegen();
+                sub.emit_expr(left);
+                if sub.needs_deep_equal {
+                    self.needs_deep_equal = true;
+                }
+                let mut arg_strings = vec![sub.output];
+
+                for arg in extra_args {
+                    let mut sub = self.sub_codegen();
+                    match arg {
+                        Arg::Positional(e) => sub.emit_expr(e),
+                        Arg::Named { value, .. } => sub.emit_expr(value),
+                    }
+                    if sub.needs_deep_equal {
+                        self.needs_deep_equal = true;
+                    }
+                    arg_strings.push(sub.output);
+                }
+
+                return Some(expand_codegen_template(&template, &arg_strings));
+            }
+        }
+        None
+    }
+
     fn emit_pipe(&mut self, left: &Expr, right: &Expr) {
         match &right.kind {
             // Stdlib pipe: `arr |> Array.sort` or `arr |> Array.map(fn)`
+            // Also handles type-directed resolution: `arr |> map(fn)` → stdlib lookup by name
             ExprKind::Call { callee, args } if !has_placeholder_arg(args) => {
                 if let Some(output) = self.try_emit_stdlib_pipe(left, callee, args) {
+                    self.push(&output);
+                    return;
+                }
+                // Type-directed resolution: bare function name → check stdlib
+                if let Some(output) = self.try_emit_bare_stdlib_pipe(left, callee, args) {
                     self.push(&output);
                     return;
                 }
@@ -419,8 +470,12 @@ impl Codegen {
                 }
                 self.push(")");
             }
-            // `a |> f` → `f(a)` — bare function
+            // `a |> f` → `f(a)` — bare function (also check stdlib)
             ExprKind::Identifier(_) => {
+                if let Some(output) = self.try_emit_bare_stdlib_pipe(left, right, &[]) {
+                    self.push(&output);
+                    return;
+                }
                 self.emit_expr(right);
                 self.push("(");
                 self.emit_expr(left);

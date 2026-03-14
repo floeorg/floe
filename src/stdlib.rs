@@ -51,6 +51,12 @@ impl StdlibRegistry {
             .collect()
     }
 
+    /// Look up a stdlib function by name alone (for type-directed pipe resolution).
+    /// Returns all matches across modules.
+    pub fn lookup_by_name(&self, name: &str) -> Vec<&StdlibFn> {
+        self.functions.iter().filter(|f| f.name == name).collect()
+    }
+
     /// Check if a name is a stdlib module.
     pub fn is_module(&self, name: &str) -> bool {
         self.functions.iter().any(|f| f.module == name)

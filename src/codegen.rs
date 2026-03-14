@@ -26,6 +26,8 @@ pub struct Codegen {
     unit_variants: HashSet<String>,
     /// Maps variant name -> (union_type_name, field_names)
     variant_info: HashMap<String, (String, Vec<String>)>,
+    /// Locally defined function/const names - these shadow stdlib in pipe resolution
+    local_names: HashSet<String>,
 }
 
 impl Codegen {
@@ -38,28 +40,51 @@ impl Codegen {
             stdlib: StdlibRegistry::new(),
             unit_variants: HashSet::new(),
             variant_info: HashMap::new(),
+            local_names: HashSet::new(),
         }
     }
 
     /// Generate TypeScript from a Floe program.
     pub fn generate(mut self, program: &Program) -> CodegenOutput {
-        // First pass: collect union variant info
+        // First pass: collect union variant info and local names
         for item in &program.items {
-            if let ItemKind::TypeDecl(decl) = &item.kind
-                && let TypeDef::Union(variants) = &decl.def
-            {
-                for variant in variants {
-                    let field_names: Vec<String> = variant
-                        .fields
-                        .iter()
-                        .filter_map(|f| f.name.clone())
-                        .collect();
-                    if variant.fields.is_empty() {
-                        self.unit_variants.insert(variant.name.clone());
+            match &item.kind {
+                ItemKind::TypeDecl(decl) => {
+                    if let TypeDef::Union(variants) = &decl.def {
+                        for variant in variants {
+                            let field_names: Vec<String> = variant
+                                .fields
+                                .iter()
+                                .filter_map(|f| f.name.clone())
+                                .collect();
+                            if variant.fields.is_empty() {
+                                self.unit_variants.insert(variant.name.clone());
+                            }
+                            self.variant_info
+                                .insert(variant.name.clone(), (decl.name.clone(), field_names));
+                        }
                     }
-                    self.variant_info
-                        .insert(variant.name.clone(), (decl.name.clone(), field_names));
                 }
+                ItemKind::Function(decl) => {
+                    self.local_names.insert(decl.name.clone());
+                }
+                ItemKind::Const(decl) => {
+                    if let ConstBinding::Name(name) = &decl.binding {
+                        self.local_names.insert(name.clone());
+                    }
+                }
+                ItemKind::Import(decl) => {
+                    for spec in &decl.specifiers {
+                        let name = spec.alias.as_ref().unwrap_or(&spec.name);
+                        self.local_names.insert(name.clone());
+                    }
+                }
+                ItemKind::ForBlock(block) => {
+                    for func in &block.functions {
+                        self.local_names.insert(func.name.clone());
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -482,6 +507,7 @@ impl Codegen {
             stdlib: StdlibRegistry::new(),
             unit_variants: self.unit_variants.clone(),
             variant_info: self.variant_info.clone(),
+            local_names: self.local_names.clone(),
         }
     }
 }

@@ -276,3 +276,63 @@ fn floating_result_error() {
     let diags = check("Ok(42)");
     assert!(has_error_containing(&diags, "unhandled Result"));
 }
+
+// ── For Blocks ─────────────────────────────────────────────
+
+#[test]
+fn for_block_registers_function() {
+    let diags = check(
+        r#"
+type User = { name: string }
+for User {
+    fn display(self) -> string { self.name }
+}
+const _x = display(User(name: "Ryan"))
+"#,
+    );
+    // display should be defined and callable
+    assert!(!has_error_containing(&diags, "not defined"));
+}
+
+#[test]
+fn for_block_self_gets_type() {
+    let diags = check(
+        r#"
+type User = { name: string }
+for User {
+    fn getName(self) -> string { self.name }
+}
+"#,
+    );
+    // self.name should resolve since self is typed as User
+    assert!(!has_error_containing(&diags, "not defined"));
+}
+
+#[test]
+fn for_block_multiple_params() {
+    let diags = check(
+        r#"
+type User = { name: string }
+for User {
+    fn greet(self, greeting: string) -> string { greeting }
+}
+const _x = greet(User(name: "Ryan"), "Hello")
+"#,
+    );
+    assert!(!has_error_containing(&diags, "not defined"));
+}
+
+#[test]
+fn for_block_with_pipe() {
+    let diags = check(
+        r#"
+type User = { name: string }
+for User {
+    fn display(self) -> string { self.name }
+}
+const _user = User(name: "Ryan")
+const _x = _user |> display
+"#,
+    );
+    assert!(!has_error_containing(&diags, "not defined"));
+}

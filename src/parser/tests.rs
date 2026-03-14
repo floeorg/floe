@@ -715,3 +715,110 @@ export fn TodoApp() {
     let program = parse_ok(input);
     assert_eq!(program.items.len(), 3);
 }
+
+// ── For Blocks ──────────────────────────────────────────────
+
+#[test]
+fn for_block_basic() {
+    let input = r#"
+type User = { name: string }
+for User {
+    fn display(self) -> string {
+        self.name
+    }
+}
+"#;
+    let program = parse_ok(input);
+    assert_eq!(program.items.len(), 2);
+    match &program.items[1].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions.len(), 1);
+            assert_eq!(block.functions[0].name, "display");
+            assert_eq!(block.functions[0].params.len(), 1);
+            assert_eq!(block.functions[0].params[0].name, "self");
+            assert!(block.functions[0].params[0].type_ann.is_none());
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn for_block_multiple_functions() {
+    let input = r#"
+type User = { name: string, age: number }
+for User {
+    fn display(self) -> string { self.name }
+    fn isAdult(self) -> bool { self.age >= 18 }
+    fn greet(self, greeting: string) -> string { `${greeting}` }
+}
+"#;
+    let program = parse_ok(input);
+    match &program.items[1].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions.len(), 3);
+            assert_eq!(block.functions[0].name, "display");
+            assert_eq!(block.functions[1].name, "isAdult");
+            assert_eq!(block.functions[2].name, "greet");
+            assert_eq!(block.functions[2].params.len(), 2);
+            assert_eq!(block.functions[2].params[0].name, "self");
+            assert_eq!(block.functions[2].params[1].name, "greeting");
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn for_block_generic_type() {
+    let input = r#"
+for Array<User> {
+    fn adults(self) -> Array<User> { self }
+}
+"#;
+    let program = parse_ok(input);
+    match &program.items[0].kind {
+        ItemKind::ForBlock(block) => {
+            match &block.type_name.kind {
+                TypeExprKind::Named { name, type_args } => {
+                    assert_eq!(name, "Array");
+                    assert_eq!(type_args.len(), 1);
+                }
+                other => panic!("expected Named type, got {other:?}"),
+            }
+            assert_eq!(block.functions.len(), 1);
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn self_as_expression() {
+    let input = r#"
+type User = { name: string }
+for User {
+    fn getName(self) -> string { self.name }
+}
+"#;
+    let program = parse_ok(input);
+    match &program.items[1].kind {
+        ItemKind::ForBlock(block) => {
+            // The body should contain self.name as a member expression
+            let body = &block.functions[0].body;
+            match &body.kind {
+                ExprKind::Block(items) => match &items[0].kind {
+                    ItemKind::Expr(expr) => {
+                        assert!(matches!(&expr.kind, ExprKind::Member { .. }));
+                    }
+                    other => panic!("expected Expr item, got {other:?}"),
+                },
+                other => panic!("expected Block, got {other:?}"),
+            }
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn for_block_error_non_fn() {
+    let result = parse("for User { const x = 1 }");
+    assert!(result.is_err());
+}

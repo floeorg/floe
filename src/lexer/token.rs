@@ -272,6 +272,8 @@ mod tests {
         assert_eq!(lookup_keyword("Err"), Some(TokenKind::Err));
         assert_eq!(lookup_keyword("Some"), Some(TokenKind::Some));
         assert_eq!(lookup_keyword("None"), Some(TokenKind::None));
+        assert_eq!(lookup_keyword("for"), Some(TokenKind::For));
+        assert_eq!(lookup_keyword("self"), Some(TokenKind::SelfKw));
         assert_eq!(lookup_keyword("true"), Some(TokenKind::Bool(true)));
         assert_eq!(lookup_keyword("false"), Some(TokenKind::Bool(false)));
     }

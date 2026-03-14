@@ -17,3 +17,5 @@ function greet(self: User, greeting: string): string {
 function adults(self: Array<User>): Array<User> {
   return self.filter((_x) => _x.age >= 18);
 }
+
+const names = [{ name: "Ryan", age: 25, active: true }].filter((_x) => _x.active).map((_x) => _x.name);
