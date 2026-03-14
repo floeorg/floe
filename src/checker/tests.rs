@@ -339,3 +339,114 @@ const _y = fetchUser("id")
     // fetchUser is untrusted — error
     assert!(has_error_containing(&diags, "fetchUser"));
 }
+
+// ── Constructor field validation ────────────────────────────
+
+#[test]
+fn constructor_unknown_field_error() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: bool,
+}
+const _t = Todo(id: "1", textt: "hello", done: false)
+"#,
+    );
+    assert!(has_error(&diags, "E015"));
+    assert!(has_error_containing(&diags, "unknown field `textt`"));
+}
+
+#[test]
+fn constructor_valid_fields_no_error() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: bool,
+}
+const _t = Todo(id: "1", text: "hello", done: false)
+"#,
+    );
+    assert!(!has_error(&diags, "E015"));
+    assert!(!has_error(&diags, "E016"));
+}
+
+#[test]
+fn constructor_missing_required_field() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: bool,
+}
+const _t = Todo(id: "1", text: "hello")
+"#,
+    );
+    assert!(has_error(&diags, "E016"));
+    assert!(has_error_containing(&diags, "missing field `done`"));
+}
+
+#[test]
+fn constructor_missing_field_with_default_ok() {
+    let diags = check(
+        r#"
+type Config = {
+    host: string,
+    port: number = 3000,
+}
+const _c = Config(host: "localhost")
+"#,
+    );
+    assert!(!has_error(&diags, "E016"));
+}
+
+#[test]
+fn constructor_spread_skips_missing_check() {
+    let diags = check(
+        r#"
+type Todo = {
+    id: string,
+    text: string,
+    done: bool,
+}
+const original = Todo(id: "1", text: "hello", done: false)
+const _t = Todo(..original, text: "updated")
+"#,
+    );
+    assert!(!has_error(&diags, "E016"));
+}
+
+#[test]
+fn union_variant_unknown_field_error() {
+    let diags = check(
+        r#"
+type Validation =
+    | Valid(text: string)
+    | TooShort
+    | Empty
+
+const _v = Valid(texxt: "hello")
+"#,
+    );
+    assert!(has_error(&diags, "E015"));
+    assert!(has_error_containing(&diags, "unknown field `texxt`"));
+}
+
+#[test]
+fn union_variant_valid_field_no_error() {
+    let diags = check(
+        r#"
+type Validation =
+    | Valid(text: string)
+    | TooShort
+    | Empty
+
+const _v = Valid(text: "hello")
+"#,
+    );
+    assert!(!has_error(&diags, "E015"));
+}
