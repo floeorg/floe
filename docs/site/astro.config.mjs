@@ -18,7 +18,7 @@ export default defineConfig({
       },
       favicon: "/logo.svg",
       description:
-        "A Gleam-inspired language that compiles to TypeScript + React",
+        "A strict, functional language that compiles to TypeScript. Use any TypeScript or React library as-is.",
       social: [
         {
           icon: "github",
@@ -29,7 +29,22 @@ export default defineConfig({
       sidebar: [
         {
           label: "Getting Started",
-          autogenerate: { directory: "guide" },
+          items: [
+            { label: "Introduction", slug: "guide/introduction" },
+            { label: "Installation", slug: "guide/installation" },
+            { label: "First Program", slug: "guide/first-program" },
+            { label: "Types", slug: "guide/types" },
+            { label: "Functions & Const", slug: "guide/functions" },
+            { label: "Pipes", slug: "guide/pipes" },
+            { label: "Pattern Matching", slug: "guide/pattern-matching" },
+            { label: "Error Handling", slug: "guide/error-handling" },
+            { label: "For Blocks", slug: "guide/for-blocks" },
+            { label: "Traits", slug: "guide/traits" },
+            { label: "JSX", slug: "guide/jsx" },
+            { label: "Testing", slug: "guide/testing" },
+            { label: "Migrating from TypeScript", slug: "guide/from-typescript" },
+            { label: "Comparison", slug: "guide/comparison" },
+          ],
         },
         {
           label: "Reference",

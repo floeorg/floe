@@ -2,7 +2,7 @@
 title: Home
 template: splash
 hero:
-  tagline: A Gleam-inspired language that compiles to vanilla TypeScript + React. Zero runtime. Zero dependencies.
+  tagline: A strict, functional language that compiles to TypeScript. Use any TypeScript or React library as-is.
   actions:
     - text: Get Started
       link: /floe/guide/introduction/
