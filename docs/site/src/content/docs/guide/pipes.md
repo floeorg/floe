@@ -41,7 +41,7 @@ const result = 5 |> add(3, _)
 
 ```floe
 const result = value
-  |> multiply(_, 2)
+  |> multiply(2)
   |> add(10, _)
   |> toString
 ```
@@ -69,7 +69,7 @@ todos |> Array.map(|t| Todo(..t, done: !t.done))
 Pipes work with any function, including methods accessed via imports:
 
 ```floe
-import { map, filter, reduce } from "ramda"
+import trusted { map, filter, reduce } from "ramda"
 
 const total = orders
   |> filter(.status == "complete")
