@@ -32,6 +32,21 @@ floe check src/
 floe check src/main.fl
 ```
 
+### `floe test`
+
+Run inline test blocks.
+
+```bash
+floe test src/
+floe test src/math.fl
+```
+
+Discovers all `test` blocks in `.fl` files, compiles them in test mode, and executes them. Requires a TypeScript runner (`tsx`) to be installed.
+
+```bash
+npm install -g tsx
+```
+
 ### `floe watch`
 
 Watch files and recompile on change.

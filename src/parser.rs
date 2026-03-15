@@ -153,6 +153,13 @@ impl Parser {
                 decl.exported = exported;
                 ItemKind::TraitDecl(decl)
             }
+            _ if !exported
+                && self.check_identifier("test")
+                && matches!(self.peek_kind(), Some(TokenKind::String(_))) =>
+            {
+                let block = self.parse_test_block()?;
+                ItemKind::TestBlock(block)
+            }
             TokenKind::Async if self.peek_kind() == Some(&TokenKind::Fn) => {
                 let mut decl = self.parse_function_decl()?;
                 decl.exported = exported;
@@ -669,6 +676,55 @@ impl Parser {
 
         // Regular parameter
         self.parse_param()
+    }
+
+    // ── Test Blocks ──────────────────────────────────────────────
+
+    fn parse_test_block(&mut self) -> Result<TestBlock, ParseError> {
+        let start_span = self.current_span();
+        // `test` is a contextual keyword - it's an identifier
+        if !self.check_identifier("test") {
+            return Err(self.error("expected `test`"));
+        }
+        self.advance();
+
+        let name = self.expect_string()?;
+
+        self.expect(&TokenKind::LeftBrace)?;
+
+        let mut body = Vec::new();
+        while !self.check(&TokenKind::RightBrace) && !self.is_at_end() {
+            if self.check(&TokenKind::Assert) {
+                let assert_span = self.current_span();
+                self.advance(); // consume `assert`
+                let expr = self.parse_expr()?;
+                let end_span = self.previous_span();
+                body.push(TestStatement::Assert(
+                    expr,
+                    self.merge_spans(assert_span, end_span),
+                ));
+            } else {
+                // Allow regular items (const, fn calls, etc.) inside test blocks
+                let item = self.parse_item()?;
+                if let ItemKind::Expr(expr) = item.kind {
+                    body.push(TestStatement::Expr(expr));
+                } else {
+                    // Convert non-expression items to a parse error for now
+                    return Err(self.error(
+                        "only `assert` statements and expressions are allowed inside test blocks",
+                    ));
+                }
+            }
+        }
+
+        self.expect(&TokenKind::RightBrace)?;
+        let end_span = self.previous_span();
+
+        Ok(TestBlock {
+            name,
+            body,
+            span: self.merge_spans(start_span, end_span),
+        })
     }
 
     // ── Type Expressions ─────────────────────────────────────────

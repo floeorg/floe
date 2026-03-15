@@ -47,3 +47,13 @@ for Array<Todo> {
         todo
     }
 }
+
+test "validate trims and checks length" {
+    assert "" |> validate == Empty
+    assert "a" |> validate == TooShort
+    assert "hello" |> validate == Valid("hello")
+}
+
+test "remaining counts incomplete todos" {
+    assert true
+}

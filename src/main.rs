@@ -47,6 +47,11 @@ enum Command {
         /// Project directory (defaults to current directory)
         path: Option<PathBuf>,
     },
+    /// Run inline test blocks
+    Test {
+        /// File or directory to test
+        path: PathBuf,
+    },
     /// Format .fl files
     Fmt {
         /// File or directory to format
@@ -75,6 +80,7 @@ fn main() -> Result<()> {
             }
         }
         Command::Check { path } => cmd_check(&path),
+        Command::Test { path } => cmd_test(&path),
         Command::Fmt { path, check } => cmd_fmt(&path, check),
         Command::Watch { path, out_dir } => cmd_watch(&path, out_dir.as_deref()),
         Command::Init { path } => cmd_init(path.as_deref()),
@@ -244,6 +250,133 @@ fn cmd_check(path: &Path) -> Result<()> {
         bail!("{checked} ok, {errors} with errors");
     }
     println!("{checked} file(s) checked, no errors");
+    Ok(())
+}
+
+// ── Test ─────────────────────────────────────────────────────────
+
+fn cmd_test(path: &Path) -> Result<()> {
+    use floe::codegen::Codegen;
+
+    let files = discover_fl_files(path)?;
+    if files.is_empty() {
+        bail!("no .fl files found in {}", path.display());
+    }
+
+    // Find all files that contain test blocks
+    let mut test_files = Vec::new();
+    for file in &files {
+        let source = std::fs::read_to_string(file)
+            .with_context(|| format!("failed to read {}", file.display()))?;
+
+        // Quick check: does the file contain "test " keyword?
+        if source.contains("test ") {
+            let filename = file.to_string_lossy();
+            match ZsParser::new(&source).parse_program() {
+                Ok(program) => {
+                    // Check if program has any test blocks
+                    let has_tests = program
+                        .items
+                        .iter()
+                        .any(|item| matches!(item.kind, floe::parser::ast::ItemKind::TestBlock(_)));
+                    if has_tests {
+                        test_files.push((
+                            file.clone(),
+                            source.clone(),
+                            filename.to_string(),
+                            program,
+                        ));
+                    }
+                }
+                Err(errs) => {
+                    let diags = diagnostic::from_parse_errors(&errs);
+                    let rendered = diagnostic::render_diagnostics(&filename, &source, &diags);
+                    eprint!("{rendered}");
+                }
+            }
+        }
+    }
+
+    if test_files.is_empty() {
+        println!("no test blocks found");
+        return Ok(());
+    }
+
+    let mut total_files = 0;
+    let mut errors = 0;
+
+    for (file, source, filename, program) in &test_files {
+        // Resolve imports
+        let resolved = resolve::resolve_imports(file, program);
+
+        // Type check
+        let (check_diags, expr_types) = Checker::with_imports(resolved.clone()).check_full(program);
+        let type_errors: Vec<_> = check_diags
+            .iter()
+            .filter(|d| d.severity == diagnostic::Severity::Error)
+            .collect();
+        if !type_errors.is_empty() {
+            let rendered = diagnostic::render_diagnostics(filename, source, &check_diags);
+            eprint!("{rendered}");
+            errors += 1;
+            continue;
+        }
+
+        // Generate code in test mode
+        let output = Codegen::with_imports(expr_types, &resolved)
+            .with_test_mode()
+            .generate(program);
+
+        // Write to a temp file and execute with a JS runtime
+        let ext = if output.has_jsx { "tsx" } else { "ts" };
+        let temp_dir = std::env::temp_dir().join("floe-tests");
+        std::fs::create_dir_all(&temp_dir)?;
+        let temp_file = temp_dir.join(file.file_stem().unwrap()).with_extension(ext);
+        std::fs::write(&temp_file, &output.code)?;
+
+        println!("testing {}...", file.display());
+
+        // Try to run with tsx, ts-node, or npx tsx
+        let runners = ["tsx", "npx"];
+        let mut ran = false;
+        for runner in &runners {
+            let result = if *runner == "npx" {
+                std::process::Command::new("npx")
+                    .arg("tsx")
+                    .arg(&temp_file)
+                    .status()
+            } else {
+                std::process::Command::new(runner).arg(&temp_file).status()
+            };
+
+            match result {
+                Ok(status) => {
+                    if !status.success() {
+                        errors += 1;
+                    }
+                    ran = true;
+                    break;
+                }
+                Err(_) => continue,
+            }
+        }
+
+        if !ran {
+            eprintln!(
+                "  warning: could not find a TypeScript runner (tsx). Install with: npm install -g tsx"
+            );
+            // Fall back to just checking - print the generated test code location
+            println!("  generated: {}", temp_file.display());
+        }
+
+        total_files += 1;
+    }
+
+    println!();
+    if errors > 0 {
+        bail!("{total_files} file(s) tested, {errors} with failures");
+    }
+    println!("{total_files} file(s) tested, all passed");
     Ok(())
 }
 

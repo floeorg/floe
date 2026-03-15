@@ -703,3 +703,57 @@ fn stdlib_pipe_tap_with_lambda() {
     assert!(result.contains("const _v"), "output: {result}");
     assert!(result.contains("return _v"), "output: {result}");
 }
+
+// ── Test Blocks ─────────────────────────────────────────────
+
+fn emit_test_mode(input: &str) -> String {
+    let program = Parser::new(input).parse_program().unwrap_or_else(|errs| {
+        panic!(
+            "parse failed:\n{}",
+            errs.iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let output = Codegen::new().with_test_mode().generate(&program);
+    output.code.trim().to_string()
+}
+
+#[test]
+fn test_block_stripped_in_production() {
+    let result = emit(
+        r#"
+fn add(a: number, b: number) -> number { a + b }
+
+test "addition" {
+    assert add(1, 2) == 3
+}
+"#,
+    );
+    // In production mode (default), test blocks should not appear
+    assert!(
+        !result.contains("test"),
+        "test block should be stripped in production mode"
+    );
+    assert!(result.contains("function add"));
+}
+
+#[test]
+fn test_block_emitted_in_test_mode() {
+    let result = emit_test_mode(
+        r#"
+test "math" {
+    assert 1 == 1
+}
+"#,
+    );
+    // In test mode, test blocks should be emitted
+    assert!(
+        result.contains("__testName"),
+        "test block should emit test runner code"
+    );
+    assert!(result.contains("math"), "test name should appear in output");
+    assert!(result.contains("PASS"), "should have pass reporting");
+    assert!(result.contains("FAIL"), "should have fail reporting");
+}

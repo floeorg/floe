@@ -1688,6 +1688,43 @@ for User: NonExistent {
     assert!(has_error_containing(&diags, "unknown trait"));
 }
 
+// ── Test Blocks ──────────────────────────────────────────────
+
+#[test]
+fn test_block_type_checks_body() {
+    let diags = check(
+        r#"
+fn add(a: number, b: number) -> number { a + b }
+
+test "addition" {
+    assert add(1, 2) == 3
+}
+"#,
+    );
+    // Should produce no errors
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(errors.is_empty(), "expected no errors, got: {errors:?}");
+}
+
+#[test]
+fn test_block_assert_requires_boolean() {
+    let diags = check(
+        r#"
+test "bad assert" {
+    assert 42
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "assert expression must be boolean"),
+        "expected boolean error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 #[test]
 fn trait_default_method_not_required() {
     let diags = check(

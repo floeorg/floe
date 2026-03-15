@@ -111,6 +111,13 @@ impl<'src> Lowerer<'src> {
                         span,
                     });
                 }
+                SyntaxKind::TEST_BLOCK => {
+                    let block = self.lower_test_block(&child)?;
+                    return Some(Item {
+                        kind: ItemKind::TestBlock(block),
+                        span,
+                    });
+                }
                 _ => {}
             }
         }
@@ -482,6 +489,41 @@ impl<'src> Lowerer<'src> {
 
         // Regular parameter
         self.lower_param(node)
+    }
+
+    fn lower_test_block(&mut self, node: &SyntaxNode) -> Option<TestBlock> {
+        let span = self.node_span(node);
+
+        // Find the string token for the test name
+        let mut name = String::new();
+        for token in node.children_with_tokens() {
+            if let Some(token) = token.as_token()
+                && token.kind() == SyntaxKind::STRING
+            {
+                name = self.unquote_string(token.text());
+                break;
+            }
+        }
+
+        // Lower body: assert expressions and regular expressions
+        let mut body = Vec::new();
+        for child in node.children() {
+            match child.kind() {
+                SyntaxKind::ASSERT_EXPR => {
+                    let assert_span = self.node_span(&child);
+                    if let Some(expr) = self.lower_first_expr(&child) {
+                        body.push(TestStatement::Assert(expr, assert_span));
+                    }
+                }
+                _ => {
+                    if let Some(expr) = self.lower_expr_node(&child) {
+                        body.push(TestStatement::Expr(expr));
+                    }
+                }
+            }
+        }
+
+        Some(TestBlock { name, body, span })
     }
 
     fn lower_type_def_record(&mut self, node: &SyntaxNode) -> TypeDef {

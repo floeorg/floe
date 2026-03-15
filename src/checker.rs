@@ -467,6 +467,7 @@ impl Checker {
             ItemKind::TypeDecl(decl) => self.validate_type_decl_annotations(decl),
             ItemKind::ForBlock(block) => self.check_for_block(block, item.span),
             ItemKind::TraitDecl(decl) => self.check_trait_decl(decl),
+            ItemKind::TestBlock(block) => self.check_test_block(block),
             ItemKind::Expr(expr) => {
                 let ty = self.check_expr(expr);
                 // Rule 5: No floating Results/Options
@@ -950,6 +951,38 @@ impl Checker {
             self.env.pop_scope();
             self.current_return_type = prev_return_type;
         }
+    }
+
+    fn check_test_block(&mut self, block: &TestBlock) {
+        // Type-check test block body in its own scope
+        self.env.push_scope();
+
+        for stmt in &block.body {
+            match stmt {
+                TestStatement::Assert(expr, span) => {
+                    let ty = self.check_expr(expr);
+                    // Ensure assert expression evaluates to boolean
+                    if !matches!(ty, Type::Bool | Type::Unknown | Type::Var(_)) {
+                        self.diagnostics.push(
+                            Diagnostic::error(
+                                format!(
+                                    "assert expression must be boolean, found `{}`",
+                                    ty.display_name()
+                                ),
+                                *span,
+                            )
+                            .with_label("expected boolean expression")
+                            .with_code("E017"),
+                        );
+                    }
+                }
+                TestStatement::Expr(expr) => {
+                    self.check_expr(expr);
+                }
+            }
+        }
+
+        self.env.pop_scope();
     }
 
     /// Checks if a function body contains a return expression.

@@ -959,6 +959,27 @@ fn for_block_error_non_fn() {
     assert!(result.is_err());
 }
 
+// ── Test Blocks ─────────────────────────────────────────────
+
+#[test]
+fn test_block_basic() {
+    let program = parse_ok(
+        r#"
+test "addition" {
+    assert 1 == 1
+}
+"#,
+    );
+    match &program.items[0].kind {
+        ItemKind::TestBlock(block) => {
+            assert_eq!(block.name, "addition");
+            assert_eq!(block.body.len(), 1);
+            assert!(matches!(block.body[0], TestStatement::Assert(_, _)));
+        }
+        other => panic!("expected TestBlock, got {other:?}"),
+    }
+}
+
 // ── Tuple Expressions ──────────────────────────────────────
 
 #[test]
@@ -974,6 +995,26 @@ fn tuple_two_elements() {
 }
 
 #[test]
+fn test_block_multiple_asserts() {
+    let program = parse_ok(
+        r#"
+test "math" {
+    assert 1 + 1 == 2
+    assert 3 > 2
+    assert true
+}
+"#,
+    );
+    match &program.items[0].kind {
+        ItemKind::TestBlock(block) => {
+            assert_eq!(block.name, "math");
+            assert_eq!(block.body.len(), 3);
+        }
+        other => panic!("expected TestBlock, got {other:?}"),
+    }
+}
+
+#[test]
 fn tuple_three_elements() {
     match first_expr(r#"("a", 1, true)"#) {
         ExprKind::Tuple(elements) => {
@@ -981,6 +1022,39 @@ fn tuple_three_elements() {
         }
         other => panic!("expected tuple, got {other:?}"),
     }
+}
+
+#[test]
+fn test_as_identifier() {
+    // `test` should still work as a regular identifier (function name, variable, etc.)
+    let program = parse_ok(
+        r#"
+fn test() -> number { 1 }
+"#,
+    );
+    match &program.items[0].kind {
+        ItemKind::Function(decl) => {
+            assert_eq!(decl.name, "test");
+        }
+        other => panic!("expected Function, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_block_with_function_calls() {
+    let program = parse_ok(
+        r#"
+fn add(a: number, b: number) -> number { a + b }
+
+test "add function" {
+    assert add(1, 2) == 3
+    assert add(0, 0) == 0
+}
+"#,
+    );
+    assert_eq!(program.items.len(), 2);
+    assert!(matches!(program.items[0].kind, ItemKind::Function(_)));
+    assert!(matches!(program.items[1].kind, ItemKind::TestBlock(_)));
 }
 
 #[test]

@@ -87,6 +87,7 @@ impl<'src> Formatter<'src> {
             SyntaxKind::TYPE_DEF_RECORD => self.fmt_record_def(node),
             SyntaxKind::TYPE_DEF_ALIAS => self.fmt_type_alias_def(node),
             SyntaxKind::TYPE_EXPR => self.fmt_type_expr(node),
+            SyntaxKind::TEST_BLOCK | SyntaxKind::ASSERT_EXPR => self.fmt_verbatim(node),
             _ => self.fmt_verbatim(node),
         }
     }

@@ -37,6 +37,8 @@ pub struct Codegen {
     resolved_imports: HashMap<String, ResolvedImports>,
     /// Maps original import name -> aliased name for names that conflict with locals.
     import_aliases: HashMap<String, String>,
+    /// Whether to emit test blocks (true for `floe test`, false for `floe build`).
+    test_mode: bool,
 }
 
 impl Codegen {
@@ -53,7 +55,14 @@ impl Codegen {
             expr_types: HashMap::new(),
             resolved_imports: HashMap::new(),
             import_aliases: HashMap::new(),
+            test_mode: false,
         }
+    }
+
+    /// Enable test mode: test blocks will be emitted instead of stripped.
+    pub fn with_test_mode(mut self) -> Self {
+        self.test_mode = true;
+        self
     }
 
     /// Create a codegen with expression type information from the checker.
@@ -180,6 +189,7 @@ impl Codegen {
             ItemKind::TraitDecl(_) => {
                 // Traits are erased at compile time — emit nothing
             }
+            ItemKind::TestBlock(block) => self.emit_test_block(block),
             ItemKind::Expr(expr) => {
                 self.emit_indent();
                 self.emit_expr(expr);
@@ -418,6 +428,73 @@ impl Codegen {
         }
     }
 
+    // ── Test Blocks ──────────────────────────────────────────────
+
+    fn emit_test_block(&mut self, block: &TestBlock) {
+        // In production mode, skip test blocks entirely
+        if !self.test_mode {
+            return;
+        }
+
+        // Emit as a self-executing test function
+        self.emit_indent();
+        self.push(&format!("// test: {}", escape_string(&block.name)));
+        self.newline();
+        self.emit_indent();
+        self.push("(function() {");
+        self.newline();
+        self.indent += 1;
+
+        self.emit_indent();
+        self.push(&format!(
+            "const __testName = \"{}\";",
+            escape_string(&block.name)
+        ));
+        self.newline();
+
+        self.emit_indent();
+        self.push("let __passed = 0;");
+        self.newline();
+        self.emit_indent();
+        self.push("let __failed = 0;");
+        self.newline();
+
+        for stmt in &block.body {
+            match stmt {
+                TestStatement::Assert(expr, _) => {
+                    self.emit_indent();
+                    self.push("try { if (!(");
+                    self.emit_expr(expr);
+                    self.push(")) { __failed++; console.error(`  FAIL: ");
+                    // Emit the assertion source as a string
+                    let expr_str = self.expr_to_string(expr);
+                    self.push(&escape_string(&expr_str));
+                    self.push("`); } else { __passed++; } } catch (e) { __failed++; console.error(`  FAIL: ");
+                    self.push(&escape_string(&expr_str));
+                    self.push("`, e); }");
+                    self.newline();
+                }
+                TestStatement::Expr(expr) => {
+                    self.emit_indent();
+                    self.emit_expr(expr);
+                    self.push(";");
+                    self.newline();
+                }
+            }
+        }
+
+        self.emit_indent();
+        self.push("if (__failed > 0) { console.error(`FAIL ${__testName}: ${__passed} passed, ${__failed} failed`); process.exitCode = 1; }");
+        self.newline();
+        self.emit_indent();
+        self.push("else { console.log(`PASS ${__testName}: ${__passed} passed`); }");
+        self.newline();
+
+        self.indent -= 1;
+        self.emit_indent();
+        self.push("})();");
+    }
+
     // ── Type Declarations ────────────────────────────────────────
 
     fn emit_type_decl(&mut self, decl: &TypeDecl) {
@@ -614,6 +691,7 @@ impl Codegen {
             expr_types: self.expr_types.clone(),
             resolved_imports: self.resolved_imports.clone(),
             import_aliases: self.import_aliases.clone(),
+            test_mode: self.test_mode,
         }
     }
 }

@@ -254,6 +254,9 @@ impl Parser {
             // Template literals in JSX text — skip
             TokenKind::TemplateLiteral(_) => None,
 
+            // Assert keyword as text
+            TokenKind::Assert => Some("assert".into()),
+
             // Trivia tokens — skip (shouldn't appear in normal token stream)
             TokenKind::Whitespace | TokenKind::Comment | TokenKind::BlockComment => None,
         }

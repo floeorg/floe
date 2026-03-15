@@ -148,6 +148,15 @@
     ],
     "description": "Tap for pipeline debugging"
   },
+  "Test Block": {
+    "prefix": "test",
+    "body": [
+      "test \"${1:name}\" {",
+      "\tassert ${0:expression}",
+      "}"
+    ],
+    "description": "Inline test block"
+  },
   "Todo Placeholder": {
     "prefix": "todo",
     "body": [

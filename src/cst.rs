@@ -119,6 +119,12 @@ impl<'src> CstParser<'src> {
                 self.parse_trait_decl();
                 self.builder.finish_node();
             }
+            _ if !exported && self.at_identifier("test") && self.peek_is_string() => {
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
+                self.parse_test_block();
+                self.builder.finish_node();
+            }
             _ if exported => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ERROR.into());
@@ -548,6 +554,47 @@ impl<'src> CstParser<'src> {
                 self.parse_expr();
             }
         }
+
+        self.builder.finish_node();
+    }
+
+    // ── Test Blocks ──────────────────────────────────────────────
+
+    fn parse_test_block(&mut self) {
+        self.builder.start_node(SyntaxKind::TEST_BLOCK.into());
+
+        // `test` is a contextual keyword (an identifier)
+        self.bump(); // consume "test" identifier
+        self.eat_trivia();
+
+        // Test name (string literal)
+        self.expect_kind(TokenKind::String("".into()));
+        self.eat_trivia();
+
+        self.expect(TokenKind::LeftBrace);
+        self.eat_trivia();
+
+        // Parse test body: assert statements and expressions
+        while !self.at(TokenKind::RightBrace) && !self.at_end() {
+            if self.at(TokenKind::Assert) {
+                self.parse_assert_stmt();
+            } else {
+                self.parse_expr();
+            }
+            self.eat_trivia();
+        }
+
+        self.expect(TokenKind::RightBrace);
+
+        self.builder.finish_node();
+    }
+
+    fn parse_assert_stmt(&mut self) {
+        self.builder.start_node(SyntaxKind::ASSERT_EXPR.into());
+
+        self.expect(TokenKind::Assert);
+        self.eat_trivia();
+        self.parse_expr();
 
         self.builder.finish_node();
     }
@@ -1407,6 +1454,23 @@ impl<'src> CstParser<'src> {
 
     fn at_identifier(&self, name: &str) -> bool {
         matches!(self.current_kind(), Some(TokenKind::Identifier(n)) if n == name)
+    }
+
+    fn peek_is_string(&self) -> bool {
+        // Look ahead past trivia to find the next non-trivia token
+        let mut i = self.pos + 1;
+        while i < self.tokens.len() {
+            let kind = &self.tokens[i].kind;
+            if matches!(
+                kind,
+                TokenKind::Whitespace | TokenKind::Comment | TokenKind::BlockComment
+            ) {
+                i += 1;
+                continue;
+            }
+            return matches!(kind, TokenKind::String(_));
+        }
+        false
     }
 
     fn at_pipe_in_union(&self) -> bool {

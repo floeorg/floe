@@ -257,6 +257,9 @@ impl SymbolIndex {
                 ItemKind::TraitDecl(_) => {
                     // Traits are compile-time only, no symbols to collect
                 }
+                ItemKind::TestBlock(_) => {
+                    // Test blocks don't contribute symbols
+                }
                 ItemKind::Expr(expr) => {
                     Self::collect_expr(expr, symbols);
                 }

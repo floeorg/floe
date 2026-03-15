@@ -14,6 +14,8 @@
 "for" @keyword
 "trait" @keyword
 "opaque" @keyword
+"test" @keyword
+"assert" @keyword
 "when" @keyword
 
 ; ── Self ────────────────────────────────────────────────

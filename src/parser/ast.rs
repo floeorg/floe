@@ -28,6 +28,8 @@ pub enum ItemKind {
     ForBlock(ForBlock),
     /// `trait Name { fn ... }` — trait declaration
     TraitDecl(TraitDecl),
+    /// `test "name" { assert expr ... }` — inline test block
+    TestBlock(TestBlock),
     /// Expression statement (for REPL / scripts)
     Expr(Expr),
 }
@@ -171,6 +173,25 @@ pub struct ForBlock {
     pub trait_name: Option<String>,
     pub functions: Vec<FunctionDecl>,
     pub span: Span,
+}
+
+// ── Test Blocks ─────────────────────────────────────────────────
+
+/// `test "name" { assert expr ... }` — inline test block.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TestBlock {
+    pub name: String,
+    pub body: Vec<TestStatement>,
+    pub span: Span,
+}
+
+/// A statement inside a test block.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TestStatement {
+    /// `assert expr` — asserts that the expression is truthy
+    Assert(Expr, Span),
+    /// A regular expression statement (e.g., const bindings, function calls)
+    Expr(Expr),
 }
 
 // ── Type Expressions ─────────────────────────────────────────────

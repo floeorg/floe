@@ -51,6 +51,8 @@ pub enum TokenKind {
     Try,
     /// `trait` — trait declaration keyword
     Trait,
+    /// `assert` — assertion (only valid inside test blocks)
+    Assert,
     /// `when` — match arm guard
     When,
 
@@ -249,6 +251,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "self" => Some(TokenKind::SelfKw),
         "try" => Some(TokenKind::Try),
         "trait" => Some(TokenKind::Trait),
+        "assert" => Some(TokenKind::Assert),
         "when" => Some(TokenKind::When),
         "true" => Some(TokenKind::Bool(true)),
         "false" => Some(TokenKind::Bool(false)),
