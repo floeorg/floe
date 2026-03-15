@@ -1912,3 +1912,50 @@ for User: Display {
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Browser globals ────────────────────────────────────────
+
+#[test]
+fn fetch_is_recognized_as_global() {
+    let diags = check("const result = fetch(\"https://example.com\")");
+    assert!(
+        !has_error_containing(&diags, "is not defined"),
+        "fetch should be a recognized browser global, but got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn browser_globals_are_recognized() {
+    let globals = vec![
+        "const w = window",
+        "const d = document",
+        "const j = JSON.parse(\"{}\")",
+    ];
+    for src in globals {
+        let diags = check(src);
+        assert!(
+            !has_error_containing(&diags, "is not defined"),
+            "{src} should not produce 'not defined' error, but got: {:?}",
+            diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
+fn timer_globals_are_recognized() {
+    let globals = vec![
+        "const a = setTimeout",
+        "const b = setInterval",
+        "const c = clearTimeout",
+        "const d = clearInterval",
+    ];
+    for src in globals {
+        let diags = check(src);
+        assert!(
+            !has_error_containing(&diags, "is not defined"),
+            "{src} should not produce 'not defined' error, but got: {:?}",
+            diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+}

@@ -80,8 +80,70 @@ impl Default for Checker {
 
 impl Checker {
     pub fn new() -> Self {
+        let mut env = TypeEnv::new();
+
+        // Register browser/runtime globals so the checker doesn't report them
+        // as undefined. Typed as Unknown for now; precise types can come later.
+        let browser_globals: &[(&str, Type)] = &[
+            (
+                "fetch",
+                Type::Function {
+                    params: vec![Type::String],
+                    return_type: Box::new(Type::Unknown),
+                },
+            ),
+            ("window", Type::Unknown),
+            ("document", Type::Unknown),
+            (
+                "setTimeout",
+                Type::Function {
+                    params: vec![
+                        Type::Function {
+                            params: vec![],
+                            return_type: Box::new(Type::Unit),
+                        },
+                        Type::Number,
+                    ],
+                    return_type: Box::new(Type::Number),
+                },
+            ),
+            (
+                "setInterval",
+                Type::Function {
+                    params: vec![
+                        Type::Function {
+                            params: vec![],
+                            return_type: Box::new(Type::Unit),
+                        },
+                        Type::Number,
+                    ],
+                    return_type: Box::new(Type::Number),
+                },
+            ),
+            (
+                "clearTimeout",
+                Type::Function {
+                    params: vec![Type::Number],
+                    return_type: Box::new(Type::Unit),
+                },
+            ),
+            (
+                "clearInterval",
+                Type::Function {
+                    params: vec![Type::Number],
+                    return_type: Box::new(Type::Unit),
+                },
+            ),
+            ("Promise", Type::Unknown),
+            ("JSON", Type::Unknown),
+        ];
+
+        for (name, ty) in browser_globals {
+            env.define(name, ty.clone());
+        }
+
         Self {
-            env: TypeEnv::new(),
+            env,
             diagnostics: Vec::new(),
             next_var: 0,
             current_return_type: None,
