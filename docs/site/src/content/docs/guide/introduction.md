@@ -6,9 +6,9 @@ Floe is a programming language that compiles to TypeScript. It's designed for Ty
 
 ## Why Floe?
 
-TypeScript is great, but it has escape hatches everywhere: `any`, `null`, `undefined`, type assertions. These lead to runtime errors that the type system was supposed to prevent.
+TypeScript allows `any`, `null`, `undefined`, and type assertions. These lead to runtime errors that the type system was supposed to prevent.
 
-Floe removes the escape hatches and adds features that make correct code easy to write:
+Floe removes these and adds features that make correct code easy to write:
 
 - **Pipes** (`|>`) for readable data transformations
 - **Pattern matching** (`match`) with exhaustiveness checking

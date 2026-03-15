@@ -15,10 +15,10 @@ How Floe compares to other languages in its space.
 | **Pattern matching** | No | Yes, exhaustive |
 | **Pipes** | No (TC39 Stage 2) | `\|>` built in |
 | **Classes** | Yes | No |
-| **Escape hatches** | `any`, `as`, `!` | None |
+| **Type overrides** | `any`, `as`, `!` | None |
 | **Runtime** | None | None |
 
-Floe is TypeScript with the escape hatches removed and functional features added.
+Floe is TypeScript with stricter type safety and functional features added.
 
 ## vs Gleam
 
@@ -33,7 +33,7 @@ Floe is TypeScript with the escape hatches removed and functional features added
 | **Pattern matching** | Yes | Yes |
 | **Adoption** | New ecosystem | Existing TS ecosystem |
 
-Floe borrows Gleam's ideas (pipes, Result, no escape hatches) but targets the TypeScript/React ecosystem.
+Floe borrows Gleam's ideas (pipes, Result, strict type safety) but targets the TypeScript/React ecosystem.
 
 ## vs Elm
 

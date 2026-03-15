@@ -19,7 +19,7 @@ export fn Counter() -> JSX.Element {
 }
 ```
 
-Components are just exported `fn` declarations that return `JSX.Element`.
+Components are exported `fn` declarations that return `JSX.Element`.
 
 ## Props
 

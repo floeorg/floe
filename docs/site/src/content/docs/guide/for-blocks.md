@@ -103,7 +103,7 @@ const remaining = todos |> remaining
 
 ## Export
 
-For-block functions can be exported just like regular functions:
+For-block functions can be exported like regular functions:
 
 ```floe
 for User {
