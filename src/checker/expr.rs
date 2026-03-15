@@ -762,16 +762,26 @@ impl Checker {
 
             ExprKind::Ok(inner) => {
                 let inner_ty = self.check_expr(inner);
+                // Infer error type from enclosing function's return type if available
+                let err_ty = match &self.current_return_type {
+                    Some(Type::Result { err, .. }) => (**err).clone(),
+                    _ => Type::Unknown,
+                };
                 Type::Result {
                     ok: Box::new(inner_ty),
-                    err: Box::new(Type::Unknown),
+                    err: Box::new(err_ty),
                 }
             }
 
             ExprKind::Err(inner) => {
                 let err_ty = self.check_expr(inner);
+                // Infer ok type from enclosing function's return type if available
+                let ok_ty = match &self.current_return_type {
+                    Some(Type::Result { ok, .. }) => (**ok).clone(),
+                    _ => Type::Unknown,
+                };
                 Type::Result {
-                    ok: Box::new(Type::Unknown),
+                    ok: Box::new(ok_ty),
                     err: Box::new(err_ty),
                 }
             }

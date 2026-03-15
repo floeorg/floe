@@ -1444,6 +1444,15 @@ impl Checker {
                         .all(|(x, y)| self.types_compatible(x, y))
                     && self.types_compatible(r1, r2)
             }
+            // Structural record compatibility: { a: T, b: U } matches { a: T, b: U }
+            (Type::Record(fields_a), Type::Record(fields_b)) => {
+                fields_a.len() == fields_b.len()
+                    && fields_a.iter().all(|(name_a, ty_a)| {
+                        fields_b.iter().any(|(name_b, ty_b)| {
+                            name_a == name_b && self.types_compatible(ty_a, ty_b)
+                        })
+                    })
+            }
             _ => false,
         }
     }
