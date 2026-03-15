@@ -13,6 +13,7 @@ const PostSchema = z.object({
 const PostArraySchema = z.array(PostSchema)
 
 const UserSchema = z.object({
+    pee: "23",
     id: z.number(),
     name: z.string(),
     email: z.string(),

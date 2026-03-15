@@ -224,6 +224,23 @@ fn generate_probe(
 
     // Scan const declarations for calls to imported functions
     for decl in &all_consts {
+        // Handle Construct nodes (uppercase calls like QueryClient({...}))
+        if let ExprKind::Construct {
+            type_name, args, ..
+        } = &decl.value.kind
+            && imported_names.contains_key(type_name)
+        {
+            let ts_args: Vec<String> = args.iter().map(arg_to_ts_approx).collect();
+            lines.push(format!(
+                "export const _r{} = new {}({});",
+                probe_index,
+                type_name,
+                ts_args.join(", "),
+            ));
+            probe_index += 1;
+            continue;
+        }
+
         if let ExprKind::Call {
             callee,
             type_args,
@@ -284,6 +301,22 @@ fn generate_probe(
             lines.push(format!(
                 "export const [{}] = {tmp};",
                 destructured.join(", "),
+            ));
+        } else if let ConstBinding::Object(names) = &call.binding {
+            // For object destructuring: const { data } = useSuspenseQuery(...)
+            let tmp = format!("_tmp{}", call.index);
+            lines.push(format!(
+                "const {tmp} = {}{type_args_str}({args_str});",
+                call.callee,
+            ));
+            lines.push(format!(
+                "export const {{ {} }} = {tmp};",
+                names
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| format!("{n}: _r{}_{i}", call.index))
+                    .collect::<Vec<_>>()
+                    .join(", "),
             ));
         } else {
             lines.push(format!(
@@ -477,6 +510,13 @@ fn expr_to_ts_approx(expr: &Expr) -> String {
                 .collect();
             format!("({}) => {}", ps.join(", "), expr_to_ts_approx(body))
         }
+        ExprKind::Object(fields) => {
+            let fs: Vec<String> = fields
+                .iter()
+                .map(|(key, value)| format!("{key}: {}", expr_to_ts_approx(value)))
+                .collect();
+            format!("{{ {} }}", fs.join(", "))
+        }
         ExprKind::Grouped(inner) => format!("({})", expr_to_ts_approx(inner)),
         ExprKind::Unit => "undefined".to_string(),
         ExprKind::None => "null".to_string(),
@@ -596,8 +636,28 @@ fn build_specifier_map(
     // Use the same recursive const collection as generate_probe
     let all_consts = collect_all_consts(program);
 
-    // Map call probe results
+    // Map call probe results (including Construct nodes)
     for decl in &all_consts {
+        // Handle Construct nodes (uppercase calls like QueryClient({...}))
+        if let ExprKind::Construct { type_name, .. } = &decl.value.kind
+            && imported_names.contains_key(type_name)
+        {
+            let specifier = &imported_names[type_name];
+            let binding_name = const_binding_name(&decl.binding);
+            let probe_name = format!("_r{probe_index}");
+            if let Some(export) = probe_exports.iter().find(|e| e.name == probe_name) {
+                result
+                    .entry(specifier.clone())
+                    .or_default()
+                    .push(DtsExport {
+                        name: format!("__probe_{}", binding_name),
+                        ts_type: export.ts_type.clone(),
+                    });
+            }
+            probe_index += 1;
+            continue;
+        }
+
         if let ExprKind::Call { callee, .. } = &decl.value.kind {
             let callee_name = expr_to_callee_name(callee);
             if let Some(name) = &callee_name
@@ -627,6 +687,32 @@ fn build_specifier_map(
                             name: format!("__probe_{}", binding_name),
                             ts_type: TsType::Tuple(elem_types),
                         });
+                } else if let ConstBinding::Object(names) = &decl.binding {
+                    // For object destructuring: const { data } = f(...)
+                    let elem_types: Vec<TsType> = names
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| {
+                            let elem_name = format!("_r{}_{i}", probe_index);
+                            probe_exports
+                                .iter()
+                                .find(|e| e.name == elem_name)
+                                .map(|e| e.ts_type.clone())
+                                .unwrap_or(TsType::Unknown)
+                        })
+                        .collect();
+                    // Create individual probes for each destructured field
+                    for (i, name) in names.iter().enumerate() {
+                        if i < elem_types.len() {
+                            result
+                                .entry(specifier.clone())
+                                .or_default()
+                                .push(DtsExport {
+                                    name: format!("__probe_{name}"),
+                                    ts_type: elem_types[i].clone(),
+                                });
+                        }
+                    }
                 } else {
                     let probe_name = format!("_r{probe_index}");
                     if let Some(export) = probe_exports.iter().find(|e| e.name == probe_name) {
