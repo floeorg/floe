@@ -856,3 +856,23 @@ fn import_path_at_offset_bare_import() {
     let result = import_path_at_offset(source, quote_pos + 2);
     assert_eq!(result, Some("../todo".to_string()));
 }
+
+#[test]
+fn hover_inner_function_shows_unit_return() {
+    let source = r#"
+export fn outer() -> () {
+    fn handleAdd() {
+        Console.log("hi")
+    }
+    handleAdd()
+}
+"#;
+    let hover = simulate_hover(source, "handleAdd");
+    assert!(hover.is_some(), "handleAdd should be found");
+    let detail = hover.unwrap();
+    eprintln!("HOVER handleAdd: {detail}");
+    assert!(
+        detail.contains("-> ()"),
+        "handleAdd hover should show -> (), got: {detail}"
+    );
+}

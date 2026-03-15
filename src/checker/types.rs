@@ -54,6 +54,8 @@ pub enum Type {
     Unknown,
     /// Unit type () — replaces void, a real value usable in generics
     Unit,
+    /// The never type — used for `todo` and `unreachable`, compatible with any type
+    Never,
 }
 
 impl Type {
@@ -105,6 +107,7 @@ impl Type {
             Type::Var(id) => format!("?T{id}"),
             Type::Unknown => "unknown".to_string(),
             Type::Unit => "()".to_string(),
+            Type::Never => "never".to_string(),
         }
     }
 }
@@ -148,6 +151,15 @@ impl TypeEnv {
     pub(crate) fn define(&mut self, name: &str, ty: Type) {
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert(name.to_string(), ty);
+        }
+    }
+
+    /// Define a name in the parent scope (second-to-last), used to update
+    /// function types after inferring the return type from the body.
+    pub(crate) fn define_in_parent_scope(&mut self, name: &str, ty: Type) {
+        let len = self.scopes.len();
+        if len >= 2 {
+            self.scopes[len - 2].insert(name.to_string(), ty);
         }
     }
 

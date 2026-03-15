@@ -1,0 +1,15 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+function processPayment(amount: number): number {
+  return (() => { throw new Error("not implemented"); })();
+}
+
+function describe(n: number): string {
+  return n === 1 ? "one" : n === 2 ? "two" : (() => { throw new Error("unreachable"); })();
+}
+
+const placeholder = (() => { throw new Error("not implemented"); })();
+
+const guard = (() => { throw new Error("unreachable"); })();

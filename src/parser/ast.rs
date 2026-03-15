@@ -257,6 +257,10 @@ pub enum ExprKind {
     Some(Box<Expr>),
     /// `None`
     None,
+    /// `todo` — placeholder that panics at runtime, type `never`
+    Todo,
+    /// `unreachable` — asserts unreachable code path, type `never`
+    Unreachable,
     /// Unit value: `()`
     Unit,
 

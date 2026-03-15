@@ -783,6 +783,19 @@ impl Checker {
         // Check body
         let body_type = self.check_expr(&decl.body);
 
+        // When no return type annotation, infer from body and update the function type
+        if decl.return_type.is_none() && !matches!(body_type, Type::Var(_) | Type::Unknown) {
+            let fn_type = Type::Function {
+                params: param_types.clone(),
+                return_type: Box::new(body_type.clone()),
+            };
+            // Update in the name_types map for hover display
+            self.name_types
+                .insert(decl.name.clone(), fn_type.display_name());
+            // Mark for updating in outer scope after pop
+            self.env.define_in_parent_scope(&decl.name, fn_type);
+        }
+
         // Check return type compatibility
         if let Some(ref declared_return) = decl.return_type {
             let resolved = self.resolve_type(declared_return);
@@ -908,6 +921,8 @@ impl Checker {
     fn body_has_return(&self, body: &Expr) -> bool {
         match &body.kind {
             ExprKind::Return(Some(_)) => true,
+            // `todo` and `unreachable` are never-returning, so they satisfy return requirements
+            ExprKind::Todo | ExprKind::Unreachable => true,
             ExprKind::Block(items) => items.iter().any(|item| {
                 if let ItemKind::Expr(e) = &item.kind {
                     self.body_has_return(e)
@@ -978,6 +993,11 @@ impl Checker {
         if matches!(expected, Type::Unknown | Type::Var(_))
             || matches!(actual, Type::Unknown | Type::Var(_))
         {
+            return true;
+        }
+
+        // `never` is compatible with any type (it means "this code never returns")
+        if matches!(actual, Type::Never) || matches!(expected, Type::Never) {
             return true;
         }
 

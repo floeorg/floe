@@ -220,6 +220,16 @@ impl Codegen {
                 self.push("undefined");
             }
 
+            // todo → throw new Error("not implemented")
+            ExprKind::Todo => {
+                self.push("(() => { throw new Error(\"not implemented\"); })()");
+            }
+
+            // unreachable → throw new Error("unreachable")
+            ExprKind::Unreachable => {
+                self.push("(() => { throw new Error(\"unreachable\"); })()");
+            }
+
             ExprKind::Unit => {
                 self.push("undefined");
             }

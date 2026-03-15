@@ -36,6 +36,14 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                     "Promise<{}>",
                     wrap_boundary_type(&args[0]).display_name()
                 )),
+                // React's Dispatch<SetStateAction<T>> is a function: (T) -> ()
+                "Dispatch" if args.len() == 1 => {
+                    let inner = unwrap_set_state_action(&args[0]);
+                    Type::Function {
+                        params: vec![wrap_boundary_type(inner)],
+                        return_type: Box::new(Type::Unit),
+                    }
+                }
                 _ => {
                     // Preserve generic args in the display name
                     let args_str: Vec<String> = args
@@ -102,5 +110,17 @@ fn wrap_union_boundary(parts: &[TsType]) -> Type {
         Type::Option(Box::new(inner_type))
     } else {
         inner_type
+    }
+}
+
+/// Unwrap SetStateAction<T> → T. If not a SetStateAction, return as-is.
+fn unwrap_set_state_action(ty: &TsType) -> &TsType {
+    if let TsType::Generic { name, args } = ty
+        && name == "SetStateAction"
+        && args.len() == 1
+    {
+        &args[0]
+    } else {
+        ty
     }
 }
