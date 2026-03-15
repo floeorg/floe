@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { HomePage } from "./pages/home";
 import { AboutPage } from "./pages/about";
+import { PostsPage } from "./pages/posts";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -25,6 +26,12 @@ const rootRoute = createRootRoute({
             className="text-zinc-400 hover:text-zinc-100 transition-colors [&.active]:text-zinc-100"
           >
             About
+          </Link>
+          <Link
+            to="/posts"
+            className="text-zinc-400 hover:text-zinc-100 transition-colors [&.active]:text-zinc-100"
+          >
+            Posts
           </Link>
         </div>
       </nav>
@@ -47,7 +54,13 @@ const aboutRoute = createRoute({
   component: AboutPage,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, aboutRoute]);
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/posts",
+  component: PostsPage,
+});
+
+const routeTree = rootRoute.addChildren([homeRoute, aboutRoute, postsRoute]);
 
 export const router = createRouter({ routeTree });
 

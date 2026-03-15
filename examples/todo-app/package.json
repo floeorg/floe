@@ -9,9 +9,11 @@
     "check": "floe check src/"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.71.0",
     "@tanstack/react-router": "^1.120.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-error-boundary": "^5.0.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
