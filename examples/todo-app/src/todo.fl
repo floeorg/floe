@@ -30,4 +30,9 @@ for Array<Todo> {
             |> tap(|active| Console.log("active todos:", active))
             |> length
     }
+
+    // Placeholder for future search functionality
+    export fn search(self, _query: string) -> Array<Todo> {
+        todo
+    }
 }

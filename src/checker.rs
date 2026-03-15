@@ -904,6 +904,8 @@ impl Checker {
     fn body_has_return(&self, body: &Expr) -> bool {
         match &body.kind {
             ExprKind::Return(Some(_)) => true,
+            // `todo` and `unreachable` are never-returning, so they satisfy return requirements
+            ExprKind::Todo | ExprKind::Unreachable => true,
             ExprKind::Block(items) => items.iter().any(|item| {
                 if let ItemKind::Expr(e) = &item.kind {
                     self.body_has_return(e)
@@ -974,6 +976,11 @@ impl Checker {
         if matches!(expected, Type::Unknown | Type::Var(_))
             || matches!(actual, Type::Unknown | Type::Var(_))
         {
+            return true;
+        }
+
+        // `never` is compatible with any type (it means "this code never returns")
+        if matches!(actual, Type::Never) || matches!(expected, Type::Never) {
             return true;
         }
 

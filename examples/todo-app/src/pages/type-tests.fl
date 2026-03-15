@@ -10,10 +10,10 @@ import "../todo"                            // ✓ cmd+click "../todo" → opens
 // ── Member access ────────────────────────────────────────
 // Hover over .text, .done — should show string, boolean
 
-const todo = Todo(id: "1", text: "Buy milk", done: false)
-const _name = todo.text       // ✓ hover: string
-const _done = todo.done       // ✓ hover: boolean
-// const _bad = todo.nonexistent // ✗ uncomment → "type `Todo` has no field `nonexistent`"
+const item = Todo(id: "1", text: "Buy milk", done: false)
+const _name = item.text       // ✓ hover: string
+const _done = item.done       // ✓ hover: boolean
+// const _bad = item.nonexistent // ✗ uncomment → "type `Todo` has no field `nonexistent`"
 
 // ── Constructor validation ───────────────────────────────
 // Wrong field types should error

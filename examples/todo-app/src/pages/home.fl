@@ -97,28 +97,28 @@ export fn HomePage() -> JSX.Element {
         </div>
 
         <ul className="space-y-2">
-            {visible |> map(|todo|
-                <li key={todo.id} className="flex items-center gap-3 rounded-lg bg-zinc-800/50 px-4 py-3">
+            {visible |> map(|item|
+                <li key={item.id} className="flex items-center gap-3 rounded-lg bg-zinc-800/50 px-4 py-3">
                     <button
-                        onClick={|| handleToggle(todo.id)}
-                        className={match todo.done {
+                        onClick={|| handleToggle(item.id)}
+                        className={match item.done {
                             true -> "h-5 w-5 rounded-full border-2 border-indigo-500 bg-indigo-500 flex items-center justify-center",
                             false -> "h-5 w-5 rounded-full border-2 border-zinc-600",
                         }}
                     >
-                        {match todo.done {
+                        {match item.done {
                             true -> <span className="text-white text-xs">✓</span>,
                             false -> <span />,
                         }}
                     </button>
-                    <span className={match todo.done {
+                    <span className={match item.done {
                         true -> "flex-1 text-zinc-500 line-through",
                         false -> "flex-1 text-zinc-100",
                     }}>
-                        {todo.text}
+                        {item.text}
                     </span>
                     <button
-                        onClick={|| handleDelete(todo.id)}
+                        onClick={|| handleDelete(item.id)}
                         className="text-zinc-600 hover:text-red-400 transition-colors"
                     >
                         ✕

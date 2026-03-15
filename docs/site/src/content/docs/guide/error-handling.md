@@ -85,6 +85,45 @@ The boundary wrapping also converts:
 
 This means npm libraries work transparently with Floe's type system.
 
+## `todo` and `unreachable`
+
+Floe provides two built-in expressions for common development patterns:
+
+### `todo` - Not Yet Implemented
+
+Use `todo` as a placeholder in unfinished code. It type-checks as `never`, so it satisfies any return type. The compiler emits a warning to remind you to replace it.
+
+```floe
+fn processPayment(order: Order) -> Result<Receipt, Error> {
+  todo  // warning: placeholder that will panic at runtime
+}
+```
+
+At runtime, `todo` throws `Error("not implemented")`.
+
+### `unreachable` - Should Never Happen
+
+Use `unreachable` to assert that a code path should never execute. Like `todo`, it has type `never`, but unlike `todo`, it does not emit a warning.
+
+```floe
+fn direction(key: string) -> string {
+  match key {
+    "w" -> "up",
+    "s" -> "down",
+    "a" -> "left",
+    "d" -> "right",
+    _ -> unreachable,
+  }
+}
+```
+
+At runtime, `unreachable` throws `Error("unreachable")`.
+
+### When to Use Which
+
+- **`todo`** = "I haven't written this yet" (development aid)
+- **`unreachable`** = "This should never happen" (safety assertion)
+
 ## Comparison with TypeScript
 
 | TypeScript | Floe |
