@@ -651,7 +651,14 @@ impl Checker {
                             .type_ann
                             .as_ref()
                             .map(|t| self.resolve_type(t))
-                            .unwrap_or_else(|| self.fresh_type_var());
+                            .unwrap_or_else(|| {
+                                // In event handler context, infer Event type for the parameter
+                                if self.event_handler_context && p.destructure.is_none() {
+                                    Type::Named("Event".to_string())
+                                } else {
+                                    self.fresh_type_var()
+                                }
+                            });
                         self.env.define(&p.name, ty.clone());
                         // For destructured params, also define the field names
                         if let Some(ref destructure) = p.destructure {
@@ -659,7 +666,12 @@ impl Checker {
                                 ParamDestructure::Object(fields)
                                 | ParamDestructure::Array(fields) => {
                                     for field in fields {
-                                        self.env.define(field, Type::Unknown);
+                                        // Infer type for well-known field names
+                                        let field_ty = match field.as_str() {
+                                            "error" => Type::Named("Error".to_string()),
+                                            _ => Type::Unknown,
+                                        };
+                                        self.env.define(field, field_ty);
                                     }
                                 }
                             }

@@ -43,6 +43,8 @@ pub struct Checker {
     untrusted_imports: HashSet<String>,
     /// Whether we are currently inside a `try` expression.
     inside_try: bool,
+    /// Whether we are checking an event handler prop value (onChange, onClick, etc.)
+    event_handler_context: bool,
     /// Whether we are in the type registration pass (suppress unknown type errors).
     registering_types: bool,
     /// Pre-resolved imports from other .fl files, keyed by import source string.
@@ -119,10 +121,37 @@ impl Checker {
             ("stack".to_string(), Type::Option(Box::new(Type::String))),
         ]);
 
+        let event_record = Type::Record(vec![
+            (
+                "target".to_string(),
+                Type::Record(vec![
+                    ("value".to_string(), Type::String),
+                    ("checked".to_string(), Type::Bool),
+                ]),
+            ),
+            ("key".to_string(), Type::String),
+            ("code".to_string(), Type::String),
+            (
+                "preventDefault".to_string(),
+                Type::Function {
+                    params: vec![],
+                    return_type: Box::new(Type::Unit),
+                },
+            ),
+            (
+                "stopPropagation".to_string(),
+                Type::Function {
+                    params: vec![],
+                    return_type: Box::new(Type::Unit),
+                },
+            ),
+        ]);
+
         // Register as named types that display nicely and resolve to
         // records for member access via resolve_type_to_concrete
         env.define("Response", response_record);
         env.define("Error", error_record);
+        env.define("Event", event_record);
 
         // ── Browser/runtime globals ─────────────────────────────────
 
@@ -200,6 +229,7 @@ impl Checker {
             expr_types: HashMap::new(),
             untrusted_imports: untrusted_globals,
             inside_try: false,
+            event_handler_context: false,
             registering_types: false,
             resolved_imports: HashMap::new(),
             dts_imports: HashMap::new(),
@@ -368,6 +398,50 @@ impl Checker {
     }
 
     /// Emit an error if `name` is already defined in any scope (no shadowing allowed).
+    /// When tsgo loses Option<T> through useState type inference (because TS
+    /// collapses FloeOption<T> to T), reconstruct the correct types from the
+    /// original call's type arguments.
+    fn correct_usestate_option_type(&mut self, tsgo_type: &Type, value: &Expr) -> Option<Type> {
+        // Only applies to Tuple types from array destructuring
+        let Type::Tuple(tsgo_elems) = tsgo_type else {
+            return None;
+        };
+        if tsgo_elems.len() != 2 {
+            return None;
+        }
+
+        // Check if the value is a call with Option<T> type arg
+        let ExprKind::Call { type_args, .. } = &value.kind else {
+            return None;
+        };
+        if type_args.len() != 1 {
+            return None;
+        }
+
+        // Check if the type arg is Option<T>
+        let type_arg = &type_args[0];
+        if let TypeExprKind::Named {
+            name,
+            type_args: inner_args,
+            ..
+        } = &type_arg.kind
+            && name == "Option"
+            && inner_args.len() == 1
+        {
+            let option_type = self.resolve_type(type_arg);
+            // Replace: [T, (T) -> ()] → [Option<T>, (Option<T>) -> ()]
+            return Some(Type::Tuple(vec![
+                option_type.clone(),
+                Type::Function {
+                    params: vec![option_type],
+                    return_type: Box::new(Type::Unit),
+                },
+            ]));
+        }
+
+        None
+    }
+
     fn check_no_redefinition(&mut self, name: &str, span: Span) {
         if self.env.is_defined_in_any_scope(name) {
             let msg = if let Some(source) = self.defined_sources.get(name) {
@@ -795,9 +869,14 @@ impl Checker {
                 self.defined_names.push((name.clone(), span));
             }
             ConstBinding::Array(names) => {
+                // Check if the call has explicit type args (e.g. useState<Option<number>>)
+                // that tsgo may have lost through type alias resolution
+                let corrected_type = self.correct_usestate_option_type(&final_type, &decl.value);
+                let effective_type = corrected_type.as_ref().unwrap_or(&final_type);
+
                 // Infer element types from the value type
                 for (i, name) in names.iter().enumerate() {
-                    let elem_ty = match &final_type {
+                    let elem_ty = match effective_type {
                         // Tuple destructuring: each name gets its positional type
                         Type::Tuple(types) => types.get(i).cloned().unwrap_or(Type::Unknown),
                         // Unknown: no info
@@ -1273,7 +1352,15 @@ impl Checker {
                 }
                 for prop in props {
                     if let Some(ref value) = prop.value {
-                        self.check_expr(value);
+                        // For event handler props, set context so lambda params get event type
+                        if prop.name.starts_with("on") && prop.name.len() > 2 {
+                            let prev = self.event_handler_context;
+                            self.event_handler_context = true;
+                            self.check_expr(value);
+                            self.event_handler_context = prev;
+                        } else {
+                            self.check_expr(value);
+                        }
                     }
                 }
                 self.check_jsx_children(children);
