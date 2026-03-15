@@ -60,7 +60,7 @@ type Transform = (string) -> number
 let count = 0
 count += 1
 
-// Floe — no let, no mutation
+// Floe - no let, no mutation
 const count = 0
 const newCount = count + 1
 ```
@@ -112,7 +112,7 @@ match action.type {
 ### `try` instead of try/catch
 
 ```floe
-// JSON.parse is in the stdlib — it already returns Result, no try needed
+// JSON.parse is in the stdlib - it already returns Result, no try needed
 const result = JSON.parse(input)
 match result {
   Ok(data) -> process(data),
@@ -120,7 +120,7 @@ match result {
 }
 ```
 
-For **external TypeScript imports**, the `try` keyword wraps any expression in a try/catch and returns a `Result<T, Error>`. All TypeScript imports are treated as potentially throwing by default — the compiler requires `try` when calling them. For TS functions you know won't throw, use `trusted`:
+For **external TypeScript imports**, the `try` keyword wraps any expression in a try/catch and returns a `Result<T, Error>`. All TypeScript imports are treated as potentially throwing by default. The compiler requires `try` when calling them. For TS functions you know won't throw, use `trusted`:
 
 ```typescript
 // TypeScript
@@ -131,7 +131,7 @@ try {
   return null
 }
 
-// Floe — wrap throwing TS imports with `try`
+// Floe - wrap throwing TS imports with `try`
 import { parseYaml } from "yaml-lib"
 const result = try parseYaml(input)
 match result {

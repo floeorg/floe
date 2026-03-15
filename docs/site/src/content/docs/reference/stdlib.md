@@ -2,7 +2,7 @@
 title: Standard Library
 ---
 
-Floe ships with built-in functions for common operations. These are known to the compiler and inlined as vanilla TypeScript during codegen — no runtime dependency.
+Floe ships with built-in functions for common operations. These are known to the compiler and inlined as vanilla TypeScript during codegen. No runtime dependency.
 
 All stdlib functions are **pipe-friendly**: the first argument is the data, so they work naturally with `|>`.
 
@@ -18,7 +18,7 @@ All stdlib functions are **pipe-friendly**: the first argument is the data, so t
 
 ## Array
 
-All array functions return new arrays — they never mutate the original.
+All array functions return new arrays. They never mutate the original.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
@@ -43,7 +43,7 @@ All array functions return new arrays — they never mutate the original.
 ### Examples
 
 ```floe
-// Sort returns a new array — original unchanged
+// Sort returns a new array, original unchanged
 const nums = [3, 1, 2]
 const sorted = Array.sort(nums)     // [1, 2, 3]
 // nums is still [3, 1, 2]
@@ -195,7 +195,7 @@ Safe numeric operations. Parsing returns `Result` instead of `NaN`.
 ### Examples
 
 ```floe
-// Safe parsing — no more NaN surprises
+// Safe parsing - no more NaN surprises
 const result = "42" |> Number.parse
 // Ok(42)
 

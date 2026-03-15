@@ -79,7 +79,7 @@ The compiler automatically emits `.tsx` when JSX is detected, and `.ts` otherwis
 
 ## What's Different from React + TypeScript
 
-- No `class` components — only function components
-- No `any` in props — every prop must be typed
+- No `class` components - only function components
+- No `any` in props - every prop must be typed
 - Pipes instead of method chaining for data transformations
 - Pattern matching instead of ternaries for complex conditionals

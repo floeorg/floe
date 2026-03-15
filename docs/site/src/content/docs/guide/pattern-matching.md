@@ -146,7 +146,7 @@ A guarded arm does not count as exhaustive coverage for its pattern. You still n
 ```floe
 match value {
   Ok(x) when x > 0 -> handle(x),
-  // This alone is NOT exhaustive — the guard might fail.
+  // This alone is NOT exhaustive - the guard might fail.
   // Add unguarded arms:
   Ok(x) -> handleNegative(x),
   Err(e) -> handleError(e),
@@ -166,7 +166,7 @@ match enabled {
 ```
 
 This applies to:
-- **Booleans** — must handle `true` and `false`
-- **Result** — must handle `Ok` and `Err`
-- **Option** — must handle `Some` and `None`
-- **Unions** — must handle every variant (or use `_`)
+- **Booleans** - must handle `true` and `false`
+- **Result** - must handle `Ok` and `Err`
+- **Option** - must handle `Some` and `None`
+- **Unions** - must handle every variant (or use `_`)

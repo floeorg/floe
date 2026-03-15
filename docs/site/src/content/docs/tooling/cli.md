@@ -69,8 +69,8 @@ floe init my-app
 ```
 
 Creates:
-- `src/main.fl` — sample Floe file
-- `tsconfig.json` — TypeScript configuration
+- `src/main.fl` - sample Floe file
+- `tsconfig.json` - TypeScript configuration
 
 ### `floe lsp`
 

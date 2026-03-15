@@ -46,7 +46,7 @@ Floe borrows Gleam's ideas (pipes, Result, no escape hatches) but targets the Ty
 | **JSX** | No (virtual DOM DSL) | Yes |
 | **Community** | Small | TS/React ecosystem |
 
-Floe is less opinionated than Elm. It doesn't enforce an architecture — it just makes your code safer.
+Floe is less opinionated than Elm. It doesn't enforce an architecture. It makes your code safer without dictating how you structure it.
 
 ## vs ReScript
 

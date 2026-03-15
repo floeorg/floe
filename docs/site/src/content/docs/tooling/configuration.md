@@ -21,9 +21,9 @@ Floe outputs TypeScript files, so your project needs a `tsconfig.json`. The `flo
 ```
 
 Key settings:
-- `jsx: "react-jsx"` — required for `.tsx` output from Floe JSX
-- `strict: true` — matches Floe's strictness philosophy
-- `moduleResolution: "bundler"` — works with Vite and modern bundlers
+- `jsx: "react-jsx"` - required for `.tsx` output from Floe JSX
+- `strict: true` - matches Floe's strictness philosophy
+- `moduleResolution: "bundler"` - works with Vite and modern bundlers
 
 ## Project Structure
 

@@ -13,9 +13,9 @@ Floe removes the escape hatches and adds features that make correct code easy to
 - **Pipes** (`|>`) for readable data transformations
 - **Pattern matching** (`match`) with exhaustiveness checking
 - **Result/Option** instead of null/undefined/exceptions
-- **No `any`** — use `unknown` and narrow
-- **No `null`/`undefined`** — use `Option<T>` with `Some`/`None`
-- **No classes** — use functions and records
+- **No `any`** - use `unknown` and narrow
+- **No `null`/`undefined`** - use `Option<T>` with `Some`/`None`
+- **No classes** - use functions and records
 
 ## What does it look like?
 
@@ -65,7 +65,7 @@ export function App(): JSX.Element {
 
 ## Design Philosophy
 
-1. **Familiar syntax** — A React developer should understand Floe in 30 minutes
-2. **No runtime** — The output is vanilla TypeScript with zero dependencies
-3. **Eject anytime** — If you stop using Floe, you have normal `.ts` files
-4. **Strictness is a feature** — Every restriction exists to prevent a category of bugs
+1. **Familiar syntax** - a React developer can understand Floe in 30 minutes
+2. **No runtime** - the output is vanilla TypeScript with no dependencies
+3. **Eject anytime** - if you stop using Floe, you have normal `.ts` files
+4. **Strictness is a feature** - every restriction exists to prevent a category of bugs

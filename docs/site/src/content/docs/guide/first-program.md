@@ -53,7 +53,7 @@ Compile it:
 floe build counter.fl
 ```
 
-This produces `counter.tsx` — a standard React component that works with any React setup.
+This produces `counter.tsx`, a standard React component that works with any React setup.
 
 ## Using Pipes
 

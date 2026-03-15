@@ -2,7 +2,7 @@
 title: For Blocks
 ---
 
-`for` blocks let you group functions under a type. Think of them as methods without classes — `self` is an explicit parameter, not magic.
+`for` blocks let you group functions under a type. Think of them as methods without classes. `self` is an explicit parameter, not magic.
 
 ## Basic Usage
 
@@ -24,7 +24,7 @@ for User {
 }
 ```
 
-The `self` parameter's type is inferred from the `for` block — no annotation needed.
+The `self` parameter's type is inferred from the `for` block. No annotation needed.
 
 ## Pipes
 
@@ -59,7 +59,7 @@ users |> adults  // only adult users
 
 ## Real-World Example
 
-From the todo app — validating input strings and filtering todos:
+From the todo app, validating input strings and filtering todos:
 
 ```floe
 for string {
@@ -117,7 +117,7 @@ Importing a type automatically imports for-block functions defined in the same f
 
 ## Rules
 
-1. `self` is always the explicit first parameter — its type is inferred
+1. `self` is always the explicit first parameter. Its type is inferred.
 2. No `this`, no implicit context
 3. Multiple `for` blocks per type are allowed, even across files
 4. Compiles to standalone TypeScript functions (no classes)
@@ -140,4 +140,4 @@ function display(self: User): string {
 }
 ```
 
-No class wrappers, no prototype chains — just functions.
+No class wrappers, no prototype chains. Plain functions.

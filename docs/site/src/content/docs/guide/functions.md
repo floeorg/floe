@@ -99,10 +99,10 @@ async fn fetchUser(id: string) -> Promise<User> {
 
 ## What's Not Here
 
-- **No `let` or `var`** — all bindings are `const`
-- **No `class`** — use functions and records
-- **No `this`** — functions are pure by default
-- **No `function*` generators** — use arrays and pipes
-- **No `=>`** — use `|x|` for lambdas, `->` for types and match arms
+- **No `let` or `var`** - all bindings are `const`
+- **No `class`** - use functions and records
+- **No `this`** - functions are pure by default
+- **No `function*` generators** - use arrays and pipes
+- **No `=>`** - use `|x|` for lambdas, `->` for types and match arms
 
 These are removed intentionally. See the [comparison](/guide/comparison) for the reasoning.
