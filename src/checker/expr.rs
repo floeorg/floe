@@ -166,6 +166,14 @@ impl Checker {
                 // Save pipe context before checking callee (which would consume it)
                 let piped_ty = self.pipe_input_type.take();
 
+                // Infer lambda param type from piped array element type
+                // e.g. [1,2,3] |> Array.map(|x| ...) → x: number
+                if let Some(ref piped) = piped_ty
+                    && let Type::Array(elem_ty) = piped
+                {
+                    self.lambda_param_hint = Some((**elem_ty).clone());
+                }
+
                 let callee_ty = self.check_expr(callee);
                 let mut arg_types: Vec<Type> = args
                     .iter()
@@ -173,6 +181,8 @@ impl Checker {
                         Arg::Positional(e) | Arg::Named { value: e, .. } => self.check_expr(e),
                     })
                     .collect();
+                // Clear any unconsumed hint
+                self.lambda_param_hint = None;
 
                 // In a pipe like `x |> f(y)`, the piped value is the implicit first arg
                 if let Some(piped_ty) = piped_ty {
@@ -652,6 +662,10 @@ impl Checker {
                             .as_ref()
                             .map(|t| self.resolve_type(t))
                             .unwrap_or_else(|| {
+                                // Use lambda param hint from calling context if available
+                                if let Some(hint) = self.lambda_param_hint.take() {
+                                    return hint;
+                                }
                                 // In event handler context, infer Event type for the parameter
                                 if self.event_handler_context && p.destructure.is_none() {
                                     Type::Named("Event".to_string())
@@ -1010,7 +1024,12 @@ impl Checker {
             && let Some(stdlib_fn) = self.stdlib.lookup(module, func_name)
         {
             self.used_names.insert(module.to_string());
-            let ret = stdlib_fn.return_type.clone();
+            // Resolve generic return type from piped value
+            // e.g. Array.append returns Array<T> → resolve T from left_ty's element
+            let ret = match (&stdlib_fn.return_type, left_ty) {
+                (Type::Array(_), Type::Array(elem)) => Type::Array(elem.clone()),
+                _ => stdlib_fn.return_type.clone(),
+            };
             if let Some(first_param) = stdlib_fn.params.first()
                 && !self.types_compatible(first_param, left_ty)
             {
@@ -1027,7 +1046,11 @@ impl Checker {
                     .with_code("E001"),
                 );
             }
+            if let Type::Array(elem) = left_ty {
+                self.lambda_param_hint = Some((**elem).clone());
+            }
             self.check_pipe_right_args(right);
+            self.lambda_param_hint = None;
             return ret;
         }
 
@@ -1055,7 +1078,10 @@ impl Checker {
                 // Found via type-directed resolution — mark as used, check args
                 self.used_names.insert(name.to_string());
                 let stdlib_fn = self.stdlib.lookup(m, name).unwrap();
-                let ret = stdlib_fn.return_type.clone();
+                let ret = match (&stdlib_fn.return_type, left_ty) {
+                    (Type::Array(_), Type::Array(elem)) => Type::Array(elem.clone()),
+                    _ => stdlib_fn.return_type.clone(),
+                };
                 // Validate piped value against first parameter
                 if let Some(first_param) = stdlib_fn.params.first()
                     && !self.types_compatible(first_param, left_ty)
@@ -1073,7 +1099,12 @@ impl Checker {
                         .with_code("E001"),
                     );
                 }
+                // Set lambda param hint from array element type
+                if let Type::Array(elem) = left_ty {
+                    self.lambda_param_hint = Some((**elem).clone());
+                }
                 self.check_pipe_right_args(right);
+                self.lambda_param_hint = None;
                 return ret;
             } else if !fallback_matches.is_empty() {
                 let stdlib_fn = fallback_matches[0];
@@ -1094,10 +1125,17 @@ impl Checker {
                         .with_code("E001"),
                     );
                 }
-                // Found via name-based fallback (unknown left type)
+                // Found via name-based fallback
                 self.used_names.insert(name.to_string());
-                let ret = stdlib_fn.return_type.clone();
+                let ret = match (&stdlib_fn.return_type, left_ty) {
+                    (Type::Array(_), Type::Array(elem)) => Type::Array(elem.clone()),
+                    _ => stdlib_fn.return_type.clone(),
+                };
+                if let Type::Array(elem) = left_ty {
+                    self.lambda_param_hint = Some((**elem).clone());
+                }
                 self.check_pipe_right_args(right);
+                self.lambda_param_hint = None;
                 return ret;
             }
         }
@@ -1323,7 +1361,7 @@ impl Checker {
 /// Simple type expression resolver for concrete type resolution.
 /// Handles Named, Array, Record, and Function type expressions without
 /// needing mutable access to the checker (no self parameter).
-fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr) -> Type {
+pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr) -> Type {
     use crate::parser::ast::TypeExprKind;
     match &type_expr.kind {
         TypeExprKind::Named { name, .. } => match name.as_str() {

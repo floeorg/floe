@@ -45,6 +45,9 @@ pub struct Checker {
     inside_try: bool,
     /// Whether we are checking an event handler prop value (onChange, onClick, etc.)
     event_handler_context: bool,
+    /// Hint for lambda parameter type inference from calling context.
+    /// When set, Arrow expressions use this as the first param type.
+    lambda_param_hint: Option<Type>,
     /// Whether we are in the type registration pass (suppress unknown type errors).
     registering_types: bool,
     /// Pre-resolved imports from other .fl files, keyed by import source string.
@@ -230,6 +233,7 @@ impl Checker {
             untrusted_imports: untrusted_globals,
             inside_try: false,
             event_handler_context: false,
+            lambda_param_hint: None,
             registering_types: false,
             resolved_imports: HashMap::new(),
             dts_imports: HashMap::new(),
@@ -1405,6 +1409,70 @@ impl Checker {
             return true;
         }
 
+        // Generic type parameters (single uppercase letter like T, U, E, S)
+        // are wildcards that match any type — used in stdlib function signatures
+        if let Type::Named(n) = expected
+            && n.len() == 1
+            && n.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+        {
+            return true;
+        }
+        if let Type::Named(n) = actual
+            && n.len() == 1
+            && n.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+        {
+            return true;
+        }
+
+        // Resolve Named types to concrete for structural comparison
+        // Uses env.resolve_to_concrete (immutable) to avoid borrow conflicts
+        let expected_concrete = if let Type::Named(name) = expected {
+            let resolved = self
+                .env
+                .resolve_to_concrete(expected, &expr::simple_resolve_type_expr);
+            if &resolved != expected {
+                Some(resolved)
+            } else {
+                self.env.lookup(name).cloned()
+            }
+        } else {
+            None
+        };
+        let actual_concrete = if let Type::Named(name) = actual {
+            let resolved = self
+                .env
+                .resolve_to_concrete(actual, &expr::simple_resolve_type_expr);
+            if &resolved != actual {
+                Some(resolved)
+            } else {
+                self.env.lookup(name).cloned()
+            }
+        } else {
+            None
+        };
+
+        // Named<->Record structural comparison
+        if let Some(Type::Record(ref exp_fields)) = expected_concrete
+            && let Type::Record(act_fields) = actual
+        {
+            return exp_fields.len() == act_fields.len()
+                && exp_fields.iter().all(|(name, ty)| {
+                    act_fields
+                        .iter()
+                        .any(|(n, t)| n == name && self.types_compatible(ty, t))
+                });
+        }
+        if let Some(Type::Record(ref act_fields)) = actual_concrete
+            && let Type::Record(exp_fields) = expected
+        {
+            return exp_fields.len() == act_fields.len()
+                && exp_fields.iter().all(|(name, ty)| {
+                    act_fields
+                        .iter()
+                        .any(|(n, t)| n == name && self.types_compatible(ty, t))
+                });
+        }
+
         match (expected, actual) {
             (Type::Number, Type::Number)
             | (Type::String, Type::String)
@@ -1418,6 +1486,9 @@ impl Checker {
             (Type::Brand { tag: a, .. }, Type::Brand { tag: b, .. }) => a == b,
             (Type::Result { ok: o1, err: e1 }, Type::Result { ok: o2, err: e2 }) => {
                 self.types_compatible(o1, o2) && self.types_compatible(e1, e2)
+            }
+            (Type::Option(_), Type::Option(b)) if matches!(**b, Type::Unknown) => {
+                true // None (Option<Unknown>) is compatible with any Option<T>
             }
             (Type::Option(a), Type::Option(b)) => self.types_compatible(a, b),
             (Type::Array(_), Type::Array(b)) if matches!(**b, Type::Unknown) => {
