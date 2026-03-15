@@ -1,0 +1,21 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+const point = [10, 20] as const;
+
+const entry = ["key", 42] as const;
+
+const triple = [1, "two", true] as const;
+
+const origin: readonly [number, number] = [0, 0] as const;
+
+const [x, y] = point;
+
+function divmod(a: number, b: number): readonly [number, number] {
+  return [a / b, a % b] as const;
+}
+
+function describe(pair: readonly [number, number]): string {
+  return pair[0] === 0 && pair[1] === 0 ? "origin" : pair[1] === 0 ? "on x-axis" : pair[0] === 0 ? "on y-axis" : true ? (() => { const a = pair[0]; const b = pair[1]; return `(${a}, ${b})`; })() : (() => { throw new Error("non-exhaustive match"); })();
+}

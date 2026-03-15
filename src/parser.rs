@@ -248,6 +248,12 @@ impl Parser {
             let names = self.parse_comma_separated(|p| p.expect_identifier())?;
             self.expect(&TokenKind::RightBrace)?;
             ConstBinding::Object(names)
+        } else if self.check(&TokenKind::LeftParen) && self.is_tuple_destructuring() {
+            // Tuple destructuring: `const (a, b) = ...`
+            self.advance();
+            let names = self.parse_comma_separated(|p| p.expect_identifier())?;
+            self.expect(&TokenKind::RightParen)?;
+            ConstBinding::Tuple(names)
         } else {
             ConstBinding::Name(self.expect_identifier()?)
         };
@@ -592,9 +598,21 @@ impl Parser {
             });
         }
 
-        // Function type: `(params) => ReturnType`
+        // Function type: `(params) -> ReturnType`
         if self.check(&TokenKind::LeftParen) && self.is_function_type() {
             return self.parse_function_type();
+        }
+
+        // Tuple type: `(T, U)` — paren with comma-separated types, no `->` after `)`
+        if self.check(&TokenKind::LeftParen) && self.is_tuple_type() {
+            self.advance(); // (
+            let types = self.parse_comma_separated(|p| p.parse_type_expr())?;
+            self.expect(&TokenKind::RightParen)?;
+            let end_span = self.previous_span();
+            return Ok(TypeExpr {
+                kind: TypeExprKind::Tuple(types),
+                span: self.merge_spans(start_span, end_span),
+            });
         }
 
         // Array type sugar: `[T]` for `Array<T>` — skip, we use `Array<T>` syntax
@@ -670,6 +688,64 @@ impl Parser {
             && self.tokens[self.pos + 1].kind == TokenKind::RightParen
             && !(self.pos + 2 < self.tokens.len()
                 && self.tokens[self.pos + 2].kind == TokenKind::ThinArrow)
+    }
+
+    /// Heuristic: is the current `(` the start of a tuple type `(T, U)`?
+    /// True when parens contain a comma and are NOT followed by `->`.
+    fn is_tuple_type(&self) -> bool {
+        let mut depth = 0;
+        let mut has_comma = false;
+        let mut i = self.pos;
+        while i < self.tokens.len() {
+            match &self.tokens[i].kind {
+                TokenKind::LeftParen => depth += 1,
+                TokenKind::RightParen => {
+                    depth -= 1;
+                    if depth == 0 {
+                        // Must have a comma and NOT be followed by `->`
+                        if !has_comma {
+                            return false;
+                        }
+                        return !(i + 1 < self.tokens.len()
+                            && self.tokens[i + 1].kind == TokenKind::ThinArrow);
+                    }
+                }
+                TokenKind::Comma if depth == 1 => has_comma = true,
+                TokenKind::Eof => return false,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
+    }
+
+    /// Heuristic: is the current `(` the start of a tuple destructuring `(a, b) = ...`?
+    /// Look ahead for `) =`.
+    fn is_tuple_destructuring(&self) -> bool {
+        let mut depth = 0;
+        let mut i = self.pos;
+        while i < self.tokens.len() {
+            match &self.tokens[i].kind {
+                TokenKind::LeftParen => depth += 1,
+                TokenKind::RightParen => {
+                    depth -= 1;
+                    if depth == 0 {
+                        // Check: must be followed by `=` or `:` (type ann then `=`)
+                        if i + 1 < self.tokens.len() {
+                            return matches!(
+                                self.tokens[i + 1].kind,
+                                TokenKind::Equal | TokenKind::Colon
+                            );
+                        }
+                        return false;
+                    }
+                }
+                TokenKind::Eof => return false,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
     }
 
     /// Heuristic: is the current `(` the start of a function type?

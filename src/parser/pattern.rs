@@ -171,6 +171,18 @@ impl Parser {
                 })
             }
 
+            // Tuple pattern: `(x, y)` or `(_, 0)`
+            TokenKind::LeftParen => {
+                self.advance(); // (
+                let patterns = self.parse_comma_separated(|p| p.parse_pattern())?;
+                self.expect(&TokenKind::RightParen)?;
+                let end_span = self.previous_span();
+                Ok(Pattern {
+                    kind: PatternKind::Tuple(patterns),
+                    span: self.merge_spans(start_span, end_span),
+                })
+            }
+
             // Identifier — could be a variant pattern or a binding
             TokenKind::Identifier(name) => {
                 let name = name.clone();

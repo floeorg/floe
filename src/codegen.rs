@@ -268,6 +268,17 @@ impl Codegen {
                 }
                 self.push("]");
             }
+            ConstBinding::Tuple(names) => {
+                // Tuple destructuring: const (a, b) = ... → const [a, b] = ...
+                self.push("[");
+                for (i, name) in names.iter().enumerate() {
+                    if i > 0 {
+                        self.push(", ");
+                    }
+                    self.push(name);
+                }
+                self.push("]");
+            }
             ConstBinding::Object(names) => {
                 self.push("{ ");
                 for (i, name) in names.iter().enumerate() {
@@ -550,7 +561,7 @@ impl Codegen {
                 self.push("[]");
             }
             TypeExprKind::Tuple(types) => {
-                self.push("[");
+                self.push("readonly [");
                 for (i, t) in types.iter().enumerate() {
                     if i > 0 {
                         self.push(", ");

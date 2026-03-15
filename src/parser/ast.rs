@@ -67,6 +67,8 @@ pub enum ConstBinding {
     Array(Vec<String>),
     /// Object destructuring: `const { a, b } = ...`
     Object(Vec<String>),
+    /// Tuple destructuring: `const (a, b) = ...`
+    Tuple(Vec<String>),
 }
 
 // ── Function Declaration ─────────────────────────────────────────
@@ -278,6 +280,9 @@ pub enum ExprKind {
     /// Array literal: `[1, 2, 3]`
     Array(Vec<Expr>),
 
+    /// Tuple literal: `(1, 2)`, `("key", 42, true)`
+    Tuple(Vec<Expr>),
+
     // -- Spread --
     /// Spread: `...expr`
     Spread(Box<Expr>),
@@ -373,6 +378,8 @@ pub enum PatternKind {
     Binding(String),
     /// Wildcard pattern: `_`
     Wildcard,
+    /// Tuple pattern: `(x, y)`, `(_, 0)`
+    Tuple(Vec<Pattern>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

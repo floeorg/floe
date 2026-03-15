@@ -114,6 +114,30 @@ impl Codegen {
                     self.push("true");
                 }
             }
+            PatternKind::Tuple(patterns) => {
+                let mut first = true;
+                for (i, pat) in patterns.iter().enumerate() {
+                    if matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
+                        continue;
+                    }
+                    if !first {
+                        self.push(" && ");
+                    }
+                    first = false;
+                    let elem_expr = Expr {
+                        kind: ExprKind::Identifier(format!(
+                            "{}[{}]",
+                            self.expr_to_string(subject),
+                            i
+                        )),
+                        span: subject.span,
+                    };
+                    self.emit_pattern_condition(&elem_expr, pat);
+                }
+                if first {
+                    self.push("true");
+                }
+            }
             PatternKind::StringPattern { segments } => {
                 // Emit: subject.match(/^...regex...$/)
                 self.emit_expr(subject);
@@ -128,7 +152,7 @@ impl Codegen {
                         }
                     }
                 }
-                self.push("$/)");
+                self.push("$/)")
             }
             PatternKind::Binding(_) | PatternKind::Wildcard => {
                 self.push("true");
@@ -279,6 +303,16 @@ fn collect_bindings_inner(
                     span: subject.span,
                 };
                 collect_bindings_inner(&field_expr, pat, expr_to_str, variant_info, bindings);
+            }
+        }
+        PatternKind::Tuple(patterns) => {
+            for (i, pat) in patterns.iter().enumerate() {
+                let elem_access = format!("{}[{}]", expr_to_str(subject), i);
+                let elem_expr = Expr {
+                    kind: ExprKind::Identifier(elem_access),
+                    span: subject.span,
+                };
+                collect_bindings_inner(&elem_expr, pat, expr_to_str, variant_info, bindings);
             }
         }
         PatternKind::StringPattern { .. } => {

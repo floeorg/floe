@@ -31,6 +31,10 @@ for Array<Todo> {
             |> length
     }
 
+    export fn stats(self) -> (number, number) {
+        (self |> length, self |> filter(.done == true) |> length)
+    }
+
     // Placeholder for future search functionality
     export fn search(self, _query: string) -> Array<Todo> {
         todo

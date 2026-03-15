@@ -133,6 +133,7 @@ pub enum SyntaxKind {
     GROUPED_EXPR,
     ARRAY_EXPR,
     SPREAD_EXPR,
+    TUPLE_EXPR,
     DOT_SHORTHAND,
     OK_EXPR,
     ERR_EXPR,

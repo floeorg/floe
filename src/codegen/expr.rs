@@ -260,6 +260,18 @@ impl Codegen {
                 self.push("]");
             }
 
+            ExprKind::Tuple(elements) => {
+                // Tuple: (a, b) → [a, b] as const
+                self.push("[");
+                for (i, elem) in elements.iter().enumerate() {
+                    if i > 0 {
+                        self.push(", ");
+                    }
+                    self.emit_expr(elem);
+                }
+                self.push("] as const");
+            }
+
             ExprKind::Spread(inner) => {
                 self.push("...");
                 self.emit_expr(inner);
