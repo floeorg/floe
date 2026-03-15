@@ -115,6 +115,6 @@ Array<T>
 | `any` | Disables all type checking | `unknown` + pattern matching |
 | `null` | Nullable reference bugs | `Option<T>` with `None` |
 | `undefined` | Same problem as null | `Option<T>` with `None` |
-| `enum` | Quirky JavaScript semantics | Union types |
+| `enum` | Compiles to runtime objects | Union types |
 | `interface` | Redundant with `type` | `type` |
 | `void` | Implicit undefined | Explicit return types |

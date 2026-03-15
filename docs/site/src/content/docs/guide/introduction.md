@@ -65,7 +65,7 @@ export function App(): JSX.Element {
 
 ## Design Philosophy
 
-1. **Familiar syntax** - a React developer can understand Floe in 30 minutes
-2. **No runtime** - the output is vanilla TypeScript with no dependencies
+1. **Familiar syntax** - designed to be readable by TypeScript developers
+2. **Plain output** - the compiler emits readable TypeScript
 3. **Eject anytime** - if you stop using Floe, you have normal `.ts` files
 4. **Strictness is a feature** - every restriction exists to prevent a category of bugs

@@ -18,7 +18,7 @@ How Floe compares to other languages in its space.
 | **Type overrides** | `any`, `as`, `!` | None |
 | **Runtime** | None | None |
 
-Floe is TypeScript with stricter type safety and functional features added.
+Floe compiles to TypeScript, adding stricter type safety and functional features.
 
 ## vs Gleam
 
@@ -31,7 +31,7 @@ Floe is TypeScript with stricter type safety and functional features added.
 | **Syntax** | ML-family | TS-family |
 | **Pipes** | Yes | Yes |
 | **Pattern matching** | Yes | Yes |
-| **Adoption** | New ecosystem | Existing TS ecosystem |
+| **Adoption** | Hex + npm | npm |
 
 Floe borrows Gleam's ideas (pipes, Result, strict type safety) but targets the TypeScript/React ecosystem.
 
@@ -41,12 +41,12 @@ Floe borrows Gleam's ideas (pipes, Result, strict type safety) but targets the T
 |---|---|---|
 | **Target** | JavaScript | TypeScript |
 | **Architecture** | TEA required | Any React pattern |
-| **npm interop** | Ports (painful) | Direct imports |
-| **Learning curve** | Steep | Gentle (familiar syntax) |
+| **npm interop** | Ports (indirect) | Direct imports |
+| **Learning curve** | ML-family syntax | TS-family syntax |
 | **JSX** | No (virtual DOM DSL) | Yes |
 | **Community** | Small | TS/React ecosystem |
 
-Floe is less opinionated than Elm. It doesn't enforce an architecture. It makes your code safer without dictating how you structure it.
+Floe does not enforce an architecture pattern. You choose how to structure your code.
 
 ## vs ReScript
 

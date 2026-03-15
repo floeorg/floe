@@ -2,7 +2,7 @@
 title: Standard Library
 ---
 
-Floe ships with built-in functions for common operations. These are known to the compiler and inlined as vanilla TypeScript during codegen. No runtime dependency.
+Floe ships with built-in functions for common operations. These are known to the compiler and inlined during codegen.
 
 All stdlib functions are **pipe-friendly**: the first argument is the data, so they work naturally with `|>`.
 

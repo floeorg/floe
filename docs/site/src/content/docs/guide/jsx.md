@@ -2,7 +2,7 @@
 title: JSX & React
 ---
 
-Floe has first-class JSX support. Write React components with all the safety guarantees.
+Floe supports JSX natively. Write React components with Floe's type system.
 
 ## Components
 

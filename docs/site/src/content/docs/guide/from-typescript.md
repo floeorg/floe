@@ -175,8 +175,8 @@ fn find(id: string) -> Option<User> {
 | `class` | Complex inheritance hierarchies | Functions + records |
 | `this` | Implicit context bugs | Explicit parameters |
 | `any` | Type safety escape | `unknown` + narrowing |
-| `null` / `undefined` | Billion-dollar mistake | `Option<T>` |
-| `enum` | Quirky JS behavior | Union types |
+| `null` / `undefined` | Nullable reference bugs | `Option<T>` |
+| `enum` | Compiles to runtime objects | Union types |
 | `interface` | Redundant | `type` |
 | `switch` | No exhaustiveness, fall-through | `match` |
 | `for` / `while` | Mutation-heavy | Pipes + map/filter/reduce |

@@ -166,7 +166,7 @@ type Callback = (Event) -> ()
 | Banned | Why | Use Instead |
 |--------|-----|-------------|
 | `any` | Disables type checking | `unknown` + narrowing |
-| `null` | Billion-dollar mistake | `Option<T>` |
-| `undefined` | Two nothings is one too many | `Option<T>` |
-| `enum` | Quirky JS semantics | Union types |
+| `null` | Nullable reference bugs | `Option<T>` |
+| `undefined` | Redundant with null | `Option<T>` |
+| `enum` | Compiles to runtime objects | Union types |
 | `interface` | Redundant with type | `type` |

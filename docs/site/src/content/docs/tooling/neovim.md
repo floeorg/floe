@@ -10,7 +10,7 @@ Add to your `init.lua`:
 
 ```lua
 -- Register .fl files
-vim.filetype.add({ extension = { zs = "floe" } })
+vim.filetype.add({ extension = { fl = "floe" } })
 
 -- Start the LSP
 vim.api.nvim_create_autocmd("FileType", {

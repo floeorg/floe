@@ -86,6 +86,6 @@ function display(self: User): string { return self.name; }
 
 1. All required methods (those without default bodies) must be implemented
 2. Default methods are inherited unless overridden
-3. Traits are compile-time only -- zero runtime cost
-4. No orphan rules -- scoping via imports handles conflicts
-5. No trait objects or dynamic dispatch -- traits are a static checking tool
+3. Traits are compile-time only - no runtime representation
+4. No orphan rules - scoping via imports handles conflicts
+5. No trait objects or dynamic dispatch - traits are a static checking tool
