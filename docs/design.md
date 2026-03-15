@@ -57,9 +57,12 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Partial application | `add(10, _)` | `(x) => add(10, x)` |
 | Match expression | `match x { ... }` | exhaustive if/else chain |
 | Match with ranges | `match n { 1..10 -> ... }` | range check |
+| Match with string patterns | `"/users/{id}" -> f(id)` | regex-based matching with captures |
 | Match with destructuring | `Click(el, { x, y }) -> ...` | nested destructuring |
 | Result type | built-in `Ok(v)` / `Err(e)` | `{ ok: true, value } / { ok: false, error }` |
 | Option type | built-in `Some(v)` / `None` | `v / undefined` |
+| `todo` | placeholder, type `never` | `(() => { throw new Error("not implemented"); })()` |
+| `unreachable` | assert unreachable, type `never` | `(() => { throw new Error("unreachable"); })()` |
 | `?` operator | `fetchUser(id)?` | early return on Err/None |
 | Branded types | `type UserId = Brand<string, "UserId">` | `string` at runtime |
 | Opaque types | `opaque type HashedPw = string` | `string`, but only the defining module can create/read |
@@ -185,6 +188,14 @@ match action {
   Click(el, { x, y })          -> handleClick(el, x, y)
   KeyPress("s", { ctrl: true }) -> save()
   KeyPress(key, _)              -> insertChar(key)
+}
+
+// String pattern matching with captures
+match url {
+  "/users/{id}"          -> fetchUser(id)
+  "/users/{id}/posts"    -> fetchPosts(id)
+  "/about"               -> aboutPage()
+  _                      -> notFound()
 }
 
 // Inline match in JSX props
@@ -704,6 +715,7 @@ These are enforced at compile time with clear error messages.
 | Non-unit function missing return | `ERROR: missing return value` | Add return expression |
 | Spread with overlapping keys | `WARNING: 'y' from 'a' is overwritten by 'b'` | Reorder or remove duplicate |
 | `void` keyword | `ERROR: use () instead of void` | Replace with `()` |
+| `todo` usage | `WARNING: placeholder that will panic at runtime` | Replace with actual implementation |
 
 ---
 
@@ -742,6 +754,8 @@ Key tokens beyond standard TypeScript:
 | `Fn` | `fn` keyword |
 | `Some` | `Some` keyword |
 | `None` | `None` keyword |
+| `Todo` | `todo` keyword |
+| `Unreachable` | `unreachable` keyword |
 | `Ok` | `Ok` keyword |
 | `Err` | `Err` keyword |
 | `When` | `when` keyword (match arm guard) |
@@ -829,7 +843,13 @@ enum Pattern {
     Range { start: Literal, end: Literal },
     Variant { name: String, bindings: Vec<Pattern> },  // recursive — enables multi-depth matching
     Record { fields: Vec<(String, Pattern)> },
+    StringPattern { segments: Vec<StringPatternSegment> },  // "/users/{id}" — regex-based matching
     Wildcard,
+}
+
+enum StringPatternSegment {
+    Literal(String),   // static text: "/users/"
+    Capture(String),   // variable binding: "id"
 }
 ```
 
@@ -951,6 +971,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `try expr` | `(() => { try { return { ok: true, value: expr }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
 | `match x { A -> ..., B -> ... }` | `x.tag === "A" ? ... : x.tag === "B" ? ... : absurd(x)` |
 | `match x { A(v) when v > 0 -> ... }` | `x.tag === "A" ? (() => { const v = x.value; if (v > 0) { return ...; } ... })()` |
+| `match url { "/users/{id}" -> f(id) }` | `url.match(/^\/users\/([^/]+)$/) ? (() => { const _m = url.match(...); const id = _m![1]; return f(id); })() : ...` |
 | `fetchUser(id)?` | `const _r = fetchUser(id); if (!_r.ok) return _r; const val = _r.value;` |
 | `Ok(value)` | `{ ok: true, value }` |
 | `Err(error)` | `{ ok: false, error }` |

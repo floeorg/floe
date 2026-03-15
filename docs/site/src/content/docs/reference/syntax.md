@@ -123,6 +123,7 @@ match expr {
 }
 ```
 
+Patterns: literals (`42`, `"hello"`, `true`), ranges (`1..10`), variants (`Ok(x)`), records (`{ x, y }`), string patterns (`"/users/{id}"`), bindings (`x`), wildcard (`_`).
 ### Function Call
 
 ```floe
@@ -139,6 +140,13 @@ Ok(value)     // Result success
 Err(error)    // Result failure
 Some(value)   // Option present
 None          // Option absent
+```
+
+### Builtins
+
+```floe
+todo          // placeholder, type never, emits warning
+unreachable   // assert unreachable, type never
 ```
 
 ### Qualified Variants

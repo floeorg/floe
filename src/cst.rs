@@ -718,6 +718,8 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::Bool(_)) => self.bump(),
             Some(TokenKind::Underscore) => self.bump(),
             Some(TokenKind::None) => self.bump(),
+            Some(TokenKind::Todo) => self.bump(),
+            Some(TokenKind::Unreachable) => self.bump(),
 
             Some(TokenKind::Ok) => {
                 self.builder.start_node(SyntaxKind::OK_EXPR.into());

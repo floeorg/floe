@@ -1211,6 +1211,251 @@ fn if_else_is_banned() {
 // ── 6. Object destructuring ───────────────────────────────
 
 #[test]
+fn unit_type_from_void_match() {
+    // A match where all arms return unit should infer () not unknown
+    let program = crate::parser::Parser::new(
+        r#"
+fn log(msg: string) { Console.log(msg) }
+const _hello = match true {
+    true -> log("hi"),
+    false -> log("bye"),
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+    let (_diags, types) = Checker::new().check_with_types(&program);
+    if let Some(ty) = types.get("_hello") {
+        assert_eq!(ty, "()", "void match should infer (), got: {ty}");
+    } else {
+        panic!("_hello should be in type map");
+    }
+}
+
+#[test]
+fn unit_type_from_void_function_call() {
+    // Calling a function that returns nothing should give ()
+    let program = crate::parser::Parser::new(
+        r#"
+fn log(msg: string) { Console.log(msg) }
+const _result = log("test")
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+    let (_diags, types) = Checker::new().check_with_types(&program);
+    if let Some(ty) = types.get("_result") {
+        assert_eq!(ty, "()", "void function call should give (), got: {ty}");
+    } else {
+        panic!("_result should be in type map");
+    }
+}
+
+#[test]
+fn calling_named_function_type_returns_its_return_type() {
+    // Dispatch<SetStateAction<T>> is a function type alias from React.
+    // When we call setTodos(...), the checker sees Named("Dispatch<...>")
+    // and returns Unknown. It should return the function's return type.
+    //
+    // Simulate: setTodos has type (Array<Todo>) -> ()
+    // (which is what Dispatch<SetStateAction<Array<Todo>>> resolves to)
+    let program = crate::parser::Parser::new(
+        r#"
+type Todo = { text: string }
+fn setTodos(value: Array<Todo>) -> () { () }
+fn handler() {
+    setTodos([])
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+    let (_diags, types) = Checker::new().check_with_types(&program);
+    eprintln!("types: {:?}", types);
+    // handler calls setTodos which returns () — handler should infer ()
+    if let Some(ty) = types.get("handler") {
+        assert!(
+            ty.contains("()"),
+            "handler should infer () from calling void function, got: {ty}"
+        );
+    } else {
+        panic!("handler should be in types");
+    }
+}
+
+#[test]
+fn dispatch_generic_converts_to_function() {
+    // The REAL tsgo output: Dispatch<SetStateAction<Todo[]>> should become a function type
+    use crate::interop::{DtsExport, TsType};
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { useState } from "react"
+type Todo = { text: string }
+const [todos, setTodos] = useState<Array<Todo>>([])
+fn handler() {
+    setTodos([])
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Simulate what tsgo ACTUALLY returns: Dispatch<SetStateAction<Todo[]>>
+    let probe_export = DtsExport {
+        name: "__probe_todos_setTodos".to_string(),
+        ts_type: TsType::Tuple(vec![
+            TsType::Array(Box::new(TsType::Named("Todo".to_string()))),
+            TsType::Generic {
+                name: "Dispatch".to_string(),
+                args: vec![TsType::Generic {
+                    name: "SetStateAction".to_string(),
+                    args: vec![TsType::Array(Box::new(TsType::Named("Todo".to_string())))],
+                }],
+            },
+        ]),
+    };
+    let use_state_export = DtsExport {
+        name: "useState".to_string(),
+        ts_type: TsType::Function {
+            params: vec![TsType::Named("S".to_string())],
+            return_type: Box::new(TsType::Tuple(vec![
+                TsType::Named("S".to_string()),
+                TsType::Named("S".to_string()),
+            ])),
+        },
+    };
+    let mut dts_imports = std::collections::HashMap::new();
+    dts_imports.insert("react".to_string(), vec![use_state_export, probe_export]);
+
+    let checker = Checker::with_all_imports(std::collections::HashMap::new(), dts_imports);
+    let (_diags, types) = checker.check_with_types(&program);
+    eprintln!("types (real dispatch): {:?}", types);
+
+    // setTodos should be a function, NOT Named("Dispatch<...>")
+    if let Some(ty) = types.get("setTodos") {
+        assert!(
+            ty.contains("->"),
+            "setTodos with Dispatch<SetStateAction> should be a function, got: {ty}"
+        );
+    } else {
+        panic!("setTodos should be in types");
+    }
+
+    // handler should infer () because setTodos returns void
+    if let Some(ty) = types.get("handler") {
+        assert!(
+            ty.contains("()"),
+            "handler calling dispatch setter should infer (), got: {ty}"
+        );
+    } else {
+        panic!("handler should be in types");
+    }
+}
+
+#[test]
+fn calling_dispatch_type_is_callable() {
+    // The REAL problem: setTodos has type Named("Dispatch<SetStateAction<...>>")
+    // which is NOT Type::Function. Calling it returns Unknown.
+    // This test demonstrates the gap.
+    use crate::interop::DtsExport;
+    use crate::interop::TsType;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { useState } from "react"
+type Todo = { text: string }
+const [todos, setTodos] = useState<Array<Todo>>([])
+fn handler() {
+    setTodos([])
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Simulate tsgo giving us the probe result
+    let probe_export = DtsExport {
+        name: "__probe_todos_setTodos".to_string(),
+        ts_type: TsType::Tuple(vec![
+            TsType::Array(Box::new(TsType::Named("Todo".to_string()))),
+            TsType::Function {
+                params: vec![TsType::Named("Todo[]".to_string())],
+                return_type: Box::new(TsType::Primitive("void".to_string())),
+            },
+        ]),
+    };
+    let use_state_export = DtsExport {
+        name: "useState".to_string(),
+        ts_type: TsType::Function {
+            params: vec![TsType::Named("S".to_string())],
+            return_type: Box::new(TsType::Tuple(vec![
+                TsType::Named("S".to_string()),
+                TsType::Function {
+                    params: vec![TsType::Named("S".to_string())],
+                    return_type: Box::new(TsType::Primitive("void".to_string())),
+                },
+            ])),
+        },
+    };
+    let mut dts_imports = std::collections::HashMap::new();
+    dts_imports.insert("react".to_string(), vec![use_state_export, probe_export]);
+
+    let checker = Checker::with_all_imports(std::collections::HashMap::new(), dts_imports);
+    let (_diags, types) = checker.check_with_types(&program);
+    eprintln!("types with dts: {:?}", types);
+
+    // setTodos should be a function type, not Named("Dispatch<...>")
+    if let Some(ty) = types.get("setTodos") {
+        eprintln!("setTodos type: {ty}");
+        assert!(
+            !ty.contains("unknown"),
+            "setTodos should not be unknown, got: {ty}"
+        );
+    }
+
+    // handler should infer () because setTodos returns void
+    if let Some(ty) = types.get("handler") {
+        assert!(
+            ty.contains("()"),
+            "handler should infer () when calling void setTodos, got: {ty}"
+        );
+    } else {
+        panic!("handler should be in types");
+    }
+}
+
+#[test]
+fn inner_function_infers_unit_return() {
+    let program = crate::parser::Parser::new(
+        r#"
+fn outer() {
+    fn inner() {
+        Console.log("hi")
+    }
+    inner()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+    let (_diags, types) = Checker::new().check_with_types(&program);
+    eprintln!("types: {:?}", types);
+    if let Some(ty) = types.get("inner") {
+        assert!(
+            ty.contains("()"),
+            "inner function should infer () return, got: {ty}"
+        );
+    }
+    if let Some(ty) = types.get("outer") {
+        assert!(
+            ty.contains("()"),
+            "outer function should infer () return, got: {ty}"
+        );
+    }
+}
+
+#[test]
 fn object_destructuring_gets_field_types() {
     let program = crate::parser::Parser::new(
         r#"

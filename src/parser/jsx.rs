@@ -210,6 +210,8 @@ impl Parser {
             TokenKind::Err => Some("Err".into()),
             TokenKind::Some => Some("Some".into()),
             TokenKind::None => Some("None".into()),
+            TokenKind::Todo => Some("todo".into()),
+            TokenKind::Unreachable => Some("unreachable".into()),
 
             // Punctuation — valid in JSX text
             TokenKind::Comma => Some(",".into()),

@@ -54,6 +54,16 @@ fn none_literal() {
 }
 
 #[test]
+fn todo_expr() {
+    assert_eq!(first_expr("todo"), ExprKind::Todo);
+}
+
+#[test]
+fn unreachable_expr() {
+    assert_eq!(first_expr("unreachable"), ExprKind::Unreachable);
+}
+
+#[test]
 fn placeholder() {
     assert_eq!(first_expr("_"), ExprKind::Placeholder);
 }

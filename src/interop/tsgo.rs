@@ -13,6 +13,7 @@ use std::process::Command;
 use crate::parser::ast::*;
 
 use super::DtsExport;
+use super::TsType;
 use super::dts::parse_dts_exports_from_str;
 
 /// Resolves npm import types by running tsgo on a generated probe file.
@@ -266,10 +267,30 @@ fn generate_probe(
             format!("<{}>", call.type_args.join(", "))
         };
         let args_str = call.args.join(", ");
-        lines.push(format!(
-            "export const _r{} = {}{type_args_str}({args_str});",
-            call.index, call.callee,
-        ));
+
+        // For array destructuring, also destructure and re-export each element
+        // so tsgo inlines type aliases (e.g., Dispatch<...> → function type)
+        if let ConstBinding::Array(names) = &call.binding {
+            let tmp = format!("_tmp{}", call.index);
+            lines.push(format!(
+                "const {tmp} = {}{type_args_str}({args_str});",
+                call.callee,
+            ));
+            let destructured: Vec<String> = names
+                .iter()
+                .enumerate()
+                .map(|(i, _)| format!("_r{}_{i}", call.index))
+                .collect();
+            lines.push(format!(
+                "export const [{}] = {tmp};",
+                destructured.join(", "),
+            ));
+        } else {
+            lines.push(format!(
+                "export const _r{} = {}{type_args_str}({args_str});",
+                call.index, call.callee,
+            ));
+        }
     }
 
     // Emit re-exports for non-called imports
@@ -580,17 +601,41 @@ fn build_specifier_map(
             if let Some(name) = &callee_name
                 && imported_names.contains_key(name)
             {
-                let probe_name = format!("_r{probe_index}");
-                if let Some(export) = probe_exports.iter().find(|e| e.name == probe_name) {
-                    let specifier = &imported_names[name];
-                    let binding_name = const_binding_name(&decl.binding);
+                let specifier = &imported_names[name];
+                let binding_name = const_binding_name(&decl.binding);
+
+                // For array bindings, collect individual element types
+                if let ConstBinding::Array(names) = &decl.binding {
+                    let elem_types: Vec<TsType> = names
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| {
+                            let elem_name = format!("_r{}_{i}", probe_index);
+                            probe_exports
+                                .iter()
+                                .find(|e| e.name == elem_name)
+                                .map(|e| e.ts_type.clone())
+                                .unwrap_or(TsType::Unknown)
+                        })
+                        .collect();
                     result
                         .entry(specifier.clone())
                         .or_default()
                         .push(DtsExport {
                             name: format!("__probe_{}", binding_name),
-                            ts_type: export.ts_type.clone(),
+                            ts_type: TsType::Tuple(elem_types),
                         });
+                } else {
+                    let probe_name = format!("_r{probe_index}");
+                    if let Some(export) = probe_exports.iter().find(|e| e.name == probe_name) {
+                        result
+                            .entry(specifier.clone())
+                            .or_default()
+                            .push(DtsExport {
+                                name: format!("__probe_{}", binding_name),
+                                ts_type: export.ts_type.clone(),
+                            });
+                    }
                 }
                 probe_index += 1;
                 continue;
@@ -638,7 +683,9 @@ const [count, setCount] = useState(0)"#;
         let probe = generate_probe(&program, &HashMap::new());
 
         assert!(probe.contains("import { useState } from \"react\";"));
-        assert!(probe.contains("export const _r0 = useState(0);"));
+        // Array binding: destructures into _r0_0, _r0_1
+        assert!(probe.contains("_tmp0 = useState(0);"));
+        assert!(probe.contains("export const [_r0_0, _r0_1] = _tmp0;"));
     }
 
     #[test]
@@ -651,7 +698,8 @@ const [todos, setTodos] = useState<Array<Todo>>([])"#;
 
         assert!(probe.contains("import { useState } from \"react\";"));
         assert!(probe.contains("type Todo = {"));
-        assert!(probe.contains("export const _r0 = useState<Array<Todo>>([]);"));
+        assert!(probe.contains("_tmp0 = useState<Array<Todo>>([]);"));
+        assert!(probe.contains("export const [_r0_0, _r0_1] = _tmp0;"));
     }
 
     #[test]
@@ -671,8 +719,8 @@ const [count, setCount] = useState(0)"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new());
 
-        // useState should be a probe call, both should be re-exported
-        assert!(probe.contains("export const _r0 = useState(0);"));
+        // Array binding: destructured
+        assert!(probe.contains("_tmp0 = useState(0);"));
         // All imports are re-exported (useState and useEffect)
         assert!(probe.contains("= useState;"), "should re-export useState");
         assert!(probe.contains("= useEffect;"), "should re-export useEffect");
@@ -708,6 +756,8 @@ const [todos, setTodos] = useState<Array<Todo>>([])
 const [input, setInput] = useState("")
 "#;
         let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new());
+        eprintln!("PROBE:\n{probe}");
         let mut resolver = TsgoResolver::new(&todo_app_dir);
         let result = resolver.resolve_imports(&program, &HashMap::new());
 

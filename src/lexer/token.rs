@@ -58,6 +58,12 @@ pub enum TokenKind {
     Some,
     None,
 
+    // Built-in expressions
+    /// `todo` — placeholder that panics at runtime, type `never`
+    Todo,
+    /// `unreachable` — asserts unreachable code path, type `never`
+    Unreachable,
+
     // -- Operators --
     /// `|>` — pipe operator
     Pipe,
@@ -250,6 +256,10 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "Some" => Some(TokenKind::Some),
         "None" => Some(TokenKind::None),
 
+        // Built-in expressions
+        "todo" => Some(TokenKind::Todo),
+        "unreachable" => Some(TokenKind::Unreachable),
+
         // Banned keywords
         "let" => Some(TokenKind::Banned(BannedKeyword::Let)),
         "class" => Some(TokenKind::Banned(BannedKeyword::Class)),
@@ -308,6 +318,12 @@ mod tests {
             lookup_keyword("enum"),
             Some(TokenKind::Banned(BannedKeyword::Enum))
         );
+    }
+
+    #[test]
+    fn lookup_todo_unreachable() {
+        assert_eq!(lookup_keyword("todo"), Some(TokenKind::Todo));
+        assert_eq!(lookup_keyword("unreachable"), Some(TokenKind::Unreachable));
     }
 
     #[test]

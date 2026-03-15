@@ -696,6 +696,21 @@ impl Checker {
 
             ExprKind::None => Type::Option(Box::new(Type::Unknown)),
 
+            ExprKind::Todo => {
+                self.diagnostics.push(
+                    Diagnostic::warning(
+                        "`todo` is a placeholder that will panic at runtime",
+                        expr.span,
+                    )
+                    .with_label("not yet implemented")
+                    .with_help("replace with actual implementation before shipping")
+                    .with_code("W002"),
+                );
+                Type::Never
+            }
+
+            ExprKind::Unreachable => Type::Never,
+
             ExprKind::Unit => Type::Unit,
 
             ExprKind::Jsx(element) => {

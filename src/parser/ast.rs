@@ -255,6 +255,10 @@ pub enum ExprKind {
     Some(Box<Expr>),
     /// `None`
     None,
+    /// `todo` — placeholder that panics at runtime, type `never`
+    Todo,
+    /// `unreachable` — asserts unreachable code path, type `never`
+    Unreachable,
     /// Unit value: `()`
     Unit,
 
@@ -361,6 +365,11 @@ pub enum PatternKind {
     Variant { name: String, fields: Vec<Pattern> },
     /// Record destructuring pattern: `{ x, y }` or `{ ctrl: true }`
     Record { fields: Vec<(String, Pattern)> },
+    /// String pattern with captures: `"/users/{id}"` or `"/users/{id}/posts"`
+    StringPattern {
+        /// The segments of the string pattern (literal parts and capture names)
+        segments: Vec<StringPatternSegment>,
+    },
     /// Binding pattern (identifier): `x`, `msg`
     Binding(String),
     /// Wildcard pattern: `_`
@@ -372,6 +381,71 @@ pub enum LiteralPattern {
     Number(String),
     String(String),
     Bool(bool),
+}
+
+/// A segment in a string pattern — either a literal part or a capture variable.
+#[derive(Debug, Clone, PartialEq)]
+pub enum StringPatternSegment {
+    /// A literal string segment: `"/users/"` in `"/users/{id}"`
+    Literal(String),
+    /// A capture variable: `id` in `"/users/{id}"`
+    Capture(String),
+}
+
+/// Parse a string value for `{name}` capture segments.
+/// Returns `Some(segments)` if the string contains at least one capture,
+/// or `None` if it's a plain string literal (no captures).
+pub fn parse_string_pattern_segments(s: &str) -> Option<Vec<StringPatternSegment>> {
+    // Quick check: does the string contain any `{...}` patterns?
+    if !s.contains('{') {
+        return None;
+    }
+
+    let mut segments = Vec::new();
+    let mut current_literal = String::new();
+    let mut chars = s.chars().peekable();
+    let mut has_capture = false;
+
+    while let Some(ch) = chars.next() {
+        if ch == '{' {
+            // Collect the capture name
+            let mut name = String::new();
+            for ch in chars.by_ref() {
+                if ch == '}' {
+                    break;
+                }
+                name.push(ch);
+            }
+
+            // Validate: capture name must be a valid identifier (non-empty, alphanumeric + _)
+            if !name.is_empty()
+                && name.chars().all(|c| c.is_alphanumeric() || c == '_')
+                && name.starts_with(|c: char| c.is_alphabetic() || c == '_')
+            {
+                // Push any preceding literal
+                if !current_literal.is_empty() {
+                    segments.push(StringPatternSegment::Literal(std::mem::take(
+                        &mut current_literal,
+                    )));
+                }
+                segments.push(StringPatternSegment::Capture(name));
+                has_capture = true;
+            } else {
+                // Not a valid capture — treat as literal text
+                current_literal.push('{');
+                current_literal.push_str(&name);
+                current_literal.push('}');
+            }
+        } else {
+            current_literal.push(ch);
+        }
+    }
+
+    if !current_literal.is_empty() {
+        segments.push(StringPatternSegment::Literal(current_literal));
+    }
+
+    if has_capture { Some(segments) } else { None }
 }
 
 // ── JSX ──────────────────────────────────────────────────────────

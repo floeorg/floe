@@ -121,3 +121,9 @@ fn snapshot_error_untrusted_import() {
     );
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_error_todo_warning() {
+    let output = get_diagnostics("test.fl", "fn process(x: number) -> number {\n  todo\n}");
+    insta::assert_snapshot!(output);
+}

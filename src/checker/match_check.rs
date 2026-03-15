@@ -215,6 +215,28 @@ impl Checker {
                     self.check_pattern(pat, &Type::Unknown);
                 }
             }
+            PatternKind::StringPattern { segments } => {
+                // String patterns require the subject to be a string type
+                if !matches!(subject_ty, Type::String | Type::Unknown) {
+                    self.diagnostics.push(
+                        Diagnostic::error(
+                            format!(
+                                "string pattern used on non-string type `{}`",
+                                subject_ty.display_name()
+                            ),
+                            pattern.span,
+                        )
+                        .with_label("expected string type")
+                        .with_code("E005"),
+                    );
+                }
+                // Bind all captured variables as string
+                for segment in segments {
+                    if let StringPatternSegment::Capture(name) = segment {
+                        self.env.define(name, Type::String);
+                    }
+                }
+            }
             PatternKind::Binding(name) => {
                 self.env.define(name, subject_ty.clone());
             }

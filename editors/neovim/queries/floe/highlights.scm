@@ -23,6 +23,8 @@
 "Err" @constructor
 "Some" @constructor
 (none) @constant.builtin
+(todo) @keyword
+(unreachable) @keyword
 
 ; ── Literals ─────────────────────────────────────────────
 (number) @number

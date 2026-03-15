@@ -40,6 +40,10 @@ pub enum SyntaxKind {
     KW_SOME,
     KW_NONE,
 
+    // Built-in expressions
+    KW_TODO,
+    KW_UNREACHABLE,
+
     // Operators
     PIPE,          // |>
     THIN_ARROW,    // ->
@@ -135,6 +139,8 @@ pub enum SyntaxKind {
     OK_EXPR,
     ERR_EXPR,
     SOME_EXPR,
+    TODO_EXPR,
+    UNREACHABLE_EXPR,
 
     // JSX
     JSX_ELEMENT,
@@ -215,6 +221,8 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::Err => SyntaxKind::KW_ERR,
         TokenKind::Some => SyntaxKind::KW_SOME,
         TokenKind::None => SyntaxKind::KW_NONE,
+        TokenKind::Todo => SyntaxKind::KW_TODO,
+        TokenKind::Unreachable => SyntaxKind::KW_UNREACHABLE,
         TokenKind::Pipe => SyntaxKind::PIPE,
         TokenKind::ThinArrow => SyntaxKind::THIN_ARROW,
         TokenKind::FatArrow => SyntaxKind::FAT_ARROW,
