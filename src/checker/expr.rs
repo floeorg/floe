@@ -1286,6 +1286,15 @@ impl Checker {
                 _ => Type::Unknown,
             }
         };
-        self.env.resolve_to_concrete(ty, &resolve_fn)
+        let resolved = self.env.resolve_to_concrete(ty, &resolve_fn);
+        // If still Named after type_defs resolution, check if it's a known
+        // value (e.g. built-in Response, Error) that has a concrete type
+        if let Type::Named(name) = &resolved
+            && let Some(val_ty) = self.env.lookup(name).cloned()
+            && matches!(val_ty, Type::Record(_))
+        {
+            return val_ty;
+        }
+        resolved
     }
 }

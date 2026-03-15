@@ -82,14 +82,53 @@ impl Checker {
     pub fn new() -> Self {
         let mut env = TypeEnv::new();
 
-        // Register browser/runtime globals so the checker doesn't report them
-        // as undefined. Typed as Unknown for now; precise types can come later.
+        // ── Built-in runtime types ──────────────────────────────────
+        //
+        // These are web/JS standard types that Floe code can use without
+        // importing. Defined as Records so member access works through
+        // the normal type-checking path.
+
+        let response_type = Type::Record(vec![
+            (
+                "json".to_string(),
+                Type::Function {
+                    params: vec![],
+                    return_type: Box::new(Type::Unknown),
+                },
+            ),
+            (
+                "text".to_string(),
+                Type::Function {
+                    params: vec![],
+                    return_type: Box::new(Type::String),
+                },
+            ),
+            ("ok".to_string(), Type::Bool),
+            ("status".to_string(), Type::Number),
+            ("statusText".to_string(), Type::String),
+            ("headers".to_string(), Type::Named("Headers".to_string())),
+            ("url".to_string(), Type::String),
+        ]);
+
+        let error_type = Type::Record(vec![
+            ("message".to_string(), Type::String),
+            ("name".to_string(), Type::String),
+            ("stack".to_string(), Type::Option(Box::new(Type::String))),
+        ]);
+
+        // Register Response and Error as known named types so the checker
+        // can resolve them when used in type annotations or returned by functions.
+        env.define("Response", response_type.clone());
+        env.define("Error", error_type.clone());
+
+        // ── Browser/runtime globals ─────────────────────────────────
+
         let browser_globals: &[(&str, Type)] = &[
             (
                 "fetch",
                 Type::Function {
                     params: vec![Type::String],
-                    return_type: Box::new(Type::Unknown),
+                    return_type: Box::new(response_type),
                 },
             ),
             ("window", Type::Unknown),
