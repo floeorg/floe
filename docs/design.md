@@ -76,6 +76,9 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Default values | `fn f(x: number = 10)` | caller can omit, compiler fills in |
 | Structural equality | `==` on objects compares by value | deep equality check |
 | Unit type | `()` as return type, usable in generics | `undefined` / `void` in TS |
+| Tuple types | `(number, string)`, `(1, "a")` | `readonly [number, string]`, `[1, "a"] as const` |
+| Tuple destructuring | `const (x, y) = pair` | `const [x, y] = pair` |
+| Tuple match patterns | `(0, _) -> ...` | index-based match conditions |
 | Immutable sort | `Array.sort` returns new array | sorted copy, no mutation |
 | Strict parse | `Number.parse("123")` returns `Result` | no silent `NaN` or partial parse |
 
@@ -409,6 +412,38 @@ const pw: HashedPassword = hash("secret")
 // pw + "abc"   COMPILE ERROR — it's not a string to you
 
 ```
+
+### Tuples
+
+Anonymous lightweight product types. Use parenthesized syntax for types, construction, destructuring, and pattern matching.
+
+```floe
+// Type annotation
+const point: (number, number) = (10, 20)
+const entry: (string, number, boolean) = ("key", 42, true)
+
+// Construction
+const pair = (1, 2)
+
+// Destructuring
+const (x, y) = pair
+
+// Function signatures
+fn divmod(a: number, b: number) -> (number, number) {
+  (a / b, a % b)
+}
+
+// Pattern matching
+match divmod(10, 3) {
+  (_, 0) -> "divides evenly",
+  (q, r) -> `${q} remainder ${r}`,
+}
+```
+
+**Codegen:** Tuples compile to plain TypeScript arrays/tuples:
+- `(10, 20)` -> `[10, 20] as const`
+- `(number, number)` -> `readonly [number, number]`
+- `const (x, y) = pair` -> `const [x, y] = pair`
 
 ### Constructors, Named Arguments, and Defaults
 

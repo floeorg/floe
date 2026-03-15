@@ -123,3 +123,9 @@ fn snapshot_trusted_import() {
     let output = compile_fixture("trusted_import");
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_tuples() {
+    let output = compile_fixture("tuples");
+    insta::assert_snapshot!(output);
+}

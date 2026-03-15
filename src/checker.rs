@@ -574,6 +574,7 @@ impl Checker {
                 ConstBinding::Name(n) => n.clone(),
                 ConstBinding::Array(names) => names.join("_"),
                 ConstBinding::Object(names) => names.join("_"),
+                ConstBinding::Tuple(names) => names.join("_"),
             };
             let probe_key = format!("__probe_{binding_name}");
             self.dts_imports
@@ -630,6 +631,22 @@ impl Checker {
                         // Known type (e.g., Array<Todo> from useState<Array<Todo>>):
                         // first element gets the type, rest get Unknown
                         other if i == 0 => other.clone(),
+                        _ => Type::Unknown,
+                    };
+                    self.check_no_redefinition(name, span);
+                    self.name_types.insert(name.clone(), elem_ty.display_name());
+                    self.env.define(name, elem_ty);
+                    self.defined_sources
+                        .insert(name.clone(), "const".to_string());
+                    self.defined_names.push((name.clone(), span));
+                }
+            }
+            ConstBinding::Tuple(names) => {
+                // Infer element types from the value type
+                for (i, name) in names.iter().enumerate() {
+                    let elem_ty = match &final_type {
+                        Type::Tuple(types) => types.get(i).cloned().unwrap_or(Type::Unknown),
+                        Type::Unknown | Type::Var(_) => Type::Unknown,
                         _ => Type::Unknown,
                     };
                     self.check_no_redefinition(name, span);

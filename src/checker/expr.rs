@@ -796,6 +796,11 @@ impl Checker {
                 Type::Array(Box::new(elem_type.unwrap_or(Type::Unknown)))
             }
 
+            ExprKind::Tuple(elements) => {
+                let types: Vec<Type> = elements.iter().map(|el| self.check_expr(el)).collect();
+                Type::Tuple(types)
+            }
+
             ExprKind::Spread(inner) => self.check_expr(inner),
 
             ExprKind::DotShorthand { predicate, .. } => {

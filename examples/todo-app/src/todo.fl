@@ -29,4 +29,8 @@ for Array<Todo> {
             |> filter(.done == false)
             |> length
     }
+
+    export fn stats(self) -> (number, number) {
+        (self |> length, self |> filter(.done == true) |> length)
+    }
 }

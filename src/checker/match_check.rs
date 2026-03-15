@@ -207,6 +207,17 @@ impl Checker {
             PatternKind::Binding(name) => {
                 self.env.define(name, subject_ty.clone());
             }
+            PatternKind::Tuple(patterns) => {
+                if let Type::Tuple(types) = subject_ty {
+                    for (pat, ty) in patterns.iter().zip(types.iter()) {
+                        self.check_pattern(pat, ty);
+                    }
+                } else {
+                    for pat in patterns {
+                        self.check_pattern(pat, &Type::Unknown);
+                    }
+                }
+            }
         }
     }
 }

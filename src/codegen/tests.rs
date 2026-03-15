@@ -636,3 +636,39 @@ fn union_variant_dot_access_non_union_passthrough() {
     let result = emit("const _x = foo.bar");
     assert!(result.contains("foo.bar"));
 }
+
+// ── Tuples ─────────────────────────────────────────────────
+
+#[test]
+fn tuple_construction() {
+    assert_eq!(emit("(1, 2)"), "[1, 2] as const;");
+}
+
+#[test]
+fn tuple_three_elements() {
+    assert_eq!(emit(r#"(1, "two", true)"#), r#"[1, "two", true] as const;"#);
+}
+
+#[test]
+fn tuple_destructuring() {
+    let result = emit("const (x, y) = point");
+    assert_eq!(result, "const [x, y] = point;");
+}
+
+#[test]
+fn tuple_type_annotation() {
+    let result = emit("const p: (number, string) = (1, \"a\")");
+    assert!(result.contains("readonly [number, string]"));
+    assert!(result.contains("[1, \"a\"] as const"));
+}
+
+#[test]
+fn tuple_return_type() {
+    let result = emit("fn f(a: number) -> (number, string) { (a, \"x\") }");
+    assert!(result.contains("readonly [number, string]"));
+}
+
+#[test]
+fn tuple_trailing_comma() {
+    assert_eq!(emit("(1, 2,)"), "[1, 2] as const;");
+}

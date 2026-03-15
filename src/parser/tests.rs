@@ -903,3 +903,141 @@ fn for_block_error_non_fn() {
     let result = parse("for User { const x = 1 }");
     assert!(result.is_err());
 }
+
+// ── Tuple Expressions ──────────────────────────────────────
+
+#[test]
+fn tuple_two_elements() {
+    match first_expr("(1, 2)") {
+        ExprKind::Tuple(elements) => {
+            assert_eq!(elements.len(), 2);
+            assert!(matches!(&elements[0].kind, ExprKind::Number(n) if n == "1"));
+            assert!(matches!(&elements[1].kind, ExprKind::Number(n) if n == "2"));
+        }
+        other => panic!("expected tuple, got {other:?}"),
+    }
+}
+
+#[test]
+fn tuple_three_elements() {
+    match first_expr(r#"("a", 1, true)"#) {
+        ExprKind::Tuple(elements) => {
+            assert_eq!(elements.len(), 3);
+        }
+        other => panic!("expected tuple, got {other:?}"),
+    }
+}
+
+#[test]
+fn tuple_trailing_comma() {
+    match first_expr("(1, 2,)") {
+        ExprKind::Tuple(elements) => {
+            assert_eq!(elements.len(), 2);
+        }
+        other => panic!("expected tuple, got {other:?}"),
+    }
+}
+
+#[test]
+fn grouped_not_tuple() {
+    // Single element without comma is grouped, not tuple
+    match first_expr("(42)") {
+        ExprKind::Grouped(_) => {}
+        other => panic!("expected grouped, got {other:?}"),
+    }
+}
+
+#[test]
+fn unit_not_tuple() {
+    // Empty parens is unit, not tuple
+    match first_expr("()") {
+        ExprKind::Unit => {}
+        other => panic!("expected unit, got {other:?}"),
+    }
+}
+
+#[test]
+fn tuple_destructuring() {
+    match first_item("const (x, y) = point") {
+        ItemKind::Const(decl) => {
+            assert_eq!(
+                decl.binding,
+                ConstBinding::Tuple(vec!["x".to_string(), "y".to_string()])
+            );
+        }
+        other => panic!("expected const, got {other:?}"),
+    }
+}
+
+// ── Tuple Patterns ──────────────────────────────────────────
+
+#[test]
+fn tuple_pattern_in_match() {
+    let program = parse_ok(
+        r#"
+        match point {
+            (0, 0) -> "origin",
+            (x, y) -> "other",
+        }
+    "#,
+    );
+    match &program.items[0].kind {
+        ItemKind::Expr(e) => match &e.kind {
+            ExprKind::Match { arms, .. } => {
+                assert_eq!(arms.len(), 2);
+                match &arms[0].pattern.kind {
+                    PatternKind::Tuple(patterns) => {
+                        assert_eq!(patterns.len(), 2);
+                        assert!(
+                            matches!(&patterns[0].kind, PatternKind::Literal(LiteralPattern::Number(n)) if n == "0")
+                        );
+                    }
+                    other => panic!("expected tuple pattern, got {other:?}"),
+                }
+                match &arms[1].pattern.kind {
+                    PatternKind::Tuple(patterns) => {
+                        assert_eq!(patterns.len(), 2);
+                        assert!(matches!(&patterns[0].kind, PatternKind::Binding(n) if n == "x"));
+                    }
+                    other => panic!("expected tuple pattern, got {other:?}"),
+                }
+            }
+            other => panic!("expected match, got {other:?}"),
+        },
+        other => panic!("expected expr, got {other:?}"),
+    }
+}
+
+// ── Tuple Type Expressions ──────────────────────────────────
+
+#[test]
+fn tuple_type_annotation() {
+    match first_item("const p: (number, string) = (1, \"a\")") {
+        ItemKind::Const(decl) => {
+            let type_ann = decl.type_ann.unwrap();
+            match &type_ann.kind {
+                TypeExprKind::Tuple(types) => {
+                    assert_eq!(types.len(), 2);
+                }
+                other => panic!("expected tuple type, got {other:?}"),
+            }
+        }
+        other => panic!("expected const, got {other:?}"),
+    }
+}
+
+#[test]
+fn tuple_return_type() {
+    match first_item("fn f(a: number) -> (number, string) { (a, \"x\") }") {
+        ItemKind::Function(decl) => {
+            let ret = decl.return_type.unwrap();
+            match &ret.kind {
+                TypeExprKind::Tuple(types) => {
+                    assert_eq!(types.len(), 2);
+                }
+                other => panic!("expected tuple type, got {other:?}"),
+            }
+        }
+        other => panic!("expected function, got {other:?}"),
+    }
+}

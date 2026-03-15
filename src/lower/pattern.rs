@@ -154,6 +154,18 @@ impl<'src> Lowerer<'src> {
                             span,
                         });
                     }
+                    SyntaxKind::L_PAREN => {
+                        // Tuple pattern: (x, y)
+                        let patterns: Vec<Pattern> = node
+                            .children()
+                            .filter(|c| c.kind() == SyntaxKind::PATTERN)
+                            .filter_map(|c| self.lower_pattern(&c))
+                            .collect();
+                        return Some(Pattern {
+                            kind: PatternKind::Tuple(patterns),
+                            span,
+                        });
+                    }
                     _ => {}
                 }
             }

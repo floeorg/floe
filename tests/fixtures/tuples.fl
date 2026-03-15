@@ -1,0 +1,25 @@
+// Tuple construction
+const point = (10, 20)
+const entry = ("key", 42)
+const triple = (1, "two", true)
+
+// Tuple type annotations
+const origin: (number, number) = (0, 0)
+
+// Tuple destructuring
+const (x, y) = point
+
+// Tuple in function return type
+fn divmod(a: number, b: number) -> (number, number) {
+  (a / b, a % b)
+}
+
+// Tuple in match
+fn describe(pair: (number, number)) -> string {
+  match pair {
+    (0, 0) -> "origin",
+    (_, 0) -> "on x-axis",
+    (0, _) -> "on y-axis",
+    (a, b) -> `(${a}, ${b})`,
+  }
+}

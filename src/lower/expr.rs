@@ -359,6 +359,14 @@ impl<'src> Lowerer<'src> {
                 })
             }
 
+            SyntaxKind::TUPLE_EXPR => {
+                let elements = self.lower_child_exprs_and_tokens(node);
+                Some(Expr {
+                    span,
+                    kind: ExprKind::Tuple(elements),
+                })
+            }
+
             SyntaxKind::JSX_ELEMENT => {
                 let element = self.lower_jsx_element(node)?;
                 Some(Expr {

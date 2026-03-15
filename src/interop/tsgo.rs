@@ -371,7 +371,7 @@ fn type_expr_to_ts(ty: &TypeExpr) -> String {
         }
         TypeExprKind::Tuple(parts) => {
             let ps: Vec<String> = parts.iter().map(type_expr_to_ts).collect();
-            format!("[{}]", ps.join(", "))
+            format!("readonly [{}]", ps.join(", "))
         }
     }
 }
@@ -622,6 +622,7 @@ fn const_binding_name(binding: &ConstBinding) -> String {
         ConstBinding::Name(name) => name.clone(),
         ConstBinding::Array(names) => names.join("_"),
         ConstBinding::Object(names) => names.join("_"),
+        ConstBinding::Tuple(names) => names.join("_"),
     }
 }
 
