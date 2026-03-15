@@ -144,8 +144,8 @@ impl Parser {
                 decl.exported = exported;
                 ItemKind::TypeDecl(decl)
             }
-            TokenKind::For if !exported => {
-                let block = self.parse_for_block()?;
+            TokenKind::For => {
+                let block = self.parse_for_block_or_inline(exported)?;
                 ItemKind::ForBlock(block)
             }
             TokenKind::Trait => {
@@ -192,15 +192,35 @@ impl Parser {
             self.advance();
         }
 
-        let specifiers = if self.check(&TokenKind::LeftBrace) {
+        let mut specifiers = Vec::new();
+        let mut for_specifiers = Vec::new();
+
+        if self.check(&TokenKind::LeftBrace) {
             self.advance();
-            let specs = self.parse_comma_separated(|p| p.parse_import_specifier())?;
+            // Parse mixed specifiers: regular names and `for Type`
+            while !self.check(&TokenKind::RightBrace) && !self.is_at_end() {
+                if self.check(&TokenKind::For) {
+                    // `for Type` specifier
+                    let start_span = self.current_span();
+                    self.advance(); // consume `for`
+                    let type_name = self.expect_identifier()?;
+                    let end_span = self.previous_span();
+                    for_specifiers.push(ForImportSpecifier {
+                        type_name,
+                        span: self.merge_spans(start_span, end_span),
+                    });
+                } else {
+                    specifiers.push(self.parse_import_specifier()?);
+                }
+
+                if self.check(&TokenKind::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
             self.expect(&TokenKind::RightBrace)?;
-            specs
-        } else {
-            // import "module" (bare import, no specifiers)
-            Vec::new()
-        };
+        }
 
         // `from` is required when there are specifiers, optional for bare imports
         if self.check(&TokenKind::From) {
@@ -211,6 +231,7 @@ impl Parser {
         Ok(ImportDecl {
             trusted,
             specifiers,
+            for_specifiers,
             source,
         })
     }
@@ -499,7 +520,9 @@ impl Parser {
 
     // ── For Blocks ───────────────────────────────────────────────
 
-    fn parse_for_block(&mut self) -> Result<ForBlock, ParseError> {
+    /// Parse either a for-block (`for Type { ... }`) or an inline for-declaration
+    /// (`[export] for Type fn ...`).
+    fn parse_for_block_or_inline(&mut self, exported: bool) -> Result<ForBlock, ParseError> {
         let start_span = self.current_span();
         self.expect(&TokenKind::For)?;
 
@@ -513,19 +536,39 @@ impl Parser {
             None
         };
 
+        // Inline form: `[export] for Type fn name(...) { ... }`
+        if self.check(&TokenKind::Fn) || self.check(&TokenKind::Async) {
+            let mut func = self.parse_for_block_function()?;
+            func.exported = exported;
+            let end_span = self.previous_span();
+            return Ok(ForBlock {
+                type_name,
+                trait_name,
+                functions: vec![func],
+                span: self.merge_spans(start_span, end_span),
+            });
+        }
+
+        // Block form: `for Type { ... }` (export not allowed on the block itself)
+        if exported {
+            return Err(self.error(
+                "cannot export a for block; export individual functions inside it instead",
+            ));
+        }
+
         self.expect(&TokenKind::LeftBrace)?;
 
         let mut functions = Vec::new();
         while !self.check(&TokenKind::RightBrace) && !self.is_at_end() {
             // Allow `export` prefix on for-block functions
-            let exported = self.check(&TokenKind::Export);
-            if exported {
+            let fn_exported = self.check(&TokenKind::Export);
+            if fn_exported {
                 self.advance();
             }
 
             if self.check(&TokenKind::Fn) || self.check(&TokenKind::Async) {
                 let mut decl = self.parse_for_block_function()?;
-                decl.exported = exported;
+                decl.exported = fn_exported;
                 functions.push(decl);
             } else {
                 return Err(self.error("expected `fn` inside for block"));

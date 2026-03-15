@@ -97,6 +97,7 @@ pub enum SyntaxKind {
     PROGRAM,
     IMPORT_DECL,
     IMPORT_SPECIFIER,
+    IMPORT_FOR_SPECIFIER,
     CONST_DECL,
     FUNCTION_DECL,
     TYPE_DECL,

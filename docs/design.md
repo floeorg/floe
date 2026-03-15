@@ -596,6 +596,10 @@ Default value rules:
 
 `for` blocks group functions under a type. `self` is an explicit first parameter whose type is inferred from the block. No magic, no implicit context — `self` is just a named parameter.
 
+Two syntactic forms are supported:
+
+**Block form** — group multiple functions:
+
 ```floe
 type User = { name: string, age: number, active: bool }
 
@@ -612,7 +616,23 @@ for User {
     `${greeting}, ${self.name}!`
   }
 }
+```
 
+**Inline form** — single function, no block:
+
+```floe
+export for User fn display(self) -> string {
+  `${self.name} (${self.age})`
+}
+
+export for User fn greet(self, greeting: string) -> string {
+  `${greeting}, ${self.name}!`
+}
+```
+
+Export is per-function. In inline form, `export` goes before `for`. In block form, `export` goes before `fn` inside the block.
+
+```floe
 // Works with generic types too
 for Array<User> {
   fn adults(self) -> Array<User> {
@@ -626,14 +646,31 @@ user |> greet("Hello")      // greet(user, "Hello")
 users |> adults             // adults(users)
 ```
 
+### Importing For-Block Functions
+
+When for-block functions are in a different file from the type definition, import them with `import { for Type }`:
+
+```floe
+import { for User } from "./user-helpers"
+import { for Array, for Map } from "./todo"
+
+// Can be mixed with regular imports
+import { Todo, Filter, for Array, for string } from "./todo"
+```
+
+For generic types, use the base type only — no type params in imports. `import { for Array }` brings ALL `for Array<T>` extensions from that file.
+
+Same-file rule unchanged: importing a type still auto-imports its for-block functions from that file.
+
 For block rules:
 
 1. `self` is the explicit first parameter — type inferred from the `for` block
 2. No `this`, no implicit context
 3. Multiple `for` blocks per type allowed, even across files
 4. Importing a type imports same-file `for` blocks automatically
-5. Cross-file `for` blocks require their own import
+5. Cross-file `for` blocks use `import { for Type }` syntax
 6. Compiles to standalone functions with `self` explicitly typed
+7. Both block and inline syntax supported; inline creates a ForBlock with one function
 
 ### Traits — Type-Directed Behavioral Contracts
 
@@ -932,10 +969,10 @@ enum Expr {
 // Top-level items include ForBlock, TraitDecl, and TestBlock
 enum ItemKind {
     Import, Const, Function, TypeDecl,
-    ForBlock {                 // for Type { fn f(self) ... }
+    ForBlock {                 // for Type { fn f(self) ... } or [export] for Type fn f(self) ...
         type_name: TypeExpr,
         trait_name: Option<String>,  // for Type: Trait { ... }
-        functions: Vec<FunctionDecl>,
+        functions: Vec<FunctionDecl>,  // one function for inline, multiple for block form
     },
     TraitDecl {                // trait Name { fn method(self) ... }
         name: String,

@@ -168,5 +168,11 @@
 (import_specifier
   (identifier) @variable)
 
+(import_for_specifier
+  type: (type_identifier) @type)
+
+(import_for_specifier
+  type: (identifier) @type)
+
 (member_expression
   property: (identifier) @property)

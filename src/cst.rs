@@ -107,10 +107,10 @@ impl<'src> CstParser<'src> {
                 self.parse_type_decl();
                 self.builder.finish_node();
             }
-            Some(TokenKind::For) if !exported => {
+            Some(TokenKind::For) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
-                self.parse_for_block();
+                self.parse_for_block_or_inline();
                 self.builder.finish_node();
             }
             Some(TokenKind::Trait) => {
@@ -150,7 +150,7 @@ impl<'src> CstParser<'src> {
         if self.at(TokenKind::LeftBrace) {
             self.bump(); // {
             self.eat_trivia();
-            self.parse_comma_separated(Self::parse_import_specifier, TokenKind::RightBrace);
+            self.parse_comma_separated(Self::parse_import_specifier_or_for, TokenKind::RightBrace);
             self.expect(TokenKind::RightBrace);
             self.eat_trivia();
         }
@@ -163,6 +163,21 @@ impl<'src> CstParser<'src> {
         self.expect_kind(TokenKind::String("".into()));
 
         self.builder.finish_node();
+    }
+
+    /// Parse either a regular import specifier or a `for Type` import specifier.
+    fn parse_import_specifier_or_for(&mut self) {
+        if self.at(TokenKind::For) {
+            // `for Type` import specifier
+            self.builder
+                .start_node(SyntaxKind::IMPORT_FOR_SPECIFIER.into());
+            self.bump(); // `for`
+            self.eat_trivia();
+            self.expect_ident(); // type name
+            self.builder.finish_node();
+        } else {
+            self.parse_import_specifier();
+        }
     }
 
     fn parse_import_specifier(&mut self) {
@@ -396,7 +411,9 @@ impl<'src> CstParser<'src> {
 
     // ── For Blocks ──────────────────────────────────────────────
 
-    fn parse_for_block(&mut self) {
+    /// Parse either a for-block (`for Type { ... }`) or inline for-declaration
+    /// (`[export] for Type fn ...`).
+    fn parse_for_block_or_inline(&mut self) {
         self.builder.start_node(SyntaxKind::FOR_BLOCK.into());
 
         self.expect(TokenKind::For);
@@ -414,6 +431,14 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
+        // Inline form: `[export] for Type fn name(...) { ... }`
+        if self.at(TokenKind::Fn) || self.at(TokenKind::Async) {
+            self.parse_for_block_function();
+            self.builder.finish_node();
+            return;
+        }
+
+        // Block form: `for Type { ... }`
         self.expect(TokenKind::LeftBrace);
         self.eat_trivia();
 

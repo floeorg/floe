@@ -41,6 +41,8 @@ pub struct ImportDecl {
     /// Whether the entire import is trusted: `import trusted { ... } from "..."`
     pub trusted: bool,
     pub specifiers: Vec<ImportSpecifier>,
+    /// For-import specifiers: `import { for User, for Array } from "..."`
+    pub for_specifiers: Vec<ForImportSpecifier>,
     pub source: String,
 }
 
@@ -50,6 +52,14 @@ pub struct ImportSpecifier {
     pub alias: Option<String>,
     /// Whether this specific import is trusted: `import { trusted foo } from "..."`
     pub trusted: bool,
+    pub span: Span,
+}
+
+/// `for Type` specifier in an import: `import { for User } from "./helpers"`
+#[derive(Debug, Clone, PartialEq)]
+pub struct ForImportSpecifier {
+    /// The type name (base type only, no type params): e.g., "User", "Array"
+    pub type_name: String,
     pub span: Span,
 }
 

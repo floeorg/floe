@@ -63,7 +63,7 @@ module.exports = grammar({
         "import",
         optional("trusted"),
         "{",
-        commaSep1($.import_specifier),
+        commaSep1(choice($.import_specifier, $.import_for_specifier)),
         "}",
         "from",
         $.string,
@@ -72,16 +72,31 @@ module.exports = grammar({
     import_specifier: ($) =>
       seq(optional("trusted"), $.identifier, optional(seq("as", $.identifier))),
 
+    import_for_specifier: ($) =>
+      seq("for", field("type", choice($.type_identifier, $.identifier))),
+
     // ── For Blocks ─────────────────────────────────────────
 
     for_block: ($) =>
-      seq(
-        "for",
-        field("type", $._type_expression),
-        optional(seq(":", field("trait", $.type_identifier))),
-        "{",
-        repeat(seq(optional("export"), $.function_declaration)),
-        "}",
+      choice(
+        // Block form: for Type { ... }
+        seq(
+          optional("export"),
+          "for",
+          field("type", $._type_expression),
+          optional(seq(":", field("trait", $.type_identifier))),
+          "{",
+          repeat(seq(optional("export"), $.function_declaration)),
+          "}",
+        ),
+        // Inline form: [export] for Type fn name(...) { ... }
+        seq(
+          optional("export"),
+          "for",
+          field("type", $._type_expression),
+          optional(seq(":", field("trait", $.type_identifier))),
+          $.function_declaration,
+        ),
       ),
 
     // ── Traits ──────────────────────────────────────────────
@@ -124,7 +139,7 @@ module.exports = grammar({
     // ── Exports ─────────────────────────────────────────────
 
     export_declaration: ($) =>
-      seq("export", choice($.function_declaration, $.const_declaration)),
+      seq("export", choice($.function_declaration, $.const_declaration, $.for_block)),
 
     // ── Functions ───────────────────────────────────────────
 

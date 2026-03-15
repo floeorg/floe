@@ -959,6 +959,190 @@ fn for_block_error_non_fn() {
     assert!(result.is_err());
 }
 
+// ── Inline For Declarations ─────────────────────────────────
+
+#[test]
+fn inline_for_declaration() {
+    let input = r#"
+type User = { name: string }
+for User fn display(self) -> string {
+    self.name
+}
+"#;
+    let program = parse_ok(input);
+    assert_eq!(program.items.len(), 2);
+    match &program.items[1].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions.len(), 1);
+            assert_eq!(block.functions[0].name, "display");
+            assert_eq!(block.functions[0].params[0].name, "self");
+            assert!(!block.functions[0].exported);
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn inline_for_declaration_exported() {
+    let input = r#"
+type User = { name: string }
+export for User fn display(self) -> string {
+    self.name
+}
+"#;
+    let program = parse_ok(input);
+    match &program.items[1].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions.len(), 1);
+            assert_eq!(block.functions[0].name, "display");
+            assert!(block.functions[0].exported);
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn inline_for_multiple_declarations() {
+    let input = r#"
+type User = { name: string }
+for User fn display(self) -> string { self.name }
+export for User fn greet(self, greeting: string) -> string { `${greeting}` }
+"#;
+    let program = parse_ok(input);
+    assert_eq!(program.items.len(), 3);
+    match &program.items[1].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions.len(), 1);
+            assert_eq!(block.functions[0].name, "display");
+            assert!(!block.functions[0].exported);
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+    match &program.items[2].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions.len(), 1);
+            assert_eq!(block.functions[0].name, "greet");
+            assert!(block.functions[0].exported);
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn inline_for_generic_type() {
+    let input = r#"
+for Array<Todo> fn adults(self) -> Array<Todo> { self }
+"#;
+    let program = parse_ok(input);
+    match &program.items[0].kind {
+        ItemKind::ForBlock(block) => {
+            match &block.type_name.kind {
+                TypeExprKind::Named {
+                    name, type_args, ..
+                } => {
+                    assert_eq!(name, "Array");
+                    assert_eq!(type_args.len(), 1);
+                }
+                other => panic!("expected Named type, got {other:?}"),
+            }
+            assert_eq!(block.functions.len(), 1);
+            assert_eq!(block.functions[0].name, "adults");
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn inline_for_async() {
+    let input = r#"
+export for User async fn fetchData(self) -> string { self.name }
+"#;
+    let program = parse_ok(input);
+    match &program.items[0].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions[0].name, "fetchData");
+            assert!(block.functions[0].async_fn);
+            assert!(block.functions[0].exported);
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn mixed_inline_and_block_for() {
+    let input = r#"
+type User = { name: string }
+export for User fn display(self) -> string { self.name }
+for User {
+    export fn greet(self) -> string { self.name }
+}
+"#;
+    let program = parse_ok(input);
+    assert_eq!(program.items.len(), 3);
+    // Inline
+    match &program.items[1].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions.len(), 1);
+            assert_eq!(block.functions[0].name, "display");
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+    // Block
+    match &program.items[2].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions.len(), 1);
+            assert_eq!(block.functions[0].name, "greet");
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+// ── Import { for Type } ────────────────────────────────────
+
+#[test]
+fn import_for_type() {
+    let input = r#"import { for User } from "./helpers""#;
+    match first_item(input) {
+        ItemKind::Import(decl) => {
+            assert!(decl.specifiers.is_empty());
+            assert_eq!(decl.for_specifiers.len(), 1);
+            assert_eq!(decl.for_specifiers[0].type_name, "User");
+            assert_eq!(decl.source, "./helpers");
+        }
+        other => panic!("expected import, got {other:?}"),
+    }
+}
+
+#[test]
+fn import_multiple_for_types() {
+    let input = r#"import { for Array, for Map } from "./todo""#;
+    match first_item(input) {
+        ItemKind::Import(decl) => {
+            assert!(decl.specifiers.is_empty());
+            assert_eq!(decl.for_specifiers.len(), 2);
+            assert_eq!(decl.for_specifiers[0].type_name, "Array");
+            assert_eq!(decl.for_specifiers[1].type_name, "Map");
+        }
+        other => panic!("expected import, got {other:?}"),
+    }
+}
+
+#[test]
+fn import_mixed_names_and_for_types() {
+    let input = r#"import { Todo, Filter, for Array, for string } from "./todo""#;
+    match first_item(input) {
+        ItemKind::Import(decl) => {
+            assert_eq!(decl.specifiers.len(), 2);
+            assert_eq!(decl.specifiers[0].name, "Todo");
+            assert_eq!(decl.specifiers[1].name, "Filter");
+            assert_eq!(decl.for_specifiers.len(), 2);
+            assert_eq!(decl.for_specifiers[0].type_name, "Array");
+            assert_eq!(decl.for_specifiers[1].type_name, "string");
+        }
+        other => panic!("expected import, got {other:?}"),
+    }
+}
+
 // ── Test Blocks ─────────────────────────────────────────────
 
 #[test]

@@ -67,10 +67,16 @@ opaque type Email = string
 ### For Block
 
 ```floe
+// Block form: group multiple functions
 for Type {
   fn method(self) -> ReturnType {
     body
   }
+}
+
+// Inline form: single function, no block
+export for Type fn method(self) -> ReturnType {
+  body
 }
 
 for Array<User> {
@@ -197,6 +203,13 @@ Dot shorthand for field access:
 import { name } from "module"
 import { name as alias } from "module"
 import { a, b, c } from "module"
+
+// Import for-block functions by type
+import { for User } from "./helpers"
+import { for Array, for Map } from "./collections"
+
+// Mix regular and for-imports
+import { Todo, Filter, for Array } from "./todo"
 ```
 
 ## Patterns

@@ -428,6 +428,56 @@ const _x = _user |> display
     assert!(!has_error_containing(&diags, "not defined"));
 }
 
+// ── Inline For Declarations ─────────────────────────────────
+
+#[test]
+fn inline_for_registers_function() {
+    let diags = check(
+        r#"
+type User = { name: string }
+for User fn display(self) -> string { self.name }
+const _x = display(User(name: "Ryan"))
+"#,
+    );
+    assert!(!has_error_containing(&diags, "not defined"));
+}
+
+#[test]
+fn inline_for_exported_registers_function() {
+    let diags = check(
+        r#"
+type User = { name: string }
+export for User fn display(self) -> string { self.name }
+const _x = display(User(name: "Ryan"))
+"#,
+    );
+    assert!(!has_error_containing(&diags, "not defined"));
+}
+
+#[test]
+fn inline_for_self_gets_type() {
+    let diags = check(
+        r#"
+type User = { name: string }
+for User fn getName(self) -> string { self.name }
+"#,
+    );
+    assert!(!has_error_containing(&diags, "not defined"));
+}
+
+#[test]
+fn inline_for_with_pipe() {
+    let diags = check(
+        r#"
+type User = { name: string }
+for User fn display(self) -> string { self.name }
+const _user = User(name: "Ryan")
+const _x = _user |> display
+"#,
+    );
+    assert!(!has_error_containing(&diags, "not defined"));
+}
+
 // ── Untrusted Import Enforcement ─────────────────────────────
 
 #[test]

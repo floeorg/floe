@@ -518,6 +518,28 @@ impl Checker {
                 self.untrusted_imports.insert(effective_name.to_string());
             }
         }
+
+        // Handle `for Type` import specifiers
+        if !decl.for_specifiers.is_empty()
+            && let Some(ref resolved) = resolved
+        {
+            for for_spec in &decl.for_specifiers {
+                // Find all for-blocks in the resolved module that match this type
+                for block in &resolved.for_blocks {
+                    let base_type_name = match &block.type_name.kind {
+                        TypeExprKind::Named { name, .. } => name.clone(),
+                        _ => continue,
+                    };
+                    if base_type_name == for_spec.type_name {
+                        self.check_for_block_imported_with_source(block, &decl.source);
+                        // Mark the for-import functions as used (suppress unused import)
+                        for func in &block.functions {
+                            self.used_names.insert(func.name.clone());
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Look up a symbol name in resolved imports and return its type.

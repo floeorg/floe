@@ -202,7 +202,7 @@ impl Codegen {
 
     fn emit_import(&mut self, decl: &ImportDecl) {
         self.emit_indent();
-        if decl.specifiers.is_empty() {
+        if decl.specifiers.is_empty() && decl.for_specifiers.is_empty() {
             // Bare import: expand to named imports if we have resolved exports
             if let Some(resolved) = self.resolved_imports.get(&decl.source) {
                 let mut names: Vec<String> = Vec::new();
@@ -246,15 +246,26 @@ impl Codegen {
             }
         } else {
             self.push("import { ");
-            for (i, spec) in decl.specifiers.iter().enumerate() {
-                if i > 0 {
+            let mut first = true;
+            for spec in &decl.specifiers {
+                if !first {
                     self.push(", ");
                 }
+                first = false;
                 self.push(&spec.name);
                 if let Some(alias) = &spec.alias {
                     self.push(" as ");
                     self.push(alias);
                 }
+            }
+            // Expand `for Type` specifiers into concrete function names
+            let for_func_names = self.resolve_for_import_names(decl);
+            for name in &for_func_names {
+                if !first {
+                    self.push(", ");
+                }
+                first = false;
+                self.push(name);
             }
             self.push(&format!(" }} from \"{}\";", decl.source));
         }
@@ -653,6 +664,29 @@ impl Codegen {
                 self.push("]");
             }
         }
+    }
+
+    /// Resolve `for Type` import specifiers to concrete function names.
+    fn resolve_for_import_names(&self, decl: &ImportDecl) -> Vec<String> {
+        let mut names = Vec::new();
+        if let Some(resolved) = self.resolved_imports.get(&decl.source) {
+            for for_spec in &decl.for_specifiers {
+                for block in &resolved.for_blocks {
+                    let base_type_name = match &block.type_name.kind {
+                        TypeExprKind::Named { name, .. } => name.clone(),
+                        _ => continue,
+                    };
+                    if base_type_name == for_spec.type_name {
+                        for func in &block.functions {
+                            if func.exported {
+                                names.push(func.name.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        names
     }
 
     // ── Output helpers ───────────────────────────────────────────

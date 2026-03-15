@@ -98,7 +98,8 @@ impl<'src> Lowerer<'src> {
                     });
                 }
                 SyntaxKind::FOR_BLOCK => {
-                    let block = self.lower_for_block(&child)?;
+                    let exported = self.has_keyword(node, SyntaxKind::KW_EXPORT);
+                    let block = self.lower_for_block(&child, exported)?;
                     return Some(Item {
                         kind: ItemKind::ForBlock(block),
                         span,
@@ -135,6 +136,7 @@ impl<'src> Lowerer<'src> {
 
     fn lower_import(&mut self, node: &SyntaxNode) -> Option<ImportDecl> {
         let mut specifiers = Vec::new();
+        let mut for_specifiers = Vec::new();
         let mut source = String::new();
 
         for child in node.children() {
@@ -142,6 +144,10 @@ impl<'src> Lowerer<'src> {
                 && let Some(spec) = self.lower_import_specifier(&child)
             {
                 specifiers.push(spec);
+            } else if child.kind() == SyntaxKind::IMPORT_FOR_SPECIFIER
+                && let Some(spec) = self.lower_import_for_specifier(&child)
+            {
+                for_specifiers.push(spec);
             }
         }
 
@@ -157,8 +163,17 @@ impl<'src> Lowerer<'src> {
         Some(ImportDecl {
             trusted: false,
             specifiers,
+            for_specifiers,
             source,
         })
+    }
+
+    fn lower_import_for_specifier(&mut self, node: &SyntaxNode) -> Option<ForImportSpecifier> {
+        let span = self.node_span(node);
+        let idents = self.collect_idents(node);
+        let type_name = idents.first()?.clone();
+
+        Some(ForImportSpecifier { type_name, span })
     }
 
     fn lower_import_specifier(&mut self, node: &SyntaxNode) -> Option<ImportSpecifier> {
@@ -325,7 +340,7 @@ impl<'src> Lowerer<'src> {
         })
     }
 
-    fn lower_for_block(&mut self, node: &SyntaxNode) -> Option<ForBlock> {
+    fn lower_for_block(&mut self, node: &SyntaxNode, item_exported: bool) -> Option<ForBlock> {
         let span = self.node_span(node);
 
         // Find the type expression (first TYPE_EXPR child)
@@ -354,7 +369,8 @@ impl<'src> Lowerer<'src> {
                     }
                     SyntaxKind::FUNCTION_DECL => {
                         if let Some(mut decl) = self.lower_for_block_function(&child) {
-                            decl.exported = next_exported;
+                            // For inline for-declarations, export comes from the ITEM node
+                            decl.exported = next_exported || item_exported;
                             functions.push(decl);
                         }
                         next_exported = false;
