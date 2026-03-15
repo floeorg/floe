@@ -10,7 +10,7 @@ export fn HomePage() -> JSX.Element {
     const [error, setError] = useState("")
 
     const visible = todos |> filterBy(filter)
-    const remaining = todos |> remaining
+    const remainingCount = todos |> remaining
 
     fn handleAdd() {
         match input |> validate {
@@ -128,7 +128,7 @@ export fn HomePage() -> JSX.Element {
         </ul>
 
         <p className="mt-6 text-sm text-zinc-500">
-            {`${remaining} item(s) remaining`}
+            {`${remainingCount} item(s) remaining`}
         </p>
     </div>
 }

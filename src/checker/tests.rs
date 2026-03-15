@@ -825,13 +825,77 @@ fn foo() -> string { "hi" }
 }
 
 #[test]
-fn shadow_allowed_in_inner_scope() {
-    // Shadowing in an inner scope (e.g., function params) should be OK
+fn shadow_not_allowed_in_inner_scope() {
+    // No shadowing ever — even function params can't shadow outer names
     let diags = check(
         r#"
 const x = 5
 fn double(x: number) -> number { x * 2 }
 "#,
     );
-    assert!(!has_error_containing(&diags, "already defined"));
+    assert!(has_error_containing(&diags, "already defined"));
+}
+
+#[test]
+fn shadow_inner_scope_const_shadows_for_block_fn() {
+    // A const INSIDE a function body shadowing a for-block function should error
+    let diags = check(
+        r#"
+type Todo = { text: string, done: boolean }
+for Array<Todo> {
+    export fn remaining(self) -> number { 0 }
+}
+fn test() -> number {
+    const remaining = 5
+    remaining
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "inner-scope const should not shadow for-block fn, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn shadow_inner_scope_const_shadows_outer_const() {
+    // A const inside a function body shadowing an outer const should error
+    let diags = check(
+        r#"
+const x = 5
+fn test() -> number {
+    const x = 10
+    x
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "inner-scope const should not shadow outer const, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn for_block_pipe_then_shadow_errors() {
+    // Real-world case: piping into for-block fn then shadowing its name
+    let diags = check(
+        r#"
+type Todo = { text: string, done: boolean }
+for Array<Todo> {
+    export fn remaining(self) -> number { 0 }
+}
+fn test() -> number {
+    const _todos: Array<Todo> = []
+    const remaining = _todos |> remaining
+    remaining
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "should error on shadowing for-block fn, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }

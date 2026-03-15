@@ -224,13 +224,16 @@ impl Checker {
         Type::Var(id)
     }
 
-    /// Emit an error if `name` is already defined in the current scope.
+    /// Emit an error if `name` is already defined in any scope (no shadowing allowed).
     fn check_no_redefinition(&mut self, name: &str, span: Span) {
-        if self.env.is_defined_in_current_scope(name) {
+        if self.env.is_defined_in_any_scope(name) {
             self.diagnostics.push(
-                Diagnostic::error(format!("`{name}` is already defined in this scope"), span)
-                    .with_label("already defined")
-                    .with_code("E016"),
+                Diagnostic::error(
+                    format!("`{name}` is already defined and cannot be shadowed"),
+                    span,
+                )
+                .with_label("already defined")
+                .with_code("E016"),
             );
         }
     }
@@ -674,8 +677,11 @@ impl Checker {
 
         self.env.push_scope();
 
-        // Define parameters
+        // Define parameters (check for shadowing, but skip `self`)
         for (param, ty) in decl.params.iter().zip(param_types.iter()) {
+            if param.name != "self" {
+                self.check_no_redefinition(&param.name, span);
+            }
             self.env.define(&param.name, ty.clone());
         }
 

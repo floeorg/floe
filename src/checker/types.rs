@@ -151,11 +151,9 @@ impl TypeEnv {
         }
     }
 
-    /// Check if a name is already defined in the current scope (not parent scopes).
-    pub(crate) fn is_defined_in_current_scope(&self, name: &str) -> bool {
-        self.scopes
-            .last()
-            .is_some_and(|scope| scope.contains_key(name))
+    /// Check if a name is already defined in any scope.
+    pub(crate) fn is_defined_in_any_scope(&self, name: &str) -> bool {
+        self.scopes.iter().any(|scope| scope.contains_key(name))
     }
 
     pub(crate) fn lookup(&self, name: &str) -> Option<&Type> {
