@@ -60,6 +60,8 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Match with destructuring | `Click(el, { x, y }) -> ...` | nested destructuring |
 | Result type | built-in `Ok(v)` / `Err(e)` | `{ ok: true, value } / { ok: false, error }` |
 | Option type | built-in `Some(v)` / `None` | `v / undefined` |
+| `todo` | placeholder, type `never` | `(() => { throw new Error("not implemented"); })()` |
+| `unreachable` | assert unreachable, type `never` | `(() => { throw new Error("unreachable"); })()` |
 | `?` operator | `fetchUser(id)?` | early return on Err/None |
 | Branded types | `type UserId = Brand<string, "UserId">` | `string` at runtime |
 | Opaque types | `opaque type HashedPw = string` | `string`, but only the defining module can create/read |
@@ -673,6 +675,7 @@ These are enforced at compile time with clear error messages.
 | Non-unit function missing return | `ERROR: missing return value` | Add return expression |
 | Spread with overlapping keys | `WARNING: 'y' from 'a' is overwritten by 'b'` | Reorder or remove duplicate |
 | `void` keyword | `ERROR: use () instead of void` | Replace with `()` |
+| `todo` usage | `WARNING: placeholder that will panic at runtime` | Replace with actual implementation |
 
 ---
 
@@ -711,6 +714,8 @@ Key tokens beyond standard TypeScript:
 | `Fn` | `fn` keyword |
 | `Some` | `Some` keyword |
 | `None` | `None` keyword |
+| `Todo` | `todo` keyword |
+| `Unreachable` | `unreachable` keyword |
 | `Ok` | `Ok` keyword |
 | `Err` | `Err` keyword |
 | `Opaque` | `opaque` keyword |

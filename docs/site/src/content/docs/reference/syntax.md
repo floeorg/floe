@@ -151,6 +151,13 @@ Some(value)   // Option present
 None          // Option absent
 ```
 
+### Builtins
+
+```floe
+todo          // placeholder, type never, emits warning
+unreachable   // assert unreachable, type never
+```
+
 ### Qualified Variants
 
 ```floe

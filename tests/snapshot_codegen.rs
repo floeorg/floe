@@ -123,3 +123,9 @@ fn snapshot_trusted_import() {
     let output = compile_fixture("trusted_import");
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_todo_unreachable() {
+    let output = compile_fixture("todo_unreachable");
+    insta::assert_snapshot!(output);
+}

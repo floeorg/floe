@@ -388,6 +388,24 @@ impl Parser {
                 })
             }
 
+            // Todo
+            TokenKind::Todo => {
+                self.advance();
+                Ok(Expr {
+                    kind: ExprKind::Todo,
+                    span: start_span,
+                })
+            }
+
+            // Unreachable
+            TokenKind::Unreachable => {
+                self.advance();
+                Ok(Expr {
+                    kind: ExprKind::Unreachable,
+                    span: start_span,
+                })
+            }
+
             // Ok(expr)
             TokenKind::Ok => {
                 self.advance();

@@ -54,6 +54,8 @@ pub enum Type {
     Unknown,
     /// Unit type () — replaces void, a real value usable in generics
     Unit,
+    /// The never type — used for `todo` and `unreachable`, compatible with any type
+    Never,
 }
 
 impl Type {
@@ -105,6 +107,7 @@ impl Type {
             Type::Var(id) => format!("?T{id}"),
             Type::Unknown => "unknown".to_string(),
             Type::Unit => "()".to_string(),
+            Type::Never => "never".to_string(),
         }
     }
 }

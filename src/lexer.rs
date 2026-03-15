@@ -667,6 +667,14 @@ mod tests {
     }
 
     #[test]
+    fn todo_and_unreachable() {
+        assert_eq!(
+            lex("todo unreachable"),
+            vec![TokenKind::Todo, TokenKind::Unreachable, TokenKind::Eof,]
+        );
+    }
+
+    #[test]
     fn banned_keywords() {
         let tokens = lex("let class throw null undefined any as enum function");
         assert_eq!(

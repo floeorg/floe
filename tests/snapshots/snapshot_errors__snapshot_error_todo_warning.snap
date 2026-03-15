@@ -1,0 +1,24 @@
+---
+source: tests/snapshot_errors.rs
+expression: output
+---
+[33m[W002] Warning:[0m `todo` is a placeholder that will panic at runtime
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.fl:2:3 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m2 │[0m [38;5;249m [0m[38;5;249m [0m[33mt[0m[33mo[0m[33md[0m[33mo[0m
+ [38;5;240m  │[0m   [33m─[0m[33m─[0m[33m┬[0m[33m─[0m  
+ [38;5;240m  │[0m     [33m╰[0m[33m─[0m[33m─[0m[33m─[0m not yet implemented
+ [38;5;240m  │[0m 
+ [38;5;240m  │[0m [38;5;115mHelp[0m: replace with actual implementation before shipping
+[38;5;246m───╯[0m
+[33m[W001] Warning:[0m unused variable `process`
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.fl:1:1 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m1 │[0m [33m╭[0m[33m─[0m[33m▶[0m[33m [0m[33mf[0m[33mn[0m[33m [0m[33mp[0m[33mr[0m[33mo[0m[33mc[0m[33me[0m[33ms[0m[33ms[0m[33m([0m[33mx[0m[33m:[0m[33m [0m[33mn[0m[33mu[0m[33mm[0m[33mb[0m[33me[0m[33mr[0m[33m)[0m[33m [0m[33m-[0m[33m>[0m[33m [0m[33mn[0m[33mu[0m[33mm[0m[33mb[0m[33me[0m[33mr[0m[33m [0m[33m{[0m
+ [38;5;240m  ┆[0m [33m┆[0m   
+ [38;5;246m3 │[0m [33m├[0m[33m─[0m[33m▶[0m[33m [0m[33m}[0m
+ [38;5;240m  │[0m [33m│[0m      
+ [38;5;240m  │[0m [33m╰[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m defined but never used
+ [38;5;240m  │[0m     
+ [38;5;240m  │[0m     [38;5;115mHelp[0m: prefix with underscore `_process` to suppress
+[38;5;246m───╯[0m

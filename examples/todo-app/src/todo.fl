@@ -29,4 +29,9 @@ for Array<Todo> {
             |> filter(.done == false)
             |> length
     }
+
+    // Placeholder for future search functionality
+    export fn search(self, _query: string) -> Array<Todo> {
+        todo
+    }
 }

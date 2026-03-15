@@ -110,5 +110,19 @@
       "opaque type ${1:Name} = ${2:BaseType}"
     ],
     "description": "Opaque type"
+  },
+  "Todo Placeholder": {
+    "prefix": "todo",
+    "body": [
+      "todo"
+    ],
+    "description": "Placeholder that panics at runtime (type never)"
+  },
+  "Unreachable": {
+    "prefix": "unreachable",
+    "body": [
+      "unreachable"
+    ],
+    "description": "Assert unreachable code path (type never)"
   }
 }

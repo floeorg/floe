@@ -252,6 +252,8 @@ module.exports = grammar({
         $.parenthesized_expression,
         $.unit_value,
         $.none,
+        $.todo,
+        $.unreachable,
         $.self,
         $.underscore,
       ),
@@ -294,6 +296,10 @@ module.exports = grammar({
     unit_value: ($) => prec(2, seq("(", ")")),
 
     none: ($) => "None",
+
+    todo: ($) => "todo",
+
+    unreachable: ($) => "unreachable",
 
     underscore: ($) => "_",
 

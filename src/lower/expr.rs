@@ -543,6 +543,14 @@ impl<'src> Lowerer<'src> {
                 kind: ExprKind::None,
                 span,
             }),
+            SyntaxKind::KW_TODO => Some(Expr {
+                kind: ExprKind::Todo,
+                span,
+            }),
+            SyntaxKind::KW_UNREACHABLE => Some(Expr {
+                kind: ExprKind::Unreachable,
+                span,
+            }),
             SyntaxKind::KW_SELF => Some(Expr {
                 kind: ExprKind::Identifier("self".to_string()),
                 span,

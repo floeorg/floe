@@ -1,0 +1,19 @@
+// todo as function body placeholder
+fn processPayment(amount: number) -> number {
+  todo
+}
+
+// unreachable in match arm
+fn describe(n: number) -> string {
+  match n {
+    1 -> "one",
+    2 -> "two",
+    _ -> unreachable,
+  }
+}
+
+// todo in const
+const placeholder = todo
+
+// unreachable as expression
+const guard = unreachable
