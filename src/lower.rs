@@ -179,9 +179,16 @@ impl<'src> Lowerer<'src> {
         let idents = self.collect_idents(node);
         let has_lbracket = self.has_token(node, SyntaxKind::L_BRACKET);
         let has_lbrace = self.has_token(node, SyntaxKind::L_BRACE);
+        let has_lparen = self.has_token(node, SyntaxKind::L_PAREN);
 
         if has_lbracket {
             binding = Some(ConstBinding::Array(idents));
+        } else if has_lparen
+            && idents.len() >= 2
+            && !node.children().any(|c| c.kind() == SyntaxKind::TYPE_EXPR)
+        {
+            // Tuple destructuring: const (a, b) = ...
+            binding = Some(ConstBinding::Tuple(idents));
         } else if has_lbrace && !node.children().any(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
             // Object destructuring — but only if { } is NOT a type expr's record
             // We need to check if the braces are for destructuring vs type annotation
@@ -568,6 +575,17 @@ impl<'src> Lowerer<'src> {
                         name: "()".to_string(),
                         type_args: Vec::new(),
                     },
+                    span,
+                });
+            }
+            // Tuple type: (T, U) — parens with multiple child type exprs, no arrow
+            if child_type_exprs.len() >= 2 {
+                let types: Vec<TypeExpr> = child_type_exprs
+                    .iter()
+                    .filter_map(|c| self.lower_type_expr(c))
+                    .collect();
+                return Some(TypeExpr {
+                    kind: TypeExprKind::Tuple(types),
                     span,
                 });
             }

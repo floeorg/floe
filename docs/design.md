@@ -79,6 +79,9 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Default values | `fn f(x: number = 10)` | caller can omit, compiler fills in |
 | Structural equality | `==` on objects compares by value | deep equality check |
 | Unit type | `()` as return type, usable in generics | `undefined` / `void` in TS |
+| Tuple types | `(number, string)`, `(1, "a")` | `readonly [number, string]`, `[1, "a"] as const` |
+| Tuple destructuring | `const (x, y) = pair` | `const [x, y] = pair` |
+| Tuple match patterns | `(0, _) -> ...` | index-based match conditions |
 | tap | `x \|> tap(Console.log)` | IIFE: calls fn, returns value unchanged |
 | Immutable sort | `Array.sort` returns new array | sorted copy, no mutation |
 | Strict parse | `Number.parse("123")` returns `Result` | no silent `NaN` or partial parse |
@@ -208,6 +211,29 @@ match url {
 ```
 
 Match uses `->` for arms (not `|x|`), so it's visually distinct from lambdas.
+
+### Match Arm Guards
+
+A `when` clause on a match arm adds a condition that must be true for the arm to match. Bindings from the pattern are in scope in the guard expression.
+
+```floe
+match user {
+  User(age) when age > 18 -> "adult",
+  User(age) -> "minor",
+}
+
+match request {
+  Request(method, path) when method == "GET" -> handleGet(path),
+  Request(method, path) when method == "POST" -> handlePost(path),
+  _ -> notAllowed(),
+}
+```
+
+**Exhaustiveness:** A guarded arm does not fully cover its pattern. The compiler treats guarded arms as partial matches, so a catch-all (`_`) or unguarded arm is still required for exhaustiveness.
+
+**Codegen:** Guards become additional conditions in the emitted ternary chain:
+- Without bindings: `pattern_condition && guard ? body : ...`
+- With bindings: pattern check, then IIFE with `if (guard) { return body; }` to fall through on guard failure
 
 ### The `?` Operator (Result/Option Unwrap)
 
@@ -428,6 +454,38 @@ const pw: HashedPassword = hash("secret")
 // pw + "abc"   COMPILE ERROR — it's not a string to you
 
 ```
+
+### Tuples
+
+Anonymous lightweight product types. Use parenthesized syntax for types, construction, destructuring, and pattern matching.
+
+```floe
+// Type annotation
+const point: (number, number) = (10, 20)
+const entry: (string, number, boolean) = ("key", 42, true)
+
+// Construction
+const pair = (1, 2)
+
+// Destructuring
+const (x, y) = pair
+
+// Function signatures
+fn divmod(a: number, b: number) -> (number, number) {
+  (a / b, a % b)
+}
+
+// Pattern matching
+match divmod(10, 3) {
+  (_, 0) -> "divides evenly",
+  (q, r) -> `${q} remainder ${r}`,
+}
+```
+
+**Codegen:** Tuples compile to plain TypeScript arrays/tuples:
+- `(10, 20)` -> `[10, 20] as const`
+- `(number, number)` -> `readonly [number, number]`
+- `const (x, y) = pair` -> `const [x, y] = pair`
 
 ### Constructors, Named Arguments, and Defaults
 
@@ -776,6 +834,7 @@ Key tokens beyond standard TypeScript:
 | `Unreachable` | `unreachable` keyword |
 | `Ok` | `Ok` keyword |
 | `Err` | `Err` keyword |
+| `When` | `when` keyword (match arm guard) |
 | `Opaque` | `opaque` keyword |
 | `For` | `for` keyword (for blocks) |
 | `SelfKw` | `self` keyword (explicit receiver in for blocks) |
@@ -856,6 +915,7 @@ struct Param {
 
 struct MatchArm {
     pattern: Pattern,
+    guard: Option<Expr>,       // when condition
     body: Expr,
 }
 
@@ -991,6 +1051,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `fn f(x: T) -> U { ... }` | `function f(x: T): U { ... }` |
 | `try expr` | `(() => { try { return { ok: true, value: expr }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
 | `match x { A -> ..., B -> ... }` | `x.tag === "A" ? ... : x.tag === "B" ? ... : absurd(x)` |
+| `match x { A(v) when v > 0 -> ... }` | `x.tag === "A" ? (() => { const v = x.value; if (v > 0) { return ...; } ... })()` |
 | `match url { "/users/{id}" -> f(id) }` | `url.match(/^\/users\/([^/]+)$/) ? (() => { const _m = url.match(...); const id = _m![1]; return f(id); })() : ...` |
 | `fetchUser(id)?` | `const _r = fetchUser(id); if (!_r.ok) return _r; const val = _r.value;` |
 | `Ok(value)` | `{ ok: true, value }` |

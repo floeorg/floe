@@ -1489,6 +1489,87 @@ const _y = age
     }
 }
 
+// ── Tuple Types ─────────────────────────────────────────────
+
+#[test]
+fn tuple_construction_infers_type() {
+    let diags = check("const _p = (1, 2)");
+    assert!(
+        diags.is_empty(),
+        "tuple construction should not produce errors: {diags:?}"
+    );
+}
+
+#[test]
+fn tuple_with_type_annotation() {
+    let diags = check("const _p: (number, number) = (1, 2)");
+    assert!(
+        diags.is_empty(),
+        "tuple with type annotation should not produce errors: {diags:?}"
+    );
+}
+
+#[test]
+fn tuple_type_mismatch() {
+    let diags = check(r#"const _p: (number, number) = ("a", "b")"#);
+    assert!(
+        has_error(&diags, "E001"),
+        "tuple type mismatch should produce E001, got: {diags:?}"
+    );
+}
+
+#[test]
+fn tuple_destructuring_infers_types() {
+    let source = r#"
+        const _pair = (10, "hello")
+        const (_x, _y) = _pair
+        const _z = _x + 1
+    "#;
+    let diags = check(source);
+    assert!(
+        diags.is_empty(),
+        "tuple destructuring should not produce errors: {diags:?}"
+    );
+}
+
+#[test]
+fn tuple_in_function_return() {
+    let source = r#"
+        export fn divmod(a: number, b: number) -> (number, number) {
+            (a / b, a % b)
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        diags.is_empty(),
+        "tuple return type should not produce errors: {diags:?}"
+    );
+}
+
+#[test]
+fn tuple_three_elements() {
+    let diags = check(r#"const _t = (1, "two", true)"#);
+    assert!(
+        diags.is_empty(),
+        "3-element tuple should not produce errors: {diags:?}"
+    );
+}
+
+#[test]
+fn tuple_return_from_block_inline() {
+    // Tuples work inline with function params
+    let source = r#"
+        export fn test(a: number, b: number) -> (number, number) {
+            (a + 1, b + 1)
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        diags.is_empty(),
+        "tuple return inline should not produce errors: {diags:?}"
+    );
+}
+
 // ── Pipe: tap ───────────────────────────────────────────────
 
 #[test]

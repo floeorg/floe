@@ -37,12 +37,22 @@ impl Parser {
     fn parse_match_arm(&mut self) -> Result<MatchArm, ParseError> {
         let start_span = self.current_span();
         let pattern = self.parse_pattern()?;
+
+        // Optional guard: `when expr`
+        let guard = if self.check(&TokenKind::When) {
+            self.advance();
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+
         self.expect(&TokenKind::ThinArrow)?;
         let body = self.parse_expr()?;
         let end_span = self.previous_span();
 
         Ok(MatchArm {
             pattern,
+            guard,
             body,
             span: self.merge_spans(start_span, end_span),
         })
@@ -167,6 +177,18 @@ impl Parser {
                 let end_span = self.previous_span();
                 Ok(Pattern {
                     kind: PatternKind::Variant { name, fields },
+                    span: self.merge_spans(start_span, end_span),
+                })
+            }
+
+            // Tuple pattern: `(x, y)` or `(_, 0)`
+            TokenKind::LeftParen => {
+                self.advance(); // (
+                let patterns = self.parse_comma_separated(|p| p.parse_pattern())?;
+                self.expect(&TokenKind::RightParen)?;
+                let end_span = self.previous_span();
+                Ok(Pattern {
+                    kind: PatternKind::Tuple(patterns),
                     span: self.merge_spans(start_span, end_span),
                 })
             }

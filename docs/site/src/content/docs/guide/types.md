@@ -128,6 +128,32 @@ opaque type Email = string
 // Only this module can construct/destructure Email values
 ```
 
+## Tuple Types
+
+Anonymous lightweight product types:
+
+```floe
+const point: (number, number) = (10, 20)
+const entry: (string, number) = ("key", 42)
+```
+
+Destructure with pattern matching:
+
+```floe
+const (x, y) = point
+
+fn divmod(a: number, b: number) -> (number, number) {
+  (a / b, a % b)
+}
+
+match divmod(10, 3) {
+  (_, 0) -> "divides evenly",
+  (q, r) -> `${q} remainder ${r}`,
+}
+```
+
+Tuples compile to TypeScript readonly tuples: `(number, string)` becomes `readonly [number, string]`, and `(1, "a")` becomes `[1, "a"] as const`.
+
 ## Type Aliases
 
 ```floe

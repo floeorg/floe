@@ -22,8 +22,9 @@ impl Codegen {
         let arm = &arms[index];
         let is_last = index == arms.len() - 1;
 
-        // Wildcard or binding at the end → just emit the body
+        // Wildcard or binding at the end without a guard → just emit the body
         if is_last
+            && arm.guard.is_none()
             && matches!(
                 arm.pattern.kind,
                 PatternKind::Wildcard | PatternKind::Binding(_)
@@ -33,15 +34,65 @@ impl Codegen {
             return;
         }
 
-        self.emit_pattern_condition(subject, &arm.pattern);
-        self.push(" ? ");
-        self.emit_match_body(subject, &arm.pattern, &arm.body);
-        self.push(" : ");
+        // For guards with bindings, we need an IIFE so bindings are in scope
+        // for the guard expression
+        if let Some(guard) = &arm.guard {
+            let bindings = collect_bindings(
+                subject,
+                &arm.pattern,
+                &|s| self.expr_to_string(s),
+                &self.variant_info,
+            );
+            let has_bindings = !bindings.is_empty();
 
-        if is_last {
-            self.push("(() => { throw new Error(\"non-exhaustive match\"); })()");
+            if has_bindings {
+                // Emit pattern condition first, then IIFE for bindings + guard
+                self.emit_pattern_condition(subject, &arm.pattern);
+                self.push(" ? ");
+                self.push("(() => { ");
+                for (name, access) in &bindings {
+                    self.push(&format!("const {name} = {access}; "));
+                }
+                self.push("if (");
+                self.emit_expr(guard);
+                self.push(") { return ");
+                self.emit_expr(&arm.body);
+                self.push("; } ");
+                // Fall through to next arm
+                self.push("return ");
+                self.emit_match_arms(subject, arms, index + 1);
+                self.push("; })()");
+            } else {
+                // No bindings needed for guard - simpler inline condition
+                let is_trivial_pattern = matches!(
+                    arm.pattern.kind,
+                    PatternKind::Wildcard | PatternKind::Binding(_)
+                );
+                if !is_trivial_pattern {
+                    self.emit_pattern_condition(subject, &arm.pattern);
+                    self.push(" && ");
+                }
+                self.emit_expr(guard);
+                self.push(" ? ");
+                self.emit_match_body(subject, &arm.pattern, &arm.body);
+                self.push(" : ");
+                if is_last {
+                    self.push("(() => { throw new Error(\"non-exhaustive match\"); })()");
+                } else {
+                    self.emit_match_arms(subject, arms, index + 1);
+                }
+            }
         } else {
-            self.emit_match_arms(subject, arms, index + 1);
+            self.emit_pattern_condition(subject, &arm.pattern);
+            self.push(" ? ");
+            self.emit_match_body(subject, &arm.pattern, &arm.body);
+            self.push(" : ");
+
+            if is_last {
+                self.push("(() => { throw new Error(\"non-exhaustive match\"); })()");
+            } else {
+                self.emit_match_arms(subject, arms, index + 1);
+            }
         }
     }
 
@@ -114,6 +165,30 @@ impl Codegen {
                     self.push("true");
                 }
             }
+            PatternKind::Tuple(patterns) => {
+                let mut first = true;
+                for (i, pat) in patterns.iter().enumerate() {
+                    if matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
+                        continue;
+                    }
+                    if !first {
+                        self.push(" && ");
+                    }
+                    first = false;
+                    let elem_expr = Expr {
+                        kind: ExprKind::Identifier(format!(
+                            "{}[{}]",
+                            self.expr_to_string(subject),
+                            i
+                        )),
+                        span: subject.span,
+                    };
+                    self.emit_pattern_condition(&elem_expr, pat);
+                }
+                if first {
+                    self.push("true");
+                }
+            }
             PatternKind::StringPattern { segments } => {
                 // Emit: subject.match(/^...regex...$/)
                 self.emit_expr(subject);
@@ -128,7 +203,7 @@ impl Codegen {
                         }
                     }
                 }
-                self.push("$/)");
+                self.push("$/)")
             }
             PatternKind::Binding(_) | PatternKind::Wildcard => {
                 self.push("true");
@@ -279,6 +354,16 @@ fn collect_bindings_inner(
                     span: subject.span,
                 };
                 collect_bindings_inner(&field_expr, pat, expr_to_str, variant_info, bindings);
+            }
+        }
+        PatternKind::Tuple(patterns) => {
+            for (i, pat) in patterns.iter().enumerate() {
+                let elem_access = format!("{}[{}]", expr_to_str(subject), i);
+                let elem_expr = Expr {
+                    kind: ExprKind::Identifier(elem_access),
+                    span: subject.span,
+                };
+                collect_bindings_inner(&elem_expr, pat, expr_to_str, variant_info, bindings);
             }
         }
         PatternKind::StringPattern { .. } => {

@@ -481,7 +481,7 @@ impl Parser {
                 })
             }
 
-            // Parenthesized expression or unit value ()
+            // Parenthesized expression, unit value (), or tuple (a, b)
             TokenKind::LeftParen => {
                 if self.peek_kind() == Some(&TokenKind::RightParen) {
                     // Unit value: ()
@@ -494,13 +494,37 @@ impl Parser {
                     })
                 } else {
                     self.advance();
-                    let inner = self.parse_expr()?;
-                    self.expect(&TokenKind::RightParen)?;
-                    let end_span = self.previous_span();
-                    Ok(Expr {
-                        kind: ExprKind::Grouped(Box::new(inner)),
-                        span: self.merge_spans(start_span, end_span),
-                    })
+                    let first = self.parse_expr()?;
+                    if self.check(&TokenKind::Comma) {
+                        // Tuple: (expr, expr, ...)
+                        self.advance(); // consume first comma
+                        let mut elements = vec![first];
+                        // Allow trailing comma after first element
+                        if !self.check(&TokenKind::RightParen) {
+                            elements.push(self.parse_expr()?);
+                            while self.check(&TokenKind::Comma) {
+                                self.advance();
+                                if self.check(&TokenKind::RightParen) {
+                                    break; // trailing comma
+                                }
+                                elements.push(self.parse_expr()?);
+                            }
+                        }
+                        self.expect(&TokenKind::RightParen)?;
+                        let end_span = self.previous_span();
+                        Ok(Expr {
+                            kind: ExprKind::Tuple(elements),
+                            span: self.merge_spans(start_span, end_span),
+                        })
+                    } else {
+                        // Grouped expression: (expr)
+                        self.expect(&TokenKind::RightParen)?;
+                        let end_span = self.previous_span();
+                        Ok(Expr {
+                            kind: ExprKind::Grouped(Box::new(first)),
+                            span: self.merge_spans(start_span, end_span),
+                        })
+                    }
                 }
             }
 

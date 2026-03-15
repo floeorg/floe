@@ -195,6 +195,12 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
             self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightBrace);
             self.expect(TokenKind::RightBrace);
+        } else if self.at(TokenKind::LeftParen) && self.is_const_tuple_destructuring() {
+            // Tuple destructuring: const (a, b) = ...
+            self.bump();
+            self.eat_trivia();
+            self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightParen);
+            self.expect(TokenKind::RightParen);
         } else {
             self.expect_ident();
         }
@@ -529,9 +535,16 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
             self.bump(); // )
         }
-        // Function type: (params) => ReturnType
+        // Function type: (params) -> ReturnType
         else if self.at(TokenKind::LeftParen) && self.is_function_type() {
             self.parse_function_type();
+        }
+        // Tuple type: (T, U) — paren with comma, no `->` after `)`
+        else if self.at(TokenKind::LeftParen) && self.is_paren_tuple_type() {
+            self.bump(); // (
+            self.eat_trivia();
+            self.parse_comma_separated(Self::parse_type_expr, TokenKind::RightParen);
+            self.expect(TokenKind::RightParen);
         }
         // Tuple: [T, U]
         else if self.at(TokenKind::LeftBracket) {
@@ -834,6 +847,14 @@ impl<'src> CstParser<'src> {
                     self.bump(); // (
                     self.eat_trivia();
                     self.bump(); // )
+                } else if self.is_paren_tuple_expr() {
+                    // Tuple: (expr, expr, ...)
+                    self.builder.start_node(SyntaxKind::TUPLE_EXPR.into());
+                    self.bump(); // (
+                    self.eat_trivia();
+                    self.parse_comma_separated(Self::parse_expr, TokenKind::RightParen);
+                    self.expect(TokenKind::RightParen);
+                    self.builder.finish_node();
                 } else {
                     self.builder.start_node(SyntaxKind::GROUPED_EXPR.into());
                     self.bump(); // (
@@ -1096,6 +1117,17 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::MATCH_ARM.into());
         self.parse_pattern();
         self.eat_trivia();
+
+        // Optional guard: `when expr`
+        if self.at(TokenKind::When) {
+            self.builder.start_node(SyntaxKind::MATCH_GUARD.into());
+            self.bump(); // consume `when`
+            self.eat_trivia();
+            self.parse_expr();
+            self.builder.finish_node();
+            self.eat_trivia();
+        }
+
         self.expect(TokenKind::ThinArrow);
         self.eat_trivia();
         self.parse_expr();
@@ -1134,6 +1166,13 @@ impl<'src> CstParser<'src> {
                 self.eat_trivia();
                 self.parse_comma_separated(Self::parse_record_pattern_field, TokenKind::RightBrace);
                 self.expect(TokenKind::RightBrace);
+            }
+            Some(TokenKind::LeftParen) => {
+                // Tuple pattern: (x, y)
+                self.bump(); // (
+                self.eat_trivia();
+                self.parse_comma_separated(Self::parse_pattern, TokenKind::RightParen);
+                self.expect(TokenKind::RightParen);
             }
             Some(TokenKind::None) => {
                 self.bump();
@@ -1434,6 +1473,90 @@ impl<'src> CstParser<'src> {
                 break;
             }
             i -= 1;
+        }
+        false
+    }
+
+    /// Heuristic: is the current `(` a tuple type `(T, U)`?
+    /// Has a comma at depth 1 and is NOT followed by `->`.
+    fn is_paren_tuple_type(&self) -> bool {
+        let mut depth = 0;
+        let mut has_comma = false;
+        let mut i = self.pos;
+        while i < self.tokens.len() {
+            match &self.tokens[i].kind {
+                TokenKind::LeftParen => depth += 1,
+                TokenKind::RightParen => {
+                    depth -= 1;
+                    if depth == 0 {
+                        if !has_comma {
+                            return false;
+                        }
+                        // Find next non-trivia
+                        let mut j = i + 1;
+                        while j < self.tokens.len() && self.tokens[j].kind.is_trivia() {
+                            j += 1;
+                        }
+                        return !(j < self.tokens.len()
+                            && self.tokens[j].kind == TokenKind::ThinArrow);
+                    }
+                }
+                TokenKind::Comma if depth == 1 => has_comma = true,
+                TokenKind::Eof => return false,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
+    }
+
+    /// Heuristic: is the current `(` in `const (a, b) = ...` a tuple destructuring?
+    /// Check that `)` is followed by `=` or `:`.
+    fn is_const_tuple_destructuring(&self) -> bool {
+        let mut depth = 0;
+        let mut i = self.pos;
+        while i < self.tokens.len() {
+            match &self.tokens[i].kind {
+                TokenKind::LeftParen => depth += 1,
+                TokenKind::RightParen => {
+                    depth -= 1;
+                    if depth == 0 {
+                        // Find next non-trivia
+                        let mut j = i + 1;
+                        while j < self.tokens.len() && self.tokens[j].kind.is_trivia() {
+                            j += 1;
+                        }
+                        return j < self.tokens.len()
+                            && matches!(self.tokens[j].kind, TokenKind::Equal | TokenKind::Colon);
+                    }
+                }
+                TokenKind::Eof => return false,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
+    }
+
+    /// Heuristic: is the current `(` a tuple expression `(a, b)`?
+    /// Scans to matching `)` and checks if there's a comma at depth 1.
+    fn is_paren_tuple_expr(&self) -> bool {
+        let mut depth = 0;
+        let mut i = self.pos;
+        while i < self.tokens.len() {
+            match &self.tokens[i].kind {
+                TokenKind::LeftParen => depth += 1,
+                TokenKind::RightParen => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return false; // no comma found
+                    }
+                }
+                TokenKind::Comma if depth == 1 => return true,
+                TokenKind::Eof => return false,
+                _ => {}
+            }
+            i += 1;
         }
         false
     }

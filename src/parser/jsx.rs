@@ -205,6 +205,7 @@ impl Parser {
             TokenKind::For => Some("for".into()),
             TokenKind::SelfKw => Some("self".into()),
             TokenKind::Try => Some("try".into()),
+            TokenKind::When => Some("when".into()),
             TokenKind::Ok => Some("Ok".into()),
             TokenKind::Err => Some("Err".into()),
             TokenKind::Some => Some("Some".into()),

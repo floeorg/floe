@@ -94,7 +94,7 @@ impl Type {
             Type::Array(inner) => format!("Array<{}>", inner.display_name()),
             Type::Tuple(types) => {
                 let t: Vec<_> = types.iter().map(|t| t.display_name()).collect();
-                format!("[{}]", t.join(", "))
+                format!("({})", t.join(", "))
             }
             Type::Record(fields) => {
                 let f: Vec<_> = fields

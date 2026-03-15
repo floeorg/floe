@@ -10,3 +10,25 @@ const _page = match route {
     Profile(id) -> id,
     NotFound -> "404",
 }
+
+// Match with guards
+type User =
+    | Adult(age: number)
+    | Child(age: number)
+
+const user = Adult(age: 25)
+
+const _label = match user {
+    Adult(age) when age >= 65 -> "senior",
+    Adult(age) -> "adult",
+    Child(age) when age < 5 -> "toddler",
+    Child(age) -> "child",
+}
+
+// Guard without bindings
+const n = 42
+const _category = match n {
+    1..10 -> "low",
+    _ when n > 100 -> "high",
+    _ -> "medium",
+}

@@ -7,3 +7,13 @@ type Route = { tag: "Home" } | { tag: "Profile"; id: string } | { tag: "NotFound
 const route = { tag: "Home" };
 
 const _page = route.tag === "Home" ? "home" : route.tag === "Profile" ? (() => { const id = route.id; return id; })() : route.tag === "NotFound" ? "404" : (() => { throw new Error("non-exhaustive match"); })();
+
+type User = { tag: "Adult"; age: number } | { tag: "Child"; age: number };
+
+const user = { tag: "Adult", age: 25 };
+
+const _label = user.tag === "Adult" ? (() => { const age = user.age; if (age >= 65) { return "senior"; } return user.tag === "Adult" ? (() => { const age = user.age; return "adult"; })() : user.tag === "Child" ? (() => { const age = user.age; if (age < 5) { return "toddler"; } return user.tag === "Child" ? (() => { const age = user.age; return "child"; })() : (() => { throw new Error("non-exhaustive match"); })(); })(); })();
+
+const n = 42;
+
+const _category = (n >= 1 && n <= 10) ? "low" : n > 100 ? "high" : "medium";

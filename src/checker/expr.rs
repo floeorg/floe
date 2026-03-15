@@ -620,6 +620,10 @@ impl Checker {
                 for arm in arms {
                     self.env.push_scope();
                     self.check_pattern(&arm.pattern, &subject_ty);
+                    // Type-check guard expression if present
+                    if let Some(guard) = &arm.guard {
+                        self.check_expr(guard);
+                    }
                     let arm_type = self.check_expr(&arm.body);
                     self.env.pop_scope();
 
@@ -779,6 +783,11 @@ impl Checker {
                     }
                 }
                 Type::Array(Box::new(elem_type.unwrap_or(Type::Unknown)))
+            }
+
+            ExprKind::Tuple(elements) => {
+                let types: Vec<Type> = elements.iter().map(|el| self.check_expr(el)).collect();
+                Type::Tuple(types)
             }
 
             ExprKind::Spread(inner) => self.check_expr(inner),

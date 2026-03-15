@@ -7,10 +7,8 @@ for string {
         match len {
             0 -> Empty,
             1 -> TooShort,
-            _ -> match len > 100 {
-                true -> TooLong,
-                false -> Valid(trimmed),
-            },
+            _ when len > 100 -> TooLong,
+            _ -> Valid(trimmed),
         }
     }
 }
@@ -29,6 +27,10 @@ for Array<Todo> {
             |> filter(.done == false)
             |> tap(|active| Console.log("active todos:", active))
             |> length
+    }
+
+    export fn stats(self) -> (number, number) {
+        (self |> length, self |> filter(.done == true) |> length)
     }
 
     // Placeholder for future search functionality

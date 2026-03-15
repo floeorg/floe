@@ -69,6 +69,7 @@ impl SymbolIndex {
                         ConstBinding::Name(n) => n.clone(),
                         ConstBinding::Array(names) => format!("[{}]", names.join(", ")),
                         ConstBinding::Object(names) => format!("{{ {} }}", names.join(", ")),
+                        ConstBinding::Tuple(names) => format!("({})", names.join(", ")),
                     };
                     let vis = if decl.exported { "export " } else { "" };
                     let type_ann = decl
@@ -89,7 +90,9 @@ impl SymbolIndex {
 
                     // Also index destructured names
                     match &decl.binding {
-                        ConstBinding::Array(names) | ConstBinding::Object(names) => {
+                        ConstBinding::Array(names)
+                        | ConstBinding::Object(names)
+                        | ConstBinding::Tuple(names) => {
                             for n in names {
                                 symbols.push(Symbol {
                                     name: n.clone(),
@@ -384,7 +387,7 @@ pub(super) fn type_expr_to_string(ty: &TypeExpr) -> String {
         TypeExprKind::Array(inner) => format!("Array<{}>", type_expr_to_string(inner)),
         TypeExprKind::Tuple(parts) => {
             let ps: Vec<String> = parts.iter().map(type_expr_to_string).collect();
-            format!("[{}]", ps.join(", "))
+            format!("({})", ps.join(", "))
         }
     }
 }

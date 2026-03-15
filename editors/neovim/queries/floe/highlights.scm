@@ -15,6 +15,7 @@
 "opaque" @keyword
 "test" @keyword
 "assert" @keyword
+"when" @keyword
 
 ; ── Self ────────────────────────────────────────────────
 (self) @variable.builtin
