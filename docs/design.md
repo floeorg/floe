@@ -57,6 +57,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Partial application | `add(10, _)` | `(x) => add(10, x)` |
 | Match expression | `match x { ... }` | exhaustive if/else chain |
 | Match with ranges | `match n { 1..10 -> ... }` | range check |
+| Match with string patterns | `"/users/{id}" -> f(id)` | regex-based matching with captures |
 | Match with destructuring | `Click(el, { x, y }) -> ...` | nested destructuring |
 | Result type | built-in `Ok(v)` / `Err(e)` | `{ ok: true, value } / { ok: false, error }` |
 | Option type | built-in `Some(v)` / `None` | `v / undefined` |
@@ -185,6 +186,14 @@ match action {
   Click(el, { x, y })          -> handleClick(el, x, y)
   KeyPress("s", { ctrl: true }) -> save()
   KeyPress(key, _)              -> insertChar(key)
+}
+
+// String pattern matching with captures
+match url {
+  "/users/{id}"          -> fetchUser(id)
+  "/users/{id}/posts"    -> fetchPosts(id)
+  "/about"               -> aboutPage()
+  _                      -> notFound()
 }
 
 // Inline match in JSX props
@@ -804,7 +813,13 @@ enum Pattern {
     Range { start: Literal, end: Literal },
     Variant { name: String, bindings: Vec<Pattern> },  // recursive — enables multi-depth matching
     Record { fields: Vec<(String, Pattern)> },
+    StringPattern { segments: Vec<StringPatternSegment> },  // "/users/{id}" — regex-based matching
     Wildcard,
+}
+
+enum StringPatternSegment {
+    Literal(String),   // static text: "/users/"
+    Capture(String),   // variable binding: "id"
 }
 ```
 
@@ -925,6 +940,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `fn f(x: T) -> U { ... }` | `function f(x: T): U { ... }` |
 | `try expr` | `(() => { try { return { ok: true, value: expr }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
 | `match x { A -> ..., B -> ... }` | `x.tag === "A" ? ... : x.tag === "B" ? ... : absurd(x)` |
+| `match url { "/users/{id}" -> f(id) }` | `url.match(/^\/users\/([^/]+)$/) ? (() => { const _m = url.match(...); const id = _m![1]; return f(id); })() : ...` |
 | `fetchUser(id)?` | `const _r = fetchUser(id); if (!_r.ok) return _r; const val = _r.value;` |
 | `Ok(value)` | `{ ok: true, value }` |
 | `Err(error)` | `{ ok: false, error }` |

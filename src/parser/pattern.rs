@@ -70,14 +70,23 @@ impl Parser {
                 })
             }
 
-            // String literal pattern
+            // String literal pattern — may contain `{name}` captures
             TokenKind::String(s) => {
                 let s = s.clone();
                 self.advance();
-                Ok(Pattern {
-                    kind: PatternKind::Literal(LiteralPattern::String(s)),
-                    span: start_span,
-                })
+
+                // Check if the string contains capture patterns like {id}
+                if let Some(segments) = parse_string_pattern_segments(&s) {
+                    Ok(Pattern {
+                        kind: PatternKind::StringPattern { segments },
+                        span: start_span,
+                    })
+                } else {
+                    Ok(Pattern {
+                        kind: PatternKind::Literal(LiteralPattern::String(s)),
+                        span: start_span,
+                    })
+                }
             }
 
             // Number literal pattern (possibly a range)

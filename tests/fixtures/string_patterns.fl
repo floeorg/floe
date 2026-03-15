@@ -1,0 +1,10 @@
+// String pattern matching with captures
+fn route(url: string) -> string {
+    match url {
+        "/users/{id}" -> id,
+        "/users/{id}/posts/{postId}" -> id,
+        "/about" -> "about",
+        "" -> "home",
+        _ -> "not-found",
+    }
+}

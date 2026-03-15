@@ -78,10 +78,16 @@ impl<'src> Lowerer<'src> {
                         });
                     }
                     SyntaxKind::STRING => {
+                        let s = self.unquote_string(token.text());
+                        // Check for string patterns with captures like {id}
+                        if let Some(segments) = parse_string_pattern_segments(&s) {
+                            return Some(Pattern {
+                                kind: PatternKind::StringPattern { segments },
+                                span,
+                            });
+                        }
                         return Some(Pattern {
-                            kind: PatternKind::Literal(LiteralPattern::String(
-                                self.unquote_string(token.text()),
-                            )),
+                            kind: PatternKind::Literal(LiteralPattern::String(s)),
                             span,
                         });
                     }

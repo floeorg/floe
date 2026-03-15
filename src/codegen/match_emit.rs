@@ -114,6 +114,22 @@ impl Codegen {
                     self.push("true");
                 }
             }
+            PatternKind::StringPattern { segments } => {
+                // Emit: subject.match(/^...regex...$/)
+                self.emit_expr(subject);
+                self.push(".match(/^");
+                for segment in segments {
+                    match segment {
+                        StringPatternSegment::Literal(s) => {
+                            self.push(&escape_regex(s));
+                        }
+                        StringPatternSegment::Capture(_) => {
+                            self.push("([^/]+)");
+                        }
+                    }
+                }
+                self.push("$/)");
+            }
             PatternKind::Binding(_) | PatternKind::Wildcard => {
                 self.push("true");
             }
@@ -121,6 +137,56 @@ impl Codegen {
     }
 
     fn emit_match_body(&mut self, subject: &Expr, pattern: &Pattern, body: &Expr) {
+        // String patterns need special handling: extract captures from regex match
+        if let PatternKind::StringPattern { segments } = &pattern.kind {
+            let captures: Vec<&str> = segments
+                .iter()
+                .filter_map(|seg| match seg {
+                    StringPatternSegment::Capture(name) => Some(name.as_str()),
+                    _ => None,
+                })
+                .collect();
+
+            if captures.is_empty() && !matches!(body.kind, ExprKind::Block(_)) {
+                self.emit_expr(body);
+                return;
+            }
+
+            self.push("(() => { const _m = ");
+            self.emit_expr(subject);
+            self.push(".match(/^");
+            for segment in segments {
+                match segment {
+                    StringPatternSegment::Literal(s) => {
+                        self.push(&escape_regex(s));
+                    }
+                    StringPatternSegment::Capture(_) => {
+                        self.push("([^/]+)");
+                    }
+                }
+            }
+            self.push("$/); ");
+
+            for (i, name) in captures.iter().enumerate() {
+                self.push(&format!("const {} = _m![{}]; ", name, i + 1));
+            }
+
+            if matches!(body.kind, ExprKind::Block(_)) {
+                if let ExprKind::Block(items) = &body.kind {
+                    for item in items {
+                        self.emit_item(item);
+                        self.push(" ");
+                    }
+                }
+            } else {
+                self.push("return ");
+                self.emit_expr(body);
+                self.push(";");
+            }
+            self.push(" })()");
+            return;
+        }
+
         // For patterns with bindings, wrap in an IIFE to introduce variables
         let bindings = collect_bindings(
             subject,
@@ -215,6 +281,25 @@ fn collect_bindings_inner(
                 collect_bindings_inner(&field_expr, pat, expr_to_str, variant_info, bindings);
             }
         }
+        PatternKind::StringPattern { .. } => {
+            // String pattern bindings are handled directly in emit_match_body
+        }
         PatternKind::Wildcard | PatternKind::Literal(_) | PatternKind::Range { .. } => {}
     }
+}
+
+/// Escape special regex characters in a literal string segment.
+fn escape_regex(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '\\' | '/' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '$'
+            | '|' => {
+                result.push('\\');
+                result.push(ch);
+            }
+            _ => result.push(ch),
+        }
+    }
+    result
 }

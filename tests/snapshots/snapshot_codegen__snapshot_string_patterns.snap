@@ -1,0 +1,7 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+function route(url: string): string {
+  return url.match(/^\/users\/([^/]+)$/) ? (() => { const _m = url.match(/^\/users\/([^/]+)$/); const id = _m![1]; return id; })() : url.match(/^\/users\/([^/]+)\/posts\/([^/]+)$/) ? (() => { const _m = url.match(/^\/users\/([^/]+)\/posts\/([^/]+)$/); const id = _m![1]; const postId = _m![2]; return id; })() : url === "/about" ? "about" : url === "" ? "home" : "not-found";
+}

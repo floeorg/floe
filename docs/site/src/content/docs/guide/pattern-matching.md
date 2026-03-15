@@ -86,6 +86,25 @@ match result {
 }
 ```
 
+## String Patterns
+
+Match strings with `{name}` captures to extract parts:
+
+```floe
+fn route(url: string) -> Page {
+  match url {
+    "/users/{id}" -> fetchUser(id),
+    "/users/{id}/posts/{postId}" -> fetchPost(id, postId),
+    "/about" -> aboutPage(),
+    _ -> notFound(),
+  }
+}
+```
+
+Captured variables (`id`, `postId`) are bound as `string` in the match arm body. The pattern compiles to regex matching with capture groups.
+
+This is useful for URL routing, string parsing, and any case where you need to extract structured data from strings.
+
 ## Wildcard
 
 The `_` pattern matches anything. Place it last as a default:
