@@ -337,9 +337,15 @@ fn generate_probe(
                 .as_ref()
                 .map(type_expr_to_ts)
                 .unwrap_or_else(|| "any".to_string());
-            let async_prefix = if func.async_fn { "async " } else { "" };
+            // Wrap return type in Promise<> for async functions
+            // (can't use `async` in ambient declarations)
+            let ret = if func.async_fn {
+                format!("Promise<{ret}>")
+            } else {
+                ret
+            };
             lines.push(format!(
-                "declare {async_prefix}function {name}({}): {ret};",
+                "declare function {name}({}): {ret};",
                 params.join(", ")
             ));
         }
@@ -430,11 +436,7 @@ fn generate_probe(
         return String::new();
     }
 
-    {
-        let r = lines.join("\n") + "\n";
-        eprintln!("[probe]\n{r}");
-        r
-    }
+    lines.join("\n") + "\n"
 }
 
 /// Recursively collect all `X.field` member accesses where X is an imported name.

@@ -536,3 +536,18 @@ declare namespace Lib {
         other => panic!("expected Object, got {other:?}"),
     }
 }
+
+// ── Result union round-trip ─────────────────────────────────
+
+#[test]
+fn result_union_round_trip_via_oxc() {
+    let dts = r#"export declare const _r0: { ok: true; value: { name: string; }; } | { ok: false; error: Error; };"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    assert_eq!(exports.len(), 1);
+    let wrapped = crate::interop::wrap_boundary_type(&exports[0].ts_type);
+    assert!(
+        matches!(wrapped, crate::checker::Type::Result { .. }),
+        "expected Result, got {:?}",
+        wrapped
+    );
+}

@@ -723,10 +723,8 @@ impl Checker {
                 .map(|e| interop::wrap_boundary_type(&e.ts_type))
         };
 
-        let final_type = if let Some(tsgo_ty) = tsgo_type {
-            // tsgo gave us a fully-resolved type — use it
-
-            tsgo_ty
+        let final_type = if let Some(ref tsgo_ty) = tsgo_type {
+            tsgo_ty.clone()
         } else if let Some(ref declared) = declared_type {
             // Reject narrowing from `unknown` to a concrete type — this is an unsafe cast.
             // `const x: User = data` where data is unknown is not allowed.
@@ -814,6 +812,20 @@ impl Checker {
                 }
             }
             ConstBinding::Object(names) => {
+                // If tsgo resolved this as a single-field destructure, assign directly
+                // (tsgo probes individual fields, so __probe_data gives data's type directly)
+                if tsgo_type.is_some() && names.len() == 1 {
+                    let name = &names[0];
+                    self.check_no_redefinition(name, span);
+                    self.name_types
+                        .insert(name.clone(), final_type.display_name());
+                    self.env.define(name, final_type.clone());
+                    self.defined_sources
+                        .insert(name.clone(), "const".to_string());
+                    self.defined_names.push((name.clone(), span));
+                    return;
+                }
+
                 // Resolve the value type to find field types for destructuring
                 let concrete = {
                     let resolve_fn = |type_expr: &crate::parser::ast::TypeExpr| -> Type {
