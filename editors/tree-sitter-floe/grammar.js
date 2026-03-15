@@ -364,7 +364,16 @@ module.exports = grammar({
       seq("match", field("subject", $._expression), "{", repeat($.match_arm), "}"),
 
     match_arm: ($) =>
-      seq(field("pattern", $._pattern), "->", field("body", $._expression), optional(",")),
+      seq(
+        field("pattern", $._pattern),
+        optional($.match_guard),
+        "->",
+        field("body", $._expression),
+        optional(","),
+      ),
+
+    match_guard: ($) =>
+      seq("when", field("condition", $._expression)),
 
     _pattern: ($) =>
       choice(

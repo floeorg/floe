@@ -151,6 +151,29 @@ impl Formatter<'_> {
         if let Some(pattern) = node.children().find(|c| c.kind() == SyntaxKind::PATTERN) {
             self.fmt_pattern(&pattern);
         }
+
+        // Guard: `when expr`
+        if let Some(guard) = node
+            .children()
+            .find(|c| c.kind() == SyntaxKind::MATCH_GUARD)
+        {
+            self.write(" when ");
+            // Format the guard expression (skip the `when` keyword token)
+            for t in guard.children_with_tokens() {
+                if let Some(tok) = t.as_token() {
+                    if tok.kind() == SyntaxKind::KW_WHEN || tok.kind().is_trivia() {
+                        continue;
+                    }
+                    self.write(tok.text());
+                    break;
+                }
+                if let Some(child) = t.into_node() {
+                    self.fmt_node(&child);
+                    break;
+                }
+            }
+        }
+
         self.write(" -> ");
 
         // Body: expression after ->

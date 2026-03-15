@@ -212,6 +212,29 @@ match url {
 
 Match uses `->` for arms (not `|x|`), so it's visually distinct from lambdas.
 
+### Match Arm Guards
+
+A `when` clause on a match arm adds a condition that must be true for the arm to match. Bindings from the pattern are in scope in the guard expression.
+
+```floe
+match user {
+  User(age) when age > 18 -> "adult",
+  User(age) -> "minor",
+}
+
+match request {
+  Request(method, path) when method == "GET" -> handleGet(path),
+  Request(method, path) when method == "POST" -> handlePost(path),
+  _ -> notAllowed(),
+}
+```
+
+**Exhaustiveness:** A guarded arm does not fully cover its pattern. The compiler treats guarded arms as partial matches, so a catch-all (`_`) or unguarded arm is still required for exhaustiveness.
+
+**Codegen:** Guards become additional conditions in the emitted ternary chain:
+- Without bindings: `pattern_condition && guard ? body : ...`
+- With bindings: pattern check, then IIFE with `if (guard) { return body; }` to fall through on guard failure
+
 ### The `?` Operator (Result/Option Unwrap)
 
 ```floe
@@ -770,6 +793,7 @@ Key tokens beyond standard TypeScript:
 | `Unreachable` | `unreachable` keyword |
 | `Ok` | `Ok` keyword |
 | `Err` | `Err` keyword |
+| `When` | `when` keyword (match arm guard) |
 | `Opaque` | `opaque` keyword |
 | `For` | `for` keyword (for blocks) |
 | `SelfKw` | `self` keyword (explicit receiver in for blocks) |
@@ -845,6 +869,7 @@ struct Param {
 
 struct MatchArm {
     pattern: Pattern,
+    guard: Option<Expr>,       // when condition
     body: Expr,
 }
 
@@ -980,6 +1005,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `fn f(x: T) -> U { ... }` | `function f(x: T): U { ... }` |
 | `try expr` | `(() => { try { return { ok: true, value: expr }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
 | `match x { A -> ..., B -> ... }` | `x.tag === "A" ? ... : x.tag === "B" ? ... : absurd(x)` |
+| `match x { A(v) when v > 0 -> ... }` | `x.tag === "A" ? (() => { const v = x.value; if (v > 0) { return ...; } ... })()` |
 | `match url { "/users/{id}" -> f(id) }` | `url.match(/^\/users\/([^/]+)$/) ? (() => { const _m = url.match(...); const id = _m![1]; return f(id); })() : ...` |
 | `fetchUser(id)?` | `const _r = fetchUser(id); if (!_r.ok) return _r; const val = _r.value;` |
 | `Ok(value)` | `{ ok: true, value }` |

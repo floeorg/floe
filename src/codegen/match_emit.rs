@@ -22,8 +22,9 @@ impl Codegen {
         let arm = &arms[index];
         let is_last = index == arms.len() - 1;
 
-        // Wildcard or binding at the end → just emit the body
+        // Wildcard or binding at the end without a guard → just emit the body
         if is_last
+            && arm.guard.is_none()
             && matches!(
                 arm.pattern.kind,
                 PatternKind::Wildcard | PatternKind::Binding(_)
@@ -33,15 +34,65 @@ impl Codegen {
             return;
         }
 
-        self.emit_pattern_condition(subject, &arm.pattern);
-        self.push(" ? ");
-        self.emit_match_body(subject, &arm.pattern, &arm.body);
-        self.push(" : ");
+        // For guards with bindings, we need an IIFE so bindings are in scope
+        // for the guard expression
+        if let Some(guard) = &arm.guard {
+            let bindings = collect_bindings(
+                subject,
+                &arm.pattern,
+                &|s| self.expr_to_string(s),
+                &self.variant_info,
+            );
+            let has_bindings = !bindings.is_empty();
 
-        if is_last {
-            self.push("(() => { throw new Error(\"non-exhaustive match\"); })()");
+            if has_bindings {
+                // Emit pattern condition first, then IIFE for bindings + guard
+                self.emit_pattern_condition(subject, &arm.pattern);
+                self.push(" ? ");
+                self.push("(() => { ");
+                for (name, access) in &bindings {
+                    self.push(&format!("const {name} = {access}; "));
+                }
+                self.push("if (");
+                self.emit_expr(guard);
+                self.push(") { return ");
+                self.emit_expr(&arm.body);
+                self.push("; } ");
+                // Fall through to next arm
+                self.push("return ");
+                self.emit_match_arms(subject, arms, index + 1);
+                self.push("; })()");
+            } else {
+                // No bindings needed for guard - simpler inline condition
+                let is_trivial_pattern = matches!(
+                    arm.pattern.kind,
+                    PatternKind::Wildcard | PatternKind::Binding(_)
+                );
+                if !is_trivial_pattern {
+                    self.emit_pattern_condition(subject, &arm.pattern);
+                    self.push(" && ");
+                }
+                self.emit_expr(guard);
+                self.push(" ? ");
+                self.emit_match_body(subject, &arm.pattern, &arm.body);
+                self.push(" : ");
+                if is_last {
+                    self.push("(() => { throw new Error(\"non-exhaustive match\"); })()");
+                } else {
+                    self.emit_match_arms(subject, arms, index + 1);
+                }
+            }
         } else {
-            self.emit_match_arms(subject, arms, index + 1);
+            self.emit_pattern_condition(subject, &arm.pattern);
+            self.push(" ? ");
+            self.emit_match_body(subject, &arm.pattern, &arm.body);
+            self.push(" : ");
+
+            if is_last {
+                self.push("(() => { throw new Error(\"non-exhaustive match\"); })()");
+            } else {
+                self.emit_match_arms(subject, arms, index + 1);
+            }
         }
     }
 

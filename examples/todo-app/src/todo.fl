@@ -7,10 +7,8 @@ for string {
         match len {
             0 -> Empty,
             1 -> TooShort,
-            _ -> match len > 100 {
-                true -> TooLong,
-                false -> Valid(trimmed),
-            },
+            _ when len > 100 -> TooLong,
+            _ -> Valid(trimmed),
         }
     }
 }

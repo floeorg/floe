@@ -117,6 +117,42 @@ match value {
 }
 ```
 
+## Guards
+
+Use `when` to add a condition to a match arm. The arm only matches if both the pattern matches and the guard expression is true.
+
+```floe
+match user {
+  User(age) when age >= 65 -> "senior",
+  User(age) when age >= 18 -> "adult",
+  User(age) -> "minor",
+}
+```
+
+Bindings from the pattern are available in the guard expression.
+
+Guards work with any pattern, including wildcards:
+
+```floe
+match score {
+  _ when score > 90 -> "excellent",
+  _ when score > 70 -> "good",
+  _ -> "needs improvement",
+}
+```
+
+A guarded arm does not count as exhaustive coverage for its pattern. You still need an unguarded catch-all or complete coverage:
+
+```floe
+match value {
+  Ok(x) when x > 0 -> handle(x),
+  // This alone is NOT exhaustive — the guard might fail.
+  // Add unguarded arms:
+  Ok(x) -> handleNegative(x),
+  Err(e) -> handleError(e),
+}
+```
+
 ## Exhaustiveness
 
 The compiler checks that your match is exhaustive:

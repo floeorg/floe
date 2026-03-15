@@ -1070,6 +1070,17 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::MATCH_ARM.into());
         self.parse_pattern();
         self.eat_trivia();
+
+        // Optional guard: `when expr`
+        if self.at(TokenKind::When) {
+            self.builder.start_node(SyntaxKind::MATCH_GUARD.into());
+            self.bump(); // consume `when`
+            self.eat_trivia();
+            self.parse_expr();
+            self.builder.finish_node();
+            self.eat_trivia();
+        }
+
         self.expect(TokenKind::ThinArrow);
         self.eat_trivia();
         self.parse_expr();

@@ -79,7 +79,7 @@
       "patterns": [
         {
           "name": "keyword.control.floe",
-          "match": "\\b(match|return|await|async|try|for|todo|unreachable)\\b"
+          "match": "\\b(match|return|await|async|try|for|when|todo|unreachable)\\b"
         },
         {
           "name": "keyword.control.import.floe",

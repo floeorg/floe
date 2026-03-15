@@ -27,6 +27,16 @@
     ],
     "description": "Match expression"
   },
+  "Match with Guard": {
+    "prefix": "matchw",
+    "body": [
+      "match ${1:expr} {",
+      "\t${2:pattern} when ${3:condition} -> ${4:body},",
+      "\t_ -> ${0:default},",
+      "}"
+    ],
+    "description": "Match expression with guard"
+  },
   "Match Result": {
     "prefix": "matchr",
     "body": [

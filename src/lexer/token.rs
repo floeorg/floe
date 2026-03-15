@@ -49,6 +49,8 @@ pub enum TokenKind {
     SelfKw,
     /// `try` — wrap throwing expression in Result
     Try,
+    /// `when` — match arm guard
+    When,
 
     // Built-in type constructors
     Ok,
@@ -244,6 +246,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "for" => Some(TokenKind::For),
         "self" => Some(TokenKind::SelfKw),
         "try" => Some(TokenKind::Try),
+        "when" => Some(TokenKind::When),
         "true" => Some(TokenKind::Bool(true)),
         "false" => Some(TokenKind::Bool(false)),
 
@@ -292,6 +295,7 @@ mod tests {
         assert_eq!(lookup_keyword("None"), Some(TokenKind::None));
         assert_eq!(lookup_keyword("for"), Some(TokenKind::For));
         assert_eq!(lookup_keyword("self"), Some(TokenKind::SelfKw));
+        assert_eq!(lookup_keyword("when"), Some(TokenKind::When));
         assert_eq!(lookup_keyword("true"), Some(TokenKind::Bool(true)));
         assert_eq!(lookup_keyword("false"), Some(TokenKind::Bool(false)));
     }

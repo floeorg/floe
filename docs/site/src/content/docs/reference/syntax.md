@@ -118,7 +118,7 @@ a |> b |> c                // chaining
 ```floe
 match expr {
   pattern -> body,
-  pattern -> body,
+  pattern when guard -> body,
   _ -> default,
 }
 ```

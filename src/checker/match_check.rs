@@ -25,10 +25,12 @@ impl Checker {
         };
 
         let has_catch_all = arms.iter().any(|arm| {
-            matches!(
-                arm.pattern.kind,
-                PatternKind::Wildcard | PatternKind::Binding(_)
-            )
+            // A guarded catch-all doesn't count as exhaustive
+            arm.guard.is_none()
+                && matches!(
+                    arm.pattern.kind,
+                    PatternKind::Wildcard | PatternKind::Binding(_)
+                )
         });
 
         if has_catch_all {
@@ -41,7 +43,10 @@ impl Checker {
             let mut covered: HashSet<&str> = HashSet::new();
 
             for arm in arms {
-                if let PatternKind::Variant { name, .. } = &arm.pattern.kind {
+                // Guarded arms don't fully cover a variant
+                if arm.guard.is_none()
+                    && let PatternKind::Variant { name, .. } = &arm.pattern.kind
+                {
                     covered.insert(name.as_str());
                 }
             }
@@ -70,7 +75,9 @@ impl Checker {
             let mut has_ok = false;
             let mut has_err = false;
             for arm in arms {
-                if let PatternKind::Variant { name, .. } = &arm.pattern.kind {
+                if arm.guard.is_none()
+                    && let PatternKind::Variant { name, .. } = &arm.pattern.kind
+                {
                     match name.as_str() {
                         "Ok" => has_ok = true,
                         "Err" => has_err = true,
@@ -102,10 +109,12 @@ impl Checker {
             let mut has_some = false;
             let mut has_none = false;
             for arm in arms {
-                match &arm.pattern.kind {
-                    PatternKind::Variant { name, .. } if name == "Some" => has_some = true,
-                    PatternKind::Variant { name, .. } if name == "None" => has_none = true,
-                    _ => {}
+                if arm.guard.is_none() {
+                    match &arm.pattern.kind {
+                        PatternKind::Variant { name, .. } if name == "Some" => has_some = true,
+                        PatternKind::Variant { name, .. } if name == "None" => has_none = true,
+                        _ => {}
+                    }
                 }
             }
             if !has_some || !has_none {
@@ -132,7 +141,9 @@ impl Checker {
             let mut has_true = false;
             let mut has_false = false;
             for arm in arms {
-                if let PatternKind::Literal(LiteralPattern::Bool(b)) = &arm.pattern.kind {
+                if arm.guard.is_none()
+                    && let PatternKind::Literal(LiteralPattern::Bool(b)) = &arm.pattern.kind
+                {
                     if *b {
                         has_true = true;
                     } else {

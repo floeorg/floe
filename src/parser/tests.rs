@@ -406,6 +406,46 @@ fn match_record_destructure() {
     }
 }
 
+// ── Match Guards ─────────────────────────────────────────────
+
+#[test]
+fn match_guard_simple() {
+    let expr = first_expr("match x { Ok(v) when v > 0 -> v, _ -> 0 }");
+    match expr {
+        ExprKind::Match { arms, .. } => {
+            assert_eq!(arms.len(), 2);
+            assert!(arms[0].guard.is_some());
+            assert!(arms[1].guard.is_none());
+        }
+        _ => panic!("expected match"),
+    }
+}
+
+#[test]
+fn match_guard_wildcard() {
+    let expr = first_expr("match x { _ when x > 10 -> true, _ -> false }");
+    match expr {
+        ExprKind::Match { arms, .. } => {
+            assert_eq!(arms.len(), 2);
+            assert!(arms[0].guard.is_some());
+            assert!(matches!(arms[0].pattern.kind, PatternKind::Wildcard));
+        }
+        _ => panic!("expected match"),
+    }
+}
+
+#[test]
+fn match_guard_no_guard() {
+    let expr = first_expr("match x { Ok(v) -> v, Err(e) -> e }");
+    match expr {
+        ExprKind::Match { arms, .. } => {
+            assert!(arms[0].guard.is_none());
+            assert!(arms[1].guard.is_none());
+        }
+        _ => panic!("expected match"),
+    }
+}
+
 // ── Const Declaration ────────────────────────────────────────
 
 #[test]

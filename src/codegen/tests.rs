@@ -235,6 +235,23 @@ fn match_range() {
     assert!(result.contains("<= 10"));
 }
 
+// ── Match Guards ─────────────────────────────────────────────
+
+#[test]
+fn match_guard_no_bindings() {
+    let result = emit("match n { 1 -> true, _ when n > 10 -> true, _ -> false }");
+    // Guard without bindings emits guard condition directly (no `true &&`)
+    assert!(result.contains("n > 10"));
+    assert!(!result.contains("true && n"));
+}
+
+#[test]
+fn match_guard_with_binding() {
+    let result = emit("match x { Ok(v) when v > 0 -> v, _ -> 0 }");
+    // Guard with binding uses IIFE with if-check
+    assert!(result.contains("if (v > 0)"));
+}
+
 // ── Type Declarations ────────────────────────────────────────
 
 #[test]
