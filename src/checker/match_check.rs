@@ -55,11 +55,11 @@ impl Checker {
                     .join(", ");
                 self.diagnostics.push(
                     Diagnostic::error(
-                        format!("non-exhaustive match on `{name}` - missing: {missing_str}"),
+                        format!("non-exhaustive match on `{name}`: missing {missing_str}"),
                         span,
                     )
                     .with_label("not all variants covered")
-                    .with_help("Add match arms for the missing variants, or add a `_ ->` catch-all")
+                    .with_help("add match arms for the missing variants, or add a `_ ->` catch-all")
                     .with_code("E004"),
                 );
             }
@@ -87,11 +87,11 @@ impl Checker {
                 };
                 self.diagnostics.push(
                     Diagnostic::error(
-                        format!("non-exhaustive match on Result - missing: {missing}"),
+                        format!("non-exhaustive match on `Result`: missing {missing}"),
                         span,
                     )
                     .with_label("not all cases covered")
-                    .with_help("Add match arms for the missing cases")
+                    .with_help("add match arms for the missing cases")
                     .with_code("E004"),
                 );
             }
@@ -117,11 +117,11 @@ impl Checker {
                 };
                 self.diagnostics.push(
                     Diagnostic::error(
-                        format!("non-exhaustive match on Option - missing: {missing}"),
+                        format!("non-exhaustive match on `Option`: missing {missing}"),
                         span,
                     )
                     .with_label("not all cases covered")
-                    .with_help("Add match arms for the missing cases")
+                    .with_help("add match arms for the missing cases")
                     .with_code("E004"),
                 );
             }
@@ -142,9 +142,9 @@ impl Checker {
             }
             if !has_true || !has_false {
                 self.diagnostics.push(
-                    Diagnostic::error("non-exhaustive match on bool - missing a case", span)
+                    Diagnostic::error("non-exhaustive match on `boolean`: missing a case", span)
                         .with_label("not all cases covered")
-                        .with_help("Add match arms for both `true` and `false`")
+                        .with_help("add match arms for both `true` and `false`")
                         .with_code("E004"),
                 );
             }

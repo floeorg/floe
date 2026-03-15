@@ -2,12 +2,12 @@
 source: tests/snapshot_errors.rs
 expression: output
 ---
-[31m[E004] Error:[0m mixed array needs explicit type annotation
+[31m[E004] Error:[0m array elements have mixed types, add an explicit type annotation
    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.fl:1:16 [38;5;246m][0m
    [38;5;246m│[0m
  [38;5;246m1 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m_[0m[38;5;249mx[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m[[0m[38;5;249m1[0m[38;5;249m,[0m[38;5;249m [0m[31m"[0m[31mt[0m[31mw[0m[31mo[0m[31m"[0m[38;5;249m,[0m[38;5;249m [0m[38;5;249m3[0m[38;5;249m][0m
  [38;5;240m  │[0m                [31m─[0m[31m─[0m[31m┬[0m[31m─[0m[31m─[0m  
  [38;5;240m  │[0m                  [31m╰[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m mismatched element type
  [38;5;240m  │[0m 
- [38;5;240m  │[0m [38;5;115mHelp[0m: Add an explicit type annotation to the array
+ [38;5;240m  │[0m [38;5;115mHelp[0m: add an explicit type annotation to the array
 [38;5;246m───╯[0m

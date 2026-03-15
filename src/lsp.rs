@@ -441,6 +441,33 @@ impl FloeLsp {
             },
         })
     }
+
+    /// Resolve an import path string to a Location at line 1 of the target file.
+    /// Used when the cursor is on the path string itself (e.g., `"../types"`).
+    fn resolve_import_path_location(source_uri: &Url, specifier: &str) -> Option<Location> {
+        let source_path = source_uri.to_file_path().ok()?;
+        let source_dir = source_path.parent()?;
+
+        let is_relative = specifier.starts_with("./") || specifier.starts_with("../");
+
+        let resolved_path = if is_relative {
+            resolution::resolve_relative_import(specifier, source_dir)?
+        } else {
+            let project_dir = find_project_dir(source_dir);
+            resolution::resolve_npm_dts(specifier, &project_dir)?
+        };
+
+        let target_uri = Url::from_file_path(&resolved_path).ok()?;
+
+        // Jump to the start of the file
+        Some(Location {
+            uri: target_uri,
+            range: Range {
+                start: Position::new(0, 0),
+                end: Position::new(0, 0),
+            },
+        })
+    }
 }
 
 /// Start the LSP server on stdin/stdout.

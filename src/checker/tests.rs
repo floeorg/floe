@@ -42,7 +42,7 @@ fn basic_const_string() {
 #[test]
 fn undeclared_variable() {
     let diags = check("const x = y");
-    assert!(has_error_containing(&diags, "`y` is not defined"));
+    assert!(has_error_containing(&diags, "is not defined"));
 }
 
 // ── Rule 2: Brand enforcement ───────────────────────────────
@@ -104,7 +104,7 @@ fn tryFetch(url: string) -> Result<string, string> {
     );
     let unwrap_errors: Vec<_> = diags
         .iter()
-        .filter(|d| d.code.as_deref() == Some("E005") && d.message.contains("? operator requires"))
+        .filter(|d| d.code.as_deref() == Some("E005") && d.message.contains("operator requires"))
         .collect();
     assert!(unwrap_errors.is_empty());
 }
@@ -122,7 +122,7 @@ fn process() -> Result<number, string> {
     );
     assert!(has_error_containing(
         &diags,
-        "? can only be used on Result or Option"
+        "`?` can only be used on `Result` or `Option`"
     ));
 }
 
@@ -138,7 +138,7 @@ const x = result.value
     );
     assert!(has_error_containing(
         &diags,
-        "cannot access `.value` on Result"
+        "cannot access `.value` on `Result`"
     ));
 }
 
@@ -161,7 +161,7 @@ fn equality_different_types() {
 #[test]
 fn unused_variable_warning() {
     let diags = check("const x = 42");
-    assert!(has_warning_containing(&diags, "is never used"));
+    assert!(has_warning_containing(&diags, "unused variable"));
 }
 
 #[test]
@@ -188,7 +188,7 @@ const y = x
 #[test]
 fn unused_import_error() {
     let diags = check(r#"import { useState } from "react""#);
-    assert!(has_error_containing(&diags, "is never used"));
+    assert!(has_error_containing(&diags, "unused import"));
 }
 
 // ── Rule 10: Exported function return types ─────────────────
@@ -215,7 +215,7 @@ fn greet() -> string { 42 }
 "#,
     );
     assert!(
-        has_error_containing(&diags, "return type mismatch"),
+        has_error_containing(&diags, "expected return type"),
         "should error when body returns number but declared string, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -228,7 +228,7 @@ fn return_type_match_ok() {
 fn greet() -> string { "hello" }
 "#,
     );
-    assert!(!has_error_containing(&diags, "return type mismatch"),);
+    assert!(!has_error_containing(&diags, "expected return type"),);
 }
 
 #[test]
@@ -275,7 +275,7 @@ fn homogeneous_array() {
 #[test]
 fn mixed_array_error() {
     let diags = check(r#"const _x = [1, "two", 3]"#);
-    assert!(has_error_containing(&diags, "mixed array"));
+    assert!(has_error_containing(&diags, "mixed types"));
 }
 
 // ── Dead code detection ─────────────────────────────────────
@@ -311,7 +311,7 @@ const _x = HashedPassword("abc")
 #[test]
 fn floating_result_error() {
     let diags = check("Ok(42)");
-    assert!(has_error_containing(&diags, "unhandled Result"));
+    assert!(has_error_containing(&diags, "unhandled `Result`"));
 }
 
 // ── For Blocks ─────────────────────────────────────────────
@@ -538,7 +538,10 @@ const _t = Todo(id: "1", text: "hello")
 "#,
     );
     assert!(has_error(&diags, "E016"));
-    assert!(has_error_containing(&diags, "missing field `done`"));
+    assert!(has_error_containing(
+        &diags,
+        "missing required field `done`"
+    ));
 }
 
 #[test]
@@ -1144,7 +1147,7 @@ const _u = User(name: "hi")
 "#,
     );
     assert!(
-        has_error_containing(&diags, "missing field `age`"),
+        has_error_containing(&diags, "missing required field `age`"),
         "should error on missing required field, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );

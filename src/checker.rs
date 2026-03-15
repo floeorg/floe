@@ -197,9 +197,9 @@ impl Checker {
         for (name, span) in &self.imported_names {
             if !self.used_names.contains(name) {
                 self.diagnostics.push(
-                    Diagnostic::error(format!("`{name}` is never used"), *span)
-                        .with_label("unused import")
-                        .with_help("Remove this import or use it in the code")
+                    Diagnostic::error(format!("unused import `{name}`"), *span)
+                        .with_label("imported but never used")
+                        .with_help("remove this import or use it in the code")
                         .with_code("E009"),
                 );
             }
@@ -209,9 +209,9 @@ impl Checker {
         for (name, span) in &self.defined_names {
             if !name.starts_with('_') && !self.used_names.contains(name) {
                 self.diagnostics.push(
-                    Diagnostic::warning(format!("`{name}` is never used"), *span)
-                        .with_label("unused variable")
-                        .with_help(format!("Prefix with underscore `_{name}` to suppress"))
+                    Diagnostic::warning(format!("unused variable `{name}`"), *span)
+                        .with_label("defined but never used")
+                        .with_help(format!("prefix with underscore `_{name}` to suppress"))
                         .with_code("W001"),
                 );
             }
@@ -420,7 +420,7 @@ impl Checker {
                     self.diagnostics.push(
                         Diagnostic::error(format!("unknown type `{name}`"), span)
                             .with_label("not defined")
-                            .with_help("Check the spelling or import/define this type")
+                            .with_help("check the spelling or import/define this type")
                             .with_code("E002"),
                     );
                     Type::Unknown
@@ -443,9 +443,9 @@ impl Checker {
                 // Rule 5: No floating Results/Options
                 if ty.is_result() {
                     self.diagnostics.push(
-                        Diagnostic::error("unhandled Result", expr.span)
-                            .with_label("this Result is not used")
-                            .with_help("Use `?`, `match`, or assign to `_`")
+                        Diagnostic::error("unhandled `Result` value", expr.span)
+                            .with_label("this `Result` is not used")
+                            .with_help("use `?`, `match`, or assign to `_`")
                             .with_code("E005"),
                     );
                 }
@@ -591,13 +591,13 @@ impl Checker {
                 self.diagnostics.push(
                     Diagnostic::error(
                         format!(
-                            "type mismatch: expected `{}`, found `{}`",
+                            "expected `{}`, found `{}`",
                             declared.display_name(),
                             value_type.display_name()
                         ),
                         span,
                     )
-                    .with_label("type mismatch")
+                    .with_label(format!("expected `{}`", declared.display_name()))
                     .with_code("E001"),
                 );
             }
@@ -713,7 +713,7 @@ impl Checker {
                     span,
                 )
                 .with_label("missing return type")
-                .with_help("Add `: ReturnType` after the parameter list")
+                .with_help("add `-> ReturnType` after the parameter list")
                 .with_code("E010"),
             );
         }
@@ -773,14 +773,14 @@ impl Checker {
                 self.diagnostics.push(
                     Diagnostic::error(
                         format!(
-                            "function `{}` return type mismatch: expected `{}`, found `{}`",
+                            "function `{}`: expected return type `{}`, found `{}`",
                             decl.name,
                             resolved.display_name(),
                             body_type.display_name()
                         ),
                         span,
                     )
-                    .with_label("return type mismatch")
+                    .with_label(format!("expected `{}`", resolved.display_name()))
                     .with_code("E001"),
                 );
             }
@@ -800,7 +800,7 @@ impl Checker {
                         span,
                     )
                     .with_label("missing return value")
-                    .with_help("Add a return expression or change return type to `()`")
+                    .with_help("add a return expression or change return type to `()`")
                     .with_code("E013"),
                 );
             }
@@ -869,14 +869,14 @@ impl Checker {
                     self.diagnostics.push(
                         Diagnostic::error(
                             format!(
-                                "function `{}` return type mismatch: expected `{}`, found `{}`",
+                                "function `{}`: expected return type `{}`, found `{}`",
                                 func.name,
                                 resolved.display_name(),
                                 body_type.display_name()
                             ),
                             block.span,
                         )
-                        .with_label("return type mismatch")
+                        .with_label(format!("expected `{}`", resolved.display_name()))
                         .with_code("E001"),
                     );
                 }
@@ -933,7 +933,7 @@ impl Checker {
                                 format!("component `{name}` is not defined"),
                                 element.span,
                             )
-                            .with_label("unknown component")
+                            .with_label("not found in scope")
                             .with_code("E002"),
                         );
                     }

@@ -98,11 +98,11 @@ pub(super) fn enrich_from_imports(
             if resolve_relative_import(specifier, source_dir).is_none() {
                 import_diags.push(
                     zs_diag::Diagnostic::error(
-                        format!("cannot find module \"{}\"", specifier),
+                        format!("cannot find module `\"{specifier}\"`"),
                         item.span,
                     )
                     .with_label("module not found")
-                    .with_help("Check the file path and extension")
+                    .with_help("check the file path and extension")
                     .with_code("E012"),
                 );
             }
@@ -120,11 +120,11 @@ pub(super) fn enrich_from_imports(
         } else {
             import_diags.push(
                 zs_diag::Diagnostic::error(
-                    format!("cannot find module '{}'", specifier),
+                    format!("cannot find module `\"{specifier}\"`"),
                     item.span,
                 )
-                .with_label("module not found")
-                .with_help("Check that the package is installed (npm install)")
+                .with_label("package not found")
+                .with_help("check that the package is installed (`npm install`)")
                 .with_code("E013"),
             );
             continue;

@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use super::completion::*;
 use super::handlers::{
-    detect_match_context, is_in_jsx_tag, jsx_attribute_completions, lambda_event_completions,
+    detect_match_context, import_path_at_offset, is_in_jsx_tag, jsx_attribute_completions,
+    lambda_event_completions,
 };
 use super::symbols::*;
 use super::*;
@@ -764,4 +765,67 @@ fn unresolved_npm_import_diagnostic() {
         "diagnostic should say 'cannot find module', got: {}",
         diags[0].message
     );
+}
+
+// ── Import path go-to-definition tests (#196) ──────────────
+
+#[test]
+fn import_path_at_offset_on_path_string() {
+    let source = r#"import { Todo } from "../types""#;
+    // Cursor on the 't' in "../types"
+    let quote_pos = source.find('"').unwrap();
+    let result = import_path_at_offset(source, quote_pos + 3);
+    assert_eq!(result, Some("../types".to_string()));
+}
+
+#[test]
+fn import_path_at_offset_on_opening_quote() {
+    let source = r#"import { Todo } from "../types""#;
+    let quote_pos = source.find('"').unwrap();
+    let result = import_path_at_offset(source, quote_pos);
+    assert_eq!(result, Some("../types".to_string()));
+}
+
+#[test]
+fn import_path_at_offset_on_closing_quote() {
+    let source = r#"import { Todo } from "../types""#;
+    // Find the closing quote position
+    let first_quote = source.find('"').unwrap();
+    let closing_quote = source[first_quote + 1..].find('"').unwrap() + first_quote + 1;
+    let result = import_path_at_offset(source, closing_quote);
+    assert_eq!(result, Some("../types".to_string()));
+}
+
+#[test]
+fn import_path_at_offset_not_on_path() {
+    let source = r#"import { Todo } from "../types""#;
+    // Cursor on "Todo" — not on the path string
+    let todo_pos = source.find("Todo").unwrap();
+    let result = import_path_at_offset(source, todo_pos);
+    assert_eq!(result, None);
+}
+
+#[test]
+fn import_path_at_offset_non_import_line() {
+    let source = r#"const x = "hello""#;
+    let result = import_path_at_offset(source, 12);
+    assert_eq!(result, None);
+}
+
+#[test]
+fn import_path_at_offset_multiline() {
+    let source = "const x = 42\nimport { Foo } from \"./foo\"\nconst y = 10";
+    // Cursor on the path in line 2
+    let import_line_start = source.find("import").unwrap();
+    let quote_pos = source[import_line_start..].find('"').unwrap() + import_line_start;
+    let result = import_path_at_offset(source, quote_pos + 2);
+    assert_eq!(result, Some("./foo".to_string()));
+}
+
+#[test]
+fn import_path_at_offset_single_quotes() {
+    let source = "import { Foo } from './foo'";
+    let quote_pos = source.find('\'').unwrap();
+    let result = import_path_at_offset(source, quote_pos + 2);
+    assert_eq!(result, Some("./foo".to_string()));
 }

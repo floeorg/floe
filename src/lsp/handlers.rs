@@ -315,6 +315,14 @@ impl LanguageServer for FloeLsp {
         };
 
         let offset = position_to_offset(&doc.content, position);
+
+        // Check if cursor is on an import path string — go-to-def opens the target file
+        if let Some(import_path) = import_path_at_offset(&doc.content, offset)
+            && let Some(location) = Self::resolve_import_path_location(&uri, &import_path)
+        {
+            return Ok(Some(GotoDefinitionResponse::Scalar(location)));
+        }
+
         let word = word_at_offset(&doc.content, offset);
 
         if word.is_empty() {
@@ -1022,4 +1030,59 @@ pub(super) fn lambda_event_completions(
     }
 
     if items.is_empty() { None } else { Some(items) }
+}
+
+/// If the cursor offset is inside a string literal on an import line,
+/// return the import path string (without quotes).
+///
+/// Matches lines like:
+///   import { Foo } from "../types"
+///   import { Bar } from "./bar"
+pub(super) fn import_path_at_offset(source: &str, offset: usize) -> Option<String> {
+    // Find the line containing the offset
+    let before = &source[..offset];
+    let line_start = before.rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_end = source[offset..]
+        .find('\n')
+        .map(|i| offset + i)
+        .unwrap_or(source.len());
+    let line = &source[line_start..line_end];
+
+    // Must be an import line
+    let trimmed = line.trim();
+    if !trimmed.starts_with("import") {
+        return None;
+    }
+
+    // Find the string literal in the line (between quotes)
+    let from_pos = line.find("from")?;
+    let after_from = &line[from_pos + 4..];
+
+    // Find opening quote
+    let quote_char;
+    let quote_start;
+    if let Some(pos) = after_from.find('"') {
+        quote_char = '"';
+        quote_start = from_pos + 4 + pos;
+    } else if let Some(pos) = after_from.find('\'') {
+        quote_char = '\'';
+        quote_start = from_pos + 4 + pos;
+    } else {
+        return None;
+    }
+
+    // Find closing quote
+    let after_open = &line[quote_start + 1..];
+    let quote_end = after_open.find(quote_char)?;
+    let string_content = &after_open[..quote_end];
+
+    // Check that the cursor offset is within the string (including quotes)
+    let abs_string_start = line_start + quote_start;
+    let abs_string_end = line_start + quote_start + 1 + quote_end + 1; // inclusive of closing quote
+
+    if offset >= abs_string_start && offset <= abs_string_end {
+        Some(string_content.to_string())
+    } else {
+        None
+    }
 }
