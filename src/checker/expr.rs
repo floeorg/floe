@@ -271,7 +271,12 @@ impl Checker {
                         .env
                         .lookup(type_name)
                         .is_some_and(|ty| matches!(ty, Type::Union { .. }));
-                    if !is_variant {
+                    // Also accept known imported symbols (e.g. npm imports) used as constructors.
+                    // When an uppercase import like `QueryClient` is called with named args,
+                    // the parser produces a Construct node. If the name exists in the value
+                    // environment, treat it as a function call rather than erroring.
+                    let is_known_value = self.env.lookup(type_name).is_some();
+                    if !is_variant && !is_known_value {
                         self.diagnostics.push(
                             Diagnostic::error(format!("unknown type `{type_name}`"), expr.span)
                                 .with_label("not defined")
