@@ -254,6 +254,9 @@ impl SymbolIndex {
                         Self::collect_expr(&func.body, symbols);
                     }
                 }
+                ItemKind::TraitDecl(_) => {
+                    // Traits are compile-time only, no symbols to collect
+                }
                 ItemKind::TestBlock(_) => {
                     // Test blocks don't contribute symbols
                 }
@@ -358,7 +361,9 @@ impl SymbolIndex {
 
 pub(super) fn type_expr_to_string(ty: &TypeExpr) -> String {
     match &ty.kind {
-        TypeExprKind::Named { name, type_args } => {
+        TypeExprKind::Named {
+            name, type_args, ..
+        } => {
             if type_args.is_empty() {
                 name.clone()
             } else {

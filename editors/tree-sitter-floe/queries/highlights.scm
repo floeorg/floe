@@ -12,6 +12,7 @@
 "try" @keyword
 "trusted" @keyword
 "for" @keyword
+"trait" @keyword
 "opaque" @keyword
 "test" @keyword
 "assert" @keyword
@@ -97,6 +98,13 @@
 
 (construct_expression
   type: (type_identifier) @constructor)
+
+; ── Traits ──────────────────────────────────────────────
+(trait_declaration
+  name: (type_identifier) @type.definition)
+
+(trait_method
+  name: (identifier) @function)
 
 ; ── Record fields ────────────────────────────────────────
 (record_field

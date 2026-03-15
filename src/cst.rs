@@ -113,6 +113,12 @@ impl<'src> CstParser<'src> {
                 self.parse_for_block();
                 self.builder.finish_node();
             }
+            Some(TokenKind::Trait) => {
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
+                self.parse_trait_decl();
+                self.builder.finish_node();
+            }
             _ if !exported && self.at_identifier("test") && self.peek_is_string() => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
@@ -400,6 +406,14 @@ impl<'src> CstParser<'src> {
         self.parse_type_expr();
         self.eat_trivia();
 
+        // Optional trait bound: `for User: Display { ... }`
+        if self.at(TokenKind::Colon) {
+            self.bump(); // :
+            self.eat_trivia();
+            self.expect_ident(); // trait name
+            self.eat_trivia();
+        }
+
         self.expect(TokenKind::LeftBrace);
         self.eat_trivia();
 
@@ -420,6 +434,67 @@ impl<'src> CstParser<'src> {
         }
 
         self.expect(TokenKind::RightBrace);
+
+        self.builder.finish_node();
+    }
+
+    // ── Trait Declarations ────────────────────────────────────────
+
+    fn parse_trait_decl(&mut self) {
+        self.builder.start_node(SyntaxKind::TRAIT_DECL.into());
+
+        self.expect(TokenKind::Trait);
+        self.eat_trivia();
+
+        self.expect_ident(); // trait name
+        self.eat_trivia();
+
+        self.expect(TokenKind::LeftBrace);
+        self.eat_trivia();
+
+        // Parse method declarations inside the trait
+        while !self.at(TokenKind::RightBrace) && !self.at_end() {
+            if self.at(TokenKind::Fn) {
+                self.parse_trait_method();
+                self.eat_trivia();
+            } else {
+                self.error("expected `fn` inside trait");
+                self.bump();
+                self.eat_trivia();
+            }
+        }
+
+        self.expect(TokenKind::RightBrace);
+
+        self.builder.finish_node();
+    }
+
+    fn parse_trait_method(&mut self) {
+        self.builder.start_node(SyntaxKind::FUNCTION_DECL.into());
+
+        self.expect(TokenKind::Fn);
+        self.eat_trivia();
+        self.expect_ident();
+        self.eat_trivia();
+
+        self.expect(TokenKind::LeftParen);
+        self.eat_trivia();
+        self.parse_comma_separated(Self::parse_for_block_param, TokenKind::RightParen);
+        self.expect(TokenKind::RightParen);
+        self.eat_trivia();
+
+        // Optional return type
+        if self.at(TokenKind::ThinArrow) {
+            self.bump();
+            self.eat_trivia();
+            self.parse_type_expr();
+            self.eat_trivia();
+        }
+
+        // Optional body (default implementation)
+        if self.at(TokenKind::LeftBrace) {
+            self.parse_block_expr();
+        }
 
         self.builder.finish_node();
     }

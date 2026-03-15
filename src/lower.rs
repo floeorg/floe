@@ -104,6 +104,13 @@ impl<'src> Lowerer<'src> {
                         span,
                     });
                 }
+                SyntaxKind::TRAIT_DECL => {
+                    let decl = self.lower_trait_decl(&child, node)?;
+                    return Some(Item {
+                        kind: ItemKind::TraitDecl(decl),
+                        span,
+                    });
+                }
                 SyntaxKind::TEST_BLOCK => {
                     let block = self.lower_test_block(&child)?;
                     return Some(Item {
@@ -323,14 +330,22 @@ impl<'src> Lowerer<'src> {
 
         // Find the type expression (first TYPE_EXPR child)
         let mut type_name = None;
+        let mut trait_name = None;
         let mut functions = Vec::new();
 
+        // Collect idents that appear after a colon (trait name)
+        let mut saw_colon = false;
         let mut next_exported = false;
         for child_or_token in node.children_with_tokens() {
             match child_or_token {
                 rowan::NodeOrToken::Token(token) => {
                     if token.kind() == SyntaxKind::KW_EXPORT {
                         next_exported = true;
+                    } else if token.kind() == SyntaxKind::COLON {
+                        saw_colon = true;
+                    } else if saw_colon && token.kind() == SyntaxKind::IDENT {
+                        trait_name = Some(token.text().to_string());
+                        saw_colon = false;
                     }
                 }
                 rowan::NodeOrToken::Node(child) => match child.kind() {
@@ -351,7 +366,70 @@ impl<'src> Lowerer<'src> {
 
         Some(ForBlock {
             type_name: type_name?,
+            trait_name,
             functions,
+            span,
+        })
+    }
+
+    fn lower_trait_decl(&mut self, node: &SyntaxNode, item_node: &SyntaxNode) -> Option<TraitDecl> {
+        let exported = self.has_keyword(item_node, SyntaxKind::KW_EXPORT);
+        let span = self.node_span(node);
+
+        let idents = self.collect_idents_direct(node);
+        let name = idents.first()?.clone();
+
+        let mut methods = Vec::new();
+        for child in node.children() {
+            if child.kind() == SyntaxKind::FUNCTION_DECL
+                && let Some(method) = self.lower_trait_method(&child)
+            {
+                methods.push(method);
+            }
+        }
+
+        Some(TraitDecl {
+            exported,
+            name,
+            methods,
+            span,
+        })
+    }
+
+    fn lower_trait_method(&mut self, node: &SyntaxNode) -> Option<TraitMethod> {
+        let span = self.node_span(node);
+
+        let idents = self.collect_idents_direct(node);
+        let name = idents.first()?.clone();
+
+        let mut params = Vec::new();
+        let mut return_type = None;
+        let mut body = None;
+
+        for child in node.children() {
+            match child.kind() {
+                SyntaxKind::PARAM => {
+                    if let Some(param) = self.lower_for_block_param(&child) {
+                        params.push(param);
+                    }
+                }
+                SyntaxKind::TYPE_EXPR => {
+                    if return_type.is_none() {
+                        return_type = self.lower_type_expr(&child);
+                    }
+                }
+                SyntaxKind::BLOCK_EXPR => {
+                    body = self.lower_expr_node(&child);
+                }
+                _ => {}
+            }
+        }
+
+        Some(TraitMethod {
+            name,
+            params,
+            return_type,
+            body,
             span,
         })
     }
@@ -574,6 +652,7 @@ impl<'src> Lowerer<'src> {
                     kind: TypeExprKind::Named {
                         name: "()".to_string(),
                         type_args: Vec::new(),
+                        bounds: Vec::new(),
                     },
                     span,
                 });
@@ -652,7 +731,11 @@ impl<'src> Lowerer<'src> {
                 .collect();
 
             return Some(TypeExpr {
-                kind: TypeExprKind::Named { name, type_args },
+                kind: TypeExprKind::Named {
+                    name,
+                    type_args,
+                    bounds: Vec::new(),
+                },
                 span,
             });
         }

@@ -148,6 +148,11 @@ impl Parser {
                 let block = self.parse_for_block()?;
                 ItemKind::ForBlock(block)
             }
+            TokenKind::Trait => {
+                let mut decl = self.parse_trait_decl()?;
+                decl.exported = exported;
+                ItemKind::TraitDecl(decl)
+            }
             _ if !exported
                 && self.check_identifier("test")
                 && matches!(self.peek_kind(), Some(TokenKind::String(_))) =>
@@ -500,6 +505,14 @@ impl Parser {
 
         let type_name = self.parse_type_expr()?;
 
+        // Optional trait bound: `for User: Display { ... }`
+        let trait_name = if self.check(&TokenKind::Colon) {
+            self.advance();
+            Some(self.expect_identifier()?)
+        } else {
+            None
+        };
+
         self.expect(&TokenKind::LeftBrace)?;
 
         let mut functions = Vec::new();
@@ -524,9 +537,88 @@ impl Parser {
 
         Ok(ForBlock {
             type_name,
+            trait_name,
             functions,
             span: self.merge_spans(start_span, end_span),
         })
+    }
+
+    // ── Trait Declarations ────────────────────────────────────────
+
+    fn parse_trait_decl(&mut self) -> Result<TraitDecl, ParseError> {
+        let start_span = self.current_span();
+        self.expect(&TokenKind::Trait)?;
+        let name = self.expect_identifier()?;
+
+        self.expect(&TokenKind::LeftBrace)?;
+
+        let mut methods = Vec::new();
+        while !self.check(&TokenKind::RightBrace) && !self.is_at_end() {
+            methods.push(self.parse_trait_method()?);
+        }
+
+        self.expect(&TokenKind::RightBrace)?;
+        let end_span = self.previous_span();
+
+        Ok(TraitDecl {
+            exported: false,
+            name,
+            methods,
+            span: self.merge_spans(start_span, end_span),
+        })
+    }
+
+    fn parse_trait_method(&mut self) -> Result<TraitMethod, ParseError> {
+        let start_span = self.current_span();
+        self.expect(&TokenKind::Fn)?;
+        let name = self.expect_identifier()?;
+
+        self.expect(&TokenKind::LeftParen)?;
+        let params = self.parse_comma_separated(|p| p.parse_trait_param())?;
+        self.expect(&TokenKind::RightParen)?;
+
+        let return_type = if self.check(&TokenKind::ThinArrow) {
+            self.advance();
+            Some(self.parse_type_expr()?)
+        } else {
+            Option::None
+        };
+
+        // Optional body (default implementation)
+        let body = if self.check(&TokenKind::LeftBrace) {
+            Some(self.parse_block_expr()?)
+        } else {
+            None
+        };
+
+        let end_span = self.previous_span();
+
+        Ok(TraitMethod {
+            name,
+            params,
+            return_type,
+            body,
+            span: self.merge_spans(start_span, end_span),
+        })
+    }
+
+    fn parse_trait_param(&mut self) -> Result<Param, ParseError> {
+        let start_span = self.current_span();
+
+        // Handle `self` keyword as parameter
+        if self.check(&TokenKind::SelfKw) {
+            self.advance();
+            let end_span = self.previous_span();
+            return Ok(Param {
+                name: "self".to_string(),
+                type_ann: Option::None,
+                default: Option::None,
+                span: self.merge_spans(start_span, end_span),
+            });
+        }
+
+        // Regular parameter
+        self.parse_param()
     }
 
     /// Parse a function declaration inside a `for` block.
@@ -649,6 +741,7 @@ impl Parser {
                 kind: TypeExprKind::Named {
                     name: "()".to_string(),
                     type_args: Vec::new(),
+                    bounds: Vec::new(),
                 },
                 span: self.merge_spans(start_span, end_span),
             });
@@ -715,7 +808,11 @@ impl Parser {
 
         let end_span = self.previous_span();
         Ok(TypeExpr {
-            kind: TypeExprKind::Named { name, type_args },
+            kind: TypeExprKind::Named {
+                name,
+                type_args,
+                bounds: Vec::new(),
+            },
             span: self.merge_spans(start_span, end_span),
         })
     }
@@ -1012,6 +1109,7 @@ impl Parser {
                 | TokenKind::Type
                 | TokenKind::Opaque
                 | TokenKind::For
+                | TokenKind::Trait
                 | TokenKind::Return => return,
                 _ => {
                     self.advance();

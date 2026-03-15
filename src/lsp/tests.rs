@@ -165,6 +165,7 @@ fn type_expr_to_string_named() {
         kind: TypeExprKind::Named {
             name: "string".to_string(),
             type_args: vec![],
+            bounds: vec![],
         },
         span: crate::lexer::span::Span::new(0, 0, 1, 1),
     };
@@ -176,11 +177,13 @@ fn type_expr_to_string_generic() {
     let ty = TypeExpr {
         kind: TypeExprKind::Named {
             name: "Result".to_string(),
+            bounds: vec![],
             type_args: vec![
                 TypeExpr {
                     kind: TypeExprKind::Named {
                         name: "User".to_string(),
                         type_args: vec![],
+                        bounds: vec![],
                     },
                     span: crate::lexer::span::Span::new(0, 0, 1, 1),
                 },
@@ -188,6 +191,7 @@ fn type_expr_to_string_generic() {
                     kind: TypeExprKind::Named {
                         name: "Error".to_string(),
                         type_args: vec![],
+                        bounds: vec![],
                     },
                     span: crate::lexer::span::Span::new(0, 0, 1, 1),
                 },

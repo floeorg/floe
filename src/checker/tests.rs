@@ -1602,6 +1602,92 @@ const _x = [1, 2, 3] |> Pipe.tap(Console.log)
     assert!(errors.is_empty(), "expected no errors, got: {errors:?}");
 }
 
+// ── Trait declarations ──────────────────────────────────────────
+
+#[test]
+fn trait_basic_definition() {
+    let diags = check(
+        r#"
+trait Display {
+  fn display(self) -> string
+}
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "trait definition should not produce errors: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trait_impl_valid() {
+    let diags = check(
+        r#"
+trait Display {
+  fn display(self) -> string
+}
+type User = { name: string }
+for User: Display {
+  fn display(self) -> string {
+    self.name
+  }
+}
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "valid trait impl should not produce errors: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trait_impl_missing_method() {
+    let diags = check(
+        r#"
+trait Display {
+  fn display(self) -> string
+}
+type User = { name: string }
+for User: Display {
+  fn toString(self) -> string {
+    "wrong"
+  }
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, "E018"),
+        "should error on missing required method"
+    );
+    assert!(has_error_containing(&diags, "requires method `display`"));
+}
+
+#[test]
+fn trait_unknown_trait() {
+    let diags = check(
+        r#"
+type User = { name: string }
+for User: NonExistent {
+  fn display(self) -> string {
+    self.name
+  }
+}
+"#,
+    );
+    assert!(has_error(&diags, "E017"), "should error on unknown trait");
+    assert!(has_error_containing(&diags, "unknown trait"));
+}
+
 // ── Test Blocks ──────────────────────────────────────────────
 
 #[test]
@@ -1637,4 +1723,109 @@ test "bad assert" {
         "expected boolean error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn trait_default_method_not_required() {
+    let diags = check(
+        r#"
+trait Eq {
+  fn eq(self, other: string) -> boolean
+  fn neq(self, other: string) -> boolean {
+    !(self |> eq(other))
+  }
+}
+type User = { name: string }
+for User: Eq {
+  fn eq(self, other: string) -> boolean {
+    self.name == other
+  }
+}
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "default methods should not be required: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trait_for_block_without_trait_still_works() {
+    let diags = check(
+        r#"
+type User = { name: string }
+for User {
+  fn greet(self) -> string {
+    self.name
+  }
+}
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "regular for block should still work: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trait_impl_all_required_methods() {
+    let diags = check(
+        r#"
+trait Printable {
+  fn print(self) -> string
+  fn prettyPrint(self) -> string
+}
+type User = { name: string }
+for User: Printable {
+  fn print(self) -> string {
+    self.name
+  }
+  fn prettyPrint(self) -> string {
+    self.name
+  }
+}
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "all methods implemented: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trait_impl_missing_one_of_two() {
+    let diags = check(
+        r#"
+trait Printable {
+  fn print(self) -> string
+  fn prettyPrint(self) -> string
+}
+type User = { name: string }
+for User: Printable {
+  fn print(self) -> string {
+    self.name
+  }
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, "E018"),
+        "should error on missing prettyPrint"
+    );
+    assert!(has_error_containing(&diags, "prettyPrint"));
 }

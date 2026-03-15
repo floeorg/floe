@@ -349,7 +349,9 @@ fn type_decl_to_ts(decl: &TypeDecl) -> String {
 /// Convert a Floe TypeExpr to a TypeScript type string.
 fn type_expr_to_ts(ty: &TypeExpr) -> String {
     match &ty.kind {
-        TypeExprKind::Named { name, type_args } => {
+        TypeExprKind::Named {
+            name, type_args, ..
+        } => {
             let ts_name = match name.as_str() {
                 "bool" => "boolean",
                 "Option" if type_args.len() == 1 => {

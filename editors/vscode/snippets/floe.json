@@ -121,6 +121,26 @@
     ],
     "description": "Opaque type"
   },
+  "Trait Declaration": {
+    "prefix": "trait",
+    "body": [
+      "trait ${1:Name} {",
+      "\tfn ${2:method}(self) -> ${3:ReturnType}",
+      "}"
+    ],
+    "description": "Trait declaration"
+  },
+  "Trait Implementation": {
+    "prefix": "impl",
+    "body": [
+      "for ${1:Type}: ${2:Trait} {",
+      "\tfn ${3:method}(self) -> ${4:ReturnType} {",
+      "\t\t$0",
+      "\t}",
+      "}"
+    ],
+    "description": "Trait implementation"
+  },
   "Tap Debug": {
     "prefix": "tap",
     "body": [

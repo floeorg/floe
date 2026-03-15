@@ -121,6 +121,8 @@ pub(crate) struct TypeEnv {
     pub(crate) scopes: Vec<HashMap<String, Type>>,
     /// Type declarations: type name -> TypeDef + metadata
     type_defs: HashMap<String, TypeInfo>,
+    /// Trait bounds on type parameters: param name -> [trait names]
+    type_param_bounds: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -137,6 +139,7 @@ impl TypeEnv {
         Self {
             scopes: vec![HashMap::new()],
             type_defs: HashMap::new(),
+            type_param_bounds: HashMap::new(),
         }
     }
 
@@ -183,6 +186,11 @@ impl TypeEnv {
 
     pub(crate) fn lookup_type(&self, name: &str) -> Option<&TypeInfo> {
         self.type_defs.get(name)
+    }
+
+    /// Define trait bounds for a type parameter.
+    pub(crate) fn define_type_param_bounds(&mut self, name: &str, bounds: Vec<String>) {
+        self.type_param_bounds.insert(name.to_string(), bounds);
     }
 
     /// Resolve a `Type::Named("Foo")` to its concrete type by looking up the type definition.

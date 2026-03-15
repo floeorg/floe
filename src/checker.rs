@@ -58,6 +58,18 @@ pub struct Checker {
     /// Tracks where each name was defined (e.g., "const", "function", "for-block function from \"./todo\"").
     /// Used to provide context in shadowing error messages.
     defined_sources: HashMap<String, String>,
+    /// Registered trait declarations: trait name -> methods.
+    trait_defs: HashMap<String, Vec<TraitMethodSig>>,
+    /// Tracks which (type, trait) pairs have been implemented.
+    trait_impls: HashSet<(String, String)>,
+}
+
+/// Signature of a trait method (for checking implementations).
+#[derive(Debug, Clone)]
+struct TraitMethodSig {
+    name: String,
+    /// Whether this method has a default implementation.
+    has_default: bool,
 }
 
 impl Default for Checker {
@@ -86,6 +98,8 @@ impl Checker {
             pipe_input_type: None,
             name_types: HashMap::new(),
             defined_sources: HashMap::new(),
+            trait_defs: HashMap::new(),
+            trait_impls: HashSet::new(),
         }
     }
 
@@ -179,11 +193,17 @@ impl Checker {
             }
         }
 
-        // First pass: register all type declarations
+        // First pass: register all type declarations and traits
         self.registering_types = true;
         for item in &program.items {
-            if let ItemKind::TypeDecl(decl) = &item.kind {
-                self.register_type_decl(decl);
+            match &item.kind {
+                ItemKind::TypeDecl(decl) => {
+                    self.register_type_decl(decl);
+                }
+                ItemKind::TraitDecl(decl) => {
+                    self.register_trait_decl(decl);
+                }
+                _ => {}
             }
         }
         self.registering_types = false;
@@ -319,7 +339,15 @@ impl Checker {
 
     fn resolve_type(&mut self, type_expr: &TypeExpr) -> Type {
         match &type_expr.kind {
-            TypeExprKind::Named { name, type_args } => {
+            TypeExprKind::Named {
+                name,
+                type_args,
+                bounds,
+            } => {
+                // Store bounds information for later trait bound checking
+                if !bounds.is_empty() {
+                    self.env.define_type_param_bounds(name, bounds.clone());
+                }
                 self.resolve_named_type(name, type_args, type_expr.span)
             }
             TypeExprKind::Record(fields) => {
@@ -438,6 +466,7 @@ impl Checker {
             ItemKind::Function(decl) => self.check_function(decl, item.span),
             ItemKind::TypeDecl(decl) => self.validate_type_decl_annotations(decl),
             ItemKind::ForBlock(block) => self.check_for_block(block, item.span),
+            ItemKind::TraitDecl(decl) => self.check_trait_decl(decl),
             ItemKind::TestBlock(block) => self.check_test_block(block),
             ItemKind::Expr(expr) => {
                 let ty = self.check_expr(expr);
@@ -844,6 +873,12 @@ impl Checker {
     fn check_for_block(&mut self, block: &ForBlock, _span: Span) {
         let for_type = self.resolve_type(&block.type_name);
 
+        // If this is a trait impl block, validate the trait contract
+        if let Some(ref trait_name) = block.trait_name {
+            let type_display = for_type.display_name();
+            self.check_trait_impl(&type_display, trait_name, &block.functions, block.span);
+        }
+
         for func in &block.functions {
             // Check each function, injecting `self` type for self params
             let return_type = func
@@ -968,6 +1003,90 @@ impl Checker {
             }
             _ => false,
         }
+    }
+
+    // ── Trait Declarations ────────────────────────────────────────
+
+    fn register_trait_decl(&mut self, decl: &TraitDecl) {
+        let methods: Vec<TraitMethodSig> = decl
+            .methods
+            .iter()
+            .map(|m| TraitMethodSig {
+                name: m.name.clone(),
+                has_default: m.body.is_some(),
+            })
+            .collect();
+        self.trait_defs.insert(decl.name.clone(), methods);
+    }
+
+    fn check_trait_decl(&mut self, decl: &TraitDecl) {
+        // Validate method signatures (return types, param types)
+        for method in &decl.methods {
+            if let Some(ref rt) = method.return_type {
+                self.resolve_type(rt);
+            }
+            for param in &method.params {
+                if let Some(ref ta) = param.type_ann {
+                    self.resolve_type(ta);
+                }
+            }
+            // Default bodies are NOT type-checked here. They reference other
+            // trait methods (like `self |> eq(other)`) which aren't defined yet.
+            // The bodies will be checked when used in a concrete for-block impl.
+        }
+
+        if decl.exported {
+            self.used_names.insert(decl.name.clone());
+        }
+    }
+
+    /// Validate that a `for Type: Trait` block satisfies the trait contract.
+    fn check_trait_impl(
+        &mut self,
+        type_name: &str,
+        trait_name: &str,
+        functions: &[FunctionDecl],
+        span: Span,
+    ) {
+        let trait_methods = match self.trait_defs.get(trait_name) {
+            Some(methods) => methods.clone(),
+            None => {
+                self.diagnostics.push(
+                    Diagnostic::error(format!("unknown trait `{trait_name}`"), span)
+                        .with_label("not defined")
+                        .with_help("check the spelling or define this trait")
+                        .with_code("E017"),
+                );
+                return;
+            }
+        };
+
+        // Check that all required methods are implemented
+        let impl_names: HashSet<&str> = functions.iter().map(|f| f.name.as_str()).collect();
+
+        for method in &trait_methods {
+            if !method.has_default && !impl_names.contains(method.name.as_str()) {
+                self.diagnostics.push(
+                    Diagnostic::error(
+                        format!(
+                            "trait `{trait_name}` requires method `{}` but it is not implemented for `{type_name}`",
+                            method.name
+                        ),
+                        span,
+                    )
+                    .with_label(format!("missing method `{}`", method.name))
+                    .with_help(format!(
+                        "add `fn {}(self, ...) {{ ... }}` to the for block",
+                        method.name
+                    ))
+                    .with_code("E018"),
+                );
+            }
+        }
+
+        // Record the implementation
+        self.trait_impls
+            .insert((type_name.to_string(), trait_name.to_string()));
     }
 
     // ── JSX Checking ─────────────────────────────────────────────

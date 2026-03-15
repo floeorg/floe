@@ -51,6 +51,7 @@ module.exports = grammar({
         $.type_declaration,
         $.const_declaration,
         $.for_block,
+        $.trait_declaration,
         $.test_block,
         $.expression_statement,
       ),
@@ -77,9 +78,31 @@ module.exports = grammar({
       seq(
         "for",
         field("type", $._type_expression),
+        optional(seq(":", field("trait", $.type_identifier))),
         "{",
         repeat(seq(optional("export"), $.function_declaration)),
         "}",
+      ),
+
+    // ── Traits ──────────────────────────────────────────────
+
+    trait_declaration: ($) =>
+      seq(
+        optional("export"),
+        "trait",
+        field("name", $.type_identifier),
+        "{",
+        repeat($.trait_method),
+        "}",
+      ),
+
+    trait_method: ($) =>
+      seq(
+        "fn",
+        field("name", $.identifier),
+        field("parameters", $.parameter_list),
+        optional(seq("->", field("return_type", $._type_expression))),
+        optional(field("body", $.block)),
       ),
 
     self: (_$) => "self",

@@ -26,6 +26,8 @@ pub enum ItemKind {
     TypeDecl(TypeDecl),
     /// `for Type { fn ... }` — group functions under a type
     ForBlock(ForBlock),
+    /// `trait Name { fn ... }` — trait declaration
+    TraitDecl(TraitDecl),
     /// `test "name" { assert expr ... }` — inline test block
     TestBlock(TestBlock),
     /// Expression statement (for REPL / scripts)
@@ -137,12 +139,38 @@ pub struct VariantField {
     pub span: Span,
 }
 
+// ── Trait Declarations ──────────────────────────────────────────
+
+/// `trait Name { fn method(self) -> T ... }` — trait declaration.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TraitDecl {
+    pub exported: bool,
+    pub name: String,
+    /// Methods declared in the trait (signatures and optional default bodies).
+    pub methods: Vec<TraitMethod>,
+    pub span: Span,
+}
+
+/// A method in a trait declaration. May have a default body.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TraitMethod {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<TypeExpr>,
+    /// If Some, this is a default implementation.
+    pub body: Option<Expr>,
+    pub span: Span,
+}
+
 // ── For Blocks ──────────────────────────────────────────────────
 
 /// `for Type { fn f(self) -> T { ... } }` — group functions under a type.
+/// `for Type: Trait { fn f(self) -> T { ... } }` — implement a trait for a type.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForBlock {
     pub type_name: TypeExpr,
+    /// Optional trait bound: `for User: Display { ... }`
+    pub trait_name: Option<String>,
     pub functions: Vec<FunctionDecl>,
     pub span: Span,
 }
@@ -180,6 +208,8 @@ pub enum TypeExprKind {
     Named {
         name: String,
         type_args: Vec<TypeExpr>,
+        /// Trait bounds on this type parameter: `T: Display + Eq`
+        bounds: Vec<String>,
     },
     /// Record type inline: `{ name: string, age: number }`
     Record(Vec<RecordField>),

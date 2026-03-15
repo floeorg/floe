@@ -819,7 +819,9 @@ fn generic_type() {
         ItemKind::Const(decl) => {
             let type_ann = decl.type_ann.unwrap();
             match type_ann.kind {
-                TypeExprKind::Named { name, type_args } => {
+                TypeExprKind::Named {
+                    name, type_args, ..
+                } => {
                     assert_eq!(name, "Result");
                     assert_eq!(type_args.len(), 2);
                 }
@@ -910,7 +912,9 @@ for Array<User> {
     match &program.items[0].kind {
         ItemKind::ForBlock(block) => {
             match &block.type_name.kind {
-                TypeExprKind::Named { name, type_args } => {
+                TypeExprKind::Named {
+                    name, type_args, ..
+                } => {
                     assert_eq!(name, "Array");
                     assert_eq!(type_args.len(), 1);
                 }

@@ -186,6 +186,9 @@ impl Codegen {
             ItemKind::Function(decl) => self.emit_function(decl),
             ItemKind::TypeDecl(decl) => self.emit_type_decl(decl),
             ItemKind::ForBlock(block) => self.emit_for_block(block),
+            ItemKind::TraitDecl(_) => {
+                // Traits are erased at compile time — emit nothing
+            }
             ItemKind::TestBlock(block) => self.emit_test_block(block),
             ItemKind::Expr(expr) => {
                 self.emit_indent();
@@ -575,7 +578,9 @@ impl Codegen {
 
     fn emit_type_expr(&mut self, type_expr: &TypeExpr) {
         match &type_expr.kind {
-            TypeExprKind::Named { name, type_args } => {
+            TypeExprKind::Named {
+                name, type_args, ..
+            } => {
                 // Brand<T, "Name"> erases to T
                 if name == "Brand" && type_args.len() == 2 {
                     self.emit_type_expr(&type_args[0]);
