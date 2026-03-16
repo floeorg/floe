@@ -319,6 +319,9 @@ impl<'src> CstParser<'src> {
         } else if self.at(TokenKind::SelfKw) {
             self.bump(); // self
             self.eat_trivia();
+        } else if self.at(TokenKind::Underscore) {
+            self.bump(); // _
+            self.eat_trivia();
         } else {
             self.expect_ident();
             self.eat_trivia();
@@ -982,7 +985,19 @@ impl<'src> CstParser<'src> {
                                 | Some(TokenKind::Parse)
                                 | Some(TokenKind::Match)
                                 | Some(TokenKind::For)
+                                | Some(TokenKind::From)
                                 | Some(TokenKind::Type)
+                                | Some(TokenKind::Export)
+                                | Some(TokenKind::Import)
+                                | Some(TokenKind::Const)
+                                | Some(TokenKind::Fn)
+                                | Some(TokenKind::Async)
+                                | Some(TokenKind::Await)
+                                | Some(TokenKind::Trait)
+                                | Some(TokenKind::Collect)
+                                | Some(TokenKind::Deriving)
+                                | Some(TokenKind::When)
+                                | Some(TokenKind::SelfKw)
                         )
                     {
                         self.bump();
