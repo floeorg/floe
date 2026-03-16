@@ -46,8 +46,14 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         while !self.at_end() {
+            let prev_pos = self.pos;
             self.parse_item();
             self.eat_trivia();
+            if self.pos == prev_pos && !self.at_end() {
+                // Safety: if parse_item made no progress, skip the stuck token
+                // to prevent an infinite loop.
+                self.bump();
+            }
         }
 
         // Eat any remaining trivia and EOF
@@ -710,12 +716,16 @@ impl<'src> CstParser<'src> {
 
         // Parse test body: assert statements and expressions
         while !self.at(TokenKind::RightBrace) && !self.at_end() {
+            let prev_pos = self.pos;
             if self.at(TokenKind::Assert) {
                 self.parse_assert_stmt();
             } else {
                 self.parse_expr();
             }
             self.eat_trivia();
+            if self.pos == prev_pos && !self.at_end() {
+                self.bump();
+            }
         }
 
         self.expect(TokenKind::RightBrace);
@@ -1403,11 +1413,15 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         while !self.at(TokenKind::RightBrace) && !self.at_end() {
+            let prev_pos = self.pos;
             self.parse_match_arm();
             self.eat_trivia();
             if self.at(TokenKind::Comma) {
                 self.bump();
                 self.eat_trivia();
+            }
+            if self.pos == prev_pos && !self.at_end() {
+                self.bump();
             }
         }
 
@@ -1424,11 +1438,15 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         while !self.at(TokenKind::RightBrace) && !self.at_end() {
+            let prev_pos = self.pos;
             self.parse_match_arm();
             self.eat_trivia();
             if self.at(TokenKind::Comma) {
                 self.bump();
                 self.eat_trivia();
+            }
+            if self.pos == prev_pos && !self.at_end() {
+                self.bump();
             }
         }
 
@@ -1647,8 +1665,12 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         while !self.at(TokenKind::RightBrace) && !self.at_end() {
+            let prev_pos = self.pos;
             self.parse_item();
             self.eat_trivia();
+            if self.pos == prev_pos && !self.at_end() {
+                self.bump();
+            }
         }
 
         self.expect(TokenKind::RightBrace);
@@ -1679,8 +1701,17 @@ impl<'src> CstParser<'src> {
 
         // Props
         while !self.at(TokenKind::GreaterThan) && !self.at(TokenKind::Slash) && !self.at_end() {
+            let prev_pos = self.pos;
             self.parse_jsx_prop();
             self.eat_trivia();
+            if self.pos == prev_pos && !self.at_end() {
+                // Safety: skip stuck token to prevent infinite loop.
+                self.error(&format!(
+                    "unexpected token in JSX element: {:?}",
+                    self.current_kind()
+                ));
+                self.bump();
+            }
         }
 
         // Self-closing: />
@@ -1706,7 +1737,12 @@ impl<'src> CstParser<'src> {
 
     fn parse_jsx_prop(&mut self) {
         self.builder.start_node(SyntaxKind::JSX_PROP.into());
-        self.expect_ident();
+        // Accept identifiers and keywords as JSX prop names (e.g., type="text", for="id")
+        if self.is_ident() || self.is_keyword() {
+            self.bump();
+        } else {
+            self.expect_ident();
+        }
         self.eat_trivia();
 
         if self.at(TokenKind::Equal) {
@@ -1738,6 +1774,7 @@ impl<'src> CstParser<'src> {
                 break;
             }
 
+            let prev_pos = self.pos;
             match self.current_kind() {
                 Some(TokenKind::LeftBrace) => {
                     self.builder.start_node(SyntaxKind::JSX_EXPR_CHILD.into());
@@ -1768,6 +1805,10 @@ impl<'src> CstParser<'src> {
                         break;
                     }
                 }
+            }
+            // Safety: if no progress was made, skip the stuck token.
+            if self.pos == prev_pos && !self.at_end() {
+                self.bump();
             }
         }
     }
@@ -1829,6 +1870,25 @@ impl<'src> CstParser<'src> {
         matches!(
             self.current_kind(),
             Some(TokenKind::Identifier(_) | TokenKind::Parse)
+        )
+    }
+
+    /// Check if the current token is a keyword that could appear as a JSX prop name
+    /// (e.g., `type`, `for`, `match`, `fn`, `const`, etc.).
+    fn is_keyword(&self) -> bool {
+        matches!(
+            self.current_kind(),
+            Some(
+                TokenKind::Type
+                    | TokenKind::For
+                    | TokenKind::Match
+                    | TokenKind::Fn
+                    | TokenKind::Const
+                    | TokenKind::Import
+                    | TokenKind::Export
+                    | TokenKind::Async
+                    | TokenKind::Trait
+            )
         )
     }
 
