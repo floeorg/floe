@@ -2431,6 +2431,81 @@ type C = {
     );
 }
 
+// ── Cross-file spread resolution ────────────────────────────
+
+#[test]
+fn cross_file_spread_resolved_via_imports() {
+    // Simulate importing a type whose spread was flattened by the resolver.
+    // Product originally had `...WithRating`, but the resolver should have
+    // flattened it to `{ rating: number, title: string }`.
+    use crate::lexer::span::Span;
+    use crate::parser::ast::*;
+    use crate::resolve::ResolvedImports;
+
+    let dummy_span = Span::new(0, 0, 1, 1);
+
+    // Build a pre-flattened Product type (as the resolver would produce)
+    let product_decl = TypeDecl {
+        name: "Product".to_string(),
+        def: TypeDef::Record(vec![
+            RecordEntry::Field(Box::new(RecordField {
+                name: "rating".to_string(),
+                type_ann: TypeExpr {
+                    kind: TypeExprKind::Named {
+                        name: "number".to_string(),
+                        type_args: vec![],
+                        bounds: vec![],
+                    },
+                    span: dummy_span,
+                },
+                default: None,
+                span: dummy_span,
+            })),
+            RecordEntry::Field(Box::new(RecordField {
+                name: "title".to_string(),
+                type_ann: TypeExpr {
+                    kind: TypeExprKind::Named {
+                        name: "string".to_string(),
+                        type_args: vec![],
+                        bounds: vec![],
+                    },
+                    span: dummy_span,
+                },
+                default: None,
+                span: dummy_span,
+            })),
+        ]),
+        exported: true,
+        opaque: false,
+        type_params: vec![],
+        deriving: vec![],
+    };
+
+    let mut imports = std::collections::HashMap::new();
+    imports.insert(
+        "./types".to_string(),
+        ResolvedImports {
+            type_decls: vec![product_decl],
+            ..ResolvedImports::default()
+        },
+    );
+
+    let source = r#"
+import { Product } from "./types"
+
+const p = Product(rating: 5, title: "Widget")
+"#;
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let diags = Checker::with_imports(imports).check(&program);
+    assert!(
+        !diags.iter().any(|d| d.severity == Severity::Error),
+        "expected no errors for cross-file spread import, got: {:?}",
+        diags
+    );
+}
+
 // ── Collect Block ───────────────────────────────────────────
 
 #[test]

@@ -106,10 +106,37 @@ fn resolve_single_import(
             .extend(resolved.trait_decls.iter().cloned());
     }
 
+    // Collect ALL type decls (exported and non-exported) to build a type map
+    // for resolving spreads within this file's scope.
+    let mut all_type_decls: Vec<TypeDecl> = Vec::new();
+    for item in &program.items {
+        if let ItemKind::TypeDecl(decl) = &item.kind {
+            all_type_decls.push(decl.clone());
+        }
+    }
+
+    // Include transitive types in the type map so spreads referencing
+    // re-exported types can also be resolved.
+    let mut type_map: HashMap<String, TypeDecl> = HashMap::new();
+    for decl in &imports.type_decls {
+        type_map.insert(decl.name.clone(), decl.clone());
+    }
+    for decl in &all_type_decls {
+        type_map.insert(decl.name.clone(), decl.clone());
+    }
+
+    // Flatten spreads in all type decls so importers get fully resolved records.
+    let flattened_map = flatten_spreads_in_type_decls(&type_map);
+
     for item in &program.items {
         match &item.kind {
             ItemKind::TypeDecl(decl) if decl.exported => {
-                imports.type_decls.push(decl.clone());
+                // Use the flattened version if available
+                if let Some(flattened) = flattened_map.get(&decl.name) {
+                    imports.type_decls.push(flattened.clone());
+                } else {
+                    imports.type_decls.push(decl.clone());
+                }
             }
             ItemKind::Function(decl) if decl.exported => {
                 imports.function_decls.push(decl.clone());
@@ -160,6 +187,97 @@ fn resolve_imports_inner(
     }
 
     results
+}
+
+/// Flatten record type spreads in a set of type declarations.
+///
+/// This resolves `...OtherType` entries in record types by looking up the
+/// spread target in the provided type map and inlining its fields. This
+/// ensures that exported types have no unresolved spread references, so
+/// importers don't need the spread target in their own scope.
+fn flatten_spreads_in_type_decls(
+    type_map: &HashMap<String, TypeDecl>,
+) -> HashMap<String, TypeDecl> {
+    let mut result = HashMap::new();
+
+    for (name, decl) in type_map {
+        let entries = match &decl.def {
+            TypeDef::Record(entries) => entries,
+            _ => continue,
+        };
+
+        let has_spreads = entries.iter().any(|e| matches!(e, RecordEntry::Spread(_)));
+        if !has_spreads {
+            continue;
+        }
+
+        let mut flat_fields: Vec<RecordEntry> = Vec::new();
+
+        for entry in entries {
+            match entry {
+                RecordEntry::Field(_) => {
+                    flat_fields.push(entry.clone());
+                }
+                RecordEntry::Spread(spread) => {
+                    // Look up the spread target type in the file's type map
+                    if let Some(target_decl) = type_map.get(&spread.type_name)
+                        && let TypeDef::Record(target_entries) = &target_decl.def
+                    {
+                        // Recursively flatten the target if it also has spreads
+                        let resolved_entries =
+                            resolve_spread_entries(target_entries, type_map, &mut HashSet::new());
+                        for target_entry in resolved_entries {
+                            if let RecordEntry::Field(_) = &target_entry {
+                                flat_fields.push(target_entry);
+                            }
+                        }
+                    }
+                    // Unknown spread targets are left out; the checker will report the error
+                }
+            }
+        }
+
+        let mut flattened = decl.clone();
+        flattened.def = TypeDef::Record(flat_fields);
+        result.insert(name.clone(), flattened);
+    }
+
+    result
+}
+
+/// Recursively resolve spread entries, handling chains like A spreads B spreads C.
+fn resolve_spread_entries(
+    entries: &[RecordEntry],
+    type_map: &HashMap<String, TypeDecl>,
+    visited: &mut HashSet<String>,
+) -> Vec<RecordEntry> {
+    let mut result = Vec::new();
+
+    for entry in entries {
+        match entry {
+            RecordEntry::Field(_) => {
+                result.push(entry.clone());
+            }
+            RecordEntry::Spread(spread) => {
+                // Guard against circular spreads
+                if visited.contains(&spread.type_name) {
+                    continue;
+                }
+                visited.insert(spread.type_name.clone());
+
+                if let Some(target_decl) = type_map.get(&spread.type_name)
+                    && let TypeDef::Record(target_entries) = &target_decl.def
+                {
+                    let resolved = resolve_spread_entries(target_entries, type_map, visited);
+                    result.extend(resolved);
+                }
+
+                visited.remove(&spread.type_name);
+            }
+        }
+    }
+
+    result
 }
 
 /// Resolve a relative import path to an actual file path.
@@ -421,5 +539,93 @@ mod tests {
         let result = resolve_imports(&main_path, &program);
         let resolved = result.get("./components").unwrap();
         assert_eq!(resolved.function_decls.len(), 1);
+    }
+
+    // ── Spread flattening during import ──────────────────────────
+
+    #[test]
+    fn spread_flattened_on_export() {
+        // WithRating is not exported, but Product uses ...WithRating.
+        // The resolver should flatten the spread so importers get a flat record.
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            (
+                "types.fl",
+                "type WithRating = { rating: number }\nexport type Product = { ...WithRating, title: string }",
+            ),
+        ]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { Product } from \"./types\"");
+        let result = resolve_imports(&main_path, &program);
+        let resolved = result.get("./types").unwrap();
+
+        // Product should be present
+        assert_eq!(resolved.type_decls.len(), 1);
+        let product = &resolved.type_decls[0];
+        assert_eq!(product.name, "Product");
+
+        // The record should have no spreads — they should be flattened to fields
+        if let TypeDef::Record(entries) = &product.def {
+            for entry in entries {
+                assert!(
+                    matches!(entry, RecordEntry::Field(_)),
+                    "expected all entries to be fields after flattening, but found a spread"
+                );
+            }
+            // Should have both rating and title fields
+            let field_names: Vec<&str> = entries
+                .iter()
+                .filter_map(|e| e.as_field().map(|f| f.name.as_str()))
+                .collect();
+            assert!(
+                field_names.contains(&"rating"),
+                "expected flattened field 'rating', got: {:?}",
+                field_names
+            );
+            assert!(
+                field_names.contains(&"title"),
+                "expected field 'title', got: {:?}",
+                field_names
+            );
+        } else {
+            panic!("expected Product to be a Record type");
+        }
+    }
+
+    #[test]
+    fn spread_chain_flattened_on_export() {
+        // A spreads into B, B spreads into C — C should be fully flat.
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            (
+                "types.fl",
+                "type A = { x: number }\ntype B = { ...A, y: string }\nexport type C = { ...B, z: boolean }",
+            ),
+        ]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { C } from \"./types\"");
+        let result = resolve_imports(&main_path, &program);
+        let resolved = result.get("./types").unwrap();
+
+        let c_decl = &resolved.type_decls[0];
+        assert_eq!(c_decl.name, "C");
+
+        if let TypeDef::Record(entries) = &c_decl.def {
+            let field_names: Vec<&str> = entries
+                .iter()
+                .filter_map(|e| e.as_field().map(|f| f.name.as_str()))
+                .collect();
+            assert_eq!(
+                field_names.len(),
+                3,
+                "expected 3 fields, got: {:?}",
+                field_names
+            );
+            assert!(field_names.contains(&"x"));
+            assert!(field_names.contains(&"y"));
+            assert!(field_names.contains(&"z"));
+        } else {
+            panic!("expected C to be a Record type");
+        }
     }
 }
