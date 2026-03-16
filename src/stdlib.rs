@@ -206,6 +206,7 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Math", "sin", [Type::Number], Type::Number, "Math.sin($0)"),
         stdlib_fn!("Math", "cos", [Type::Number], Type::Number, "Math.cos($0)"),
         stdlib_fn!("Math", "tan", [Type::Number], Type::Number, "Math.tan($0)"),
+        stdlib_fn!("Math", "random", [], Type::Number, "Math.random()"),
         // ── Map ────────────────────────────────────────────────────
         stdlib_fn!("Map", "empty", [], map_of(t.clone(), u.clone()), "new Map()"),
         stdlib_fn!("Map", "fromArray", [array_of(Type::Tuple(vec![t.clone(), u.clone()]))], map_of(t.clone(), u.clone()), "new Map($0)"),
@@ -562,7 +563,7 @@ mod tests {
         assert!(reg.module_functions("String").len() >= 10);
         assert!(reg.module_functions("Number").len() >= 5);
         assert!(reg.module_functions("Console").len() >= 5);
-        assert!(reg.module_functions("Math").len() >= 14);
+        assert!(reg.module_functions("Math").len() >= 15);
         assert!(reg.module_functions("JSON").len() >= 2);
         assert!(reg.module_functions("Map").len() >= 12);
         assert!(reg.module_functions("Set").len() >= 11);
@@ -581,6 +582,14 @@ mod tests {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Math", "floor").unwrap();
         assert_eq!(f.codegen, "Math.floor($0)");
+    }
+
+    #[test]
+    fn lookup_math_random() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Math", "random").unwrap();
+        assert_eq!(f.codegen, "Math.random()");
+        assert!(f.params.is_empty());
     }
 
     #[test]
