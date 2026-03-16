@@ -1083,6 +1083,10 @@ impl Checker {
                 Self::collect_generic_params_from_type(ok, names, seen);
                 Self::collect_generic_params_from_type(err, names, seen);
             }
+            Type::Map { key, value } => {
+                Self::collect_generic_params_from_type(key, names, seen);
+                Self::collect_generic_params_from_type(value, names, seen);
+            }
             _ => {}
         }
     }
@@ -1117,6 +1121,10 @@ impl Checker {
             (Type::Array(p), Type::Array(a)) => {
                 Self::unify_for_inference(p, a, generics, subs);
             }
+            (Type::Map { key: pk, value: pv }, Type::Map { key: ak, value: av }) => {
+                Self::unify_for_inference(pk, ak, generics, subs);
+                Self::unify_for_inference(pv, av, generics, subs);
+            }
             (Type::Option(p), Type::Option(a)) => {
                 Self::unify_for_inference(p, a, generics, subs);
             }
@@ -1138,6 +1146,10 @@ impl Checker {
         match ty {
             Type::Named(n) if subs.contains_key(n) => subs[n].clone(),
             Type::Array(inner) => Type::Array(Box::new(Self::substitute_generics(inner, subs))),
+            Type::Map { key, value } => Type::Map {
+                key: Box::new(Self::substitute_generics(key, subs)),
+                value: Box::new(Self::substitute_generics(value, subs)),
+            },
             Type::Option(inner) => Type::Option(Box::new(Self::substitute_generics(inner, subs))),
             Type::Tuple(types) => Type::Tuple(
                 types
@@ -1166,6 +1178,7 @@ impl Checker {
     fn type_to_stdlib_module(ty: &Type) -> Option<&'static str> {
         match ty {
             Type::Array(_) => Some(type_names::MOD_ARRAY),
+            Type::Map { .. } => Some(type_names::MOD_MAP),
             Type::String => Some(type_names::MOD_STRING),
             Type::Number => Some(type_names::MOD_NUMBER),
             Type::Option(_) => Some(type_names::MOD_OPTION),

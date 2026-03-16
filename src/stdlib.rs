@@ -79,6 +79,12 @@ fn result_of(ok: Type, err: Type) -> Type {
         err: Box::new(err),
     }
 }
+fn map_of(k: Type, v: Type) -> Type {
+    Type::Map {
+        key: Box::new(k),
+        value: Box::new(v),
+    }
+}
 fn fun(params: Vec<Type>, ret: Type) -> Type {
     Type::Function {
         params,
@@ -195,6 +201,19 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Math", "sin", [Type::Number], Type::Number, "Math.sin($0)"),
         stdlib_fn!("Math", "cos", [Type::Number], Type::Number, "Math.cos($0)"),
         stdlib_fn!("Math", "tan", [Type::Number], Type::Number, "Math.tan($0)"),
+        // ── Map ────────────────────────────────────────────────────
+        stdlib_fn!("Map", "empty", [], map_of(t.clone(), u.clone()), "new Map()"),
+        stdlib_fn!("Map", "fromArray", [array_of(Type::Tuple(vec![t.clone(), u.clone()]))], map_of(t.clone(), u.clone()), "new Map($0)"),
+        stdlib_fn!("Map", "get", [map_of(t.clone(), u.clone()), t.clone()], option_of(u.clone()), "$0.has($1) ? $0.get($1) : undefined"),
+        stdlib_fn!("Map", "set", [map_of(t.clone(), u.clone()), t.clone(), u.clone()], map_of(t.clone(), u.clone()), "new Map([...$0, [$1, $2]])"),
+        stdlib_fn!("Map", "remove", [map_of(t.clone(), u.clone()), t.clone()], map_of(t.clone(), u.clone()), "new Map([...$0].filter(([k]) => k !== $1))"),
+        stdlib_fn!("Map", "has", [map_of(t.clone(), u.clone()), t.clone()], Type::Bool, "$0.has($1)"),
+        stdlib_fn!("Map", "keys", [map_of(t.clone(), u.clone())], array_of(t.clone()), "[...$0.keys()]"),
+        stdlib_fn!("Map", "values", [map_of(t.clone(), u.clone())], array_of(u.clone()), "[...$0.values()]"),
+        stdlib_fn!("Map", "entries", [map_of(t.clone(), u.clone())], array_of(Type::Tuple(vec![t.clone(), u.clone()])), "[...$0.entries()]"),
+        stdlib_fn!("Map", "size", [map_of(t.clone(), u.clone())], Type::Number, "$0.size"),
+        stdlib_fn!("Map", "isEmpty", [map_of(t.clone(), u.clone())], Type::Bool, "$0.size === 0"),
+        stdlib_fn!("Map", "merge", [map_of(t.clone(), u.clone()), map_of(t.clone(), u.clone())], map_of(t.clone(), u.clone()), "new Map([...$0, ...$1])"),
         // ── Pipe Utilities ────────────────────────────────────────
         stdlib_fn!("Pipe", "tap", [t.clone(), fun(vec![t.clone()], Type::Unit)], t.clone(), "(() => { const _v = $0; ($1)(_v); return _v; })()"),
         // ── JSON ───────────────────────────────────────────────
@@ -278,6 +297,90 @@ mod tests {
     }
 
     #[test]
+    fn lookup_map_empty() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "empty").unwrap();
+        assert_eq!(f.codegen, "new Map()");
+    }
+
+    #[test]
+    fn lookup_map_from_array() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "fromArray").unwrap();
+        assert_eq!(f.codegen, "new Map($0)");
+    }
+
+    #[test]
+    fn lookup_map_get() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "get").unwrap();
+        assert_eq!(f.codegen, "$0.has($1) ? $0.get($1) : undefined");
+    }
+
+    #[test]
+    fn lookup_map_set() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "set").unwrap();
+        assert_eq!(f.codegen, "new Map([...$0, [$1, $2]])");
+    }
+
+    #[test]
+    fn lookup_map_remove() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "remove").unwrap();
+        assert!(f.codegen.contains("filter"));
+    }
+
+    #[test]
+    fn lookup_map_has() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "has").unwrap();
+        assert_eq!(f.codegen, "$0.has($1)");
+    }
+
+    #[test]
+    fn lookup_map_keys() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "keys").unwrap();
+        assert_eq!(f.codegen, "[...$0.keys()]");
+    }
+
+    #[test]
+    fn lookup_map_values() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "values").unwrap();
+        assert_eq!(f.codegen, "[...$0.values()]");
+    }
+
+    #[test]
+    fn lookup_map_entries() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "entries").unwrap();
+        assert_eq!(f.codegen, "[...$0.entries()]");
+    }
+
+    #[test]
+    fn lookup_map_size() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "size").unwrap();
+        assert_eq!(f.codegen, "$0.size");
+    }
+
+    #[test]
+    fn lookup_map_is_empty() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "isEmpty").unwrap();
+        assert_eq!(f.codegen, "$0.size === 0");
+    }
+
+    #[test]
+    fn lookup_map_merge() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Map", "merge").unwrap();
+        assert_eq!(f.codegen, "new Map([...$0, ...$1])");
+    }
+
+    #[test]
     fn lookup_nonexistent() {
         let reg = StdlibRegistry::new();
         assert!(reg.lookup("Array", "nonexistent").is_none());
@@ -296,6 +399,7 @@ mod tests {
         assert!(reg.is_module("Math"));
         assert!(reg.is_module("JSON"));
         assert!(reg.is_module("Pipe"));
+        assert!(reg.is_module("Map"));
         assert!(!reg.is_module("Foo"));
     }
 
@@ -310,6 +414,7 @@ mod tests {
         assert!(reg.module_functions("Console").len() >= 5);
         assert!(reg.module_functions("Math").len() >= 14);
         assert!(reg.module_functions("JSON").len() >= 2);
+        assert!(reg.module_functions("Map").len() >= 12);
     }
 
     #[test]

@@ -272,6 +272,13 @@ match user.nickname {
 // Option helpers
 user.nickname |> Option.unwrapOr(user.name)
 user.nickname |> Option.map(|n| toUpper(n))
+
+// Map<K, V> — immutable key-value maps
+const config = Map.fromArray([("host", "localhost"), ("port", "8080")])
+const updated = config |> Map.set("port", "3000")
+const port = Map.get(config, "port")     // Option<string>
+const keys = config |> Map.keys          // Array<string>
+const merged = Map.merge(defaults, config)
 ```
 
 ## Imports

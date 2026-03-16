@@ -18,3 +18,4 @@ pub const MOD_STRING: &str = "String";
 pub const MOD_NUMBER: &str = "Number";
 pub const MOD_OPTION: &str = "Option";
 pub const MOD_RESULT: &str = "Result";
+pub const MOD_MAP: &str = "Map";

@@ -491,6 +491,7 @@ impl Codegen {
         use crate::checker::Type;
         match ty {
             Type::Array(_) => Some("Array"),
+            Type::Map { .. } => Some("Map"),
             Type::String => Some("String"),
             Type::Number => Some("Number"),
             Type::Option(_) => Some("Option"),

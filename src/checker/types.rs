@@ -39,6 +39,11 @@ pub enum Type {
     },
     /// Array type
     Array(Box<Type>),
+    /// Map type: Map<K, V>
+    Map {
+        key: Box<Type>,
+        value: Box<Type>,
+    },
     /// Tuple type
     Tuple(Vec<Type>),
     /// Record/struct type
@@ -97,6 +102,9 @@ impl Type {
                 format!("({}) -> {}", p.join(", "), return_type.display_name())
             }
             Type::Array(inner) => format!("Array<{}>", inner.display_name()),
+            Type::Map { key, value } => {
+                format!("Map<{}, {}>", key.display_name(), value.display_name())
+            }
             Type::Tuple(types) => {
                 let t: Vec<_> = types.iter().map(|t| t.display_name()).collect();
                 format!("({})", t.join(", "))
