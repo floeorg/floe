@@ -314,22 +314,6 @@ impl<'src> Lowerer<'src> {
                 })
             }
 
-            SyntaxKind::RETURN_EXPR => {
-                let value = self.lower_child_exprs(node).into_iter().next();
-                if value.is_none() {
-                    // Try token expr
-                    let tok_expr = self.lower_token_expr(node);
-                    return Some(Expr {
-                        span,
-                        kind: ExprKind::Return(tok_expr.map(Box::new)),
-                    });
-                }
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Return(value.map(Box::new)),
-                })
-            }
-
             SyntaxKind::OK_EXPR => {
                 let inner = self.lower_first_expr_in(node)?;
                 Some(Expr {

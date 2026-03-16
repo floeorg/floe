@@ -1,9 +1,9 @@
 export fn add(a: number, b: number) -> number {
-    return a + b
+    a + b
 }
 
 fn _greet(name: string, greeting: string = "Hello") -> string {
-    return `${greeting}, ${name}!`
+    `${greeting}, ${name}!`
 }
 
 fn _double(n: number) -> number { n * 2 }

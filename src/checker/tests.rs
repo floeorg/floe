@@ -98,7 +98,7 @@ fn unwrap_in_result_function() {
 fn tryFetch(url: string) -> Result<string, string> {
     const result = Ok("data")
     const value = result?
-    return Ok(value)
+    Ok(value)
 }
 "#,
     );
@@ -116,7 +116,7 @@ fn unwrap_not_on_result_or_option() {
 fn process() -> Result<number, string> {
     const x = 42
     const y = x?
-    return Ok(y)
+    Ok(y)
 }
 "#,
     );
@@ -195,13 +195,13 @@ fn unused_import_error() {
 
 #[test]
 fn exported_function_needs_return_type() {
-    let diags = check("export fn add(a: number, b: number) { return a }");
+    let diags = check("export fn add(a: number, b: number) { a }");
     assert!(has_error_containing(&diags, "must declare a return type"));
 }
 
 #[test]
 fn exported_function_with_return_type_ok() {
-    let diags = check("export fn add(a: number, b: number) -> number { return a }");
+    let diags = check("export fn add(a: number, b: number) -> number { a }");
     assert!(!has_error(&diags, "E010"));
 }
 
@@ -285,21 +285,6 @@ fn mixed_array_string_and_number() {
     // e.g. TanStack Query's queryKey: ["user", props.userId]
     let diags = check(r#"const _x = ["user", 42]"#);
     assert!(!has_error(&diags, "E004"));
-}
-
-// ── Dead code detection ─────────────────────────────────────
-
-#[test]
-fn dead_code_after_return() {
-    let diags = check(
-        r#"
-fn test() -> number {
-    return 1
-    const x = 2
-}
-"#,
-    );
-    assert!(has_error_containing(&diags, "unreachable code"));
 }
 
 // ── Opaque type enforcement ─────────────────────────────────
@@ -2164,7 +2149,7 @@ fn fetch_returns_promise_response() {
 fn test() -> Result<string, Error> {
     const res = try fetch("url")?
     const j = res.json()
-    return Ok("done")
+    Ok("done")
 }
 "#,
     );
@@ -2189,7 +2174,7 @@ fn await_unwraps_promise() {
 fn test() -> Result<string, Error> {
     const res = try await fetch("url")?
     const j = res.json()
-    return Ok("done")
+    Ok("done")
 }
 "#,
     );
@@ -2215,7 +2200,7 @@ fn test() -> Result<string, Error> {
         Ok(promise) -> "got promise",
         Err(e) -> e.message,
     }
-    return Ok(val)
+    Ok(val)
 }
 "#,
     );

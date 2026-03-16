@@ -640,14 +640,6 @@ impl Checker {
                 result_type.unwrap_or(Type::Unit)
             }
 
-            ExprKind::Return(value) => {
-                if let Some(e) = value {
-                    self.check_expr(e)
-                } else {
-                    Type::Unit
-                }
-            }
-
             ExprKind::Await(inner) => {
                 let ty = self.check_expr(inner);
                 // Unwrap Promise<T> to T
@@ -731,24 +723,10 @@ impl Checker {
             ExprKind::Block(items) => {
                 self.env.push_scope();
                 let mut last_type = Type::Unit;
-                let mut found_return = false;
                 for (i, item) in items.iter().enumerate() {
-                    if found_return {
-                        // Rule 10: Dead code detection
-                        self.diagnostics.push(
-                            Diagnostic::error("unreachable code after `return`", item.span)
-                                .with_label("this code will never execute")
-                                .with_help("remove this code or move it before the `return`")
-                                .with_code("E011"),
-                        );
-                        break;
-                    }
                     let is_last = i == items.len() - 1;
                     if is_last {
                         if let ItemKind::Expr(expr) = &item.kind {
-                            if matches!(expr.kind, ExprKind::Return(_)) {
-                                found_return = true;
-                            }
                             // Check last expression once and use its type as block type
                             last_type = self.check_expr(expr);
                         } else {
@@ -756,11 +734,6 @@ impl Checker {
                         }
                     } else {
                         self.check_item(item);
-                        if let ItemKind::Expr(expr) = &item.kind
-                            && matches!(expr.kind, ExprKind::Return(_))
-                        {
-                            found_return = true;
-                        }
                     }
                 }
                 self.env.pop_scope();

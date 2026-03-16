@@ -38,7 +38,7 @@ export fn HomePage() -> JSX.Element {
         setTodos(todos |> filter(.id != id))
     }
 
-    return <div>
+    <div>
         <h1 className="text-3xl font-bold mb-6">Todos</h1>
 
         <div className="flex gap-2 mb-4">

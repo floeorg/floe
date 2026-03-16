@@ -1406,23 +1406,28 @@ impl Checker {
         self.env.pop_scope();
     }
 
-    /// Checks if a function body contains a return expression.
+    /// Checks if a function body contains a value-producing expression
+    /// (implicit return). With implicit returns, the last expression in
+    /// a block is the return value.
     fn body_has_return(&self, body: &Expr) -> bool {
         match &body.kind {
-            ExprKind::Return(Some(_)) => true,
             // `todo` and `unreachable` are never-returning, so they satisfy return requirements
             ExprKind::Todo | ExprKind::Unreachable => true,
-            ExprKind::Block(items) => items.iter().any(|item| {
-                if let ItemKind::Expr(e) = &item.kind {
-                    self.body_has_return(e)
-                } else {
-                    false
-                }
-            }),
+            ExprKind::Block(items) => {
+                // Check if the last item is an expression (implicit return)
+                items.last().is_some_and(|item| {
+                    if let ItemKind::Expr(e) = &item.kind {
+                        self.body_has_return(e)
+                    } else {
+                        false
+                    }
+                })
+            }
             ExprKind::Match { arms, .. } => {
                 !arms.is_empty() && arms.iter().all(|arm| self.body_has_return(&arm.body))
             }
-            _ => false,
+            // Any other expression is a value-producing expression
+            _ => true,
         }
     }
 

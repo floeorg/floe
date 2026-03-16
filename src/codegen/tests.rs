@@ -419,12 +419,24 @@ fn await_expr() {
     assert_eq!(emit("await fetchData()"), "await fetchData();");
 }
 
-// ── Return ───────────────────────────────────────────────────
+// ── Implicit Return ──────────────────────────────────────────
 
 #[test]
-fn return_expr() {
-    let result = emit("fn f() { return 42 }");
+fn implicit_return_single_expr() {
+    let result = emit("fn f() -> number { 42 }");
     assert!(result.contains("return 42"));
+}
+
+#[test]
+fn implicit_return_multi_statement() {
+    let result = emit("fn f() -> number { const x = 1\nx + 1 }");
+    assert!(result.contains("return x + 1"));
+}
+
+#[test]
+fn unit_function_no_return() {
+    let result = emit("fn f() -> () { Console.log(\"hi\") }");
+    assert!(!result.contains("return"));
 }
 
 // ── Array ────────────────────────────────────────────────────

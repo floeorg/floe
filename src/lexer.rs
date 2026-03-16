@@ -671,7 +671,7 @@ mod tests {
     #[test]
     fn keywords() {
         assert_eq!(
-            lex("const fn export import match type opaque return"),
+            lex("const fn export import match type opaque"),
             vec![
                 TokenKind::Const,
                 TokenKind::Fn,
@@ -680,7 +680,6 @@ mod tests {
                 TokenKind::Match,
                 TokenKind::Type,
                 TokenKind::Opaque,
-                TokenKind::Return,
                 TokenKind::Eof,
             ]
         );
@@ -712,7 +711,7 @@ mod tests {
 
     #[test]
     fn banned_keywords() {
-        let tokens = lex("let class throw null undefined any as enum function if else");
+        let tokens = lex("let class throw null undefined any as enum function if else return");
         assert_eq!(
             tokens,
             vec![
@@ -727,6 +726,7 @@ mod tests {
                 TokenKind::Banned(BannedKeyword::Function),
                 TokenKind::Banned(BannedKeyword::If),
                 TokenKind::Banned(BannedKeyword::Else),
+                TokenKind::Banned(BannedKeyword::Return),
                 TokenKind::Eof,
             ]
         );

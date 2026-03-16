@@ -124,6 +124,12 @@ impl Parser {
 
         loop {
             let op = match self.current_kind() {
+                // After a JSX expression, `<` is a closing tag or sibling element, not less-than
+                TokenKind::LessThan if matches!(left.kind, ExprKind::Jsx(_)) => break,
+                // `<` followed by `/` is a closing tag `</tag>`, not a comparison
+                TokenKind::LessThan if self.peek_kind() == Some(&TokenKind::Slash) => break,
+                // `<` on a new line after a complete expression is JSX, not comparison
+                TokenKind::LessThan if self.tokens[self.pos].span.line > left.span.line => break,
                 TokenKind::LessThan => BinOp::Lt,
                 TokenKind::GreaterThan => BinOp::Gt,
                 TokenKind::LessEqual => BinOp::LtEq,
@@ -489,24 +495,6 @@ impl Parser {
 
             // Match expression
             TokenKind::Match => self.parse_match_expr(),
-
-            // Return
-            TokenKind::Return => {
-                self.advance();
-                let value = if self.is_at_end()
-                    || self.check(&TokenKind::RightBrace)
-                    || self.check(&TokenKind::Semicolon)
-                {
-                    Option::None
-                } else {
-                    Some(Box::new(self.parse_expr()?))
-                };
-                let end_span = self.previous_span();
-                Ok(Expr {
-                    kind: ExprKind::Return(value),
-                    span: self.merge_spans(start_span, end_span),
-                })
-            }
 
             // Object literal `{ key: value }` or block expression `{ ... }`
             TokenKind::LeftBrace => {

@@ -8,7 +8,7 @@ export fn AboutPage() -> JSX.Element {
         "Full React and JSX support",
     ]
 
-    return <div>
+    <div>
         <h1 className="text-3xl font-bold mb-6">About Floe</h1>
 
         <p className="text-zinc-400 mb-6">

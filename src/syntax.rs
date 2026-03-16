@@ -217,7 +217,6 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::Export => SyntaxKind::KW_EXPORT,
         TokenKind::Import => SyntaxKind::KW_IMPORT,
         TokenKind::From => SyntaxKind::KW_FROM,
-        TokenKind::Return => SyntaxKind::KW_RETURN,
         TokenKind::Match => SyntaxKind::KW_MATCH,
         TokenKind::Type => SyntaxKind::KW_TYPE,
         TokenKind::Opaque => SyntaxKind::KW_OPAQUE,

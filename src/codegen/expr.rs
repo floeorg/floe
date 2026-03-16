@@ -219,14 +219,6 @@ impl Codegen {
                 self.emit_match(subject, arms);
             }
 
-            ExprKind::Return(value) => {
-                self.push("return");
-                if let Some(v) = value {
-                    self.push(" ");
-                    self.emit_expr(v);
-                }
-            }
-
             ExprKind::Await(inner) => {
                 self.push("await ");
                 self.emit_expr(inner);
@@ -707,10 +699,7 @@ impl Codegen {
                 self.indent += 1;
                 for (i, item) in items.iter().enumerate() {
                     let is_last = i == items.len() - 1;
-                    if is_last
-                        && matches!(item.kind, ItemKind::Expr(_))
-                        && !self.item_has_return(item)
-                    {
+                    if is_last && matches!(item.kind, ItemKind::Expr(_)) {
                         self.emit_indent();
                         self.push("return ");
                         if let ItemKind::Expr(e) = &item.kind {
@@ -731,9 +720,7 @@ impl Codegen {
                 self.newline();
                 self.indent += 1;
                 self.emit_indent();
-                if !matches!(expr.kind, ExprKind::Return(_)) {
-                    self.push("return ");
-                }
+                self.push("return ");
                 self.emit_expr(expr);
                 self.push(";");
                 self.newline();
@@ -742,11 +729,6 @@ impl Codegen {
                 self.push("}");
             }
         }
-    }
-
-    /// Check if an item already contains an explicit return.
-    fn item_has_return(&self, item: &Item) -> bool {
-        matches!(&item.kind, ItemKind::Expr(e) if matches!(e.kind, ExprKind::Return(_)))
     }
 
     pub(super) fn emit_block_expr(&mut self, expr: &Expr) {

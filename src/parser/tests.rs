@@ -786,11 +786,11 @@ fn banned_keyword_error() {
     assert!(errors[0].message.contains("banned keyword"));
 }
 
-// ── Block & Return ───────────────────────────────────────────
+// ── Block & Implicit Return ──────────────────────────────────
 
 #[test]
-fn block_with_return() {
-    match first_item("fn f() { const x = 1\nreturn x }") {
+fn block_with_implicit_return() {
+    match first_item("fn f() { const x = 1\nx }") {
         ItemKind::Function(decl) => match decl.body.kind {
             ExprKind::Block(items) => {
                 assert_eq!(items.len(), 2);
@@ -882,7 +882,7 @@ type Todo = { id: string, text: string, done: boolean }
 
 export fn TodoApp() {
     const [todos, setTodos] = useState([])
-    return <div>{todos |> map(|t| <li>{t.text}</li>)}</div>
+    <div>{todos |> map(|t| <li>{t.text}</li>)}</div>
 }
 "#;
     let program = parse_ok(input);

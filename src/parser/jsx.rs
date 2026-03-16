@@ -14,7 +14,6 @@ impl TokenKind {
             TokenKind::Export => Some("export"),
             TokenKind::Import => Some("import"),
             TokenKind::From => Some("from"),
-            TokenKind::Return => Some("return"),
             TokenKind::Match => Some("match"),
             TokenKind::Type => Some("type"),
             TokenKind::Opaque => Some("opaque"),
@@ -289,10 +288,6 @@ impl Parser {
             TokenKind::Match => {
                 self.advance();
                 Ok("match".to_string())
-            }
-            TokenKind::Return => {
-                self.advance();
-                Ok("return".to_string())
             }
             TokenKind::Async => {
                 self.advance();

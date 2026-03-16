@@ -1301,8 +1301,7 @@ impl Parser {
                 | TokenKind::Type
                 | TokenKind::Opaque
                 | TokenKind::For
-                | TokenKind::Trait
-                | TokenKind::Return => return,
+                | TokenKind::Trait => return,
                 _ => {
                     self.advance();
                 }

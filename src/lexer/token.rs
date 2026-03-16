@@ -38,7 +38,6 @@ pub enum TokenKind {
     Export,
     Import,
     From,
-    Return,
     Match,
     Type,
     Opaque,
@@ -194,6 +193,7 @@ pub enum BannedKeyword {
     Function,
     If,
     Else,
+    Return,
 }
 
 impl BannedKeyword {
@@ -213,6 +213,9 @@ impl BannedKeyword {
             Self::Function => "Use `fn` instead of `function`",
             Self::If => "Use `match` instead of `if`",
             Self::Else => "Use `match` instead of `else`",
+            Self::Return => {
+                "Floe uses implicit returns — the last expression in a block is the return value"
+            }
         }
     }
 
@@ -231,6 +234,7 @@ impl BannedKeyword {
             Self::Function => "function",
             Self::If => "if",
             Self::Else => "else",
+            Self::Return => "return",
         }
     }
 }
@@ -244,7 +248,6 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "export" => Some(TokenKind::Export),
         "import" => Some(TokenKind::Import),
         "from" => Some(TokenKind::From),
-        "return" => Some(TokenKind::Return),
         "match" => Some(TokenKind::Match),
         "type" => Some(TokenKind::Type),
         "opaque" => Some(TokenKind::Opaque),
@@ -282,6 +285,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "function" => Some(TokenKind::Banned(BannedKeyword::Function)),
         "if" => Some(TokenKind::Banned(BannedKeyword::If)),
         "else" => Some(TokenKind::Banned(BannedKeyword::Else)),
+        "return" => Some(TokenKind::Banned(BannedKeyword::Return)),
 
         _ => None,
     }

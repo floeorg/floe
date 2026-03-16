@@ -596,7 +596,6 @@ fn collect_member_accesses_expr(
         | ExprKind::Unwrap(inner)
         | ExprKind::Await(inner)
         | ExprKind::Try(inner)
-        | ExprKind::Return(Some(inner))
         | ExprKind::Ok(inner)
         | ExprKind::Err(inner)
         | ExprKind::Some(inner)

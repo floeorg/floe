@@ -342,7 +342,7 @@ fn jsx_component_source() -> &'static str {
 export fn Counter() -> JSX.Element {
     const [_count, setCount] = useState(0)
 
-    return <div>
+    <div>
         <h1>Count</h1>
         <button onClick={setCount}>Increment</button>
     </div>
@@ -473,7 +473,7 @@ fn hover_destructured_const_shows_type() {
 import { useState } from "react"
 export fn App() -> JSX.Element {
     const [input, setInput] = useState("")
-    return <div>{input}</div>
+    <div>{input}</div>
 }
 "#;
     let (index, type_map) = build_index_and_types(source);

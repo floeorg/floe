@@ -73,10 +73,7 @@ fn snapshot_error_type_mismatch_comparison() {
 
 #[test]
 fn snapshot_error_exported_missing_return_type() {
-    let output = get_diagnostics(
-        "test.fl",
-        "export function add(a: number, b: number) { return a }",
-    );
+    let output = get_diagnostics("test.fl", "export function add(a: number, b: number) { a }");
     insta::assert_snapshot!(output);
 }
 

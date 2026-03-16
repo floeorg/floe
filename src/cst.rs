@@ -965,18 +965,6 @@ impl<'src> CstParser<'src> {
             }
 
             Some(TokenKind::Match) => self.parse_match_expr(),
-            Some(TokenKind::Return) => {
-                self.builder.start_node(SyntaxKind::RETURN_EXPR.into());
-                self.bump();
-                self.eat_trivia();
-                if !self.at_end()
-                    && !self.at(TokenKind::RightBrace)
-                    && !self.at(TokenKind::Semicolon)
-                {
-                    self.parse_expr();
-                }
-                self.builder.finish_node();
-            }
             Some(TokenKind::LeftBrace) => self.parse_block_expr(),
 
             Some(TokenKind::LeftBracket) => {
@@ -2108,8 +2096,14 @@ mod tests {
     }
 
     #[test]
-    fn return_expr() {
-        assert_no_errors("fn f() { return 42 }");
+    fn return_is_banned() {
+        // `return` should produce a banned keyword error
+        let parse = cst_parse("fn f() { return 42 }");
+        assert!(
+            parse.errors.iter().any(|e| e.message.contains("banned")),
+            "expected banned keyword error for return, got: {:?}",
+            parse.errors
+        );
     }
 
     #[test]

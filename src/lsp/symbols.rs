@@ -281,7 +281,7 @@ impl SymbolIndex {
                     Self::collect_expr(&arm.body, symbols);
                 }
             }
-            ExprKind::Return(Some(inner)) | ExprKind::Await(inner) | ExprKind::Grouped(inner) => {
+            ExprKind::Await(inner) | ExprKind::Grouped(inner) => {
                 Self::collect_expr(inner, symbols);
             }
             _ => {}

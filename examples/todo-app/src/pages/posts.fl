@@ -48,7 +48,7 @@ async fn fetchUser(userId: number) -> Result<User, Error> {
     const res = try await fetch(`https://jsonplaceholder.typicode.com/users/${userId}`)?
     const json = try await res.json()?
     const parsed = try UserSchema.parse(json)?
-    return Ok(User(
+    Ok(User(
         id: parsed.id,
         name: parsed.name,
         email: parsed.email,
@@ -60,7 +60,7 @@ async fn fetchPosts(url: string) -> Result<Array<Post>, Error> {
     const res = try await fetch(url)?
     const json = try await res.json()?
     const parsed = try PostArraySchema.parse(json)?
-    return Ok(parsed |> Array.map(|p| Post(
+    Ok(parsed |> Array.map(|p| Post(
         id: p.id,
         title: p.title,
         body: p.body,
@@ -74,7 +74,7 @@ fn PostAuthor(props: { userId: number }) -> JSX.Element {
         queryFn: async || fetchUser(props.userId),
     })
 
-    return <span className="text-indigo-400">
+    <span className="text-indigo-400">
         {match data {
             Ok(user) -> `${user.name} (${user.company.name})`,
             Err(e) -> `Error: ${e.message}`,
@@ -102,7 +102,7 @@ fn PostList() -> JSX.Element {
 
     const userIds = [1, 2, 3, 4, 5]
 
-    return <div>
+    <div>
         <div className="mb-6 flex flex-wrap gap-2">
             <button
                 onClick={|| setSelectedUserId(None)}
@@ -152,7 +152,7 @@ fn PostList() -> JSX.Element {
 fn LoadingSkeleton() -> JSX.Element {
     const skeletons = [1, 2, 3]
 
-    return <div className="space-y-4">
+    <div className="space-y-4">
         {skeletons |> Array.map(|i|
             <div
                 key={i}
@@ -170,7 +170,7 @@ fn LoadingSkeleton() -> JSX.Element {
 }
 
 export fn PostsPage() -> JSX.Element {
-    return <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
         <h1 className="mb-2 text-3xl font-bold">Posts</h1>
         <p className="mb-6 text-zinc-400">
             TanStack Query + Suspense demo using JSONPlaceholder API.

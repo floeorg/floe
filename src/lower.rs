@@ -1385,8 +1385,8 @@ mod tests {
     }
 
     #[test]
-    fn return_expr() {
-        let item = first_item("fn f() { return 42 }");
+    fn implicit_return_last_expr() {
+        let item = first_item("fn f() { 42 }");
         let ItemKind::Function(decl) = item else {
             panic!("expected Function")
         };
