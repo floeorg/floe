@@ -1488,6 +1488,16 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::String(_)) => {
                 self.bump();
             }
+            Some(TokenKind::Minus) => {
+                // Negative number pattern: `-1`, `-3.14`
+                self.bump(); // -
+                self.eat_trivia();
+                if matches!(self.current_kind(), Some(TokenKind::Number(_))) {
+                    self.bump();
+                } else {
+                    self.error("expected number after '-' in pattern");
+                }
+            }
             Some(TokenKind::Number(_)) => {
                 self.bump();
                 self.eat_trivia();
@@ -1570,6 +1580,26 @@ impl<'src> CstParser<'src> {
                 if name.starts_with(char::is_uppercase) {
                     self.bump();
                     self.eat_trivia();
+                    // Qualified variant pattern: `Type.Variant` or `Type.Variant(...)`
+                    if self.at(TokenKind::Dot) {
+                        self.bump(); // .
+                        self.eat_trivia();
+                        // Accept identifiers and keywords (Ok, Err, Some) after dot
+                        if self.is_ident()
+                            || matches!(
+                                self.current_kind(),
+                                Some(TokenKind::Ok)
+                                    | Some(TokenKind::Err)
+                                    | Some(TokenKind::Some)
+                                    | Some(TokenKind::None)
+                            )
+                        {
+                            self.bump();
+                        } else {
+                            self.expect_ident();
+                        }
+                        self.eat_trivia();
+                    }
                     if self.at(TokenKind::LeftParen) {
                         self.bump();
                         self.eat_trivia();
@@ -2535,6 +2565,21 @@ mod tests {
     #[test]
     fn match_guard() {
         assert_no_errors("match x { n when n > 0 -> n, _ -> 0 }");
+    }
+
+    #[test]
+    fn match_negative_number_pattern() {
+        assert_no_errors("match x { -1 -> \"neg\", 0 -> \"zero\", _ -> \"pos\" }");
+    }
+
+    #[test]
+    fn match_qualified_variant_pattern() {
+        assert_no_errors("match s { Status.Active -> 1, Status.Inactive -> 0 }");
+    }
+
+    #[test]
+    fn match_qualified_variant_with_payload() {
+        assert_no_errors("match s { Shape.Circle(r) -> r, Shape.Rect(w, h) -> w }");
     }
 
     // ── JSX ───────────────────────────────────────────────────────
