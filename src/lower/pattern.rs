@@ -119,6 +119,23 @@ impl<'src> Lowerer<'src> {
                             span,
                         });
                     }
+                    SyntaxKind::MINUS => {
+                        // Negative number pattern: find the number token after the minus
+                        for next_token in node.children_with_tokens() {
+                            if let Some(t) = next_token.as_token()
+                                && t.kind() == SyntaxKind::NUMBER
+                            {
+                                return Some(Pattern {
+                                    kind: PatternKind::Literal(LiteralPattern::Number(
+                                        format!("-{}", t.text()),
+                                    )),
+                                    span,
+                                });
+                            }
+                        }
+                        // Fallback: just a minus with no number (shouldn't happen)
+                        return None;
+                    }
                     SyntaxKind::NUMBER => {
                         // Check for range
                         if self.has_token(node, SyntaxKind::DOT_DOT) {
@@ -164,13 +181,38 @@ impl<'src> Lowerer<'src> {
                     SyntaxKind::IDENT => {
                         let name = token.text().to_string();
                         if name.starts_with(char::is_uppercase) {
+                            // Check for qualified variant: Type.Variant
+                            // If there's a DOT token, use the last IDENT as the variant name
+                            let variant_name = if self.has_token(node, SyntaxKind::DOT) {
+                                // Find all ident tokens; the last one after the dot is the variant name
+                                let mut last_ident = name.clone();
+                                let mut past_dot = false;
+                                for child_or_token in node.children_with_tokens() {
+                                    if let Some(t) = child_or_token.as_token() {
+                                        if t.kind() == SyntaxKind::DOT {
+                                            past_dot = true;
+                                            continue;
+                                        }
+                                        if past_dot && !t.kind().is_trivia() {
+                                            last_ident = t.text().to_string();
+                                            break;
+                                        }
+                                    }
+                                }
+                                last_ident
+                            } else {
+                                name
+                            };
                             let fields: Vec<Pattern> = node
                                 .children()
                                 .filter(|c| c.kind() == SyntaxKind::PATTERN)
                                 .filter_map(|c| self.lower_pattern(&c))
                                 .collect();
                             return Some(Pattern {
-                                kind: PatternKind::Variant { name, fields },
+                                kind: PatternKind::Variant {
+                                    name: variant_name,
+                                    fields,
+                                },
                                 span,
                             });
                         } else {
