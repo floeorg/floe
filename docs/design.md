@@ -85,6 +85,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | tap | `x \|> tap(Console.log)` | IIFE: calls fn, returns value unchanged |
 | Immutable sort | `Array.sort` returns new array | sorted copy, no mutation |
 | Strict parse | `Number.parse("123")` returns `Result` | no silent `NaN` or partial parse |
+| Number separators | `1_000_000`, `3.141_592`, `0xFF_FF` | underscores stripped in output |
 
 ### What's Removed (compile errors)
 
@@ -920,6 +921,8 @@ Key tokens beyond standard TypeScript:
 | `SelfKw` | `self` keyword (explicit receiver in for blocks) |
 | `Trait` | `trait` keyword (trait declarations) |
 | `Assert` | `assert` keyword (only valid inside test blocks) |
+
+Number literals support underscore separators for readability: `1_000_000`, `3.141_592`, `0xFF_FF`. Underscores can appear between any two digits but not at the start, end, or adjacent to a decimal point. The lexer strips underscores before emitting the token value.
 
 Banned tokens (immediate compile errors with helpful messages):
 

@@ -38,6 +38,11 @@ const y = x + 1
 const name = "Ryan"
 const count = 42
 
+// Number literal separators (underscores for readability)
+const million = 1_000_000
+const pi = 3.141_592
+const hex = 0xFF_FF
+
 // Type annotations
 const names: Array<string> = ["a", "b", "c"]
 ```

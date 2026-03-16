@@ -93,12 +93,17 @@ for Array<User> {
 ```floe
 42              // number
 3.14            // number
+1_000_000       // number with separators (underscores for readability)
+3.141_592       // float with separators
+0xFF_FF         // hex with separators
 "hello"         // string
 `hello ${name}` // template literal
 true            // boolean
 false           // boolean
 [1, 2, 3]      // array
 ```
+
+Underscores in number literals are purely visual — they are stripped during compilation. They can appear between any two digits but not at the start, end, or adjacent to a decimal point.
 
 ### Operators
 
