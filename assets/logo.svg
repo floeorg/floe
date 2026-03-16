@@ -1,54 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <!-- Ice crystal / geometric snowflake -->
-  <!-- Main color: ice blue -->
-  <defs>
-    <linearGradient id="ice" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#93C5FD" />
-      <stop offset="100%" stop-color="#3B82F6" />
-    </linearGradient>
-  </defs>
-
-  <g transform="translate(64, 64)" stroke="url(#ice)" stroke-width="5" stroke-linecap="round" fill="none">
-    <!-- Vertical axis -->
-    <line x1="0" y1="-48" x2="0" y2="48" />
-    <!-- Top branches -->
-    <line x1="0" y1="-48" x2="-14" y2="-34" />
-    <line x1="0" y1="-48" x2="14" y2="-34" />
-    <!-- Bottom branches -->
-    <line x1="0" y1="48" x2="-14" y2="34" />
-    <line x1="0" y1="48" x2="14" y2="34" />
-
-    <!-- Upper-right axis (60°) -->
-    <line x1="41.6" y1="-24" x2="-41.6" y2="24" />
-    <!-- Upper-right branches -->
-    <line x1="41.6" y1="-24" x2="27.6" y2="-24" />
-    <line x1="41.6" y1="-24" x2="34.6" y2="-11.9" />
-    <!-- Lower-left branches -->
-    <line x1="-41.6" y1="24" x2="-27.6" y2="24" />
-    <line x1="-41.6" y1="24" x2="-34.6" y2="11.9" />
-
-    <!-- Upper-left axis (120°) -->
-    <line x1="-41.6" y1="-24" x2="41.6" y2="24" />
-    <!-- Upper-left branches -->
-    <line x1="-41.6" y1="-24" x2="-27.6" y2="-24" />
-    <line x1="-41.6" y1="-24" x2="-34.6" y2="-11.9" />
-    <!-- Lower-right branches -->
-    <line x1="41.6" y1="24" x2="27.6" y2="24" />
-    <line x1="41.6" y1="24" x2="34.6" y2="11.9" />
-
-    <!-- Center hexagon accent -->
-    <polygon points="0,-12 10.4,-6 10.4,6 0,12 -10.4,6 -10.4,-6"
-             stroke="url(#ice)" stroke-width="3.5" fill="none" />
-
-    <!-- Mid-arm crossbars for detail -->
-    <!-- Vertical mid -->
-    <line x1="-8" y1="-24" x2="8" y2="-24" />
-    <line x1="-8" y1="24" x2="8" y2="24" />
-    <!-- 60° mid -->
-    <line x1="24.8" y1="-7.1" x2="17.8" y2="-19.2" />
-    <line x1="-24.8" y1="7.1" x2="-17.8" y2="19.2" />
-    <!-- 120° mid -->
-    <line x1="-24.8" y1="-7.1" x2="-17.8" y2="-19.2" />
-    <line x1="24.8" y1="7.1" x2="17.8" y2="19.2" />
+  <!-- Snowflake with rotational spin -->
+  <g transform="translate(64, 64)" stroke="#3B82F6" stroke-width="4.5" stroke-linecap="round" fill="none">
+    <!-- Center dot -->
+    <circle cx="0" cy="0" r="3" fill="#3B82F6" stroke="none" />
+    <!-- Six arms with swept branches (each arm + branch rotated 60°) -->
+    <!-- Arm 1 (0°) -->
+    <g transform="rotate(0)">
+      <line x1="0" y1="-10" x2="0" y2="-44" />
+      <line x1="0" y1="-28" x2="12" y2="-38" />
+      <line x1="0" y1="-18" x2="10" y2="-24" />
+    </g>
+    <!-- Arm 2 (60°) -->
+    <g transform="rotate(60)">
+      <line x1="0" y1="-10" x2="0" y2="-44" />
+      <line x1="0" y1="-28" x2="12" y2="-38" />
+      <line x1="0" y1="-18" x2="10" y2="-24" />
+    </g>
+    <!-- Arm 3 (120°) -->
+    <g transform="rotate(120)">
+      <line x1="0" y1="-10" x2="0" y2="-44" />
+      <line x1="0" y1="-28" x2="12" y2="-38" />
+      <line x1="0" y1="-18" x2="10" y2="-24" />
+    </g>
+    <!-- Arm 4 (180°) -->
+    <g transform="rotate(180)">
+      <line x1="0" y1="-10" x2="0" y2="-44" />
+      <line x1="0" y1="-28" x2="12" y2="-38" />
+      <line x1="0" y1="-18" x2="10" y2="-24" />
+    </g>
+    <!-- Arm 5 (240°) -->
+    <g transform="rotate(240)">
+      <line x1="0" y1="-10" x2="0" y2="-44" />
+      <line x1="0" y1="-28" x2="12" y2="-38" />
+      <line x1="0" y1="-18" x2="10" y2="-24" />
+    </g>
+    <!-- Arm 6 (300°) -->
+    <g transform="rotate(300)">
+      <line x1="0" y1="-10" x2="0" y2="-44" />
+      <line x1="0" y1="-28" x2="12" y2="-38" />
+      <line x1="0" y1="-18" x2="10" y2="-24" />
+    </g>
   </g>
 </svg>
