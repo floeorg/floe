@@ -1809,3 +1809,415 @@ impl TokenKind {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+    use crate::syntax::SyntaxKind;
+
+    /// Helper: parse source through CstParser and return the Parse result.
+    fn cst_parse(source: &str) -> Parse {
+        let tokens = Lexer::new(source).tokenize_with_trivia();
+        CstParser::new(source, tokens).parse()
+    }
+
+    /// Helper: assert the CST text round-trips exactly.
+    fn assert_lossless(source: &str) {
+        let parse = cst_parse(source);
+        assert_eq!(
+            parse.syntax().text().to_string(),
+            source,
+            "CST text should match original source"
+        );
+    }
+
+    /// Helper: assert no CST errors.
+    fn assert_no_errors(source: &str) -> Parse {
+        let parse = cst_parse(source);
+        assert!(
+            parse.errors.is_empty(),
+            "unexpected CST errors: {:?}",
+            parse.errors
+        );
+        parse
+    }
+
+    // ── Const declarations ────────────────────────────────────────
+
+    #[test]
+    fn const_simple() {
+        assert_no_errors("const x = 42");
+    }
+
+    #[test]
+    fn const_typed() {
+        assert_no_errors("const x: number = 42");
+    }
+
+    #[test]
+    fn const_exported() {
+        assert_no_errors("export const name = \"hello\"");
+    }
+
+    #[test]
+    fn const_string_value() {
+        assert_no_errors("const greeting = \"world\"");
+    }
+
+    #[test]
+    fn const_bool_value() {
+        assert_no_errors("const flag = true");
+    }
+
+    // ── Function declarations ─────────────────────────────────────
+
+    #[test]
+    fn function_no_params() {
+        assert_no_errors("fn greet() { 42 }");
+    }
+
+    #[test]
+    fn function_with_params() {
+        assert_no_errors("fn add(a: number, b: number) -> number { a + b }");
+    }
+
+    #[test]
+    fn function_async() {
+        assert_no_errors("async fn fetch(url: string) -> string { url }");
+    }
+
+    #[test]
+    fn function_exported() {
+        assert_no_errors("export fn hello() { 1 }");
+    }
+
+    // ── Imports ───────────────────────────────────────────────────
+
+    #[test]
+    fn import_bare() {
+        assert_no_errors("import \"./module\"");
+    }
+
+    #[test]
+    fn import_with_specifiers() {
+        assert_no_errors("import { foo, bar } from \"./module\"");
+    }
+
+    #[test]
+    fn import_aliased() {
+        // "as" is a banned keyword but allowed contextually in imports
+        let parse = cst_parse("import { foo as f } from \"./module\"");
+        // Should have at most an error for "as" being banned, but still parses
+        let text = parse.syntax().text().to_string();
+        assert_eq!(text, "import { foo as f } from \"./module\"");
+    }
+
+    #[test]
+    fn import_for_specifier() {
+        assert_no_errors("import { for User } from \"./helpers\"");
+    }
+
+    // ── Exports ───────────────────────────────────────────────────
+
+    #[test]
+    fn export_function() {
+        assert_no_errors("export fn myFunc() { 1 }");
+    }
+
+    #[test]
+    fn export_type() {
+        assert_no_errors("export type Color = | Red | Green | Blue");
+    }
+
+    // ── Type declarations ─────────────────────────────────────────
+
+    #[test]
+    fn type_record() {
+        assert_no_errors("type User = { name: string, age: number }");
+    }
+
+    #[test]
+    fn type_union() {
+        assert_no_errors("type Color = | Red | Green | Blue");
+    }
+
+    #[test]
+    fn type_alias() {
+        assert_no_errors("type Name = string");
+    }
+
+    #[test]
+    fn type_opaque() {
+        assert_no_errors("opaque type Id = string");
+    }
+
+    #[test]
+    fn type_generic() {
+        assert_no_errors("type Box<T> = { value: T }");
+    }
+
+    #[test]
+    fn type_exported() {
+        assert_no_errors("export type Point = { x: number, y: number }");
+    }
+
+    // ── Expressions ───────────────────────────────────────────────
+
+    #[test]
+    fn binary_add() {
+        assert_no_errors("1 + 2");
+    }
+
+    #[test]
+    fn binary_comparison() {
+        assert_no_errors("a == b");
+    }
+
+    #[test]
+    fn unary_not() {
+        assert_no_errors("!flag");
+    }
+
+    #[test]
+    fn unary_neg() {
+        assert_no_errors("-42");
+    }
+
+    #[test]
+    fn call_expr() {
+        assert_no_errors("f(a, b)");
+    }
+
+    #[test]
+    fn member_access() {
+        assert_no_errors("user.name");
+    }
+
+    #[test]
+    fn constructor_simple() {
+        assert_no_errors("User(name: \"Alice\")");
+    }
+
+    #[test]
+    fn ok_expr() {
+        assert_no_errors("Ok(42)");
+    }
+
+    #[test]
+    fn err_expr() {
+        assert_no_errors("Err(\"fail\")");
+    }
+
+    #[test]
+    fn some_expr() {
+        assert_no_errors("Some(1)");
+    }
+
+    #[test]
+    fn none_expr() {
+        assert_no_errors("None");
+    }
+
+    #[test]
+    fn return_expr() {
+        assert_no_errors("fn f() { return 42 }");
+    }
+
+    #[test]
+    fn array_literal() {
+        assert_no_errors("[1, 2, 3]");
+    }
+
+    #[test]
+    fn tuple_literal() {
+        assert_no_errors("(1, 2)");
+    }
+
+    // ── Pipe expressions ──────────────────────────────────────────
+
+    #[test]
+    fn pipe_simple() {
+        assert_no_errors("x |> f(y, _)");
+    }
+
+    #[test]
+    fn pipe_chain() {
+        assert_no_errors("data |> filter(.done) |> map(.name)");
+    }
+
+    // ── Match expressions ─────────────────────────────────────────
+
+    #[test]
+    fn match_basic() {
+        assert_no_errors("match x { Ok(v) -> v, Err(e) -> e }");
+    }
+
+    #[test]
+    fn match_wildcard() {
+        assert_no_errors("match x { _ -> 0 }");
+    }
+
+    #[test]
+    fn match_guard() {
+        assert_no_errors("match x { n when n > 0 -> n, _ -> 0 }");
+    }
+
+    // ── JSX ───────────────────────────────────────────────────────
+
+    #[test]
+    fn jsx_self_closing() {
+        assert_no_errors("<Input />");
+    }
+
+    #[test]
+    fn jsx_with_children() {
+        assert_no_errors("<div>hello</div>");
+    }
+
+    #[test]
+    fn jsx_with_props() {
+        assert_no_errors("<Button onClick={handler} />");
+    }
+
+    // ── Lambda / arrow functions ──────────────────────────────────
+
+    #[test]
+    fn lambda_pipe_style() {
+        assert_no_errors("|x| x + 1");
+    }
+
+    #[test]
+    fn lambda_zero_arg() {
+        assert_no_errors("|| 42");
+    }
+
+    // ── For blocks ────────────────────────────────────────────────
+
+    #[test]
+    fn for_block_basic() {
+        assert_no_errors("for User { fn greet(self) -> string { self.name } }");
+    }
+
+    #[test]
+    fn for_block_with_trait() {
+        assert_no_errors("for User: Display { fn show(self) -> string { self.name } }");
+    }
+
+    // ── Trait declarations ────────────────────────────────────────
+
+    #[test]
+    fn trait_basic() {
+        assert_no_errors("trait Display { fn show(self) -> string }");
+    }
+
+    // ── Test blocks ───────────────────────────────────────────────
+
+    #[test]
+    fn test_block_basic() {
+        assert_no_errors("test \"my test\" { assert 1 == 1 }");
+    }
+
+    // ── Trivia preservation ───────────────────────────────────────
+
+    #[test]
+    fn trivia_comments_preserved() {
+        assert_lossless("// comment\nconst x = 1");
+    }
+
+    #[test]
+    fn trivia_whitespace_preserved() {
+        assert_lossless("const  x  =  1");
+    }
+
+    #[test]
+    fn trivia_block_comment_preserved() {
+        assert_lossless("/* block */ const x = 1");
+    }
+
+    // ── Error recovery ────────────────────────────────────────────
+
+    #[test]
+    fn error_recovery_missing_equal() {
+        // Should not panic, produces CST errors
+        let parse = cst_parse("const x 42");
+        assert!(!parse.errors.is_empty());
+    }
+
+    #[test]
+    fn error_recovery_malformed_function() {
+        let parse = cst_parse("fn () { }");
+        assert!(!parse.errors.is_empty());
+    }
+
+    #[test]
+    fn error_recovery_empty_input() {
+        let parse = cst_parse("");
+        assert!(parse.errors.is_empty());
+        assert_lossless("");
+    }
+
+    #[test]
+    fn error_recovery_random_tokens() {
+        // Should not panic regardless of input
+        let _ = cst_parse("!@#$%^");
+        let _ = cst_parse("}{)(][");
+        let _ = cst_parse(";;; , , ,");
+    }
+
+    // ── Lossless round-trips ──────────────────────────────────────
+
+    #[test]
+    fn lossless_const() {
+        assert_lossless("const x = 42");
+    }
+
+    #[test]
+    fn lossless_function() {
+        assert_lossless("fn add(a: number, b: number) -> number { a + b }");
+    }
+
+    #[test]
+    fn lossless_import() {
+        assert_lossless("import { foo, bar } from \"./module\"");
+    }
+
+    #[test]
+    fn lossless_match() {
+        assert_lossless("match x { Ok(v) -> v, _ -> 0 }");
+    }
+
+    #[test]
+    fn lossless_jsx() {
+        assert_lossless("<div>hello</div>");
+    }
+
+    #[test]
+    fn lossless_pipe() {
+        assert_lossless("x |> f(y, _)");
+    }
+
+    #[test]
+    fn lossless_for_block() {
+        assert_lossless("for User { fn greet(self) -> string { self.name } }");
+    }
+
+    // ── CST node kind checks ──────────────────────────────────────
+
+    #[test]
+    fn root_is_program() {
+        let parse = cst_parse("const x = 1");
+        assert_eq!(parse.syntax().kind(), SyntaxKind::PROGRAM);
+    }
+
+    #[test]
+    fn has_item_children() {
+        let parse = cst_parse("const x = 1\nconst y = 2");
+        let items: Vec<_> = parse
+            .syntax()
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::ITEM)
+            .collect();
+        assert_eq!(items.len(), 2);
+    }
+}

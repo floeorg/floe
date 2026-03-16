@@ -179,3 +179,247 @@ fn resolve_path(base_dir: &Path, source: &str) -> Option<PathBuf> {
 
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// Helper: create a temp dir, write files, and return (TempDir, base_path).
+    fn setup_files(files: &[(&str, &str)]) -> (TempDir, PathBuf) {
+        let dir = TempDir::new().unwrap();
+        for (name, content) in files {
+            let path = dir.path().join(name);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(&path, content).unwrap();
+        }
+        let base = dir.path().to_path_buf();
+        (dir, base)
+    }
+
+    /// Helper: parse a source string into a Program.
+    fn parse_program(source: &str) -> Program {
+        Parser::new(source).parse_program().unwrap()
+    }
+
+    // ── Path resolution ───────────────────────────────────────────
+
+    #[test]
+    fn resolve_path_fl_suffix() {
+        let (_dir, base) = setup_files(&[("types.fl", "const x = 1")]);
+        let result = resolve_path(&base, "./types");
+        assert!(result.is_some());
+        assert!(result.unwrap().ends_with("types.fl"));
+    }
+
+    #[test]
+    fn resolve_path_index_fallback() {
+        let (_dir, base) = setup_files(&[("utils/index.fl", "const y = 2")]);
+        let result = resolve_path(&base, "./utils");
+        assert!(result.is_some());
+        assert!(result.unwrap().ends_with("index.fl"));
+    }
+
+    #[test]
+    fn resolve_path_prefer_fl_over_index() {
+        let (_dir, base) =
+            setup_files(&[("mod.fl", "const a = 1"), ("mod/index.fl", "const b = 2")]);
+        let result = resolve_path(&base, "./mod");
+        assert!(result.is_some());
+        // Should prefer mod.fl
+        assert!(result.unwrap().ends_with("mod.fl"));
+    }
+
+    #[test]
+    fn resolve_path_missing_file() {
+        let (_dir, base) = setup_files(&[]);
+        let result = resolve_path(&base, "./nonexistent");
+        assert!(result.is_none());
+    }
+
+    // ── Empty / no-import programs ────────────────────────────────
+
+    #[test]
+    fn empty_program_no_imports() {
+        let (_dir, base) = setup_files(&[("main.fl", "")]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("");
+        let result = resolve_imports(&main_path, &program);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn program_without_imports() {
+        let (_dir, base) = setup_files(&[("main.fl", "const x = 1")]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("const x = 1");
+        let result = resolve_imports(&main_path, &program);
+        assert!(result.is_empty());
+    }
+
+    // ── npm imports skipped ───────────────────────────────────────
+
+    #[test]
+    fn npm_imports_skipped() {
+        let (_dir, base) = setup_files(&[("main.fl", "")]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { useState } from \"react\"");
+        let result = resolve_imports(&main_path, &program);
+        assert!(result.is_empty());
+    }
+
+    // ── Exported types, functions, consts extracted ────────────────
+
+    #[test]
+    fn exported_type_extracted() {
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            ("types.fl", "export type User = { name: string }"),
+        ]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { User } from \"./types\"");
+        let result = resolve_imports(&main_path, &program);
+        let resolved = result.get("./types").unwrap();
+        assert_eq!(resolved.type_decls.len(), 1);
+        assert_eq!(resolved.type_decls[0].name, "User");
+    }
+
+    #[test]
+    fn exported_function_extracted() {
+        let (_dir, base) =
+            setup_files(&[("main.fl", ""), ("helpers.fl", "export fn greet() { 1 }")]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { greet } from \"./helpers\"");
+        let result = resolve_imports(&main_path, &program);
+        let resolved = result.get("./helpers").unwrap();
+        assert_eq!(resolved.function_decls.len(), 1);
+        assert_eq!(resolved.function_decls[0].name, "greet");
+    }
+
+    #[test]
+    fn exported_const_extracted() {
+        let (_dir, base) = setup_files(&[("main.fl", ""), ("config.fl", "export const MAX = 100")]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { MAX } from \"./config\"");
+        let result = resolve_imports(&main_path, &program);
+        let resolved = result.get("./config").unwrap();
+        assert_eq!(resolved.const_names, vec!["MAX".to_string()]);
+    }
+
+    // ── Non-exported items excluded ───────────────────────────────
+
+    #[test]
+    fn non_exported_items_excluded() {
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            (
+                "internal.fl",
+                "type Secret = { key: string }\nfn helper() { 1 }\nconst private = 42",
+            ),
+        ]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { Secret } from \"./internal\"");
+        let result = resolve_imports(&main_path, &program);
+        let resolved = result.get("./internal").unwrap();
+        assert!(resolved.type_decls.is_empty());
+        assert!(resolved.function_decls.is_empty());
+        assert!(resolved.const_names.is_empty());
+    }
+
+    // ── Multiple imports from same module ─────────────────────────
+
+    #[test]
+    fn multiple_imports_same_module() {
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            (
+                "lib.fl",
+                "export type A = { x: number }\nexport fn b() { 1 }",
+            ),
+        ]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { A } from \"./lib\"\nimport { b } from \"./lib\"");
+        let result = resolve_imports(&main_path, &program);
+        // Should only resolve once
+        assert_eq!(result.len(), 1);
+        let resolved = result.get("./lib").unwrap();
+        assert!(!resolved.type_decls.is_empty());
+        assert!(!resolved.function_decls.is_empty());
+    }
+
+    // ── For-block exports ─────────────────────────────────────────
+
+    #[test]
+    fn for_block_exported_functions() {
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            (
+                "ext.fl",
+                "for User { export fn greet(self) -> string { self.name } }",
+            ),
+        ]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { for User } from \"./ext\"");
+        let result = resolve_imports(&main_path, &program);
+        let resolved = result.get("./ext").unwrap();
+        // The exported for-block function should be present
+        assert!(!resolved.for_blocks.is_empty());
+        assert_eq!(resolved.for_blocks[0].functions.len(), 1);
+    }
+
+    // ── Missing files handled gracefully ──────────────────────────
+
+    #[test]
+    fn missing_import_file_no_panic() {
+        let (_dir, base) = setup_files(&[("main.fl", "")]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { foo } from \"./missing\"");
+        let result = resolve_imports(&main_path, &program);
+        // Missing file should not appear in results
+        assert!(!result.contains_key("./missing"));
+    }
+
+    // ── Edge cases ────────────────────────────────────────────────
+
+    #[test]
+    fn dotted_relative_import() {
+        let (_dir, base) = setup_files(&[("sub/main.fl", ""), ("lib.fl", "export const X = 1")]);
+        let main_path = base.join("sub/main.fl");
+        let program = parse_program("import { X } from \"../lib\"");
+        let result = resolve_imports(&main_path, &program);
+        assert!(result.contains_key("../lib"));
+    }
+
+    #[test]
+    fn exported_trait_extracted() {
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            (
+                "traits.fl",
+                "export trait Display { fn show(self) -> string }",
+            ),
+        ]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { Display } from \"./traits\"");
+        let result = resolve_imports(&main_path, &program);
+        let resolved = result.get("./traits").unwrap();
+        assert_eq!(resolved.trait_decls.len(), 1);
+        assert_eq!(resolved.trait_decls[0].name, "Display");
+    }
+
+    #[test]
+    fn resolve_index_in_subdir() {
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            ("components/index.fl", "export fn Button() { 1 }"),
+        ]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { Button } from \"./components\"");
+        let result = resolve_imports(&main_path, &program);
+        let resolved = result.get("./components").unwrap();
+        assert_eq!(resolved.function_decls.len(), 1);
+    }
+}
