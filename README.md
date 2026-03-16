@@ -14,12 +14,6 @@ any TypeScript or React library. The compiler is written in Rust.
 
 For more information see [the docs](https://milkyskies.github.io/floe).
 
-## Contributing
-
-1. Check open issues for available work
-2. Read `docs/design.md` - it's the language specification and source of truth
-3. Open a PR targeting `main`
-
 ## License
 
 MIT
