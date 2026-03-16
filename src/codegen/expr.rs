@@ -1065,22 +1065,11 @@ impl Codegen {
     }
 
     /// Find the inner expression of the outermost `?` in an expression.
-    /// For example, in `input.name |> validateName?`, this returns
-    /// `input.name |> validateName` (the Pipe expression).
+    /// For example, in `input.name |> validateName?`, the parser produces
+    /// `Unwrap(Pipe { ... })`, and this returns the `Pipe` expression.
     fn find_unwrap_in_expr(expr: &Expr) -> Option<&Expr> {
         match &expr.kind {
             ExprKind::Unwrap(inner) => Some(inner),
-            ExprKind::Pipe { right, .. } => {
-                // Check if the right side of the pipe ends with ?
-                if let ExprKind::Unwrap(_) = &right.kind {
-                    // The whole pipe expression has ? at the end
-                    // We need to reconstruct without the ?, but we can't mutate.
-                    // Instead, return None and handle it at the Pipe level.
-                    None
-                } else {
-                    None
-                }
-            }
             _ => None,
         }
     }

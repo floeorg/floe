@@ -183,6 +183,45 @@ fn unwrap_operator() {
     assert!(matches!(expr, ExprKind::Unwrap(_)));
 }
 
+#[test]
+fn pipe_then_unwrap() {
+    // `x |> f?` should parse as `(x |> f)?`, not `x |> (f?)`
+    let expr = first_expr("x |> f?");
+    match &expr {
+        ExprKind::Unwrap(inner) => {
+            assert!(
+                matches!(inner.kind, ExprKind::Pipe { .. }),
+                "expected Unwrap(Pipe), got Unwrap({:?})",
+                inner.kind
+            );
+        }
+        _ => panic!("expected Unwrap, got {expr:?}"),
+    }
+}
+
+#[test]
+fn pipe_chain_then_unwrap() {
+    // `x |> f |> g?` should parse as `(x |> f |> g)?`
+    let expr = first_expr("x |> f |> g?");
+    match &expr {
+        ExprKind::Unwrap(inner) => {
+            assert!(
+                matches!(inner.kind, ExprKind::Pipe { .. }),
+                "expected Unwrap(Pipe), got Unwrap({:?})",
+                inner.kind
+            );
+            // The inner pipe's left should also be a pipe (x |> f)
+            if let ExprKind::Pipe { left, .. } = &inner.kind {
+                assert!(
+                    matches!(left.kind, ExprKind::Pipe { .. }),
+                    "expected chained pipe"
+                );
+            }
+        }
+        _ => panic!("expected Unwrap, got {expr:?}"),
+    }
+}
+
 // ── Function Calls ───────────────────────────────────────────
 
 #[test]

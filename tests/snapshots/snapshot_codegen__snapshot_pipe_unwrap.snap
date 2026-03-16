@@ -1,0 +1,23 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+function validate(s: string): { ok: true; value: string } | { ok: false; error: string } {
+  return { ok: true as const, value: s };
+}
+
+function format(s: string): { ok: true; value: string } | { ok: false; error: string } {
+  return { ok: true as const, value: s };
+}
+
+function _testPipeUnwrap(): { ok: true; value: string } | { ok: false; error: string } {
+  return validate("hello")!;
+}
+
+function _testPipeChainUnwrap(): { ok: true; value: string } | { ok: false; error: string } {
+  return format(validate("hello"))!;
+}
+
+function _testPipeOptionUnwrap(): number | undefined {
+  return [1, 2, 3][0]!;
+}

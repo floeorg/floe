@@ -1,0 +1,19 @@
+fn validate(s: string) -> Result<string, string> {
+    Ok(s)
+}
+
+fn format(s: string) -> Result<string, string> {
+    Ok(s)
+}
+
+fn _testPipeUnwrap() -> Result<string, string> {
+    "hello" |> validate?
+}
+
+fn _testPipeChainUnwrap() -> Result<string, string> {
+    "hello" |> validate |> format?
+}
+
+fn _testPipeOptionUnwrap() -> Option<number> {
+    [1, 2, 3] |> Array.head?
+}

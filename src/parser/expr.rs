@@ -105,14 +105,32 @@ impl Parser {
             }
 
             let right = self.parse_comparison_expr()?;
-            let span = self.merge_spans(left.span, right.span);
-            left = Expr {
-                kind: ExprKind::Pipe {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                span,
-            };
+
+            // `a |> f?` parses as `a |> (f?)` due to postfix `?` binding tighter,
+            // but the user means `(a |> f)?`. Restructure: lift the `?` above the pipe.
+            if let ExprKind::Unwrap(inner) = right.kind {
+                let outer_span = self.merge_spans(left.span, right.span);
+                let pipe_span = self.merge_spans(left.span, inner.span);
+                left = Expr {
+                    kind: ExprKind::Unwrap(Box::new(Expr {
+                        kind: ExprKind::Pipe {
+                            left: Box::new(left),
+                            right: inner,
+                        },
+                        span: pipe_span,
+                    })),
+                    span: outer_span,
+                };
+            } else {
+                let span = self.merge_spans(left.span, right.span);
+                left = Expr {
+                    kind: ExprKind::Pipe {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    },
+                    span,
+                };
+            }
         }
 
         Ok(left)

@@ -171,3 +171,9 @@ fn snapshot_deriving() {
     let output = compile_fixture("deriving");
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_pipe_unwrap() {
+    let output = compile_fixture("pipe_unwrap");
+    insta::assert_snapshot!(output);
+}
