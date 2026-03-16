@@ -42,11 +42,11 @@ export fn validateCheckout(
     match cart |> Array.isEmpty {
         true -> Err([EmptyCart]),
         false -> collect {
-            const _email = shipping.email |> validateEmail?
-            const _phone = shipping.phone |> validatePhone?
+            const email = shipping.email |> validateEmail?
+            const phone = shipping.phone |> validatePhone?
             const _stock = cart |> validateStock?
 
-            shipping
+            ShippingInfo(..shipping, email: email, phone: phone)
         },
     }
 }
