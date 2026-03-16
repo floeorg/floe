@@ -36,6 +36,18 @@ fn add(a: number, b: number) -> number {
 
 The last expression in a function body is the return value. The `return` keyword is not used in Floe.
 
+In multi-statement functions, `floe fmt` adds a blank line before the final expression to visually separate the return value:
+
+```floe
+fn loadProfile(id: string) -> Result<Profile, ApiError> {
+    const user = fetchUser(id)?
+    const posts = fetchPosts(user.id)?
+    const stats = computeStats(posts)
+
+    Profile(user, posts, stats)
+}
+```
+
 Exported functions **must** have return type annotations:
 
 ```floe

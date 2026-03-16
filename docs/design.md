@@ -1294,11 +1294,36 @@ export default function floe(): Plugin {
 ```bash
 floe build src/           # compile all .fl → .tsx
 floe check src/           # type-check only, no output
+floe fmt src/             # format .fl files in place
 floe test src/            # run inline test blocks
 floe watch src/           # watch mode
 floe init                 # scaffold new project
 floe migrate file.tsx     # attempt to convert .tsx to .fl
 ```
+
+### Formatter (`floe fmt`)
+
+The formatter enforces a canonical style. Key conventions:
+
+- **Blank line before final expression:** In multi-statement blocks (2+ statements/expressions), the formatter inserts a blank line before the last expression (the implicit return value). Single-expression bodies are unaffected.
+
+```floe
+// Multi-statement: blank line before final expression
+fn loadProfile(id: string) -> Result<Profile, ApiError> {
+    const user = fetchUser(id)?
+    const posts = fetchPosts(user.id)?
+    const stats = computeStats(posts)
+
+    Profile(user, posts, stats)
+}
+
+// Single expression: no blank line
+fn add(a: number, b: number) -> number {
+    a + b
+}
+```
+
+This applies to `fn` bodies, `for`-block functions, match arms with block bodies, and lambdas with block bodies.
 
 ---
 

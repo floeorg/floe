@@ -495,3 +495,4 @@ match key {
 11. **`Console.log`** not `console.log` (capital C in Floe)
 12. **`Array<T>`** not `T[]` for array types
 13. **Implicit returns** — last expression in a block is the return value; `return` keyword is banned
+14. **Blank line before final expression** — `floe fmt` inserts a blank line before the last expression in multi-statement blocks (2+ statements) to visually separate the return value

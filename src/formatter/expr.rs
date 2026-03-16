@@ -21,8 +21,13 @@ impl Formatter<'_> {
             return;
         }
 
+        let child_count = children.len();
         self.indent += 1;
-        for child in &children {
+        for (i, child) in children.iter().enumerate() {
+            // Insert a blank line before the final expression in multi-statement blocks
+            if child_count >= 2 && i == child_count - 1 {
+                self.newline();
+            }
             self.newline();
             self.write_indent();
             self.fmt_node(child);

@@ -32,6 +32,20 @@ floe check src/
 floe check src/main.fl
 ```
 
+### `floe fmt`
+
+Format `.fl` files in place.
+
+```bash
+floe fmt src/
+floe fmt src/main.fl
+```
+
+The formatter enforces a canonical style. Notable conventions:
+- Blank line before the final expression in multi-statement blocks (visually separates the return value)
+- Named arg punning (`name: name` becomes `name:`)
+- Consistent spacing around operators
+
 ### `floe test`
 
 Run inline test blocks.

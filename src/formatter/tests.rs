@@ -132,6 +132,58 @@ fn format_jsx_fragment() {
     assert_fmt("<>{x}</>", "<>{x}</>");
 }
 
+// ── Blank line before final expression ──────────────────────
+
+#[test]
+fn format_blank_line_before_final_expr_in_multi_stmt_fn() {
+    assert_fmt(
+        "fn load(id: string) -> number {\n    const x = fetch(id)\n    const y = process(x)\n    x + y\n}",
+        "fn load(id: string) -> number {\n    const x = fetch(id)\n    const y = process(x)\n\n    x + y\n}",
+    );
+}
+
+#[test]
+fn format_single_expr_fn_no_blank_line() {
+    assert_fmt(
+        "fn add(a: number, b: number) -> number { a + b }",
+        "fn add(a: number, b: number) -> number {\n    a + b\n}",
+    );
+}
+
+#[test]
+fn format_already_has_blank_line_no_double() {
+    // Even if the input doesn't have one, the formatter always produces
+    // the canonical output with exactly one blank line before the last expr
+    assert_fmt(
+        "fn f() -> number {\n    const x = 1\n\n    x\n}",
+        "fn f() -> number {\n    const x = 1\n\n    x\n}",
+    );
+}
+
+#[test]
+fn format_two_statement_block_gets_blank_line() {
+    assert_fmt(
+        "fn f() -> number {\n    const x = 1\n    x\n}",
+        "fn f() -> number {\n    const x = 1\n\n    x\n}",
+    );
+}
+
+#[test]
+fn format_match_arm_block_body_blank_line() {
+    assert_fmt(
+        "const r = match x {\n    Some(v) -> {\n        const y = v + 1\n        y\n    },\n    None -> 0,\n}",
+        "const r = match x {\n    Some(v) -> {\n        const y = v + 1\n\n        y\n    },\n    None -> 0,\n}",
+    );
+}
+
+#[test]
+fn format_lambda_block_body_blank_line() {
+    assert_fmt(
+        "const f = |x| {\n    const y = x + 1\n    y\n}",
+        "const f = |x| {\n    const y = x + 1\n\n    y\n}",
+    );
+}
+
 // ── Named arg punning ──────────────────────────────────────
 
 #[test]
