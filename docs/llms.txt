@@ -397,12 +397,12 @@ for User: Display {
     }
 }
 
-// Auto-derive traits for record types
+// Auto-derive traits for record types (only Display — Eq is built-in via ==)
 type Point = {
     x: number,
     y: number,
-} deriving (Eq, Display)
-// Generates eq(self, other: Point) -> boolean and display(self) -> string
+} deriving (Display)
+// Generates display(self) -> string
 ```
 
 ## JSX / React Components

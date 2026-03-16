@@ -91,42 +91,43 @@ type User = {
   id: string,
   name: string,
   email: string,
-} deriving (Eq, Display)
+} deriving (Display)
 ```
 
 This generates:
 
-- `eq(self, other: User) -> boolean` - field-by-field `===` comparison
 - `display(self) -> string` - string representation like `User(id: abc, name: Ryan, email: r@t.com)`
+
+:::note
+`Eq` is not derivable — structural equality is built-in for all types via `==`. You do not need to derive or implement equality.
+:::
 
 ### Derivable traits
 
 | Trait | Generated implementation |
 |---|---|
-| `Eq` | Field-by-field `===` comparison |
 | `Display` | `TypeName(field1: val1, field2: val2)` format |
 
 ### Compiled output
 
 ```floe
-type Point = { x: number, y: number } deriving (Eq)
+type User = { name: string, age: number } deriving (Display)
 ```
 
 ```typescript
 // Generated TypeScript
-type Point = { x: number; y: number };
+type User = { name: string; age: number };
 
-function eq(self: Point, other: Point): boolean {
-  return self.x === other.x && self.y === other.y;
+function display(self: User): string {
+  return `User(name: ${self.name}, age: ${self.age})`;
 }
 ```
 
 ### Deriving rules
 
 1. `deriving` only works on record types (not unions)
-2. You can derive multiple traits: `deriving (Eq, Display)`
-3. A handwritten `for` block overrides a derived implementation
-4. Only `Eq` and `Display` are derivable
+2. A handwritten `for` block overrides a derived implementation
+3. Only `Display` is derivable — `Eq` is built-in via `==`
 
 ## Rules
 

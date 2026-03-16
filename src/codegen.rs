@@ -131,14 +131,8 @@ impl Codegen {
                     }
                     // Register derived function names as local names
                     for trait_name in &decl.deriving {
-                        match trait_name.as_str() {
-                            "Eq" => {
-                                self.local_names.insert("eq".to_string());
-                            }
-                            "Display" => {
-                                self.local_names.insert("display".to_string());
-                            }
-                            _ => {}
+                        if trait_name.as_str() == "Display" {
+                            self.local_names.insert("display".to_string());
                         }
                     }
                 }
@@ -571,39 +565,11 @@ impl Codegen {
             for trait_name in &decl.deriving {
                 self.newline();
                 self.newline();
-                match trait_name.as_str() {
-                    "Eq" => self.emit_derived_eq(&decl.name, &fields),
-                    "Display" => self.emit_derived_display(&decl.name, &fields),
-                    _ => {} // Unknown derivable traits are caught by the checker
+                if trait_name.as_str() == "Display" {
+                    self.emit_derived_display(&decl.name, &fields);
                 }
             }
         }
-    }
-
-    fn emit_derived_eq(&mut self, type_name: &str, fields: &[&RecordField]) {
-        self.emit_indent();
-        self.push(&format!(
-            "function eq(self: {type_name}, other: {type_name}): boolean {{"
-        ));
-        self.newline();
-        self.indent += 1;
-        self.emit_indent();
-        self.push("return ");
-        if fields.is_empty() {
-            self.push("true");
-        } else {
-            for (i, field) in fields.iter().enumerate() {
-                if i > 0 {
-                    self.push(" && ");
-                }
-                self.push(&format!("self.{name} === other.{name}", name = field.name));
-            }
-        }
-        self.push(";");
-        self.newline();
-        self.indent -= 1;
-        self.emit_indent();
-        self.push("}");
     }
 
     fn emit_derived_display(&mut self, type_name: &str, fields: &[&RecordField]) {

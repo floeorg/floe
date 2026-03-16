@@ -199,7 +199,7 @@
     "body": [
       "type ${1:Name} = {",
       "\t${2:field}: ${3:Type},",
-      "} deriving (${4:Eq})"
+      "} deriving (${4:Display})"
     ],
     "description": "Record type with deriving clause"
   },

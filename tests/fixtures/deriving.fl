@@ -1,9 +1,3 @@
-// Record type with deriving Eq
-type Point = {
-  x: number,
-  y: number,
-} deriving (Eq)
-
 // Record type with deriving Display
 type Color = {
   r: number,
@@ -11,9 +5,9 @@ type Color = {
   b: number,
 } deriving (Display)
 
-// Record type with both Eq and Display
+// Record type with Display only (Eq is built-in via ==)
 type User = {
   id: string,
   name: string,
   email: string,
-} deriving (Eq, Display)
+} deriving (Display)

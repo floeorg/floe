@@ -698,19 +698,15 @@ impl Checker {
         for trait_name in &decl.deriving {
             match trait_name.as_str() {
                 "Eq" => {
-                    // Register eq function: fn eq(self, other: TypeName) -> boolean
-                    let fn_name = "eq".to_string();
-                    let self_type = Type::Named(type_name.clone());
-                    let fn_type = Type::Function {
-                        params: vec![self_type.clone(), self_type],
-                        return_type: Box::new(Type::Bool),
-                    };
-                    self.env.define(&fn_name, fn_type);
-                    self.defined_sources
-                        .insert(fn_name.clone(), format!("derived Eq for {type_name}"));
-                    self.used_names.insert(fn_name.clone());
-                    self.trait_impls
-                        .insert((type_name.clone(), "Eq".to_string()));
+                    self.diagnostics.push(
+                        Diagnostic::error(
+                            "`Eq` cannot be derived — structural equality is built-in for all types via `==`".to_string(),
+                            span,
+                        )
+                        .with_label("not needed")
+                        .with_help("remove `Eq` from the deriving clause — use `==` for equality comparison")
+                        .with_code("E019"),
+                    );
                 }
                 "Display" => {
                     // Register display function: fn display(self) -> string
@@ -731,7 +727,7 @@ impl Checker {
                     self.diagnostics.push(
                         Diagnostic::error(format!("trait `{trait_name}` cannot be derived"), span)
                             .with_label("not a derivable trait")
-                            .with_help("only `Eq` and `Display` can be derived")
+                            .with_help("only `Display` can be derived")
                             .with_code("E019"),
                     );
                 }

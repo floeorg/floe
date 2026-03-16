@@ -326,7 +326,7 @@ impl<'src> CstParser<'src> {
 
         self.parse_type_def();
 
-        // Optional deriving clause: `deriving (Eq, Display)`
+        // Optional deriving clause: `deriving (Display)`
         self.eat_trivia();
         if self.at(TokenKind::Deriving) {
             self.builder.start_node(SyntaxKind::DERIVING_CLAUSE.into());

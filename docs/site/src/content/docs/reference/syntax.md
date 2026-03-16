@@ -70,7 +70,7 @@ opaque type Email = string
 type Point = {
   x: number,
   y: number,
-} deriving (Eq, Display)
+} deriving (Display)
 ```
 
 ### For Block

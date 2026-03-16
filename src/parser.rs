@@ -498,7 +498,7 @@ impl Parser {
 
         let def = self.parse_type_def()?;
 
-        // Optional deriving clause: `deriving (Eq, Display)`
+        // Optional deriving clause: `deriving (Display)`
         let deriving = if self.check(&TokenKind::Deriving) {
             self.advance();
             self.expect(&TokenKind::LeftParen)?;

@@ -2,12 +2,6 @@
 source: tests/snapshot_codegen.rs
 expression: output
 ---
-type Point = { x: number; y: number };
-
-function eq(self: Point, other: Point): boolean {
-  return self.x === other.x && self.y === other.y;
-}
-
 type Color = { r: number; g: number; b: number };
 
 function display(self: Color): string {
@@ -15,10 +9,6 @@ function display(self: Color): string {
 }
 
 type User = { id: string; name: string; email: string };
-
-function eq(self: User, other: User): boolean {
-  return self.id === other.id && self.name === other.name && self.email === other.email;
-}
 
 function display(self: User): string {
   return `User(id: ${self.id}, name: ${self.name}, email: ${self.email})`;

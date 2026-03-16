@@ -2479,7 +2479,7 @@ fn f() -> Result<number, Array<string>> {
 // ── Deriving ────────────────────────────────────────────────
 
 #[test]
-fn deriving_eq_on_record_type() {
+fn deriving_eq_is_error() {
     let diags = check(
         r#"
 type Point = {
@@ -2489,8 +2489,8 @@ type Point = {
 "#,
     );
     assert!(
-        diags.iter().all(|d| d.severity != Severity::Error),
-        "deriving Eq on record should not error: {:?}",
+        has_error_containing(&diags, "structural equality is built-in"),
+        "deriving Eq should error: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -2513,7 +2513,7 @@ type User = {
 }
 
 #[test]
-fn deriving_both_eq_and_display() {
+fn deriving_eq_and_display_errors_on_eq() {
     let diags = check(
         r#"
 type User = {
@@ -2523,8 +2523,8 @@ type User = {
 "#,
     );
     assert!(
-        diags.iter().all(|d| d.severity != Severity::Error),
-        "deriving both Eq and Display should not error: {:?}",
+        has_error_containing(&diags, "structural equality is built-in"),
+        "deriving Eq should error even when combined with Display: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -2533,7 +2533,7 @@ type User = {
 fn deriving_on_union_type_is_error() {
     let diags = check(
         r#"
-type Shape = | Circle(radius: number) | Square(side: number) deriving (Eq)
+type Shape = | Circle(radius: number) | Square(side: number) deriving (Display)
 "#,
     );
     assert!(
