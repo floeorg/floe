@@ -361,21 +361,27 @@ impl<'src> Lexer<'src> {
                     {
                         self.advance();
                     }
-                    return TokenKind::Number(self.source[start..self.pos].to_string());
+                    return TokenKind::Number(Self::strip_underscores(
+                        &self.source[start..self.pos],
+                    ));
                 }
                 Some(b'b' | b'B') => {
                     self.advance();
                     while !self.is_at_end() && matches!(self.peek(), Some(b'0' | b'1' | b'_')) {
                         self.advance();
                     }
-                    return TokenKind::Number(self.source[start..self.pos].to_string());
+                    return TokenKind::Number(Self::strip_underscores(
+                        &self.source[start..self.pos],
+                    ));
                 }
                 Some(b'o' | b'O') => {
                     self.advance();
                     while !self.is_at_end() && matches!(self.peek(), Some(b'0'..=b'7' | b'_')) {
                         self.advance();
                     }
-                    return TokenKind::Number(self.source[start..self.pos].to_string());
+                    return TokenKind::Number(Self::strip_underscores(
+                        &self.source[start..self.pos],
+                    ));
                 }
                 _ => {}
             }
@@ -394,7 +400,17 @@ impl<'src> Lexer<'src> {
             }
         }
 
-        TokenKind::Number(self.source[start..self.pos].to_string())
+        TokenKind::Number(Self::strip_underscores(&self.source[start..self.pos]))
+    }
+
+    /// Strip underscore separators from a number literal.
+    /// `1_000` becomes `1000`, `0xFF_FF` becomes `0xFFFF`.
+    fn strip_underscores(raw: &str) -> String {
+        if raw.contains('_') {
+            raw.chars().filter(|&c| c != '_').collect()
+        } else {
+            raw.to_string()
+        }
     }
 
     fn scan_identifier(&mut self, start: usize) -> TokenKind {
@@ -725,9 +741,33 @@ mod tests {
                 TokenKind::Number("0xFF".to_string()),
                 TokenKind::Number("0b1010".to_string()),
                 TokenKind::Number("0o77".to_string()),
-                TokenKind::Number("1_000".to_string()),
+                TokenKind::Number("1000".to_string()),
                 TokenKind::Eof,
             ]
+        );
+    }
+
+    #[test]
+    fn number_underscore_separators() {
+        // Underscores are stripped from the token value
+        assert_eq!(
+            lex("1_000_000 3.141_592 0xFF_FF 0b1010_0101 0o77_77"),
+            vec![
+                TokenKind::Number("1000000".to_string()),
+                TokenKind::Number("3.141592".to_string()),
+                TokenKind::Number("0xFFFF".to_string()),
+                TokenKind::Number("0b10100101".to_string()),
+                TokenKind::Number("0o7777".to_string()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn number_without_underscores_unchanged() {
+        assert_eq!(
+            lex("42"),
+            vec![TokenKind::Number("42".to_string()), TokenKind::Eof]
         );
     }
 

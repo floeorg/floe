@@ -17,7 +17,8 @@ impl Token {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     // -- Literals --
-    /// Integer or float literal: `42`, `3.14`, `0xFF`, `0b1010`, `1_000`
+    /// Integer or float literal: `42`, `3.14`, `0xFF`, `0b1010`
+    /// Underscore separators (e.g. `1_000`) are stripped during lexing.
     Number(String),
     /// Double-quoted string literal: `"hello"`
     String(String),
