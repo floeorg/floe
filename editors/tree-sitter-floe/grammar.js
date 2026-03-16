@@ -20,6 +20,11 @@ module.exports = grammar({
     [$.const_declaration, $.index_expression],
     [$.primary_expression, $.construct_expression],
     [$.primary_expression, $.construct_expression, $.variant_expression],
+    [$.for_block],
+    [$.assert_statement, $.call_expression],
+    [$.assert_statement, $.member_expression],
+    [$.assert_statement, $.binary_expression],
+    [$.assert_statement, $.index_expression],
   ],
 
   precedences: ($) => [
