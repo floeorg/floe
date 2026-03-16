@@ -2045,6 +2045,13 @@ impl<'src> CstParser<'src> {
                 | Some(TokenKind::Number(_))
                 | Some(TokenKind::String(_))
                 | Some(TokenKind::Whitespace)
+                | Some(TokenKind::Bang)
+                | Some(TokenKind::BangEqual)
+                | Some(TokenKind::Dot)
+                | Some(TokenKind::Comma)
+                | Some(TokenKind::Colon)
+                | Some(TokenKind::Semicolon)
+                | Some(TokenKind::Question)
         )
     }
 
