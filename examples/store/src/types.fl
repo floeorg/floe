@@ -1,9 +1,10 @@
-// ── Branded types ──────────────────────────────────────
+// ── Newtype wrappers ───────────────────────────────────
+// Single-variant unions act as newtypes (like Gleam/Rust).
 // ProductId and OrderId are both numbers at runtime,
 // but the compiler prevents mixing them up.
 
-export type ProductId = Brand<number, "ProductId">
-export type OrderId = Brand<number, "OrderId">
+export type ProductId = ProductId(number)
+export type OrderId = OrderId(number)
 
 // ── Product (from DummyJSON API) ───────────────────────
 
