@@ -57,6 +57,8 @@ pub enum TokenKind {
     When,
     /// `collect` — error accumulation block
     Collect,
+    /// `deriving` — auto-derive trait implementations for record types
+    Deriving,
 
     // Built-in type constructors
     Ok,
@@ -262,6 +264,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "assert" => Some(TokenKind::Assert),
         "when" => Some(TokenKind::When),
         "collect" => Some(TokenKind::Collect),
+        "deriving" => Some(TokenKind::Deriving),
         "true" => Some(TokenKind::Bool(true)),
         "false" => Some(TokenKind::Bool(false)),
 

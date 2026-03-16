@@ -65,6 +65,12 @@ type UserId = Brand<string, "UserId">
 
 // Opaque
 opaque type Email = string
+
+// Deriving traits
+type Point = {
+  x: number,
+  y: number,
+} deriving (Eq, Display)
 ```
 
 ### For Block

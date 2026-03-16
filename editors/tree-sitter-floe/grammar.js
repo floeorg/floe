@@ -177,7 +177,11 @@ module.exports = grammar({
         optional($.type_parameters),
         "=",
         field("definition", $._type_definition),
+        optional($.deriving_clause),
       ),
+
+    deriving_clause: ($) =>
+      seq("deriving", "(", commaSep1($.type_identifier), ")"),
 
     _type_definition: ($) =>
       choice($.union_type_definition, $.record_type, $._type_expression),

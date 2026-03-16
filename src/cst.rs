@@ -326,6 +326,19 @@ impl<'src> CstParser<'src> {
 
         self.parse_type_def();
 
+        // Optional deriving clause: `deriving (Eq, Display)`
+        self.eat_trivia();
+        if self.at(TokenKind::Deriving) {
+            self.builder.start_node(SyntaxKind::DERIVING_CLAUSE.into());
+            self.bump(); // consume `deriving`
+            self.eat_trivia();
+            self.expect(TokenKind::LeftParen);
+            self.eat_trivia();
+            self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightParen);
+            self.expect(TokenKind::RightParen);
+            self.builder.finish_node();
+        }
+
         self.builder.finish_node();
     }
 

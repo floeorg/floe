@@ -665,6 +665,81 @@ impl Checker {
                 self.resolve_type(type_expr);
             }
         }
+
+        // Validate and register deriving clause
+        if !decl.deriving.is_empty() {
+            self.check_deriving(decl);
+        }
+    }
+
+    /// Validate a `deriving` clause and register the derived functions.
+    fn check_deriving(&mut self, decl: &TypeDecl) {
+        let span = Span::new(0, 0, 0, 0); // deriving doesn't have its own span yet
+
+        // deriving only works on record types
+        if !matches!(&decl.def, TypeDef::Record(_)) {
+            self.diagnostics.push(
+                Diagnostic::error(
+                    format!(
+                        "`deriving` can only be used on record types, but `{}` is not a record",
+                        decl.name
+                    ),
+                    span,
+                )
+                .with_label("not a record type")
+                .with_help("remove the `deriving` clause or change this to a record type")
+                .with_code("E019"),
+            );
+            return;
+        }
+
+        let type_name = &decl.name;
+
+        for trait_name in &decl.deriving {
+            match trait_name.as_str() {
+                "Eq" => {
+                    // Register eq function: fn eq(self, other: TypeName) -> boolean
+                    let fn_name = "eq".to_string();
+                    let self_type = Type::Named(type_name.clone());
+                    let fn_type = Type::Function {
+                        params: vec![self_type.clone(), self_type],
+                        return_type: Box::new(Type::Bool),
+                    };
+                    self.env.define(&fn_name, fn_type);
+                    self.defined_sources
+                        .insert(fn_name.clone(), format!("derived Eq for {type_name}"));
+                    self.used_names.insert(fn_name.clone());
+                    self.trait_impls
+                        .insert((type_name.clone(), "Eq".to_string()));
+                }
+                "Display" => {
+                    // Register display function: fn display(self) -> string
+                    let fn_name = "display".to_string();
+                    let self_type = Type::Named(type_name.clone());
+                    let fn_type = Type::Function {
+                        params: vec![self_type],
+                        return_type: Box::new(Type::String),
+                    };
+                    self.env.define(&fn_name, fn_type);
+                    self.defined_sources
+                        .insert(fn_name.clone(), format!("derived Display for {type_name}"));
+                    self.used_names.insert(fn_name.clone());
+                    self.trait_impls
+                        .insert((type_name.clone(), "Display".to_string()));
+                }
+                _ => {
+                    self.diagnostics.push(
+                        Diagnostic::error(format!("trait `{trait_name}` cannot be derived"), span)
+                            .with_label("not a derivable trait")
+                            .with_help("only `Eq` and `Display` can be derived")
+                            .with_code("E019"),
+                    );
+                }
+            }
+
+            // Mark the trait name as used
+            self.used_names.insert(trait_name.clone());
+        }
     }
 
     fn resolve_type(&mut self, type_expr: &TypeExpr) -> Type {

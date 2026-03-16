@@ -36,6 +36,7 @@ pub enum SyntaxKind {
     KW_ASSERT,
     KW_WHEN,
     KW_COLLECT,
+    KW_DERIVING,
 
     // Built-in constructors
     KW_OK,
@@ -108,6 +109,7 @@ pub enum SyntaxKind {
     TYPE_DEF_ALIAS,
     TYPE_DEF_STRING_UNION,
     FOR_BLOCK,
+    DERIVING_CLAUSE,
     TRAIT_DECL,
     TEST_BLOCK,
     ASSERT_EXPR,
@@ -231,6 +233,7 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::Assert => SyntaxKind::KW_ASSERT,
         TokenKind::When => SyntaxKind::KW_WHEN,
         TokenKind::Collect => SyntaxKind::KW_COLLECT,
+        TokenKind::Deriving => SyntaxKind::KW_DERIVING,
         TokenKind::Ok => SyntaxKind::KW_OK,
         TokenKind::Err => SyntaxKind::KW_ERR,
         TokenKind::Some => SyntaxKind::KW_SOME,

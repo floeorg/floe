@@ -210,6 +210,12 @@ impl Formatter<'_> {
                     self.write(" ");
                     self.fmt_type_alias_def(&child);
                 }
+                SyntaxKind::DERIVING_CLAUSE => {
+                    self.write(" deriving (");
+                    let deriving_idents = self.collect_idents_direct(&child);
+                    self.write(&deriving_idents.join(", "));
+                    self.write(")");
+                }
                 _ => {}
             }
         }

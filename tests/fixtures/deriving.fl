@@ -1,0 +1,19 @@
+// Record type with deriving Eq
+type Point = {
+  x: number,
+  y: number,
+} deriving (Eq)
+
+// Record type with deriving Display
+type Color = {
+  r: number,
+  g: number,
+  b: number,
+} deriving (Display)
+
+// Record type with both Eq and Display
+type User = {
+  id: string,
+  name: string,
+  email: string,
+} deriving (Eq, Display)

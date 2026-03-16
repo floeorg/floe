@@ -1146,3 +1146,65 @@ fn f() -> Result<number, Array<string>> {
         "expected Ok(42) result, got: {result}"
     );
 }
+
+// ── Deriving ────────────────────────────────────────────────
+
+#[test]
+fn deriving_eq_generates_equality() {
+    let result = emit(
+        r#"
+type Point = {
+  x: number,
+  y: number,
+} deriving (Eq)
+"#,
+    );
+    assert!(
+        result.contains("function eq(self: Point, other: Point): boolean"),
+        "should generate eq function, got: {result}"
+    );
+    assert!(
+        result.contains("self.x === other.x && self.y === other.y"),
+        "should compare all fields, got: {result}"
+    );
+}
+
+#[test]
+fn deriving_display_generates_string() {
+    let result = emit(
+        r#"
+type User = {
+  name: string,
+  age: number,
+} deriving (Display)
+"#,
+    );
+    assert!(
+        result.contains("function display(self: User): string"),
+        "should generate display function, got: {result}"
+    );
+    assert!(
+        result.contains("User(name: ${self.name}, age: ${self.age})"),
+        "should format all fields, got: {result}"
+    );
+}
+
+#[test]
+fn deriving_both_eq_and_display() {
+    let result = emit(
+        r#"
+type User = {
+  id: string,
+  name: string,
+} deriving (Eq, Display)
+"#,
+    );
+    assert!(
+        result.contains("function eq(self: User, other: User): boolean"),
+        "should generate eq function, got: {result}"
+    );
+    assert!(
+        result.contains("function display(self: User): string"),
+        "should generate display function, got: {result}"
+    );
+}

@@ -396,6 +396,13 @@ for User: Display {
         `${self.name} (${self.age})`
     }
 }
+
+// Auto-derive traits for record types
+type Point = {
+    x: number,
+    y: number,
+} deriving (Eq, Display)
+// Generates eq(self, other: Point) -> boolean and display(self) -> string
 ```
 
 ## JSX / React Components

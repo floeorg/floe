@@ -194,6 +194,15 @@
     ],
     "description": "Collect block for error accumulation"
   },
+  "Type with Deriving": {
+    "prefix": "typed",
+    "body": [
+      "type ${1:Name} = {",
+      "\t${2:field}: ${3:Type},",
+      "} deriving (${4:Eq})"
+    ],
+    "description": "Record type with deriving clause"
+  },
   "Todo Placeholder": {
     "prefix": "todo",
     "body": [

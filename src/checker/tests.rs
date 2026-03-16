@@ -1933,6 +1933,7 @@ fn cross_file_trait_resolution() {
             default: None,
             span: dummy_span,
         }))]),
+        deriving: vec![],
     });
     imports.insert("./types".to_string(), resolved);
 
@@ -2472,5 +2473,89 @@ fn f() -> Result<number, Array<string>> {
     assert!(
         has_error(&diags, "E005"),
         "expected E005 for ? on non-Result, got: {diags:?}"
+    );
+}
+
+// ── Deriving ────────────────────────────────────────────────
+
+#[test]
+fn deriving_eq_on_record_type() {
+    let diags = check(
+        r#"
+type Point = {
+  x: number,
+  y: number,
+} deriving (Eq)
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "deriving Eq on record should not error: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn deriving_display_on_record_type() {
+    let diags = check(
+        r#"
+type User = {
+  name: string,
+  age: number,
+} deriving (Display)
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "deriving Display on record should not error: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn deriving_both_eq_and_display() {
+    let diags = check(
+        r#"
+type User = {
+  name: string,
+  age: number,
+} deriving (Eq, Display)
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "deriving both Eq and Display should not error: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn deriving_on_union_type_is_error() {
+    let diags = check(
+        r#"
+type Shape = | Circle(radius: number) | Square(side: number) deriving (Eq)
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "can only be used on record types"),
+        "deriving on union should error: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn deriving_unknown_trait_is_error() {
+    let diags = check(
+        r#"
+type Point = {
+  x: number,
+  y: number,
+} deriving (Hash)
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "cannot be derived"),
+        "deriving unknown trait should error: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

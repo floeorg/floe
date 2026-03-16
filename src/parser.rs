@@ -498,12 +498,24 @@ impl Parser {
 
         let def = self.parse_type_def()?;
 
+        // Optional deriving clause: `deriving (Eq, Display)`
+        let deriving = if self.check(&TokenKind::Deriving) {
+            self.advance();
+            self.expect(&TokenKind::LeftParen)?;
+            let traits = self.parse_comma_separated(|p| p.expect_identifier())?;
+            self.expect(&TokenKind::RightParen)?;
+            traits
+        } else {
+            Vec::new()
+        };
+
         Ok(TypeDecl {
             exported: false,
             opaque,
             name,
             type_params,
             def,
+            deriving,
         })
     }
 

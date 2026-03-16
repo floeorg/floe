@@ -165,3 +165,9 @@ fn snapshot_collect() {
     let output = compile_fixture("collect");
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_deriving() {
+    let output = compile_fixture("deriving");
+    insta::assert_snapshot!(output);
+}
