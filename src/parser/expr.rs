@@ -79,11 +79,31 @@ impl Parser {
     }
 
     /// Pipe: `a |> f |> g` — binds tighter than `==` but looser than `<`/`>`
+    /// Also supports `a |> match { ... }` which desugars to `match a { ... }`.
     fn parse_pipe_expr(&mut self) -> Result<Expr, ParseError> {
         let mut left = self.parse_comparison_expr()?;
 
         while matches!(self.current_kind(), TokenKind::Pipe) {
             self.advance();
+
+            // Pipe into match: `x |> match { ... }` → `match x { ... }`
+            if matches!(self.current_kind(), TokenKind::Match) {
+                let match_expr = self.parse_subjectless_match()?;
+                if let ExprKind::Match { arms, .. } = match_expr.kind {
+                    let span = self.merge_spans(left.span, match_expr.span);
+                    left = Expr {
+                        kind: ExprKind::Match {
+                            subject: Box::new(left),
+                            arms,
+                        },
+                        span,
+                    };
+                } else {
+                    unreachable!("parse_subjectless_match should return Match");
+                }
+                continue;
+            }
+
             let right = self.parse_comparison_expr()?;
             let span = self.merge_spans(left.span, right.span);
             left = Expr {

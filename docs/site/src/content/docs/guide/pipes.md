@@ -91,6 +91,44 @@ const result = users
 
 `tap` calls the function you give it (for side effects like logging), then returns the original value unchanged. It compiles to an IIFE that calls the function and returns the value.
 
+## Pipe into Match
+
+You can pipe a value directly into `match` to combine pipelines with pattern matching:
+
+```floe
+const label = price |> match {
+    _ when _ < 10 -> "cheap",
+    _ when _ < 100 -> "moderate",
+    _ -> "expensive",
+}
+```
+
+This is equivalent to `match price { ... }` but lets you keep the pipeline flowing:
+
+```floe
+const message = response.status
+    |> match {
+        200..299 -> "success",
+        404 -> "not found",
+        500..599 -> "server error",
+        s -> `unexpected: ${s}`,
+    }
+```
+
+It works at the end of a chain too:
+
+```floe
+const label = product
+    |> effectivePrice
+    |> match {
+        _ when _ < 10 -> "cheap",
+        _ when _ < 100 -> "moderate",
+        _ -> "expensive",
+    }
+```
+
+`x |> match { ... }` compiles identically to `match x { ... }`. It is pure syntax sugar for pipeline ergonomics.
+
 ## When to Use Pipes
 
 Pipes shine when you have a sequence of transformations. They replace:

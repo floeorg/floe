@@ -34,6 +34,38 @@ impl Parser {
         })
     }
 
+    /// Parse `match { arms }` without a subject — used for `x |> match { ... }`.
+    /// The caller provides the subject from the pipe's left side.
+    /// Returns a Match expr with a Placeholder subject (caller replaces it).
+    pub(super) fn parse_subjectless_match(&mut self) -> Result<Expr, ParseError> {
+        let start_span = self.current_span();
+        self.expect(&TokenKind::Match)?;
+        self.expect(&TokenKind::LeftBrace)?;
+
+        let mut arms = Vec::new();
+        while !self.check(&TokenKind::RightBrace) && !self.is_at_end() {
+            let arm = self.parse_match_arm()?;
+            arms.push(arm);
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+        }
+
+        self.expect(&TokenKind::RightBrace)?;
+        let end_span = self.previous_span();
+
+        Ok(Expr {
+            kind: ExprKind::Match {
+                subject: Box::new(Expr {
+                    kind: ExprKind::Placeholder,
+                    span: start_span,
+                }),
+                arms,
+            },
+            span: self.merge_spans(start_span, end_span),
+        })
+    }
+
     fn parse_match_arm(&mut self) -> Result<MatchArm, ParseError> {
         let start_span = self.current_span();
         let pattern = self.parse_pattern()?;

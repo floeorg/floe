@@ -45,6 +45,7 @@ The pipe operator passes the left side as the first argument to the right side. 
 x |> f          // f(x)
 x |> f(a, _)    // f(a, x)
 x |> f |> g     // g(f(x))
+x |> match { ... }  // match x { ... }
 ```
 
 ## Unwrap

@@ -860,6 +860,38 @@ impl<'src> Lowerer<'src> {
             .any(|t| t.as_token().is_some_and(|t| t.kind() == kind))
     }
 
+    /// Check if a MATCH_EXPR node has no subject expression (used for pipe-into-match).
+    /// A subjectless match has `match` keyword followed directly by `{`, with no
+    /// expression child nodes before the first MATCH_ARM.
+    fn is_subjectless_match(&self, node: &SyntaxNode) -> bool {
+        // A subjectless match has no child expression nodes — only MATCH_ARM children
+        for child in node.children() {
+            if child.kind() == SyntaxKind::MATCH_ARM {
+                continue;
+            }
+            // Any other child node means there's a subject expression
+            return false;
+        }
+        // Also check: no token-level expressions (identifiers, numbers, etc.)
+        // between `match` keyword and `{`
+        let mut past_match_kw = false;
+        for tok in node.children_with_tokens() {
+            if let Some(token) = tok.as_token() {
+                if token.kind() == SyntaxKind::KW_MATCH {
+                    past_match_kw = true;
+                    continue;
+                }
+                if past_match_kw && token.kind() == SyntaxKind::L_BRACE {
+                    return true; // No expression between `match` and `{`
+                }
+                if past_match_kw && !token.kind().is_trivia() {
+                    return false; // Found a token that could be a subject
+                }
+            }
+        }
+        true
+    }
+
     fn unquote_string(&self, text: &str) -> String {
         // Remove surrounding quotes
         if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {

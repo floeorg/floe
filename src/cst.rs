@@ -708,7 +708,14 @@ impl<'src> CstParser<'src> {
                 .start_node_at(checkpoint, SyntaxKind::PIPE_EXPR.into());
             self.bump(); // |>
             self.eat_trivia();
-            self.parse_or_expr();
+
+            // Pipe into match: `x |> match { ... }`
+            if self.at(TokenKind::Match) {
+                self.parse_subjectless_match_expr();
+            } else {
+                self.parse_or_expr();
+            }
+
             self.builder.finish_node();
         }
     }
@@ -1196,6 +1203,27 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::Match);
         self.eat_trivia();
         self.parse_expr();
+        self.eat_trivia();
+        self.expect(TokenKind::LeftBrace);
+        self.eat_trivia();
+
+        while !self.at(TokenKind::RightBrace) && !self.at_end() {
+            self.parse_match_arm();
+            self.eat_trivia();
+            if self.at(TokenKind::Comma) {
+                self.bump();
+                self.eat_trivia();
+            }
+        }
+
+        self.expect(TokenKind::RightBrace);
+        self.builder.finish_node();
+    }
+
+    /// Parse `match { arms }` without a subject — used for `x |> match { ... }`.
+    fn parse_subjectless_match_expr(&mut self) {
+        self.builder.start_node(SyntaxKind::MATCH_EXPR.into());
+        self.expect(TokenKind::Match);
         self.eat_trivia();
         self.expect(TokenKind::LeftBrace);
         self.eat_trivia();

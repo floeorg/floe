@@ -6,20 +6,59 @@ impl<'src> Lowerer<'src> {
 
         match node.kind() {
             SyntaxKind::PIPE_EXPR => {
-                let exprs = self.lower_child_exprs(node);
-                if exprs.len() >= 2 {
-                    let mut iter = exprs.into_iter();
-                    let left = iter.next()?;
-                    let right = iter.next()?;
+                // Check for pipe-into-match: `x |> match { ... }`
+                // If the right child is a MATCH_EXPR without a subject, desugar
+                // to `match x { ... }` by using the left side as the match subject.
+                let children: Vec<_> = node.children().collect();
+                let has_pipe_match = children.len() >= 2
+                    && children.last().is_some_and(|c| {
+                        c.kind() == SyntaxKind::MATCH_EXPR && self.is_subjectless_match(c)
+                    });
+
+                if has_pipe_match {
+                    // Lower the left side (everything before the match)
+                    let left_nodes: Vec<_> = children[..children.len() - 1].to_vec();
+                    let left = if left_nodes.len() == 1 {
+                        self.lower_expr_node(&left_nodes[0])
+                    } else {
+                        self.lower_token_expr(node)
+                    };
+                    let left = left?;
+
+                    // Lower the match arms from the MATCH_EXPR node
+                    let match_node = children.last()?;
+                    let mut arms = Vec::new();
+                    for child in match_node.children() {
+                        if child.kind() == SyntaxKind::MATCH_ARM
+                            && let Some(arm) = self.lower_match_arm(&child)
+                        {
+                            arms.push(arm);
+                        }
+                    }
+
                     Some(Expr {
                         span: self.node_span(node),
-                        kind: ExprKind::Pipe {
-                            left: Box::new(left),
-                            right: Box::new(right),
+                        kind: ExprKind::Match {
+                            subject: Box::new(left),
+                            arms,
                         },
                     })
                 } else {
-                    exprs.into_iter().next()
+                    let exprs = self.lower_child_exprs(node);
+                    if exprs.len() >= 2 {
+                        let mut iter = exprs.into_iter();
+                        let left = iter.next()?;
+                        let right = iter.next()?;
+                        Some(Expr {
+                            span: self.node_span(node),
+                            kind: ExprKind::Pipe {
+                                left: Box::new(left),
+                                right: Box::new(right),
+                            },
+                        })
+                    } else {
+                        exprs.into_iter().next()
+                    }
                 }
             }
 

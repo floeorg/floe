@@ -54,6 +54,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 |---------|--------|-------------|
 | Pipe operator | `a \|> b \|> c` | `c(b(a))` |
 | Pipe w/ placeholder | `a \|> f(x, _, y)` | `f(x, a, y)` |
+| Pipe into match | `a \|> match { ... }` | `match a { ... }` (syntax sugar) |
 | Partial application | `add(10, _)` | `(x) => add(10, x)` |
 | Match expression | `match x { ... }` | exhaustive if/else chain |
 | Match with ranges | `match n { 1..10 -> ... }` | range check |
@@ -159,6 +160,26 @@ Pipe rules:
 2. Has `_` → replace `_` with piped value: `a |> f(b, _, c)` → `f(b, a, c)`
 3. `_` outside a pipe → create partial function: `f(b, _, c)` → `(x) => f(b, x, c)`
 4. Only ONE `_` allowed per call — compile error on `f(_, _)`
+5. `match` as pipe target → `a |> match { ... }` desugars to `match a { ... }`
+
+```floe
+// Pipe into match — pipe the value directly into pattern matching
+const label = product
+    |> effectivePrice
+    |> match {
+        _ when _ < 10 -> "cheap",
+        _ when _ < 100 -> "moderate",
+        _ -> "expensive",
+    }
+
+// Equivalent to:
+const price = product |> effectivePrice
+const label = match price {
+    _ when price < 10 -> "cheap",
+    _ when price < 100 -> "moderate",
+    _ -> "expensive",
+}
+```
 
 ### Match Expressions
 

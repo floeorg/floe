@@ -152,6 +152,54 @@ fn pipe_chained() {
     assert_eq!(emit("a |> f |> g"), "g(f(a));");
 }
 
+// ── Pipe into Match ─────────────────────────────────────────
+
+#[test]
+fn pipe_into_match_simple() {
+    // x |> match { 1 -> true, _ -> false } -> same as match x { ... }
+    let result = emit("x |> match { 1 -> true, _ -> false }");
+    assert!(
+        result.contains("=== 1"),
+        "expected literal check, got: {result}"
+    );
+    assert!(
+        result.contains("true"),
+        "expected true branch, got: {result}"
+    );
+    assert!(
+        result.contains("false"),
+        "expected false branch, got: {result}"
+    );
+}
+
+#[test]
+fn pipe_chain_into_match() {
+    // a |> f |> match { 1 -> true, _ -> false }
+    // desugars to: match (f(a)) { 1 -> true, _ -> false }
+    let result = emit("a |> f |> match { 1 -> true, _ -> false }");
+    assert!(
+        result.contains("f(a)"),
+        "expected f(a) as match subject, got: {result}"
+    );
+    assert!(
+        result.contains("=== 1"),
+        "expected literal check, got: {result}"
+    );
+}
+
+#[test]
+fn pipe_into_match_with_guard() {
+    let result = emit(r#"price |> match { _ when price < 10 -> "cheap", _ -> "expensive" }"#);
+    assert!(
+        result.contains("price < 10"),
+        "expected guard condition, got: {result}"
+    );
+    assert!(
+        result.contains("cheap"),
+        "expected cheap branch, got: {result}"
+    );
+}
+
 // ── Partial Application ──────────────────────────────────────
 
 #[test]

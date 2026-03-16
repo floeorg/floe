@@ -153,6 +153,32 @@ match value {
 }
 ```
 
+## Pipe into Match
+
+You can pipe a value directly into `match` to combine pipelines with pattern matching:
+
+```floe
+const label = price |> match {
+    _ when _ < 10 -> "cheap",
+    _ when _ < 100 -> "moderate",
+    _ -> "expensive",
+}
+```
+
+This works at the end of a pipeline chain:
+
+```floe
+const label = product
+    |> effectivePrice
+    |> match {
+        _ when _ < 10 -> "cheap",
+        _ when _ < 100 -> "moderate",
+        _ -> "expensive",
+    }
+```
+
+`x |> match { ... }` is pure syntax sugar and compiles identically to `match x { ... }`. See [Pipes](/guide/pipes/#pipe-into-match) for more details.
+
 ## Exhaustiveness
 
 The compiler checks that your match is exhaustive:

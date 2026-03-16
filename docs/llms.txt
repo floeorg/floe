@@ -128,6 +128,22 @@ users
     |> filter(.active)
     |> tap(Console.log)    // logs value, passes it through
     |> map(.name)
+
+// Pipe into match — pipe a value directly into pattern matching
+const label = price |> match {
+    _ when _ < 10 -> "cheap",
+    _ when _ < 100 -> "moderate",
+    _ -> "expensive",
+}
+// Equivalent to: match price { ... }
+
+// Chain into match
+const message = response.status
+    |> match {
+        200..299 -> "success",
+        404 -> "not found",
+        _ -> "error",
+    }
 ```
 
 ## Match Expressions
@@ -414,6 +430,7 @@ match key {
 | `fn f(x: number) -> number { x }` | `function f(x: number): number { return x; }` |
 | `a \|> f(b)` | `f(a, b)` |
 | `a \|> f(b, _, c)` | `f(b, a, c)` |
+| `a \|> match { 1 -> "one", _ -> "other" }` | `match a { ... }` (desugared) |
 | `\|x\| x + 1` | `(x) => x + 1` |
 | `.name` (in callback) | `(x) => x.name` |
 | `Ok(value)` | `{ ok: true, value }` |

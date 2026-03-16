@@ -1540,3 +1540,61 @@ fn lambda_destructured_param() {
         other => panic!("expected arrow, got {other:?}"),
     }
 }
+
+// ── Pipe into Match ────────────────────────────────────────────
+
+#[test]
+fn pipe_into_match_simple() {
+    // `x |> match { _ -> 1 }` should desugar to `match x { _ -> 1 }`
+    let expr = first_expr("x |> match {\n    _ -> 1,\n}");
+    match expr {
+        ExprKind::Match { subject, arms } => {
+            assert!(
+                matches!(subject.kind, ExprKind::Identifier(ref name) if name == "x"),
+                "expected subject to be 'x', got {:?}",
+                subject.kind
+            );
+            assert_eq!(arms.len(), 1);
+        }
+        other => panic!("expected match, got {other:?}"),
+    }
+}
+
+#[test]
+fn pipe_into_match_multiple_arms() {
+    let expr = first_expr(
+        r#"price |> match {
+        _ when _ < 10 -> "cheap",
+        _ when _ < 100 -> "moderate",
+        _ -> "expensive",
+    }"#,
+    );
+    match expr {
+        ExprKind::Match { subject, arms } => {
+            assert!(
+                matches!(subject.kind, ExprKind::Identifier(ref name) if name == "price"),
+                "expected subject to be 'price', got {:?}",
+                subject.kind
+            );
+            assert_eq!(arms.len(), 3);
+        }
+        other => panic!("expected match, got {other:?}"),
+    }
+}
+
+#[test]
+fn pipe_chain_into_match() {
+    // `x |> f |> match { _ -> 1 }` should parse as `match (x |> f) { _ -> 1 }`
+    let expr = first_expr("x |> f |> match {\n    _ -> 1,\n}");
+    match expr {
+        ExprKind::Match { subject, arms } => {
+            assert!(
+                matches!(subject.kind, ExprKind::Pipe { .. }),
+                "expected subject to be a pipe, got {:?}",
+                subject.kind
+            );
+            assert_eq!(arms.len(), 1);
+        }
+        other => panic!("expected match, got {other:?}"),
+    }
+}
