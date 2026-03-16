@@ -125,6 +125,14 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Array", "concat", [array_of(t.clone()), array_of(t.clone())], array_of(t.clone()), "[...$0, ...$1]"),
         stdlib_fn!("Array", "append", [array_of(t.clone()), t.clone()], array_of(t.clone()), "[...$0, $1]"),
         stdlib_fn!("Array", "prepend", [array_of(t.clone()), t.clone()], array_of(t.clone()), "[$1, ...$0]"),
+        stdlib_fn!("Array", "any", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], Type::Bool, "$0.some($1)"),
+        stdlib_fn!("Array", "all", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], Type::Bool, "$0.every($1)"),
+        stdlib_fn!("Array", "sum", [array_of(Type::Number)], Type::Number, "$0.reduce((a, b) => a + b, 0)"),
+        stdlib_fn!("Array", "join", [array_of(Type::String), Type::String], Type::String, "$0.join($1)"),
+        stdlib_fn!("Array", "isEmpty", [array_of(t.clone())], Type::Bool, "$0.length === 0"),
+        stdlib_fn!("Array", "chunk", [array_of(t.clone()), Type::Number], array_of(array_of(t.clone())), "(() => { const _a = $0; const _n = $1; const _r = []; for (let _i = 0; _i < _a.length; _i += _n) _r.push(_a.slice(_i, _i + _n)); return _r; })()"),
+        stdlib_fn!("Array", "unique", [array_of(t.clone())], array_of(t.clone()), "[...new Set($0)]"),
+        stdlib_fn!("Array", "groupBy", [array_of(t.clone()), fun(vec![t.clone()], Type::String)], Type::Named("Record".to_string()), "Object.groupBy($0, $1)"),
         stdlib_fn!("Array", "zip", [array_of(t.clone()), array_of(u.clone())], array_of(Type::Tuple(vec![t.clone(), u.clone()])), "$0.map((_v, _i) => [_v, $1[_i]] as const)"),
         // ── Option ──────────────────────────────────────────────
         stdlib_fn!("Option", "map", [option_of(t.clone()), fun(vec![t.clone()], u.clone())], option_of(u.clone()), "$0 !== undefined ? ($1)($0) : undefined"),
@@ -211,6 +219,62 @@ mod tests {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Option", "map").unwrap();
         assert!(f.codegen.contains("undefined"));
+    }
+
+    #[test]
+    fn lookup_array_any() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "any").unwrap();
+        assert_eq!(f.codegen, "$0.some($1)");
+    }
+
+    #[test]
+    fn lookup_array_all() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "all").unwrap();
+        assert_eq!(f.codegen, "$0.every($1)");
+    }
+
+    #[test]
+    fn lookup_array_sum() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "sum").unwrap();
+        assert_eq!(f.codegen, "$0.reduce((a, b) => a + b, 0)");
+    }
+
+    #[test]
+    fn lookup_array_join() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "join").unwrap();
+        assert_eq!(f.codegen, "$0.join($1)");
+    }
+
+    #[test]
+    fn lookup_array_is_empty() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "isEmpty").unwrap();
+        assert_eq!(f.codegen, "$0.length === 0");
+    }
+
+    #[test]
+    fn lookup_array_chunk() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "chunk").unwrap();
+        assert!(f.codegen.contains("slice"));
+    }
+
+    #[test]
+    fn lookup_array_unique() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "unique").unwrap();
+        assert_eq!(f.codegen, "[...new Set($0)]");
+    }
+
+    #[test]
+    fn lookup_array_group_by() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "groupBy").unwrap();
+        assert_eq!(f.codegen, "Object.groupBy($0, $1)");
     }
 
     #[test]

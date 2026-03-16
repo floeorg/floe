@@ -1155,6 +1155,14 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `()` (unit value) | `undefined` |
 | `fn f() -> ()` (unit return) | `function f(): void` |
 | `Array.sort(arr)` | `[...arr].sort((a, b) => a - b)` |
+| `Array.any(arr, pred)` | `arr.some(pred)` |
+| `Array.all(arr, pred)` | `arr.every(pred)` |
+| `Array.sum(arr)` | `arr.reduce((a, b) => a + b, 0)` |
+| `Array.join(arr, sep)` | `arr.join(sep)` |
+| `Array.isEmpty(arr)` | `arr.length === 0` |
+| `Array.chunk(arr, n)` | slice loop |
+| `Array.unique(arr)` | `[...new Set(arr)]` |
+| `Array.groupBy(arr, fn)` | `Object.groupBy(arr, fn)` |
 | `Number.parse("123")` | strict parse returning `Result` |
 | `Brand<string, "UserId">` | `string` (erased) |
 | `opaque type X = T` | `T` (erased, access controlled at compile time) |

@@ -455,6 +455,54 @@ fn stdlib_array_contains() {
     assert!(result.contains(".some("));
 }
 
+#[test]
+fn stdlib_array_any() {
+    assert_eq!(
+        emit("Array.any([1, 2, 3], |n| n > 2)"),
+        "[1, 2, 3].some((n) => n > 2);"
+    );
+}
+
+#[test]
+fn stdlib_array_all() {
+    assert_eq!(
+        emit("Array.all([1, 2, 3], |n| n > 0)"),
+        "[1, 2, 3].every((n) => n > 0);"
+    );
+}
+
+#[test]
+fn stdlib_array_sum() {
+    assert_eq!(
+        emit("Array.sum([1, 2, 3])"),
+        "[1, 2, 3].reduce((a, b) => a + b, 0);"
+    );
+}
+
+#[test]
+fn stdlib_array_join() {
+    assert_eq!(
+        emit(r#"Array.join(["a", "b"], ", ")"#),
+        r#"["a", "b"].join(", ");"#
+    );
+}
+
+#[test]
+fn stdlib_array_is_empty() {
+    assert_eq!(emit("Array.isEmpty([])"), "[].length === 0;");
+}
+
+#[test]
+fn stdlib_array_unique() {
+    assert_eq!(emit("Array.unique([1, 2, 2])"), "[...new Set([1, 2, 2])];");
+}
+
+#[test]
+fn stdlib_array_chunk() {
+    let result = emit("Array.chunk([1, 2, 3, 4], 2)");
+    assert!(result.contains("slice"));
+}
+
 // ── Stdlib: Option ───────────────────────────────────────────
 
 #[test]

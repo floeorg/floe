@@ -268,9 +268,10 @@ impl Parser {
                     };
                 }
                 // Member access: `expr.field`
+                // Banned keywords are allowed as field names (e.g. Array.any)
                 TokenKind::Dot => {
                     self.advance();
-                    let field = self.expect_identifier()?;
+                    let field = self.expect_identifier_or_keyword()?;
                     let span = self.merge_spans(expr.span, self.previous_span());
                     expr = Expr {
                         kind: ExprKind::Member {

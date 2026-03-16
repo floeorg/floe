@@ -38,6 +38,14 @@ All array functions return new arrays. They never mutate the original.
 | `Array.reverse` | `Array<T> -> Array<T>` | Reverse order (returns new array) |
 | `Array.reduce` | `Array<T>, U, (U, T -> U) -> U` | Fold into a single value |
 | `Array.length` | `Array<T> -> number` | Number of elements |
+| `Array.any` | `Array<T>, (T -> boolean) -> boolean` | True if any element matches predicate |
+| `Array.all` | `Array<T>, (T -> boolean) -> boolean` | True if all elements match predicate |
+| `Array.sum` | `Array<number> -> number` | Sum all elements |
+| `Array.join` | `Array<string>, string -> string` | Join elements with separator |
+| `Array.isEmpty` | `Array<T> -> boolean` | True if array has no elements |
+| `Array.chunk` | `Array<T>, number -> Array<Array<T>>` | Split into chunks of given size |
+| `Array.unique` | `Array<T> -> Array<T>` | Remove duplicate elements |
+| `Array.groupBy` | `Array<T>, (T -> string) -> Record` | Group elements by key function |
 | `Array.zip` | `Array<T>, Array<U> -> Array<[T, U]>` | Pair elements from two arrays |
 
 ### Examples
@@ -62,6 +70,20 @@ const result = users
   |> Array.sortBy(.name)
   |> Array.take(10)
   |> Array.map(.email)
+
+// Check predicates
+const hasAdmin = users |> Array.any(.role == "admin")   // true/false
+const allActive = users |> Array.all(.active)           // true/false
+
+// Aggregate
+const total = [1, 2, 3] |> Array.sum             // 6
+const csv = ["a", "b", "c"] |> Array.join(", ")  // "a, b, c"
+
+// Utilities
+const empty = Array.isEmpty([])          // true
+const chunks = [1, 2, 3, 4, 5] |> Array.chunk(2)   // [[1, 2], [3, 4], [5]]
+const deduped = [1, 2, 2, 3] |> Array.unique        // [1, 2, 3]
+const grouped = users |> Array.groupBy(.role)        // { admin: [...], user: [...] }
 ```
 
 ---

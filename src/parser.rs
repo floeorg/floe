@@ -1186,6 +1186,27 @@ impl Parser {
         }
     }
 
+    /// Like `expect_identifier` but also accepts banned keywords.
+    /// Used for member access where banned keywords are valid field names
+    /// (e.g. `Array.any`, `Array.all`).
+    fn expect_identifier_or_keyword(&mut self) -> Result<String, ParseError> {
+        match self.current_kind() {
+            TokenKind::Identifier(name) => {
+                self.advance();
+                Ok(name)
+            }
+            TokenKind::Banned(banned) => {
+                let name = banned.as_str().to_string();
+                self.advance();
+                Ok(name)
+            }
+            _ => Err(self.error(&format!(
+                "expected identifier, found {:?}",
+                self.current_kind()
+            ))),
+        }
+    }
+
     fn expect_string(&mut self) -> Result<String, ParseError> {
         match self.current_kind() {
             TokenKind::String(s) => {
