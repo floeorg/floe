@@ -11,13 +11,13 @@ function format(s: string): { ok: true; value: string } | { ok: false; error: st
 }
 
 function _testPipeUnwrap(): { ok: true; value: string } | { ok: false; error: string } {
-  return validate("hello")!;
+  return (() => { const __r = validate("hello"); if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })();
 }
 
 function _testPipeChainUnwrap(): { ok: true; value: string } | { ok: false; error: string } {
-  return format(validate("hello"))!;
+  return (() => { const __r = format(validate("hello")); if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })();
 }
 
 function _testPipeOptionUnwrap(): number | undefined {
-  return [1, 2, 3][0]!;
+  return (() => { const __r = [1, 2, 3][0]; if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })();
 }

@@ -74,14 +74,15 @@ impl Codegen {
                 self.emit_pipe(left, right);
             }
 
-            // Unwrap: `expr?` → early return pattern
-            // In expression context, we emit as inline (the statement-level
-            // version with temp vars is handled at block level)
+            // Unwrap: `expr?` → inline Result unwrap via IIFE
             ExprKind::Unwrap(inner) => {
-                // Simple inline unwrap — the full temp var version needs
-                // statement context. For now emit as-is for nested expressions.
+                // Emit as IIFE that checks .ok and either returns value or throws
+                // Use 'ok' in __r check to distinguish Floe Results from HTTP Response
+                self.push("(() => { const __r = ");
                 self.emit_expr(inner);
-                self.push("!");
+                self.push(
+                    "; if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })()",
+                );
             }
 
             ExprKind::Call { callee, args, .. } => {
@@ -516,7 +517,7 @@ impl Codegen {
         }
     }
 
-    fn emit_pipe(&mut self, left: &Expr, right: &Expr) {
+    pub(super) fn emit_pipe(&mut self, left: &Expr, right: &Expr) {
         match &right.kind {
             // Stdlib pipe: `arr |> Array.sort` or `arr |> Array.map(fn)`
             // Also handles type-directed resolution: `arr |> map(fn)` → stdlib lookup by name

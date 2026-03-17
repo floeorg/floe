@@ -23,6 +23,20 @@ pub struct CodegenOutput {
     pub has_jsx: bool,
 }
 
+/// A single step in a flattened pipe+unwrap chain.
+struct PipeStep {
+    /// The expression for this step.
+    /// For the base (first) step, this is the original expression.
+    /// For pipe steps, this is the "right" side of the pipe.
+    expr: Expr,
+    /// Whether this step has `?` (needs Result unwrap with early return).
+    unwrap: bool,
+    /// Whether this step is wrapped in `await`.
+    is_await: bool,
+    /// Whether this is a pipe step (true) or the base expression (false).
+    is_pipe: bool,
+}
+
 /// The Floe code generator. Emits clean, readable TypeScript / TSX.
 pub struct Codegen {
     output: String,
@@ -215,27 +229,108 @@ impl Codegen {
         match &expr.kind {
             ExprKind::Unwrap(_) => true,
             ExprKind::Await(inner) => Self::expr_has_unwrap(inner),
-            ExprKind::Pipe { right, .. } => Self::expr_has_unwrap(right),
+            ExprKind::Pipe { left, right } => {
+                Self::expr_has_unwrap(left) || Self::expr_has_unwrap(right)
+            }
             _ => false,
         }
     }
 
-    /// Strip all Unwrap nodes from an expression, leaving the inner expression.
-    fn strip_unwraps(expr: &Expr) -> Expr {
+    /// Flatten a chain of `Unwrap(Pipe { left: Unwrap(Pipe { ... }), right })` into
+    /// sequential steps. This enables emitting clean `const _rN = ...; if (!_rN.ok) return _rN;`
+    /// instead of deeply nested IIFEs.
+    fn flatten_pipe_unwrap_chain(expr: &Expr) -> Vec<PipeStep> {
+        let mut steps = Vec::new();
+        Self::collect_pipe_steps(expr, &mut steps);
+        steps
+    }
+
+    fn collect_pipe_steps(expr: &Expr, steps: &mut Vec<PipeStep>) {
         match &expr.kind {
-            ExprKind::Unwrap(inner) => Self::strip_unwraps(inner),
-            ExprKind::Await(inner) => Expr {
-                kind: ExprKind::Await(Box::new(Self::strip_unwraps(inner))),
-                span: expr.span,
-            },
-            ExprKind::Pipe { left, right } => Expr {
-                kind: ExprKind::Pipe {
-                    left: Box::new(Self::strip_unwraps(left)),
-                    right: Box::new(Self::strip_unwraps(right)),
+            // Unwrap(Pipe { left, right }) → recurse into left, then add right as a pipe step with unwrap
+            ExprKind::Unwrap(inner) => match &inner.kind {
+                ExprKind::Pipe { left, right } => {
+                    Self::collect_pipe_steps(left, steps);
+                    steps.push(PipeStep {
+                        expr: (**right).clone(),
+                        unwrap: true,
+                        is_await: false,
+                        is_pipe: true,
+                    });
+                }
+                ExprKind::Await(await_inner) => match &await_inner.kind {
+                    ExprKind::Pipe { left, right } => {
+                        Self::collect_pipe_steps(left, steps);
+                        steps.push(PipeStep {
+                            expr: (**right).clone(),
+                            unwrap: true,
+                            is_await: true,
+                            is_pipe: true,
+                        });
+                    }
+                    _ => {
+                        // await expr? → base step
+                        steps.push(PipeStep {
+                            expr: (**await_inner).clone(),
+                            unwrap: true,
+                            is_await: true,
+                            is_pipe: false,
+                        });
+                    }
                 },
-                span: expr.span,
+                _ => {
+                    // Simple unwrap without pipe
+                    steps.push(PipeStep {
+                        expr: (**inner).clone(),
+                        unwrap: true,
+                        is_await: false,
+                        is_pipe: false,
+                    });
+                }
             },
-            _ => expr.clone(),
+            // Await(Unwrap(...)) → unwrap the inner with await flag
+            ExprKind::Await(inner) if matches!(inner.kind, ExprKind::Unwrap(_)) => {
+                if let ExprKind::Unwrap(unwrap_inner) = &inner.kind {
+                    match &unwrap_inner.kind {
+                        ExprKind::Pipe { left, right } => {
+                            Self::collect_pipe_steps(left, steps);
+                            steps.push(PipeStep {
+                                expr: (**right).clone(),
+                                unwrap: true,
+                                is_await: true,
+                                is_pipe: true,
+                            });
+                        }
+                        _ => {
+                            steps.push(PipeStep {
+                                expr: (**unwrap_inner).clone(),
+                                unwrap: true,
+                                is_await: true,
+                                is_pipe: false,
+                            });
+                        }
+                    }
+                }
+            }
+            // Pipe without unwrap at this level
+            ExprKind::Pipe { left, right } => {
+                Self::collect_pipe_steps(left, steps);
+                steps.push(PipeStep {
+                    expr: (**right).clone(),
+                    unwrap: false,
+                    is_await: false,
+                    is_pipe: true,
+                });
+            }
+            // Base expression (no pipe, no unwrap)
+            _ => {
+                steps.push(PipeStep {
+                    expr: expr.clone(),
+                    unwrap: false,
+                    is_await: false,
+                    is_pipe: false,
+                });
+            }
         }
     }
 
@@ -355,43 +450,99 @@ impl Codegen {
 
     fn emit_const(&mut self, decl: &ConstDecl) {
         // Handle `const x = expr?` → Result unwrap with early return
+        // For chained pipes with `?`: flatten into sequential _rN steps
         if Self::expr_has_unwrap(&decl.value) {
-            let stripped = Self::strip_unwraps(&decl.value);
-            let temp = format!("_r{}", self.unwrap_counter);
-            self.unwrap_counter += 1;
+            let steps = Self::flatten_pipe_unwrap_chain(&decl.value);
 
-            // const _rN = <inner expression without ?>;
-            self.emit_indent();
-            self.push(&format!("const {temp} = "));
-            self.emit_expr(&stripped);
-            self.push(";");
-            self.newline();
+            // Track the name of the last temp var for the final binding
+            let mut last_temp = String::new();
+            let mut last_had_unwrap = false;
 
-            // if (!_rN.ok) return _rN;
-            self.emit_indent();
-            self.push(&format!("if (!{temp}.ok) return {temp};"));
-            self.newline();
+            for (i, step) in steps.iter().enumerate() {
+                let temp = format!("_r{}", self.unwrap_counter);
+                self.unwrap_counter += 1;
 
-            // const <binding> = _rN.value;
-            self.emit_indent();
-            if decl.exported {
-                self.push("export ");
-            }
-            self.push("const ");
-            match &decl.binding {
-                ConstBinding::Name(name) => self.push(name),
-                ConstBinding::Array(names) | ConstBinding::Tuple(names) => {
-                    self.push("[");
-                    self.push(&names.join(", "));
-                    self.push("]");
+                // Emit the step expression into a buffer to detect async IIFEs
+                let step_code = if step.is_pipe {
+                    let left_expr = if last_had_unwrap {
+                        Expr {
+                            kind: ExprKind::Identifier(format!("{last_temp}.value")),
+                            span: step.expr.span,
+                        }
+                    } else {
+                        Expr {
+                            kind: ExprKind::Identifier(last_temp.clone()),
+                            span: step.expr.span,
+                        }
+                    };
+                    let mut sub = self.sub_codegen();
+                    sub.emit_pipe(&left_expr, &step.expr);
+                    if sub.needs_deep_equal {
+                        self.needs_deep_equal = true;
+                    }
+                    sub.output
+                } else {
+                    let mut sub = self.sub_codegen();
+                    sub.emit_expr(&step.expr);
+                    if sub.needs_deep_equal {
+                        self.needs_deep_equal = true;
+                    }
+                    sub.output
+                };
+
+                // Determine if we need `await`: explicit from source or async IIFE from stdlib
+                let needs_await = step.is_await || step_code.starts_with("(async ");
+
+                self.emit_indent();
+                if needs_await {
+                    self.push(&format!("const {temp} = await "));
+                } else {
+                    self.push(&format!("const {temp} = "));
                 }
-                ConstBinding::Object(names) => {
-                    self.push("{ ");
-                    self.push(&names.join(", "));
-                    self.push(" }");
+                self.push(&step_code);
+                self.push(";");
+                self.newline();
+
+                if step.unwrap {
+                    self.emit_indent();
+                    self.push(&format!("if (!{temp}.ok) return {temp};"));
+                    self.newline();
+                    last_had_unwrap = true;
+                } else {
+                    last_had_unwrap = false;
+                }
+                last_temp = temp;
+
+                // After the last step with unwrap, if this is the final step
+                // or if i is last, emit the final binding
+                if i == steps.len() - 1 {
+                    let value_expr = if last_had_unwrap {
+                        format!("{last_temp}.value")
+                    } else {
+                        last_temp.clone()
+                    };
+
+                    self.emit_indent();
+                    if decl.exported {
+                        self.push("export ");
+                    }
+                    self.push("const ");
+                    match &decl.binding {
+                        ConstBinding::Name(name) => self.push(name),
+                        ConstBinding::Array(names) | ConstBinding::Tuple(names) => {
+                            self.push("[");
+                            self.push(&names.join(", "));
+                            self.push("]");
+                        }
+                        ConstBinding::Object(names) => {
+                            self.push("{ ");
+                            self.push(&names.join(", "));
+                            self.push(" }");
+                        }
+                    }
+                    self.push(&format!(" = {value_expr};"));
                 }
             }
-            self.push(&format!(" = {temp}.value;"));
             return;
         }
 
