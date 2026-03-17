@@ -1538,7 +1538,7 @@ mod tests {
 
     #[test]
     fn lambda_basic() {
-        let ExprKind::Arrow { params, .. } = first_expr("|x| x + 1") else {
+        let ExprKind::Arrow { params, .. } = first_expr("fn(x) x + 1") else {
             panic!("expected Arrow")
         };
         assert_eq!(params.len(), 1);
@@ -1547,7 +1547,7 @@ mod tests {
 
     #[test]
     fn lambda_zero_arg() {
-        let ExprKind::Arrow { params, .. } = first_expr("|| 42") else {
+        let ExprKind::Arrow { params, .. } = first_expr("fn() 42") else {
             panic!("expected Arrow")
         };
         assert!(params.is_empty());

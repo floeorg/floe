@@ -101,13 +101,18 @@ impl<'src> CstParser<'src> {
                 self.parse_const_decl();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Fn) => {
+            Some(TokenKind::Fn) if !self.peek_is(TokenKind::LeftParen) => {
+                // `fn name(...)` is a function declaration; `fn(...)` is a lambda expression
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_function_decl();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Async) if self.peek_is(TokenKind::Fn) => {
+            Some(TokenKind::Async)
+                if self.peek_is(TokenKind::Fn)
+                    && self.peek_nth_non_trivia_kind(2) != Some(TokenKind::LeftParen) =>
+            {
+                // `async fn name(...)` is a function declaration; `async fn(...)` is a lambda
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_function_decl();
@@ -764,8 +769,8 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
             self.bump(); // )
         }
-        // Function type: (params) -> ReturnType
-        else if self.at(TokenKind::LeftParen) && self.is_function_type() {
+        // Function type: fn(params) -> ReturnType
+        else if self.at(TokenKind::Fn) {
             self.parse_function_type();
         }
         // Tuple type: (T, U) — paren with comma, no `->` after `)`
@@ -812,6 +817,8 @@ impl<'src> CstParser<'src> {
     }
 
     fn parse_function_type(&mut self) {
+        self.expect(TokenKind::Fn);
+        self.eat_trivia();
         self.expect(TokenKind::LeftParen);
         self.eat_trivia();
         self.parse_comma_separated(Self::parse_type_expr, TokenKind::RightParen);
@@ -1189,33 +1196,19 @@ impl<'src> CstParser<'src> {
                 self.parse_dot_shorthand();
             }
 
-            Some(TokenKind::Async) => {
-                // `async || { ... }` or `async |x| { ... }`
+            Some(TokenKind::Async) if self.peek_is(TokenKind::Fn) => {
+                // `async fn(params) expr`
                 self.builder.start_node(SyntaxKind::ARROW_EXPR.into());
                 self.bump(); // async
                 self.eat_trivia();
-                if self.at(TokenKind::PipePipe) {
-                    self.bump(); // ||
-                    self.eat_trivia();
-                    self.parse_expr();
-                } else if self.at(TokenKind::VerticalBar) {
-                    self.parse_pipe_lambda_inner();
-                } else {
-                    self.error("expected '||' or '|' after 'async'");
-                }
+                self.parse_fn_lambda_inner();
                 self.builder.finish_node();
             }
 
-            Some(TokenKind::VerticalBar) => {
-                self.parse_pipe_lambda();
-            }
-
-            Some(TokenKind::PipePipe) => {
-                // Zero-arg lambda: `|| expr`
+            Some(TokenKind::Fn) if self.peek_is(TokenKind::LeftParen) => {
+                // `fn(params) expr`
                 self.builder.start_node(SyntaxKind::ARROW_EXPR.into());
-                self.bump(); // ||
-                self.eat_trivia();
-                self.parse_expr();
+                self.parse_fn_lambda_inner();
                 self.builder.finish_node();
             }
 
@@ -1409,21 +1402,16 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
-    // ── Pipe Lambda ──────────────────────────────────────────────
+    // ── Fn Lambda ────────────────────────────────────────────────
 
-    /// Parse `|params| body` pipe lambda.
-    fn parse_pipe_lambda(&mut self) {
-        self.builder.start_node(SyntaxKind::ARROW_EXPR.into());
-        self.parse_pipe_lambda_inner();
-        self.builder.finish_node();
-    }
-
-    /// Parse the inner `|params| body` of a pipe lambda (without wrapping in ARROW_EXPR).
-    fn parse_pipe_lambda_inner(&mut self) {
-        self.expect(TokenKind::VerticalBar);
+    /// Parse `fn(params) body` lambda inner (without wrapping in ARROW_EXPR).
+    fn parse_fn_lambda_inner(&mut self) {
+        self.expect(TokenKind::Fn);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_param, TokenKind::VerticalBar);
-        self.expect(TokenKind::VerticalBar);
+        self.expect(TokenKind::LeftParen);
+        self.eat_trivia();
+        self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
+        self.expect(TokenKind::RightParen);
         self.eat_trivia();
         self.parse_expr();
     }
@@ -2187,39 +2175,6 @@ impl<'src> CstParser<'src> {
         self.peek_is(TokenKind::RightParen) && !self.peek_after_rparen_is(TokenKind::ThinArrow)
     }
 
-    /// Heuristic: is the current `(` the start of a function type?
-    fn is_function_type(&self) -> bool {
-        self.scan_for_rparen_followed_by(TokenKind::ThinArrow)
-    }
-
-    /// Scan from current `(` to matching `)`, check if followed by `kind`.
-    fn scan_for_rparen_followed_by(&self, kind: TokenKind) -> bool {
-        let mut depth = 0;
-        let mut i = self.pos;
-        while i < self.tokens.len() {
-            match &self.tokens[i].kind {
-                TokenKind::LeftParen => depth += 1,
-                TokenKind::RightParen => {
-                    depth -= 1;
-                    if depth == 0 {
-                        // Find next non-trivia
-                        let mut j = i + 1;
-                        while j < self.tokens.len() && self.tokens[j].kind.is_trivia() {
-                            j += 1;
-                        }
-                        return j < self.tokens.len()
-                            && std::mem::discriminant(&self.tokens[j].kind)
-                                == std::mem::discriminant(&kind);
-                    }
-                }
-                TokenKind::Eof => return false,
-                _ => {}
-            }
-            i += 1;
-        }
-        false
-    }
-
     fn peek_after_rparen_is(&self, kind: TokenKind) -> bool {
         // Find ) after current (, then check if followed by kind
         let mut i = self.pos + 1;
@@ -2635,13 +2590,13 @@ mod tests {
     // ── Lambda / arrow functions ──────────────────────────────────
 
     #[test]
-    fn lambda_pipe_style() {
-        assert_no_errors("|x| x + 1");
+    fn lambda_fn_style() {
+        assert_no_errors("fn(x) x + 1");
     }
 
     #[test]
     fn lambda_zero_arg() {
-        assert_no_errors("|| 42");
+        assert_no_errors("fn() 42");
     }
 
     // ── For blocks ────────────────────────────────────────────────
@@ -2698,7 +2653,8 @@ mod tests {
 
     #[test]
     fn error_recovery_malformed_function() {
-        let parse = cst_parse("fn () { }");
+        // `fn` followed by something that's neither an identifier (declaration) nor `(` (lambda)
+        let parse = cst_parse("fn { }");
         assert!(!parse.errors.is_empty());
     }
 

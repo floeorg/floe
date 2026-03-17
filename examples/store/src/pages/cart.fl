@@ -6,8 +6,8 @@ import { for Array, formatPrice } from "../product"
 
 fn CartItemRow(props: {
     item: CartItem,
-    onUpdateQty: (ProductId, number) -> (),
-    onRemove: (ProductId) -> (),
+    onUpdateQty: fn(ProductId, number) -> (),
+    onRemove: fn(ProductId) -> (),
 }) -> JSX.Element {
     const item = props.item
     const product = item.product
@@ -28,14 +28,14 @@ fn CartItemRow(props: {
         </div>
         <div className="flex items-center gap-2">
             <button
-                onClick={|| props.onUpdateQty(product.id, item.quantity - 1)}
+                onClick={fn() props.onUpdateQty(product.id, item.quantity - 1)}
                 className="flex h-8 w-8 items-center justify-center rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
             >
                 {"-"}
             </button>
             <span className="w-8 text-center text-zinc-100">{item.quantity}</span>
             <button
-                onClick={|| props.onUpdateQty(product.id, item.quantity + 1)}
+                onClick={fn() props.onUpdateQty(product.id, item.quantity + 1)}
                 className="flex h-8 w-8 items-center justify-center rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
             >
                 {"+"}
@@ -45,7 +45,7 @@ fn CartItemRow(props: {
             {formatPrice(lineTotal)}
         </span>
         <button
-            onClick={|| props.onRemove(product.id)}
+            onClick={fn() props.onRemove(product.id)}
             className="text-zinc-600 hover:text-red-400 transition-colors"
         >
             {"x"}
@@ -58,7 +58,7 @@ fn CartItemRow(props: {
 fn OrderSummary(props: {
     cart: Array<CartItem>,
     orderStatus: OrderStatus,
-    onCheckout: () -> (),
+    onCheckout: fn() -> (),
 }) -> JSX.Element {
     const (subtotal, discount, total) = props.cart |> totals
 
@@ -106,8 +106,8 @@ fn OrderSummary(props: {
 
 export fn CartPage(props: {
     cart: Array<CartItem>,
-    onUpdateQty: (ProductId, number) -> (),
-    onRemove: (ProductId) -> (),
+    onUpdateQty: fn(ProductId, number) -> (),
+    onRemove: fn(ProductId) -> (),
 }) -> JSX.Element {
     const [orderStatus, setOrderStatus] = useState<OrderStatus>(Pending)
 
@@ -130,7 +130,7 @@ export fn CartPage(props: {
             </div>,
             items -> <div className="flex gap-8">
                 <div className="flex-1 space-y-3">
-                    {items |> Array.map(|item|
+                    {items |> Array.map(fn(item)
                         <CartItemRow
                             key={item.product.id}
                             item={item}

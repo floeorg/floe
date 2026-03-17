@@ -11,7 +11,7 @@ import { fetchProducts, fetchCategories, CategoryResponse } from "../api"
 
 fn ProductCard(props: {
     product: Product,
-    onAddToCart: (Product) -> (),
+    onAddToCart: fn(Product) -> (),
 }) -> JSX.Element {
     const product = props.product
     const hasDiscount = product.discountPercentage > 0
@@ -64,7 +64,7 @@ fn ProductCard(props: {
         </div>
 
         <button
-            onClick={|| props.onAddToCart(product)}
+            onClick={fn() props.onAddToCart(product)}
             disabled={!(product |> inStock)}
             className={product |> inStock |> match {
                 true -> "w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500",
@@ -84,11 +84,11 @@ fn ProductCard(props: {
 fn FilterSidebar(props: {
     categories: Array<CategoryResponse>,
     selectedCategory: string,
-    onCategoryChange: (string) -> (),
+    onCategoryChange: fn(string) -> (),
     priceRange: PriceRange,
-    onPriceRangeChange: (PriceRange) -> (),
+    onPriceRangeChange: fn(PriceRange) -> (),
     sortOrder: SortOrder,
-    onSortChange: (SortOrder) -> (),
+    onSortChange: fn(SortOrder) -> (),
 }) -> JSX.Element {
     const priceRanges: Array<(string, PriceRange)> = [
         ("All Prices", Any),
@@ -111,7 +111,7 @@ fn FilterSidebar(props: {
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-400">Category</h3>
             <div className="space-y-1">
                 <button
-                    onClick={|| props.onCategoryChange("")}
+                    onClick={fn() props.onCategoryChange("")}
                     className={props.selectedCategory |> match {
                         "" -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                         _ -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
@@ -119,10 +119,10 @@ fn FilterSidebar(props: {
                 >
                     All
                 </button>
-                {props.categories |> Array.map(|cat: CategoryResponse|
+                {props.categories |> Array.map(fn(cat: CategoryResponse)
                     <button
                         key={cat.slug}
-                        onClick={|| props.onCategoryChange(cat.slug)}
+                        onClick={fn() props.onCategoryChange(cat.slug)}
                         className={(props.selectedCategory == cat.slug) |> match {
                             true -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                             false -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
@@ -137,10 +137,10 @@ fn FilterSidebar(props: {
         <div>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-400">Price</h3>
             <div className="space-y-1">
-                {priceRanges |> Array.map(|pair: (string, PriceRange)|
+                {priceRanges |> Array.map(fn(pair: (string, PriceRange))
                     <button
                         key={pair.0}
-                        onClick={|| props.onPriceRangeChange(pair.1)}
+                        onClick={fn() props.onPriceRangeChange(pair.1)}
                         className={(props.priceRange == pair.1) |> match {
                             true -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                             false -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
@@ -155,10 +155,10 @@ fn FilterSidebar(props: {
         <div>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-400">Sort By</h3>
             <div className="space-y-1">
-                {sortOptions |> Array.map(|pair: (string, SortOrder)|
+                {sortOptions |> Array.map(fn(pair: (string, SortOrder))
                     <button
                         key={pair.0}
-                        onClick={|| props.onSortChange(pair.1)}
+                        onClick={fn() props.onSortChange(pair.1)}
                         className={(props.sortOrder == pair.1) |> match {
                             true -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                             false -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
@@ -176,15 +176,15 @@ fn FilterSidebar(props: {
 
 fn CategoryList(props: {
     selectedCategory: string,
-    onCategoryChange: (string) -> (),
+    onCategoryChange: fn(string) -> (),
     priceRange: PriceRange,
-    onPriceRangeChange: (PriceRange) -> (),
+    onPriceRangeChange: fn(PriceRange) -> (),
     sortOrder: SortOrder,
-    onSortChange: (SortOrder) -> (),
+    onSortChange: fn(SortOrder) -> (),
 }) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["categories"],
-        queryFn: async || fetchCategories(),
+        queryFn: async fn() fetchCategories(),
     })
 
     const categories = data |> match {
@@ -210,11 +210,11 @@ fn ProductGrid(props: {
     search: string,
     sortOrder: SortOrder,
     priceRange: PriceRange,
-    onAddToCart: (Product) -> (),
+    onAddToCart: fn(Product) -> (),
 }) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["products", props.category, props.search],
-        queryFn: async || fetchProducts(category: props.category, search: props.search, limit: 30),
+        queryFn: async fn() fetchProducts(category: props.category, search: props.search, limit: 30),
     })
 
     const (products, _total) = data |> match {
@@ -223,7 +223,7 @@ fn ProductGrid(props: {
     }
 
     const filtered = products
-        |> Array.filter(|p| matchesPrice(p, props.priceRange))
+        |> Array.filter(fn(p) matchesPrice(p, props.priceRange))
     const sorted = sortProducts(filtered, props.sortOrder)
 
     <div>
@@ -231,7 +231,7 @@ fn ProductGrid(props: {
             {`${sorted |> Array.length} products`}
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sorted |> Array.map(|product|
+            {sorted |> Array.map(fn(product)
                 <ProductCard
                     key={product.id}
                     product={product}
@@ -246,7 +246,7 @@ fn ProductGrid(props: {
 
 fn CatalogSkeleton() -> JSX.Element {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3, 4, 5, 6] |> Array.map(|i|
+        {[1, 2, 3, 4, 5, 6] |> Array.map(fn(i)
             <div key={i} className="animate-pulse rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
                 <div className="mb-3 h-48 rounded-lg bg-zinc-800" />
                 <div className="mb-2 h-5 w-3/4 rounded bg-zinc-800" />
@@ -273,7 +273,7 @@ fn SidebarSkeleton() -> JSX.Element {
 // Uses `use` to flatten Suspense/ErrorBoundary nesting.
 
 export fn CatalogPage(props: {
-    onAddToCart: (Product) -> (),
+    onAddToCart: fn(Product) -> (),
 }) -> JSX.Element {
     const [category, setCategory] = useState("")
     const [search, setSearch] = useState("")
@@ -286,7 +286,7 @@ export fn CatalogPage(props: {
             <input
                 type="text"
                 value={search}
-                onChange={|e| setSearch(e.target.value)}
+                onChange={fn(e) setSearch(e.target.value)}
                 placeholder="Search products..."
                 className="flex-1 rounded-lg bg-zinc-800 px-4 py-2 text-zinc-100 placeholder-zinc-500 outline-none ring-1 ring-zinc-700 focus:ring-indigo-500"
             />
@@ -306,10 +306,10 @@ export fn CatalogPage(props: {
 
             <div className="flex-1">
                 <QueryErrorResetBoundary>
-                    {|{ reset }|
+                    {fn({ reset })
                         <ErrorBoundary
                             onReset={reset}
-                            fallbackRender={|{ resetErrorBoundary, error }|
+                            fallbackRender={fn({ resetErrorBoundary, error })
                                 <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center">
                                     <p className="mb-3 text-red-400">{`Failed to load products: ${error.message}`}</p>
                                     <button

@@ -38,11 +38,11 @@ fn ReviewCard(props: { review: Review }) -> JSX.Element {
 
 fn ProductDetailContent(props: {
     productId: ProductId,
-    onAddToCart: (Product) -> (),
+    onAddToCart: fn(Product) -> (),
 }) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["product", props.productId],
-        queryFn: async || fetchProduct(props.productId),
+        queryFn: async fn() fetchProduct(props.productId),
     })
 
     const (product, reviews) = data |> match {
@@ -61,7 +61,7 @@ fn ProductDetailContent(props: {
                     className="w-full rounded-xl object-cover"
                 />
                 <div className="mt-3 flex gap-2 overflow-x-auto">
-                    {product.images |> Array.map(|img|
+                    {product.images |> Array.map(fn(img)
                         <img
                             key={img}
                             src={img}
@@ -120,7 +120,7 @@ fn ProductDetailContent(props: {
                 </div>
 
                 <div className="mb-6 flex flex-wrap gap-2">
-                    {product.tags |> Array.map(|tag|
+                    {product.tags |> Array.map(fn(tag)
                         <span key={tag} className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-400">
                             {tag}
                         </span>
@@ -128,7 +128,7 @@ fn ProductDetailContent(props: {
                 </div>
 
                 <button
-                    onClick={|| props.onAddToCart(product)}
+                    onClick={fn() props.onAddToCart(product)}
                     disabled={!(product |> inStock)}
                     className={product |> inStock |> match {
                         true -> "w-full rounded-xl bg-indigo-600 py-3 text-lg font-semibold text-white transition-colors hover:bg-indigo-500",
@@ -149,7 +149,7 @@ fn ProductDetailContent(props: {
                 {reviews |> match {
                     [] -> <p className="text-zinc-500">No reviews yet.</p>,
                     revs -> <div className="space-y-3">
-                        {revs |> Array.map(|review|
+                        {revs |> Array.map(fn(review)
                             <ReviewCard key={review.reviewerName} review={review} />
                         )}
                     </div>,
@@ -187,7 +187,7 @@ fn DetailSkeleton() -> JSX.Element {
 
 export fn ProductDetailPage(props: {
     productId: ProductId,
-    onAddToCart: (Product) -> (),
+    onAddToCart: fn(Product) -> (),
 }) -> JSX.Element {
     <div>
         <Link to="/" className="mb-6 inline-block text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
@@ -195,10 +195,10 @@ export fn ProductDetailPage(props: {
         </Link>
 
         <QueryErrorResetBoundary>
-            {|{ reset }|
+            {fn({ reset })
                 <ErrorBoundary
                     onReset={reset}
-                    fallbackRender={|{ resetErrorBoundary, error }|
+                    fallbackRender={fn({ resetErrorBoundary, error })
                         <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center">
                             <p className="mb-3 text-red-400">{`Failed to load product: ${error.message}`}</p>
                             <button

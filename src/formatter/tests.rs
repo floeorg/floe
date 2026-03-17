@@ -91,7 +91,7 @@ fn format_pipe() {
 
 #[test]
 fn format_arrow() {
-    assert_fmt("const f = |x| x + 1", "const f = |x| x + 1");
+    assert_fmt("const f = fn(x) x + 1", "const f = fn(x) x + 1");
 }
 
 #[test]
@@ -179,8 +179,8 @@ fn format_match_arm_block_body_blank_line() {
 #[test]
 fn format_lambda_block_body_blank_line() {
     assert_fmt(
-        "const f = |x| {\n    const y = x + 1\n    y\n}",
-        "const f = |x| {\n    const y = x + 1\n\n    y\n}",
+        "const f = fn(x) {\n    const y = x + 1\n    y\n}",
+        "const f = fn(x) {\n    const y = x + 1\n\n    y\n}",
     );
 }
 

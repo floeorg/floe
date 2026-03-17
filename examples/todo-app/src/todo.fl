@@ -33,7 +33,7 @@ for Array<Todo> {
     export fn remaining(self) -> number {
         self
             |> filter(.done == false)
-            |> tap(|active| Console.log("active todos:", active))
+            |> tap(fn(active) Console.log("active todos:", active))
             |> length
     }
 

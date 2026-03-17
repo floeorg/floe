@@ -346,9 +346,9 @@ impl Formatter<'_> {
             return;
         }
 
-        // Function type: (params) -> ReturnType
+        // Function type: fn(params) -> ReturnType
         if has_thin_arrow {
-            self.write("(");
+            self.write("fn(");
             let param_count = child_type_exprs.len().saturating_sub(1);
             for (i, te) in child_type_exprs.iter().enumerate() {
                 if i == param_count {

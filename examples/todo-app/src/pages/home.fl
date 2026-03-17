@@ -26,7 +26,7 @@ export fn HomePage() -> JSX.Element {
     }
 
     fn handleToggle(id: string) {
-        setTodos(todos |> map(|t|
+        setTodos(todos |> map(fn(t)
             match t.id == id {
                 true -> Todo(..t, done: !t.done),
                 false -> t,
@@ -45,8 +45,8 @@ export fn HomePage() -> JSX.Element {
             <input
                 type="text"
                 value={input}
-                onChange={|e| setInput(e.target.value)}
-                onKeyDown={|e| match e.key {
+                onChange={fn(e) setInput(e.target.value)}
+                onKeyDown={fn(e) match e.key {
                     "Enter" -> handleAdd(),
                     _ -> (),
                 }}
@@ -68,7 +68,7 @@ export fn HomePage() -> JSX.Element {
 
         <div className="flex gap-2 mb-6">
             <button
-                onClick={|| setFilter(All)}
+                onClick={fn() setFilter(All)}
                 className={match filter {
                     All -> "rounded-full px-3 py-1 text-sm font-medium bg-indigo-600 text-white",
                     _ -> "rounded-full px-3 py-1 text-sm font-medium bg-zinc-800 text-zinc-400 hover:text-zinc-100",
@@ -77,7 +77,7 @@ export fn HomePage() -> JSX.Element {
                 All
             </button>
             <button
-                onClick={|| setFilter(Active)}
+                onClick={fn() setFilter(Active)}
                 className={match filter {
                     Active -> "rounded-full px-3 py-1 text-sm font-medium bg-indigo-600 text-white",
                     _ -> "rounded-full px-3 py-1 text-sm font-medium bg-zinc-800 text-zinc-400 hover:text-zinc-100",
@@ -86,7 +86,7 @@ export fn HomePage() -> JSX.Element {
                 Active
             </button>
             <button
-                onClick={|| setFilter(Completed)}
+                onClick={fn() setFilter(Completed)}
                 className={match filter {
                     Completed -> "rounded-full px-3 py-1 text-sm font-medium bg-indigo-600 text-white",
                     _ -> "rounded-full px-3 py-1 text-sm font-medium bg-zinc-800 text-zinc-400 hover:text-zinc-100",
@@ -97,10 +97,10 @@ export fn HomePage() -> JSX.Element {
         </div>
 
         <ul className="space-y-2">
-            {visible |> map(|item|
+            {visible |> map(fn(item)
                 <li key={item.id} className="flex items-center gap-3 rounded-lg bg-zinc-800/50 px-4 py-3">
                     <button
-                        onClick={|| handleToggle(item.id)}
+                        onClick={fn() handleToggle(item.id)}
                         className={match item.done {
                             true -> "h-5 w-5 rounded-full border-2 border-indigo-500 bg-indigo-500 flex items-center justify-center",
                             false -> "h-5 w-5 rounded-full border-2 border-zinc-600",
@@ -118,7 +118,7 @@ export fn HomePage() -> JSX.Element {
                         {item.text}
                     </span>
                     <button
-                        onClick={|| handleDelete(item.id)}
+                        onClick={fn() handleDelete(item.id)}
                         className="text-zinc-600 hover:text-red-400 transition-colors"
                     >
                         ✕

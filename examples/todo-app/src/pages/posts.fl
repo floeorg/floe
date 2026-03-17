@@ -40,7 +40,7 @@ async fn fetchPosts(url: string) -> Result<Array<Post>, Error> {
 fn PostAuthor(props: { userId: number }) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["user", props.userId],
-        queryFn: async || fetchUser(props.userId),
+        queryFn: async fn() fetchUser(props.userId),
     })
 
     <span className="text-indigo-400">
@@ -61,7 +61,7 @@ fn PostList() -> JSX.Element {
 
     const { data } = useSuspenseQuery({
         queryKey: ["posts", selectedUserId],
-        queryFn: async || fetchPosts(url),
+        queryFn: async fn() fetchPosts(url),
     })
 
     const posts = match data {
@@ -74,7 +74,7 @@ fn PostList() -> JSX.Element {
     <div>
         <div className="mb-6 flex flex-wrap gap-2">
             <button
-                onClick={|| setSelectedUserId(None)}
+                onClick={fn() setSelectedUserId(None)}
                 className={match selectedUserId {
                     None -> "rounded px-3 py-1 text-sm bg-indigo-600 text-white transition-colors",
                     _ -> "rounded px-3 py-1 text-sm bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors",
@@ -82,10 +82,10 @@ fn PostList() -> JSX.Element {
             >
                 All
             </button>
-            {userIds |> Array.map(|id|
+            {userIds |> Array.map(fn(id)
                 <button
                     key={id}
-                    onClick={|| setSelectedUserId(Some(id))}
+                    onClick={fn() setSelectedUserId(Some(id))}
                     className={match selectedUserId {
                         Some(selected) when selected == id -> "rounded px-3 py-1 text-sm bg-indigo-600 text-white transition-colors",
                         _ -> "rounded px-3 py-1 text-sm bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors",
@@ -97,7 +97,7 @@ fn PostList() -> JSX.Element {
         </div>
 
         <div className="space-y-4">
-            {posts |> Array.map(|post|
+            {posts |> Array.map(fn(post)
                 <article
                     key={post.id}
                     className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
@@ -122,7 +122,7 @@ fn LoadingSkeleton() -> JSX.Element {
     const skeletons = [1, 2, 3]
 
     <div className="space-y-4">
-        {skeletons |> Array.map(|i|
+        {skeletons |> Array.map(fn(i)
             <div
                 key={i}
                 className="animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
@@ -146,10 +146,10 @@ export fn PostsPage() -> JSX.Element {
         </p>
 
         <QueryErrorResetBoundary>
-            {|{ reset }|
+            {fn({ reset })
                 <ErrorBoundary
                     onReset={reset}
-                    fallbackRender={|{ resetErrorBoundary, error }|
+                    fallbackRender={fn({ resetErrorBoundary, error })
                         <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center">
                             <p className="mb-3 text-red-400">
                                 {`Failed to load posts: ${error.message}`}

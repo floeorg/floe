@@ -1467,7 +1467,7 @@ import trusted { useSuspenseQuery } from "@tanstack/react-query"
 fn test() {
     const { data } = useSuspenseQuery({
         queryKey: ["products"],
-        queryFn: async || fetchProducts(),
+        queryFn: async fn() fetchProducts(),
     })
 }"#;
         let program = Parser::new(source).parse_program().unwrap();

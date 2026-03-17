@@ -682,22 +682,15 @@ impl<'src> Lowerer<'src> {
         &mut self,
         node: &SyntaxNode,
     ) -> Option<Expr> {
-        // For `|params| body` lambdas, find token expr after the second `|`.
-        // For `|| body` zero-arg lambdas, find token expr after `||`.
-        let mut pipe_count = 0;
+        // For `fn(params) body` lambdas, find token expr after the closing `)`.
+        let mut found_rparen = false;
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
-                if token.kind() == SyntaxKind::VERT_BAR {
-                    pipe_count += 1;
+                if token.kind() == SyntaxKind::R_PAREN {
+                    found_rparen = true;
                     continue;
                 }
-                if token.kind() == SyntaxKind::PIPE_PIPE {
-                    pipe_count = 2;
-                    continue;
-                }
-                if pipe_count >= 2
-                    && let Some(expr) = self.token_to_expr(token)
-                {
+                if found_rparen && let Some(expr) = self.token_to_expr(token) {
                     return Some(expr);
                 }
             }

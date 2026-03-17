@@ -2296,11 +2296,11 @@ type BaseProps = {
 
 type ButtonProps = {
     ...BaseProps,
-    onClick: () -> (),
+    onClick: fn() -> (),
     label: string,
 }
 
-const btn = ButtonProps(className: "btn", disabled: false, onClick: || (), label: "Click")
+const btn = ButtonProps(className: "btn", disabled: false, onClick: fn() (), label: "Click")
 "#,
     );
     assert!(
@@ -2869,7 +2869,7 @@ fn lambda_object_destructure_binds_variables() {
     let diags = check(
         r#"
 fn _test() {
-    const f = |{ x, y }| x + y
+    const f = fn({ x, y }) x + y
     f({ x: 1, y: 2 })
 }
 "#,

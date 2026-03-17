@@ -578,21 +578,20 @@ impl Formatter<'_> {
             .filter(|c| c.kind() == SyntaxKind::PARAM)
             .collect();
 
-        // Check if this is a zero-arg lambda (has || token)
-        let has_pipe_pipe = self.has_token(node, SyntaxKind::PIPE_PIPE);
-
-        if has_pipe_pipe && params.is_empty() {
-            self.write("|| ");
-        } else {
-            self.write("|");
-            for (i, param) in params.iter().enumerate() {
-                if i > 0 {
-                    self.write(", ");
-                }
-                self.fmt_param(param);
-            }
-            self.write("| ");
+        // Check if this is an async lambda
+        let is_async = self.has_token(node, SyntaxKind::KW_ASYNC);
+        if is_async {
+            self.write("async ");
         }
+
+        self.write("fn(");
+        for (i, param) in params.iter().enumerate() {
+            if i > 0 {
+                self.write(", ");
+            }
+            self.fmt_param(param);
+        }
+        self.write(") ");
 
         for child in node.children() {
             if child.kind() != SyntaxKind::PARAM {

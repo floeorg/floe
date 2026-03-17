@@ -417,12 +417,12 @@ fn no_jsx_detection() {
 
 #[test]
 fn lambda_single_arg() {
-    assert_eq!(emit("|x| x + 1"), "(x) => x + 1;");
+    assert_eq!(emit("fn(x) x + 1"), "(x) => x + 1;");
 }
 
 #[test]
 fn lambda_multi_arg() {
-    assert_eq!(emit("|a, b| a + b"), "(a, b) => a + b;");
+    assert_eq!(emit("fn(a, b) a + b"), "(a, b) => a + b;");
 }
 
 // ── Equality -> structural equality ──────────────────────────
@@ -522,7 +522,7 @@ fn stdlib_array_sort() {
 #[test]
 fn stdlib_array_map() {
     assert_eq!(
-        emit("Array.map([1, 2], |n| n * 2)"),
+        emit("Array.map([1, 2], fn(n) n * 2)"),
         "[1, 2].map((n) => n * 2);"
     );
 }
@@ -530,7 +530,7 @@ fn stdlib_array_map() {
 #[test]
 fn stdlib_array_filter() {
     assert_eq!(
-        emit("Array.filter([1, 2, 3], |n| n > 1)"),
+        emit("Array.filter([1, 2, 3], fn(n) n > 1)"),
         "[1, 2, 3].filter((n) => n > 1);"
     );
 }
@@ -581,7 +581,7 @@ fn stdlib_array_contains() {
 #[test]
 fn stdlib_array_any() {
     assert_eq!(
-        emit("Array.any([1, 2, 3], |n| n > 2)"),
+        emit("Array.any([1, 2, 3], fn(n) n > 2)"),
         "[1, 2, 3].some((n) => n > 2);"
     );
 }
@@ -589,7 +589,7 @@ fn stdlib_array_any() {
 #[test]
 fn stdlib_array_all() {
     assert_eq!(
-        emit("Array.all([1, 2, 3], |n| n > 0)"),
+        emit("Array.all([1, 2, 3], fn(n) n > 0)"),
         "[1, 2, 3].every((n) => n > 0);"
     );
 }
@@ -630,7 +630,7 @@ fn stdlib_array_chunk() {
 
 #[test]
 fn stdlib_option_map() {
-    let result = emit("Option.map(Some(1), |n| n * 2)");
+    let result = emit("Option.map(Some(1), fn(n) n * 2)");
     assert!(result.contains("!== undefined"));
 }
 
@@ -742,14 +742,14 @@ fn stdlib_pipe_bare() {
 #[test]
 fn stdlib_pipe_with_args() {
     assert_eq!(
-        emit("[1, 2, 3] |> Array.map(|n| n * 2)"),
+        emit("[1, 2, 3] |> Array.map(fn(n) n * 2)"),
         "[1, 2, 3].map((n) => n * 2);"
     );
 }
 
 #[test]
 fn stdlib_pipe_chain() {
-    let result = emit("[1, 2, 3] |> Array.filter(|n| n > 1) |> Array.reverse");
+    let result = emit("[1, 2, 3] |> Array.filter(fn(n) n > 1) |> Array.reverse");
     assert!(result.contains(".filter("));
     assert!(result.contains(".reverse()"));
 }
@@ -793,7 +793,7 @@ fn type_directed_string_length() {
 
 #[test]
 fn type_directed_array_filter() {
-    let result = emit_with_types(r#"const _x = [1, 2, 3] |> filter(|x| x > 1)"#);
+    let result = emit_with_types(r#"const _x = [1, 2, 3] |> filter(fn(x) x > 1)"#);
     assert_eq!(result, "const _x = [1, 2, 3].filter((x) => x > 1);");
 }
 
@@ -870,7 +870,7 @@ fn stdlib_tap_direct_call() {
 
 #[test]
 fn stdlib_pipe_tap_with_lambda() {
-    let result = emit("[1, 2, 3] |> Pipe.tap(|x| Console.log(x))");
+    let result = emit("[1, 2, 3] |> Pipe.tap(fn(x) Console.log(x))");
     assert!(result.contains("const _v"), "output: {result}");
     assert!(result.contains("return _v"), "output: {result}");
 }

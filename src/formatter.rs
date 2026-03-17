@@ -301,26 +301,21 @@ impl<'src> Formatter<'src> {
     }
 
     pub(crate) fn fmt_token_expr_after_lambda_delim(&mut self, node: &SyntaxNode) {
-        // For `|params| body`, find token expr after the second `|`.
-        // For `|| body`, find token expr after `||`.
-        let mut pipe_count = 0;
+        // For `fn(params) body`, find token expr after the closing `)`.
+        let mut found_rparen = false;
         for t in node.children_with_tokens() {
             if let Some(tok) = t.as_token() {
-                if tok.kind() == SyntaxKind::VERT_BAR {
-                    pipe_count += 1;
+                if tok.kind() == SyntaxKind::R_PAREN {
+                    found_rparen = true;
                     continue;
                 }
-                if tok.kind() == SyntaxKind::PIPE_PIPE {
-                    pipe_count = 2;
-                    continue;
-                }
-                if pipe_count >= 2 && !tok.kind().is_trivia() {
+                if found_rparen && !tok.kind().is_trivia() {
                     self.write(tok.text());
                     return;
                 }
             }
             if let Some(child) = t.into_node()
-                && pipe_count >= 2
+                && found_rparen
                 && child.kind() != SyntaxKind::PARAM
             {
                 self.fmt_node(&child);
