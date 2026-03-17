@@ -281,15 +281,15 @@ fn constructor_with_spread() {
 #[test]
 fn match_simple() {
     let result = emit("match x { Ok(v) -> v, Err(e) -> e }");
-    assert!(result.contains(".tag === \"Ok\""));
-    assert!(result.contains(".tag === \"Err\""));
+    assert!(result.contains(".ok === true"));
+    assert!(result.contains(".ok === false"));
 }
 
 #[test]
 fn match_with_wildcard() {
     let result = emit("match x { Ok(v) -> v, _ -> 0 }");
     // Last arm is wildcard -> no condition needed
-    assert!(result.contains(".tag === \"Ok\""));
+    assert!(result.contains(".ok === true"));
     assert!(result.contains("0"));
 }
 
