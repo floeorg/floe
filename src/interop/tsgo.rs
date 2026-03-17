@@ -76,6 +76,10 @@ impl TsgoResolver {
             }
         };
 
+        if std::env::var("FLOE_DEBUG_PROBE").is_ok() {
+            eprintln!("[floe] DTS OUTPUT:\n{dts_content}");
+        }
+
         let exports = match parse_dts_exports_from_str(&dts_content) {
             Ok(exports) => exports,
             Err(e) => {
@@ -362,6 +366,14 @@ fn generate_probe(
         }
     }
 
+    // Also register imported Floe function names as declared so they don't
+    // become `declare const X: any` free-variable stubs
+    for resolved in resolved_imports.values() {
+        for func in &resolved.function_decls {
+            declared_names.insert(func.name.clone());
+        }
+    }
+
     // Collect ALL referenced identifiers (even declared ones) to find local function refs
     let mut all_referenced: HashSet<String> = HashSet::new();
     let empty_set: HashSet<String> = HashSet::new();
@@ -400,6 +412,42 @@ fn generate_probe(
             };
             lines.push(format!(
                 "declare function {name}({}): {ret};",
+                params.join(", ")
+            ));
+        }
+    }
+
+    // Emit declare function stubs for imported Floe functions so tsgo
+    // can infer generic types when they appear in probe call arguments
+    // (e.g. useSuspenseQuery({ queryFn: async () => fetchProducts() }))
+    for resolved in resolved_imports.values() {
+        for func in &resolved.function_decls {
+            let params: Vec<String> = func
+                .params
+                .iter()
+                .map(|p| {
+                    let ty = p
+                        .type_ann
+                        .as_ref()
+                        .map(type_expr_to_ts)
+                        .unwrap_or_else(|| "any".to_string());
+                    let opt = if p.default.is_some() { "?" } else { "" };
+                    format!("{}{opt}: {}", p.name, ty)
+                })
+                .collect();
+            let ret = func
+                .return_type
+                .as_ref()
+                .map(type_expr_to_ts)
+                .unwrap_or_else(|| "any".to_string());
+            let ret = if func.async_fn {
+                format!("Promise<{ret}>")
+            } else {
+                ret
+            };
+            lines.push(format!(
+                "declare function {}({}): {ret};",
+                func.name,
                 params.join(", ")
             ));
         }
@@ -1404,5 +1452,120 @@ const [filter, setFilter] = useState<Filter>(Filter.All)
         } else {
             panic!("expected type decl");
         }
+    }
+
+    #[test]
+    fn generate_probe_emits_imported_floe_function_stubs() {
+        use crate::lexer::span::Span;
+        use crate::resolve::ResolvedImports;
+
+        let s = Span::new(0, 0, 0, 0);
+
+        let source = r#"import { fetchProducts } from "./api"
+import trusted { useSuspenseQuery } from "@tanstack/react-query"
+
+fn test() {
+    const { data } = useSuspenseQuery({
+        queryKey: ["products"],
+        queryFn: async || fetchProducts(),
+    })
+}"#;
+        let program = Parser::new(source).parse_program().unwrap();
+
+        // Build resolved imports with a mock fetchProducts function
+        let mut resolved = HashMap::new();
+        let fetch_fn = FunctionDecl {
+            exported: true,
+            async_fn: true,
+            name: "fetchProducts".to_string(),
+            params: vec![Param {
+                name: "category".to_string(),
+                type_ann: Some(TypeExpr {
+                    kind: TypeExprKind::Named {
+                        name: "string".to_string(),
+                        type_args: vec![],
+                        bounds: vec![],
+                    },
+                    span: s,
+                }),
+                default: Some(Expr {
+                    kind: ExprKind::String("".to_string()),
+                    span: s,
+                }),
+                destructure: None,
+                span: s,
+            }],
+            return_type: Some(TypeExpr {
+                kind: TypeExprKind::Named {
+                    name: "Result".to_string(),
+                    type_args: vec![
+                        TypeExpr {
+                            kind: TypeExprKind::Tuple(vec![
+                                TypeExpr {
+                                    kind: TypeExprKind::Named {
+                                        name: "Array".to_string(),
+                                        type_args: vec![TypeExpr {
+                                            kind: TypeExprKind::Named {
+                                                name: "Product".to_string(),
+                                                type_args: vec![],
+                                                bounds: vec![],
+                                            },
+                                            span: s,
+                                        }],
+                                        bounds: vec![],
+                                    },
+                                    span: s,
+                                },
+                                TypeExpr {
+                                    kind: TypeExprKind::Named {
+                                        name: "number".to_string(),
+                                        type_args: vec![],
+                                        bounds: vec![],
+                                    },
+                                    span: s,
+                                },
+                            ]),
+                            span: s,
+                        },
+                        TypeExpr {
+                            kind: TypeExprKind::Named {
+                                name: "ApiError".to_string(),
+                                type_args: vec![],
+                                bounds: vec![],
+                            },
+                            span: s,
+                        },
+                    ],
+                    bounds: vec![],
+                },
+                span: s,
+            }),
+            body: Box::new(Expr {
+                kind: ExprKind::Unit,
+                span: s,
+            }),
+        };
+
+        let mut imports = ResolvedImports::default();
+        imports.function_decls.push(fetch_fn);
+        resolved.insert("./api".to_string(), imports);
+
+        let probe = generate_probe(&program, &resolved);
+
+        // Should contain the declare function stub
+        assert!(
+            probe.contains("declare function fetchProducts(category?: string): Promise<"),
+            "probe should emit declare function stub for imported Floe function, got:\n{probe}"
+        );
+        // Should contain Result<T, E> expansion
+        assert!(
+            probe.contains("ok: true"),
+            "probe should expand Result type, got:\n{probe}"
+        );
+        // Should NOT contain `declare const fetchProducts: any` (free var fallback)
+        assert!(
+            !probe.contains("declare const fetchProducts: any"),
+            "fetchProducts should not be declared as `any`, got:\n{probe}"
+        );
     }
 }

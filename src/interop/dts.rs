@@ -406,6 +406,10 @@ fn convert_oxc_type(ty: &OxcTSType<'_>) -> TsType {
             }
         }
 
+        // Type operator: readonly T, keyof T, unique T
+        // For readonly, just unwrap to the inner type
+        OxcTSType::TSTypeOperatorType(op) => convert_oxc_type(&op.type_annotation),
+
         // typeof expression: typeof useState
         OxcTSType::TSTypeQuery(query) => {
             let name = match &query.expr_name {
