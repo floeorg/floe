@@ -14,7 +14,7 @@ export fn Counter() -> JSX.Element {
 
   <div>
     <h1>Count: {count}</h1>
-    <button onClick={|| setCount(count + 1)}>Increment</button>
+    <button onClick={fn() setCount(count + 1)}>Increment</button>
   </div>
 }
 ```
@@ -26,7 +26,7 @@ Components are exported `fn` declarations with a `JSX.Element` return type. The 
 ```floe
 type ButtonProps = {
   label: string,
-  onClick: () -> (),
+  onClick: fn() -> (),
   disabled: boolean,
 }
 
@@ -59,7 +59,7 @@ Use pipes with `map`:
 
 ```floe
 <ul>
-  {items |> map(|item| <li key={item.id}>{item.name}</li>)}
+  {items |> map(fn(item) <li key={item.id}>{item.name}</li>)}
 </ul>
 ```
 

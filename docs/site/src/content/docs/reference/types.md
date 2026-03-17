@@ -54,7 +54,7 @@ type BaseProps = {
 
 type ButtonProps = {
   ...BaseProps,
-  onClick: () -> (),
+  onClick: fn() -> (),
   label: string,
 }
 ```
@@ -149,7 +149,7 @@ Result<User, Error>
 Option<string>
 
 // Function
-(number, number) -> number
+fn(number, number) -> number
 
 // Record (inline)
 { name: string, age: number }

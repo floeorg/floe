@@ -22,14 +22,14 @@ The compiler is a single Rust binary (`floe`) that takes `.fl` files and emits `
 
 A React developer should read Floe and understand it in 30 minutes. We keep familiar syntax and add targeted upgrades.
 
-### Three Operators
+### Key Operators
 
 ```
-|x|  anonymous functions     |a| a + 1
-->   match arms              Ok(x) -> x
-|>   pipe data through       data |> transform
-?    unwrap Result/Option    fetchUser(id)?
-.x   dot shorthand           .name (implicit lambda for field access)
+fn(x) anonymous functions     fn(a) a + 1
+->    match arms              Ok(x) -> x
+|>    pipe data through       data |> transform
+?     unwrap Result/Option    fetchUser(id)?
+.x    dot shorthand           .name (implicit closure for field access)
 ```
 
 All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now means exactly one thing: unwrap or short-circuit.
@@ -38,13 +38,13 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 
 - `const`, `export`, `import`, type annotations
 - `fn` for named/exported functions
-- Pipe lambdas `|x|` for inline/anonymous functions
-- Dot shorthand `.field` for implicit field-access lambdas
+- Closures `fn(x)` for inline/anonymous functions
+- Dot shorthand `.field` for implicit field-access closures
 - JSX / TSX (full support)
 - Generics, template literals
 - `async`/`await`
 - Destructuring, spread, rest params
-- `||`, `&&`, `!` (boolean operators)
+- `||` (boolean OR), `&&`, `!` (boolean operators)
 - `==` (but only between same types — structural equality on objects)
 - Unit type `()` instead of `void`
 
@@ -74,7 +74,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Type constructors | `User(name: "Ryan", email: e)` | `{ name: "Ryan", email: e }` (compiler adds tags for unions) |
 | Record spread | `User(..user, name: "New")` | `{ ...user, name: "New" }` |
 | Named arguments | `fetchUsers(page: 3, limit: 50)` | `fetchUsers(3, 50)` (labels erased) |
-| Pipe lambdas | `\|x\| x + 1` | `(x) => x + 1` |
+| Closures | `fn(x) x + 1` | `(x) => x + 1` |
 | Dot shorthand | `.name` in callback position | `(x) => x.name` |
 | Dot shorthand (predicate) | `.id != id` in callback position | `(x) => x.id != id` |
 | Implicit member expr | `.Variant` when type is known | `TypeName.Variant` |
@@ -111,7 +111,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `x?: T` | Optional fields | `x: Option<T>` |
 | `+` on strings | Silent coercion bugs | Template literals only (warning) |
 | `void` | Not a real type, can't use in generics | Unit type `()` — a real value |
-| `=>` | Two syntaxes for functions is one too many | `\|x\| expr` for anonymous functions |
+| `=>` | Two syntaxes for functions is one too many | `fn(x) expr` for anonymous functions |
 | `function` | Verbose keyword | `fn` |
 | `if`/`else` | Redundant control flow | `match` expression |
 | `return` | Implicit returns — last expression is the value | Omit `return`; the last expression in a block is the return value |
@@ -137,13 +137,13 @@ users
 const addTen = add(10, _)              // (x) => add(10, x)
 [1, 2, 3] |> map(multiply(_, 2))      // [2, 4, 6]
 
-// Dot shorthand — .field creates an implicit lambda
+// Dot shorthand — .field creates an implicit closure
 todos |> Array.filter(.id != id)       // filter(todos, x => x.id != id)
 todos |> Array.map(.text)              // map(todos, x => x.text)
 
-// Pipe lambdas — |x| for when you need a named param
-todos |> Array.map(|t| Todo(..t, done: true))
-items |> Array.reduce(|acc, x| acc + x.price, 0)
+// Closures — fn(x) for when you need a named param
+todos |> Array.map(fn(t) Todo(..t, done: true))
+items |> Array.reduce(fn(acc, x) acc + x.price, 0)
 
 // tap — call a function for side effects, pass value through
 orders
@@ -156,7 +156,7 @@ orders
   {users
     |> filter(.active)
     |> sortBy(.name)
-    |> map(|u| <li key={u.id}>{u.name}</li>)
+    |> map(fn(u) <li key={u.id}>{u.name}</li>)
   }
 </ul>
 ```
@@ -238,7 +238,7 @@ match url {
 
 ```
 
-Match uses `->` for arms (not `|x|`), so it's visually distinct from lambdas.
+Match uses `->` for arms (not `fn(x)`), so it's visually distinct from closures.
 
 ### Array Pattern Matching
 
@@ -399,10 +399,10 @@ const display = match user.nickname {
 const display = user.nickname |> Option.unwrapOr(user.name)
 
 // Transform inside without unwrapping
-const upper: Option<string> = user.nickname |> Option.map(|n| toUpper(n))
+const upper: Option<string> = user.nickname |> Option.map(fn(n) toUpper(n))
 
 // Chain
-const avatar = user.nickname |> Option.flatMap(|n| findAvatar(n))
+const avatar = user.nickname |> Option.flatMap(fn(n) findAvatar(n))
 
 ```
 
@@ -426,7 +426,7 @@ type BaseProps = {
 
 type ButtonProps = {
   ...BaseProps,
-  onClick: () -> (),
+  onClick: fn() -> (),
   label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -699,7 +699,7 @@ fetchUsers(limit: 50, sort: Descending)          // override two
 // On React component props
 type ButtonProps = {
   label: string                      // required
-  onClick: () -> ()                   // required
+  onClick: fn() -> ()                // required
   variant: Variant = Primary         // default
   size: Size = Medium                // default
   disabled: boolean = false             // default
@@ -930,10 +930,10 @@ Compiles to (test mode only):
 export fn TodoApp() -> JSX.Element { ... }
 export fn fetchUser(id: UserId) -> Result<User, ApiError> { ... }
 
-// Inline/anonymous uses |x| pipe lambdas
-todos |> Array.map(|t| t.name)
-onClick={|| setCount(count + 1)}
-items |> Array.reduce(|acc, x| acc + x.price, 0)
+// Inline/anonymous uses fn(x) closures
+todos |> Array.map(fn(t) t.name)
+onClick={fn() setCount(count + 1)}
+items |> Array.reduce(fn(acc, x) acc + x.price, 0)
 
 // Dot shorthand for simple field access
 todos |> Array.filter(.done == false)
@@ -946,8 +946,8 @@ fn greet(name: string, greeting: string = "Hello") -> string {
 greet("Ryan")                    // "Hello, Ryan!"
 greet("Ryan", greeting: "Hey")  // "Hey, Ryan!"
 
-// COMPILE ERROR: const + lambda — use fn instead
-const double = |x| x * 2        // ERROR: Use `fn double(x) -> ...`
+// COMPILE ERROR: const + closure — use fn instead
+const double = fn(x) x * 2        // ERROR: Use `fn double(x) -> ...`
 fn double(x: number) -> number { x * 2 }  // correct
 ```
 
@@ -966,13 +966,13 @@ type Tab = Overview | Team | Analytics
 
 export fn Dashboard(userId: UserId) -> JSX.Element {
   const [tab, setTab] = useState<Tab>(Overview)
-  const user = useAsync(|| fetchUser(userId))
+  const user = useAsync(fn() fetchUser(userId))
 
   <Layout>
     <Sidebar>
       <NavItem
         active={match tab { Overview -> true, _ -> false }}
-        onClick={|| setTab(Overview)}>
+        onClick={fn() setTab(Overview)}>
         Overview
       </NavItem>
     </Sidebar>
@@ -1023,7 +1023,7 @@ These are enforced at compile time with clear error messages.
 | Rule | Error | Fix |
 |------|-------|-----|
 | Exported functions must declare return types | `ERROR: missing return type` | Add `-> ReturnType` |
-| `const name = \|x\| ...` | `ERROR: use fn instead` | `fn name(x) -> T { ... }` |
+| `const name = fn(x) ...` | `ERROR: use fn instead` | `fn name(x) -> T { ... }` |
 | No unused variables | `ERROR: x is never used` | Remove or prefix with `_` |
 | No unused imports | `ERROR: useRef is never used` | Remove the import |
 | No implicit type widening | `ERROR: mixed array needs explicit type` | Add type annotation |
@@ -1132,7 +1132,7 @@ Key tokens beyond standard TypeScript:
 | `Arrow` | `->` (match arms, return types, function types) |
 | `Question` | `?` (postfix, Result/Option unwrap) |
 | `Underscore` | `_` (placeholder/partial application) |
-| `PipePipe` | `\|\|` (zero-arg lambda, also boolean OR) |
+| `PipePipe` | `\|\|` (boolean OR) |
 | `Match` | `match` keyword |
 | `Fn` | `fn` keyword |
 | `Some` | `Some` keyword |
@@ -1163,7 +1163,7 @@ Banned tokens (immediate compile errors with helpful messages):
 - `enum` → "Use type with | variants"
 - `void` → "Use the unit type () instead"
 - `function` → "Use fn instead"
-- `=>` → "Use |x| for lambdas, -> for types and match arms"
+- `=>` → "Use fn(x) for closures, -> for types and match arms"
 
 ### Parser (`zs_parser`)
 
@@ -1176,7 +1176,7 @@ enum Expr {
     Identifier(String),
     BinaryOp { left: Box<Expr>, op: BinOp, right: Box<Expr> },
     Call { callee: Box<Expr>, args: Vec<Arg> },
-    Lambda { params: Vec<Param>, body: Box<Expr> },  // |x| expr
+    Lambda { params: Vec<Param>, body: Box<Expr> },  // fn(x) expr
     DotShorthand(Box<Expr>),                          // .field or .field op expr
     Jsx(JsxElement),
 
@@ -1361,7 +1361,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `a \|> f(b, c)` | `f(a, b, c)` |
 | `a \|> f(b, _, c)` | `f(b, a, c)` |
 | `add(10, _)` | `(x) => add(10, x)` |
-| `\|x\| x + 1` | `(x) => x + 1` |
+| `fn(x) x + 1` | `(x) => x + 1` |
 | `.name` (in callback) | `(x) => x.name` |
 | `.id != id` (in callback) | `(x) => x.id != id` |
 | `.Variant` (implicit member) | `Variant` (resolved by compiler) |
@@ -1506,7 +1506,7 @@ fn add(a: number, b: number) -> number {
 }
 ```
 
-This applies to `fn` bodies, `for`-block functions, match arms with block bodies, and lambdas with block bodies.
+This applies to `fn` bodies, `for`-block functions, match arms with block bodies, and closures with block bodies.
 
 ---
 
@@ -1515,7 +1515,7 @@ This applies to `fn` bodies, `for`-block functions, match arms with block bodies
 ### Phase 1: Proof of concept (2-4 weeks)
 
 - [ ] Lexer with pipe, match, `?` tokens and banned keyword errors
-- [ ] Parser for: const, fn, |x| lambdas, .field shorthand, pipes, basic expressions
+- [ ] Parser for: const, fn, fn(x) closures, .field shorthand, pipes, basic expressions
 - [ ] Parser: `Type(field: value)` constructor syntax and `..spread`
 - [ ] Parser: named arguments at call sites
 - [ ] Parser: default values on function params and record fields
@@ -1612,7 +1612,7 @@ fn deleteUser(id: UserId) -> Result<(), ApiError> {
 
 // Callbacks
 type ButtonProps = {
-  onClick: () -> ()
+  onClick: fn() -> ()
 }
 ```
 
@@ -1690,10 +1690,10 @@ const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
 | Question | Decision | Rationale |
 |----------|----------|-----------|
 | Syntax style | TS keywords + Gleam match/pipe | Familiar to React devs, 30min learning curve |
-| Function style | `fn` for named, `\|x\|` for inline lambdas, `.field` for shorthand | One keyword, two lambda forms, no overlap |
+| Function style | `fn` for named, `fn(x)` for inline closures, `.field` for shorthand | One keyword, two closure forms, no overlap |
 | Arrow `->` | Match arms, return types, function types | "Maps to" everywhere — consistent single meaning |
-| `const name = \|x\| ...` | Compile error | If it has a name, use `fn`. No two ways to name a function. |
-| Dot shorthand | `.field` in callback position creates implicit lambda | Covers 80% of inline callbacks (filter, map, sort) |
+| `const name = fn(x) ...` | Compile error | If it has a name, use `fn`. No two ways to name a function. |
+| Dot shorthand | `.field` in callback position creates implicit closure | Covers 80% of inline callbacks (filter, map, sort) |
 | Implicit member expr | `.Variant` when type is known from context | Swift-style; NOT used in match arms (match already establishes type) |
 | Pipe semantics | First-arg default, `_` placeholder | Gleam approach — clean 90% of the time |
 | Partial application | `f(a, _)` creates `(x) => f(a, x)` | Free bonus from `_` placeholder |
@@ -1702,7 +1702,7 @@ const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
 | npm null interop | Auto-wrap to `Option` at boundary | Transparent — devs never see null |
 | Boolean operators | Keep `||`, `&&`, `!` | Everyone knows them, no coercion issues |
 | Compiler target | Pure vanilla .tsx, zero dependencies | Eject-friendly, no runtime cost |
-| Type keyword | `type` for everything, no `enum` | `enum` is broken in TS; `type` with `\|` covers unions, records, brands, opaques |
+| Type keyword | `type` for everything, no `enum` | `enum` is broken in TS; `type` with `|` covers unions, records, brands, opaques |
 | Nested unions | Unions can contain other union types, match at any depth | More powerful than Gleam and TS; compiler generates discrimination tags |
 | Constructors | `Type(field: value)` — parens, not braces | Same syntax for records, unions, and function calls. Consistent. |
 | Record updates | `Type(..existing, field: newValue)` | Gleam-style spread with `..` — compiles to `{ ...existing, field: newValue }` |

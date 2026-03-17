@@ -9,7 +9,7 @@ All stdlib functions are **pipe-friendly**: the first argument is the data, so t
 ```floe
 [3, 1, 2]
   |> Array.sort
-  |> Array.map(|n| n * 10)
+  |> Array.map(fn(n) n * 10)
   |> Array.reverse
 // [30, 20, 10]
 ```
@@ -23,12 +23,12 @@ All array functions return new arrays. They never mutate the original.
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `Array.sort` | `Array<number> -> Array<number>` | Sort numerically (returns new array) |
-| `Array.sortBy` | `Array<T>, (T -> number) -> Array<T>` | Sort by key function |
-| `Array.map` | `Array<T>, (T -> U) -> Array<U>` | Transform each element |
-| `Array.filter` | `Array<T>, (T -> boolean) -> Array<T>` | Keep elements matching predicate |
-| `Array.find` | `Array<T>, (T -> boolean) -> Option<T>` | First element matching predicate |
-| `Array.findIndex` | `Array<T>, (T -> boolean) -> Option<number>` | Index of first match |
-| `Array.flatMap` | `Array<T>, (T -> Array<U>) -> Array<U>` | Map then flatten one level |
+| `Array.sortBy` | `Array<T>, fn(T) -> number -> Array<T>` | Sort by key function |
+| `Array.map` | `Array<T>, fn(T) -> U -> Array<U>` | Transform each element |
+| `Array.filter` | `Array<T>, fn(T) -> boolean -> Array<T>` | Keep elements matching predicate |
+| `Array.find` | `Array<T>, fn(T) -> boolean -> Option<T>` | First element matching predicate |
+| `Array.findIndex` | `Array<T>, fn(T) -> boolean -> Option<number>` | Index of first match |
+| `Array.flatMap` | `Array<T>, fn(T) -> Array<U> -> Array<U>` | Map then flatten one level |
 | `Array.at` | `Array<T>, number -> Option<T>` | Safe index access |
 | `Array.contains` | `Array<T>, T -> boolean` | Check if element exists (structural equality) |
 | `Array.head` | `Array<T> -> Option<T>` | First element |
@@ -36,16 +36,16 @@ All array functions return new arrays. They never mutate the original.
 | `Array.take` | `Array<T>, number -> Array<T>` | First n elements |
 | `Array.drop` | `Array<T>, number -> Array<T>` | All except first n elements |
 | `Array.reverse` | `Array<T> -> Array<T>` | Reverse order (returns new array) |
-| `Array.reduce` | `Array<T>, U, (U, T -> U) -> U` | Fold into a single value |
+| `Array.reduce` | `Array<T>, U, fn(U, T) -> U -> U` | Fold into a single value |
 | `Array.length` | `Array<T> -> number` | Number of elements |
-| `Array.any` | `Array<T>, (T -> boolean) -> boolean` | True if any element matches predicate |
-| `Array.all` | `Array<T>, (T -> boolean) -> boolean` | True if all elements match predicate |
+| `Array.any` | `Array<T>, fn(T) -> boolean -> boolean` | True if any element matches predicate |
+| `Array.all` | `Array<T>, fn(T) -> boolean -> boolean` | True if all elements match predicate |
 | `Array.sum` | `Array<number> -> number` | Sum all elements |
 | `Array.join` | `Array<string>, string -> string` | Join elements with separator |
 | `Array.isEmpty` | `Array<T> -> boolean` | True if array has no elements |
 | `Array.chunk` | `Array<T>, number -> Array<Array<T>>` | Split into chunks of given size |
 | `Array.unique` | `Array<T> -> Array<T>` | Remove duplicate elements |
-| `Array.groupBy` | `Array<T>, (T -> string) -> Record` | Group elements by key function |
+| `Array.groupBy` | `Array<T>, fn(T) -> string -> Record` | Group elements by key function |
 | `Array.zip` | `Array<T>, Array<U> -> Array<[T, U]>` | Pair elements from two arrays |
 
 ### Examples
@@ -94,8 +94,8 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Option.map` | `Option<T>, (T -> U) -> Option<U>` | Transform the inner value if present |
-| `Option.flatMap` | `Option<T>, (T -> Option<U>) -> Option<U>` | Chain option-returning operations |
+| `Option.map` | `Option<T>, fn(T) -> U -> Option<U>` | Transform the inner value if present |
+| `Option.flatMap` | `Option<T>, fn(T) -> Option<U> -> Option<U>` | Chain option-returning operations |
 | `Option.unwrapOr` | `Option<T>, T -> T` | Extract value or use default |
 | `Option.isSome` | `Option<T> -> boolean` | Check if value is present |
 | `Option.isNone` | `Option<T> -> boolean` | Check if value is absent |
@@ -106,12 +106,12 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 ```floe
 // Transform without unwrapping
 const upper = user.nickname
-  |> Option.map(|n| String.toUpper(n))
+  |> Option.map(fn(n) String.toUpper(n))
 // Some("RYAN") or None
 
 // Chain lookups
 const avatar = user.nickname
-  |> Option.flatMap(|n| findAvatar(n))
+  |> Option.flatMap(fn(n) findAvatar(n))
 
 // Extract with fallback
 const display = user.nickname
@@ -130,9 +130,9 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Result.map` | `Result<T, E>, (T -> U) -> Result<U, E>` | Transform the Ok value |
-| `Result.mapErr` | `Result<T, E>, (E -> F) -> Result<T, F>` | Transform the Err value |
-| `Result.flatMap` | `Result<T, E>, (T -> Result<U, E>) -> Result<U, E>` | Chain result-returning operations |
+| `Result.map` | `Result<T, E>, fn(T) -> U -> Result<U, E>` | Transform the Ok value |
+| `Result.mapErr` | `Result<T, E>, fn(E) -> F -> Result<T, F>` | Transform the Err value |
+| `Result.flatMap` | `Result<T, E>, fn(T) -> Result<U, E> -> Result<U, E>` | Chain result-returning operations |
 | `Result.unwrapOr` | `Result<T, E>, T -> T` | Extract Ok value or use default |
 | `Result.isOk` | `Result<T, E> -> boolean` | Check if result is Ok |
 | `Result.isErr` | `Result<T, E> -> boolean` | Check if result is Err |
@@ -143,15 +143,15 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 ```floe
 // Transform success value
 const doubled = fetchCount()
-  |> Result.map(|n| n * 2)
+  |> Result.map(fn(n) n * 2)
 
 // Handle errors
 const result = fetchUser(id)
-  |> Result.mapErr(|e| AppError(e))
+  |> Result.mapErr(fn(e) AppError(e))
 
 // Chain operations
 const profile = fetchUser(id)
-  |> Result.flatMap(|u| fetchProfile(u.profileId))
+  |> Result.flatMap(fn(u) fetchProfile(u.profileId))
 
 // Extract with fallback
 const count = fetchCount()
@@ -195,7 +195,7 @@ const cleaned = "  Hello, World!  "
 // Split and process
 const words = "one,two,three"
   |> String.split(",")
-  |> Array.map(|w| String.toUpper(w))
+  |> Array.map(fn(w) String.toUpper(w))
 // ["ONE", "TWO", "THREE"]
 ```
 
@@ -284,7 +284,7 @@ Standard math functions. Compile directly to JavaScript `Math` methods.
 | `Math.sin` | `number -> number` | Sine |
 | `Math.cos` | `number -> number` | Cosine |
 | `Math.tan` | `number -> number` | Tangent |
-| `Math.random` | `() -> number` | Random number between 0 (inclusive) and 1 (exclusive) |
+| `Math.random` | `fn() -> number` | Random number between 0 (inclusive) and 1 (exclusive) |
 
 ### Examples
 
@@ -442,7 +442,7 @@ const result = await Http.post("https://api.example.com/users", { name: "Alice" 
 // Full pipeline
 const users = await Http.get(url)?
   |> Http.json?
-  |> Result.map(|data| Array.filter(data, .active))
+  |> Result.map(fn(data) Array.filter(data, .active))
 
 // Error handling with match
 match await Http.get(url) {
@@ -461,7 +461,7 @@ Utility functions for pipeline debugging and control flow.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `tap` | `T, (T -> ()) -> T` | Call a function for side effects, return value unchanged |
+| `tap` | `T, fn(T) -> () -> T` | Call a function for side effects, return value unchanged |
 
 ### Examples
 
@@ -471,12 +471,12 @@ const result = orders
   |> Array.filter(.active)
   |> tap(Console.log)         // logs filtered orders, passes them through
   |> Array.map(.total)
-  |> Array.reduce(|sum, n| sum + n, 0)
+  |> Array.reduce(fn(sum, n) sum + n, 0)
 
-// Use a lambda for custom logging
+// Use a closure for custom logging
 const processed = data
   |> transform
-  |> tap(|x| Console.log("after transform:", x))
+  |> tap(fn(x) Console.log("after transform:", x))
   |> validate
 
 // Works with any type

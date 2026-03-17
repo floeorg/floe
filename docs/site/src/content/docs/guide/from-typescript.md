@@ -29,7 +29,7 @@ fn greet(name: string) -> string {
 }
 ```
 
-### `|x|` instead of `=>`
+### `fn(x)` instead of `=>`
 
 ```typescript
 // TypeScript
@@ -38,7 +38,7 @@ onClick={() => setCount(count + 1)}
 
 // Floe
 const result = items |> Array.filter(.active)
-onClick={|| setCount(count + 1)}
+onClick={fn() setCount(count + 1)}
 ```
 
 ### `->` for return types and function types
@@ -50,7 +50,7 @@ type Transform = (s: string) => number
 
 // Floe
 fn add(a: number, b: number) -> number { ... }
-type Transform = (string) -> number
+type Transform = fn(string) -> number
 ```
 
 ### `const` only
@@ -182,7 +182,7 @@ fn find(id: string) -> Option<User> {
 | `for` / `while` | Mutation-heavy | Pipes + map/filter/reduce |
 | `throw` | Invisible error paths | `Result<T, E>` |
 | `function` | Verbose | `fn` |
-| `=>` | Two function syntaxes | `\|x\|` for lambdas |
+| `=>` | Two function syntaxes | `fn(x)` for closures |
 | `return` | Implicit returns | Last expression is the return value |
 
 ## Incremental Adoption

@@ -15,16 +15,16 @@ export fn greet(name: string) -> string {
     `Hello, ${name}!`
 }
 
-// Anonymous functions use |params| body (pipe lambdas)
-items |> map(|x| x + 1)
+// Anonymous functions use fn(params) body (closures)
+items |> map(fn(x) x + 1)
 
-// Zero-arg lambda
-onClick={|| doSomething()}
+// Zero-arg closure
+onClick={fn() doSomething()}
 
 // Dot shorthand for field access in callbacks
-users |> filter(.active)        // same as |u| u.active
-users |> map(.name)             // same as |u| u.name
-users |> filter(.id != id)      // same as |u| u.id != id
+users |> filter(.active)        // same as fn(u) u.active
+users |> map(.name)             // same as fn(u) u.name
+users |> filter(.id != id)      // same as fn(u) u.id != id
 
 // No semicolons
 const x = 5
@@ -92,7 +92,7 @@ type BaseProps = {
 
 type ButtonProps = {
     ...BaseProps,
-    onClick: () -> (),
+    onClick: fn() -> (),
     label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -285,7 +285,7 @@ match user.nickname {
 
 // Option helpers
 user.nickname |> Option.unwrapOr(user.name)
-user.nickname |> Option.map(|n| toUpper(n))
+user.nickname |> Option.map(fn(n) toUpper(n))
 
 // collect block — accumulate all errors instead of short-circuiting
 fn validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> {
@@ -441,15 +441,15 @@ export fn App() -> JSX.Element {
         <h1>Todos</h1>
         <input
             value={input}
-            onChange={|e| setInput(e.target.value)}
-            onKeyDown={|e| match e.key {
+            onChange={fn(e) setInput(e.target.value)}
+            onKeyDown={fn(e) match e.key {
                 "Enter" -> handleAdd(),
                 _ -> (),
             }}
         />
         <button onClick={handleAdd}>Add</button>
         <ul>
-            {todos |> map(|item|
+            {todos |> map(fn(item)
                 <li key={item.id}>
                     <span className={match item.done {
                         true -> "line-through",
@@ -457,7 +457,7 @@ export fn App() -> JSX.Element {
                     }}>
                         {item.text}
                     </span>
-                    <button onClick={|| setTodos(todos |> map(|t|
+                    <button onClick={fn() setTodos(todos |> map(fn(t)
                         match t.id == item.id {
                             true -> Todo(..t, done: !t.done),
                             false -> t,
@@ -513,7 +513,7 @@ match key {
 | `? :` (ternary) | `match` expression |
 | `?.` (optional chain) | `match` on `Option` or `?` |
 | `??` (nullish coalesce) | `Option.unwrapOr` |
-| `=>` (arrow function) | `\|x\|` pipe lambda |
+| `=>` (arrow function) | `fn(x)` closure |
 | `function` keyword | `fn` |
 | `void` | Unit type `()` |
 | `as` (type assertion) | Type guards or `match` |
@@ -527,7 +527,7 @@ match key {
 | `a \|> f(b)` | `f(a, b)` |
 | `a \|> f(b, _, c)` | `f(b, a, c)` |
 | `a \|> match { 1 -> "one", _ -> "other" }` | `match a { ... }` (desugared) |
-| `\|x\| x + 1` | `(x) => x + 1` |
+| `fn(x) x + 1` | `(x) => x + 1` |
 | `.name` (in callback) | `(x) => x.name` |
 | `Ok(value)` | `{ ok: true, value }` |
 | `Err(error)` | `{ ok: false, error }` |

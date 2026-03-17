@@ -199,28 +199,28 @@ Option.Some(value)      // variant with data
 Result.Ok(value)        // variant with data
 ```
 
-### Anonymous Functions (Lambdas)
+### Anonymous Functions (Closures)
 
 ```floe
-|a, b| a + b
-|x| x * 2
-|| doSomething()
+fn(a, b) a + b
+fn(x) x * 2
+fn() doSomething()
 ```
 
 Dot shorthand for field access:
 
 ```floe
-.name           // |x| x.name
-.id != id       // |x| x.id != id
-.done == false  // |x| x.done == false
+.name           // fn(x) x.name
+.id != id       // fn(x) x.id != id
+.done == false  // fn(x) x.done == false
 ```
 
 ### Function Types
 
 ```floe
-() -> ()                  // takes nothing, returns nothing
-(string) -> number        // takes string, returns number
-(number, number) -> boolean  // takes two numbers, returns boolean
+fn() -> ()                  // takes nothing, returns nothing
+fn(string) -> number        // takes string, returns number
+fn(number, number) -> boolean  // takes two numbers, returns boolean
 ```
 
 ### JSX

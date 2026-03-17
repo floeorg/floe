@@ -81,7 +81,7 @@ pub enum TokenKind {
     ThinArrow,
     /// `=>` — fat arrow (banned, kept for error reporting)
     FatArrow,
-    /// `|` — vertical bar (union types, lambda delimiters)
+    /// `|` — vertical bar (union types)
     VerticalBar,
     /// `?` — Result/Option unwrap
     Question,

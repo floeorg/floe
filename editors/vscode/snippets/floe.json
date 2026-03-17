@@ -168,6 +168,13 @@
     ],
     "description": "Trait implementation"
   },
+  "Closure": {
+    "prefix": "closure",
+    "body": [
+      "fn(${1:params}) ${0:expr}"
+    ],
+    "description": "Closure expression"
+  },
   "Tap Debug": {
     "prefix": "tap",
     "body": [

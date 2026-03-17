@@ -56,13 +56,13 @@ x |> match { ... }  // match x { ... }
 
 The `?` operator unwraps `Ok(value)` or `Some(value)`, and returns early with `Err(e)` or `None` on failure. Only valid inside functions that return `Result` or `Option`.
 
-## Arrow and Lambda Operators
+## Arrow and Closure Operators
 
 | Operator | Context | Meaning |
 |----------|---------|---------|
-| `\|x\|` | Lambdas | `\|x\| x + 1` |
-| `.field` | Dot shorthand | `.name` (implicit field-access lambda) |
-| `->` | Match arms, return types, function types | `Ok(x) -> x`, `(string) -> number` |
+| `fn(x)` | Closures | `fn(x) x + 1` |
+| `.field` | Dot shorthand | `.name` (implicit field-access closure) |
+| `->` | Match arms, return types, function types | `Ok(x) -> x`, `fn(string) -> number` |
 | `\|>` | Pipes | `data \|> transform` |
 
 ## Precedence (high to low)

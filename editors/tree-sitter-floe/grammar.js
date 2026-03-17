@@ -242,6 +242,7 @@ module.exports = grammar({
 
     function_type: ($) =>
       seq(
+        "fn",
         "(",
         commaSep($._type_expression),
         ")",
@@ -540,16 +541,12 @@ module.exports = grammar({
     pipe_lambda: ($) =>
       prec.right(
         "pipe",
-        choice(
-          // |x| expr or |a, b| expr
-          seq(
-            "|",
-            commaSep1($.lambda_parameter),
-            "|",
-            field("body", $._expression),
-          ),
-          // || expr (zero-arg)
-          seq("||", field("body", $._expression)),
+        seq(
+          "fn",
+          "(",
+          commaSep($.lambda_parameter),
+          ")",
+          field("body", $._expression),
         ),
       ),
 

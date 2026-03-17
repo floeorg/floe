@@ -72,8 +72,7 @@
   name: (identifier) @variable.parameter)
 
 ; ── Lambda ───────────────────────────────────────────────
-(pipe_lambda "|" @punctuation.delimiter)
-(pipe_lambda "||" @punctuation.delimiter)
+(pipe_lambda "fn" @keyword)
 
 ; ── Dot shorthand ────────────────────────────────────────
 (dot_shorthand
