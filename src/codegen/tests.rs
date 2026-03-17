@@ -67,6 +67,29 @@ fn template_literal() {
     assert_eq!(emit("`hello ${name}`"), "`hello ${name}`;");
 }
 
+#[test]
+fn template_literal_expression_interpolation() {
+    assert_eq!(emit("`count: ${1 + 2}`"), "`count: ${1 + 2}`;");
+}
+
+#[test]
+fn template_literal_pipe_match_interpolation() {
+    assert_eq!(
+        emit(r#"`${count |> match { 1 -> "one", _ -> "other" }}`"#),
+        r#"`${count === 1 ? "one" : "other"}`;"#,
+    );
+}
+
+#[test]
+fn template_literal_multiple_interpolations() {
+    assert_eq!(emit(r#"`${a} and ${b}`"#), "`${a} and ${b}`;",);
+}
+
+#[test]
+fn template_literal_no_interpolation() {
+    assert_eq!(emit("`hello world`"), "`hello world`;");
+}
+
 // ── Declarations ─────────────────────────────────────────────
 
 #[test]

@@ -825,6 +825,153 @@ impl<'src> Lowerer<'src> {
         None
     }
 
+    // ── Template literal lowering ─────────────────────────────
+
+    /// Parse a template literal source text (including backticks) into AST
+    /// `TemplatePart`s, properly lowering interpolated expressions.
+    fn lower_template_literal(&self, text: &str) -> Vec<TemplatePart> {
+        // Strip backticks
+        let inner = if text.len() >= 2 && text.starts_with('`') && text.ends_with('`') {
+            &text[1..text.len() - 1]
+        } else {
+            text
+        };
+
+        let mut parts = Vec::new();
+        let mut current_raw = String::new();
+        let bytes = inner.as_bytes();
+        let mut i = 0;
+
+        while i < bytes.len() {
+            if bytes[i] == b'$' && i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+                // Save current raw segment
+                if !current_raw.is_empty() {
+                    parts.push(TemplatePart::Raw(std::mem::take(&mut current_raw)));
+                }
+
+                // Skip `${`
+                i += 2;
+
+                // Find matching `}` with brace depth tracking
+                let mut depth = 1;
+                let interp_start = i;
+                while i < bytes.len() && depth > 0 {
+                    match bytes[i] {
+                        b'{' => depth += 1,
+                        b'}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        b'`' => {
+                            // Skip nested template literals
+                            i += 1;
+                            while i < bytes.len() && bytes[i] != b'`' {
+                                if bytes[i] == b'\\' {
+                                    i += 1; // skip escaped char
+                                }
+                                i += 1;
+                            }
+                            // i now points at closing backtick (or end)
+                        }
+                        b'"' => {
+                            // Skip string literals
+                            i += 1;
+                            while i < bytes.len() && bytes[i] != b'"' {
+                                if bytes[i] == b'\\' {
+                                    i += 1;
+                                }
+                                i += 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                    i += 1;
+                }
+                // After the loop: if depth == 0, i points one past the closing `}`
+                // (we broke at `}`, then i += 1 didn't execute, so i points AT `}`)
+                // Actually: when depth hits 0, we break BEFORE i += 1, so i is AT `}`
+                let interp_end = i;
+                let interp_source = &inner[interp_start..interp_end.min(inner.len())];
+
+                // Parse the interpolation as a Floe expression
+                if let Some(expr) = self.parse_interpolation_expr(interp_source) {
+                    parts.push(TemplatePart::Expr(expr));
+                } else {
+                    // Fallback: store as raw if parsing fails
+                    parts.push(TemplatePart::Raw(format!("${{{}}}", interp_source)));
+                }
+
+                // Skip past the closing `}`
+                if depth == 0 {
+                    i += 1;
+                }
+            } else if bytes[i] == b'\\' && i + 1 < bytes.len() {
+                // Process escape sequences
+                i += 1;
+                match bytes[i] {
+                    b'n' => current_raw.push('\n'),
+                    b't' => current_raw.push('\t'),
+                    b'r' => current_raw.push('\r'),
+                    b'\\' => current_raw.push('\\'),
+                    b'0' => current_raw.push('\0'),
+                    b'`' => current_raw.push('`'),
+                    b'$' => current_raw.push('$'),
+                    c => {
+                        current_raw.push('\\');
+                        current_raw.push(c as char);
+                    }
+                }
+                i += 1;
+            } else if bytes[i] >= 0x80 {
+                // UTF-8 multibyte: find the full character
+                let ch_start = i;
+                i += 1;
+                while i < bytes.len() && bytes[i] >= 0x80 && bytes[i] < 0xC0 {
+                    i += 1;
+                }
+                current_raw.push_str(&inner[ch_start..i]);
+            } else {
+                current_raw.push(bytes[i] as char);
+                i += 1;
+            }
+        }
+
+        // Save final raw segment
+        if !current_raw.is_empty() {
+            parts.push(TemplatePart::Raw(current_raw));
+        }
+
+        parts
+    }
+
+    /// Parse a string of Floe source code as a single expression.
+    fn parse_interpolation_expr(&self, source: &str) -> Option<Expr> {
+        use crate::cst::CstParser;
+        use crate::lexer::Lexer;
+
+        let tokens = Lexer::new(source).tokenize_with_trivia();
+        let cst_parse = CstParser::new(source, tokens).parse();
+
+        // Ignore CST errors for interpolations — they may be complex expressions
+        let root = cst_parse.syntax();
+        let mut lowerer = Lowerer {
+            source,
+            errors: Vec::new(),
+        };
+        let program = lowerer.lower_root(&root);
+
+        // Extract the first expression from the program
+        program.items.into_iter().find_map(|item| {
+            if let ItemKind::Expr(expr) = item.kind {
+                Some(expr)
+            } else {
+                None
+            }
+        })
+    }
+
     // ── Utility helpers ─────────────────────────────────────────
 
     fn node_span(&self, node: &SyntaxNode) -> Span {

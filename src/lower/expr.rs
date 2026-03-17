@@ -680,13 +680,9 @@ impl<'src> Lowerer<'src> {
                 span,
             }),
             SyntaxKind::TEMPLATE_LITERAL => {
-                // Template literals are complex — for now, store as raw
-                // The lowering for interpolations needs the original token parts
-                // We'll handle this separately
+                let parts = self.lower_template_literal(text);
                 Some(Expr {
-                    kind: ExprKind::TemplateLiteral(vec![TemplatePart::Raw(
-                        text[1..text.len().saturating_sub(1)].to_string(),
-                    )]),
+                    kind: ExprKind::TemplateLiteral(parts),
                     span,
                 })
             }
