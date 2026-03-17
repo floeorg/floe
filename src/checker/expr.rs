@@ -1357,6 +1357,26 @@ impl Checker {
             return Type::Unknown;
         }
 
+        // Tuple index access: pair.0, pair.1
+        if let Type::Tuple(elements) = &concrete
+            && let Ok(idx) = field.parse::<usize>()
+        {
+            if idx < elements.len() {
+                return elements[idx].clone();
+            }
+            self.diagnostics.push(
+                Diagnostic::error(
+                    format!(
+                        "tuple index `{field}` out of bounds — tuple has {} element(s)",
+                        elements.len()
+                    ),
+                    span,
+                )
+                .with_code("E017"),
+            );
+            return Type::Unknown;
+        }
+
         // Error on member access on primitive types
         match obj_ty {
             Type::Number | Type::String | Type::Bool | Type::Unit => {

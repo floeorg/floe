@@ -976,12 +976,13 @@ impl<'src> CstParser<'src> {
                         .start_node_at(checkpoint, SyntaxKind::MEMBER_EXPR.into());
                     self.bump();
                     self.eat_trivia();
-                    // Accept identifiers, banned keywords, and other keywords after `.`
-                    // (e.g., `Array.any(...)`, `Number.parse(...)`)
+                    // Accept identifiers, numbers (tuple .0, .1), banned keywords, and other keywords after `.`
+                    // (e.g., `Array.any(...)`, `Number.parse(...)`, `pair.0`)
                     if self.is_ident()
                         || matches!(
                             self.current_kind(),
-                            Some(TokenKind::Banned(_))
+                            Some(TokenKind::Number(_))
+                                | Some(TokenKind::Banned(_))
                                 | Some(TokenKind::Parse)
                                 | Some(TokenKind::Match)
                                 | Some(TokenKind::For)
