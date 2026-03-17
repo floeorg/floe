@@ -199,7 +199,7 @@ impl Codegen {
                 }
                 if params.len() == 1 && params[0].type_ann.is_none() {
                     self.push("(");
-                    self.push(&params[0].name);
+                    self.emit_param(&params[0]);
                     self.push(")");
                 } else {
                     self.push("(");
