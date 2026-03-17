@@ -94,7 +94,16 @@ impl Codegen {
                         let field_names: Vec<String> = variant
                             .fields
                             .iter()
-                            .filter_map(|f| f.name.clone())
+                            .enumerate()
+                            .map(|(i, f)| {
+                                f.name.clone().unwrap_or_else(|| {
+                                    if variant.fields.len() == 1 {
+                                        "value".to_string()
+                                    } else {
+                                        format!("_{i}")
+                                    }
+                                })
+                            })
                             .collect();
                         if variant.fields.is_empty() {
                             codegen.unit_variants.insert(variant.name.clone());
@@ -120,7 +129,16 @@ impl Codegen {
                             let field_names: Vec<String> = variant
                                 .fields
                                 .iter()
-                                .filter_map(|f| f.name.clone())
+                                .enumerate()
+                                .map(|(i, f)| {
+                                    f.name.clone().unwrap_or_else(|| {
+                                        if variant.fields.len() == 1 {
+                                            "value".to_string()
+                                        } else {
+                                            format!("_{i}")
+                                        }
+                                    })
+                                })
                                 .collect();
                             if variant.fields.is_empty() {
                                 self.unit_variants.insert(variant.name.clone());
