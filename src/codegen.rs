@@ -412,15 +412,43 @@ impl Codegen {
             if i > 0 {
                 self.push(", ");
             }
-            self.push(&param.name);
-            if let Some(type_ann) = &param.type_ann {
-                self.push(": ");
-                self.emit_type_expr(type_ann);
+            self.emit_param(param);
+        }
+    }
+
+    fn emit_param(&mut self, param: &Param) {
+        match &param.destructure {
+            Some(ParamDestructure::Object(fields)) => {
+                self.push("{ ");
+                for (i, field) in fields.iter().enumerate() {
+                    if i > 0 {
+                        self.push(", ");
+                    }
+                    self.push(field);
+                }
+                self.push(" }");
             }
-            if let Some(default) = &param.default {
-                self.push(" = ");
-                self.emit_expr(default);
+            Some(ParamDestructure::Array(fields)) => {
+                self.push("[");
+                for (i, field) in fields.iter().enumerate() {
+                    if i > 0 {
+                        self.push(", ");
+                    }
+                    self.push(field);
+                }
+                self.push("]");
             }
+            None => {
+                self.push(&param.name);
+            }
+        }
+        if let Some(type_ann) = &param.type_ann {
+            self.push(": ");
+            self.emit_type_expr(type_ann);
+        }
+        if let Some(default) = &param.default {
+            self.push(" = ");
+            self.emit_expr(default);
         }
     }
 
