@@ -860,7 +860,7 @@ type User = {
 
 This generates the same code as a handwritten `for` block with no runtime cost.
 
-**Note:** `Eq` is not derivable — structural equality is built-in for all types via `==` (emits `__zenEq` deep comparison). Writing `deriving (Eq)` is a compile error.
+**Note:** `Eq` is not derivable — structural equality is built-in for all types via `==` (emits `__floeEq` deep comparison). Writing `deriving (Eq)` is a compile error.
 
 **Derivable traits:**
 

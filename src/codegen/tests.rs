@@ -430,9 +430,49 @@ fn lambda_multi_arg() {
 #[test]
 fn equality_becomes_structural() {
     let result = emit("a == b");
-    assert!(result.contains("__zenEq(a, b)"));
+    assert!(result.contains("__floeEq(a, b)"));
     let result = emit("a != b");
-    assert!(result.contains("!__zenEq(a, b)"));
+    assert!(result.contains("!__floeEq(a, b)"));
+}
+
+#[test]
+fn floe_eq_helper_emitted_when_needed() {
+    // File that uses == should have the __floeEq helper definition
+    let result = emit("a == b");
+    assert!(
+        result.contains("function __floeEq(a: unknown, b: unknown): boolean"),
+        "expected __floeEq helper to be emitted, got:\n{result}"
+    );
+}
+
+#[test]
+fn floe_eq_helper_not_emitted_when_not_needed() {
+    // File that doesn't use == should NOT have the __floeEq helper
+    let result = emit("const x = 1 + 2");
+    assert!(
+        !result.contains("__floeEq"),
+        "expected no __floeEq helper, got:\n{result}"
+    );
+}
+
+#[test]
+fn floe_eq_helper_emitted_for_dot_shorthand_eq() {
+    // Dot shorthand with == should emit the helper
+    let result = emit("const active = todos |> Array.filter(.done == false)");
+    assert!(
+        result.contains("function __floeEq(a: unknown, b: unknown): boolean"),
+        "expected __floeEq helper for dot shorthand ==, got:\n{result}"
+    );
+}
+
+#[test]
+fn floe_eq_helper_emitted_for_stdlib_contains() {
+    // Array.contains uses __floeEq in its template
+    let result = emit("Array.contains([1, 2], 2)");
+    assert!(
+        result.contains("function __floeEq(a: unknown, b: unknown): boolean"),
+        "expected __floeEq helper for Array.contains, got:\n{result}"
+    );
 }
 
 // ── Await ────────────────────────────────────────────────────
@@ -534,7 +574,7 @@ fn stdlib_array_length() {
 #[test]
 fn stdlib_array_contains() {
     let result = emit("Array.contains([1, 2], 2)");
-    assert!(result.contains("__zenEq"));
+    assert!(result.contains("__floeEq"));
     assert!(result.contains(".some("));
 }
 

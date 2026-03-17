@@ -2,18 +2,18 @@
 source: tests/snapshot_codegen.rs
 expression: output
 ---
-function __zenEq(a: unknown, b: unknown): boolean {
+function __floeEq(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a == null || b == null) return false;
   if (typeof a !== "object" || typeof b !== "object") return false;
   const ka = Object.keys(a as object);
   const kb = Object.keys(b as object);
   if (ka.length !== kb.length) return false;
-  return ka.every((k) => __zenEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+  return ka.every((k) => __floeEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
 
-const _a = __zenEq(1, 2);
+const _a = __floeEq(1, 2);
 
-const _b = !__zenEq("hello", "world");
+const _b = !__floeEq("hello", "world");
 
-const _c = __zenEq(1, 1);
+const _c = __floeEq(1, 1);

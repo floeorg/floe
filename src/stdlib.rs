@@ -125,7 +125,7 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Array", "findIndex", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], option_of(Type::Number), "(() => { const _i = $0.findIndex($1); return _i === -1 ? undefined : _i; })()"),
         stdlib_fn!("Array", "flatMap", [array_of(t.clone()), fun(vec![t.clone()], array_of(u.clone()))], array_of(u.clone()), "$0.flatMap($1)"),
         stdlib_fn!("Array", "at", [array_of(t.clone()), Type::Number], option_of(t.clone()), "$0[$1]"),
-        stdlib_fn!("Array", "contains", [array_of(t.clone()), t.clone()], Type::Bool, "$0.some((_item) => __zenEq(_item, $1))"),
+        stdlib_fn!("Array", "contains", [array_of(t.clone()), t.clone()], Type::Bool, "$0.some((_item) => __floeEq(_item, $1))"),
         stdlib_fn!("Array", "head", [array_of(t.clone())], option_of(t.clone()), "$0[0]"),
         stdlib_fn!("Array", "last", [array_of(t.clone())], option_of(t.clone()), "$0[$0.length - 1]"),
         stdlib_fn!("Array", "take", [array_of(t.clone()), Type::Number], array_of(t.clone()), "$0.slice(0, $1)"),

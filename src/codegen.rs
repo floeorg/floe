@@ -188,14 +188,14 @@ impl Codegen {
         // Prepend structural equality helper if any == or != was used
         if self.needs_deep_equal {
             let helper = concat!(
-                "function __zenEq(a: unknown, b: unknown): boolean {\n",
+                "function __floeEq(a: unknown, b: unknown): boolean {\n",
                 "  if (a === b) return true;\n",
                 "  if (a == null || b == null) return false;\n",
                 "  if (typeof a !== \"object\" || typeof b !== \"object\") return false;\n",
                 "  const ka = Object.keys(a as object);\n",
                 "  const kb = Object.keys(b as object);\n",
                 "  if (ka.length !== kb.length) return false;\n",
-                "  return ka.every((k) => __zenEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));\n",
+                "  return ka.every((k) => __floeEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));\n",
                 "}\n\n",
             );
             self.output = format!("{helper}{}", self.output);

@@ -2,14 +2,14 @@
 source: tests/snapshot_codegen.rs
 expression: output
 ---
-function __zenEq(a: unknown, b: unknown): boolean {
+function __floeEq(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a == null || b == null) return false;
   if (typeof a !== "object" || typeof b !== "object") return false;
   const ka = Object.keys(a as object);
   const kb = Object.keys(b as object);
   if (ka.length !== kb.length) return false;
-  return ka.every((k) => __zenEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+  return ka.every((k) => __floeEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
 
 const _sorted = [...[3, 1, 2]].sort((a, b) => a - b);
@@ -20,15 +20,15 @@ const _mapped = [1, 2, 3].map((n) => n * 2);
 
 const _filtered = [1, 2, 3, 4].filter((n) => n > 2);
 
-const _found = [1, 2, 3].find((n) => __zenEq(n, 2));
+const _found = [1, 2, 3].find((n) => __floeEq(n, 2));
 
-const _found_idx = (() => { const _i = [1, 2, 3].findIndex((n) => __zenEq(n, 2)); return _i === -1 ? undefined : _i; })();
+const _found_idx = (() => { const _i = [1, 2, 3].findIndex((n) => __floeEq(n, 2)); return _i === -1 ? undefined : _i; })();
 
 const _flat_mapped = [1, 2].flatMap((n) => [n, n * 10]);
 
 const _at = [1, 2, 3][1];
 
-const _has = [1, 2, 3].some((_item) => __zenEq(_item, 2));
+const _has = [1, 2, 3].some((_item) => __floeEq(_item, 2));
 
 const _first = [1, 2, 3][0];
 

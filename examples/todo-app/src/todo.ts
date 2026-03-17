@@ -1,11 +1,11 @@
-function __zenEq(a: unknown, b: unknown): boolean {
+function __floeEq(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a == null || b == null) return false;
   if (typeof a !== "object" || typeof b !== "object") return false;
   const ka = Object.keys(a as object);
   const kb = Object.keys(b as object);
   if (ka.length !== kb.length) return false;
-  return ka.every((k) => __zenEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+  return ka.every((k) => __floeEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
 
 import { Todo, Filter, Validation, Display } from "./types";
@@ -21,13 +21,13 @@ export function display(self: Todo): string {
 }
 
 export function filterBy(self: Array<Todo>, f: Filter): Array<Todo> {
-  return f.tag === "All" ? self : f.tag === "Active" ? self.filter((_x) => __zenEq(_x.done, false)) : f.tag === "Completed" ? self.filter((_x) => __zenEq(_x.done, true)) : (() => { throw new Error("non-exhaustive match"); })();
+  return f.tag === "All" ? self : f.tag === "Active" ? self.filter((_x) => __floeEq(_x.done, false)) : f.tag === "Completed" ? self.filter((_x) => __floeEq(_x.done, true)) : (() => { throw new Error("non-exhaustive match"); })();
 }
 export function remaining(self: Array<Todo>): number {
-  return (() => { const _v = self.filter((_x) => __zenEq(_x.done, false)); ((active) => console.log("active todos:"))(_v); return _v; })().length;
+  return (() => { const _v = self.filter((_x) => __floeEq(_x.done, false)); ((active) => console.log("active todos:"))(_v); return _v; })().length;
 }
 export function stats(self: Array<Todo>): readonly [number, number] {
-  return [self.length, self.filter((_x) => __zenEq(_x.done, true)).length] as const;
+  return [self.length, self.filter((_x) => __floeEq(_x.done, true)).length] as const;
 }
 export function search(self: Array<Todo>, _query: string): Array<Todo> {
   return (() => { throw new Error("not implemented"); })();
