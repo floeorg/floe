@@ -51,46 +51,53 @@ const names: Array<string> = ["a", "b", "c"]
 
 ```floe
 // Record type
-type User = {
+type User {
     id: string,
     name: string,
     email: string,
 }
 
 // Union type (discriminated)
-type Route =
+type Route {
     | Home
-    | Profile(id: string)
-    | Settings(tab: string)
+    | Profile { id: string }
+    | Settings { tab: string }
     | NotFound
+}
 
 // Union types can carry data
-type Validation =
-    | Valid(text: string)
+type Validation {
+    | Valid { text: string }
     | TooShort
     | TooLong
     | Empty
+}
 
 // Nested unions
-type NetworkError =
-    | Timeout(ms: number)
-    | DnsFailure(host: string)
+type NetworkError {
+    | Timeout { ms: number }
+    | DnsFailure { host: string }
+}
 
-type ApiError =
-    | Network(NetworkError)
+type ApiError {
+    | Network { NetworkError }
     | NotFound
-    | ServerError(status: number)
+    | ServerError { status: number }
+}
+
+// Newtype (single-value wrapper)
+type OrderId { number }
 
 // String literal union (for npm interop)
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
 // Record type composition with spread
-type BaseProps = {
+type BaseProps {
     className: string,
     disabled: boolean,
 }
 
-type ButtonProps = {
+type ButtonProps {
     ...BaseProps,
     onClick: fn() -> (),
     label: string,
@@ -98,9 +105,9 @@ type ButtonProps = {
 // ButtonProps has: className, disabled, onClick, label
 
 // Multiple spreads
-type A = { x: number }
-type B = { y: string }
-type C = { ...A, ...B, z: boolean }
+type A { x: number }
+type B { y: string }
+type C { ...A, ...B, z: boolean }
 
 // Branded types
 type UserId = Brand<string, "UserId">
@@ -273,7 +280,7 @@ fn loadProfile(id: string) -> Result<Profile, Error> {
 }
 
 // Option<T> replaces null/undefined
-type User = {
+type User {
     name: string,
     nickname: Option<string>,
 }
@@ -410,7 +417,7 @@ for User: Display {
 }
 
 // Auto-derive traits for record types (only Display — Eq is built-in via ==)
-type Point = {
+type Point {
     x: number,
     y: number,
 } deriving (Display)
@@ -422,7 +429,7 @@ type Point = {
 ```floe
 import trusted { useState } from "react"
 
-type Todo = {
+type Todo {
     id: string,
     text: string,
     done: boolean,
@@ -507,7 +514,7 @@ match key {
 | `null`, `undefined` | `Option<T>` with `Some`/`None` |
 | `let`, `var` | `const` |
 | `class` | Functions + types |
-| `enum` | `type` with `\|` variants |
+| `enum` | `type Name { \| A \| B }` variants |
 | `throw` | Return `Result<T, E>` |
 | `if`/`else` | `match` expression |
 | `? :` (ternary) | `match` expression |

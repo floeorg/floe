@@ -181,7 +181,7 @@ const { x, y } = point
 Type declaration - record
 ===
 
-type Todo = {
+type Todo {
     id: string,
     text: string,
     done: boolean,
@@ -207,7 +207,7 @@ type Todo = {
 Type declaration - union
 ===
 
-type Filter =
+type Filter
     | All
     | Active
     | Completed
@@ -229,8 +229,8 @@ type Filter =
 Type declaration - union with fields
 ===
 
-type Validation =
-    | Valid(text: string)
+type Validation
+    | Valid { text: string }
     | TooShort
     | Empty
 
@@ -291,7 +291,7 @@ export const pi = 3
 Generic type
 ===
 
-type Box<T> = {
+type Box<T> {
     value: T,
 }
 

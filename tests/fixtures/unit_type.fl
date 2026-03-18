@@ -9,6 +9,6 @@ fn deleteUser(id: string) -> Result<(), string> {
 }
 
 // Callback with unit return
-type ButtonProps = {
+type ButtonProps {
   onClick: fn() -> ()
 }

@@ -37,11 +37,12 @@ The compiler enforces that assert expressions are boolean at compile time.
 Tests live in the same file as the code they test. This makes it easy to keep tests in sync with the implementation:
 
 ```floe
-type Validation =
-  | Valid(string)
+type Validation {
+  | Valid { string }
   | Empty
   | TooShort
   | TooLong
+}
 
 fn validate(input: string) -> Validation {
   const len = input |> String.length

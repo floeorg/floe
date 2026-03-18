@@ -372,10 +372,15 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::Equal);
-        self.eat_trivia();
-
-        self.parse_type_def();
+        // New syntax: `type Name { ... }` for records/unions/newtypes
+        // Old syntax: `type Name = ...` for aliases and string literal unions
+        if self.at(TokenKind::LeftBrace) {
+            self.parse_type_body_in_braces();
+        } else {
+            self.expect(TokenKind::Equal);
+            self.eat_trivia();
+            self.parse_type_def_after_eq();
+        }
 
         // Optional deriving clause: `deriving (Display)`
         self.eat_trivia();
@@ -393,30 +398,107 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
-    fn parse_type_def(&mut self) {
-        if self.at_pipe_in_union() {
-            self.parse_union_variants();
-        } else if self.at_string_literal_union() {
-            self.parse_string_literal_union();
-        } else if self.at(TokenKind::LeftBrace) {
-            self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
-            self.parse_record_fields();
-            self.builder.finish_node();
-        } else if self.is_newtype_constructor() {
-            // Single-variant newtype: `type ProductId = ProductId(number)`
-            // Parse as a union with one variant
-            self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
-            self.builder.start_node(SyntaxKind::VARIANT.into());
-            self.expect_ident(); // variant name
-            self.eat_trivia();
-            if self.at(TokenKind::LeftParen) {
-                self.bump();
+    /// Parse type body inside `{ }`: disambiguate between record, union, and newtype.
+    fn parse_type_body_in_braces(&mut self) {
+        // Peek at first non-trivia token inside `{` to disambiguate:
+        // - `|` → union variants
+        // - lowercase ident + `:` → record fields
+        // - `...` → record fields (spread)
+        // - `}` → empty record
+        // - anything else → newtype wrapper
+        let first_inside = self.peek_inside_brace();
+
+        match first_inside {
+            Some(TokenKind::VerticalBar) => {
+                self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
+                self.bump(); // {
                 self.eat_trivia();
-                self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightParen);
-                self.expect(TokenKind::RightParen);
+                self.parse_union_variants_inner();
+                self.expect(TokenKind::RightBrace);
+                self.builder.finish_node();
             }
-            self.builder.finish_node();
-            self.builder.finish_node();
+            Some(TokenKind::DotDotDot) => {
+                // Record with spread
+                self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
+                self.parse_record_fields();
+                self.builder.finish_node();
+            }
+            Some(TokenKind::Identifier(name)) if name.starts_with(char::is_lowercase) => {
+                // Peek further: if followed by `:`, it's a record field.
+                // Otherwise it's a newtype (e.g. `type OrderId { number }`)
+                if self.peek_inside_brace_second() == Some(TokenKind::Colon) {
+                    self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
+                    self.parse_record_fields();
+                    self.builder.finish_node();
+                } else {
+                    // Newtype wrapping a lowercase type like `number`, `string`, `boolean`
+                    self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
+                    self.bump(); // {
+                    self.eat_trivia();
+                    self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
+                    self.parse_type_expr();
+                    self.builder.finish_node();
+                    self.eat_trivia();
+                    self.expect(TokenKind::RightBrace);
+                    self.builder.finish_node();
+                }
+            }
+            Some(TokenKind::RightBrace) => {
+                // Empty record: `type Foo {}`
+                self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
+                self.parse_record_fields();
+                self.builder.finish_node();
+            }
+            _ => {
+                // Newtype: `type OrderId { number }`
+                // Parse as single-variant union matching the type name
+                self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
+                self.bump(); // {
+                self.eat_trivia();
+                // Synthesize a variant with the type's name — the lowerer
+                // will pick up the inner type expression as a variant field
+                self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
+                self.parse_type_expr();
+                self.builder.finish_node();
+                self.eat_trivia();
+                self.expect(TokenKind::RightBrace);
+                self.builder.finish_node();
+            }
+        }
+    }
+
+    /// Peek at the first non-trivia token after the current `{`.
+    fn peek_inside_brace(&self) -> Option<TokenKind> {
+        let mut i = self.pos + 1;
+        while i < self.tokens.len() {
+            if !self.tokens[i].kind.is_trivia() {
+                return Some(self.tokens[i].kind.clone());
+            }
+            i += 1;
+        }
+        None
+    }
+
+    /// Peek at the second non-trivia token after the current `{`.
+    fn peek_inside_brace_second(&self) -> Option<TokenKind> {
+        let mut i = self.pos + 1;
+        let mut count = 0;
+        while i < self.tokens.len() {
+            if !self.tokens[i].kind.is_trivia() {
+                count += 1;
+                if count == 2 {
+                    return Some(self.tokens[i].kind.clone());
+                }
+            }
+            i += 1;
+        }
+        None
+    }
+
+    /// Parse after `=`: aliases and string literal unions only.
+    fn parse_type_def_after_eq(&mut self) {
+        if self.at_string_literal_union() {
+            self.parse_string_literal_union();
         } else {
             self.builder.start_node(SyntaxKind::TYPE_DEF_ALIAS.into());
             self.parse_type_expr();
@@ -424,20 +506,8 @@ impl<'src> CstParser<'src> {
         }
     }
 
-    /// Check if the current position is a newtype constructor: `Uppercase(...)`.
-    fn is_newtype_constructor(&self) -> bool {
-        if let Some(TokenKind::Identifier(name)) = self.current_kind()
-            && name.starts_with(char::is_uppercase)
-        {
-            self.peek_is(TokenKind::LeftParen)
-        } else {
-            false
-        }
-    }
-
-    fn parse_union_variants(&mut self) {
-        self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
-
+    /// Parse union variants inside `{ }`. The `{` is already consumed, `}` is consumed by caller.
+    fn parse_union_variants_inner(&mut self) {
         while self.at_pipe_in_union() {
             self.builder.start_node(SyntaxKind::VARIANT.into());
             self.bump(); // |
@@ -445,18 +515,17 @@ impl<'src> CstParser<'src> {
             self.expect_ident();
             self.eat_trivia();
 
-            if self.at(TokenKind::LeftParen) {
-                self.bump();
+            // Variant fields now use { } instead of ( )
+            if self.at(TokenKind::LeftBrace) {
+                self.bump(); // {
                 self.eat_trivia();
-                self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightParen);
-                self.expect(TokenKind::RightParen);
+                self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightBrace);
+                self.expect(TokenKind::RightBrace);
                 self.eat_trivia();
             }
 
             self.builder.finish_node();
         }
-
-        self.builder.finish_node();
     }
 
     fn parse_string_literal_union(&mut self) {
@@ -2403,19 +2472,19 @@ mod tests {
 
     #[test]
     fn export_type() {
-        assert_no_errors("export type Color = | Red | Green | Blue");
+        assert_no_errors("export type Color { | Red | Green | Blue }");
     }
 
     // ── Type declarations ─────────────────────────────────────────
 
     #[test]
     fn type_record() {
-        assert_no_errors("type User = { name: string, age: number }");
+        assert_no_errors("type User { name: string, age: number }");
     }
 
     #[test]
     fn type_union() {
-        assert_no_errors("type Color = | Red | Green | Blue");
+        assert_no_errors("type Color { | Red | Green | Blue }");
     }
 
     #[test]
@@ -2440,12 +2509,12 @@ mod tests {
 
     #[test]
     fn type_generic() {
-        assert_no_errors("type Box<T> = { value: T }");
+        assert_no_errors("type Box<T> { value: T }");
     }
 
     #[test]
     fn type_exported() {
-        assert_no_errors("export type Point = { x: number, y: number }");
+        assert_no_errors("export type Point { x: number, y: number }");
     }
 
     // ── Expressions ───────────────────────────────────────────────

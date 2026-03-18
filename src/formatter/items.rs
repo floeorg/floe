@@ -195,8 +195,6 @@ impl Formatter<'_> {
             self.write(">");
         }
 
-        self.write(" =");
-
         for child in node.children() {
             match child.kind() {
                 SyntaxKind::TYPE_DEF_UNION => {
@@ -206,8 +204,8 @@ impl Formatter<'_> {
                     self.write(" ");
                     self.fmt_record_def(&child);
                 }
-                SyntaxKind::TYPE_DEF_ALIAS => {
-                    self.write(" ");
+                SyntaxKind::TYPE_DEF_ALIAS | SyntaxKind::TYPE_DEF_STRING_UNION => {
+                    self.write(" = ");
                     self.fmt_type_alias_def(&child);
                 }
                 SyntaxKind::DERIVING_CLAUSE => {
@@ -227,6 +225,25 @@ impl Formatter<'_> {
             .filter(|c| c.kind() == SyntaxKind::VARIANT)
             .collect();
 
+        // Newtype case: no VARIANT children, just VARIANT_FIELD directly
+        if variants.is_empty() {
+            self.write(" {");
+            self.indent += 1;
+            self.newline();
+            self.write_indent();
+            for child in node.children() {
+                if child.kind() == SyntaxKind::VARIANT_FIELD {
+                    self.fmt_variant_field(&child);
+                }
+            }
+            self.indent -= 1;
+            self.newline();
+            self.write_indent();
+            self.write("}");
+            return;
+        }
+
+        self.write(" {");
         self.indent += 1;
         for variant in &variants {
             self.newline();
@@ -235,6 +252,9 @@ impl Formatter<'_> {
             self.fmt_variant(variant);
         }
         self.indent -= 1;
+        self.newline();
+        self.write_indent();
+        self.write("}");
     }
 
     fn fmt_variant(&mut self, node: &SyntaxNode) {
@@ -254,14 +274,14 @@ impl Formatter<'_> {
             .collect();
 
         if !fields.is_empty() {
-            self.write("(");
+            self.write(" { ");
             for (i, field) in fields.iter().enumerate() {
                 if i > 0 {
                     self.write(", ");
                 }
                 self.fmt_variant_field(field);
             }
-            self.write(")");
+            self.write(" }");
         }
     }
 

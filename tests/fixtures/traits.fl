@@ -12,7 +12,7 @@ trait Eq {
 }
 
 // Type definition
-type User = {
+type User {
   name: string,
   age: number
 }

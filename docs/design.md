@@ -67,9 +67,9 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `?` operator | `fetchUser(id)?` | early return on Err/None |
 | Branded types | `type UserId = Brand<string, "UserId">` | `string` at runtime |
 | Opaque types | `opaque type HashedPw = string` | `string`, but only the defining module can create/read |
-| Tagged unions | `type Route = Home \| Profile(id: string)` | discriminated union |
+| Tagged unions | `type Route { \| Home \| Profile { id: string } }` | discriminated union |
 | String literal unions | `type Method = "GET" \| "POST" \| "PUT"` | `"GET" \| "POST" \| "PUT"` (pass-through for npm interop) |
-| Nested unions | `type ApiError = Network(NetworkError) \| NotFound` | nested discriminated union (compiler generates tags) |
+| Nested unions | `type ApiError { \| Network { NetworkError } \| NotFound }` | nested discriminated union (compiler generates tags) |
 | Multi-depth match | `Network(Timeout(ms)) -> ...` | nested if/else with tag checks |
 | Type constructors | `User(name: "Ryan", email: e)` | `{ name: "Ryan", email: e }` (compiler adds tags for unions) |
 | Record spread | `User(..user, name: "New")` | `{ ...user, name: "New" }` |
@@ -383,7 +383,7 @@ The return type of `collect { ... }` is `Result<T, Array<E>>` where:
 ### Option<T> - No Null, No Undefined
 
 ```floe
-type User = {
+type User {
   name: string                  // always present
   nickname: Option<string>      // might not exist
   avatar: Option<Url>           // might not exist
@@ -411,20 +411,20 @@ const avatar = user.nickname |> Option.flatMap(fn(n) findAvatar(n))
 `type` does everything. No `|` = record. Has `|` = union. Unions nest infinitely.
 
 ```floe
-// Record type (no |)
-type User = {
+// Record type
+type User {
   id: UserId
   name: string
   email: Email
 }
 
 // Record type composition with spread
-type BaseProps = {
+type BaseProps {
   className: string,
   disabled: boolean,
 }
 
-type ButtonProps = {
+type ButtonProps {
   ...BaseProps,
   onClick: fn() -> (),
   label: string,
@@ -432,65 +432,74 @@ type ButtonProps = {
 // ButtonProps has: className, disabled, onClick, label
 
 // Multiple spreads
-type A = { x: number }
-type B = { y: string }
-type C = { ...A, ...B, z: boolean }
+type A { x: number }
+type B { y: string }
+type C { ...A, ...B, z: boolean }
 // C has: x, y, z
 
 // Simple union type (has |)
-type Route =
+type Route {
   | Home
-  | Profile(id: string)
-  | Settings(tab: string)
+  | Profile { id: string }
+  | Settings { tab: string }
   | NotFound
+}
 
 // String literal union (for npm interop)
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
 // Union types can contain other union types — nest as deep as you want
-type NetworkError =
-  | Timeout(ms: number)
-  | DnsFailure(host: string)
-  | ConnectionRefused(port: number)
+type NetworkError {
+  | Timeout { ms: number }
+  | DnsFailure { host: string }
+  | ConnectionRefused { port: number }
+}
 
-type ValidationError =
-  | Required(field: string)
-  | InvalidFormat(field: string, expected: string)
-  | TooLong(field: string, max: number)
+type ValidationError {
+  | Required { field: string }
+  | InvalidFormat { field: string, expected: string }
+  | TooLong { field: string, max: number }
+}
 
-type AuthError =
+type AuthError {
   | InvalidCredentials
-  | TokenExpired(expiredAt: Date)
-  | InsufficientRole(required: Role, actual: Role)
+  | TokenExpired { expiredAt: Date }
+  | InsufficientRole { required: Role, actual: Role }
+}
 
 // Parent union containing sub-unions
-type ApiError =
-  | Network(NetworkError)
-  | Validation(ValidationError)
-  | Auth(AuthError)
+type ApiError {
+  | Network { NetworkError }
+  | Validation { ValidationError }
+  | Auth { AuthError }
   | NotFound
-  | ServerError(status: number, body: string)
+  | ServerError { status: number, body: string }
+}
 
 // Go deeper — a full app error hierarchy
-type HttpError =
-  | Network(NetworkError)
-  | Status(code: number, body: string)
-  | Decode(JsonError)
+type HttpError {
+  | Network { NetworkError }
+  | Status { code: number, body: string }
+  | Decode { JsonError }
+}
 
-type UserError =
-  | Http(HttpError)
-  | NotFound(id: UserId)
-  | Banned(reason: string)
+type UserError {
+  | Http { HttpError }
+  | NotFound { id: UserId }
+  | Banned { reason: string }
+}
 
-type PaymentError =
-  | Http(HttpError)
-  | InsufficientFunds(needed: number, available: number)
-  | CardDeclined(reason: string)
+type PaymentError {
+  | Http { HttpError }
+  | InsufficientFunds { needed: number, available: number }
+  | CardDeclined { reason: string }
+}
 
-type AppError =
-  | User(UserError)
-  | Payment(PaymentError)
-  | Auth(AuthError)
+type AppError {
+  | User { UserError }
+  | Payment { PaymentError }
+  | Auth { AuthError }
+}
 ```
 
 ### Multi-Depth Matching
@@ -625,7 +634,7 @@ Records and functions use the same call syntax: `Name(args)` with optional label
 ```floe
 // --- Record Construction ---
 
-type User = {
+type User {
   id: UserId
   name: string
   email: Email
@@ -669,7 +678,7 @@ createUser("Ryan", role: Admin, email: Email("r@test.com"))
 // --- Default Values ---
 
 // On record types
-type Config = {
+type Config {
   baseUrl: string                    // required — no default
   timeout: number = 5000             // default value
   retries: number = 3                // default value
@@ -697,7 +706,7 @@ fetchUsers(page: 3)                              // override one
 fetchUsers(limit: 50, sort: Descending)          // override two
 
 // On React component props
-type ButtonProps = {
+type ButtonProps {
   label: string                      // required
   onClick: fn() -> ()                // required
   variant: Variant = Primary         // default
@@ -732,7 +741,7 @@ Two syntactic forms are supported:
 **Block form** — group multiple functions:
 
 ```floe
-type User = { name: string, age: number, active: bool }
+type User { name: string, age: number, active: bool }
 
 for User {
   fn display(self) -> string {
@@ -851,7 +860,7 @@ Trait rules:
 Record types can auto-derive trait implementations with `deriving`:
 
 ```floe
-type User = {
+type User {
   id: string,
   name: string,
   email: string,
@@ -956,13 +965,17 @@ fn double(x: number) -> number { x * 2 }  // correct
 ```floe
 import { useState } from "react"
 
-type Todo = {
+type Todo {
   id: string
   text: string
   done: boolean
 }
 
-type Tab = Overview | Team | Analytics
+type Tab {
+  | Overview
+  | Team
+  | Analytics
+}
 
 export fn Dashboard(userId: UserId) -> JSX.Element {
   const [tab, setTab] = useState<Tab>(Overview)
@@ -1611,7 +1624,7 @@ fn deleteUser(id: UserId) -> Result<(), ApiError> {
 }
 
 // Callbacks
-type ButtonProps = {
+type ButtonProps {
   onClick: fn() -> ()
 }
 ```
@@ -1717,6 +1730,7 @@ const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
 | Spread overlap | Warning on statically-known key overlap | Catches silent overwrites at compile time |
 | Compiler language | Rust | Fast, WASM-ready for browser playground, good LSP story |
 | Inline tests | `test "name" { assert expr }` co-located with code | Gleam/Rust-inspired; type-checked always, stripped from production output |
+| Type definitions | `type Foo { fields }` for records, `type Foo { \| A \| B }` for unions | Unified syntax: all nominal types use `type Name { ... }`. `=` only for aliases and string literal unions |
 | For blocks | `for Type { fn f(self) ... }` groups functions under a type | Rust/Swift-like method chaining DX without OOP. `self` is explicit, no `this` magic |
 
 ---

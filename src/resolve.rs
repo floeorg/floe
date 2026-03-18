@@ -551,7 +551,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "types.fl",
-                "type WithRating = { rating: number }\nexport type Product = { ...WithRating, title: string }",
+                "type WithRating { rating: number }\nexport type Product { ...WithRating, title: string }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -599,7 +599,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "types.fl",
-                "type A = { x: number }\ntype B = { ...A, y: string }\nexport type C = { ...B, z: boolean }",
+                "type A { x: number }\ntype B { ...A, y: string }\nexport type C { ...B, z: boolean }",
             ),
         ]);
         let main_path = base.join("main.fl");

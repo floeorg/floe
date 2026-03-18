@@ -175,7 +175,7 @@ module.exports = grammar({
         "type",
         field("name", $.type_identifier),
         optional($.type_parameters),
-        "=",
+        optional("="),
         field("definition", $._type_definition),
         optional($.deriving_clause),
       ),
@@ -192,7 +192,7 @@ module.exports = grammar({
     variant: ($) =>
       prec.right(1, seq(
         field("name", $.type_identifier),
-        optional(seq("(", commaSep1($.variant_field), ")")),
+        optional(seq("{", commaSep1($.variant_field), "}")),
       )),
 
     variant_field: ($) =>

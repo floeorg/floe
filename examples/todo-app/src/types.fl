@@ -1,26 +1,28 @@
-export type Todo = {
+export type Todo {
     id: string,
     text: string,
     done: boolean,
 }
 
-export type Filter =
+export type Filter {
     | All
     | Active
     | Completed
+}
 
-export type Validation =
-    | Valid(text: string)
+export type Validation {
+    | Valid { text: string }
     | TooShort
     | TooLong
     | Empty
+}
 
-export type Timestamped = {
+export type Timestamped {
     createdAt: number,
     updatedAt: number,
 }
 
-export type TodoWithTimestamp = {
+export type TodoWithTimestamp {
     ...Todo,
     ...Timestamped,
 }

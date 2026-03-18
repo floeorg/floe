@@ -44,15 +44,19 @@ async fn name() -> Promise<T> {
 
 ```floe
 // Record
-type User = {
+type User {
   name: string,
   email: string,
 }
 
 // Union
-type Shape =
-  | Circle(radius: number)
-  | Rectangle(width: number, height: number)
+type Shape {
+  | Circle { radius: number }
+  | Rectangle { width: number, height: number }
+}
+
+// Newtype (single-value wrapper)
+type OrderId { number }
 
 // String literal union (for npm interop)
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
@@ -67,7 +71,7 @@ type UserId = Brand<string, "UserId">
 opaque type Email = string
 
 // Deriving traits
-type Point = {
+type Point {
   x: number,
   y: number,
 } deriving (Display)

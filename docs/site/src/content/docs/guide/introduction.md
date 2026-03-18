@@ -22,7 +22,7 @@ Floe removes these and adds features that make correct code easy to write:
 ```floe
 import trusted { useState } from "react"
 
-type Todo = {
+type Todo {
   id: string,
   text: string,
   done: boolean,

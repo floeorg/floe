@@ -1,7 +1,8 @@
-type Route =
+type Route {
     | Home
-    | Profile(id: string)
+    | Profile { id: string }
     | NotFound
+}
 
 const route = Home
 
@@ -12,9 +13,10 @@ const _page = match route {
 }
 
 // Match with guards
-type User =
-    | Adult(age: number)
-    | Child(age: number)
+type User {
+    | Adult { age: number }
+    | Child { age: number }
+}
 
 const user = Adult(age: 25)
 

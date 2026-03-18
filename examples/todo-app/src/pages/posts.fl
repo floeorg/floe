@@ -2,14 +2,14 @@ import trusted { useState, Suspense } from "react"
 import trusted { useSuspenseQuery, QueryClient, QueryClientProvider, QueryErrorResetBoundary } from "@tanstack/react-query"
 import trusted { ErrorBoundary } from "react-error-boundary"
 
-type Post = {
+type Post {
     id: number,
     title: string,
     body: string,
     userId: number,
 }
 
-type User = {
+type User {
     id: number,
     name: string,
     email: string,

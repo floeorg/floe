@@ -314,7 +314,7 @@ fn floating_result_error() {
 fn for_block_registers_function() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 for User {
     fn display(self) -> string { self.name }
 }
@@ -329,7 +329,7 @@ const _x = display(User(name: "Ryan"))
 fn for_block_self_gets_type() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 for User {
     fn getName(self) -> string { self.name }
 }
@@ -343,7 +343,7 @@ for User {
 fn for_block_multiple_params() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 for User {
     fn greet(self, greeting: string) -> string { greeting }
 }
@@ -361,7 +361,7 @@ fn call_site_type_args_infer_return() {
     let program = crate::parser::Parser::new(
         r#"
 import { useState } from "react"
-type Todo = { text: string }
+type Todo { text: string }
 const [todos, _setTodos] = useState<Array<Todo>>([])
 const _x = todos
 "#,
@@ -411,7 +411,7 @@ const _x = todos
 fn for_block_with_pipe() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 for User {
     fn display(self) -> string { self.name }
 }
@@ -428,7 +428,7 @@ const _x = _user |> display
 fn inline_for_registers_function() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 for User fn display(self) -> string { self.name }
 const _x = display(User(name: "Ryan"))
 "#,
@@ -440,7 +440,7 @@ const _x = display(User(name: "Ryan"))
 fn inline_for_exported_registers_function() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 export for User fn display(self) -> string { self.name }
 const _x = display(User(name: "Ryan"))
 "#,
@@ -452,7 +452,7 @@ const _x = display(User(name: "Ryan"))
 fn inline_for_self_gets_type() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 for User fn getName(self) -> string { self.name }
 "#,
     );
@@ -463,7 +463,7 @@ for User fn getName(self) -> string { self.name }
 fn inline_for_with_pipe() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 for User fn display(self) -> string { self.name }
 const _user = User(name: "Ryan")
 const _x = _user |> display
@@ -541,7 +541,7 @@ const _y = fetchUser("id")
 fn constructor_unknown_field_error() {
     let diags = check(
         r#"
-type Todo = {
+type Todo {
     id: string,
     text: string,
     done: bool,
@@ -557,7 +557,7 @@ const _t = Todo(id: "1", textt: "hello", done: false)
 fn constructor_valid_fields_no_error() {
     let diags = check(
         r#"
-type Todo = {
+type Todo {
     id: string,
     text: string,
     done: bool,
@@ -573,7 +573,7 @@ const _t = Todo(id: "1", text: "hello", done: false)
 fn constructor_missing_required_field() {
     let diags = check(
         r#"
-type Todo = {
+type Todo {
     id: string,
     text: string,
     done: bool,
@@ -592,7 +592,7 @@ const _t = Todo(id: "1", text: "hello")
 fn constructor_missing_field_with_default_ok() {
     let diags = check(
         r#"
-type Config = {
+type Config {
     host: string,
     port: number = 3000,
 }
@@ -606,7 +606,7 @@ const _c = Config(host: "localhost")
 fn constructor_spread_skips_missing_check() {
     let diags = check(
         r#"
-type Todo = {
+type Todo {
     id: string,
     text: string,
     done: bool,
@@ -622,10 +622,11 @@ const _t = Todo(..original, text: "updated")
 fn union_variant_unknown_field_error() {
     let diags = check(
         r#"
-type Validation =
-    | Valid(text: string)
+type Validation {
+    | Valid { text: string }
     | TooShort
     | Empty
+}
 
 const _v = Valid(texxt: "hello")
 "#,
@@ -638,10 +639,11 @@ const _v = Valid(texxt: "hello")
 fn union_variant_valid_field_no_error() {
     let diags = check(
         r#"
-type Validation =
-    | Valid(text: string)
+type Validation {
+    | Valid { text: string }
     | TooShort
     | Empty
+}
 
 const _v = Valid(text: "hello")
 "#,
@@ -655,7 +657,7 @@ const _v = Valid(text: "hello")
 fn unknown_type_in_record_field() {
     let diags = check(
         r#"
-type Todo = {
+type Todo {
     id: string,
     text: string,
     done: asojSIDJA,
@@ -687,7 +689,7 @@ fn unknown_type_in_function_return() {
 fn known_type_no_error() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 const _u: User = User(name: "Alice")
 "#,
     );
@@ -710,8 +712,8 @@ const _c: boolean = true
 fn forward_reference_in_union_no_error() {
     let diags = check(
         r#"
-type Container = { item: Item }
-type Item = { name: string }
+type Container { item: Item }
+type Item { name: string }
 "#,
     );
     assert!(!has_error_containing(&diags, "unknown type `Item`"));
@@ -886,7 +888,7 @@ fn shadow_const_shadows_for_block_fn_errors() {
     // A const shadowing a for-block function should error
     let diags = check(
         r#"
-type Todo = { text: string, done: boolean }
+type Todo { text: string, done: boolean }
 for Array<Todo> {
     export fn remaining(self) -> number { 0 }
 }
@@ -925,7 +927,7 @@ fn shadow_inner_scope_const_shadows_for_block_fn() {
     // A const INSIDE a function body shadowing a for-block function should error
     let diags = check(
         r#"
-type Todo = { text: string, done: boolean }
+type Todo { text: string, done: boolean }
 for Array<Todo> {
     export fn remaining(self) -> number { 0 }
 }
@@ -966,7 +968,7 @@ fn for_block_pipe_then_shadow_errors() {
     // Real-world case: piping into for-block fn then shadowing its name
     let diags = check(
         r#"
-type Todo = { text: string, done: boolean }
+type Todo { text: string, done: boolean }
 for Array<Todo> {
     export fn remaining(self) -> number { 0 }
 }
@@ -1020,7 +1022,7 @@ const double = 42
 fn shadow_error_includes_source_for_block() {
     let diags = check(
         r#"
-type Todo = { text: string, done: boolean }
+type Todo { text: string, done: boolean }
 for Array<Todo> {
     export fn remaining(self) -> number { 0 }
 }
@@ -1091,7 +1093,7 @@ const _r = 5 |> double
 fn member_access_on_record_type_resolves_field() {
     let diags = check(
         r#"
-type User = { name: string, age: number }
+type User { name: string, age: number }
 const u = User(name: "hi", age: 21)
 const _n = u.name
 "#,
@@ -1117,7 +1119,7 @@ const _n = u.name
 fn member_access_unknown_field_errors() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 const u = User(name: "hi")
 const _n = u.nonexistent
 "#,
@@ -1150,7 +1152,7 @@ const _n = x.name
 fn constructor_wrong_field_type_errors() {
     let diags = check(
         r#"
-type User = { name: string, age: number }
+type User { name: string, age: number }
 const _u = User(name: 42, age: "old")
 "#,
     );
@@ -1165,7 +1167,7 @@ const _u = User(name: 42, age: "old")
 fn constructor_correct_types_ok() {
     let diags = check(
         r#"
-type User = { name: string, age: number }
+type User { name: string, age: number }
 const _u = User(name: "hi", age: 21)
 "#,
     );
@@ -1186,7 +1188,7 @@ fn constructor_missing_field_errors_phase1() {
     // but let's add one that specifically tests the two-field case)
     let diags = check(
         r#"
-type User = { name: string, age: number }
+type User { name: string, age: number }
 const _u = User(name: "hi")
 "#,
     );
@@ -1305,7 +1307,7 @@ fn calling_named_function_type_returns_its_return_type() {
     // (which is what Dispatch<SetStateAction<Array<Todo>>> resolves to)
     let program = crate::parser::Parser::new(
         r#"
-type Todo = { text: string }
+type Todo { text: string }
 fn setTodos(value: Array<Todo>) -> () { () }
 fn handler() {
     setTodos([])
@@ -1335,7 +1337,7 @@ fn dispatch_generic_converts_to_function() {
     let program = crate::parser::Parser::new(
         r#"
 import trusted { useState } from "react"
-type Todo = { text: string }
+type Todo { text: string }
 const [todos, setTodos] = useState<Array<Todo>>([])
 fn handler() {
     setTodos([])
@@ -1408,7 +1410,7 @@ fn calling_dispatch_type_is_callable() {
     let program = crate::parser::Parser::new(
         r#"
 import trusted { useState } from "react"
-type Todo = { text: string }
+type Todo { text: string }
 const [todos, setTodos] = useState<Array<Todo>>([])
 fn handler() {
     setTodos([])
@@ -1503,7 +1505,7 @@ fn outer() {
 fn object_destructuring_gets_field_types() {
     let program = crate::parser::Parser::new(
         r#"
-type User = { name: string, age: number }
+type User { name: string, age: number }
 const user = User(name: "hi", age: 21)
 const { name, age } = user
 const _x = name
@@ -1675,7 +1677,7 @@ fn trait_impl_valid() {
 trait Display {
   fn display(self) -> string
 }
-type User = { name: string }
+type User { name: string }
 for User: Display {
   fn display(self) -> string {
     self.name
@@ -1701,7 +1703,7 @@ fn trait_impl_missing_method() {
 trait Display {
   fn display(self) -> string
 }
-type User = { name: string }
+type User { name: string }
 for User: Display {
   fn toString(self) -> string {
     "wrong"
@@ -1720,7 +1722,7 @@ for User: Display {
 fn trait_unknown_trait() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 for User: NonExistent {
   fn display(self) -> string {
     self.name
@@ -1779,7 +1781,7 @@ trait Eq {
     !(self |> eq(other))
   }
 }
-type User = { name: string }
+type User { name: string }
 for User: Eq {
   fn eq(self, other: string) -> boolean {
     self.name == other
@@ -1802,7 +1804,7 @@ for User: Eq {
 fn trait_for_block_without_trait_still_works() {
     let diags = check(
         r#"
-type User = { name: string }
+type User { name: string }
 for User {
   fn greet(self) -> string {
     self.name
@@ -1829,7 +1831,7 @@ trait Printable {
   fn print(self) -> string
   fn prettyPrint(self) -> string
 }
-type User = { name: string }
+type User { name: string }
 for User: Printable {
   fn print(self) -> string {
     self.name
@@ -1859,7 +1861,7 @@ trait Printable {
   fn print(self) -> string
   fn prettyPrint(self) -> string
 }
-type User = { name: string }
+type User { name: string }
 for User: Printable {
   fn print(self) -> string {
     self.name
@@ -2289,12 +2291,12 @@ fn _handle(s: Status) -> number {
 fn record_spread_basic() {
     let diags = check(
         r#"
-type BaseProps = {
+type BaseProps {
     className: string,
     disabled: boolean,
 }
 
-type ButtonProps = {
+type ButtonProps {
     ...BaseProps,
     onClick: fn() -> (),
     label: string,
@@ -2314,15 +2316,15 @@ const btn = ButtonProps(className: "btn", disabled: false, onClick: fn() (), lab
 fn record_spread_multiple() {
     let diags = check(
         r#"
-type A = {
+type A {
     x: number,
 }
 
-type B = {
+type B {
     y: string,
 }
 
-type C = {
+type C {
     ...A,
     ...B,
     z: boolean,
@@ -2342,11 +2344,11 @@ const c = C(x: 1, y: "hello", z: true)
 fn record_spread_conflict_error() {
     let diags = check(
         r#"
-type A = {
+type A {
     name: string,
 }
 
-type B = {
+type B {
     ...A,
     name: number,
 }
@@ -2363,9 +2365,9 @@ type B = {
 fn record_spread_union_error() {
     let diags = check(
         r#"
-type Status = | Active | Inactive
+type Status { | Active | Inactive }
 
-type Bad = {
+type Bad {
     ...Status,
     extra: string,
 }
@@ -2382,16 +2384,16 @@ type Bad = {
 fn record_spread_nested() {
     let diags = check(
         r#"
-type A = {
+type A {
     x: number,
 }
 
-type B = {
+type B {
     ...A,
     y: string,
 }
 
-type C = {
+type C {
     ...B,
     z: boolean,
 }
@@ -2410,15 +2412,15 @@ const c = C(x: 1, y: "hello", z: true)
 fn record_spread_conflict_between_spreads() {
     let diags = check(
         r#"
-type A = {
+type A {
     name: string,
 }
 
-type B = {
+type B {
     name: string,
 }
 
-type C = {
+type C {
     ...A,
     ...B,
 }
@@ -2557,7 +2559,7 @@ fn f() -> Result<number, Array<string>> {
 fn deriving_eq_is_error() {
     let diags = check(
         r#"
-type Point = {
+type Point {
   x: number,
   y: number,
 } deriving (Eq)
@@ -2574,7 +2576,7 @@ type Point = {
 fn deriving_display_on_record_type() {
     let diags = check(
         r#"
-type User = {
+type User {
   name: string,
   age: number,
 } deriving (Display)
@@ -2591,7 +2593,7 @@ type User = {
 fn deriving_eq_and_display_errors_on_eq() {
     let diags = check(
         r#"
-type User = {
+type User {
   name: string,
   age: number,
 } deriving (Eq, Display)
@@ -2608,7 +2610,7 @@ type User = {
 fn deriving_on_union_type_is_error() {
     let diags = check(
         r#"
-type Shape = | Circle(radius: number) | Square(side: number) deriving (Display)
+type Shape { | Circle { radius: number } | Square { side: number } } deriving (Display)
 "#,
     );
     assert!(
@@ -2622,7 +2624,7 @@ type Shape = | Circle(radius: number) | Square(side: number) deriving (Display)
 fn deriving_unknown_trait_is_error() {
     let diags = check(
         r#"
-type Point = {
+type Point {
   x: number,
   y: number,
 } deriving (Hash)
@@ -2639,7 +2641,7 @@ type Point = {
 
 #[test]
 fn newtype_with_number() {
-    let diags = check("type ProductId = ProductId(number)");
+    let diags = check("type ProductId { number }");
     assert!(
         !has_error_containing(&diags, "is not defined"),
         "ProductId(number) should parse as a newtype, got: {:?}",
@@ -2649,7 +2651,7 @@ fn newtype_with_number() {
 
 #[test]
 fn newtype_with_string() {
-    let diags = check("type Email = Email(string)");
+    let diags = check("type Email { string }");
     assert!(
         !has_error_containing(&diags, "is not defined"),
         "Email(string) should parse as a newtype, got: {:?}",
@@ -2659,7 +2661,7 @@ fn newtype_with_string() {
 
 #[test]
 fn newtype_with_boolean() {
-    let diags = check("type Flag = Flag(boolean)");
+    let diags = check("type Flag { boolean }");
     assert!(
         !has_error_containing(&diags, "is not defined"),
         "Flag(boolean) should parse as a newtype, got: {:?}",
@@ -2669,7 +2671,7 @@ fn newtype_with_boolean() {
 
 #[test]
 fn newtype_with_named_field() {
-    let diags = check("type UserId = UserId(value: number)");
+    let diags = check("type UserId { value: number }");
     assert!(
         !has_error_containing(&diags, "is not defined"),
         "UserId(value: number) should parse as a newtype, got: {:?}",
@@ -2681,11 +2683,12 @@ fn newtype_with_named_field() {
 fn newtype_coexists_with_regular_unions() {
     let diags = check(
         r#"
-type ProductId = ProductId(number)
-type Route =
+type ProductId { number }
+type Route {
   | Home
-  | Profile(id: string)
+  | Profile { id: string }
   | NotFound
+}
 "#,
     );
     assert!(

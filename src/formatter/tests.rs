@@ -50,16 +50,16 @@ fn format_export() {
 #[test]
 fn format_type_record() {
     assert_fmt(
-        "type User = {id:string,name:string}",
-        "type User = {\n    id: string,\n    name: string,\n}",
+        "type User {id:string,name:string}",
+        "type User {\n    id: string,\n    name: string,\n}",
     );
 }
 
 #[test]
 fn format_type_union() {
     assert_fmt(
-        "type Route = |Home|Profile(id:string)|NotFound",
-        "type Route =\n    | Home\n    | Profile(id: string)\n    | NotFound",
+        "type Route {|Home|Profile{id:string}|NotFound}",
+        "type Route {\n    | Home\n    | Profile { id: string }\n    | NotFound\n}",
     );
 }
 

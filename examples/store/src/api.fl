@@ -7,7 +7,7 @@ import { Product, ProductId, Review, ApiError } from "./types"
 
 // ── Response types for parsing ─────────────────────────
 
-type ProductDetailResponse = {
+type ProductDetailResponse {
     id: number,
     title: string,
     description: string,
@@ -23,12 +23,12 @@ type ProductDetailResponse = {
     reviews: Array<Review>,
 }
 
-type ProductListResponse = {
+type ProductListResponse {
     products: Array<Product>,
     total: number,
 }
 
-export type CategoryResponse = {
+export type CategoryResponse {
     slug: string,
     name: string,
 }

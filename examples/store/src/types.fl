@@ -1,19 +1,19 @@
 // ── Newtype wrappers ───────────────────────────────────
 // Single-variant unions as newtypes (Gleam/Rust style).
 
-export type ProductId = ProductId(number)
-export type OrderId = OrderId(number)
+export type ProductId { number }
+export type OrderId { number }
 
 // ── Shared field groups ────────────────────────────────
 // Record type composition with spread.
 
-type WithRating = {
+type WithRating {
     rating: number,
 }
 
 // ── Product (from DummyJSON API) ───────────────────────
 
-export type Product = {
+export type Product {
     id: ProductId,
     title: string,
     description: string,
@@ -28,7 +28,7 @@ export type Product = {
     images: Array<string>,
 } deriving (Display)
 
-export type Review = {
+export type Review {
     ...WithRating,
     comment: string,
     date: string,
@@ -37,55 +37,61 @@ export type Review = {
 
 // ── Cart ───────────────────────────────────────────────
 
-export type CartItem = {
+export type CartItem {
     product: Product,
     quantity: number,
 }
 
 // ── Nested error unions ────────────────────────────────
 
-export type NetworkError =
-    | Timeout(ms: number)
-    | DnsFailure(host: string)
+export type NetworkError {
+    | Timeout { ms: number }
+    | DnsFailure { host: string }
     | ConnectionRefused
+}
 
-export type ApiError =
-    | Network(NetworkError)
-    | NotFound(id: ProductId)
-    | BadResponse(status: number, body: string)
-    | ParseError(message: string)
+export type ApiError {
+    | Network { NetworkError }
+    | NotFound { id: ProductId }
+    | BadResponse { status: number, body: string }
+    | ParseError { message: string }
+}
 
 // ── Sort + Filter ──────────────────────────────────────
 
-export type SortOrder =
+export type SortOrder {
     | PriceLow
     | PriceHigh
     | Rating
     | Name
+}
 
-export type PriceRange =
+export type PriceRange {
     | Any
-    | Under(max: number)
-    | Between(min: number, max: number)
-    | Over(min: number)
+    | Under { max: number }
+    | Between { min: number, max: number }
+    | Over { min: number }
+}
 
 // ── Order ──────────────────────────────────────────────
 
-export type OrderStatus =
+export type OrderStatus {
     | Pending
-    | Confirmed(orderId: OrderId)
-    | Shipped(tracking: string)
-    | Failed(reason: string)
+    | Confirmed { orderId: OrderId }
+    | Shipped { tracking: string }
+    | Failed { reason: string }
+}
 
 // ── Checkout validation ────────────────────────────────
 
-export type CheckoutError =
+export type CheckoutError {
     | EmptyCart
-    | InvalidEmail(email: string)
-    | InvalidPhone(phone: string)
-    | OutOfStock(productId: ProductId)
+    | InvalidEmail { email: string }
+    | InvalidPhone { phone: string }
+    | OutOfStock { productId: ProductId }
+}
 
-export type ShippingInfo = {
+export type ShippingInfo {
     name: string,
     email: string,
     phone: string,

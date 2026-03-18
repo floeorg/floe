@@ -13,7 +13,7 @@ const active: boolean = true
 ## Record Types
 
 ```floe
-type User = {
+type User {
   name: string,
   email: string,
   age: number,
@@ -37,12 +37,12 @@ const updated = User(..user, age: 31)
 Include fields from other record types using spread syntax:
 
 ```floe
-type BaseProps = {
+type BaseProps {
   className: string,
   disabled: boolean,
 }
 
-type ButtonProps = {
+type ButtonProps {
   ...BaseProps,
   onClick: fn() -> (),
   label: string,
@@ -53,9 +53,9 @@ type ButtonProps = {
 Multiple spreads are allowed:
 
 ```floe
-type A = { x: number }
-type B = { y: string }
-type C = { ...A, ...B, z: boolean }
+type A { x: number }
+type B { y: string }
+type C { ...A, ...B, z: boolean }
 ```
 
 Rules:
@@ -68,11 +68,12 @@ Rules:
 Discriminated unions with variants:
 
 ```floe
-type Color =
+type Color {
   | Red
   | Green
   | Blue
-  | Custom(r: number, g: number, b: number)
+  | Custom { r: number, g: number, b: number }
+}
 ```
 
 ### Qualified Variants
@@ -80,7 +81,7 @@ type Color =
 When a variant name could be ambiguous (e.g., multiple unions have a variant called `Active`), use qualified syntax:
 
 ```floe
-type Filter = All | Active | Completed
+type Filter { | All | Active | Completed }
 
 const f = Filter.All
 const g = Filter.Active
@@ -140,7 +141,7 @@ For pure Floe code, prefer regular tagged unions (`| Get | Post`) since they wor
 For operations that can fail:
 
 ```floe
-type Result<T, E> = Ok(T) | Err(E)
+type Result<T, E> { | Ok { T } | Err { E } }
 
 const result = Ok(42)
 const error = Err("something went wrong")
@@ -151,7 +152,7 @@ const error = Err("something went wrong")
 For values that may be absent:
 
 ```floe
-type Option<T> = Some(T) | None
+type Option<T> { | Some { T } | None }
 
 const found = Some("hello")
 const missing = None

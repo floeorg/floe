@@ -130,7 +130,7 @@ fn symbol_index_const() {
 
 #[test]
 fn symbol_index_type() {
-    let source = "type User = { name: string, age: number }";
+    let source = "type User { name: string, age: number }";
     let program = Parser::new(source).parse_program().unwrap();
     let index = SymbolIndex::build(&program);
     let syms = index.find_by_name("User");
@@ -150,7 +150,7 @@ fn symbol_index_import() {
 
 #[test]
 fn symbol_index_union_variants() {
-    let source = "type Color = | Red | Green | Blue";
+    let source = "type Color { | Red | Green | Blue }";
     let program = Parser::new(source).parse_program().unwrap();
     let index = SymbolIndex::build(&program);
     assert_eq!(index.find_by_name("Color").len(), 1);
@@ -643,11 +643,11 @@ fn hover_const_without_annotation_detail_lacks_type_before_fix() {
 #[test]
 fn match_context_detects_variants() {
     // Build the index from valid source with the type declaration
-    let valid_source = "type Color = | Red | Green | Blue";
+    let valid_source = "type Color { | Red | Green | Blue }";
     let (index, _) = build_index_and_types(valid_source);
 
     // Simulate incomplete source as it would appear in the editor
-    let editor_source = "type Color = | Red | Green | Blue\nmatch Color {\n    ";
+    let editor_source = "type Color { | Red | Green | Blue }\nmatch Color {\n    ";
     let offset = editor_source.len();
     let variants = detect_match_context(editor_source, offset, &index);
     assert!(variants.is_some(), "should detect match context");
@@ -659,10 +659,10 @@ fn match_context_detects_variants() {
 
 #[test]
 fn match_context_not_detected_outside_match() {
-    let valid_source = "type Color = | Red | Green | Blue";
+    let valid_source = "type Color { | Red | Green | Blue }";
     let (index, _) = build_index_and_types(valid_source);
 
-    let editor_source = "type Color = | Red | Green | Blue\nconst x = ";
+    let editor_source = "type Color { | Red | Green | Blue }\nconst x = ";
     let offset = editor_source.len();
     let variants = detect_match_context(editor_source, offset, &index);
     assert!(
@@ -837,7 +837,7 @@ fn import_path_at_offset_single_quotes() {
 #[test]
 fn symbol_index_for_block_function_detail() {
     let source = r#"
-type Todo = { text: string, done: boolean }
+type Todo { text: string, done: boolean }
 for Array<Todo> {
     export fn remaining(self) -> number { 0 }
 }

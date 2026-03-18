@@ -37,10 +37,11 @@ match findItem(id) {
 ## Union Types
 
 ```floe
-type Shape =
-  | Circle(radius: number)
-  | Rectangle(width: number, height: number)
-  | Triangle(base: number, height: number)
+type Shape {
+  | Circle { radius: number }
+  | Rectangle { width: number, height: number }
+  | Triangle { base: number, height: number }
+}
 
 fn area(shape: Shape) -> number {
   match shape {

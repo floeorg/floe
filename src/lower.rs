@@ -610,6 +610,35 @@ impl<'src> Lowerer<'src> {
 
     fn lower_type_def_union(&mut self, node: &SyntaxNode) -> TypeDef {
         let mut variants = Vec::new();
+
+        // Check for newtype case: VARIANT_FIELD directly inside TYPE_DEF_UNION (no VARIANT wrapper)
+        // This happens for `type OrderId { number }` — synthesize a variant from the parent type name
+        let has_direct_field = node
+            .children()
+            .any(|c| c.kind() == SyntaxKind::VARIANT_FIELD);
+        if has_direct_field {
+            // Get the type name from the parent TYPE_DECL
+            if let Some(parent) = node.parent()
+                && let Some(type_name) = self.collect_idents_direct(&parent).first().cloned()
+            {
+                let span = self.node_span(node);
+                let mut fields = Vec::new();
+                for child in node.children() {
+                    if child.kind() == SyntaxKind::VARIANT_FIELD
+                        && let Some(field) = self.lower_variant_field(&child)
+                    {
+                        fields.push(field);
+                    }
+                }
+                variants.push(Variant {
+                    name: type_name,
+                    fields,
+                    span,
+                });
+            }
+            return TypeDef::Union(variants);
+        }
+
         for child in node.children() {
             if child.kind() == SyntaxKind::VARIANT
                 && let Some(variant) = self.lower_variant(&child)
@@ -1456,7 +1485,7 @@ mod tests {
 
     #[test]
     fn type_record() {
-        let item = first_item("type User = { name: string, age: number }");
+        let item = first_item("type User { name: string, age: number }");
         let ItemKind::TypeDecl(decl) = item else {
             panic!("expected TypeDecl")
         };
@@ -1466,7 +1495,7 @@ mod tests {
 
     #[test]
     fn type_union() {
-        let item = first_item("type Color = | Red | Green | Blue");
+        let item = first_item("type Color { | Red | Green | Blue }");
         let ItemKind::TypeDecl(decl) = item else {
             panic!("expected TypeDecl")
         };

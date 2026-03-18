@@ -25,7 +25,7 @@ title: Types Reference
 Named product types with fields:
 
 ```floe
-type User = {
+type User {
   name: string,
   email: string,
   age: number,
@@ -47,12 +47,12 @@ type User = {
 Include fields from other record types using `...` spread:
 
 ```floe
-type BaseProps = {
+type BaseProps {
   className: string,
   disabled: boolean,
 }
 
-type ButtonProps = {
+type ButtonProps {
   ...BaseProps,
   onClick: fn() -> (),
   label: string,
@@ -73,10 +73,11 @@ Multiple spreads are allowed. Field name conflicts are compile errors.
 Tagged discriminated unions:
 
 ```floe
-type Shape =
-  | Circle(radius: number)
-  | Rectangle(width: number, height: number)
+type Shape {
+  | Circle { radius: number }
+  | Rectangle { width: number, height: number }
   | Point
+}
 ```
 
 Compiles to TypeScript discriminated union:

@@ -7,7 +7,7 @@ title: For Blocks
 ## Basic Usage
 
 ```floe
-type User = { name: string, age: number }
+type User { name: string, age: number }
 
 for User {
   fn display(self) -> string {

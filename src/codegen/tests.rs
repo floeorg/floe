@@ -327,13 +327,13 @@ fn match_guard_with_binding() {
 
 #[test]
 fn type_record() {
-    let result = emit("type User = { id: string, name: string }");
+    let result = emit("type User { id: string, name: string }");
     assert_eq!(result, "type User = { id: string; name: string };");
 }
 
 #[test]
 fn type_union() {
-    let result = emit("type Route = | Home | Profile(id: string) | NotFound");
+    let result = emit("type Route { | Home | Profile { id: string } | NotFound }");
     assert!(result.contains("tag: \"Home\""));
     assert!(result.contains("tag: \"Profile\""));
     assert!(result.contains("tag: \"NotFound\""));
@@ -801,7 +801,7 @@ fn type_directed_array_filter() {
 fn union_variant_dot_access() {
     let result = emit(
         r#"
-type Filter = | All | Active | Completed
+type Filter { | All | Active | Completed }
 const _f = Filter.All
 "#,
     );
@@ -1027,7 +1027,7 @@ test "math" {
 fn inline_for_emits_same_as_block() {
     let block_result = emit(
         r#"
-type User = { name: string }
+type User { name: string }
 for User {
     fn display(self) -> string { self.name }
 }
@@ -1035,7 +1035,7 @@ for User {
     );
     let inline_result = emit(
         r#"
-type User = { name: string }
+type User { name: string }
 for User fn display(self) -> string { self.name }
 "#,
     );
@@ -1046,7 +1046,7 @@ for User fn display(self) -> string { self.name }
 fn inline_for_exported() {
     let result = emit(
         r#"
-type User = { name: string }
+type User { name: string }
 export for User fn display(self) -> string { self.name }
 "#,
     );
@@ -1061,7 +1061,7 @@ export for User fn display(self) -> string { self.name }
 fn inline_for_multiple_separate() {
     let result = emit(
         r#"
-type User = { name: string }
+type User { name: string }
 for User fn display(self) -> string { self.name }
 export for User fn greet(self, greeting: string) -> string { greeting }
 "#,
@@ -1308,7 +1308,7 @@ fn f() -> Result<number, Array<string>> {
 fn deriving_display_generates_string() {
     let result = emit(
         r#"
-type User = {
+type User {
   name: string,
   age: number,
 } deriving (Display)

@@ -751,7 +751,7 @@ fn type_alias() {
 
 #[test]
 fn type_record() {
-    match first_item("type User = { id: UserId, name: string }") {
+    match first_item("type User { id: UserId, name: string }") {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "User");
             match decl.def {
@@ -765,7 +765,7 @@ fn type_record() {
 
 #[test]
 fn type_record_with_spread() {
-    match first_item("type B = { ...A, extra: string }") {
+    match first_item("type B { ...A, extra: string }") {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "B");
             match decl.def {
@@ -785,7 +785,7 @@ fn type_record_with_spread() {
 
 #[test]
 fn type_record_with_multiple_spreads() {
-    match first_item("type C = { ...A, ...B, extra: string }") {
+    match first_item("type C { ...A, ...B, extra: string }") {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "C");
             match decl.def {
@@ -804,7 +804,7 @@ fn type_record_with_multiple_spreads() {
 
 #[test]
 fn type_union() {
-    let input = r#"type Route = | Home | Profile(id: string) | NotFound"#;
+    let input = r#"type Route { | Home | Profile { id: string } | NotFound }"#;
     match first_item(input) {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "Route");
@@ -1036,7 +1036,7 @@ fn full_program() {
     let input = r#"
 import { useState } from "react"
 
-type Todo = { id: string, text: string, done: boolean }
+type Todo { id: string, text: string, done: boolean }
 
 export fn TodoApp() {
     const [todos, setTodos] = useState([])
@@ -1052,7 +1052,7 @@ export fn TodoApp() {
 #[test]
 fn for_block_basic() {
     let input = r#"
-type User = { name: string }
+type User { name: string }
 for User {
     fn display(self) -> string {
         self.name
@@ -1076,7 +1076,7 @@ for User {
 #[test]
 fn for_block_multiple_functions() {
     let input = r#"
-type User = { name: string, age: number }
+type User { name: string, age: number }
 for User {
     fn display(self) -> string { self.name }
     fn isAdult(self) -> bool { self.age >= 18 }
@@ -1126,7 +1126,7 @@ for Array<User> {
 #[test]
 fn self_as_expression() {
     let input = r#"
-type User = { name: string }
+type User { name: string }
 for User {
     fn getName(self) -> string { self.name }
 }
@@ -1161,7 +1161,7 @@ fn for_block_error_non_fn() {
 #[test]
 fn inline_for_declaration() {
     let input = r#"
-type User = { name: string }
+type User { name: string }
 for User fn display(self) -> string {
     self.name
 }
@@ -1182,7 +1182,7 @@ for User fn display(self) -> string {
 #[test]
 fn inline_for_declaration_exported() {
     let input = r#"
-type User = { name: string }
+type User { name: string }
 export for User fn display(self) -> string {
     self.name
 }
@@ -1201,7 +1201,7 @@ export for User fn display(self) -> string {
 #[test]
 fn inline_for_multiple_declarations() {
     let input = r#"
-type User = { name: string }
+type User { name: string }
 for User fn display(self) -> string { self.name }
 export for User fn greet(self, greeting: string) -> string { `${greeting}` }
 "#;
@@ -1268,7 +1268,7 @@ export for User async fn fetchData(self) -> string { self.name }
 #[test]
 fn mixed_inline_and_block_for() {
     let input = r#"
-type User = { name: string }
+type User { name: string }
 export for User fn display(self) -> string { self.name }
 for User {
     export fn greet(self) -> string { self.name }
@@ -1947,7 +1947,7 @@ fn collect_block_with_const() {
 
 #[test]
 fn newtype_parses_as_single_variant_union() {
-    let item = first_item("type ProductId = ProductId(number)");
+    let item = first_item("type ProductId { number }");
     match item {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "ProductId");
@@ -1970,18 +1970,17 @@ fn newtype_parses_as_single_variant_union() {
 }
 
 #[test]
-fn newtype_with_named_field_parses() {
-    let item = first_item("type UserId = UserId(value: number)");
+fn newtype_with_named_field_is_record() {
+    // With new syntax, `{ value: number }` is a record, not a newtype
+    let item = first_item("type UserId { value: number }");
     match item {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "UserId");
-            match &decl.def {
-                TypeDef::Union(variants) => {
-                    assert_eq!(variants.len(), 1);
-                    assert_eq!(variants[0].fields[0].name.as_deref(), Some("value"));
-                }
-                other => panic!("expected Union, got {other:?}"),
-            }
+            assert!(
+                matches!(decl.def, TypeDef::Record(ref fields) if fields.len() == 1),
+                "expected Record, got {:?}",
+                decl.def
+            );
         }
         other => panic!("expected TypeDecl, got {other:?}"),
     }

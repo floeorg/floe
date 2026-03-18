@@ -114,17 +114,18 @@ const icon = temperature |> match {
 
 ```floe
 // Records
-type User = {
+type User {
     id: string,
     name: string,
     email: string,
 }
 
 // Union types (discriminated, exhaustive)
-type Shape =
-    | Circle(radius: number)
-    | Rectangle(width: number, height: number)
-    | Triangle(base: number, height: number)
+type Shape {
+    | Circle { radius: number }
+    | Rectangle { width: number, height: number }
+    | Triangle { base: number, height: number }
+}
 
 fn area(shape: Shape) -> number {
     match shape {
@@ -149,8 +150,8 @@ const (x, y) = point
 type UserId = Brand<string, "UserId">
 type OrderId = Brand<string, "OrderId">
 
-// Newtypes — single-variant wrappers
-type OrderId = OrderId(number)
+// Newtypes — single-value wrappers
+type OrderId { number }
 const id = OrderId(42)
 const OrderId(n) = id   // destructure to get inner value
 
@@ -161,7 +162,7 @@ opaque type HashedPassword = string
 type Method = "GET" | "POST" | "PUT" | "DELETE"
 
 // Record composition
-type ButtonProps = {
+type ButtonProps {
     ...BaseProps,
     onClick: fn() -> (),
     label: string,
@@ -297,7 +298,7 @@ for User: Display {
 }
 
 // Auto-derive for records
-type Point = {
+type Point {
     x: number,
     y: number,
 } deriving (Display)

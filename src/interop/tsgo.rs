@@ -1306,7 +1306,7 @@ const [count, setCount] = useState(0)"#;
     #[test]
     fn generate_probe_with_type_args() {
         let source = r#"import { useState } from "react"
-type Todo = { text: string }
+type Todo { text: string }
 const [todos, setTodos] = useState<Array<Todo>>([])"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new());
@@ -1343,7 +1343,7 @@ const [count, setCount] = useState(0)"#;
 
     #[test]
     fn type_decl_to_ts_record() {
-        let source = "type Todo = { text: string, done: bool }";
+        let source = "type Todo { text: string, done: bool }";
         let program = Parser::new(source).parse_program().unwrap();
         if let ItemKind::TypeDecl(decl) = &program.items[0].kind {
             let ts = type_decl_to_ts(decl);
@@ -1366,7 +1366,7 @@ const [count, setCount] = useState(0)"#;
 
         let source = r#"
 import trusted { useState } from "react"
-type Todo = { text: string, done: bool }
+type Todo { text: string, done: bool }
 const [todos, setTodos] = useState<Array<Todo>>([])
 const [input, setInput] = useState("")
 "#;
@@ -1411,7 +1411,7 @@ const [input, setInput] = useState("")
 
         let source = r#"
 import trusted { useState } from "react"
-type Filter = | All | Active | Completed
+type Filter { | All | Active | Completed }
 const [filter, setFilter] = useState<Filter>(Filter.All)
 "#;
         let program = Parser::new(source).parse_program().unwrap();
@@ -1444,7 +1444,7 @@ const [filter, setFilter] = useState<Filter>(Filter.All)
 
     #[test]
     fn type_expr_to_ts_option() {
-        let source = "type Foo = { bar: Option<string> }";
+        let source = "type Foo { bar: Option<string> }";
         let program = Parser::new(source).parse_program().unwrap();
         if let ItemKind::TypeDecl(decl) = &program.items[0].kind {
             let ts = type_decl_to_ts(decl);

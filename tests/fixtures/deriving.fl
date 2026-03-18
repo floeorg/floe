@@ -1,12 +1,12 @@
 // Record type with deriving Display
-type Color = {
+type Color {
   r: number,
   g: number,
   b: number,
 } deriving (Display)
 
 // Record type with Display only (Eq is built-in via ==)
-type User = {
+type User {
   id: string,
   name: string,
   email: string,
