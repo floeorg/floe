@@ -205,11 +205,7 @@ impl FloeLsp {
                 let zs_diags = zs_diag::from_parse_errors(&parse_errors);
                 let index = SymbolIndex::build(&program);
                 let type_map = HashMap::new();
-                (
-                    self.convert_diagnostics(source, &zs_diags),
-                    index,
-                    type_map,
-                )
+                (self.convert_diagnostics(source, &zs_diags), index, type_map)
             }
             Ok(program) => {
                 let mut index = SymbolIndex::build(&program);
@@ -399,18 +395,14 @@ impl FloeLsp {
             if !prefix.is_empty() && !f.name.starts_with(prefix) {
                 continue;
             }
-            let first_param_str =
-                f.params.first().map(stdlib_hover::format_type);
+            let first_param_str = f.params.first().map(stdlib_hover::format_type);
             let compatible = piped_type
                 .zip(first_param_str.as_deref())
-                .is_some_and(|(pt, fpt)| {
-                    completion::is_pipe_compatible(fpt, pt)
-                });
+                .is_some_and(|(pt, fpt)| completion::is_pipe_compatible(fpt, pt));
 
             let sort_prefix = if compatible { "0" } else { "1" };
             let label = format!("{}.{}", f.module, f.name);
-            let params: Vec<String> =
-                f.params.iter().map(stdlib_hover::format_type).collect();
+            let params: Vec<String> = f.params.iter().map(stdlib_hover::format_type).collect();
             let ret = stdlib_hover::format_type(&f.return_type);
             let detail = format!("({}) -> {}", params.join(", "), ret);
 

@@ -332,10 +332,7 @@ impl SymbolIndex {
                                 params.join(", ")
                             ),
                             first_param_type: None,
-                            return_type_str: method
-                                .return_type
-                                .as_ref()
-                                .map(type_expr_to_string),
+                            return_type_str: method.return_type.as_ref().map(type_expr_to_string),
                         });
 
                         // Recurse into default method bodies

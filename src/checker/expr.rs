@@ -247,9 +247,7 @@ impl Checker {
                                 .get(callee_name)
                                 .copied()
                                 .unwrap_or(params.len());
-                            if arg_types.len() < required_params
-                                || arg_types.len() > params.len()
-                            {
+                            if arg_types.len() < required_params || arg_types.len() > params.len() {
                                 let expected_msg = if required_params == params.len() {
                                     format!(
                                         "{} argument{}",
@@ -257,11 +255,7 @@ impl Checker {
                                         if params.len() == 1 { "" } else { "s" }
                                     )
                                 } else {
-                                    format!(
-                                        "{} to {} arguments",
-                                        required_params,
-                                        params.len()
-                                    )
+                                    format!("{} to {} arguments", required_params, params.len())
                                 };
                                 self.diagnostics.push(
                                     Diagnostic::error(
@@ -331,17 +325,11 @@ impl Checker {
                                 Self::collect_generic_params(&params, &return_type);
                             let return_type = if !generic_params.is_empty() {
                                 let substitutions = if !type_args.is_empty() {
-                                    let resolved: Vec<Type> = type_args
-                                        .iter()
-                                        .map(|t| self.resolve_type(t))
-                                        .collect();
+                                    let resolved: Vec<Type> =
+                                        type_args.iter().map(|t| self.resolve_type(t)).collect();
                                     generic_params.into_iter().zip(resolved).collect()
                                 } else {
-                                    Self::infer_generic_params(
-                                        &generic_params,
-                                        &params,
-                                        &arg_types,
-                                    )
+                                    Self::infer_generic_params(&generic_params, &params, &arg_types)
                                 };
                                 if substitutions.is_empty() {
                                     *return_type
@@ -364,9 +352,7 @@ impl Checker {
                                 .get(callee_name)
                                 .copied()
                                 .unwrap_or(params.len());
-                            if arg_types.len() < required_params
-                                || arg_types.len() > params.len()
-                            {
+                            if arg_types.len() < required_params || arg_types.len() > params.len() {
                                 let expected_msg = if required_params == params.len() {
                                     format!(
                                         "{} argument{}",
@@ -374,11 +360,7 @@ impl Checker {
                                         if params.len() == 1 { "" } else { "s" }
                                     )
                                 } else {
-                                    format!(
-                                        "{} to {} arguments",
-                                        required_params,
-                                        params.len()
-                                    )
+                                    format!("{} to {} arguments", required_params, params.len())
                                 };
                                 self.diagnostics.push(
                                     Diagnostic::error(
@@ -399,18 +381,12 @@ impl Checker {
                             let return_type = if !generic_params.is_empty() {
                                 let substitutions = if !type_args.is_empty() {
                                     // Explicit type args: useState<Array<Todo>>
-                                    let resolved: Vec<Type> = type_args
-                                        .iter()
-                                        .map(|t| self.resolve_type(t))
-                                        .collect();
+                                    let resolved: Vec<Type> =
+                                        type_args.iter().map(|t| self.resolve_type(t)).collect();
                                     generic_params.into_iter().zip(resolved).collect()
                                 } else {
                                     // Infer from arguments: useState("") → S = string
-                                    Self::infer_generic_params(
-                                        &generic_params,
-                                        &params,
-                                        &arg_types,
-                                    )
+                                    Self::infer_generic_params(&generic_params, &params, &arg_types)
                                 };
                                 if substitutions.is_empty() {
                                     *return_type

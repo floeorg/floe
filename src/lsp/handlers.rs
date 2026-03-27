@@ -195,9 +195,7 @@ impl LanguageServer for FloeLsp {
             "|>" => {
                 "```floe\nexpr |> function\n```\nPipe operator: passes left side as first argument to right side."
             }
-            "todo" => {
-                "```floe\ntodo\n```\nPlaceholder for unfinished code. Throws at runtime."
-            }
+            "todo" => "```floe\ntodo\n```\nPlaceholder for unfinished code. Throws at runtime.",
             "unreachable" => {
                 "```floe\nunreachable\n```\nAsserts a code path is impossible. Throws at runtime."
             }
@@ -239,13 +237,8 @@ impl LanguageServer for FloeLsp {
                         let params: Vec<String> =
                             f.params.iter().map(stdlib_hover::format_type).collect();
                         let ret = stdlib_hover::format_type(&f.return_type);
-                        let detail = format!(
-                            "{}.{}({}) -> {}",
-                            f.module,
-                            f.name,
-                            params.join(", "),
-                            ret
-                        );
+                        let detail =
+                            format!("{}.{}({}) -> {}", f.module, f.name, params.join(", "), ret);
                         CompletionItem {
                             label: f.name.to_string(),
                             kind: Some(CompletionItemKind::FUNCTION),

@@ -921,9 +921,15 @@ fn goto_def_type_usage_in_annotation() {
     let source = "type Color { | Red | Green | Blue }\nfn pick(c: Color) -> string { \"ok\" }\n";
     // Find "Color" in fn pick(c: Color)
     let usage_offset = source.find("fn pick(c: Color)").unwrap() + "fn pick(c: ".len();
-    eprintln!("Color usage at offset {usage_offset}, char: {:?}", &source[usage_offset..usage_offset+5]);
+    eprintln!(
+        "Color usage at offset {usage_offset}, char: {:?}",
+        &source[usage_offset..usage_offset + 5]
+    );
     let result = simulate_goto_def(source, usage_offset);
-    assert!(result.is_some(), "go-to-def on type usage should find definition");
+    assert!(
+        result.is_some(),
+        "go-to-def on type usage should find definition"
+    );
 }
 
 #[test]
@@ -931,9 +937,15 @@ fn goto_def_const_variable_usage() {
     let source = "fn first(x: number) -> number { x + 1 }\nfn second(x: number) -> number { x + 2 }\n\nconst a = first(1)\nconst b = second(a)\n";
     // Find "a" in second(a)
     let usage_offset = source.find("second(a)").unwrap() + "second(".len();
-    eprintln!("const a usage at offset {usage_offset}, char: {:?}", &source[usage_offset..usage_offset+1]);
+    eprintln!(
+        "const a usage at offset {usage_offset}, char: {:?}",
+        &source[usage_offset..usage_offset + 1]
+    );
     let result = simulate_goto_def(source, usage_offset);
-    assert!(result.is_some(), "go-to-def on const usage should find definition");
+    assert!(
+        result.is_some(),
+        "go-to-def on const usage should find definition"
+    );
 }
 
 #[test]
@@ -941,7 +953,13 @@ fn goto_def_union_variant_in_match() {
     let source = "type Color { | Red | Green | Blue }\nfn describe(c: Color) -> string {\n    match c {\n        Red -> \"red\",\n        Green -> \"green\",\n        Blue -> \"blue\",\n    }\n}\n";
     // Find "Red" in match arm
     let usage_offset = source.find("Red -> \"red\"").unwrap();
-    eprintln!("Red usage at offset {usage_offset}, char: {:?}", &source[usage_offset..usage_offset+3]);
+    eprintln!(
+        "Red usage at offset {usage_offset}, char: {:?}",
+        &source[usage_offset..usage_offset + 3]
+    );
     let result = simulate_goto_def(source, usage_offset);
-    assert!(result.is_some(), "go-to-def on union variant in match arm should find definition");
+    assert!(
+        result.is_some(),
+        "go-to-def on union variant in match arm should find definition"
+    );
 }

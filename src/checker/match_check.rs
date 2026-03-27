@@ -279,7 +279,9 @@ impl Checker {
                         span,
                     )
                     .with_label("not all cases covered")
-                    .with_help("add match arms for the missing combinations, or add a `_ ->` catch-all")
+                    .with_help(
+                        "add match arms for the missing combinations, or add a `_ ->` catch-all",
+                    )
                     .with_code("E004"),
                 );
             }
@@ -311,11 +313,10 @@ impl Checker {
                     return false;
                 }
                 match &arm.pattern.kind {
-                    PatternKind::Tuple(patterns) if patterns.len() == elem_types.len() => {
-                        patterns.iter().enumerate().all(|(i, pat)| {
-                            self.pattern_covers_value(pat, &possible[i][combo[i]])
-                        })
-                    }
+                    PatternKind::Tuple(patterns) if patterns.len() == elem_types.len() => patterns
+                        .iter()
+                        .enumerate()
+                        .all(|(i, pat)| self.pattern_covers_value(pat, &possible[i][combo[i]])),
                     PatternKind::Wildcard | PatternKind::Binding(_) => true,
                     _ => false,
                 }
@@ -359,13 +360,22 @@ impl Checker {
         };
 
         match ty {
-            Type::Bool => Some(vec![TupleSlotValue::Bool(true), TupleSlotValue::Bool(false)]),
-            Type::Union { variants, .. } => {
-                Some(variants.iter().map(|(name, _)| TupleSlotValue::Variant(name.clone())).collect())
-            }
-            Type::StringLiteralUnion { variants, .. } => {
-                Some(variants.iter().map(|s| TupleSlotValue::StringLiteral(s.clone())).collect())
-            }
+            Type::Bool => Some(vec![
+                TupleSlotValue::Bool(true),
+                TupleSlotValue::Bool(false),
+            ]),
+            Type::Union { variants, .. } => Some(
+                variants
+                    .iter()
+                    .map(|(name, _)| TupleSlotValue::Variant(name.clone()))
+                    .collect(),
+            ),
+            Type::StringLiteralUnion { variants, .. } => Some(
+                variants
+                    .iter()
+                    .map(|s| TupleSlotValue::StringLiteral(s.clone()))
+                    .collect(),
+            ),
             _ => None, // number, string, etc. are unbounded
         }
     }
