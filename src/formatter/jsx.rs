@@ -24,7 +24,7 @@ impl Formatter<'_> {
             }
             let frag_inline = children.len() == 1
                 && match &children[0] {
-                    JsxChildInfo::Text(_) => true,
+                    JsxChildInfo::Text(_) | JsxChildInfo::Comment(_) => true,
                     JsxChildInfo::Expr(node) => !self.jsx_expr_is_multiline(node),
                     JsxChildInfo::Element(_) => false,
                 };
@@ -84,13 +84,13 @@ impl Formatter<'_> {
             return;
         }
 
-        // Single text or single expr child → inline, unless:
+        // Single text, expr, or comment child → inline, unless:
         // - The opening tag has multi-line props
         // - The expr child contains multi-line content (e.g., match expressions)
         let inline = children.len() == 1
             && !multiline_props
             && match &children[0] {
-                JsxChildInfo::Text(_) => true,
+                JsxChildInfo::Text(_) | JsxChildInfo::Comment(_) => true,
                 JsxChildInfo::Expr(node) => !self.jsx_expr_is_multiline(node),
                 JsxChildInfo::Element(_) => false,
             };
@@ -184,6 +184,11 @@ impl Formatter<'_> {
                 JsxChildInfo::Element(node) => {
                     self.fmt_jsx(node);
                 }
+                JsxChildInfo::Comment(text) => {
+                    self.write("{");
+                    self.write(text);
+                    self.write("}");
+                }
             }
         }
     }
@@ -208,6 +213,13 @@ impl Formatter<'_> {
                     self.newline();
                     self.write_indent();
                     self.fmt_jsx(node);
+                }
+                JsxChildInfo::Comment(text) => {
+                    self.newline();
+                    self.write_indent();
+                    self.write("{");
+                    self.write(text);
+                    self.write("}");
                 }
             }
         }
@@ -279,7 +291,11 @@ impl Formatter<'_> {
                     }
                 }
                 SyntaxKind::JSX_EXPR_CHILD => {
-                    children.push(JsxChildInfo::Expr(child));
+                    if let Some(comment) = self.jsx_expr_child_comment(&child) {
+                        children.push(JsxChildInfo::Comment(comment));
+                    } else {
+                        children.push(JsxChildInfo::Expr(child));
+                    }
                 }
                 SyntaxKind::JSX_ELEMENT => {
                     children.push(JsxChildInfo::Element(child));
@@ -294,6 +310,28 @@ impl Formatter<'_> {
     fn jsx_expr_is_multiline(&self, node: &SyntaxNode) -> bool {
         node.children()
             .any(|c| matches!(c.kind(), SyntaxKind::MATCH_EXPR | SyntaxKind::BLOCK_EXPR))
+    }
+
+    /// If a `JSX_EXPR_CHILD` contains only a block comment (no real expression),
+    /// return the comment text (e.g. `/* Desktop */`).
+    fn jsx_expr_child_comment(&self, node: &SyntaxNode) -> Option<String> {
+        let mut comment = None;
+        for child_or_tok in node.children_with_tokens() {
+            match child_or_tok {
+                rowan::NodeOrToken::Token(tok) => {
+                    if tok.kind() == SyntaxKind::BLOCK_COMMENT {
+                        comment = Some(tok.text().to_string());
+                    } else if !tok.kind().is_trivia()
+                        && tok.kind() != SyntaxKind::L_BRACE
+                        && tok.kind() != SyntaxKind::R_BRACE
+                    {
+                        return None;
+                    }
+                }
+                rowan::NodeOrToken::Node(_) => return None,
+            }
+        }
+        comment
     }
 
     fn jsx_props_short(&self, props: &[SyntaxNode]) -> bool {

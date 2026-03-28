@@ -1990,8 +1990,12 @@ impl<'src> CstParser<'src> {
                     self.builder.start_node(SyntaxKind::JSX_EXPR_CHILD.into());
                     self.bump();
                     self.eat_trivia();
-                    self.parse_expr();
-                    self.eat_trivia();
+                    // {/* comment */} — block comment already eaten as trivia,
+                    // so if the next token is `}` there's no expr to parse.
+                    if !self.at(TokenKind::RightBrace) {
+                        self.parse_expr();
+                        self.eat_trivia();
+                    }
                     self.expect(TokenKind::RightBrace);
                     self.builder.finish_node();
                 }
@@ -2784,6 +2788,21 @@ mod tests {
     #[test]
     fn jsx_with_props() {
         assert_no_errors("<Button onClick={handler} />");
+    }
+
+    #[test]
+    fn jsx_comment() {
+        assert_no_errors("<div>{/* comment */}</div>");
+    }
+
+    #[test]
+    fn jsx_comment_among_children() {
+        assert_no_errors("<div>{/* comment */}<span>hello</span></div>");
+    }
+
+    #[test]
+    fn lossless_jsx_comment() {
+        assert_lossless("<div>{/* comment */}</div>");
     }
 
     // ── Lambda / arrow functions ──────────────────────────────────

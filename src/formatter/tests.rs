@@ -129,6 +129,19 @@ fn format_jsx_fragment() {
     assert_fmt("<>{x}</>", "<>{x}</>");
 }
 
+#[test]
+fn format_jsx_comment() {
+    assert_fmt(
+        "<div>{/* comment */}<span>hi</span></div>",
+        "<div>\n    {/* comment */}\n    <span>hi</span>\n</div>",
+    );
+}
+
+#[test]
+fn format_jsx_comment_only_child() {
+    assert_fmt("<div>{/* comment */}</div>", "<div>{/* comment */}</div>");
+}
+
 // ── Blank line before final expression ──────────────────────
 
 #[test]

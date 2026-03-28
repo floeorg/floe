@@ -1,0 +1,12 @@
+import { JSX } from "react"
+
+export fn App() -> JSX.Element {
+    <div>
+        {/* Desktop */}
+        {/* Multi
+            line
+            comment */}
+        <span>Hello</span>
+        {/* Trailing comment */}
+    </div>
+}

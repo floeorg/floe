@@ -22,6 +22,7 @@ pub(crate) enum JsxChildInfo {
     Text(String),
     Expr(SyntaxNode),
     Element(SyntaxNode),
+    Comment(String),
 }
 
 pub(crate) enum PipeSegment {

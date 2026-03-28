@@ -29,6 +29,12 @@ export default function floe(options: FloeOptions = {}): Plugin {
     name: "vite-plugin-floe",
     enforce: "pre",
 
+    config(config) {
+      const existing = config.resolve?.extensions ?? [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"];
+      const extensions = existing.includes(".fl") ? existing : [".fl", ...existing];
+      return { resolve: { extensions } };
+    },
+
     transform(code, id) {
       // Strip query params for extension check (Vite adds ?import, ?t=xxx, etc.)
       const cleanId = id.split("?")[0];
