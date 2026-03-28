@@ -1,0 +1,16 @@
+import { type Product, type ProductId, type CartItem, type SortOrder, type PriceRange, Display, Discountable } from "./types";
+export declare function display(self: Product): string;
+export declare function effectivePrice(self: Product): number;
+export declare function savings(self: Product): number;
+export declare function inStock(self: Product): boolean;
+export declare function stockLabel(self: Product): string;
+export declare function ratingStars(self: Product): string;
+export declare function addItem(self: Array<CartItem>, product: Product, qty: number): Array<CartItem>;
+export declare function removeItem(self: Array<CartItem>, productId: ProductId): Array<CartItem>;
+export declare function updateQuantity(self: Array<CartItem>, productId: ProductId, qty: number): Array<CartItem>;
+export declare function totals(self: Array<CartItem>): readonly [number, number, number];
+export declare function itemCount(self: Array<CartItem>): number;
+export declare function isEmpty(self: Array<CartItem>): boolean;
+export declare function sortProducts(products: Array<Product>, order: SortOrder): Array<Product>;
+export declare function matchesPrice(product: Product, range: PriceRange): boolean;
+export declare function formatPrice(amount: number): string;

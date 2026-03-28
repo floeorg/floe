@@ -1,0 +1,10 @@
+import { type Todo, type Filter, type Validation, Display } from "./types";
+export declare function validate(self: string): Validation;
+export declare function display(self: Todo): string;
+export declare function filterBy(self: Array<Todo>, f: Filter): Array<Todo>;
+export declare function remaining(self: Array<Todo>): number;
+export declare function stats(self: Array<Todo>): readonly [number, number];
+export declare function search(self: Array<Todo>, _query: string): Array<Todo>;
+export declare function validateTodo(text: string, id: string): { ok: true; value: Todo } | { ok: false; error: Array<string> };
+export declare function parseTodo(data: unknown): { ok: true; value: Todo } | { ok: false; error: Error };
+export declare function parseTodos(data: unknown): { ok: true; value: Array<Todo> } | { ok: false; error: Error };

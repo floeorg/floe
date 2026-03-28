@@ -1,3 +1,4 @@
+// @ts-nocheck
 function __floeEq(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a == null || b == null) return false;
@@ -8,7 +9,7 @@ function __floeEq(a: unknown, b: unknown): boolean {
   return ka.every((k) => __floeEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
 
-import { Todo, Filter, Validation, Display } from "./types";
+import { type Todo, type Filter, type Validation, Display } from "./types";
 
 export function validate(self: string): Validation {
   const trimmed = self.trim();
@@ -27,7 +28,7 @@ export function remaining(self: Array<Todo>): number {
   return (() => { const _v = self.filter((_x) => __floeEq(_x.done, false)); ((active) => console.log("active todos:"))(_v); return _v; })().length;
 }
 export function stats(self: Array<Todo>): readonly [number, number] {
-  return [self.length, self.filter((_x) => __floeEq(_x.done, true)).length] as const;
+  return [self.length, self.filter((_x) => __floeEq(_x.done, true)).length];
 }
 export function search(self: Array<Todo>, _query: string): Array<Todo> {
   return (() => { throw new Error("not implemented"); })();

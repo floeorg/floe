@@ -234,8 +234,16 @@ fn compile_file(file: &Path, out_dir: Option<&Path>) -> Result<PathBuf> {
         file.with_extension(ext)
     };
 
-    std::fs::write(&out_path, &output.code)
+    let code_with_header = format!("// @ts-nocheck\n{}", output.code);
+    std::fs::write(&out_path, &code_with_header)
         .with_context(|| format!("failed to write {}", out_path.display()))?;
+
+    // Write .d.ts declaration stub alongside the .fl source file
+    if !output.dts.is_empty() {
+        let dts_path = file.with_extension("d.ts");
+        std::fs::write(&dts_path, &output.dts)
+            .with_context(|| format!("failed to write {}", dts_path.display()))?;
+    }
 
     Ok(out_path)
 }

@@ -10,6 +10,7 @@ import { StoreProvider, useStore } from "./store-context";
 import { CatalogPage } from "./pages/catalog";
 import { ProductDetailPage } from "./pages/product-detail";
 import { CartPage } from "./pages/cart";
+import type { ProductId } from "./types";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -86,9 +87,10 @@ const productRoute = createRoute({
   component: () => {
     const { productId } = productRoute.useParams();
     const { addToCart } = useStore();
+    const pid: ProductId = { tag: "ProductId" as const, value: Number(productId) };
     return (
       <ProductDetailPage
-        productId={Number(productId)}
+        productId={pid}
         onAddToCart={addToCart}
       />
     );

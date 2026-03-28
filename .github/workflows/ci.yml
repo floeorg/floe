@@ -96,6 +96,11 @@ jobs:
           ./floe build examples/todo-app/src/
           ./floe build examples/store/src/
 
+      - name: TypeScript type-check examples
+        run: |
+          npx tsc --noEmit -p examples/store/tsconfig.json
+          npx tsc --noEmit -p examples/todo-app/tsconfig.json
+
   lsp:
     name: LSP integration tests
     needs: rust
