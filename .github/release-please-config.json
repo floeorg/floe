@@ -11,6 +11,11 @@
           "type": "json",
           "path": "integrations/vite-plugin-floe/package.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "editors/vscode/package.json",
+          "jsonpath": "$.version"
         }
       ]
     }
