@@ -103,33 +103,38 @@ impl Codegen {
         // Pre-register union variant info from imported types
         for imports in resolved.values() {
             for decl in &imports.type_decls {
-                if let TypeDef::Union(variants) = &decl.def {
-                    for variant in variants {
-                        let field_names: Vec<String> = variant
-                            .fields
-                            .iter()
-                            .enumerate()
-                            .map(|(i, f)| {
-                                f.name.clone().unwrap_or_else(|| {
-                                    if variant.fields.len() == 1 {
-                                        "value".to_string()
-                                    } else {
-                                        format!("_{i}")
-                                    }
-                                })
-                            })
-                            .collect();
-                        if variant.fields.is_empty() {
-                            codegen.unit_variants.insert(variant.name.clone());
-                        }
-                        codegen
-                            .variant_info
-                            .insert(variant.name.clone(), (decl.name.clone(), field_names));
-                    }
-                }
+                codegen.register_union_variants(decl);
             }
         }
         codegen
+    }
+
+    /// Register variant info from a type declaration (for union types).
+    /// Called both during import registration and the local first-pass.
+    fn register_union_variants(&mut self, decl: &TypeDecl) {
+        if let TypeDef::Union(variants) = &decl.def {
+            for variant in variants {
+                let field_names: Vec<String> = variant
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .map(|(i, f)| {
+                        f.name.clone().unwrap_or_else(|| {
+                            if variant.fields.len() == 1 {
+                                "value".to_string()
+                            } else {
+                                format!("_{i}")
+                            }
+                        })
+                    })
+                    .collect();
+                if variant.fields.is_empty() {
+                    self.unit_variants.insert(variant.name.clone());
+                }
+                self.variant_info
+                    .insert(variant.name.clone(), (decl.name.clone(), field_names));
+            }
+        }
     }
 
     /// Generate TypeScript from a Floe program.
@@ -138,29 +143,7 @@ impl Codegen {
         for item in &program.items {
             match &item.kind {
                 ItemKind::TypeDecl(decl) => {
-                    if let TypeDef::Union(variants) = &decl.def {
-                        for variant in variants {
-                            let field_names: Vec<String> = variant
-                                .fields
-                                .iter()
-                                .enumerate()
-                                .map(|(i, f)| {
-                                    f.name.clone().unwrap_or_else(|| {
-                                        if variant.fields.len() == 1 {
-                                            "value".to_string()
-                                        } else {
-                                            format!("_{i}")
-                                        }
-                                    })
-                                })
-                                .collect();
-                            if variant.fields.is_empty() {
-                                self.unit_variants.insert(variant.name.clone());
-                            }
-                            self.variant_info
-                                .insert(variant.name.clone(), (decl.name.clone(), field_names));
-                        }
-                    }
+                    self.register_union_variants(decl);
                     // Register derived function names as local names
                     for trait_name in &decl.deriving {
                         if trait_name.as_str() == "Display" {
