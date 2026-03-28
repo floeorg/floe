@@ -12,13 +12,24 @@ When example app code fails due to a compiler limitation, **fix the compiler** â
 
 The example apps should showcase ideal Floe code. If valid-looking Floe code doesn't compile, the fix goes in `src/`, not in `examples/`.
 
-## Always write tests
+## Always write and update tests
 
 Every compiler change must include tests:
 - **Parser changes**: add parser unit tests
 - **Checker changes**: add checker unit tests
 - **Codegen changes**: add codegen snapshot tests
 - **Bug fixes**: add a regression test that reproduces the bug
+- **Modifications**: update ALL existing tests affected by the change, don't just add new ones
+
+## Update all tooling
+
+Every syntax or language change must also update:
+- **Syntax highlighting**: tree-sitter grammar, TextMate grammar, Neovim queries (see `syntax-sources.md`)
+- **LSP/IntelliSense**: completions, hover, diagnostics, go-to-definition
+- **Type checker**: ensure new or changed syntax is fully checked
+- **Formatter**: `floe fmt` handles the new syntax correctly
+
+A feature is not done until highlighting, IntelliSense, and type checking all work.
 
 ## Floe File Quality Gate
 
