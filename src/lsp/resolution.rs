@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::diagnostic::{self as floe_diag};
 use crate::interop;
 use crate::parser::ast::*;
+use crate::resolve::TsconfigPaths;
 
 use super::symbols::SymbolIndex;
 
@@ -78,6 +79,7 @@ pub(super) fn enrich_from_imports(
     source_dir: &Path,
     index: &mut SymbolIndex,
     dts_cache: &HashMap<String, Vec<interop::DtsExport>>,
+    tsconfig_paths: &TsconfigPaths,
 ) -> (
     Vec<floe_diag::Diagnostic>,
     HashMap<String, Vec<interop::DtsExport>>,
@@ -106,6 +108,23 @@ pub(super) fn enrich_from_imports(
                     .with_code("E012"),
                 );
             }
+            continue;
+        }
+
+        // Check if this is a tsconfig path alias (e.g. "#/utils")
+        if tsconfig_paths.matches(specifier) {
+            if tsconfig_paths.resolve(specifier).is_none() {
+                import_diags.push(
+                    floe_diag::Diagnostic::error(
+                        format!("cannot find module `\"{specifier}\"`"),
+                        item.span,
+                    )
+                    .with_label("path alias resolved but file not found")
+                    .with_help("check the file path matches a tsconfig paths alias")
+                    .with_code("E012"),
+                );
+            }
+            // Path aliases are resolved as local files, not npm packages
             continue;
         }
 

@@ -233,8 +233,16 @@ impl FloeLsp {
                     let source_dir = source_path.parent().unwrap_or(Path::new("."));
                     let project_dir = find_project_dir(source_dir);
                     let cache = self.dts_cache.read().await.clone();
-                    let (import_diags, new_cache) =
-                        enrich_from_imports(&program, &project_dir, source_dir, &mut index, &cache);
+                    let tsconfig_paths =
+                        crate::resolve::TsconfigPaths::from_project_dir(&project_dir);
+                    let (import_diags, new_cache) = enrich_from_imports(
+                        &program,
+                        &project_dir,
+                        source_dir,
+                        &mut index,
+                        &cache,
+                        &tsconfig_paths,
+                    );
                     import_diags_early = import_diags;
 
                     // Use tsgo for fully-resolved types — no fallback

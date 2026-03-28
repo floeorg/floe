@@ -753,12 +753,14 @@ fn unresolved_npm_import_diagnostic() {
     // Use a directory that definitely has no node_modules
     let project_dir = Path::new("/tmp/no-such-project-dir");
     let source_dir = project_dir;
+    let tsconfig_paths = crate::resolve::TsconfigPaths::default();
     let (diags, _) = super::resolution::enrich_from_imports(
         &program,
         project_dir,
         source_dir,
         &mut index,
         &cache,
+        &tsconfig_paths,
     );
     assert!(
         !diags.is_empty(),

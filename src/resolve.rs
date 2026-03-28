@@ -9,6 +9,114 @@ use std::path::{Path, PathBuf};
 use crate::parser::Parser;
 use crate::parser::ast::*;
 
+/// Parsed tsconfig.json path aliases.
+/// Maps alias prefixes (e.g. "#/") to their target directories.
+#[derive(Debug, Clone, Default)]
+pub struct TsconfigPaths {
+    /// Alias prefix -> resolved base directories (e.g. "#/*" -> ["/abs/path/src"])
+    pub mappings: Vec<(String, Vec<PathBuf>)>,
+}
+
+impl TsconfigPaths {
+    /// Parse path aliases from the nearest tsconfig.json.
+    pub fn from_project_dir(project_dir: &Path) -> Self {
+        let tsconfig_path = match find_tsconfig(project_dir) {
+            Some(p) => p,
+            None => return Self::default(),
+        };
+
+        let content = match std::fs::read_to_string(&tsconfig_path) {
+            Ok(c) => c,
+            Err(_) => return Self::default(),
+        };
+
+        let json: serde_json::Value = match serde_json::from_str(&content) {
+            Ok(v) => v,
+            Err(_) => return Self::default(),
+        };
+
+        let tsconfig_dir = tsconfig_path.parent().unwrap_or(project_dir);
+
+        let base_url = json
+            .pointer("/compilerOptions/baseUrl")
+            .and_then(|v| v.as_str())
+            .map(|b| tsconfig_dir.join(b))
+            .unwrap_or_else(|| tsconfig_dir.to_path_buf());
+
+        let paths = match json.pointer("/compilerOptions/paths") {
+            Some(serde_json::Value::Object(map)) => map,
+            _ => return Self::default(),
+        };
+
+        let mut mappings = Vec::new();
+        for (pattern, targets) in paths {
+            let targets = match targets.as_array() {
+                Some(arr) => arr,
+                None => continue,
+            };
+
+            // Strip trailing "*" from pattern (e.g. "#/*" -> "#/")
+            let prefix = pattern.trim_end_matches('*');
+
+            let resolved_dirs: Vec<PathBuf> = targets
+                .iter()
+                .filter_map(|t| t.as_str())
+                .map(|t| base_url.join(t.trim_end_matches('*')))
+                .collect();
+
+            if !resolved_dirs.is_empty() {
+                mappings.push((prefix.to_string(), resolved_dirs));
+            }
+        }
+
+        Self { mappings }
+    }
+
+    /// Try to resolve a specifier using tsconfig path aliases.
+    /// Returns the resolved file path if found.
+    pub fn resolve(&self, specifier: &str) -> Option<PathBuf> {
+        for (prefix, dirs) in &self.mappings {
+            if let Some(rest) = specifier.strip_prefix(prefix) {
+                for dir in dirs {
+                    let candidate = dir.join(rest);
+                    // Try .fl, .ts, .tsx extensions and /index variants
+                    for ext in &[".fl", ".ts", ".tsx", "/index.fl", "/index.ts", "/index.tsx"] {
+                        let path = PathBuf::from(format!("{}{}", candidate.display(), ext));
+                        if path.exists() {
+                            return Some(path);
+                        }
+                    }
+                    if candidate.exists() && candidate.is_file() {
+                        return Some(candidate);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Check if a specifier matches any path alias.
+    pub fn matches(&self, specifier: &str) -> bool {
+        self.mappings
+            .iter()
+            .any(|(prefix, _)| specifier.starts_with(prefix))
+    }
+}
+
+/// Find the nearest tsconfig.json by walking up from a directory.
+fn find_tsconfig(dir: &Path) -> Option<PathBuf> {
+    let mut current = dir.to_path_buf();
+    loop {
+        let tsconfig = current.join("tsconfig.json");
+        if tsconfig.exists() {
+            return Some(tsconfig);
+        }
+        if !current.pop() {
+            return None;
+        }
+    }
+}
+
 /// Symbols exported from a resolved module.
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedImports {
