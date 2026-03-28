@@ -44,19 +44,25 @@ impl Formatter<'_> {
         let mut segments = Vec::new();
         self.collect_pipe_segments(node, &mut segments);
 
-        if segments.len() <= 3 {
+        // Try inline first
+        let inline = self.try_inline(|f| {
             for (i, seg) in segments.iter().enumerate() {
                 if i > 0 {
-                    self.write(" |> ");
+                    f.write(" |> ");
                 }
-                self.fmt_pipe_segment(seg);
+                f.fmt_pipe_segment(seg);
             }
+        });
+
+        if self.fits_inline(&inline) {
+            self.write(&inline);
         } else {
+            // Vertical: first segment on current line, rest indented with |>
             for (i, seg) in segments.iter().enumerate() {
                 if i > 0 {
                     self.newline();
                     self.write_indent();
-                    self.write("|> ");
+                    self.write("    |> ");
                 }
                 self.fmt_pipe_segment(seg);
             }
@@ -116,7 +122,7 @@ impl Formatter<'_> {
     // ── Match ───────────────────────────────────────────────────
 
     pub(crate) fn fmt_match(&mut self, node: &SyntaxNode) {
-        self.write("match ");
+        self.write("match");
 
         let mut wrote_subject = false;
         for child in node.children() {
@@ -124,12 +130,35 @@ impl Formatter<'_> {
                 break;
             }
             if !wrote_subject {
+                self.write(" ");
                 self.fmt_node(&child);
                 wrote_subject = true;
             }
         }
         if !wrote_subject {
-            self.fmt_token_expr_after_keyword(node, SyntaxKind::KW_MATCH);
+            // Check if this is a subjectless match (piped): `|> match { ... }`
+            // The first non-trivia token after `match` keyword is `{`, so don't emit it as a subject.
+            let is_subjectless = {
+                let mut past_kw = false;
+                let mut result = false;
+                for t in node.children_with_tokens() {
+                    if let Some(tok) = t.as_token() {
+                        if tok.kind() == SyntaxKind::KW_MATCH {
+                            past_kw = true;
+                            continue;
+                        }
+                        if past_kw && !tok.kind().is_trivia() {
+                            result = tok.kind() == SyntaxKind::L_BRACE;
+                            break;
+                        }
+                    }
+                }
+                result
+            };
+            if !is_subjectless {
+                self.write(" ");
+                self.fmt_token_expr_after_keyword(node, SyntaxKind::KW_MATCH);
+            }
         }
 
         self.write(" {");
@@ -271,6 +300,57 @@ impl Formatter<'_> {
                         }
                         return;
                     }
+                    SyntaxKind::L_PAREN => {
+                        self.write("(");
+                        for (i, p) in sub_patterns.iter().enumerate() {
+                            if i > 0 {
+                                self.write(", ");
+                            }
+                            self.fmt_pattern(p);
+                        }
+                        self.write(")");
+                        return;
+                    }
+                    SyntaxKind::L_BRACKET => {
+                        self.write("[");
+                        let mut first_elem = true;
+                        let mut saw_dotdot = false;
+                        for inner in node.children_with_tokens() {
+                            match &inner {
+                                rowan::NodeOrToken::Token(t) => match t.kind() {
+                                    SyntaxKind::DOT_DOT => {
+                                        if !first_elem {
+                                            self.write(", ");
+                                        }
+                                        self.write("..");
+                                        saw_dotdot = true;
+                                        first_elem = false;
+                                    }
+                                    SyntaxKind::IDENT if saw_dotdot => {
+                                        self.write(t.text());
+                                        saw_dotdot = false;
+                                    }
+                                    SyntaxKind::UNDERSCORE if saw_dotdot => {
+                                        self.write("_");
+                                        saw_dotdot = false;
+                                    }
+                                    _ => {}
+                                },
+                                rowan::NodeOrToken::Node(child)
+                                    if child.kind() == SyntaxKind::PATTERN =>
+                                {
+                                    if !first_elem {
+                                        self.write(", ");
+                                    }
+                                    self.fmt_pattern(child);
+                                    first_elem = false;
+                                }
+                                _ => {}
+                            }
+                        }
+                        self.write("]");
+                        return;
+                    }
                     SyntaxKind::L_BRACE => {
                         self.write("{ ");
                         let idents: Vec<_> = node
@@ -378,30 +458,93 @@ impl Formatter<'_> {
     // ── Call ────────────────────────────────────────────────────
 
     pub(crate) fn fmt_call(&mut self, node: &SyntaxNode) {
+        // Format callee, including generic type args like `Array<Todo>(...)`
+        // CST structure: IDENT LESS_THAN TYPE_EXPR* GREATER_THAN L_PAREN ARG* R_PAREN
         let mut wrote_callee = false;
-        for child in node.children() {
-            if child.kind() == SyntaxKind::ARG {
-                break;
+        let mut in_type_args = false;
+        let mut first_type_arg = true;
+
+        for child_or_tok in node.children_with_tokens() {
+            match &child_or_tok {
+                rowan::NodeOrToken::Token(tok) => {
+                    if tok.kind() == SyntaxKind::L_PAREN {
+                        break; // Done with callee, start args
+                    }
+                    if tok.kind().is_trivia() {
+                        continue;
+                    }
+                    if tok.kind() == SyntaxKind::LESS_THAN {
+                        self.write("<");
+                        in_type_args = true;
+                        first_type_arg = true;
+                        wrote_callee = true;
+                        continue;
+                    }
+                    if tok.kind() == SyntaxKind::GREATER_THAN {
+                        self.write(">");
+                        in_type_args = false;
+                        continue;
+                    }
+                    if !wrote_callee {
+                        self.write(tok.text());
+                        wrote_callee = true;
+                    }
+                }
+                rowan::NodeOrToken::Node(child) => {
+                    if child.kind() == SyntaxKind::ARG {
+                        break; // Done with callee
+                    }
+                    if in_type_args && child.kind() == SyntaxKind::TYPE_EXPR {
+                        if !first_type_arg {
+                            self.write(", ");
+                        }
+                        self.fmt_type_expr(child);
+                        first_type_arg = false;
+                    } else if !wrote_callee || !in_type_args {
+                        self.fmt_node(child);
+                        wrote_callee = true;
+                    }
+                }
             }
-            self.fmt_node(&child);
-            wrote_callee = true;
         }
         if !wrote_callee {
             self.fmt_token_callee(node);
         }
 
-        self.write("(");
         let args: Vec<_> = node
             .children()
             .filter(|c| c.kind() == SyntaxKind::ARG)
             .collect();
-        for (i, arg) in args.iter().enumerate() {
-            if i > 0 {
-                self.write(", ");
+
+        // Try inline args
+        let inline = self.try_inline(|f| {
+            f.write("(");
+            for (i, arg) in args.iter().enumerate() {
+                if i > 0 {
+                    f.write(", ");
+                }
+                f.fmt_arg(arg);
             }
-            self.fmt_arg(arg);
+            f.write(")");
+        });
+
+        if self.fits_inline(&inline) {
+            self.write(&inline);
+        } else {
+            // Multi-line args
+            self.write("(");
+            self.indent += 1;
+            for arg in &args {
+                self.newline();
+                self.write_indent();
+                self.fmt_arg(arg);
+                self.write(",");
+            }
+            self.indent -= 1;
+            self.newline();
+            self.write_indent();
+            self.write(")");
         }
-        self.write(")");
     }
 
     pub(crate) fn fmt_arg(&mut self, node: &SyntaxNode) {
@@ -499,7 +642,6 @@ impl Formatter<'_> {
                 self.write(ident);
             }
         }
-        self.write("(");
 
         let spread = node
             .children()
@@ -509,27 +651,75 @@ impl Formatter<'_> {
             .filter(|c| c.kind() == SyntaxKind::ARG)
             .collect();
 
-        let mut first = true;
-        if let Some(spread) = spread {
-            self.write("..");
-            for child in spread.children() {
-                self.fmt_node(&child);
+        // Try inline
+        let inline = self.try_inline(|f| {
+            f.write("(");
+            let mut first = true;
+            if let Some(spread) = &spread {
+                f.fmt_spread(spread);
+                first = false;
             }
-            if spread.children().next().is_none() {
-                self.fmt_tokens_only(&spread);
+            for arg in &args {
+                if !first {
+                    f.write(", ");
+                }
+                f.fmt_arg(arg);
+                first = false;
             }
-            first = false;
-        }
+            f.write(")");
+        });
 
-        for arg in &args {
-            if !first {
-                self.write(", ");
+        if self.fits_inline(&inline) {
+            self.write(&inline);
+        } else {
+            // Multi-line construct
+            self.write("(");
+            self.indent += 1;
+            let mut first = true;
+            if let Some(spread) = &spread {
+                self.newline();
+                self.write_indent();
+                self.fmt_spread(spread);
+                self.write(",");
+                first = false;
             }
-            self.fmt_arg(arg);
-            first = false;
+            for arg in &args {
+                if !first {
+                    // Already wrote comma after previous item
+                }
+                self.newline();
+                self.write_indent();
+                self.fmt_arg(arg);
+                self.write(",");
+                first = false;
+            }
+            self.indent -= 1;
+            self.newline();
+            self.write_indent();
+            self.write(")");
         }
+    }
 
-        self.write(")");
+    fn fmt_spread(&mut self, spread: &SyntaxNode) {
+        self.write("..");
+        if let Some(child) = spread.children().next() {
+            self.fmt_node(&child);
+        } else {
+            // No child node — find ident/token after DOT_DOT
+            let mut past_dots = false;
+            for t in spread.children_with_tokens() {
+                if let Some(tok) = t.as_token() {
+                    if tok.kind() == SyntaxKind::DOT_DOT {
+                        past_dots = true;
+                        continue;
+                    }
+                    if past_dots && !tok.kind().is_trivia() {
+                        self.write(tok.text());
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     // ── Member / Index / Unwrap ─────────────────────────────────
@@ -624,6 +814,38 @@ impl Formatter<'_> {
     }
 
     // ── Grouped / Array / Wrapper ───────────────────────────────
+
+    pub(crate) fn fmt_tuple(&mut self, node: &SyntaxNode) {
+        self.write("(");
+        let mut first = true;
+        for child_or_tok in node.children_with_tokens() {
+            match child_or_tok {
+                rowan::NodeOrToken::Node(child) => {
+                    if !first {
+                        self.write(", ");
+                    }
+                    self.fmt_node(&child);
+                    first = false;
+                }
+                rowan::NodeOrToken::Token(tok) => match tok.kind() {
+                    SyntaxKind::NUMBER
+                    | SyntaxKind::STRING
+                    | SyntaxKind::BOOL
+                    | SyntaxKind::IDENT
+                    | SyntaxKind::UNDERSCORE
+                    | SyntaxKind::KW_NONE => {
+                        if !first {
+                            self.write(", ");
+                        }
+                        self.write(tok.text());
+                        first = false;
+                    }
+                    _ => {}
+                },
+            }
+        }
+        self.write(")");
+    }
 
     pub(crate) fn fmt_grouped(&mut self, node: &SyntaxNode) {
         self.write("(");

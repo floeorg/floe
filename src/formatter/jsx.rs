@@ -87,8 +87,20 @@ impl Formatter<'_> {
     }
 
     fn fmt_jsx_prop(&mut self, node: &SyntaxNode) {
+        // JSX prop names can be identifiers or keywords (e.g., `type`, `for`)
         if let Some(name) = self.first_ident(node) {
             self.write(&name);
+        } else {
+            // Check for keyword tokens used as prop names
+            for t in node.children_with_tokens() {
+                if let Some(tok) = t.as_token()
+                    && !tok.kind().is_trivia()
+                    && tok.kind() != SyntaxKind::EQUAL
+                {
+                    self.write(tok.text());
+                    break;
+                }
+            }
         }
 
         let has_eq = self.has_token(node, SyntaxKind::EQUAL);
