@@ -30,10 +30,8 @@ export default function floe(options: FloeOptions = {}): Plugin {
     enforce: "pre",
 
     config(config) {
-      const extensions = config.resolve?.extensions ?? [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"];
-      if (!extensions.includes(".fl")) {
-        extensions.unshift(".fl");
-      }
+      const existing = config.resolve?.extensions ?? [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"];
+      const extensions = existing.includes(".fl") ? existing : [".fl", ...existing];
       return { resolve: { extensions } };
     },
 
