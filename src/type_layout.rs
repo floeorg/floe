@@ -49,19 +49,25 @@ pub enum VariantLayout {
     Ok,
     /// Result Err: discriminated by `.ok === false`, error in `.error`
     Err,
+    /// Option Some: discriminated by `!= null`, value IS the subject itself
+    OptionSome,
+    /// Option None: discriminated by `== null`
+    OptionNone,
     /// Regular tagged union variant: discriminated by `.tag === "Name"`
     Tagged,
 }
 
 /// Classify a variant name into its runtime layout.
 ///
-/// Only `Ok`/`Err` use the `{ ok: true/false }` discriminant.
-/// `Some`/`None` use the `T | undefined` representation and are
-/// matched via tagged variant paths in codegen, not via `ok` field.
+/// `Ok`/`Err` use the `{ ok: true/false }` discriminant.
+/// `Some`/`None` use the `T | null | undefined` representation:
+/// `Some(x)` is just `x`, `None` is `undefined`.
 pub fn variant_layout(name: &str) -> VariantLayout {
     match name {
         "Ok" => VariantLayout::Ok,
         "Err" => VariantLayout::Err,
+        "Some" => VariantLayout::OptionSome,
+        "None" => VariantLayout::OptionNone,
         _ => VariantLayout::Tagged,
     }
 }
@@ -72,6 +78,8 @@ pub fn variant_discriminant(name: &str, subject: &str) -> String {
     match variant_layout(name) {
         VariantLayout::Ok => format!("{subject}.{OK_FIELD} === true"),
         VariantLayout::Err => format!("{subject}.{OK_FIELD} === false"),
+        VariantLayout::OptionSome => format!("{subject} != null"),
+        VariantLayout::OptionNone => format!("{subject} == null"),
         VariantLayout::Tagged => format!("{subject}.{TAG_FIELD} === \"{name}\""),
     }
 }
@@ -102,6 +110,9 @@ pub fn variant_field_accessor(
             debug_assert!(false, "Ok/Err variants should have exactly 1 field");
             format!("{subject}.{VALUE_FIELD}")
         }
+        // Some(x): the value IS the subject (Option is T | undefined)
+        VariantLayout::OptionSome if total_fields == 1 => subject.to_string(),
+        VariantLayout::OptionSome | VariantLayout::OptionNone => subject.to_string(),
         VariantLayout::Tagged => {
             if let Some(names) = field_names
                 && let Some(fname) = names.get(field_index)

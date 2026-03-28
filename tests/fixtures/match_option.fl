@@ -1,0 +1,13 @@
+const value: Option<string> = Some("hello")
+
+const _result = match value {
+    Some(s) -> s,
+    None -> "nothing",
+}
+
+const empty: Option<number> = None
+
+const _default = match empty {
+    Some(n) -> n,
+    None -> 0,
+}

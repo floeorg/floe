@@ -42,6 +42,12 @@ fn snapshot_match_expr() {
 }
 
 #[test]
+fn snapshot_match_option() {
+    let output = compile_fixture("match_option");
+    insta::assert_snapshot!(output);
+}
+
+#[test]
 fn snapshot_result_option() {
     let output = compile_fixture("result_option");
     insta::assert_snapshot!(output);

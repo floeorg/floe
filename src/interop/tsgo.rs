@@ -998,6 +998,7 @@ fn create_probe_dir(project_dir: &Path, probe_content: &str) -> Result<tempfile:
   "compilerOptions": {
     "moduleResolution": "bundler",
     "strict": false,
+    "strictNullChecks": true,
     "noImplicitAny": false,
     "jsx": "react-jsx",
     "declaration": true,

@@ -1,0 +1,11 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+const value: string | undefined = "hello";
+
+const _result = value != null ? (() => { const s = value; return s; })() : value == null ? "nothing" : (() => { throw new Error("non-exhaustive match"); })();
+
+const empty: number | undefined = undefined;
+
+const _default = empty != null ? (() => { const n = empty; return n; })() : empty == null ? 0 : (() => { throw new Error("non-exhaustive match"); })();
