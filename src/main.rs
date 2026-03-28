@@ -160,6 +160,26 @@ fn cmd_build_file_stdout(path: &Path) -> Result<()> {
     let output = Codegen::with_imports(&result.resolved).generate(&result.program);
     print!("{}", output.code);
 
+    // Write .d.fl.ts to .floe/ so TypeScript can resolve types via rootDirs
+    if !output.dts.is_empty() {
+        let canonical = path
+            .canonicalize()
+            .with_context(|| format!("failed to canonicalize {}", path.display()))?;
+        let cwd = std::env::current_dir().context("failed to get current directory")?;
+        let relative = canonical.strip_prefix(&cwd).unwrap_or(&canonical);
+        let project_dir = find_project_dir(&cwd);
+        let out_dir = project_dir.join(".floe");
+        let dts_name = format!(
+            "{}.d.fl.ts",
+            relative.file_stem().unwrap_or_default().to_string_lossy()
+        );
+        let dts_path = out_dir.join(relative).with_file_name(dts_name);
+        if let Some(parent) = dts_path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        std::fs::write(&dts_path, &output.dts).ok();
+    }
+
     Ok(())
 }
 
