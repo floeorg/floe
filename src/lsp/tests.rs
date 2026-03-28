@@ -8,7 +8,7 @@ use super::handlers::{
 use super::symbols::*;
 use super::*;
 
-use crate::diagnostic::{self as zs_diag, Severity};
+use crate::diagnostic::{self as floe_diag, Severity};
 use crate::parser::Parser;
 use crate::parser::ast::*;
 
@@ -76,9 +76,9 @@ fn banned_keyword_produces_parse_error() {
     let parse_result = Parser::new(source).parse_program();
     assert!(parse_result.is_err());
     let errs = parse_result.unwrap_err();
-    let zs_diags = zs_diag::from_parse_errors(&errs);
-    assert!(!zs_diags.is_empty());
-    assert_eq!(zs_diags[0].severity, Severity::Error);
+    let floe_diags = floe_diag::from_parse_errors(&errs);
+    assert!(!floe_diags.is_empty());
+    assert_eq!(floe_diags[0].severity, Severity::Error);
 }
 
 #[test]

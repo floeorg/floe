@@ -698,7 +698,7 @@ impl<'src> Lowerer<'src> {
         None
     }
 
-    pub(super) fn token_to_expr(&self, token: &rowan::SyntaxToken<ZenLang>) -> Option<Expr> {
+    pub(super) fn token_to_expr(&self, token: &rowan::SyntaxToken<FloeLang>) -> Option<Expr> {
         let span = self.token_span(token);
         let text = token.text();
 

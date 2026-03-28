@@ -57,7 +57,7 @@ feature/#1.lexer → main                        ← one final PR
 ```
 
 **Epic workflow:**
-1. Create the epic branch: `git worktree add ../zenscript-worktrees/<epic-num> -b feature/#<num>.<summary> main`
+1. Create the epic branch: `git worktree add ../floe-worktrees/<epic-num> -b feature/#<num>.<summary> main`
 2. **Immediately create the epic PR** (even if empty) so progress is visible:
    ```bash
    gh pr create --title "[Epic] [#<epic-num>] <epic title>" \
@@ -104,8 +104,8 @@ git checkout main && git pull
 Each task gets its own isolated worktree. See `.claude/rules/worktrees.md` for the full workflow.
 
 ```bash
-git worktree add ../zenscript-worktrees/<num> -b feature/#<num>.<summary> main
-cd ../zenscript-worktrees/<num>
+git worktree add ../floe-worktrees/<num> -b feature/#<num>.<summary> main
+cd ../floe-worktrees/<num>
 ```
 
 Do all work - editing, building, testing, committing - from inside this directory.
@@ -115,7 +115,7 @@ Do all work - editing, building, testing, committing - from inside this director
 Before touching any file or running any command, confirm you are in the right place:
 
 ```bash
-pwd                       # must be .../zenscript-worktrees/<num>
+pwd                       # must be .../floe-worktrees/<num>
 git branch --show-current # must be your issue branch
 ```
 
@@ -181,7 +181,7 @@ After creating the PR, tell the user the PR URL and ask them to review and merge
 glb close <num>
 
 # Back in the main repo directory:
-git worktree remove ../zenscript-worktrees/<num>
+git worktree remove ../floe-worktrees/<num>
 git pull
 ```
 

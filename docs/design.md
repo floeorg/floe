@@ -1122,12 +1122,12 @@ In pipe context (`json |> parse<T>`), value is a `Placeholder` that gets substit
 ```
 floe/
 ├── crates/
-│   ├── zs_lexer/          # Tokenizer
-│   ├── zs_parser/         # Recursive descent parser → AST
-│   ├── zs_checker/        # Type checker, exhaustiveness, brands, opaques
-│   ├── zs_codegen/        # AST → .tsx emitter
-│   ├── zs_lsp/            # Language server (tower-lsp)
-│   └── zs_cli/            # CLI binary (floe)
+│   ├── floe_lexer/        # Tokenizer
+│   ├── floe_parser/       # Recursive descent parser → AST
+│   ├── floe_checker/      # Type checker, exhaustiveness, newtypes, opaques
+│   ├── floe_codegen/      # AST → .tsx emitter
+│   ├── floe_lsp/          # Language server (tower-lsp)
+│   └── floe_cli/          # CLI binary (floe)
 ├── runtime/                 # ZERO runtime — intentionally empty
 ├── tests/
 │   ├── fixtures/            # .fl input files
@@ -1135,7 +1135,7 @@ floe/
 └── Cargo.toml
 ```
 
-### Lexer (`zs_lexer`)
+### Lexer (`floe_lexer`)
 
 Key tokens beyond standard TypeScript:
 
@@ -1178,7 +1178,7 @@ Banned tokens (immediate compile errors with helpful messages):
 - `function` → "Use fn instead"
 - `=>` → "Use fn(x) for closures, -> for types and match arms"
 
-### Parser (`zs_parser`)
+### Parser (`floe_parser`)
 
 Handwritten recursive descent. Key AST nodes:
 
@@ -1264,7 +1264,7 @@ enum StringPatternSegment {
 }
 ```
 
-### Type Checker (`zs_checker`)
+### Type Checker (`floe_checker`)
 
 The heart of the compiler:
 
@@ -1365,7 +1365,7 @@ match try findElement("app") {
 (() => { try { return { ok: true as const, value: parseYaml(input) }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()
 ```
 
-### Code Generator (`zs_codegen`)
+### Code Generator (`floe_codegen`)
 
 Emits clean, readable `.tsx`. Zero runtime imports.
 
@@ -1416,7 +1416,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 
 ---
 
-## Language Server (`zs_lsp`)
+## Language Server (`floe_lsp`)
 
 Built on `tower-lsp` (Rust LSP framework).
 

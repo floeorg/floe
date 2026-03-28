@@ -19,12 +19,12 @@ Issues are intentionally brief. The design doc is the source of truth for how th
 
 | Working on | Read section |
 |---|---|
-| Lexer | "Lexer (`zs_lexer`)" - token table + banned tokens |
-| Parser | "Parser (`zs_parser`)" - AST node types |
-| Codegen | "Code Generator (`zs_codegen`)" - transformation table |
-| Type checker | "Type Checker (`zs_checker`)" - 10 rules |
+| Lexer | "Lexer (`floe_lexer`)" - token table + banned tokens |
+| Parser | "Parser (`floe_parser`)" - AST node types |
+| Codegen | "Code Generator (`floe_codegen`)" - transformation table |
+| Type checker | "Type Checker (`floe_checker`)" - 10 rules |
 | Syntax questions | "Syntax Design" + "Syntax Examples" |
 | Strictness rules | "Compiler Strictness Rules" table |
 | npm interop | "npm / .d.ts Interop" |
-| LSP | "Language Server (`zs_lsp`)" |
+| LSP | "Language Server (`floe_lsp`)" |
 | Any feature | "Resolved Design Decisions" for rationale |

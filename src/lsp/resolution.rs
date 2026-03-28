@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::diagnostic::{self as zs_diag};
+use crate::diagnostic::{self as floe_diag};
 use crate::interop;
 use crate::parser::ast::*;
 
@@ -79,7 +79,7 @@ pub(super) fn enrich_from_imports(
     index: &mut SymbolIndex,
     dts_cache: &HashMap<String, Vec<interop::DtsExport>>,
 ) -> (
-    Vec<zs_diag::Diagnostic>,
+    Vec<floe_diag::Diagnostic>,
     HashMap<String, Vec<interop::DtsExport>>,
 ) {
     let mut import_diags = Vec::new();
@@ -97,7 +97,7 @@ pub(super) fn enrich_from_imports(
             // Validate relative imports exist
             if resolve_relative_import(specifier, source_dir).is_none() {
                 import_diags.push(
-                    zs_diag::Diagnostic::error(
+                    floe_diag::Diagnostic::error(
                         format!("cannot find module `\"{specifier}\"`"),
                         item.span,
                     )
@@ -119,7 +119,7 @@ pub(super) fn enrich_from_imports(
             }
         } else {
             import_diags.push(
-                zs_diag::Diagnostic::error(
+                floe_diag::Diagnostic::error(
                     format!("cannot find module `\"{specifier}\"`"),
                     item.span,
                 )

@@ -16,7 +16,7 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LspService, Server};
 
 use crate::checker::Checker;
-use crate::diagnostic::{self as zs_diag, Severity};
+use crate::diagnostic::{self as floe_diag, Severity};
 use crate::parser::Parser;
 
 use completion::is_pipe_compatible;
@@ -202,10 +202,14 @@ impl FloeLsp {
                 // Full parse failed — use lossy parse to get a partial AST so
                 // we can still build a symbol index for completions/hover.
                 let (program, parse_errors) = Parser::parse_lossy(source);
-                let zs_diags = zs_diag::from_parse_errors(&parse_errors);
+                let floe_diags = floe_diag::from_parse_errors(&parse_errors);
                 let index = SymbolIndex::build(&program);
                 let type_map = HashMap::new();
-                (self.convert_diagnostics(source, &zs_diags), index, type_map)
+                (
+                    self.convert_diagnostics(source, &floe_diags),
+                    index,
+                    type_map,
+                )
             }
             Ok(program) => {
                 let mut index = SymbolIndex::build(&program);
@@ -277,9 +281,9 @@ impl FloeLsp {
     fn convert_diagnostics(
         &self,
         source: &str,
-        zs_diagnostics: &[zs_diag::Diagnostic],
+        floe_diagnostics: &[floe_diag::Diagnostic],
     ) -> Vec<Diagnostic> {
-        zs_diagnostics
+        floe_diagnostics
             .iter()
             .map(|d| {
                 let severity = match d.severity {

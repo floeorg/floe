@@ -80,7 +80,7 @@ pub fn resolve_module(specifier: &str, project_dir: &Path) -> Result<ResolvedMod
 
     // Create a temp file that imports the module so tsc resolves it
     let probe_content = format!("import {{}} from \"{specifier}\";");
-    let probe_path = project_dir.join("__zs_probe__.ts");
+    let probe_path = project_dir.join("__floe_probe__.ts");
 
     if std::fs::write(&probe_path, &probe_content).is_err() {
         return Err(format!(

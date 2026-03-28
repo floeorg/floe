@@ -4,12 +4,12 @@ Each agent works in its own isolated worktree. This is the standard way to handl
 
 ## Location
 
-Worktrees live at `../zenscript-worktrees/<issue-num>/` relative to the repo root.
+Worktrees live at `../floe-worktrees/<issue-num>/` relative to the repo root.
 
 ```
 ~/Code/Sandbox/
-├── zenscript/                # main repo (stay on main here)
-└── zenscript-worktrees/
+├── floe/                # main repo (stay on main here)
+└── floe-worktrees/
     ├── 14/                   # agent working on issue #14
     ├── 25/                   # agent working on issue #25
     └── ...
@@ -22,10 +22,10 @@ Worktrees live at `../zenscript-worktrees/<issue-num>/` relative to the repo roo
 git checkout main && git pull
 
 # Create a worktree + branch in one step
-git worktree add ../zenscript-worktrees/<num> -b feature/#<num>.<summary> main
+git worktree add ../floe-worktrees/<num> -b feature/#<num>.<summary> main
 
 # All work happens inside the worktree
-cd ../zenscript-worktrees/<num>
+cd ../floe-worktrees/<num>
 ```
 
 Use the right branch prefix for the type of work:
@@ -41,12 +41,12 @@ Epics use `feature/` prefix - same as standalone issues. Sub-tasks nest under th
 
 ```bash
 # First time: create the epic worktree + branch from main
-git worktree add ../zenscript-worktrees/<epic-num> -b feature/#<epic-num>.<summary> main
-cd ../zenscript-worktrees/<epic-num>
+git worktree add ../floe-worktrees/<epic-num> -b feature/#<epic-num>.<summary> main
+cd ../floe-worktrees/<epic-num>
 
 # Sub-issue: branch off the epic branch, nested under epic number
-git worktree add ../zenscript-worktrees/<sub-num> -b feature/#<epic-num>/#<sub-num>.<summary> feature/#<epic-num>.<summary>
-cd ../zenscript-worktrees/<sub-num>
+git worktree add ../floe-worktrees/<sub-num> -b feature/#<epic-num>/#<sub-num>.<summary> feature/#<epic-num>.<summary>
+cd ../floe-worktrees/<sub-num>
 ```
 
 Branch naming examples:
@@ -64,7 +64,7 @@ Check `glb show <num>` - if the issue has a parent, it's a sub-issue and should 
 **Before editing any file or running any command**, confirm you are in the correct worktree:
 
 ```bash
-pwd   # must be .../zenscript-worktrees/<num>
+pwd   # must be .../floe-worktrees/<num>
 git branch --show-current   # must be your issue branch
 ```
 
@@ -87,15 +87,15 @@ Do everything - edit, build, test, commit, push - from inside the worktree direc
 After a **standalone or sub-issue PR** is merged:
 
 ```bash
-cd ~/Code/Sandbox/zenscript   # back to main repo
-git worktree remove ../zenscript-worktrees/<num>
+cd ~/Code/Sandbox/floe   # back to main repo
+git worktree remove ../floe-worktrees/<num>
 ```
 
 After the **epic final PR** is merged into main:
 
 ```bash
-cd ~/Code/Sandbox/zenscript
-git worktree remove ../zenscript-worktrees/<epic-num>
+cd ~/Code/Sandbox/floe
+git worktree remove ../floe-worktrees/<epic-num>
 git pull  # pick up the merged changes
 ```
 
@@ -109,6 +109,6 @@ git worktree prune             # clean up stale worktree refs
 ## Rules
 
 - **Always create a worktree before starting work** - never work directly in the main repo's working tree.
-- **Never enter another agent's worktree directory.** If `../zenscript-worktrees/<num>` already exists, another agent owns that issue - pick something else.
+- **Never enter another agent's worktree directory.** If `../floe-worktrees/<num>` already exists, another agent owns that issue - pick something else.
 - **One worktree per issue.** Name it `<num>` to match the issue number.
 - **Do not stash, reset, or clean** in someone else's worktree. If you see unexpected state, leave it alone.

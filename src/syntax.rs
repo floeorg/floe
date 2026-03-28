@@ -192,9 +192,9 @@ impl From<SyntaxKind> for rowan::SyntaxKind {
 
 /// The language tag for Floe's CST.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ZenLang {}
+pub enum FloeLang {}
 
-impl rowan::Language for ZenLang {
+impl rowan::Language for FloeLang {
     type Kind = SyntaxKind;
 
     fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
@@ -209,8 +209,8 @@ impl rowan::Language for ZenLang {
 }
 
 /// Convenience type aliases.
-pub type SyntaxNode = rowan::SyntaxNode<ZenLang>;
-pub type SyntaxToken = rowan::SyntaxToken<ZenLang>;
+pub type SyntaxNode = rowan::SyntaxNode<FloeLang>;
+pub type SyntaxToken = rowan::SyntaxToken<FloeLang>;
 
 /// Convert a lexer `TokenKind` to a `SyntaxKind`.
 pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
