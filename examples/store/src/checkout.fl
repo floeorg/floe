@@ -1,5 +1,5 @@
 import { CartItem, ShippingInfo, CheckoutError, OrderId, OrderStatus } from "./types"
-import from "./product"
+import { for Array } from "./product"
 
 // ── Validation helpers ─────────────────────────────────
 
@@ -22,11 +22,12 @@ fn validatePhone(phone: string) -> Result<string, CheckoutError> {
 }
 
 fn validateStock(cart: Array<CartItem>) -> Result<Array<CartItem>, CheckoutError> {
-    const outOfStock = cart |> Array.filter((item) => item.quantity > item.product.stock)
+    const outOfStock = cart
+        |> Array.filter((item) => item.quantity > item.product.stock)
 
     match outOfStock {
         [] -> Ok(cart),
-        [first, .._] -> Err(OutOfStock(first.product.id)),
+        [first, .._ ] -> Err(OutOfStock(first.product.id)),
     }
 }
 
