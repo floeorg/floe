@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/onesc/Code/Projects/floe-worktrees/407/**)",
+      "Bash(cargo fmt:*)",
+      "Bash(RUSTFLAGS=\"-D warnings\" cargo test)"
+    ]
+  }
+}

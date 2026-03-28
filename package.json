@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "build:plugin": "pnpm --filter @floelang/vite-plugin build",
+    "build:plugin": "pnpm --filter @floeorg/vite-plugin build",
     "dev:todo": "pnpm build:plugin && pnpm --filter floe-todo-app dev",
     "dev:store": "pnpm build:plugin && pnpm --filter floe-store dev",
     "dev:docs": "pnpm --filter floe-docs dev",

@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import tailwindcss from "@tailwindcss/vite";
-import floe from "@floelang/vite-plugin";
+import floe from "@floeorg/vite-plugin";
 import path from "node:path";
 
 export default defineConfig({
