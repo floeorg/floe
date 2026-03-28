@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4](https://github.com/milkyskies/floe/compare/v0.1.3...v0.1.4) (2026-03-28)
+
+
+### Bug Fixes
+
+* correct ignoreDeprecations value to 6.0 for TypeScript 7 ([#440](https://github.com/milkyskies/floe/issues/440)) ([505d6fb](https://github.com/milkyskies/floe/commit/505d6fb4d55ea06d7c986267fda086e508ed1d0b))
+
 ## [0.1.3](https://github.com/milkyskies/floe/compare/v0.1.2...v0.1.3) (2026-03-28)
 
 
