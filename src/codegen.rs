@@ -600,6 +600,23 @@ impl Codegen {
     // ── Function ─────────────────────────────────────────────────
 
     fn emit_function(&mut self, decl: &FunctionDecl) {
+        // `fn name = expr` — derived function binding, emit as `const name = expr;`
+        if decl.params.is_empty()
+            && decl.return_type.is_none()
+            && !matches!(decl.body.kind, ExprKind::Block(_))
+        {
+            self.emit_indent();
+            if decl.exported {
+                self.push("export ");
+            }
+            self.push("const ");
+            self.push(&decl.name);
+            self.push(" = ");
+            self.emit_expr(&decl.body);
+            self.push(";");
+            return;
+        }
+
         self.emit_indent();
         if decl.exported {
             self.push("export ");

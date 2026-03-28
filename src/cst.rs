@@ -285,21 +285,29 @@ impl<'src> CstParser<'src> {
         self.expect_ident();
         self.eat_trivia();
 
-        self.expect(TokenKind::LeftParen);
-        self.eat_trivia();
-        self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
-        self.expect(TokenKind::RightParen);
-        self.eat_trivia();
+        if self.at(TokenKind::Equal) {
+            // `fn name = expr` — derived function binding (pointfree style)
+            self.bump(); // =
+            self.eat_trivia();
+            self.parse_expr();
+        } else {
+            // `fn name(params) { body }` — standard function declaration
+            self.expect(TokenKind::LeftParen);
+            self.eat_trivia();
+            self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
+            self.expect(TokenKind::RightParen);
+            self.eat_trivia();
 
-        // Optional return type
-        if self.at(TokenKind::ThinArrow) {
-            self.bump();
-            self.eat_trivia();
-            self.parse_type_expr();
-            self.eat_trivia();
+            // Optional return type
+            if self.at(TokenKind::ThinArrow) {
+                self.bump();
+                self.eat_trivia();
+                self.parse_type_expr();
+                self.eat_trivia();
+            }
+
+            self.parse_block_expr();
         }
-
-        self.parse_block_expr();
 
         self.builder.finish_node();
     }
@@ -2728,6 +2736,11 @@ mod tests {
     #[test]
     fn lambda_zero_arg() {
         assert_no_errors("() => 42");
+    }
+
+    #[test]
+    fn fn_binding_form() {
+        assert_no_errors("fn add(a: number, b: number) -> number { a + b }\nfn inc = add(1, _)");
     }
 
     // ── For blocks ────────────────────────────────────────────────

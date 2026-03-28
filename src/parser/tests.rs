@@ -653,6 +653,20 @@ fn function_decl() {
 }
 
 #[test]
+fn fn_binding_form() {
+    let program = parse_ok("fn add(a: number, b: number) -> number { a + b }\nfn inc = add(1, _)");
+    assert_eq!(program.items.len(), 2);
+    match &program.items[1].kind {
+        ItemKind::Function(decl) => {
+            assert_eq!(decl.name, "inc");
+            assert!(decl.params.is_empty());
+            assert!(decl.return_type.is_none());
+        }
+        other => panic!("expected function binding, got {other:?}"),
+    }
+}
+
+#[test]
 fn async_function() {
     match first_item("async fn fetchUser(id: string) -> Result<User, ApiError> { Ok(user) }") {
         ItemKind::Function(decl) => {

@@ -2949,3 +2949,34 @@ const _result = "hello" |> add(3, _)
         "expected `number`, found `string`"
     ));
 }
+
+#[test]
+fn multiple_placeholders_error() {
+    let diags = check(
+        r#"
+fn add(a: number, b: number) -> number { a + b }
+const _f = add(_, _)
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "only one `_` placeholder allowed per call"),
+        "multiple placeholders should produce error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn partial_application_first_arg() {
+    // `concat(_, "!")` should work — placeholder in first position
+    let diags = check(
+        r#"
+fn concat(a: string, b: string) -> string { a }
+const _addBang = concat(_, "!")
+"#,
+    );
+    assert!(
+        !has_error(&diags, "E001"),
+        "partial application in first position should work, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

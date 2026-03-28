@@ -425,6 +425,16 @@ fn lambda_multi_arg() {
     assert_eq!(emit("(a, b) => a + b"), "(a, b) => a + b;");
 }
 
+// ── Derived function binding ─────────────────────────────────
+
+#[test]
+fn fn_binding_partial_application() {
+    assert_eq!(
+        emit("fn add(a: number, b: number) -> number { a + b }\nfn inc = add(1, _)"),
+        "function add(a: number, b: number): number {\n  return a + b;\n}\n\nconst inc = (_x) => add(1, _x);"
+    );
+}
+
 // ── Equality -> structural equality ──────────────────────────
 
 #[test]

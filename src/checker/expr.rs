@@ -208,11 +208,27 @@ impl Checker {
                 }
 
                 // Detect placeholder args for partial application
-                let has_placeholder = args.iter().any(|a| match a {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                        matches!(e.kind, ExprKind::Placeholder)
-                    }
-                });
+                let placeholder_count = args
+                    .iter()
+                    .filter(|a| match a {
+                        Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                            matches!(e.kind, ExprKind::Placeholder)
+                        }
+                    })
+                    .count();
+                let has_placeholder = placeholder_count > 0;
+
+                // Multiple `_` in one call is not allowed
+                if placeholder_count > 1 {
+                    self.diagnostics.push(
+                        Diagnostic::error(
+                            "only one `_` placeholder allowed per call - use `(x, y) => f(x, y)` for multiple parameters",
+                            expr.span,
+                        )
+                        .with_label("multiple `_` placeholders")
+                        .with_code("E023"),
+                    );
+                }
 
                 let callee_ty = self.check_expr(callee);
                 let mut arg_types: Vec<Type> = args
