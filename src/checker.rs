@@ -22,6 +22,72 @@ use crate::stdlib::StdlibRegistry;
 use crate::type_layout;
 use types::{TypeEnv, TypeInfo};
 
+// ── Context flags ────────────────────────────────────────────────
+
+/// Transient context flags that change during recursive expression checking.
+/// Bundled together so they can be saved/restored as a unit via `with_context`.
+#[derive(Clone, Default)]
+pub(crate) struct CheckContext {
+    /// The return type of the current function (for ? validation).
+    pub current_return_type: Option<Type>,
+    /// Whether we are currently inside a `try` expression.
+    pub inside_try: bool,
+    /// Whether we are currently inside a `collect` block.
+    pub inside_collect: bool,
+    /// The error type collected from `?` operations inside a `collect` block.
+    pub collect_err_type: Option<Type>,
+    /// Whether we are checking an event handler prop value (onChange, onClick, etc.)
+    pub event_handler_context: bool,
+    /// Hint for lambda parameter type inference from calling context.
+    pub lambda_param_hint: Option<Type>,
+    /// When inside a pipe, holds the type of the piped (left) value.
+    pub pipe_input_type: Option<Type>,
+}
+
+// ── Unused name tracking ────────────────────────────────────────
+
+/// Tracks used/defined/imported names for unused detection.
+pub(crate) struct UnusedTracker {
+    /// Variables/functions referenced.
+    pub used_names: HashSet<String>,
+    /// Defined variables with spans (for unused warnings).
+    pub defined_names: Vec<(String, Span)>,
+    /// Imported names with spans (for unused import errors).
+    pub imported_names: Vec<(String, Span)>,
+    /// Where each name was defined — for shadowing error messages.
+    pub defined_sources: HashMap<String, String>,
+}
+
+impl Default for UnusedTracker {
+    fn default() -> Self {
+        Self {
+            used_names: HashSet::new(),
+            defined_names: Vec::new(),
+            imported_names: Vec::new(),
+            defined_sources: HashMap::new(),
+        }
+    }
+}
+
+// ── Trait registry ──────────────────────────────────────────────
+
+/// Tracks trait declarations and implementations.
+pub(crate) struct TraitRegistry {
+    /// Registered trait declarations: trait name -> methods.
+    pub trait_defs: HashMap<String, Vec<TraitMethodSig>>,
+    /// Tracks which (type, trait) pairs have been implemented.
+    pub trait_impls: HashSet<(String, String)>,
+}
+
+impl Default for TraitRegistry {
+    fn default() -> Self {
+        Self {
+            trait_defs: HashMap::new(),
+            trait_impls: HashSet::new(),
+        }
+    }
+}
+
 // ── Checker ──────────────────────────────────────────────────────
 
 /// The Floe type checker.
@@ -29,32 +95,19 @@ pub struct Checker {
     env: TypeEnv,
     diagnostics: Vec<Diagnostic>,
     next_var: usize,
-    /// The return type of the current function (for ? validation).
-    current_return_type: Option<Type>,
-    /// Track used variables per scope for unused detection.
-    used_names: HashSet<String>,
-    /// Track defined names with spans for unused detection.
-    defined_names: Vec<(String, Span)>,
-    /// Track imported names with spans for unused import detection.
-    imported_names: Vec<(String, Span)>,
     /// Standard library function registry.
     stdlib: StdlibRegistry,
     /// Maps expression IDs to their resolved types.
     /// Used by codegen for type-directed pipe resolution.
     expr_types: ExprTypeMap,
+    /// Context flags for the current checking position.
+    pub(crate) ctx: CheckContext,
+    /// Unused name tracking.
+    pub(crate) unused: UnusedTracker,
+    /// Trait declarations and implementations.
+    pub(crate) traits: TraitRegistry,
     /// Names of untrusted (external TS) imports that require `try`.
     untrusted_imports: HashSet<String>,
-    /// Whether we are currently inside a `try` expression.
-    inside_try: bool,
-    /// Whether we are currently inside a `collect` block.
-    inside_collect: bool,
-    /// The error type collected from `?` operations inside a `collect` block.
-    collect_err_type: Option<Type>,
-    /// Whether we are checking an event handler prop value (onChange, onClick, etc.)
-    event_handler_context: bool,
-    /// Hint for lambda parameter type inference from calling context.
-    /// When set, Arrow expressions use this as the first param type.
-    lambda_param_hint: Option<Type>,
     /// Whether we are in the type registration pass (suppress unknown type errors).
     registering_types: bool,
     /// Pre-resolved imports from other .fl files, keyed by import source string.
@@ -64,22 +117,12 @@ pub struct Checker {
     /// Counter for disambiguating probe lookups when the same binding name appears
     /// multiple times (e.g. two `const { data } = ...` destructures).
     probe_counters: HashSet<String>,
-    /// When inside a pipe, holds the type of the piped (left) value.
-    /// The Call handler uses this to account for the implicit first argument.
-    pipe_input_type: Option<Type>,
     /// Maps variable/function names to their inferred type display names.
     /// Accumulated as names are defined so inner-scope names aren't lost.
     name_types: HashMap<String, String>,
-    /// Tracks where each name was defined (e.g., "const", "function", "for-block function from \"./todo\"").
-    /// Used to provide context in shadowing error messages.
-    defined_sources: HashMap<String, String>,
     /// Variant names that appear in multiple unions: variant name -> list of union names.
     /// Used to detect ambiguous bare variant usage.
     ambiguous_variants: HashMap<String, Vec<String>>,
-    /// Registered trait declarations: trait name -> methods.
-    trait_defs: HashMap<String, Vec<TraitMethodSig>>,
-    /// Tracks which (type, trait) pairs have been implemented.
-    trait_impls: HashSet<(String, String)>,
     /// Maps function names to their required (non-default) parameter count.
     /// Functions not in this map require all parameters.
     fn_required_params: HashMap<String, usize>,
@@ -89,10 +132,10 @@ pub struct Checker {
 
 /// Signature of a trait method (for checking implementations).
 #[derive(Debug, Clone)]
-struct TraitMethodSig {
-    name: String,
+pub(crate) struct TraitMethodSig {
+    pub name: String,
     /// Whether this method has a default implementation.
-    has_default: bool,
+    pub has_default: bool,
 }
 
 impl Default for Checker {
@@ -239,28 +282,18 @@ impl Checker {
             env,
             diagnostics: Vec::new(),
             next_var: 0,
-            current_return_type: None,
-            used_names: HashSet::new(),
-            defined_names: Vec::new(),
-            imported_names: Vec::new(),
             stdlib: StdlibRegistry::new(),
             expr_types: HashMap::new(),
+            ctx: CheckContext::default(),
+            unused: UnusedTracker::default(),
+            traits: TraitRegistry::default(),
             untrusted_imports: untrusted_globals,
-            inside_try: false,
-            inside_collect: false,
-            collect_err_type: None,
-            event_handler_context: false,
-            lambda_param_hint: None,
             registering_types: false,
             resolved_imports: HashMap::new(),
             dts_imports: HashMap::new(),
             probe_counters: HashSet::new(),
-            pipe_input_type: None,
             name_types: HashMap::new(),
-            defined_sources: HashMap::new(),
             ambiguous_variants: HashMap::new(),
-            trait_defs: HashMap::new(),
-            trait_impls: HashSet::new(),
             fn_required_params: HashMap::new(),
             fn_param_names: HashMap::new(),
         }
@@ -284,6 +317,34 @@ impl Checker {
             dts_imports,
             ..Self::new()
         }
+    }
+
+    /// Run `f` with modified context flags, then restore the previous context.
+    /// This replaces manual save/restore patterns like:
+    /// ```ignore
+    /// let prev = self.ctx.inside_try;
+    /// self.ctx.inside_try = true;
+    /// // ... work ...
+    /// self.ctx.inside_try = prev;
+    /// ```
+    pub(crate) fn with_context<T>(
+        &mut self,
+        modify: impl FnOnce(&mut CheckContext),
+        f: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let saved = self.ctx.clone();
+        modify(&mut self.ctx);
+        let result = f(self);
+        self.ctx = saved;
+        result
+    }
+
+    /// Push a new scope, run `f`, then pop the scope.
+    pub(crate) fn in_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.env.push_scope();
+        let result = f(self);
+        self.env.pop_scope();
+        result
     }
 
     /// Check a program and return diagnostics.
@@ -352,7 +413,8 @@ impl Checker {
                     return_type: Box::new(return_type),
                 };
                 self.env.define(&func.name, fn_type);
-                self.defined_sources
+                self.unused
+                    .defined_sources
                     .insert(func.name.clone(), format!("function from \"{}\"", source));
 
                 // Track required (non-default) parameter count
@@ -391,8 +453,8 @@ impl Checker {
         }
 
         // Check for unused imports
-        for (name, span) in &self.imported_names {
-            if !self.used_names.contains(name) {
+        for (name, span) in &self.unused.imported_names {
+            if !self.unused.used_names.contains(name) {
                 self.diagnostics.push(
                     Diagnostic::error(format!("unused import `{name}`"), *span)
                         .with_label("imported but never used")
@@ -403,8 +465,8 @@ impl Checker {
         }
 
         // Check for unused variables
-        for (name, span) in &self.defined_names {
-            if !name.starts_with('_') && !self.used_names.contains(name) {
+        for (name, span) in &self.unused.defined_names {
+            if !name.starts_with('_') && !self.unused.used_names.contains(name) {
                 self.diagnostics.push(
                     Diagnostic::warning(format!("unused variable `{name}`"), *span)
                         .with_label("defined but never used")
@@ -479,7 +541,7 @@ impl Checker {
 
     fn check_no_redefinition(&mut self, name: &str, span: Span) {
         if self.env.is_defined_in_any_scope(name) {
-            let msg = if let Some(source) = self.defined_sources.get(name) {
+            let msg = if let Some(source) = self.unused.defined_sources.get(name) {
                 format!("`{name}` is already defined ({source}) and cannot be shadowed")
             } else {
                 format!("`{name}` is already defined and cannot be shadowed")
@@ -808,10 +870,12 @@ impl Checker {
                         return_type: Box::new(Type::String),
                     };
                     self.env.define(&fn_name, fn_type);
-                    self.defined_sources
+                    self.unused
+                        .defined_sources
                         .insert(fn_name.clone(), format!("derived Display for {type_name}"));
-                    self.used_names.insert(fn_name.clone());
-                    self.trait_impls
+                    self.unused.used_names.insert(fn_name.clone());
+                    self.traits
+                        .trait_impls
                         .insert((type_name.clone(), "Display".to_string()));
                 }
                 _ => {
@@ -825,7 +889,7 @@ impl Checker {
             }
 
             // Mark the trait name as used
-            self.used_names.insert(trait_name.clone());
+            self.unused.used_names.insert(trait_name.clone());
         }
     }
 
@@ -870,7 +934,7 @@ impl Checker {
     fn resolve_named_type(&mut self, name: &str, type_args: &[TypeExpr], span: Span) -> Type {
         // Mark type names as used (e.g. "JSX" from "JSX.Element", or "User")
         let root = name.split('.').next().unwrap_or(name);
-        self.used_names.insert(root.to_string());
+        self.unused.used_names.insert(root.to_string());
 
         match name {
             type_layout::TYPE_NUMBER => Type::Number,
@@ -979,11 +1043,12 @@ impl Checker {
             };
 
             self.env.define(effective_name, ty);
-            self.defined_sources.insert(
+            self.unused.defined_sources.insert(
                 effective_name.to_string(),
                 format!("import from \"{}\"", decl.source),
             );
-            self.imported_names
+            self.unused
+                .imported_names
                 .push((effective_name.to_string(), spec.span));
 
             // Track untrusted imports (not trusted at module or specifier level).
@@ -1028,7 +1093,7 @@ impl Checker {
                         self.check_for_block_imported_with_source(block, &decl.source);
                         // Mark the for-import functions as used (suppress unused import)
                         for func in &block.functions {
-                            self.used_names.insert(func.name.clone());
+                            self.unused.used_names.insert(func.name.clone());
                         }
                     }
                 }
@@ -1102,7 +1167,7 @@ impl Checker {
                 return_type: Box::new(return_type),
             };
             self.env.define(&func.name, fn_type);
-            self.defined_sources.insert(
+            self.unused.defined_sources.insert(
                 func.name.clone(),
                 format!("for-block function from \"{}\"", source),
             );
@@ -1261,12 +1326,13 @@ impl Checker {
         self.check_no_redefinition(name, span);
         self.name_types.insert(name.to_string(), ty.display_name());
         self.env.define(name, ty);
-        self.defined_sources
+        self.unused
+            .defined_sources
             .insert(name.to_string(), "const".to_string());
         if exported {
-            self.used_names.insert(name.to_string());
+            self.unused.used_names.insert(name.to_string());
         }
-        self.defined_names.push((name.to_string(), span));
+        self.unused.defined_names.push((name.to_string(), span));
     }
 
     /// Handle object destructuring for const bindings.
@@ -1376,7 +1442,8 @@ impl Checker {
         };
         self.check_no_redefinition(&decl.name, span);
         self.env.define(&decl.name, fn_type);
-        self.defined_sources
+        self.unused
+            .defined_sources
             .insert(decl.name.clone(), "function".to_string());
 
         // Track required (non-default) parameter count
@@ -1393,13 +1460,13 @@ impl Checker {
         );
 
         if decl.exported {
-            self.used_names.insert(decl.name.clone());
+            self.unused.used_names.insert(decl.name.clone());
         }
-        self.defined_names.push((decl.name.clone(), span));
+        self.unused.defined_names.push((decl.name.clone(), span));
 
         // Set up scope for function body
-        let prev_return_type = self.current_return_type.take();
-        self.current_return_type = Some(return_type.clone());
+        let prev_return_type = self.ctx.current_return_type.take();
+        self.ctx.current_return_type = Some(return_type.clone());
 
         self.env.push_scope();
 
@@ -1490,7 +1557,7 @@ impl Checker {
         }
 
         self.env.pop_scope();
-        self.current_return_type = prev_return_type;
+        self.ctx.current_return_type = prev_return_type;
     }
 
     fn check_for_block(&mut self, block: &ForBlock, _span: Span) {
@@ -1498,7 +1565,7 @@ impl Checker {
 
         // If this is a trait impl block, validate the trait contract
         if let Some(ref trait_name) = block.trait_name {
-            self.used_names.insert(trait_name.clone());
+            self.unused.used_names.insert(trait_name.clone());
             let type_display = for_type.display_name();
             self.check_trait_impl(&type_display, trait_name, &block.functions, block.span);
         }
@@ -1532,7 +1599,8 @@ impl Checker {
             };
             self.check_no_redefinition(&func.name, block.span);
             self.env.define(&func.name, fn_type);
-            self.defined_sources
+            self.unused
+                .defined_sources
                 .insert(func.name.clone(), "for-block function".to_string());
 
             // Track required (non-default) parameter count
@@ -1549,13 +1617,15 @@ impl Checker {
             );
 
             if func.exported {
-                self.used_names.insert(func.name.clone());
+                self.unused.used_names.insert(func.name.clone());
             }
-            self.defined_names.push((func.name.clone(), block.span));
+            self.unused
+                .defined_names
+                .push((func.name.clone(), block.span));
 
             // Check the function body
-            let prev_return_type = self.current_return_type.take();
-            self.current_return_type = Some(return_type.clone());
+            let prev_return_type = self.ctx.current_return_type.take();
+            self.ctx.current_return_type = Some(return_type.clone());
 
             self.env.push_scope();
 
@@ -1609,7 +1679,7 @@ impl Checker {
             }
 
             self.env.pop_scope();
-            self.current_return_type = prev_return_type;
+            self.ctx.current_return_type = prev_return_type;
         }
     }
 
@@ -1681,7 +1751,7 @@ impl Checker {
                 has_default: m.body.is_some(),
             })
             .collect();
-        self.trait_defs.insert(decl.name.clone(), methods);
+        self.traits.trait_defs.insert(decl.name.clone(), methods);
     }
 
     fn check_trait_decl(&mut self, decl: &TraitDecl) {
@@ -1701,7 +1771,7 @@ impl Checker {
         }
 
         if decl.exported {
-            self.used_names.insert(decl.name.clone());
+            self.unused.used_names.insert(decl.name.clone());
         }
     }
 
@@ -1713,7 +1783,7 @@ impl Checker {
         functions: &[FunctionDecl],
         span: Span,
     ) {
-        let trait_methods = match self.trait_defs.get(trait_name) {
+        let trait_methods = match self.traits.trait_defs.get(trait_name) {
             Some(methods) => methods.clone(),
             None => {
                 self.diagnostics.push(
@@ -1750,7 +1820,8 @@ impl Checker {
         }
 
         // Record the implementation
-        self.trait_impls
+        self.traits
+            .trait_impls
             .insert((type_name.to_string(), trait_name.to_string()));
     }
 
@@ -1765,7 +1836,7 @@ impl Checker {
                 ..
             } => {
                 if name.starts_with(|c: char| c.is_uppercase()) {
-                    self.used_names.insert(name.clone());
+                    self.unused.used_names.insert(name.clone());
                     if self.env.lookup(name).is_none() {
                         self.diagnostics.push(
                             Diagnostic::error(
@@ -1781,10 +1852,10 @@ impl Checker {
                     if let Some(ref value) = prop.value {
                         // For event handler props, set context so lambda params get event type
                         if prop.name.starts_with("on") && prop.name.len() > 2 {
-                            let prev = self.event_handler_context;
-                            self.event_handler_context = true;
+                            let prev = self.ctx.event_handler_context;
+                            self.ctx.event_handler_context = true;
                             self.check_expr(value);
-                            self.event_handler_context = prev;
+                            self.ctx.event_handler_context = prev;
                         } else {
                             self.check_expr(value);
                         }
