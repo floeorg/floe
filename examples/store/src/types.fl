@@ -1,10 +1,16 @@
 // ── Newtype wrappers ───────────────────────────────────
 // Single-variant unions as newtypes (Gleam/Rust style).
 
-export type ProductId { number }
-export type OrderId { number }
+export type ProductId {
+    number
+}
+
+export type OrderId {
+    number
+}
 
 // ── Shared field groups ────────────────────────────────
+
 // Record type composition with spread.
 
 type WithRating {
