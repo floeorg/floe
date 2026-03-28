@@ -33,6 +33,20 @@ floe({
 })
 ```
 
+## TypeScript Setup
+
+Add `allowArbitraryExtensions` to your `tsconfig.json` so TypeScript can resolve `.fl` imports:
+
+```json
+{
+  "compilerOptions": {
+    "allowArbitraryExtensions": true
+  }
+}
+```
+
+When you run `floe build`, the compiler generates `.d.fl.ts` type declarations alongside the compiled output. This lets TypeScript resolve types for imports like `import { Header } from "./header.fl"` automatically.
+
 ## How It Works
 
 1. Vite encounters a `.fl` import

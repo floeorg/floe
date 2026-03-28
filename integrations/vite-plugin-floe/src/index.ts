@@ -1,5 +1,4 @@
 import { execFileSync } from "node:child_process";
-import type { Plugin } from "vite";
 
 export interface FloeOptions {
   /** Path to the floe binary. Defaults to "floe". */
@@ -22,20 +21,20 @@ export interface FloeOptions {
  * })
  * ```
  */
-export default function floe(options: FloeOptions = {}): Plugin {
+export default function floe(options: FloeOptions = {}) {
   const compiler = options.compiler ?? "floe";
 
   return {
     name: "vite-plugin-floe",
-    enforce: "pre",
+    enforce: "pre" as const,
 
-    config(config) {
+    config(config: { resolve?: { extensions?: string[] } }) {
       const existing = config.resolve?.extensions ?? [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"];
       const extensions = existing.includes(".fl") ? existing : [".fl", ...existing];
       return { resolve: { extensions } };
     },
 
-    transform(code, id) {
+    transform(this: { error(msg: string): never }, code: string, id: string) {
       // Strip query params for extension check (Vite adds ?import, ?t=xxx, etc.)
       const cleanId = id.split("?")[0];
       if (!cleanId.endsWith(".fl")) return null;
@@ -54,7 +53,7 @@ export default function floe(options: FloeOptions = {}): Plugin {
       }
     },
 
-    handleHotUpdate({ file, server }) {
+    handleHotUpdate({ file, server }: { file: string; server: { moduleGraph: { getModulesByFile(file: string): Set<any> | undefined } } }) {
       if (file.endsWith(".fl")) {
         const modules = server.moduleGraph.getModulesByFile(file);
         if (modules) {

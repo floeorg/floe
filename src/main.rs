@@ -247,9 +247,13 @@ fn compile_file(file: &Path, out_dir: &Path) -> Result<PathBuf> {
     std::fs::write(&out_path, &code_with_header)
         .with_context(|| format!("failed to write {}", out_path.display()))?;
 
-    // Write .d.ts declaration stub into out_dir as well
+    // Write .d.fl.ts declaration file (TypeScript's allowArbitraryExtensions convention)
     if !output.dts.is_empty() {
-        let dts_path = out_dir.join(relative).with_extension("d.ts");
+        let dts_name = format!(
+            "{}.d.fl.ts",
+            relative.file_stem().unwrap_or_default().to_string_lossy()
+        );
+        let dts_path = out_dir.join(relative).with_file_name(dts_name);
         std::fs::write(&dts_path, &output.dts)
             .with_context(|| format!("failed to write {}", dts_path.display()))?;
     }
