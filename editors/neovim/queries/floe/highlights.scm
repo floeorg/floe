@@ -71,8 +71,9 @@
 (lambda_parameter
   name: (identifier) @variable.parameter)
 
-; ── Lambda ───────────────────────────────────────────────
-(pipe_lambda "fn" @keyword)
+; ── Arrow closure ────────────────────────────────────────
+(arrow_closure "=>" @operator)
+(arrow_closure "async" @keyword)
 
 ; ── Dot shorthand ────────────────────────────────────────
 (dot_shorthand

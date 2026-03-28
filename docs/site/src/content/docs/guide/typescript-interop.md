@@ -112,11 +112,11 @@ import trusted { useState, useEffect, useCallback } from "react"
 export fn Counter() -> JSX.Element {
   const [count, setCount] = useState(0)
 
-  useEffect(fn() {
+  useEffect(() => {
     Console.log("count changed:", count)
   }, [count])
 
-  <button onClick={fn() setCount(count + 1)}>
+  <button onClick={() => setCount(count + 1)}>
     {`Count: ${count}`}
   </button>
 }
@@ -133,7 +133,7 @@ export fn MyPage() -> JSX.Element {
   const [open, setOpen] = useState(false)
 
   <div>
-    <Button onClick={fn() setOpen(true)}>Open</Button>
+    <Button onClick={() => setOpen(true)}>Open</Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <p>Dialog content</p>
     </Dialog>

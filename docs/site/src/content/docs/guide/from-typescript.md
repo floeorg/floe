@@ -29,16 +29,16 @@ fn greet(name: string) -> string {
 }
 ```
 
-### `fn(x)` instead of `=>`
+### Pipes and dot shorthand instead of method chains
 
 ```typescript
 // TypeScript
 const result = items.filter(x => x.active)
 onClick={() => setCount(count + 1)}
 
-// Floe
+// Floe — closures use (x) => just like TS, but prefer pipes + dot shorthand
 const result = items |> Array.filter(.active)
-onClick={fn() setCount(count + 1)}
+onClick={() => setCount(count + 1)}
 ```
 
 ### `->` for return types and function types
@@ -182,7 +182,6 @@ fn find(id: string) -> Option<User> {
 | `for` / `while` | Mutation-heavy | Pipes + map/filter/reduce |
 | `throw` | Invisible error paths | `Result<T, E>` |
 | `function` | Verbose | `fn` |
-| `=>` | Two function syntaxes | `fn(x)` for closures |
 | `return` | Implicit returns | Last expression is the return value |
 
 ## Incremental Adoption

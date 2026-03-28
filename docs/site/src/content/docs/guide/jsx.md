@@ -14,7 +14,7 @@ export fn Counter() -> JSX.Element {
 
   <div>
     <h1>Count: {count}</h1>
-    <button onClick={fn() setCount(count + 1)}>Increment</button>
+    <button onClick={() => setCount(count + 1)}>Increment</button>
   </div>
 }
 ```
@@ -59,7 +59,7 @@ Use pipes with `map`:
 
 ```floe
 <ul>
-  {items |> map(fn(item) <li key={item.id}>{item.name}</li>)}
+  {items |> map((item) => <li key={item.id}>{item.name}</li>)}
 </ul>
 ```
 

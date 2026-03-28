@@ -42,7 +42,7 @@ export fn Counter() -> JSX.Element {
 
   <div>
     <p>Count: {count}</p>
-    <button onClick={fn() setCount(count + 1)}>+1</button>
+    <button onClick={() => setCount(count + 1)}>+1</button>
   </div>
 }
 ```

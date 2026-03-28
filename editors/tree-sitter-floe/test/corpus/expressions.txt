@@ -94,34 +94,34 @@ match len {
                 (identifier)))))))))
 
 ===
-Pipe lambda
+Arrow closure
 ===
 
-const f = |x| x
+const f = (x) => x
 
 ---
 
 (source_file
   (const_declaration
     (identifier)
-    (pipe_lambda
+    (arrow_closure
       (lambda_parameter
         name: (identifier))
       body: (primary_expression
         (identifier)))))
 
 ===
-Zero-arg lambda
+Zero-arg arrow closure
 ===
 
-const f = || handleAdd()
+const f = () => handleAdd()
 
 ---
 
 (source_file
   (const_declaration
     (identifier)
-    (pipe_lambda
+    (arrow_closure
       body: (call_expression
         function: (primary_expression
           (identifier))

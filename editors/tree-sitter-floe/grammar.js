@@ -290,7 +290,7 @@ module.exports = grammar({
         $.index_expression,
         $.construct_expression,
         $.variant_expression,
-        $.pipe_lambda,
+        $.arrow_closure,
         $.dot_shorthand,
         $.jsx_element,
         $.jsx_self_closing,
@@ -538,14 +538,15 @@ module.exports = grammar({
 
     // ── Lambdas ─────────────────────────────────────────────
 
-    pipe_lambda: ($) =>
+    arrow_closure: ($) =>
       prec.right(
         "pipe",
         seq(
-          "fn",
+          optional("async"),
           "(",
           commaSep($.lambda_parameter),
           ")",
+          "=>",
           field("body", $._expression),
         ),
       ),

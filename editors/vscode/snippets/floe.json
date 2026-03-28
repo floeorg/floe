@@ -171,7 +171,7 @@
   "Closure": {
     "prefix": "closure",
     "body": [
-      "fn(${1:params}) ${0:expr}"
+      "(${1:params}) => ${0:expr}"
     ],
     "description": "Closure expression"
   },

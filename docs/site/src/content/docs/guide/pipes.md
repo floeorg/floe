@@ -56,12 +56,12 @@ todos |> Array.map(.text)
 users |> Array.sortBy(.name)
 ```
 
-`.field` creates an implicit closure. `.done == false` is shorthand for `fn(t) t.done == false`.
+`.field` creates an implicit closure. `.done == false` is shorthand for `(t) => t.done == false`.
 
-For anything more complex, use `fn(x)`:
+For anything more complex, use an arrow closure:
 
 ```floe
-todos |> Array.map(fn(t) Todo(..t, done: !t.done))
+todos |> Array.map((t) => Todo(..t, done: !t.done))
 ```
 
 ## Method-Style Pipes
@@ -74,7 +74,7 @@ import trusted { map, filter, reduce } from "ramda"
 const total = orders
   |> filter(.status == "complete")
   |> map(.amount)
-  |> reduce(fn(sum, n) sum + n, 0, _)
+  |> reduce((sum, n) => sum + n, 0, _)
 ```
 
 ## Debugging with `tap`
@@ -144,7 +144,7 @@ Pipes shine when you have a sequence of transformations. They replace:
 Floe has three arrow-like operators:
 
 ```
-fn(x) anonymous closures  fn(a) a + 1
+(x) => arrow closures     (a) => a + 1
 ->    match arms / types   Ok(x) -> x, fn(string) -> number
 |>    pipe data             data |> transform
 ```

@@ -208,17 +208,17 @@ Color.Blue(hex: "#00f") // variant with data
 ### Anonymous Functions (Closures)
 
 ```floe
-fn(a, b) a + b
-fn(x) x * 2
-fn() doSomething()
+(a, b) => a + b
+(x) => x * 2
+() => doSomething()
 ```
 
 Dot shorthand for field access:
 
 ```floe
-.name           // fn(x) x.name
-.id != id       // fn(x) x.id != id
-.done == false  // fn(x) x.done == false
+.name           // (x) => x.name
+.id != id       // (x) => x.id != id
+.done == false  // (x) => x.done == false
 ```
 
 ### Function Types

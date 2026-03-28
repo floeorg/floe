@@ -25,7 +25,7 @@ A React developer should read Floe and understand it in 30 minutes. We keep fami
 ### Key Operators
 
 ```
-fn(x) anonymous functions     fn(a) a + 1
+(x) => arrow closures         (a) => a + 1
 ->    match arms              Ok(x) -> x
 |>    pipe data through       data |> transform
 ?     unwrap Result/Option    fetchUser(id)?
@@ -38,7 +38,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 
 - `const`, `export`, `import`, type annotations
 - `fn` for named/exported functions
-- Closures `fn(x)` for inline/anonymous functions
+- Closures `(x) => expr` for inline/anonymous functions
 - Dot shorthand `.field` for implicit field-access closures
 - JSX / TSX (full support)
 - Generics, template literals
@@ -74,7 +74,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Type constructors | `User(name: "Ryan", email: e)` | `{ name: "Ryan", email: e }` (compiler adds tags for unions) |
 | Record spread | `User(..user, name: "New")` | `{ ...user, name: "New" }` |
 | Named arguments | `fetchUsers(page: 3, limit: 50)` | `fetchUsers(3, 50)` (labels erased) |
-| Closures | `fn(x) x + 1` | `(x) => x + 1` |
+| Closures | `(x) => x + 1` | `(x) => x + 1` |
 | Dot shorthand | `.name` in callback position | `(x) => x.name` |
 | Dot shorthand (predicate) | `.id != id` in callback position | `(x) => x.id != id` |
 | Qualified variant | `Type.Variant` for disambiguation | `{ tag: "Variant" }` (same as bare) |
@@ -111,7 +111,6 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `x?: T` | Optional fields | `x: Option<T>` |
 | `+` on strings | Silent coercion bugs | Template literals only (warning) |
 | `void` | Not a real type, can't use in generics | Unit type `()` — a real value |
-| `=>` | Two syntaxes for functions is one too many | `fn(x) expr` for anonymous functions |
 | `function` | Verbose keyword | `fn` |
 | `if`/`else` | Redundant control flow | `match` expression |
 | `return` | Implicit returns — last expression is the value | Omit `return`; the last expression in a block is the return value |
@@ -141,9 +140,9 @@ const addTen = add(10, _)              // (x) => add(10, x)
 todos |> Array.filter(.id != id)       // filter(todos, x => x.id != id)
 todos |> Array.map(.text)              // map(todos, x => x.text)
 
-// Closures — fn(x) for when you need a named param
-todos |> Array.map(fn(t) Todo(..t, done: true))
-items |> Array.reduce(fn(acc, x) acc + x.price, 0)
+// Closures — arrow syntax for when you need a named param
+todos |> Array.map((t) => Todo(..t, done: true))
+items |> Array.reduce((acc, x) => acc + x.price, 0)
 
 // tap — call a function for side effects, pass value through
 orders
@@ -156,7 +155,7 @@ orders
   {users
     |> filter(.active)
     |> sortBy(.name)
-    |> map(fn(u) <li key={u.id}>{u.name}</li>)
+    |> map((u) => <li key={u.id}>{u.name}</li>)
   }
 </ul>
 ```
@@ -238,7 +237,7 @@ match url {
 
 ```
 
-Match uses `->` for arms (not `fn(x)`), so it's visually distinct from closures.
+Match uses `->` for arms (not `=>`), so it's visually distinct from closures.
 
 ### Array Pattern Matching
 
@@ -399,10 +398,10 @@ const display = match user.nickname {
 const display = user.nickname |> Option.unwrapOr(user.name)
 
 // Transform inside without unwrapping
-const upper: Option<string> = user.nickname |> Option.map(fn(n) toUpperCase(n))
+const upper: Option<string> = user.nickname |> Option.map((n) => toUpperCase(n))
 
 // Chain
-const avatar = user.nickname |> Option.flatMap(fn(n) findAvatar(n))
+const avatar = user.nickname |> Option.flatMap((n) => findAvatar(n))
 
 ```
 
@@ -939,10 +938,10 @@ Compiles to (test mode only):
 export fn TodoApp() -> JSX.Element { ... }
 export fn fetchUser(id: UserId) -> Result<User, ApiError> { ... }
 
-// Inline/anonymous uses fn(x) closures
-todos |> Array.map(fn(t) t.name)
-onClick={fn() setCount(count + 1)}
-items |> Array.reduce(fn(acc, x) acc + x.price, 0)
+// Inline/anonymous uses arrow closures
+todos |> Array.map((t) => t.name)
+onClick={() => setCount(count + 1)}
+items |> Array.reduce((acc, x) => acc + x.price, 0)
 
 // Dot shorthand for simple field access
 todos |> Array.filter(.done == false)
@@ -956,7 +955,7 @@ greet("Ryan")                    // "Hello, Ryan!"
 greet("Ryan", greeting: "Hey")  // "Hey, Ryan!"
 
 // COMPILE ERROR: const + closure — use fn instead
-const double = fn(x) x * 2        // ERROR: Use `fn double(x) -> ...`
+const double = (x) => x * 2        // ERROR: Use `fn double(x) -> ...`
 fn double(x: number) -> number { x * 2 }  // correct
 ```
 
@@ -979,13 +978,13 @@ type Tab {
 
 export fn Dashboard(userId: UserId) -> JSX.Element {
   const [tab, setTab] = useState<Tab>(Overview)
-  const user = useAsync(fn() fetchUser(userId))
+  const user = useAsync(() => fetchUser(userId))
 
   <Layout>
     <Sidebar>
       <NavItem
         active={match tab { Overview -> true, _ -> false }}
-        onClick={fn() setTab(Overview)}>
+        onClick={() => setTab(Overview)}>
         Overview
       </NavItem>
     </Sidebar>
@@ -1036,7 +1035,7 @@ These are enforced at compile time with clear error messages.
 | Rule | Error | Fix |
 |------|-------|-----|
 | Exported functions must declare return types | `ERROR: missing return type` | Add `-> ReturnType` |
-| `const name = fn(x) ...` | `ERROR: use fn instead` | `fn name(x) -> T { ... }` |
+| `const name = (x) => ...` | `ERROR: use fn instead` | `fn name(x) -> T { ... }` |
 | No unused variables | `ERROR: x is never used` | Remove or prefix with `_` |
 | No unused imports | `ERROR: useRef is never used` | Remove the import |
 | No implicit type widening | `ERROR: mixed array needs explicit type` | Add type annotation |
@@ -1143,6 +1142,7 @@ Key tokens beyond standard TypeScript:
 |-------|--------|
 | `Pipe` | `\|>` |
 | `Arrow` | `->` (match arms, return types, function types) |
+| `FatArrow` | `=>` (arrow closure syntax) |
 | `Question` | `?` (postfix, Result/Option unwrap) |
 | `Underscore` | `_` (placeholder/partial application) |
 | `PipePipe` | `\|\|` (boolean OR) |
@@ -1176,7 +1176,6 @@ Banned tokens (immediate compile errors with helpful messages):
 - `enum` → "Use type with | variants"
 - `void` → "Use the unit type () instead"
 - `function` → "Use fn instead"
-- `=>` → "Use fn(x) for closures, -> for types and match arms"
 
 ### Parser (`zs_parser`)
 
@@ -1189,7 +1188,7 @@ enum Expr {
     Identifier(String),
     BinaryOp { left: Box<Expr>, op: BinOp, right: Box<Expr> },
     Call { callee: Box<Expr>, args: Vec<Arg> },
-    Lambda { params: Vec<Param>, body: Box<Expr> },  // fn(x) expr
+    Lambda { params: Vec<Param>, body: Box<Expr> },  // (x) => expr
     DotShorthand(Box<Expr>),                          // .field or .field op expr
     Jsx(JsxElement),
 
@@ -1374,7 +1373,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `a \|> f(b, c)` | `f(a, b, c)` |
 | `a \|> f(b, _, c)` | `f(b, a, c)` |
 | `add(10, _)` | `(x) => add(10, x)` |
-| `fn(x) x + 1` | `(x) => x + 1` |
+| `(x) => x + 1` | `(x) => x + 1` |
 | `.name` (in callback) | `(x) => x.name` |
 | `.id != id` (in callback) | `(x) => x.id != id` |
 | `Type.Variant` (qualified) | `{ tag: "Variant" }` (same as bare) |
@@ -1528,7 +1527,7 @@ This applies to `fn` bodies, `for`-block functions, match arms with block bodies
 ### Phase 1: Proof of concept (2-4 weeks)
 
 - [ ] Lexer with pipe, match, `?` tokens and banned keyword errors
-- [ ] Parser for: const, fn, fn(x) closures, .field shorthand, pipes, basic expressions
+- [ ] Parser for: const, fn, (x) => closures, .field shorthand, pipes, basic expressions
 - [ ] Parser: `Type(field: value)` constructor syntax and `..spread`
 - [ ] Parser: named arguments at call sites
 - [ ] Parser: default values on function params and record fields
@@ -1703,9 +1702,9 @@ const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
 | Question | Decision | Rationale |
 |----------|----------|-----------|
 | Syntax style | TS keywords + Gleam match/pipe | Familiar to React devs, 30min learning curve |
-| Function style | `fn` for named, `fn(x)` for inline closures, `.field` for shorthand | One keyword, two closure forms, no overlap |
+| Function style | `fn` for named, `(x) => expr` for inline closures, `.field` for shorthand | One keyword, two closure forms, no overlap |
 | Arrow `->` | Match arms, return types, function types | "Maps to" everywhere — consistent single meaning |
-| `const name = fn(x) ...` | Compile error | If it has a name, use `fn`. No two ways to name a function. |
+| `const name = (x) => ...` | Compile error | If it has a name, use `fn`. No two ways to name a function. |
 | Dot shorthand | `.field` in callback position creates implicit closure | Covers 80% of inline callbacks (filter, map, sort) |
 | Qualified variants | `Type.Variant` when ambiguous, bare when unambiguous | Compiler errors on ambiguous bare variants with helpful suggestion |
 | Pipe semantics | First-arg default, `_` placeholder | Gleam approach — clean 90% of the time |

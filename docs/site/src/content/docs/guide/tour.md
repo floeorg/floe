@@ -22,9 +22,9 @@ fn double(n: number) -> number {
     n * 2
 }
 
-// Closures use fn() — same keyword, no name
-const add = fn(a, b) a + b
-const log = fn() Console.log("clicked")
+// Closures use arrow syntax
+const add = (a, b) => a + b
+const log = () => Console.log("clicked")
 ```
 
 ## Pipes
@@ -32,8 +32,8 @@ const log = fn() Console.log("clicked")
 ```floe
 // Pipe value as first argument
 const result = [1, 2, 3, 4, 5]
-    |> filter(fn(n) n > 2)
-    |> map(fn(n) n * 10)
+    |> filter((n) => n > 2)
+    |> map((n) => n * 10)
     |> sort
 
 // Dot shorthand — even shorter than closures
@@ -49,7 +49,7 @@ users
 5 |> add(3, _)          // add(3, 5)
 
 // _ outside pipes creates partial application
-const addTen = add(10, _)   // fn(x) add(10, x)
+const addTen = add(10, _)   // (x) => add(10, x)
 
 // Tap for side effects mid-pipeline
 data
@@ -237,7 +237,7 @@ const config = try parseYaml(rawText)   // Result<T, Error>
 // Async closures
 const data = useSuspenseQuery({
     queryKey: ["users"],
-    queryFn: async fn() fetchUsers(),
+    queryFn: async () => fetchUsers(),
 })
 ```
 
@@ -314,7 +314,7 @@ export fn Counter() -> JSX.Element {
 
     <div>
         <h1>{`Count: ${count}`}</h1>
-        <button onClick={fn() setCount(count + 1)}>
+        <button onClick={() => setCount(count + 1)}>
             Increment
         </button>
         {count |> match {

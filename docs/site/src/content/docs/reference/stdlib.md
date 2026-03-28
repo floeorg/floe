@@ -9,7 +9,7 @@ All stdlib functions are **pipe-friendly**: the first argument is the data, so t
 ```floe
 [3, 1, 2]
   |> Array.sort
-  |> Array.map(fn(n) n * 10)
+  |> Array.map((n) => n * 10)
   |> Array.reverse
 // [30, 20, 10]
 ```
@@ -106,12 +106,12 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 ```floe
 // Transform without unwrapping
 const upper = user.nickname
-  |> Option.map(fn(n) String.toUpperCase(n))
+  |> Option.map((n) => String.toUpperCase(n))
 // Some("RYAN") or None
 
 // Chain lookups
 const avatar = user.nickname
-  |> Option.flatMap(fn(n) findAvatar(n))
+  |> Option.flatMap((n) => findAvatar(n))
 
 // Extract with fallback
 const display = user.nickname
@@ -143,15 +143,15 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 ```floe
 // Transform success value
 const doubled = fetchCount()
-  |> Result.map(fn(n) n * 2)
+  |> Result.map((n) => n * 2)
 
 // Handle errors
 const result = fetchUser(id)
-  |> Result.mapErr(fn(e) AppError(e))
+  |> Result.mapErr((e) => AppError(e))
 
 // Chain operations
 const profile = fetchUser(id)
-  |> Result.flatMap(fn(u) fetchProfile(u.profileId))
+  |> Result.flatMap((u) => fetchProfile(u.profileId))
 
 // Extract with fallback
 const count = fetchCount()
@@ -195,7 +195,7 @@ const cleaned = "  Hello, World!  "
 // Split and process
 const words = "one,two,three"
   |> String.split(",")
-  |> Array.map(fn(w) String.toUpperCase(w))
+  |> Array.map((w) => String.toUpperCase(w))
 // ["ONE", "TWO", "THREE"]
 ```
 
@@ -442,7 +442,7 @@ const result = await Http.post("https://api.example.com/users", { name: "Alice" 
 // Full pipeline
 const users = await Http.get(url)?
   |> Http.json?
-  |> Result.map(fn(data) Array.filter(data, .active))
+  |> Result.map((data) => Array.filter(data, .active))
 
 // Error handling with match
 match await Http.get(url) {
@@ -471,12 +471,12 @@ const result = orders
   |> Array.filter(.active)
   |> tap(Console.log)         // logs filtered orders, passes them through
   |> Array.map(.total)
-  |> Array.reduce(fn(sum, n) sum + n, 0)
+  |> Array.reduce((sum, n) => sum + n, 0)
 
 // Use a closure for custom logging
 const processed = data
   |> transform
-  |> tap(fn(x) Console.log("after transform:", x))
+  |> tap((x) => Console.log("after transform:", x))
   |> validate
 
 // Works with any type

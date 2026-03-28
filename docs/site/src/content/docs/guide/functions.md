@@ -66,12 +66,12 @@ fn greet(name: string = "world") -> string {
 
 ### Anonymous Functions (Closures)
 
-Use `fn(x)` for inline anonymous functions:
+Use `(x) => expr` for inline anonymous functions:
 
 ```floe
-todos |> Array.map(fn(t) t.text)
-items |> Array.reduce(fn(acc, x) acc + x.price, 0)
-onClick={fn() setCount(count + 1)}
+todos |> Array.map((t) => t.text)
+items |> Array.reduce((acc, x) => acc + x.price, 0)
+onClick={() => setCount(count + 1)}
 ```
 
 For simple field access, use dot shorthand:
@@ -82,11 +82,11 @@ todos |> Array.map(.text)
 users |> Array.sortBy(.name)
 ```
 
-**`const name = fn(x) ...` is a compile error.** If it has a name, use `fn`:
+**`const name = (x) => ...` is a compile error.** If it has a name, use `fn`:
 
 ```floe
 // COMPILE ERROR
-const double = fn(x) x * 2
+const double = (x) => x * 2
 
 // correct
 fn double(x: number) -> number { x * 2 }
@@ -117,6 +117,6 @@ async fn fetchUser(id: string) -> Promise<User> {
 - **No `class`** - use functions and records
 - **No `this`** - functions are pure by default
 - **No `function*` generators** - use arrays and pipes
-- **No `=>`** - use `fn(x)` for closures, `->` for types and match arms
+- **No `function` keyword** - use `fn` for named functions, `(x) => expr` for closures
 
 These are removed intentionally. See the [comparison](/guide/comparison) for the reasoning.

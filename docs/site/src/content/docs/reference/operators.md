@@ -60,7 +60,7 @@ The `?` operator unwraps `Ok(value)` or `Some(value)`, and returns early with `E
 
 | Operator | Context | Meaning |
 |----------|---------|---------|
-| `fn(x)` | Closures | `fn(x) x + 1` |
+| `(x) =>` | Closures | `(x) => x + 1` |
 | `.field` | Dot shorthand | `.name` (implicit field-access closure) |
 | `->` | Match arms, return types, function types | `Ok(x) -> x`, `fn(string) -> number` |
 | `\|>` | Pipes | `data \|> transform` |

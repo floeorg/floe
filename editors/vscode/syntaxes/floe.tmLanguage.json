@@ -230,13 +230,14 @@
     "lambda": {
       "patterns": [
         {
-          "comment": "Closure: fn(params) expr — fn followed by ( in expression context (not followed by identifier = fn declaration)",
-          "match": "\\b(fn)\\s*(\\()([^)]*)(\\))(?!\\s*->\\s*[A-Z].*\\{|\\s*\\{)",
+          "comment": "Arrow closure: (params) => expr or async (params) => expr",
+          "match": "(?:\\b(async)\\s*)?(\\()([^)]*)(\\))\\s*(=>)",
           "captures": {
-            "1": { "name": "storage.type.function.floe" },
+            "1": { "name": "keyword.control.floe" },
             "2": { "name": "punctuation.definition.parameters.begin.floe" },
             "3": { "name": "variable.parameter.floe" },
-            "4": { "name": "punctuation.definition.parameters.end.floe" }
+            "4": { "name": "punctuation.definition.parameters.end.floe" },
+            "5": { "name": "keyword.operator.fat-arrow.floe" }
           }
         },
         {
