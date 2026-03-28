@@ -1,8 +1,9 @@
 use super::*;
+use crate::desugar;
 use crate::parser::Parser;
 
 fn emit(input: &str) -> String {
-    let program = Parser::new(input).parse_program().unwrap_or_else(|errs| {
+    let mut program = Parser::new(input).parse_program().unwrap_or_else(|errs| {
         panic!(
             "parse failed:\n{}",
             errs.iter()
@@ -11,6 +12,7 @@ fn emit(input: &str) -> String {
                 .join("\n")
         )
     });
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
     let output = Codegen::new().generate(&program);
     output.code.trim().to_string()
 }
