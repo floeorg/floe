@@ -32,9 +32,21 @@ impl Formatter<'_> {
     pub(crate) fn fmt_import(&mut self, node: &SyntaxNode) {
         self.write("import ");
 
+        // Check for module-level `trusted` keyword (an IDENT "trusted" directly on IMPORT_DECL)
+        let has_trusted = node.children_with_tokens().any(|t| {
+            t.as_token()
+                .is_some_and(|tok| tok.kind() == SyntaxKind::IDENT && tok.text() == "trusted")
+        });
+        if has_trusted {
+            self.write("trusted ");
+        }
+
         let specifiers: Vec<_> = node
             .children()
-            .filter(|c| c.kind() == SyntaxKind::IMPORT_SPECIFIER)
+            .filter(|c| {
+                c.kind() == SyntaxKind::IMPORT_SPECIFIER
+                    || c.kind() == SyntaxKind::IMPORT_FOR_SPECIFIER
+            })
             .collect();
 
         if !specifiers.is_empty() {
@@ -43,7 +55,11 @@ impl Formatter<'_> {
                 if i > 0 {
                     self.write(", ");
                 }
-                self.fmt_import_specifier(spec);
+                if spec.kind() == SyntaxKind::IMPORT_FOR_SPECIFIER {
+                    self.fmt_import_for_specifier(spec);
+                } else {
+                    self.fmt_import_specifier(spec);
+                }
             }
             self.write(" } ");
         }
@@ -66,14 +82,38 @@ impl Formatter<'_> {
             .filter(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::BANNED)
             .collect();
 
-        if let Some(name) = idents.first() {
-            self.write(name.text());
-        }
-        if idents.len() > 1 {
-            self.write(" as ");
-            if let Some(alias) = idents.last() {
-                self.write(alias.text());
+        // Check for per-specifier `trusted` — first IDENT is "trusted" and there's at least one more
+        let has_trusted =
+            idents.len() >= 2 && idents.first().is_some_and(|t| t.text() == "trusted");
+
+        if has_trusted {
+            self.write("trusted ");
+            if let Some(name) = idents.get(1) {
+                self.write(name.text());
             }
+            if idents.len() > 2 {
+                self.write(" as ");
+                if let Some(alias) = idents.last() {
+                    self.write(alias.text());
+                }
+            }
+        } else {
+            if let Some(name) = idents.first() {
+                self.write(name.text());
+            }
+            if idents.len() > 1 {
+                self.write(" as ");
+                if let Some(alias) = idents.last() {
+                    self.write(alias.text());
+                }
+            }
+        }
+    }
+
+    fn fmt_import_for_specifier(&mut self, node: &SyntaxNode) {
+        self.write("for ");
+        if let Some(name) = self.first_ident(node) {
+            self.write(&name);
         }
     }
 
@@ -208,7 +248,28 @@ impl Formatter<'_> {
     }
 
     pub(crate) fn fmt_param(&mut self, node: &SyntaxNode) {
-        if let Some(name) = self.first_ident(node) {
+        let has_lbrace = self.has_token(node, SyntaxKind::L_BRACE);
+        let has_lparen = self.has_paren_destructuring(node);
+        let has_underscore = node.children_with_tokens().any(|t| {
+            t.as_token()
+                .is_some_and(|tok| tok.kind() == SyntaxKind::UNDERSCORE)
+        });
+
+        if has_lbrace {
+            // Destructured param: { name, age }
+            let idents = self.collect_idents_before_colon_or_eq(node);
+            self.write("{ ");
+            self.write(&idents.join(", "));
+            self.write(" }");
+        } else if has_lparen {
+            // Tuple destructured param: (a, b)
+            let idents = self.collect_idents_before_colon_or_eq(node);
+            self.write("(");
+            self.write(&idents.join(", "));
+            self.write(")");
+        } else if has_underscore {
+            self.write("_");
+        } else if let Some(name) = self.first_ident(node) {
             self.write(&name);
         }
 
