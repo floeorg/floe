@@ -109,8 +109,6 @@ impl Codegen {
         codegen
     }
 
-    /// Register variant info from a type declaration (for union types).
-    /// Called both during import registration and the local first-pass.
     fn register_union_variants(&mut self, decl: &TypeDecl) {
         if let TypeDef::Union(variants) = &decl.def {
             for variant in variants {

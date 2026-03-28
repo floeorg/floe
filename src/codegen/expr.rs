@@ -505,7 +505,7 @@ impl Codegen {
             let stdlib_fn = match self
                 .expr_types
                 .get(&left.id)
-                .and_then(|ty| Self::type_to_stdlib_module(ty))
+                .and_then(|ty| crate::type_layout::type_to_stdlib_module(ty))
             {
                 Some(module) => self
                     .stdlib
@@ -522,11 +522,6 @@ impl Codegen {
             return Some(self.apply_stdlib_template(&template, &arg_strings));
         }
         None
-    }
-
-    /// Map a checker Type to the corresponding stdlib module name.
-    fn type_to_stdlib_module(ty: &crate::checker::Type) -> Option<&'static str> {
-        crate::type_layout::type_to_stdlib_module(ty)
     }
 
     pub(super) fn emit_pipe(&mut self, left: &Expr, right: &Expr) {

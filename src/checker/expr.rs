@@ -1202,7 +1202,7 @@ impl Checker {
             && !self.stdlib.is_module(name)
             && (self.env.lookup(name).is_none() || !self.stdlib.lookup_by_name(name).is_empty())
         {
-            let module = Self::type_to_stdlib_module(left_ty);
+            let module = type_layout::type_to_stdlib_module(left_ty);
             let fallback_matches = self.stdlib.lookup_by_name(name);
 
             if let Some(m) = module
@@ -1469,10 +1469,6 @@ impl Checker {
             },
             other => other.clone(),
         }
-    }
-
-    fn type_to_stdlib_module(ty: &Type) -> Option<&'static str> {
-        type_layout::type_to_stdlib_module(ty)
     }
 
     /// Resolve the type of a member access (`obj_ty.field`), producing diagnostics for errors.
