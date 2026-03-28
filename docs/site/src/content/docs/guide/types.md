@@ -63,6 +63,28 @@ Rules:
 - Field name conflicts between spreads or with direct fields are compile errors
 - The resulting type is a flat record
 
+### Default Field Values
+
+Record fields can have default values. Fields with defaults can be omitted when constructing:
+
+```floe
+type Config {
+  baseUrl: string,
+  timeout: number = 5000,
+  retries: number = 3,
+}
+
+const c1 = Config(baseUrl: "https://api.com")
+// timeout is 5000, retries is 3
+
+const c2 = Config(baseUrl: "https://api.com", timeout: 10000)
+// timeout is 10000, retries is 3
+```
+
+Rules:
+- Defaults must be compile-time constants or constructors (no function calls)
+- Required fields (no default) must come before defaulted fields
+
 ## Union Types
 
 Discriminated unions with variants:

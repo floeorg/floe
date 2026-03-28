@@ -61,6 +61,16 @@ type User {
     email: string,
 }
 
+// Record type with default values
+type Config {
+    baseUrl: string,
+    timeout: number = 5000,
+    retries: number = 3,
+    headers: Option<string> = None,
+}
+// Config(baseUrl: "https://api.com")           → uses all defaults
+// Config(baseUrl: "https://api.com", timeout: 10000) → overrides timeout
+
 // Union type (discriminated)
 type Route {
     | Home

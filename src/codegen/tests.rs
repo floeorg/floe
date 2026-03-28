@@ -276,6 +276,39 @@ fn constructor_with_spread() {
     );
 }
 
+#[test]
+fn constructor_with_defaults_omitted() {
+    let result = emit(
+        r#"
+        type Config { baseUrl: string, timeout: number = 5000, retries: number = 3 }
+        const c = Config(baseUrl: "https://api.com")
+        "#,
+    );
+    assert!(result.contains(r#"baseUrl: "https://api.com", timeout: 5000, retries: 3"#));
+}
+
+#[test]
+fn constructor_with_defaults_overridden() {
+    let result = emit(
+        r#"
+        type Config { baseUrl: string, timeout: number = 5000, retries: number = 3 }
+        const c = Config(baseUrl: "https://api.com", timeout: 10000)
+        "#,
+    );
+    assert!(result.contains(r#"baseUrl: "https://api.com", timeout: 10000, retries: 3"#));
+}
+
+#[test]
+fn constructor_all_defaults() {
+    let result = emit(
+        r#"
+        type Options { timeout: number = 5000, retries: number = 3 }
+        const o = Options()
+        "#,
+    );
+    assert!(result.contains("timeout: 5000, retries: 3"));
+}
+
 // ── Match ────────────────────────────────────────────────────
 
 #[test]

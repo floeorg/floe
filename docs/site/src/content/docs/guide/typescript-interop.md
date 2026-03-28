@@ -80,16 +80,19 @@ fn describe(method: HttpMethod) -> string {
 
 The match is exhaustive -- if you miss a variant, the compiler tells you. The type compiles directly to the same TypeScript string union (no tags, no wrapping).
 
-## Nullable type conversion
+## Nullable and optional type conversion
 
-Floe has no `null` or `undefined`. When importing from TypeScript, the compiler converts nullable types automatically:
+Floe has no `null` or `undefined`. When importing from TypeScript, the compiler converts nullable and optional types automatically:
 
 | TypeScript type | Floe type |
 |----------------|-----------|
 | `T \| null` | `Option<T>` |
 | `T \| undefined` | `Option<T>` |
 | `T \| null \| undefined` | `Option<T>` |
+| `x?: T` (function param) | `x: Option<T> = None` |
 | `any` | `unknown` |
+
+Optional parameters (`?`) become `Option<T>` with a default of `None`, so you can omit them when calling:
 
 ```floe
 import trusted { getElementById } from "some-dom-lib"

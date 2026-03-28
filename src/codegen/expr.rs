@@ -138,9 +138,11 @@ impl Codegen {
 
                 // Floe constructors use named args: User(name: "x", age: 30)
                 // npm constructor calls use positional args: QueryClient({...})
-                // If all args are positional (no named args), emit as `new Name(args)`
+                // If all args are positional (no named args) and it's not a known Floe type,
+                // emit as `new Name(args)`
                 let has_named_args = args.iter().any(|a| matches!(a, Arg::Named { .. }));
-                if !is_variant && !has_named_args && spread.is_none() {
+                let known_type_def = self.type_defs.get(type_name).cloned();
+                if !is_variant && !has_named_args && known_type_def.is_none() && spread.is_none() {
                     self.push("new ");
                     self.push(type_name);
                     self.push("(");
@@ -177,6 +179,34 @@ impl Codegen {
                     self.emit_construct_fields(args, field_names);
                 } else {
                     self.emit_named_fields(args);
+                    // Fill in default values for omitted record fields.
+                    // Skip when spread is present — the spread already provides all fields.
+                    if spread.is_none()
+                        && let Some(ref type_def) = known_type_def
+                    {
+                        let provided: HashSet<&str> = args
+                            .iter()
+                            .filter_map(|a| match a {
+                                Arg::Named { label, .. } => Some(label.as_str()),
+                                _ => None,
+                            })
+                            .collect();
+                        let has_prior = !args.is_empty();
+                        let mut added = false;
+                        for field in type_def.record_fields() {
+                            if !provided.contains(field.name.as_str())
+                                && let Some(ref default_expr) = field.default
+                            {
+                                if has_prior || added {
+                                    self.push(", ");
+                                }
+                                self.push(&field.name);
+                                self.push(": ");
+                                self.emit_expr(default_expr);
+                                added = true;
+                            }
+                        }
+                    }
                 }
                 self.push(" }");
             }

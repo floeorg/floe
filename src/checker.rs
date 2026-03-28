@@ -788,9 +788,41 @@ impl Checker {
     fn validate_type_decl_annotations(&mut self, decl: &TypeDecl) {
         match &decl.def {
             TypeDef::Record(entries) => {
+                let mut seen_default = false;
                 for entry in entries {
                     if let RecordEntry::Field(field) = entry {
-                        self.resolve_type(&field.type_ann);
+                        let field_ty = self.resolve_type(&field.type_ann);
+                        if let Some(ref default_expr) = field.default {
+                            seen_default = true;
+                            let default_ty = self.check_expr(default_expr);
+                            if !self.types_compatible(&field_ty, &default_ty) {
+                                self.diagnostics.push(
+                                    Diagnostic::error(
+                                        format!(
+                                            "default value for `{}`: expected `{}`, found `{}`",
+                                            field.name,
+                                            field_ty.display_name(),
+                                            default_ty.display_name()
+                                        ),
+                                        field.span,
+                                    )
+                                    .with_label(format!("expected `{}`", field_ty.display_name()))
+                                    .with_code("E001"),
+                                );
+                            }
+                        } else if seen_default {
+                            self.diagnostics.push(
+                                Diagnostic::error(
+                                    format!(
+                                        "required field `{}` must come before fields with defaults",
+                                        field.name
+                                    ),
+                                    field.span,
+                                )
+                                .with_label("move this field before defaulted fields")
+                                .with_code("E001"),
+                            );
+                        }
                     }
                     // Spreads are validated during register_type_decl
                 }
