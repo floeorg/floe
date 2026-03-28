@@ -66,16 +66,13 @@ export async fn fetchProducts(
     limit: number = 20,
     skip: number = 0,
 ) -> Result<(Array<Product>, number), ApiError> {
-    const url = (category, search)
-        |> match {
-            ("", "") -> `https://dummyjson.com/products?limit=${limit}&skip=${skip}`,
-            (cat, "") when cat != "" -> `https://dummyjson.com/products/category/${cat}?limit=${limit}&skip=${skip}`,
-            (_, q) -> `https://dummyjson.com/products/search?q=${q}&limit=${limit}&skip=${skip}`,
-        }
+    const url = (category, search) |> match {
+        ("", "") -> `https://dummyjson.com/products?limit=${limit}&skip=${skip}`,
+        (cat, "") when cat != "" -> `https://dummyjson.com/products/category/${cat}?limit=${limit}&skip=${skip}`,
+        (_, q) -> `https://dummyjson.com/products/search?q=${q}&limit=${limit}&skip=${skip}`,
+    }
 
-    const data = await Http.get(url)?
-        |> Http.json?
-        |> parse<ProductListResponse>?
+    const data = await Http.get(url)? |> Http.json? |> parse<ProductListResponse>?
 
     Ok((data.products, data.total))
 }
