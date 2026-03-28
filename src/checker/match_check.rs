@@ -280,9 +280,7 @@ impl Checker {
                     span,
                 )
                 .with_label("not all cases covered")
-                .with_help(
-                    "add match arms for the missing combinations, or add a `_ ->` catch-all",
-                )
+                .with_help("add match arms for the missing combinations, or add a `_ ->` catch-all")
                 .with_code("E004"),
             );
         }
