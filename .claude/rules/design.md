@@ -1,30 +1,12 @@
-# Design Specification
+# Design & Language Reference
 
-The language specification and compiler architecture live in `docs/design.md`.
+**Before starting any issue**, read the relevant docs:
 
-**Before starting any issue**, read the relevant section of this file. It defines:
-
-- Syntax for every language feature (pipes, match, ?, constructors, etc.)
-- What each feature compiles to in TypeScript
-- What's banned and why
-- AST node types
-- Type checker rules
-- Compiler strictness rules
-- npm interop strategy
-- LSP behavior
-
-Issues are intentionally brief. The design doc is the source of truth for how things should work.
-
-## Quick reference - design doc sections
-
-| Working on | Read section |
+| What you need | Where to look |
 |---|---|
-| Lexer | "Lexer (`floe_lexer`)" - token table + banned tokens |
-| Parser | "Parser (`floe_parser`)" - AST node types |
-| Codegen | "Code Generator (`floe_codegen`)" - transformation table |
-| Type checker | "Type Checker (`floe_checker`)" - 10 rules |
-| Syntax questions | "Syntax Design" + "Syntax Examples" |
-| Strictness rules | "Compiler Strictness Rules" table |
-| npm interop | "npm / .d.ts Interop" |
-| LSP | "Language Server (`floe_lsp`)" |
-| Any feature | "Resolved Design Decisions" for rationale |
+| Language syntax, what compiles to what | `docs/llms.txt` |
+| User-facing guides and reference | `docs/site/src/content/docs/` |
+| Design decisions and rationale | `docs/design.md` |
+| Compiler pipeline and module structure | `.claude/rules/architecture.md` |
+
+Issues are intentionally brief. These docs are the source of truth for how things should work.

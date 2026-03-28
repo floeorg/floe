@@ -2,7 +2,10 @@
 
 ## Before Starting Any Issue - MANDATORY
 
-**Always read the relevant section of `docs/design.md` before writing code.** This is the language specification and architecture blueprint. It defines syntax, semantics, codegen output, and compiler structure. Do not guess - read the spec.
+**Read the relevant docs before writing code:**
+- **`docs/design.md`** — design decisions and rationale for language choices
+- **`docs/llms.txt`** — syntax quick reference (what compiles to what)
+- **`.claude/rules/architecture.md`** — compiler pipeline and module structure
 
 ## Recommended Crates
 
