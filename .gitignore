@@ -2,3 +2,7 @@
 node_modules/
 dist/
 *.so
+
+# Claude Code local settings (project rules in .claude/rules/ are intentionally tracked)
+.claude/settings.json
+.claude/settings.local.json
