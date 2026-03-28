@@ -902,7 +902,7 @@ impl Checker {
                 .cloned()
                 .and_then(|ty| {
                     if let Type::Union { name, .. } = &ty {
-                        self.env.lookup_type(&name).cloned()
+                        self.env.lookup_type(name).cloned()
                     } else {
                         None
                     }
