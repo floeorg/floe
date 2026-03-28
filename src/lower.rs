@@ -276,6 +276,9 @@ impl<'src> Lowerer<'src> {
         let idents = self.collect_idents_direct(node);
         let name = idents.first()?.clone();
 
+        // Collect type parameters: idents between < and >
+        let type_params = self.collect_type_params(node);
+
         // Detect `fn name = expr` (derived binding) vs `fn name(params) { body }`
         let is_binding = self.has_token(node, SyntaxKind::EQUAL);
 
@@ -315,6 +318,7 @@ impl<'src> Lowerer<'src> {
             exported,
             async_fn,
             name,
+            type_params,
             params,
             return_type,
             body: Box::new(body?),
@@ -546,6 +550,7 @@ impl<'src> Lowerer<'src> {
             exported: false,
             async_fn,
             name,
+            type_params: self.collect_type_params(node),
             params,
             return_type,
             body: Box::new(body?),
@@ -1113,6 +1118,25 @@ impl<'src> Lowerer<'src> {
             }
         }
         idents
+    }
+
+    /// Collect type parameter names from `<T, U>` in function declarations.
+    fn collect_type_params(&self, node: &SyntaxNode) -> Vec<String> {
+        let mut params = Vec::new();
+        let mut in_angle = false;
+        for token in node.children_with_tokens() {
+            if let Some(token) = token.as_token() {
+                match token.kind() {
+                    SyntaxKind::LESS_THAN => in_angle = true,
+                    SyntaxKind::GREATER_THAN => break,
+                    SyntaxKind::IDENT if in_angle => {
+                        params.push(token.text().to_string());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        params
     }
 
     /// Collect ident tokens that appear before the first `(` token.

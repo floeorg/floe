@@ -129,6 +129,12 @@ impl SymbolIndex {
 
                     let return_type_str = decl.return_type.as_ref().map(type_expr_to_string);
 
+                    let type_params = if decl.type_params.is_empty() {
+                        String::new()
+                    } else {
+                        format!("<{}>", decl.type_params.join(", "))
+                    };
+
                     symbols.push(Symbol {
                         name: decl.name.clone(),
                         kind: SymbolKind::FUNCTION,
@@ -136,7 +142,7 @@ impl SymbolIndex {
                         end: item.span.end,
                         import_source: None,
                         detail: format!(
-                            "{vis}{async_kw}fn {}({}){ret}",
+                            "{vis}{async_kw}fn {}{type_params}({}){ret}",
                             decl.name,
                             params.join(", ")
                         ),

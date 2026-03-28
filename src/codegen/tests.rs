@@ -413,6 +413,24 @@ fn no_jsx_detection() {
     assert!(!output.has_jsx);
 }
 
+// ── Generic Functions ─────────────────────────────────────────
+
+#[test]
+fn generic_function_codegen() {
+    assert_eq!(
+        emit("fn identity<T>(x: T) -> T { x }"),
+        "function identity<T>(x: T): T {\n  return x;\n}"
+    );
+}
+
+#[test]
+fn generic_function_multi_params_codegen() {
+    assert_eq!(
+        emit("fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }"),
+        "function pair<A, B>(a: A, b: B): readonly [A, B] {\n  return [a, b];\n}"
+    );
+}
+
 // ── Pipe Lambdas ─────────────────────────────────────────────
 
 #[test]

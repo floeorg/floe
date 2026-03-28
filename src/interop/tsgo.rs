@@ -1478,6 +1478,7 @@ fn test() {
             exported: true,
             async_fn: true,
             name: "fetchProducts".to_string(),
+            type_params: vec![],
             params: vec![Param {
                 name: "category".to_string(),
                 type_ann: Some(TypeExpr {

@@ -647,6 +647,32 @@ fn function_decl() {
             assert_eq!(decl.params.len(), 2);
             assert!(decl.return_type.is_some());
             assert!(!decl.async_fn);
+            assert!(decl.type_params.is_empty());
+        }
+        other => panic!("expected function, got {other:?}"),
+    }
+}
+
+#[test]
+fn generic_function_decl() {
+    match first_item("fn identity<T>(x: T) -> T { x }") {
+        ItemKind::Function(decl) => {
+            assert_eq!(decl.name, "identity");
+            assert_eq!(decl.type_params, vec!["T"]);
+            assert_eq!(decl.params.len(), 1);
+            assert!(decl.return_type.is_some());
+        }
+        other => panic!("expected function, got {other:?}"),
+    }
+}
+
+#[test]
+fn generic_function_multi_params() {
+    match first_item("fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }") {
+        ItemKind::Function(decl) => {
+            assert_eq!(decl.name, "pair");
+            assert_eq!(decl.type_params, vec!["A", "B"]);
+            assert_eq!(decl.params.len(), 2);
         }
         other => panic!("expected function, got {other:?}"),
     }

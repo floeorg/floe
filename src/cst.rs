@@ -319,6 +319,15 @@ impl<'src> CstParser<'src> {
         self.expect_ident();
         self.eat_trivia();
 
+        // Optional type parameters: <T, U>
+        if self.at(TokenKind::LessThan) {
+            self.bump(); // <
+            self.eat_trivia();
+            self.parse_comma_separated(Self::expect_ident_item, TokenKind::GreaterThan);
+            self.expect(TokenKind::GreaterThan);
+            self.eat_trivia();
+        }
+
         if self.at(TokenKind::Equal) {
             // `fn name = expr` — derived function binding (pointfree style)
             self.bump(); // =

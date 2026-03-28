@@ -3037,6 +3037,54 @@ const _result = apply(Validation)
     assert!(has_error(&diags, "E001"));
 }
 
+// ── Generic functions ───────────────────────────────────────
+
+#[test]
+fn generic_function_no_error() {
+    let diags = check(
+        r#"
+fn identity<T>(x: T) -> T { x }
+const _n = identity(42)
+const _s = identity("hello")
+"#,
+    );
+    assert!(
+        !has_error(&diags, "E001"),
+        "generic function should not produce errors, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn generic_function_pair() {
+    let diags = check(
+        r#"
+fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }
+const _p = pair(1, "hello")
+"#,
+    );
+    assert!(
+        !has_error(&diags, "E001"),
+        "generic pair should not produce errors, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn generic_function_with_callback() {
+    let diags = check(
+        r#"
+fn apply<T, U>(x: T, f: (T) => U) -> U { f(x) }
+fn double(n: number) -> number { n * 2 }
+const _r = apply(5, double)
+"#,
+    );
+    assert!(
+        !has_error(&diags, "E001"),
+        "generic apply should not produce errors, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
 // ── Naming convention enforcement ───────────────────────────
 
 #[test]

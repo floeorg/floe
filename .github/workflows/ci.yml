@@ -11,8 +11,8 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  check:
-    name: Check & Test
+  rust:
+    name: Rust (fmt, clippy, test, build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,8 +43,30 @@ jobs:
       - name: Tests
         run: cargo test
 
-      - name: Build for integration tests
+      - name: Build
         run: cargo build
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: floe-binary
+          path: target/debug/floe
+          retention-days: 1
+
+  integration:
+    name: Integration tests (floe check & build)
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: floe-binary
+
+      - name: Make binary executable
+        run: chmod +x floe
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -59,15 +81,35 @@ jobs:
       - name: Install example dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Floe format check
+        run: |
+          ./floe fmt --check examples/todo-app/src/
+          ./floe fmt --check examples/store/src/
+
       - name: Floe check examples
         run: |
-          ./target/debug/floe check examples/todo-app/src/
-          ./target/debug/floe check examples/store/src/
+          ./floe check examples/todo-app/src/
+          ./floe check examples/store/src/
 
       - name: Floe build examples
         run: |
-          ./target/debug/floe build examples/todo-app/src/
-          ./target/debug/floe build examples/store/src/
+          ./floe build examples/todo-app/src/
+          ./floe build examples/store/src/
+
+  lsp:
+    name: LSP integration tests
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: floe-binary
+
+      - name: Make binary executable
+        run: chmod +x floe
 
       - name: LSP integration tests
-        run: python3 scripts/test-lsp.py ./target/debug/floe
+        run: python3 scripts/test-lsp.py ./floe

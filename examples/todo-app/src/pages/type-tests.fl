@@ -1,28 +1,44 @@
 // Type system test page — open this in VSCode to verify type checking.
 // Lines marked ✓ should have NO errors. Lines marked ✗ SHOULD error.
-
 // ── Import navigation ────────────────────────────────────
 // Cmd+click on the path strings to jump to the file
 
-import { Todo, Filter } from "../types"    // ✓ cmd+click "../types" → opens types.fl
-import "../todo"                            // ✓ cmd+click "../todo" → opens todo.fl
+import { Todo, Filter } from "../types"
 
+// ✓ cmd+click "../types" → opens types.fl
+
+import from "../todo"
+
+// ✓ cmd+click "../todo" → opens todo.fl
 // ── Member access ────────────────────────────────────────
 // Hover over .text, .done — should show string, boolean
 
 const item = Todo(id: "1", text: "Buy milk", done: false)
-const _name = item.text       // ✓ hover: string
-const _done = item.done       // ✓ hover: boolean
+
+const _name = item.text
+
+// ✓ hover: string
+
+const _done = item.done
+
+// ✓ hover: boolean
+
 // const _bad = item.nonexistent // ✗ uncomment → "type `Todo` has no field `nonexistent`"
 
 // ── Constructor validation ───────────────────────────────
+
 // Wrong field types should error
 
-const _good = Todo(id: "1", text: "hi", done: false)  // ✓
+const _good = Todo(id: "1", text: "hi", done: false)
+
+// ✓
+
 // const _bad1 = Todo(id: 42, text: "hi", done: false)   // ✗ uncomment → field `id`: expected `string`, found `number`
+
 // const _bad2 = Todo(id: "1", text: "hi", done: "yes")  // ✗ uncomment → field `done`: expected `boolean`, found `string`
 
 // ── Match arm consistency ────────────────────────────────
+
 // All arms must return the same type
 
 fn describeFilter(f: Filter) -> string {
@@ -41,7 +57,6 @@ fn describeFilter(f: Filter) -> string {
 //         Completed -> "completed",
 //     }
 // }
-
 // ── Match as conditional ─────────────────────────────────
 
 fn abs(x: number) -> number {
@@ -53,16 +68,27 @@ fn abs(x: number) -> number {
 
 // ── Pipe type checking ──────────────────────────────────
 
-fn double(x: number) -> number { x * 2 }
-const _piped = 5 |> double          // ✓
+fn double(x: number) -> number {
+    x * 2
+}
+
+const _piped = 5 |> double
+
+// ✓
+
 // const _badPipe = "hi" |> double  // ✗ uncomment → expected `number`, found `string`
 
 // ── Shadowing ────────────────────────────────────────────
 
 const myVal = 5
+
 // const myVal = 10  // ✗ uncomment → already defined and cannot be shadowed
 
 // ── Return type mismatch ─────────────────────────────────
 
-fn greet() -> string { "hello" }  // ✓
+fn greet() -> string {
+    "hello"
+}
+
+// ✓
 // fn badReturn() -> string { 42 }  // ✗ uncomment → return type mismatch

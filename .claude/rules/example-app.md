@@ -30,4 +30,6 @@ floe build examples/todo-app/src/ examples/store/src/
 
 Order: fmt -> check -> build. All must pass with zero errors.
 
+**Note:** `floe fmt` (without `--check`) writes formatted files in place — always run it before committing. CI uses `floe fmt --check` to enforce formatting without modifying files.
+
 If a feature doesn't fit either app, add a new `.fl` file in the appropriate example rather than forcing it.

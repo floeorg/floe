@@ -92,6 +92,7 @@ pub struct FunctionDecl {
     pub exported: bool,
     pub async_fn: bool,
     pub name: String,
+    pub type_params: Vec<String>,
     pub params: Vec<Param>,
     pub return_type: Option<TypeExpr>,
     pub body: Box<Expr>,

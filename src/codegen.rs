@@ -626,6 +626,11 @@ impl Codegen {
         }
         self.push("function ");
         self.push(&decl.name);
+        if !decl.type_params.is_empty() {
+            self.push("<");
+            self.push(&decl.type_params.join(", "));
+            self.push(">");
+        }
         self.push("(");
         self.emit_params(&decl.params);
         self.push(")");

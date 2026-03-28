@@ -163,6 +163,8 @@ RUSTFLAGS="-D warnings" cargo test
 
 Order: fmt -> clippy -> test.
 
+**Always run the Floe example quality gate too** when changing compiler code — compiler changes can affect formatting, checking, and codegen output.
+
 **Floe example quality gate** (if you changed `src/**/*.rs` or `examples/**/*.fl`):
 
 ```bash
