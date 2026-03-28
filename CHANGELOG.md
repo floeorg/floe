@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.8](https://github.com/milkyskies/floe/compare/v0.1.7...v0.1.8) (2026-03-28)
+
+
+### Bug Fixes
+
+* npm trusted publishing and Open VSX publisher/LICENSE ([#453](https://github.com/milkyskies/floe/issues/453)) ([1507f92](https://github.com/milkyskies/floe/commit/1507f927d57b39ba28da1bd4727ad8a3a3226a0e))
+
 ## [0.1.7](https://github.com/milkyskies/floe/compare/v0.1.6...v0.1.7) (2026-03-28)
 
 
