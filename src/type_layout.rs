@@ -38,7 +38,6 @@ pub const MOD_OPTION: &str = "Option";
 pub const MOD_RESULT: &str = "Result";
 pub const MOD_MAP: &str = "Map";
 pub const MOD_SET: &str = "Set";
-pub const MOD_HTTP: &str = "Http";
 
 // ── Variant classification ───────────────────────────────────────
 
@@ -53,10 +52,14 @@ pub enum VariantLayout {
 }
 
 /// Classify a variant name into its runtime layout.
+///
+/// Only `Ok`/`Err` use the `{ ok: true/false }` discriminant.
+/// `Some`/`None` use the `T | undefined` representation and are
+/// matched via tagged variant paths in codegen, not via `ok` field.
 pub fn variant_layout(name: &str) -> VariantLayout {
     match name {
-        "Ok" | "Some" => VariantLayout::Ok,
-        "Err" | "None" => VariantLayout::Err,
+        "Ok" => VariantLayout::Ok,
+        "Err" => VariantLayout::Err,
         _ => VariantLayout::Tagged,
     }
 }
@@ -92,7 +95,12 @@ pub fn variant_field_accessor(
         VariantLayout::Err if total_fields == 1 => {
             format!("{subject}.{ERROR_FIELD}")
         }
-        _ => {
+        // Ok/Err always have exactly 1 field in Floe
+        VariantLayout::Ok | VariantLayout::Err => {
+            debug_assert!(false, "Ok/Err variants should have exactly 1 field");
+            format!("{subject}.{VALUE_FIELD}")
+        }
+        VariantLayout::Tagged => {
             if let Some(names) = field_names
                 && let Some(fname) = names.get(field_index)
             {

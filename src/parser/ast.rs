@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::cell::Cell;
 
 use crate::lexer::span::Span;
 
@@ -10,16 +10,24 @@ use crate::lexer::span::Span;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExprId(pub u32);
 
-/// Generator for unique `ExprId` values. Thread-safe (atomic).
-pub struct ExprIdGen(AtomicU32);
+impl ExprId {
+    /// Sentinel ID for synthetic expressions created by codegen.
+    /// These are never looked up in the type map.
+    pub const SYNTHETIC: Self = Self(u32::MAX);
+}
+
+/// Generator for unique `ExprId` values.
+pub struct ExprIdGen(Cell<u32>);
 
 impl ExprIdGen {
     pub fn new() -> Self {
-        Self(AtomicU32::new(0))
+        Self(Cell::new(0))
     }
 
     pub fn next(&self) -> ExprId {
-        ExprId(self.0.fetch_add(1, Ordering::Relaxed))
+        let id = self.0.get();
+        self.0.set(id + 1);
+        ExprId(id)
     }
 }
 
@@ -343,10 +351,10 @@ pub struct Expr {
 
 impl Expr {
     /// Create a synthetic `Expr` for codegen-internal use (not from source).
-    /// Uses `ExprId(u32::MAX)` as a sentinel — these are never looked up in the type map.
+    /// Uses a sentinel ID — these are never looked up in the type map.
     pub fn synthetic(kind: ExprKind, span: Span) -> Self {
         Self {
-            id: ExprId(u32::MAX),
+            id: ExprId::SYNTHETIC,
             kind,
             span,
         }
