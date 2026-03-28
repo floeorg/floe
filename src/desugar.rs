@@ -5,8 +5,6 @@
 //! emit without needing semantic knowledge.
 //!
 //! Current transforms:
-//! - `Ok(x)`  → Object `{ ok: true, value: x }`
-//! - `Err(e)` → Object `{ ok: false, error: e }`
 //! - `Some(x)` → `x` (identity — Option is `T | undefined`)
 //! - `None`   → `Identifier("undefined")`
 
@@ -56,7 +54,6 @@ fn desugar_function(decl: &mut FunctionDecl) {
 }
 
 fn desugar_expr(expr: &mut Expr) {
-    // First recurse into children, then transform this node.
     desugar_children(expr);
 
     let span = expr.span;
@@ -173,31 +170,23 @@ fn desugar_children(expr: &mut Expr) {
 }
 
 fn desugar_jsx(element: &mut JsxElement) {
-    match &mut element.kind {
-        JsxElementKind::Element {
-            props, children, ..
-        } => {
-            for prop in props {
-                if let Some(value) = &mut prop.value {
-                    desugar_expr(value);
-                }
-            }
-            for child in children {
-                match child {
-                    JsxChild::Element(el) => desugar_jsx(el),
-                    JsxChild::Expr(e) => desugar_expr(e),
-                    JsxChild::Text(_) => {}
-                }
+    if let JsxElementKind::Element { props, .. } = &mut element.kind {
+        for prop in props {
+            if let Some(value) = &mut prop.value {
+                desugar_expr(value);
             }
         }
-        JsxElementKind::Fragment { children } => {
-            for child in children {
-                match child {
-                    JsxChild::Element(el) => desugar_jsx(el),
-                    JsxChild::Expr(e) => desugar_expr(e),
-                    JsxChild::Text(_) => {}
-                }
-            }
+    }
+    let children = match &mut element.kind {
+        JsxElementKind::Element { children, .. } | JsxElementKind::Fragment { children } => {
+            children
+        }
+    };
+    for child in children {
+        match child {
+            JsxChild::Element(el) => desugar_jsx(el),
+            JsxChild::Expr(e) => desugar_expr(e),
+            JsxChild::Text(_) => {}
         }
     }
 }

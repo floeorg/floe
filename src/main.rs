@@ -143,6 +143,9 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
         eprintln!("{rendered}");
     }
 
+    let mut program = program;
+    desugar::desugar_program(&mut program);
+
     Ok(CompileResult {
         program,
         resolved,
@@ -157,8 +160,7 @@ fn cmd_build_file_stdout(path: &Path) -> Result<()> {
         .with_context(|| format!("failed to read {}", path.display()))?;
     let filename = path.display().to_string();
 
-    let mut result = compile_source(path, &filename, &source)?;
-    desugar::desugar_program(&mut result.program);
+    let result = compile_source(path, &filename, &source)?;
     let output =
         Codegen::with_imports(result.expr_types, &result.resolved).generate(&result.program);
     print!("{}", output.code);
@@ -179,8 +181,7 @@ fn cmd_build_stdin() -> Result<()> {
     let filename = std::env::var("FLOE_FILENAME").unwrap_or_else(|_| "<stdin>".to_string());
     let file_path = Path::new(&filename);
 
-    let mut result = compile_source(file_path, &filename, &source)?;
-    desugar::desugar_program(&mut result.program);
+    let result = compile_source(file_path, &filename, &source)?;
     let output =
         Codegen::with_imports(result.expr_types, &result.resolved).generate(&result.program);
     print!("{}", output.code);
@@ -224,8 +225,7 @@ fn compile_file(file: &Path, out_dir: Option<&Path>) -> Result<PathBuf> {
     let source = read_fl_file(file)?;
 
     let filename = file.to_string_lossy();
-    let mut result = compile_source(file, &filename, &source)?;
-    desugar::desugar_program(&mut result.program);
+    let result = compile_source(file, &filename, &source)?;
     let output =
         Codegen::with_imports(result.expr_types, &result.resolved).generate(&result.program);
     let ext = if output.has_jsx { "tsx" } else { "ts" };
@@ -380,7 +380,6 @@ fn cmd_test(path: &Path) -> Result<()> {
             continue;
         }
 
-        // Desugar and generate code in test mode
         desugar::desugar_program(program);
         let output = Codegen::with_imports(expr_types, &resolved)
             .with_test_mode()
