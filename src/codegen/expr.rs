@@ -1,5 +1,4 @@
 use super::*;
-use super::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
 
 const DEEP_EQUAL_FN: &str = "__floeEq";
 const THROW_NOT_IMPLEMENTED: &str = "(() => { throw new Error(\"not implemented\"); })()";
@@ -503,11 +502,7 @@ impl Codegen {
             // Resolve stdlib module from the left-hand type.
             // 1. Known type → type-directed (disambiguates Array.length vs String.length)
             // 2. Unknown/Var type or no entry → name-based fallback
-            let stdlib_fn = match self
-                .expr_types
-                .get(&(left.span.start, left.span.end))
-                .and_then(|ty| Self::type_to_stdlib_module(ty))
-            {
+            let stdlib_fn = match crate::type_layout::type_to_stdlib_module(&left.ty) {
                 Some(module) => self
                     .stdlib
                     .lookup(module, name)
@@ -523,21 +518,6 @@ impl Codegen {
             return Some(self.apply_stdlib_template(&template, &arg_strings));
         }
         None
-    }
-
-    /// Map a checker Type to the corresponding stdlib module name.
-    fn type_to_stdlib_module(ty: &crate::checker::Type) -> Option<&'static str> {
-        use crate::checker::Type;
-        match ty {
-            Type::Array(_) => Some("Array"),
-            Type::Map { .. } => Some("Map"),
-            Type::Set { .. } => Some("Set"),
-            Type::String => Some("String"),
-            Type::Number => Some("Number"),
-            Type::Option(_) => Some("Option"),
-            Type::Result { .. } => Some("Result"),
-            _ => None,
-        }
     }
 
     pub(super) fn emit_pipe(&mut self, left: &Expr, right: &Expr) {
@@ -614,13 +594,13 @@ impl Codegen {
             }
             // `a |> parse<T>` — substitute piped value into parse
             ExprKind::Parse { type_arg, value } if matches!(value.kind, ExprKind::Placeholder) => {
-                let substituted = Expr {
-                    kind: ExprKind::Parse {
+                let substituted = Expr::synthetic(
+                    ExprKind::Parse {
                         type_arg: type_arg.clone(),
                         value: Box::new(left.clone()),
                     },
-                    span: right.span,
-                };
+                    right.span,
+                );
                 self.emit_expr(&substituted);
             }
             // `a |> f` → `f(a)` — bare function (also check stdlib)

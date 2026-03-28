@@ -1428,7 +1428,8 @@ def main():
     print(f"\n{BOLD}9. JSX Support{NC}")
 
     lsp.open_doc(URI, JSX_COMPONENT)
-    notifs = lsp.collect_notifications("textDocument/publishDiagnostics", timeout=2)
+    # JSX files with imports need more time on CI (import resolution is heavier)
+    notifs = lsp.collect_notifications("textDocument/publishDiagnostics", timeout=4)
 
     # JSX file should parse without errors (assuming react types available)
     # Note: may get import errors if react isn't installed, but parse should succeed

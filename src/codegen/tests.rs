@@ -800,11 +800,9 @@ fn emit_with_types(input: &str) -> String {
         )
     });
     let (_, expr_types) = crate::checker::Checker::new().check_full(&program);
-    Codegen::with_expr_types(expr_types)
-        .generate(&program)
-        .code
-        .trim()
-        .to_string()
+    let mut program = program;
+    crate::checker::annotate_types(&mut program, &expr_types);
+    Codegen::new().generate(&program).code.trim().to_string()
 }
 
 #[test]

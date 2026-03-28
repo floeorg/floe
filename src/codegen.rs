@@ -6,21 +6,18 @@ mod tests;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::checker::ExprTypeMap;
 use crate::parser::ast::*;
 use crate::resolve::ResolvedImports;
 use crate::stdlib::StdlibRegistry;
-use crate::type_names;
-
-const TAG_FIELD: &str = "tag";
-const OK_FIELD: &str = "ok";
-const VALUE_FIELD: &str = "value";
-const ERROR_FIELD: &str = "error";
+use crate::type_layout;
+use crate::type_layout::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
 
 /// Code generation result: the emitted TypeScript source and whether it contains JSX.
 pub struct CodegenOutput {
     pub code: String,
     pub has_jsx: bool,
+    /// Declaration stub content for `.d.ts` files.
+    pub dts: String,
 }
 
 /// A single step in a flattened pipe+unwrap chain.
@@ -51,9 +48,6 @@ pub struct Codegen {
     variant_info: HashMap<String, (String, Vec<String>)>,
     /// Locally defined function/const names - these shadow stdlib in pipe resolution
     local_names: HashSet<String>,
-    /// Expression type map from the checker, keyed by span (start, end).
-    /// Used for type-directed pipe resolution.
-    expr_types: ExprTypeMap,
     /// Resolved imports from other .fl files, for expanding bare imports.
     resolved_imports: HashMap<String, ResolvedImports>,
     /// Maps original import name -> aliased name for names that conflict with locals.
@@ -74,7 +68,6 @@ impl Codegen {
             unit_variants: HashSet::new(),
             variant_info: HashMap::new(),
             local_names: HashSet::new(),
-            expr_types: HashMap::new(),
             resolved_imports: HashMap::new(),
             import_aliases: HashMap::new(),
             test_mode: false,
@@ -87,51 +80,43 @@ impl Codegen {
         self
     }
 
-    /// Create a codegen with expression type information from the checker.
-    pub fn with_expr_types(expr_types: ExprTypeMap) -> Self {
-        Self {
-            expr_types,
-            ..Self::new()
-        }
-    }
-
-    /// Create a codegen with expression types and resolved import info.
-    pub fn with_imports(
-        expr_types: ExprTypeMap,
-        resolved: &HashMap<String, ResolvedImports>,
-    ) -> Self {
-        let mut codegen = Self::with_expr_types(expr_types);
+    /// Create a codegen with resolved import info.
+    pub fn with_imports(resolved: &HashMap<String, ResolvedImports>) -> Self {
+        let mut codegen = Self::new();
         codegen.resolved_imports = resolved.clone();
         // Pre-register union variant info from imported types
         for imports in resolved.values() {
             for decl in &imports.type_decls {
-                if let TypeDef::Union(variants) = &decl.def {
-                    for variant in variants {
-                        let field_names: Vec<String> = variant
-                            .fields
-                            .iter()
-                            .enumerate()
-                            .map(|(i, f)| {
-                                f.name.clone().unwrap_or_else(|| {
-                                    if variant.fields.len() == 1 {
-                                        "value".to_string()
-                                    } else {
-                                        format!("_{i}")
-                                    }
-                                })
-                            })
-                            .collect();
-                        if variant.fields.is_empty() {
-                            codegen.unit_variants.insert(variant.name.clone());
-                        }
-                        codegen
-                            .variant_info
-                            .insert(variant.name.clone(), (decl.name.clone(), field_names));
-                    }
-                }
+                codegen.register_union_variants(decl);
             }
         }
         codegen
+    }
+
+    fn register_union_variants(&mut self, decl: &TypeDecl) {
+        if let TypeDef::Union(variants) = &decl.def {
+            for variant in variants {
+                let field_names: Vec<String> = variant
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .map(|(i, f)| {
+                        f.name.clone().unwrap_or_else(|| {
+                            if variant.fields.len() == 1 {
+                                "value".to_string()
+                            } else {
+                                format!("_{i}")
+                            }
+                        })
+                    })
+                    .collect();
+                if variant.fields.is_empty() {
+                    self.unit_variants.insert(variant.name.clone());
+                }
+                self.variant_info
+                    .insert(variant.name.clone(), (decl.name.clone(), field_names));
+            }
+        }
     }
 
     /// Generate TypeScript from a Floe program.
@@ -140,29 +125,7 @@ impl Codegen {
         for item in &program.items {
             match &item.kind {
                 ItemKind::TypeDecl(decl) => {
-                    if let TypeDef::Union(variants) = &decl.def {
-                        for variant in variants {
-                            let field_names: Vec<String> = variant
-                                .fields
-                                .iter()
-                                .enumerate()
-                                .map(|(i, f)| {
-                                    f.name.clone().unwrap_or_else(|| {
-                                        if variant.fields.len() == 1 {
-                                            "value".to_string()
-                                        } else {
-                                            format!("_{i}")
-                                        }
-                                    })
-                                })
-                                .collect();
-                            if variant.fields.is_empty() {
-                                self.unit_variants.insert(variant.name.clone());
-                            }
-                            self.variant_info
-                                .insert(variant.name.clone(), (decl.name.clone(), field_names));
-                        }
-                    }
+                    self.register_union_variants(decl);
                     // Register derived function names as local names
                     for trait_name in &decl.deriving {
                         if trait_name.as_str() == "Display" {
@@ -217,9 +180,12 @@ impl Codegen {
             self.output = format!("{helper}{}", self.output);
         }
 
+        let dts = self.generate_dts(program);
+
         CodegenOutput {
             code: self.output,
             has_jsx: self.has_jsx,
+            dts,
         }
     }
 
@@ -465,15 +431,12 @@ impl Codegen {
                 // Emit the step expression into a buffer to detect async IIFEs
                 let step_code = if step.is_pipe {
                     let left_expr = if last_had_unwrap {
-                        Expr {
-                            kind: ExprKind::Identifier(format!("{last_temp}.value")),
-                            span: step.expr.span,
-                        }
+                        Expr::synthetic(
+                            ExprKind::Identifier(format!("{last_temp}.value")),
+                            step.expr.span,
+                        )
                     } else {
-                        Expr {
-                            kind: ExprKind::Identifier(last_temp.clone()),
-                            span: step.expr.span,
-                        }
+                        Expr::synthetic(ExprKind::Identifier(last_temp.clone()), step.expr.span)
                     };
                     let mut sub = self.sub_codegen();
                     sub.emit_pipe(&left_expr, &step.expr);
@@ -637,7 +600,7 @@ impl Codegen {
 
         // Check if return type is unit/void — if so, no implicit return needed
         let is_unit_return = decl.return_type.as_ref().is_some_and(
-            |rt| matches!(&rt.kind, TypeExprKind::Named { name, .. } if name == type_names::UNIT),
+            |rt| matches!(&rt.kind, TypeExprKind::Named { name, .. } if name == type_layout::TYPE_UNIT),
         );
 
         if let Some(ret) = &decl.return_type {
@@ -743,7 +706,7 @@ impl Codegen {
         self.push(")");
 
         let is_unit_return = func.return_type.as_ref().is_some_and(
-            |rt| matches!(&rt.kind, TypeExprKind::Named { name, .. } if name == type_names::UNIT),
+            |rt| matches!(&rt.kind, TypeExprKind::Named { name, .. } if name == type_layout::TYPE_UNIT),
         );
 
         if let Some(ret) = &func.return_type {
@@ -991,13 +954,13 @@ impl Codegen {
                 name, type_args, ..
             } => {
                 // Option<T> becomes T | undefined
-                if name == type_names::OPTION && type_args.len() == 1 {
+                if name == type_layout::TYPE_OPTION && type_args.len() == 1 {
                     self.emit_type_expr(&type_args[0]);
                     self.push(" | undefined");
                     return;
                 }
                 // Result<T, E> becomes { ok: true; value: T } | { ok: false; error: E }
-                if name == type_names::RESULT && type_args.len() == 2 {
+                if name == type_layout::TYPE_RESULT && type_args.len() == 2 {
                     self.push(&format!("{{ {OK_FIELD}: true; {VALUE_FIELD}: "));
                     self.emit_type_expr(&type_args[0]);
                     self.push(&format!(" }} | {{ {OK_FIELD}: false; {ERROR_FIELD}: "));
@@ -1007,7 +970,7 @@ impl Codegen {
                 }
 
                 // Unit type () becomes void in TypeScript
-                if name == type_names::UNIT {
+                if name == type_layout::TYPE_UNIT {
                     self.push("void");
                     return;
                 }
@@ -1082,6 +1045,315 @@ impl Codegen {
         names
     }
 
+    // ── Declaration Stub Generation (.d.ts) ───────────────────────
+
+    /// Generate a `.d.ts` declaration stub from the program AST.
+    /// Only emits exported type declarations, function signatures, and const declarations.
+    fn generate_dts(&self, program: &Program) -> String {
+        let mut out = String::new();
+        let mut first = true;
+
+        for item in &program.items {
+            match &item.kind {
+                ItemKind::Import(decl) => {
+                    if !first {
+                        out.push('\n');
+                    }
+                    first = false;
+                    self.emit_dts_import(&mut out, decl);
+                }
+                ItemKind::TypeDecl(decl) => {
+                    if !first {
+                        out.push('\n');
+                    }
+                    first = false;
+                    self.emit_dts_type_decl(&mut out, decl);
+                }
+                ItemKind::Function(decl) => {
+                    if !decl.exported {
+                        continue;
+                    }
+                    if !first {
+                        out.push('\n');
+                    }
+                    first = false;
+                    self.emit_dts_function(&mut out, decl);
+                }
+                ItemKind::Const(decl) => {
+                    if !decl.exported {
+                        continue;
+                    }
+                    if !first {
+                        out.push('\n');
+                    }
+                    first = false;
+                    self.emit_dts_const(&mut out, decl);
+                }
+                ItemKind::ForBlock(block) => {
+                    for func in &block.functions {
+                        if !func.exported {
+                            continue;
+                        }
+                        if !first {
+                            out.push('\n');
+                        }
+                        first = false;
+                        self.emit_dts_for_block_function(&mut out, func, &block.type_name);
+                    }
+                }
+                // Traits, tests, and expressions don't produce declarations
+                ItemKind::TraitDecl(_) | ItemKind::TestBlock(_) | ItemKind::Expr(_) => {}
+            }
+        }
+
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out
+    }
+
+    fn emit_dts_import(&self, out: &mut String, decl: &ImportDecl) {
+        if decl.specifiers.is_empty() && decl.for_specifiers.is_empty() {
+            // Bare import: expand to type-only named imports if we have resolved exports
+            if let Some(resolved) = self.resolved_imports.get(&decl.source) {
+                let mut type_names: Vec<String> = Vec::new();
+                for td in &resolved.type_decls {
+                    if td.exported {
+                        type_names.push(td.name.clone());
+                    }
+                }
+                let mut value_names: Vec<String> = Vec::new();
+                for func in &resolved.function_decls {
+                    if func.exported {
+                        value_names.push(func.name.clone());
+                    }
+                }
+                for block in &resolved.for_blocks {
+                    for func in &block.functions {
+                        if func.exported {
+                            value_names.push(func.name.clone());
+                        }
+                    }
+                }
+                for name in &resolved.const_names {
+                    value_names.push(name.clone());
+                }
+
+                let mut specs: Vec<String> = Vec::new();
+                for name in &type_names {
+                    specs.push(format!("type {name}"));
+                }
+                for name in &value_names {
+                    specs.push(name.clone());
+                }
+
+                if !specs.is_empty() {
+                    out.push_str(&format!(
+                        "import {{ {} }} from \"{}\";",
+                        specs.join(", "),
+                        decl.source
+                    ));
+                }
+            }
+        } else {
+            // Named imports: determine which are type-only
+            let type_only_names: HashSet<String> =
+                if let Some(resolved) = self.resolved_imports.get(&decl.source) {
+                    decl.specifiers
+                        .iter()
+                        .filter(|spec| {
+                            resolved.type_decls.iter().any(|t| t.name == spec.name)
+                                && !resolved.function_decls.iter().any(|f| f.name == spec.name)
+                                && !resolved.const_names.contains(&spec.name)
+                        })
+                        .map(|spec| spec.name.clone())
+                        .collect()
+                } else {
+                    HashSet::new()
+                };
+
+            out.push_str("import { ");
+            let mut first = true;
+            for spec in &decl.specifiers {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if type_only_names.contains(&spec.name) {
+                    out.push_str("type ");
+                }
+                out.push_str(&spec.name);
+                if let Some(alias) = &spec.alias {
+                    out.push_str(" as ");
+                    out.push_str(alias);
+                }
+            }
+            // Expand `for Type` specifiers
+            let for_func_names = self.resolve_for_import_names(decl);
+            for name in &for_func_names {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                out.push_str(name);
+            }
+            out.push_str(&format!(" }} from \"{}\";", decl.source));
+        }
+    }
+
+    fn emit_dts_type_decl(&self, out: &mut String, decl: &TypeDecl) {
+        // Emit the type declaration only (no derived trait implementations)
+        if decl.exported {
+            out.push_str("export ");
+        }
+        out.push_str("type ");
+        out.push_str(&decl.name);
+
+        if !decl.type_params.is_empty() {
+            out.push('<');
+            for (i, tp) in decl.type_params.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(tp);
+            }
+            out.push('>');
+        }
+
+        out.push_str(" = ");
+
+        let mut cg = self.sub_codegen();
+        match &decl.def {
+            TypeDef::Record(entries) => cg.emit_record_type_entries(entries),
+            TypeDef::Union(variants) => cg.emit_union_type(variants),
+            TypeDef::StringLiteralUnion(variants) => cg.emit_string_literal_union_type(variants),
+            TypeDef::Alias(type_expr) => cg.emit_type_expr(type_expr),
+        }
+        out.push_str(&cg.output);
+        out.push(';');
+
+        // For derived Display on record types, emit the function declaration
+        if !decl.deriving.is_empty()
+            && let TypeDef::Record(_) = &decl.def
+        {
+            for trait_name in &decl.deriving {
+                if trait_name.as_str() == "Display" {
+                    out.push_str(&format!(
+                        "\nexport declare function display(self: {}): string;",
+                        decl.name
+                    ));
+                }
+            }
+        }
+    }
+
+    fn emit_dts_function(&self, out: &mut String, decl: &FunctionDecl) {
+        // `fn name = expr` — derived function binding
+        if decl.params.is_empty()
+            && decl.return_type.is_none()
+            && !matches!(decl.body.kind, ExprKind::Block(_))
+        {
+            out.push_str(&format!("export declare const {}: any;", decl.name));
+            return;
+        }
+
+        out.push_str("export declare ");
+        if decl.async_fn {
+            out.push_str("async ");
+        }
+        out.push_str("function ");
+        out.push_str(&decl.name);
+        if !decl.type_params.is_empty() {
+            out.push('<');
+            out.push_str(&decl.type_params.join(", "));
+            out.push('>');
+        }
+        out.push('(');
+        let mut cg = self.sub_codegen();
+        cg.emit_params(&decl.params);
+        out.push_str(&cg.output);
+        out.push(')');
+
+        if let Some(ret) = &decl.return_type {
+            out.push_str(": ");
+            let mut cg = self.sub_codegen();
+            cg.emit_type_expr(ret);
+            out.push_str(&cg.output);
+        }
+        out.push(';');
+    }
+
+    fn emit_dts_const(&self, out: &mut String, decl: &ConstDecl) {
+        match &decl.binding {
+            ConstBinding::Name(name) => {
+                out.push_str("export declare const ");
+                out.push_str(name);
+                if let Some(type_ann) = &decl.type_ann {
+                    out.push_str(": ");
+                    let mut cg = self.sub_codegen();
+                    cg.emit_type_expr(type_ann);
+                    out.push_str(&cg.output);
+                } else {
+                    out.push_str(": any");
+                }
+                out.push(';');
+            }
+            ConstBinding::Array(names) | ConstBinding::Tuple(names) => {
+                for name in names {
+                    out.push_str(&format!("export declare const {name}: any;"));
+                }
+            }
+            ConstBinding::Object(names) => {
+                for name in names {
+                    out.push_str(&format!("export declare const {name}: any;"));
+                }
+            }
+        }
+    }
+
+    fn emit_dts_for_block_function(
+        &self,
+        out: &mut String,
+        func: &FunctionDecl,
+        for_type: &TypeExpr,
+    ) {
+        out.push_str("export declare ");
+        if func.async_fn {
+            out.push_str("async ");
+        }
+        out.push_str("function ");
+        out.push_str(&func.name);
+        out.push('(');
+
+        for (i, param) in func.params.iter().enumerate() {
+            if i > 0 {
+                out.push_str(", ");
+            }
+            out.push_str(&param.name);
+            if param.name == "self" {
+                out.push_str(": ");
+                let mut cg = self.sub_codegen();
+                cg.emit_type_expr(for_type);
+                out.push_str(&cg.output);
+            } else if let Some(type_ann) = &param.type_ann {
+                out.push_str(": ");
+                let mut cg = self.sub_codegen();
+                cg.emit_type_expr(type_ann);
+                out.push_str(&cg.output);
+            }
+        }
+
+        out.push(')');
+
+        if let Some(ret) = &func.return_type {
+            out.push_str(": ");
+            let mut cg = self.sub_codegen();
+            cg.emit_type_expr(ret);
+            out.push_str(&cg.output);
+        }
+        out.push(';');
+    }
+
     // ── Output helpers ───────────────────────────────────────────
 
     fn push(&mut self, s: &str) {
@@ -1116,7 +1388,6 @@ impl Codegen {
             unit_variants: self.unit_variants.clone(),
             variant_info: self.variant_info.clone(),
             local_names: self.local_names.clone(),
-            expr_types: self.expr_types.clone(),
             resolved_imports: self.resolved_imports.clone(),
             import_aliases: self.import_aliases.clone(),
             test_mode: self.test_mode,

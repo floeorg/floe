@@ -48,13 +48,13 @@ impl<'src> Lowerer<'src> {
                         }
                     }
 
-                    Some(Expr {
-                        span: self.node_span(node),
-                        kind: ExprKind::Match {
+                    Some(self.expr(
+                        ExprKind::Match {
                             subject: Box::new(left),
                             arms,
                         },
-                    })
+                        self.node_span(node),
+                    ))
                 } else {
                     let exprs = self.lower_child_exprs(node);
                     if exprs.len() >= 2 {
@@ -65,24 +65,24 @@ impl<'src> Lowerer<'src> {
                         // `a |> f?` restructure: lift `?` above the pipe → `(a |> f)?`
                         if let ExprKind::Unwrap(inner) = right.kind {
                             let pipe_span = self.node_span(node);
-                            Some(Expr {
-                                span: pipe_span,
-                                kind: ExprKind::Unwrap(Box::new(Expr {
-                                    span: pipe_span,
-                                    kind: ExprKind::Pipe {
+                            Some(self.expr(
+                                ExprKind::Unwrap(Box::new(self.expr(
+                                    ExprKind::Pipe {
                                         left: Box::new(left),
                                         right: inner,
                                     },
-                                })),
-                            })
+                                    pipe_span,
+                                ))),
+                                pipe_span,
+                            ))
                         } else {
-                            Some(Expr {
-                                span: self.node_span(node),
-                                kind: ExprKind::Pipe {
+                            Some(self.expr(
+                                ExprKind::Pipe {
                                     left: Box::new(left),
                                     right: Box::new(right),
                                 },
-                            })
+                                self.node_span(node),
+                            ))
                         }
                     } else {
                         exprs.into_iter().next()
@@ -97,14 +97,14 @@ impl<'src> Lowerer<'src> {
                     let mut iter = exprs.into_iter();
                     let left = iter.next()?;
                     let right = iter.next()?;
-                    Some(Expr {
-                        span,
-                        kind: ExprKind::Binary {
+                    Some(self.expr(
+                        ExprKind::Binary {
                             left: Box::new(left),
                             op,
                             right: Box::new(right),
                         },
-                    })
+                        span,
+                    ))
                 } else {
                     None
                 }
@@ -113,37 +113,28 @@ impl<'src> Lowerer<'src> {
             SyntaxKind::UNARY_EXPR => {
                 let op = self.find_unary_op(node)?;
                 let operand = self.lower_child_exprs(node).into_iter().next()?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Unary {
+                Some(self.expr(
+                    ExprKind::Unary {
                         op,
                         operand: Box::new(operand),
                     },
-                })
+                    span,
+                ))
             }
 
             SyntaxKind::TRY_EXPR => {
                 let operand = self.lower_child_exprs(node).into_iter().next()?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Try(Box::new(operand)),
-                })
+                Some(self.expr(ExprKind::Try(Box::new(operand)), span))
             }
 
             SyntaxKind::AWAIT_EXPR => {
                 let operand = self.lower_child_exprs(node).into_iter().next()?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Await(Box::new(operand)),
-                })
+                Some(self.expr(ExprKind::Await(Box::new(operand)), span))
             }
 
             SyntaxKind::UNWRAP_EXPR => {
                 let operand = self.lower_child_exprs(node).into_iter().next()?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Unwrap(Box::new(operand)),
-                })
+                Some(self.expr(ExprKind::Unwrap(Box::new(operand)), span))
             }
 
             SyntaxKind::MEMBER_EXPR => {
@@ -169,13 +160,13 @@ impl<'src> Lowerer<'src> {
                     let idents = self.collect_idents(node);
                     field = idents.last()?.clone();
                 }
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Member {
+                Some(self.expr(
+                    ExprKind::Member {
                         object: Box::new(object),
                         field,
                     },
-                })
+                    span,
+                ))
             }
 
             SyntaxKind::INDEX_EXPR => {
@@ -183,13 +174,13 @@ impl<'src> Lowerer<'src> {
                 let mut iter = exprs.into_iter();
                 let object = iter.next()?;
                 let index = iter.next()?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Index {
+                Some(self.expr(
+                    ExprKind::Index {
                         object: Box::new(object),
                         index: Box::new(index),
                     },
-                })
+                    span,
+                ))
             }
 
             SyntaxKind::CALL_EXPR => {
@@ -228,14 +219,14 @@ impl<'src> Lowerer<'src> {
                     .filter_map(|c| self.lower_type_expr(&c))
                     .collect();
 
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Call {
+                Some(self.expr(
+                    ExprKind::Call {
                         callee: Box::new(callee),
                         type_args,
                         args,
                     },
-                })
+                    span,
+                ))
             }
 
             SyntaxKind::CONSTRUCT_EXPR => {
@@ -262,14 +253,14 @@ impl<'src> Lowerer<'src> {
                     }
                 }
 
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Construct {
+                Some(self.expr(
+                    ExprKind::Construct {
                         type_name,
                         spread,
                         args,
                     },
-                })
+                    span,
+                ))
             }
 
             SyntaxKind::ARROW_EXPR => {
@@ -297,14 +288,14 @@ impl<'src> Lowerer<'src> {
                     body = self.lower_token_expr_after_lambda_delim(node);
                 }
 
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Arrow {
+                Some(self.expr(
+                    ExprKind::Arrow {
                         async_fn,
                         params,
                         body: Box::new(body?),
                     },
-                })
+                    span,
+                ))
             }
 
             SyntaxKind::MATCH_EXPR => {
@@ -334,13 +325,13 @@ impl<'src> Lowerer<'src> {
                     subject = self.lower_token_expr(node);
                 }
 
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Match {
+                Some(self.expr(
+                    ExprKind::Match {
                         subject: Box::new(subject?),
                         arms,
                     },
-                })
+                    span,
+                ))
             }
 
             SyntaxKind::COLLECT_EXPR => {
@@ -368,20 +359,14 @@ impl<'src> Lowerer<'src> {
                         }
                     }
                 }
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Collect(items),
-                })
+                Some(self.expr(ExprKind::Collect(items), span))
             }
 
             SyntaxKind::BLOCK_EXPR => {
                 // Collect all child nodes first so we can look ahead for `use`
                 let children: Vec<_> = node.children().collect();
                 let items = self.lower_block_children(&children, span);
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Block(items),
-                })
+                Some(self.expr(ExprKind::Block(items), span))
             }
 
             SyntaxKind::PARSE_EXPR => {
@@ -395,50 +380,35 @@ impl<'src> Lowerer<'src> {
                     .lower_child_exprs(node)
                     .into_iter()
                     .next()
-                    .unwrap_or(Expr {
-                        span,
-                        kind: ExprKind::Placeholder,
-                    });
+                    .unwrap_or_else(|| self.expr(ExprKind::Placeholder, span));
 
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Parse {
+                Some(self.expr(
+                    ExprKind::Parse {
                         type_arg,
                         value: Box::new(value),
                     },
-                })
+                    span,
+                ))
             }
 
             SyntaxKind::OK_EXPR => {
                 let inner = self.lower_first_expr_in(node)?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Ok(Box::new(inner)),
-                })
+                Some(self.expr(ExprKind::Ok(Box::new(inner)), span))
             }
 
             SyntaxKind::ERR_EXPR => {
                 let inner = self.lower_first_expr_in(node)?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Err(Box::new(inner)),
-                })
+                Some(self.expr(ExprKind::Err(Box::new(inner)), span))
             }
 
             SyntaxKind::SOME_EXPR => {
                 let inner = self.lower_first_expr_in(node)?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Some(Box::new(inner)),
-                })
+                Some(self.expr(ExprKind::Some(Box::new(inner)), span))
             }
 
             SyntaxKind::GROUPED_EXPR => {
                 let inner = self.lower_first_expr_in(node)?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Grouped(Box::new(inner)),
-                })
+                Some(self.expr(ExprKind::Grouped(Box::new(inner)), span))
             }
 
             SyntaxKind::OBJECT_EXPR => {
@@ -450,59 +420,41 @@ impl<'src> Lowerer<'src> {
                             let value =
                                 self.lower_object_field_value(&child).unwrap_or_else(|| {
                                     // Shorthand: { name } means { name: name }
-                                    Expr {
-                                        span: self.node_span(&child),
-                                        kind: ExprKind::Identifier(key.clone()),
-                                    }
+                                    self.expr(
+                                        ExprKind::Identifier(key.clone()),
+                                        self.node_span(&child),
+                                    )
                                 });
                             fields.push((key.clone(), value));
                         }
                     }
                 }
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Object(fields),
-                })
+                Some(self.expr(ExprKind::Object(fields), span))
             }
 
             SyntaxKind::ARRAY_EXPR => {
                 let elements = self.lower_child_exprs_and_tokens(node);
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Array(elements),
-                })
+                Some(self.expr(ExprKind::Array(elements), span))
             }
 
             SyntaxKind::TUPLE_EXPR => {
                 let elements = self.lower_child_exprs_and_tokens(node);
                 if elements.is_empty() {
                     // Empty tuple: () → Unit
-                    Some(Expr {
-                        span,
-                        kind: ExprKind::Unit,
-                    })
+                    Some(self.expr(ExprKind::Unit, span))
                 } else {
-                    Some(Expr {
-                        span,
-                        kind: ExprKind::Tuple(elements),
-                    })
+                    Some(self.expr(ExprKind::Tuple(elements), span))
                 }
             }
 
             SyntaxKind::JSX_ELEMENT => {
                 let element = self.lower_jsx_element(node)?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Jsx(element),
-                })
+                Some(self.expr(ExprKind::Jsx(element), span))
             }
 
             SyntaxKind::SPREAD_EXPR => {
                 let inner = self.lower_first_expr_in(node)?;
-                Some(Expr {
-                    span,
-                    kind: ExprKind::Spread(Box::new(inner)),
-                })
+                Some(self.expr(ExprKind::Spread(Box::new(inner)), span))
             }
 
             SyntaxKind::DOT_SHORTHAND => {
@@ -516,10 +468,7 @@ impl<'src> Lowerer<'src> {
                     Some((op, Box::new(rhs)))
                 });
 
-                Some(Expr {
-                    span,
-                    kind: ExprKind::DotShorthand { field, predicate },
-                })
+                Some(self.expr(ExprKind::DotShorthand { field, predicate }, span))
             }
 
             SyntaxKind::ERROR => None,
@@ -704,49 +653,21 @@ impl<'src> Lowerer<'src> {
         let text = token.text();
 
         match token.kind() {
-            SyntaxKind::NUMBER => Some(Expr {
-                kind: ExprKind::Number(text.to_string()),
-                span,
-            }),
-            SyntaxKind::STRING => Some(Expr {
-                kind: ExprKind::String(self.unquote_string(text)),
-                span,
-            }),
+            SyntaxKind::NUMBER => Some(self.expr(ExprKind::Number(text.to_string()), span)),
+            SyntaxKind::STRING => {
+                Some(self.expr(ExprKind::String(self.unquote_string(text)), span))
+            }
             SyntaxKind::TEMPLATE_LITERAL => {
                 let parts = self.lower_template_literal(text);
-                Some(Expr {
-                    kind: ExprKind::TemplateLiteral(parts),
-                    span,
-                })
+                Some(self.expr(ExprKind::TemplateLiteral(parts), span))
             }
-            SyntaxKind::BOOL => Some(Expr {
-                kind: ExprKind::Bool(text == "true"),
-                span,
-            }),
-            SyntaxKind::IDENT => Some(Expr {
-                kind: ExprKind::Identifier(text.to_string()),
-                span,
-            }),
-            SyntaxKind::UNDERSCORE => Some(Expr {
-                kind: ExprKind::Placeholder,
-                span,
-            }),
-            SyntaxKind::KW_NONE => Some(Expr {
-                kind: ExprKind::None,
-                span,
-            }),
-            SyntaxKind::KW_TODO => Some(Expr {
-                kind: ExprKind::Todo,
-                span,
-            }),
-            SyntaxKind::KW_UNREACHABLE => Some(Expr {
-                kind: ExprKind::Unreachable,
-                span,
-            }),
-            SyntaxKind::KW_SELF => Some(Expr {
-                kind: ExprKind::Identifier("self".to_string()),
-                span,
-            }),
+            SyntaxKind::BOOL => Some(self.expr(ExprKind::Bool(text == "true"), span)),
+            SyntaxKind::IDENT => Some(self.expr(ExprKind::Identifier(text.to_string()), span)),
+            SyntaxKind::UNDERSCORE => Some(self.expr(ExprKind::Placeholder, span)),
+            SyntaxKind::KW_NONE => Some(self.expr(ExprKind::None, span)),
+            SyntaxKind::KW_TODO => Some(self.expr(ExprKind::Todo, span)),
+            SyntaxKind::KW_UNREACHABLE => Some(self.expr(ExprKind::Unreachable, span)),
+            SyntaxKind::KW_SELF => Some(self.expr(ExprKind::Identifier("self".to_string()), span)),
             _ => None,
         }
     }
@@ -759,10 +680,7 @@ impl<'src> Lowerer<'src> {
             // Find the expression after the colon
             let value = self.lower_expr_after_colon(node).unwrap_or_else(|| {
                 // Punning: `label:` without value → `label: label`
-                Expr {
-                    kind: ExprKind::Identifier(label.clone()),
-                    span: self.node_span(node),
-                }
+                self.expr(ExprKind::Identifier(label.clone()), self.node_span(node))
             });
             Some(Arg::Named { label, value })
         } else {
@@ -930,10 +848,7 @@ impl<'src> Lowerer<'src> {
 
         // Build the callback body from remaining items
         let body_items = self.lower_block_children(remaining, block_span);
-        let body = Expr {
-            span: block_span,
-            kind: ExprKind::Block(body_items),
-        };
+        let body = self.expr(ExprKind::Block(body_items), block_span);
 
         // Build lambda params from bindings
         let params: Vec<Param> = bindings
@@ -947,14 +862,14 @@ impl<'src> Lowerer<'src> {
             })
             .collect();
 
-        let lambda = Expr {
-            span: use_span,
-            kind: ExprKind::Arrow {
+        let lambda = self.expr(
+            ExprKind::Arrow {
                 async_fn: false,
                 params,
                 body: Box::new(body),
             },
-        };
+            use_span,
+        );
 
         // Append the lambda as the last argument to the call
         match call_expr.kind {
@@ -964,24 +879,24 @@ impl<'src> Lowerer<'src> {
                 mut args,
             } => {
                 args.push(Arg::Positional(lambda));
-                Some(Expr {
-                    span: use_span,
-                    kind: ExprKind::Call {
+                Some(self.expr(
+                    ExprKind::Call {
                         callee,
                         type_args,
                         args,
                     },
-                })
+                    use_span,
+                ))
             }
             // If it's not a call (e.g. just an identifier), wrap it as a call with the lambda
-            _ => Some(Expr {
-                span: use_span,
-                kind: ExprKind::Call {
+            _ => Some(self.expr(
+                ExprKind::Call {
                     callee: Box::new(call_expr),
                     type_args: Vec::new(),
                     args: vec![Arg::Positional(lambda)],
                 },
-            }),
+                use_span,
+            )),
         }
     }
 

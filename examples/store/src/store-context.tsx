@@ -1,30 +1,11 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
-
-type Product = {
-  id: number;
-  title: string;
-  description: string;
-  category: string;
-  price: number;
-  discountPercentage: number;
-  rating: number;
-  stock: number;
-  tags: string[];
-  brand: string;
-  thumbnail: string;
-  images: string[];
-};
-
-type CartItem = {
-  product: Product;
-  quantity: number;
-};
+import type { Product, ProductId, CartItem } from "./types";
 
 type StoreContextType = {
   cart: CartItem[];
   addToCart: (product: Product) => void;
-  updateQty: (productId: number, qty: number) => void;
-  removeFromCart: (productId: number) => void;
+  updateQty: (productId: ProductId, qty: number) => void;
+  removeFromCart: (productId: ProductId) => void;
   itemCount: number;
 };
 
@@ -41,7 +22,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   function addToCart(product: Product) {
     setCart((prev) => {
-      const idx = prev.findIndex((item) => item.product.id === product.id);
+      const idx = prev.findIndex(
+        (item) => item.product.id.value === product.id.value,
+      );
       if (idx === -1) return [...prev, { product, quantity: 1 }];
       return prev.map((item, i) =>
         i === idx ? { ...item, quantity: item.quantity + 1 } : item,
@@ -49,20 +32,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  function updateQty(productId: number, qty: number) {
+  function updateQty(productId: ProductId, qty: number) {
     setCart((prev) =>
       qty <= 0
-        ? prev.filter((item) => item.product.id !== productId)
+        ? prev.filter((item) => item.product.id.value !== productId.value)
         : prev.map((item) =>
-            item.product.id === productId
+            item.product.id.value === productId.value
               ? { ...item, quantity: qty }
               : item,
           ),
     );
   }
 
-  function removeFromCart(productId: number) {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  function removeFromCart(productId: ProductId) {
+    setCart((prev) =>
+      prev.filter((item) => item.product.id.value !== productId.value),
+    );
   }
 
   const itemCount = cart.reduce((acc, item) => acc + item.quantity, 0);

@@ -1489,10 +1489,7 @@ fn test() {
                     },
                     span: s,
                 }),
-                default: Some(Expr {
-                    kind: ExprKind::String("".to_string()),
-                    span: s,
-                }),
+                default: Some(Expr::synthetic(ExprKind::String("".to_string()), s)),
                 destructure: None,
                 span: s,
             }],
@@ -1541,10 +1538,7 @@ fn test() {
                 },
                 span: s,
             }),
-            body: Box::new(Expr {
-                kind: ExprKind::Unit,
-                span: s,
-            }),
+            body: Box::new(Expr::synthetic(ExprKind::Unit, s)),
         };
 
         let mut imports = ResolvedImports::default();

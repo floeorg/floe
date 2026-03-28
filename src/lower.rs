@@ -12,6 +12,7 @@ pub fn lower_program(root: &SyntaxNode, source: &str) -> Result<Program, Vec<Par
     let mut lowerer = Lowerer {
         source,
         errors: Vec::new(),
+        id_gen: ExprIdGen::new(),
     };
     let program = lowerer.lower_root(root);
     if lowerer.errors.is_empty() {
@@ -28,6 +29,7 @@ pub fn lower_program_lossy(root: &SyntaxNode, source: &str) -> (Program, Vec<Par
     let mut lowerer = Lowerer {
         source,
         errors: Vec::new(),
+        id_gen: ExprIdGen::new(),
     };
     let program = lowerer.lower_root(root);
     (program, lowerer.errors)
@@ -36,6 +38,19 @@ pub fn lower_program_lossy(root: &SyntaxNode, source: &str) -> (Program, Vec<Par
 struct Lowerer<'src> {
     source: &'src str,
     errors: Vec<ParseError>,
+    id_gen: ExprIdGen,
+}
+
+impl<'src> Lowerer<'src> {
+    /// Create an `Expr` with a fresh unique ID.
+    fn expr(&self, kind: ExprKind, span: Span) -> Expr {
+        Expr {
+            id: self.id_gen.next(),
+            kind,
+            ty: crate::checker::Type::Unknown,
+            span,
+        }
+    }
 }
 
 impl<'src> Lowerer<'src> {
@@ -1017,6 +1032,7 @@ impl<'src> Lowerer<'src> {
         let mut lowerer = Lowerer {
             source,
             errors: Vec::new(),
+            id_gen: ExprIdGen::new(),
         };
         let program = lowerer.lower_root(&root);
 

@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 
-use floe::checker::{Checker, ExprTypeMap};
+use floe::checker::{self, Checker};
 use floe::codegen::Codegen;
+use floe::desugar;
 use floe::diagnostic;
 use floe::find_project_dir;
 use floe::parser::Parser as ZsParser;
@@ -102,7 +103,6 @@ fn main() -> Result<()> {
 struct CompileResult {
     program: Program,
     resolved: HashMap<String, ResolvedImports>,
-    expr_types: ExprTypeMap,
 }
 
 /// Parse, resolve imports, and type-check a single source. Returns an error
@@ -142,11 +142,11 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
         eprintln!("{rendered}");
     }
 
-    Ok(CompileResult {
-        program,
-        resolved,
-        expr_types,
-    })
+    let mut program = program;
+    checker::annotate_types(&mut program, &expr_types);
+    desugar::desugar_program(&mut program);
+
+    Ok(CompileResult { program, resolved })
 }
 
 // ── Build (file -> stdout) ────────────────────────────────────────
@@ -157,8 +157,7 @@ fn cmd_build_file_stdout(path: &Path) -> Result<()> {
     let filename = path.display().to_string();
 
     let result = compile_source(path, &filename, &source)?;
-    let output =
-        Codegen::with_imports(result.expr_types, &result.resolved).generate(&result.program);
+    let output = Codegen::with_imports(&result.resolved).generate(&result.program);
     print!("{}", output.code);
 
     Ok(())
@@ -178,8 +177,7 @@ fn cmd_build_stdin() -> Result<()> {
     let file_path = Path::new(&filename);
 
     let result = compile_source(file_path, &filename, &source)?;
-    let output =
-        Codegen::with_imports(result.expr_types, &result.resolved).generate(&result.program);
+    let output = Codegen::with_imports(&result.resolved).generate(&result.program);
     print!("{}", output.code);
 
     Ok(())
@@ -222,8 +220,7 @@ fn compile_file(file: &Path, out_dir: Option<&Path>) -> Result<PathBuf> {
 
     let filename = file.to_string_lossy();
     let result = compile_source(file, &filename, &source)?;
-    let output =
-        Codegen::with_imports(result.expr_types, &result.resolved).generate(&result.program);
+    let output = Codegen::with_imports(&result.resolved).generate(&result.program);
     let ext = if output.has_jsx { "tsx" } else { "ts" };
 
     let out_path = if let Some(dir) = out_dir {
@@ -234,8 +231,16 @@ fn compile_file(file: &Path, out_dir: Option<&Path>) -> Result<PathBuf> {
         file.with_extension(ext)
     };
 
-    std::fs::write(&out_path, &output.code)
+    let code_with_header = format!("// @ts-nocheck\n{}", output.code);
+    std::fs::write(&out_path, &code_with_header)
         .with_context(|| format!("failed to write {}", out_path.display()))?;
+
+    // Write .d.ts declaration stub alongside the .fl source file
+    if !output.dts.is_empty() {
+        let dts_path = file.with_extension("d.ts");
+        std::fs::write(&dts_path, &output.dts)
+            .with_context(|| format!("failed to write {}", dts_path.display()))?;
+    }
 
     Ok(out_path)
 }
@@ -351,7 +356,7 @@ fn cmd_test(path: &Path) -> Result<()> {
     let mut total_files = 0;
     let mut errors = 0;
 
-    for (file, source, filename, program) in &test_files {
+    for (file, source, filename, program) in &mut test_files {
         // Resolve imports
         let resolved = resolve::resolve_imports(file, program);
 
@@ -368,8 +373,9 @@ fn cmd_test(path: &Path) -> Result<()> {
             continue;
         }
 
-        // Generate code in test mode
-        let output = Codegen::with_imports(expr_types, &resolved)
+        checker::annotate_types(program, &expr_types);
+        desugar::desugar_program(program);
+        let output = Codegen::with_imports(&resolved)
             .with_test_mode()
             .generate(program);
 

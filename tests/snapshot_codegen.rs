@@ -3,16 +3,17 @@
 //! Each test reads a .fl fixture file, parses + codegen, and compares
 //! against an insta snapshot. Run `cargo insta review` to accept new snapshots.
 
-use floe::checker::Checker;
+use floe::checker::{self, Checker};
 use floe::codegen::Codegen;
 use floe::parser::Parser;
 
 fn compile(source: &str) -> String {
-    let program = Parser::new(source)
+    let mut program = Parser::new(source)
         .parse_program()
         .expect("fixture should parse");
     let (_, expr_types) = Checker::new().check_full(&program);
-    Codegen::with_expr_types(expr_types).generate(&program).code
+    checker::annotate_types(&mut program, &expr_types);
+    Codegen::new().generate(&program).code
 }
 
 fn compile_fixture(name: &str) -> String {

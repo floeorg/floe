@@ -1,6 +1,7 @@
 pub mod checker;
 pub mod codegen;
 pub mod cst;
+pub mod desugar;
 pub mod diagnostic;
 pub mod formatter;
 pub mod interop;
@@ -12,7 +13,8 @@ pub mod resolve;
 pub mod sourcemap;
 pub mod stdlib;
 pub mod syntax;
-pub mod type_names;
+pub mod type_layout;
+pub mod walk;
 
 use std::path::{Path, PathBuf};
 

@@ -1,4 +1,41 @@
+use std::cell::Cell;
+
 use crate::lexer::span::Span;
+
+// ── ExprId ──────────────────────────────────────────────────────
+
+/// A unique identifier for every `Expr` node in the AST.
+/// Assigned during CST-to-AST lowering and used as a stable key
+/// for the checker → codegen type map (replacing span-based keys).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExprId(pub u32);
+
+impl ExprId {
+    /// Sentinel ID for synthetic expressions created by codegen.
+    /// These are never looked up in the type map.
+    pub const SYNTHETIC: Self = Self(u32::MAX);
+}
+
+/// Generator for unique `ExprId` values.
+pub struct ExprIdGen(Cell<u32>);
+
+impl ExprIdGen {
+    pub fn new() -> Self {
+        Self(Cell::new(0))
+    }
+
+    pub fn next(&self) -> ExprId {
+        let id = self.0.get();
+        self.0.set(id + 1);
+        ExprId(id)
+    }
+}
+
+impl Default for ExprIdGen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// A complete Floe source file.
 #[derive(Debug, Clone, PartialEq)]
@@ -307,8 +344,24 @@ pub enum TypeExprKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expr {
+    pub id: ExprId,
     pub kind: ExprKind,
+    /// Resolved type — `Unknown` before type-checking, filled in after.
+    pub ty: crate::checker::Type,
     pub span: Span,
+}
+
+impl Expr {
+    /// Create a synthetic `Expr` for codegen-internal use (not from source).
+    /// Uses a sentinel ID — these are never looked up in the type map.
+    pub fn synthetic(kind: ExprKind, span: Span) -> Self {
+        Self {
+            id: ExprId::SYNTHETIC,
+            kind,
+            ty: crate::checker::Type::Unknown,
+            span,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
