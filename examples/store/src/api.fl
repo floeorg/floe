@@ -82,7 +82,6 @@ export async fn fetchProducts(
 
 // ── Categories ─────────────────────────────────────────
 
-// TODO: needs compiler fix - Array.map return type inference doesn't narrow through generics
 export async fn fetchCategories() -> Result<Array<CategoryResponse>, ApiError> {
     const data = await Http.get("https://dummyjson.com/products/categories")?
         |> Http.json?
