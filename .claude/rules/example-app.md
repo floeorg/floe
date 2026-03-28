@@ -20,9 +20,12 @@ Only the `.fl` files in these apps are Floe integration tests. The `examples/sto
 
 ## Quality gate for examples
 
-Run on **every** PR that touches the compiler or `.fl` files:
+Run on **every** PR that touches the compiler or `.fl` files.
+
+**Important:** Run `pnpm install --frozen-lockfile` first if `node_modules/` is missing — `floe check` needs npm dependencies to resolve TypeScript types. Without them, all external imports resolve to `unknown`.
 
 ```bash
+pnpm install --frozen-lockfile
 floe fmt examples/todo-app/src/ examples/store/src/
 floe check examples/todo-app/src/ examples/store/src/
 floe build examples/todo-app/src/ examples/store/src/

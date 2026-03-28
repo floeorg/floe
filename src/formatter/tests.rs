@@ -424,3 +424,65 @@ fn format_preserves_blank_line_after_match_block() {
     let src = "fn f() {\n    const url = x |> match {\n        1 -> \"a\",\n    }\n\n    const data = y\n\n    Ok(data)\n}";
     assert_fmt(src, src);
 }
+
+// ── Import trusted ─────────────────────────────────────────
+
+#[test]
+fn format_import_trusted_module() {
+    assert_fmt(
+        r#"import trusted {useState,Suspense} from "react""#,
+        r#"import trusted { useState, Suspense } from "react""#,
+    );
+}
+
+#[test]
+fn format_import_trusted_specifier() {
+    assert_fmt(
+        r#"import {trusted capitalize,fetchUser} from "some-lib""#,
+        r#"import { trusted capitalize, fetchUser } from "some-lib""#,
+    );
+}
+
+#[test]
+fn format_import_trusted_roundtrip() {
+    let src = r#"import trusted { useState, useEffect } from "react""#;
+    assert_fmt(src, src);
+}
+
+// ── Destructured params ────────────────────────────────────
+
+#[test]
+fn format_destructured_param() {
+    assert_fmt(
+        "fn greet({name,age}:User) {\n    name\n}",
+        "fn greet({ name, age }: User) {\n    name\n}",
+    );
+}
+
+#[test]
+fn format_destructured_arrow_param() {
+    assert_fmt(
+        "const f = ({x,y}) => x + y",
+        "const f = ({ x, y }) => x + y",
+    );
+}
+
+#[test]
+fn format_underscore_param() {
+    assert_fmt(
+        "fn f(_:number) -> number {\n    42\n}",
+        "fn f(_: number) -> number {\n    42\n}",
+    );
+}
+
+// ── Tuple index access ─────────────────────────────────
+
+#[test]
+fn format_tuple_index_access() {
+    assert_fmt("const x = pair.0", "const x = pair.0");
+}
+
+#[test]
+fn format_tuple_index_access_1() {
+    assert_fmt("const x = pair.1", "const x = pair.1");
+}

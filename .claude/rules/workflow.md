@@ -167,7 +167,10 @@ Order: fmt -> clippy -> test.
 
 **Floe example quality gate** (if you changed `src/**/*.rs` or `examples/**/*.fl`):
 
+**Important:** Run `pnpm install --frozen-lockfile` first if `node_modules/` is missing — `floe check` needs npm dependencies to resolve TypeScript types.
+
 ```bash
+pnpm install --frozen-lockfile
 floe fmt examples/todo-app/src/ examples/store/src/
 floe check examples/todo-app/src/ examples/store/src/
 floe build examples/todo-app/src/ examples/store/src/
