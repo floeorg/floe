@@ -1,7 +1,7 @@
-import trusted { useState } from "react"
-import trusted { v4 } from "uuid"
+import { useState } from "react"
+import { v4 } from "uuid"
 import { Todo, Filter, Validation } from "../types"
-import { for string, for Array } from "../todo"
+import from "../todo"
 
 export fn HomePage() -> JSX.Element {
     const [todos, setTodos] = useState<Array<Todo>>([])

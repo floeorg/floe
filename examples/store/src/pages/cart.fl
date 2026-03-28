@@ -1,6 +1,6 @@
-import trusted { useState } from "react"
+import { useState } from "react"
 import { CartItem, Product, ProductId, OrderStatus, OrderId } from "../types"
-import { for Array, formatPrice } from "../product"
+import { formatPrice } from "../product"
 
 // ── Cart item row ──────────────────────────────────────
 

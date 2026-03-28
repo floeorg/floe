@@ -1,5 +1,5 @@
 import { CartItem, ShippingInfo, CheckoutError, OrderId, OrderStatus } from "./types"
-import { for Array } from "./product"
+import from "./product"
 
 // ── Validation helpers ─────────────────────────────────
 

@@ -81,6 +81,8 @@ pub struct Checker {
     /// Maps function names to their required (non-default) parameter count.
     /// Functions not in this map require all parameters.
     fn_required_params: HashMap<String, usize>,
+    /// Maps function names to their parameter names (for validating named arguments).
+    fn_param_names: HashMap<String, Vec<String>>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -258,6 +260,7 @@ impl Checker {
             trait_defs: HashMap::new(),
             trait_impls: HashSet::new(),
             fn_required_params: HashMap::new(),
+            fn_param_names: HashMap::new(),
         }
     }
 
@@ -356,6 +359,12 @@ impl Checker {
                     self.fn_required_params
                         .insert(func.name.clone(), required_params);
                 }
+
+                // Track parameter names for named argument validation
+                self.fn_param_names.insert(
+                    func.name.clone(),
+                    func.params.iter().map(|p| p.name.clone()).collect(),
+                );
             }
         }
 
@@ -1102,6 +1111,12 @@ impl Checker {
                 self.fn_required_params
                     .insert(func.name.clone(), required_params);
             }
+
+            // Track parameter names for named argument validation
+            self.fn_param_names.insert(
+                func.name.clone(),
+                func.params.iter().map(|p| p.name.clone()).collect(),
+            );
         }
     }
 
@@ -1369,6 +1384,12 @@ impl Checker {
                 .insert(decl.name.clone(), required_params);
         }
 
+        // Track parameter names for named argument validation
+        self.fn_param_names.insert(
+            decl.name.clone(),
+            decl.params.iter().map(|p| p.name.clone()).collect(),
+        );
+
         if decl.exported {
             self.used_names.insert(decl.name.clone());
         }
@@ -1518,6 +1539,12 @@ impl Checker {
                 self.fn_required_params
                     .insert(func.name.clone(), required_params);
             }
+
+            // Track parameter names for named argument validation
+            self.fn_param_names.insert(
+                func.name.clone(),
+                func.params.iter().map(|p| p.name.clone()).collect(),
+            );
 
             if func.exported {
                 self.used_names.insert(func.name.clone());
