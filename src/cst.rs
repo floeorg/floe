@@ -1306,16 +1306,16 @@ impl<'src> CstParser<'src> {
                     let has_args =
                         matches!(self.peek_nth_non_trivia_kind(3), Some(TokenKind::LeftParen));
 
+                    // Emit as CONSTRUCT_EXPR for both unit and parameterized variants
+                    self.builder.start_node(SyntaxKind::CONSTRUCT_EXPR.into());
+                    self.bump(); // type name (Filter/Route)
+                    self.eat_trivia();
+                    self.bump(); // .
+                    self.eat_trivia();
+                    self.bump(); // variant name
+                    self.eat_trivia();
+
                     if has_args {
-                        // Qualified constructor: Route.Profile(id: "123")
-                        // Emit as CONSTRUCT_EXPR with variant_name as the type name
-                        self.builder.start_node(SyntaxKind::CONSTRUCT_EXPR.into());
-                        self.bump(); // type name (Filter/Route)
-                        self.eat_trivia();
-                        self.bump(); // .
-                        self.eat_trivia();
-                        self.bump(); // variant name (Profile) - this becomes the type_name ident
-                        self.eat_trivia();
                         self.expect(TokenKind::LeftParen);
                         self.eat_trivia();
 
@@ -1338,17 +1338,10 @@ impl<'src> CstParser<'src> {
                         }
 
                         self.expect(TokenKind::RightParen);
-                        self.builder.finish_node();
-                        return;
-                    } else {
-                        // Qualified unit variant: Filter.All → just emit the variant name as IDENT
-                        self.bump(); // type name
-                        self.eat_trivia();
-                        self.bump(); // .
-                        self.eat_trivia();
-                        self.bump(); // variant name (emitted as IDENT token)
-                        return;
                     }
+
+                    self.builder.finish_node();
+                    return;
                 }
 
                 self.bump();
@@ -1651,6 +1644,20 @@ impl<'src> CstParser<'src> {
             }
             Some(TokenKind::Ok) | Some(TokenKind::Err) | Some(TokenKind::Some) => {
                 self.bump();
+                self.eat_trivia();
+                if self.at(TokenKind::LeftParen) {
+                    self.bump();
+                    self.eat_trivia();
+                    self.parse_comma_separated(Self::parse_pattern, TokenKind::RightParen);
+                    self.expect(TokenKind::RightParen);
+                }
+            }
+            // Implicit variant pattern: .Variant or .Variant(args)
+            Some(TokenKind::Dot) if matches!(self.peek_nth_non_trivia_kind(1), Some(TokenKind::Identifier(n)) if n.starts_with(char::is_uppercase)) =>
+            {
+                self.bump(); // .
+                self.eat_trivia();
+                self.bump(); // Variant name
                 self.eat_trivia();
                 if self.at(TokenKind::LeftParen) {
                     self.bump();

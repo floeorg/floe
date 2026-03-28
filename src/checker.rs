@@ -71,6 +71,9 @@ pub struct Checker {
     /// Tracks where each name was defined (e.g., "const", "function", "for-block function from \"./todo\"").
     /// Used to provide context in shadowing error messages.
     defined_sources: HashMap<String, String>,
+    /// Variant names that appear in multiple unions: variant name -> list of union names.
+    /// Used to detect ambiguous bare variant usage.
+    ambiguous_variants: HashMap<String, Vec<String>>,
     /// Registered trait declarations: trait name -> methods.
     trait_defs: HashMap<String, Vec<TraitMethodSig>>,
     /// Tracks which (type, trait) pairs have been implemented.
@@ -251,6 +254,7 @@ impl Checker {
             pipe_input_type: None,
             name_types: HashMap::new(),
             defined_sources: HashMap::new(),
+            ambiguous_variants: HashMap::new(),
             trait_defs: HashMap::new(),
             trait_impls: HashSet::new(),
             fn_required_params: HashMap::new(),
@@ -511,8 +515,22 @@ impl Checker {
                     variants: var_types.clone(),
                 };
                 self.env.define(&decl.name, union_type.clone());
-                // Register each variant constructor
+                // Register each variant constructor and track ambiguity
                 for (vname, _) in &var_types {
+                    // Check if this variant name is already defined by another union
+                    if let Some(existing) = self.env.lookup(vname)
+                        && let Type::Union {
+                            name: existing_union,
+                            ..
+                        } = existing
+                        && *existing_union != decl.name
+                    {
+                        let existing_union = existing_union.clone();
+                        self.ambiguous_variants
+                            .entry(vname.clone())
+                            .or_insert_with(|| vec![existing_union])
+                            .push(decl.name.clone());
+                    }
                     self.env.define(vname, union_type.clone());
                 }
             }
