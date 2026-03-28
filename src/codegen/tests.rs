@@ -1447,3 +1447,52 @@ fn parse_in_pipe() {
         "should validate type, got: {result}"
     );
 }
+
+// ── Use keyword (callback flattening) ────────────────────────
+
+#[test]
+fn use_basic() {
+    let result = emit(
+        r#"fn _test() -> string {
+    use x <- doSomething(42)
+    x
+}"#,
+    );
+    assert!(
+        result.contains("doSomething(42, (x)"),
+        "use should desugar to callback, got: {result}"
+    );
+}
+
+#[test]
+fn use_zero_binding() {
+    let result = emit(
+        r#"fn _test() -> () {
+    use <- delay(1000)
+    Console.log("done")
+}"#,
+    );
+    assert!(
+        result.contains("delay(1000, ()"),
+        "zero-binding use should produce no-param callback, got: {result}"
+    );
+}
+
+#[test]
+fn use_chained() {
+    let result = emit(
+        r#"fn _test() -> string {
+    use a <- first(1)
+    use b <- second(a)
+    b
+}"#,
+    );
+    assert!(
+        result.contains("first(1, (a)"),
+        "first use should desugar, got: {result}"
+    );
+    assert!(
+        result.contains("second(a, (b)"),
+        "second use should nest inside first callback, got: {result}"
+    );
+}

@@ -37,6 +37,7 @@ pub enum SyntaxKind {
     KW_WHEN,
     KW_COLLECT,
     KW_DERIVING,
+    KW_USE,
 
     // Built-in constructors
     KW_OK,
@@ -52,6 +53,7 @@ pub enum SyntaxKind {
     // Operators
     PIPE,          // |>
     THIN_ARROW,    // ->
+    LEFT_ARROW,    // <-
     FAT_ARROW,     // =>
     VERT_BAR,      // |
     QUESTION,      // ?
@@ -112,6 +114,7 @@ pub enum SyntaxKind {
     FOR_BLOCK,
     DERIVING_CLAUSE,
     TRAIT_DECL,
+    USE_DECL,
     TEST_BLOCK,
     ASSERT_EXPR,
     RECORD_FIELD,
@@ -238,6 +241,7 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::When => SyntaxKind::KW_WHEN,
         TokenKind::Collect => SyntaxKind::KW_COLLECT,
         TokenKind::Deriving => SyntaxKind::KW_DERIVING,
+        TokenKind::Use => SyntaxKind::KW_USE,
         TokenKind::Ok => SyntaxKind::KW_OK,
         TokenKind::Err => SyntaxKind::KW_ERR,
         TokenKind::Some => SyntaxKind::KW_SOME,
@@ -247,6 +251,7 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::Unreachable => SyntaxKind::KW_UNREACHABLE,
         TokenKind::Pipe => SyntaxKind::PIPE,
         TokenKind::ThinArrow => SyntaxKind::THIN_ARROW,
+        TokenKind::LeftArrow => SyntaxKind::LEFT_ARROW,
         TokenKind::FatArrow => SyntaxKind::FAT_ARROW,
         TokenKind::VerticalBar => SyntaxKind::VERT_BAR,
         TokenKind::Question => SyntaxKind::QUESTION,

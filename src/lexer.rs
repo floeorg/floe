@@ -178,11 +178,14 @@ impl<'src> Lexer<'src> {
                 }
             }
 
-            // LessThan or LessEqual
+            // LessThan, LessEqual, or LeftArrow
             b'<' => {
                 if self.peek() == Some(b'=') {
                     self.advance();
                     TokenKind::LessEqual
+                } else if self.peek() == Some(b'-') {
+                    self.advance();
+                    TokenKind::LeftArrow
                 } else {
                     TokenKind::LessThan
                 }

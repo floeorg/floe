@@ -375,25 +375,9 @@ impl<'src> Lowerer<'src> {
             }
 
             SyntaxKind::BLOCK_EXPR => {
-                let mut items = Vec::new();
-                for child in node.children() {
-                    match child.kind() {
-                        SyntaxKind::ITEM => {
-                            if let Some(item) = self.lower_item(&child) {
-                                items.push(item);
-                            }
-                        }
-                        SyntaxKind::EXPR_ITEM => {
-                            if let Some(expr) = self.lower_first_expr(&child) {
-                                items.push(Item {
-                                    kind: ItemKind::Expr(expr),
-                                    span: self.node_span(&child),
-                                });
-                            }
-                        }
-                        _ => {}
-                    }
-                }
+                // Collect all child nodes first so we can look ahead for `use`
+                let children: Vec<_> = node.children().collect();
+                let items = self.lower_block_children(&children, span);
                 Some(Expr {
                     span,
                     kind: ExprKind::Block(items),
@@ -825,6 +809,179 @@ impl<'src> Lowerer<'src> {
                         return self.lower_expr_node(&child);
                     }
                 }
+            }
+        }
+        None
+    }
+
+    // ── Use desugaring ──────────────────────────────────────────
+
+    /// Lower block children, desugaring any `use` declarations.
+    /// When a `use` is encountered, all remaining children become the callback body.
+    pub(super) fn lower_block_children(
+        &mut self,
+        children: &[SyntaxNode],
+        block_span: Span,
+    ) -> Vec<Item> {
+        let mut items = Vec::new();
+        let mut i = 0;
+
+        while i < children.len() {
+            let child = &children[i];
+
+            // Check if this ITEM contains a USE_DECL
+            if child.kind() == SyntaxKind::ITEM && self.item_contains_use(child) {
+                // Desugar: use binding <- call becomes call(fn(binding) { rest... })
+                if let Some(expr) = self.desugar_use(child, &children[i + 1..], block_span) {
+                    items.push(Item {
+                        kind: ItemKind::Expr(expr),
+                        span: block_span,
+                    });
+                }
+                // All remaining children are consumed by the use desugaring
+                break;
+            }
+
+            match child.kind() {
+                SyntaxKind::ITEM => {
+                    if let Some(item) = self.lower_item(child) {
+                        items.push(item);
+                    }
+                }
+                SyntaxKind::EXPR_ITEM => {
+                    if let Some(expr) = self.lower_first_expr(child) {
+                        items.push(Item {
+                            kind: ItemKind::Expr(expr),
+                            span: self.node_span(child),
+                        });
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+
+        items
+    }
+
+    /// Check if an ITEM node contains a USE_DECL child.
+    fn item_contains_use(&self, node: &SyntaxNode) -> bool {
+        node.children()
+            .any(|child| child.kind() == SyntaxKind::USE_DECL)
+    }
+
+    /// Desugar a `use` declaration into a function call with callback.
+    ///
+    /// `use x <- doSomething(arg)` with remaining items becomes:
+    /// `doSomething(arg, fn(x) { remaining items... })`
+    fn desugar_use(
+        &mut self,
+        use_item: &SyntaxNode,
+        remaining: &[SyntaxNode],
+        block_span: Span,
+    ) -> Option<Expr> {
+        let use_node = use_item
+            .children()
+            .find(|c| c.kind() == SyntaxKind::USE_DECL)?;
+
+        let use_span = self.node_span(&use_node);
+
+        // Extract binding names (identifiers before `<-`)
+        let mut bindings: Vec<String> = Vec::new();
+        let mut found_arrow = false;
+        for token in use_node.children_with_tokens() {
+            if let Some(token) = token.as_token() {
+                match token.kind() {
+                    SyntaxKind::LEFT_ARROW => {
+                        found_arrow = true;
+                        break;
+                    }
+                    SyntaxKind::IDENT => {
+                        bindings.push(token.text().to_string());
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if !found_arrow {
+            return None;
+        }
+
+        // Extract the call expression (everything after `<-`)
+        let call_expr = self.lower_use_call_expr(&use_node)?;
+
+        // Build the callback body from remaining items
+        let body_items = self.lower_block_children(remaining, block_span);
+        let body = Expr {
+            span: block_span,
+            kind: ExprKind::Block(body_items),
+        };
+
+        // Build lambda params from bindings
+        let params: Vec<Param> = bindings
+            .into_iter()
+            .map(|name| Param {
+                name,
+                type_ann: None,
+                default: None,
+                destructure: None,
+                span: use_span,
+            })
+            .collect();
+
+        let lambda = Expr {
+            span: use_span,
+            kind: ExprKind::Arrow {
+                async_fn: false,
+                params,
+                body: Box::new(body),
+            },
+        };
+
+        // Append the lambda as the last argument to the call
+        match call_expr.kind {
+            ExprKind::Call {
+                callee,
+                type_args,
+                mut args,
+            } => {
+                args.push(Arg::Positional(lambda));
+                Some(Expr {
+                    span: use_span,
+                    kind: ExprKind::Call {
+                        callee,
+                        type_args,
+                        args,
+                    },
+                })
+            }
+            // If it's not a call (e.g. just an identifier), wrap it as a call with the lambda
+            _ => Some(Expr {
+                span: use_span,
+                kind: ExprKind::Call {
+                    callee: Box::new(call_expr),
+                    type_args: Vec::new(),
+                    args: vec![Arg::Positional(lambda)],
+                },
+            }),
+        }
+    }
+
+    /// Lower the call expression from a USE_DECL node (everything after `<-`).
+    fn lower_use_call_expr(&mut self, node: &SyntaxNode) -> Option<Expr> {
+        let mut after_arrow = false;
+        for child_or_token in node.children_with_tokens() {
+            if let Some(token) = child_or_token.as_token() {
+                if token.kind() == SyntaxKind::LEFT_ARROW {
+                    after_arrow = true;
+                    continue;
+                }
+                if after_arrow && !token.kind().is_trivia() {
+                    return self.token_to_expr(token);
+                }
+            } else if after_arrow && let Some(child) = child_or_token.into_node() {
+                return self.lower_expr_node(&child);
             }
         }
         None

@@ -59,6 +59,8 @@ pub enum TokenKind {
     Collect,
     /// `deriving` — auto-derive trait implementations for record types
     Deriving,
+    /// `use` — callback flattening (Gleam-style)
+    Use,
 
     // Built-in type constructors
     Ok,
@@ -79,6 +81,8 @@ pub enum TokenKind {
     Pipe,
     /// `->` — match arm arrow
     ThinArrow,
+    /// `<-` — use binding arrow
+    LeftArrow,
     /// `=>` — fat arrow (banned, kept for error reporting)
     FatArrow,
     /// `|` — vertical bar (union types)
@@ -267,6 +271,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "when" => Some(TokenKind::When),
         "collect" => Some(TokenKind::Collect),
         "deriving" => Some(TokenKind::Deriving),
+        "use" => Some(TokenKind::Use),
         "true" => Some(TokenKind::Bool(true)),
         "false" => Some(TokenKind::Bool(false)),
 

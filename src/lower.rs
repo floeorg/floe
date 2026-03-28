@@ -1708,4 +1708,77 @@ mod tests {
         let prog = lower("const x = 1\nconst y = 2");
         assert_eq!(prog.items.len(), 2);
     }
+
+    // ── Use desugaring ────────────────────────────────────────────
+
+    #[test]
+    fn use_desugars_to_callback() {
+        // `use x <- f(1)` followed by `x` should desugar to `f(1, fn(x) { x })`
+        let prog = lower("fn _test() -> number {\n    use x <- f(1)\n    x\n}");
+        let ItemKind::Function(decl) = &prog.items[0].kind else {
+            panic!("expected Function")
+        };
+        let ExprKind::Block(ref items) = decl.body.kind else {
+            panic!("expected Block")
+        };
+        assert_eq!(
+            items.len(),
+            1,
+            "use should desugar to a single call expression"
+        );
+        let ItemKind::Expr(ref expr) = items[0].kind else {
+            panic!("expected Expr")
+        };
+        let ExprKind::Call { ref args, .. } = expr.kind else {
+            panic!("expected Call, got {:?}", expr.kind)
+        };
+        assert_eq!(args.len(), 2, "call should have original arg + callback");
+    }
+
+    #[test]
+    fn use_zero_binding() {
+        // `use <- f()` followed by `g()` should desugar to `f(fn() { g() })`
+        let prog = lower("fn _test() -> () {\n    use <- f()\n    g()\n}");
+        let ItemKind::Function(decl) = &prog.items[0].kind else {
+            panic!("expected Function")
+        };
+        let ExprKind::Block(ref items) = decl.body.kind else {
+            panic!("expected Block")
+        };
+        assert_eq!(items.len(), 1);
+        let ItemKind::Expr(ref expr) = items[0].kind else {
+            panic!("expected Expr")
+        };
+        let ExprKind::Call { ref args, .. } = expr.kind else {
+            panic!("expected Call")
+        };
+        // The callback has zero params
+        if let Arg::Positional(ref callback) = args[0] {
+            if let ExprKind::Arrow { ref params, .. } = callback.kind {
+                assert_eq!(
+                    params.len(),
+                    0,
+                    "zero-binding use should produce zero-param callback"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn use_chained() {
+        // Two chained `use` statements should produce nested calls
+        let prog = lower("fn _test() -> () {\n    use x <- f()\n    use y <- g(x)\n    h(y)\n}");
+        let ItemKind::Function(decl) = &prog.items[0].kind else {
+            panic!("expected Function")
+        };
+        let ExprKind::Block(ref items) = decl.body.kind else {
+            panic!("expected Block")
+        };
+        // Should be a single item: f(fn(x) { g(x, fn(y) { h(y) }) })
+        assert_eq!(
+            items.len(),
+            1,
+            "chained use should nest into a single expression"
+        );
+    }
 }
