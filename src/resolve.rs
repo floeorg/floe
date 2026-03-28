@@ -388,6 +388,31 @@ fn resolve_spread_entries(
     result
 }
 
+/// Resolve a relative import path to a TypeScript file.
+/// Tries `source.ts`, `source.tsx`, `source/index.ts`, `source/index.tsx`.
+/// Used when the import doesn't resolve to a `.fl` file.
+pub fn resolve_ts_path(base_dir: &Path, source: &str) -> Option<PathBuf> {
+    let relative = PathBuf::from(source);
+    let base = base_dir.join(&relative);
+
+    for ext in &["ts", "tsx"] {
+        let candidate = base.with_extension(ext);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+
+    // Try source/index.ts, source/index.tsx
+    for ext in &["ts", "tsx"] {
+        let candidate = base.join("index").with_extension(ext);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
 /// Resolve a relative import path to an actual file path.
 /// Tries `source.fl` first, then `source/index.fl`.
 fn resolve_path(base_dir: &Path, source: &str) -> Option<PathBuf> {
@@ -735,5 +760,64 @@ mod tests {
         } else {
             panic!("expected C to be a Record type");
         }
+    }
+
+    // ── TypeScript path resolution ───────────────────────────────
+
+    #[test]
+    fn resolve_ts_path_ts_suffix() {
+        let (_dir, base) = setup_files(&[("utils.ts", "export function foo() {}")]);
+        let result = resolve_ts_path(&base, "./utils");
+        assert!(result.is_some());
+        assert!(result.unwrap().ends_with("utils.ts"));
+    }
+
+    #[test]
+    fn resolve_ts_path_tsx_suffix() {
+        let (_dir, base) = setup_files(&[("Button.tsx", "export function Button() {}")]);
+        let result = resolve_ts_path(&base, "./Button");
+        assert!(result.is_some());
+        assert!(result.unwrap().ends_with("Button.tsx"));
+    }
+
+    #[test]
+    fn resolve_ts_path_prefers_ts_over_tsx() {
+        let (_dir, base) = setup_files(&[
+            ("mod.ts", "export const a = 1"),
+            ("mod.tsx", "export const b = 2"),
+        ]);
+        let result = resolve_ts_path(&base, "./mod");
+        assert!(result.is_some());
+        assert!(result.unwrap().ends_with("mod.ts"));
+    }
+
+    #[test]
+    fn resolve_ts_path_index_fallback() {
+        let (_dir, base) = setup_files(&[("utils/index.ts", "export const x = 1")]);
+        let result = resolve_ts_path(&base, "./utils");
+        assert!(result.is_some());
+        assert!(result.unwrap().ends_with("index.ts"));
+    }
+
+    #[test]
+    fn resolve_ts_path_missing() {
+        let (_dir, base) = setup_files(&[]);
+        let result = resolve_ts_path(&base, "./nonexistent");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn resolve_ts_path_not_used_when_fl_exists() {
+        // When both .fl and .ts exist, resolve_path should find .fl
+        // and resolve_ts_path should find .ts — but the resolver
+        // only calls resolve_ts_path when .fl resolution fails.
+        let (_dir, base) = setup_files(&[
+            ("types.fl", "export type X { y: number }"),
+            ("types.ts", "export type X = { y: number }"),
+        ]);
+        let fl_result = resolve_path(&base, "./types");
+        let ts_result = resolve_ts_path(&base, "./types");
+        assert!(fl_result.unwrap().ends_with("types.fl"));
+        assert!(ts_result.unwrap().ends_with("types.ts"));
     }
 }

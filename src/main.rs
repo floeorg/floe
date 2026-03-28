@@ -123,7 +123,7 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
         .unwrap_or_else(|_| file_path.parent().unwrap_or(Path::new(".")).to_path_buf());
     let project_dir = find_project_dir(&source_dir);
     let mut tsgo_resolver = floe::interop::TsgoResolver::new(&project_dir);
-    let dts_map = tsgo_resolver.resolve_imports(&program, &resolved);
+    let dts_map = tsgo_resolver.resolve_imports(&program, &resolved, &source_dir);
 
     let checker = if dts_map.is_empty() {
         Checker::with_imports(resolved.clone())
@@ -287,7 +287,7 @@ fn cmd_check(path: &Path) -> Result<()> {
                     .unwrap_or_else(|_| file.parent().unwrap_or(Path::new(".")).to_path_buf());
                 let project_dir = find_project_dir(&source_dir);
                 let mut tsgo_resolver = floe::interop::TsgoResolver::new(&project_dir);
-                let dts_map = tsgo_resolver.resolve_imports(&program, &resolved);
+                let dts_map = tsgo_resolver.resolve_imports(&program, &resolved, &source_dir);
 
                 let check_diags = if dts_map.is_empty() {
                     Checker::with_imports(resolved).check(&program)

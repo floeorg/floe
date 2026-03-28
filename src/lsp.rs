@@ -247,7 +247,8 @@ impl FloeLsp {
 
                     // Use tsgo for fully-resolved types — no fallback
                     let mut tsgo_resolver = crate::interop::TsgoResolver::new(&project_dir);
-                    dts_map = tsgo_resolver.resolve_imports(&program, &resolved_imports);
+                    dts_map =
+                        tsgo_resolver.resolve_imports(&program, &resolved_imports, source_dir);
 
                     if !new_cache.is_empty() {
                         let mut cache_write = self.dts_cache.write().await;

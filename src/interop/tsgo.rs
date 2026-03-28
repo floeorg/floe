@@ -30,17 +30,23 @@ impl TsgoResolver {
         }
     }
 
-    /// Resolve npm imports in a program by generating a probe file, running
-    /// tsgo, and parsing the output `.d.ts`.
+    /// Resolve npm and local TypeScript imports in a program by generating a
+    /// probe file, running tsgo, and parsing the output `.d.ts`.
     ///
-    /// Returns a map from npm specifier to its resolved exports. The exports
-    /// contain fully-resolved types (no unresolved generics).
+    /// `source_dir` is the directory of the `.fl` file being compiled, used to
+    /// resolve relative imports to local `.ts`/`.tsx` files.
+    ///
+    /// Returns a map from specifier (npm or relative) to its resolved exports.
     pub fn resolve_imports(
         &mut self,
         program: &Program,
         resolved_imports: &HashMap<String, crate::resolve::ResolvedImports>,
+        source_dir: &Path,
     ) -> HashMap<String, Vec<DtsExport>> {
-        let probe = generate_probe(program, resolved_imports);
+        // Find relative imports that resolved to .ts/.tsx (not .fl)
+        let ts_imports = find_relative_ts_imports(program, resolved_imports, source_dir);
+
+        let probe = generate_probe(program, resolved_imports, &ts_imports);
         if probe.is_empty() {
             return HashMap::new();
         }
@@ -53,7 +59,7 @@ impl TsgoResolver {
         };
         if let Some(cached) = self.cache.get(&hash) {
             // Reconstruct the specifier map from cached exports
-            return build_specifier_map(program, cached);
+            return build_specifier_map(program, cached, &ts_imports);
         }
 
         // Create temp directory with probe file and tsconfig
@@ -91,8 +97,31 @@ impl TsgoResolver {
         // Cache the result
         self.cache.insert(hash, exports.clone());
 
-        build_specifier_map(program, &exports)
+        build_specifier_map(program, &exports, &ts_imports)
     }
+}
+
+/// Find relative imports that don't resolve to `.fl` files but do resolve to
+/// `.ts`/`.tsx` files. Returns a map from the original import source (e.g.
+/// `"../utils/date"`) to its absolute file path.
+fn find_relative_ts_imports(
+    program: &Program,
+    resolved_imports: &HashMap<String, crate::resolve::ResolvedImports>,
+    source_dir: &Path,
+) -> HashMap<String, PathBuf> {
+    let mut ts_imports = HashMap::new();
+    for item in &program.items {
+        if let ItemKind::Import(decl) = &item.kind {
+            let is_relative = decl.source.starts_with("./") || decl.source.starts_with("../");
+            if is_relative
+                && !resolved_imports.contains_key(&decl.source)
+                && let Some(ts_path) = crate::resolve::resolve_ts_path(source_dir, &decl.source)
+            {
+                ts_imports.insert(decl.source.clone(), ts_path);
+            }
+        }
+    }
+    ts_imports
 }
 
 /// Information about a const declaration that calls an imported function.
@@ -152,22 +181,28 @@ fn collect_consts_from_expr<'a>(expr: &'a Expr, consts: &mut Vec<&'a ConstDecl>)
 }
 
 /// Generate the TypeScript probe file content from a Floe program.
+///
+/// `ts_imports` maps relative import sources to their absolute `.ts`/`.tsx`
+/// paths, so the probe can import them using absolute paths that tsgo can
+/// resolve from the temp directory.
 fn generate_probe(
     program: &Program,
     resolved_imports: &HashMap<String, crate::resolve::ResolvedImports>,
+    ts_imports: &HashMap<String, PathBuf>,
 ) -> String {
     let mut lines = Vec::new();
     let mut probe_index = 0usize;
 
-    // Collect npm import specifiers and their imported names
-    let mut npm_imports: Vec<(&ImportDecl, &Item)> = Vec::new();
+    // Collect external import specifiers (npm + relative TS) and their imported names
+    let mut external_imports: Vec<(&ImportDecl, &Item)> = Vec::new();
     let mut imported_names: HashMap<String, String> = HashMap::new(); // name -> specifier
 
     for item in &program.items {
         if let ItemKind::Import(decl) = &item.kind {
             let is_relative = decl.source.starts_with("./") || decl.source.starts_with("../");
-            if !is_relative {
-                npm_imports.push((decl, item));
+            let is_ts_import = ts_imports.contains_key(&decl.source);
+            if !is_relative || is_ts_import {
+                external_imports.push((decl, item));
                 for spec in &decl.specifiers {
                     let effective_name = spec.alias.as_deref().unwrap_or(&spec.name);
                     imported_names.insert(effective_name.to_string(), decl.source.clone());
@@ -176,12 +211,12 @@ fn generate_probe(
         }
     }
 
-    if npm_imports.is_empty() {
+    if external_imports.is_empty() {
         return String::new();
     }
 
     // Emit import statements
-    for (decl, _) in &npm_imports {
+    for (decl, _) in &external_imports {
         let names: Vec<String> = decl
             .specifiers
             .iter()
@@ -193,10 +228,17 @@ fn generate_probe(
                 }
             })
             .collect();
+        // For relative TS imports, use the absolute path so tsgo can find them
+        // from the temp directory
+        let source = if let Some(abs_path) = ts_imports.get(&decl.source) {
+            abs_path.to_string_lossy().into_owned()
+        } else {
+            decl.source.clone()
+        };
         lines.push(format!(
             "import {{ {} }} from \"{}\";",
             names.join(", "),
-            decl.source
+            source
         ));
     }
 
@@ -1033,16 +1075,18 @@ fn run_tsgo(probe_dir: &Path) -> Result<String, String> {
 fn build_specifier_map(
     program: &Program,
     probe_exports: &[DtsExport],
+    ts_imports: &HashMap<String, PathBuf>,
 ) -> HashMap<String, Vec<DtsExport>> {
     let mut result: HashMap<String, Vec<DtsExport>> = HashMap::new();
     let mut probe_index = 0usize;
 
-    // Collect npm imports
+    // Collect external imports (npm + relative TS)
     let mut imported_names: HashMap<String, String> = HashMap::new();
     for item in &program.items {
         if let ItemKind::Import(decl) = &item.kind {
             let is_relative = decl.source.starts_with("./") || decl.source.starts_with("../");
-            if !is_relative {
+            let is_ts_import = ts_imports.contains_key(&decl.source);
+            if !is_relative || is_ts_import {
                 for spec in &decl.specifiers {
                     let effective_name = spec.alias.as_deref().unwrap_or(&spec.name);
                     imported_names.insert(effective_name.to_string(), decl.source.clone());
@@ -1307,7 +1351,7 @@ mod tests {
         let source = r#"import { useState } from "react"
 const [count, setCount] = useState(0)"#;
         let program = Parser::new(source).parse_program().unwrap();
-        let probe = generate_probe(&program, &HashMap::new());
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         assert!(probe.contains("import { useState } from \"react\";"));
         // Array binding: destructures into _r0_0, _r0_1
@@ -1321,7 +1365,7 @@ const [count, setCount] = useState(0)"#;
 type Todo { text: string }
 const [todos, setTodos] = useState<Array<Todo>>([])"#;
         let program = Parser::new(source).parse_program().unwrap();
-        let probe = generate_probe(&program, &HashMap::new());
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         assert!(probe.contains("import { useState } from \"react\";"));
         assert!(probe.contains("type Todo = {"));
@@ -1334,7 +1378,7 @@ const [todos, setTodos] = useState<Array<Todo>>([])"#;
         let source = r#"import { foo } from "./local"
 const x = 42"#;
         let program = Parser::new(source).parse_program().unwrap();
-        let probe = generate_probe(&program, &HashMap::new());
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         assert!(probe.is_empty());
     }
@@ -1344,7 +1388,7 @@ const x = 42"#;
         let source = r#"import { useState, useEffect } from "react"
 const [count, setCount] = useState(0)"#;
         let program = Parser::new(source).parse_program().unwrap();
-        let probe = generate_probe(&program, &HashMap::new());
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         // Array binding: destructured
         assert!(probe.contains("_tmp0 = useState(0);"));
@@ -1383,10 +1427,10 @@ const [todos, setTodos] = useState<Array<Todo>>([])
 const [input, setInput] = useState("")
 "#;
         let program = Parser::new(source).parse_program().unwrap();
-        let probe = generate_probe(&program, &HashMap::new());
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
         eprintln!("PROBE:\n{probe}");
         let mut resolver = TsgoResolver::new(&todo_app_dir);
-        let result = resolver.resolve_imports(&program, &HashMap::new());
+        let result = resolver.resolve_imports(&program, &HashMap::new(), Path::new("."));
 
         eprintln!("tsgo result keys: {:?}", result.keys().collect::<Vec<_>>());
         if let Some(react_exports) = result.get("react") {
@@ -1429,11 +1473,11 @@ const [filter, setFilter] = useState<Filter>(Filter.All)
         let program = Parser::new(source).parse_program().unwrap();
 
         // Check what probe is generated
-        let probe = generate_probe(&program, &HashMap::new());
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
         eprintln!("PROBE:\n{probe}");
 
         let mut resolver = TsgoResolver::new(&todo_app_dir);
-        let result = resolver.resolve_imports(&program, &HashMap::new());
+        let result = resolver.resolve_imports(&program, &HashMap::new(), Path::new("."));
 
         if let Some(react_exports) = result.get("react") {
             for export in react_exports {
@@ -1557,7 +1601,7 @@ fn test() {
         imports.function_decls.push(fetch_fn);
         resolved.insert("./api".to_string(), imports);
 
-        let probe = generate_probe(&program, &resolved);
+        let probe = generate_probe(&program, &resolved, &HashMap::new());
 
         // Should contain the declare function stub
         assert!(
@@ -1574,5 +1618,42 @@ fn test() {
             !probe.contains("declare const fetchProducts: any"),
             "fetchProducts should not be declared as `any`, got:\n{probe}"
         );
+    }
+
+    #[test]
+    fn generate_probe_includes_relative_ts_imports() {
+        let source = r#"import trusted { newDate } from "../utils/date"
+const year = newDate()"#;
+        let program = Parser::new(source).parse_program().unwrap();
+
+        // Simulate a resolved TS path
+        let mut ts_imports = HashMap::new();
+        ts_imports.insert(
+            "../utils/date".to_string(),
+            PathBuf::from("/project/src/utils/date.ts"),
+        );
+
+        let probe = generate_probe(&program, &HashMap::new(), &ts_imports);
+
+        // Should import using the absolute path
+        assert!(
+            probe.contains("import { newDate } from \"/project/src/utils/date.ts\";"),
+            "probe should use absolute path for relative TS import, got:\n{probe}"
+        );
+        // Should re-export to get the type
+        assert!(
+            probe.contains("= newDate;"),
+            "probe should re-export newDate, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_empty_when_only_fl_imports() {
+        // Relative imports that resolve to .fl files should not be in the probe
+        let source = r#"import { User } from "./types"
+const x = 42"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+        assert!(probe.is_empty());
     }
 }
