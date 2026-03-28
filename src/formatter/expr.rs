@@ -12,10 +12,13 @@ impl Formatter<'_> {
     pub(crate) fn fmt_block(&mut self, node: &SyntaxNode) {
         self.write("{");
 
-        // Collect items with whether a blank line preceded them in the source.
-        // Blank lines can appear either as whitespace tokens between items at the
-        // block level, or as trailing trivia inside the previous item.
-        let mut items: Vec<(SyntaxNode, bool)> = Vec::new();
+        // Block entries: either items/exprs or standalone comments.
+        enum BlockEntry {
+            Item(SyntaxNode, bool), // (node, had_blank_before)
+            Comment(String, bool),  // (text, had_blank_before)
+        }
+
+        let mut entries: Vec<BlockEntry> = Vec::new();
         let mut saw_blank = false;
 
         for child_or_tok in node.children_with_tokens() {
@@ -25,37 +28,65 @@ impl Formatter<'_> {
                         && tok.text().chars().filter(|&c| c == '\n').count() >= 2
                     {
                         saw_blank = true;
+                    } else if tok.kind() == SyntaxKind::COMMENT
+                        || tok.kind() == SyntaxKind::BLOCK_COMMENT
+                    {
+                        entries.push(BlockEntry::Comment(tok.text().to_string(), saw_blank));
+                        saw_blank = false;
                     }
                 }
                 rowan::NodeOrToken::Node(child)
                     if child.kind() == SyntaxKind::ITEM
                         || child.kind() == SyntaxKind::EXPR_ITEM =>
                 {
+                    let trailing_comments = self.trailing_comments_in(&child);
                     let trailing_blank = self.has_trailing_blank_line(&child);
-                    items.push((child, saw_blank));
+                    entries.push(BlockEntry::Item(child, saw_blank));
                     saw_blank = trailing_blank;
+                    for comment in trailing_comments {
+                        entries.push(BlockEntry::Comment(comment, false));
+                    }
                 }
                 _ => {}
             }
         }
 
-        if items.is_empty() {
+        if entries.is_empty() {
             self.write("}");
             return;
         }
 
-        let item_count = items.len();
+        // Count only items (not comments) for final-expr blank line logic
+        let item_count = entries
+            .iter()
+            .filter(|e| matches!(e, BlockEntry::Item(..)))
+            .count();
+        let mut item_index = 0;
+
         self.indent += 1;
-        for (i, (child, had_blank)) in items.iter().enumerate() {
-            if i > 0 {
-                let is_final_expr = item_count >= 2 && i == item_count - 1;
-                if *had_blank || is_final_expr {
+        for (i, entry) in entries.iter().enumerate() {
+            match entry {
+                BlockEntry::Item(child, had_blank) => {
+                    if i > 0 {
+                        let is_final_expr = item_count >= 2 && item_index == item_count - 1;
+                        if *had_blank || is_final_expr {
+                            self.newline();
+                        }
+                    }
                     self.newline();
+                    self.write_indent();
+                    self.fmt_node(child);
+                    item_index += 1;
+                }
+                BlockEntry::Comment(text, had_blank) => {
+                    if i > 0 && *had_blank {
+                        self.newline();
+                    }
+                    self.newline();
+                    self.write_indent();
+                    self.write(text);
                 }
             }
-            self.newline();
-            self.write_indent();
-            self.fmt_node(child);
         }
         self.indent -= 1;
         self.newline();
