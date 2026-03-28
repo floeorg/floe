@@ -3121,3 +3121,137 @@ fn uppercase_variant_name_ok() {
 
 // Note: uppercase field names are already rejected by the parser
 // (uppercase identifiers are parsed as types/variants, not field names)
+
+// ── Bug #516: For-block functions from different types clash ──
+
+#[test]
+fn for_block_same_fn_name_different_types_no_conflict() {
+    // Importing a type whose for-block defines `fromRow`, then defining a local
+    // for-block with the same function name on a different type, should NOT error.
+    use crate::lexer::span::Span;
+    use crate::parser::ast::*;
+    use crate::resolve::ResolvedImports;
+    use std::collections::HashMap;
+
+    let dummy_span = Span::new(0, 0, 0, 0);
+
+    let mut imports = HashMap::new();
+    let mut resolved = ResolvedImports::default();
+
+    // Simulate: type Accent { id: number }
+    resolved.type_decls.push(TypeDecl {
+        exported: true,
+        opaque: false,
+        name: "Accent".to_string(),
+        type_params: vec![],
+        def: TypeDef::Record(vec![RecordEntry::Field(Box::new(RecordField {
+            name: "id".to_string(),
+            type_ann: TypeExpr {
+                kind: TypeExprKind::Named {
+                    name: "number".to_string(),
+                    type_args: vec![],
+                    bounds: vec![],
+                },
+                span: dummy_span,
+            },
+            default: None,
+            span: dummy_span,
+        }))]),
+        deriving: vec![],
+    });
+
+    // Simulate: for Accent { export fn fromRow() -> Accent { ... } }
+    resolved.for_blocks.push(ForBlock {
+        type_name: TypeExpr {
+            kind: TypeExprKind::Named {
+                name: "Accent".to_string(),
+                type_args: vec![],
+                bounds: vec![],
+            },
+            span: dummy_span,
+        },
+        trait_name: None,
+        functions: vec![FunctionDecl {
+            exported: true,
+            async_fn: false,
+            name: "fromRow".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(TypeExpr {
+                kind: TypeExprKind::Named {
+                    name: "Accent".to_string(),
+                    type_args: vec![],
+                    bounds: vec![],
+                },
+                span: dummy_span,
+            }),
+            body: Box::new(Expr {
+                id: ExprId(0),
+                kind: ExprKind::Construct {
+                    type_name: "Accent".to_string(),
+                    spread: None,
+                    args: vec![Arg::Named {
+                        label: "id".to_string(),
+                        value: Expr {
+                            id: ExprId(0),
+                            kind: ExprKind::Number("0".to_string()),
+                            ty: Type::Unknown,
+                            span: dummy_span,
+                        },
+                    }],
+                },
+                ty: Type::Unknown,
+                span: dummy_span,
+            }),
+        }],
+        span: dummy_span,
+    });
+
+    imports.insert("./accent".to_string(), resolved);
+
+    let source = r#"
+import { Accent } from "./accent"
+
+type Entry {
+    id: number,
+    accents: Array<Accent>,
+}
+
+for Entry {
+    export fn fromRow() -> Entry {
+        Entry(id: 0, accents: [])
+    }
+}
+"#;
+
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let diags = Checker::with_imports(imports).check(&program);
+    assert!(
+        !has_error(&diags, "E016"),
+        "for-block functions with the same name on different types should not conflict, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn for_block_same_fn_name_same_type_still_errors() {
+    // Two for-blocks on the SAME type with the same function name SHOULD error.
+    let diags = check(
+        r#"
+type Todo { text: string }
+for Todo {
+    fn format(self) -> string { self.text }
+}
+for Todo {
+    fn format(self) -> string { self.text }
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, "E016"),
+        "duplicate for-block function on same type should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

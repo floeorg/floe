@@ -119,6 +119,9 @@ pub struct Checker {
     fn_required_params: HashMap<String, usize>,
     /// Maps function names to their parameter names (for validating named arguments).
     fn_param_names: HashMap<String, Vec<String>>,
+    /// Maps for-block function names to their parent type name.
+    /// Used to allow same-named functions on different types (e.g. Entry.fromRow, Accent.fromRow).
+    for_block_fn_types: HashMap<String, String>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -287,6 +290,7 @@ impl Checker {
             ambiguous_variants: HashMap::new(),
             fn_required_params: HashMap::new(),
             fn_param_names: HashMap::new(),
+            for_block_fn_types: HashMap::new(),
         }
     }
 
@@ -1169,6 +1173,10 @@ impl Checker {
     /// Register for-block functions from an imported module without checking bodies.
     fn check_for_block_imported_with_source(&mut self, block: &ForBlock, source: &str) {
         let for_type = self.resolve_type(&block.type_name);
+        let type_name = match &block.type_name.kind {
+            TypeExprKind::Named { name, .. } => name.clone(),
+            _ => String::new(),
+        };
 
         for func in &block.functions {
             let return_type = func
@@ -1201,6 +1209,8 @@ impl Checker {
                 func.name.clone(),
                 format!("for-block function from \"{}\"", source),
             );
+            self.for_block_fn_types
+                .insert(func.name.clone(), type_name.clone());
 
             // Track required (non-default) parameter count
             let required_params = func.params.iter().filter(|p| p.default.is_none()).count();
@@ -1592,6 +1602,10 @@ impl Checker {
 
     fn check_for_block(&mut self, block: &ForBlock, _span: Span) {
         let for_type = self.resolve_type(&block.type_name);
+        let type_name = match &block.type_name.kind {
+            TypeExprKind::Named { name, .. } => name.clone(),
+            _ => String::new(),
+        };
 
         // If this is a trait impl block, validate the trait contract
         if let Some(ref trait_name) = block.trait_name {
@@ -1627,11 +1641,21 @@ impl Checker {
                 params: param_types.clone(),
                 return_type: Box::new(return_type.clone()),
             };
-            self.check_no_redefinition(&func.name, block.span);
+            // Allow for-block functions with the same name on different types
+            // (e.g. Entry.fromRow and Accent.fromRow are not in conflict)
+            let is_different_for_block = self
+                .for_block_fn_types
+                .get(&func.name)
+                .is_some_and(|existing_type| *existing_type != type_name);
+            if !is_different_for_block {
+                self.check_no_redefinition(&func.name, block.span);
+            }
             self.env.define(&func.name, fn_type);
             self.unused
                 .defined_sources
                 .insert(func.name.clone(), "for-block function".to_string());
+            self.for_block_fn_types
+                .insert(func.name.clone(), type_name.clone());
 
             // Track required (non-default) parameter count
             let required_params = func.params.iter().filter(|p| p.default.is_none()).count();

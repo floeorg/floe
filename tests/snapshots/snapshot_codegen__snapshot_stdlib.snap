@@ -1,6 +1,5 @@
 ---
 source: tests/snapshot_codegen.rs
-assertion_line: 100
 expression: output
 ---
 function __floeEq(a: unknown, b: unknown): boolean {
@@ -183,6 +182,28 @@ const _set_inter = new Set([..._set].filter(x => _set2.has(x)));
 
 const _set_diff = new Set([..._set].filter(x => !_set2.has(x)));
 
+const _date_now = new Date();
+
+const _date_from = new Date("2024-01-15");
+
+const _date_from_ms = new Date(1705276800000);
+
+const _date_year = _date_now.getFullYear();
+
+const _date_month = (_date_now.getMonth() + 1);
+
+const _date_day = _date_now.getDate();
+
+const _date_hour = _date_now.getHours();
+
+const _date_minute = _date_now.getMinutes();
+
+const _date_second = _date_now.getSeconds();
+
+const _date_millis = _date_now.getTime();
+
+const _date_iso = _date_now.toISOString();
+
 const _piped = [...[3, 1, 2]].sort((a, b) => a - b);
 
 const _pipe_chain = [...[1, 2, 3, 4, 5].filter((n) => n > 2).map((n) => n * 10)].reverse();
@@ -192,3 +213,5 @@ const _pipe_opt = 10 !== undefined ? ((n) => n + 1)(10) : undefined;
 const _pipe_str = "  hello  ".trim();
 
 const _pipe_num = (() => { const _n = Number("42"); return Number.isNaN(_n) || "42".trim() === "" ? { ok: false as const, error: { message: `Failed to parse "${"42"}" as number` } } : { ok: true as const, value: _n }; })();
+
+const _pipe_date = new Date().toISOString();

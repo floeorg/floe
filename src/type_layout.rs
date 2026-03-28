@@ -39,6 +39,7 @@ pub const MOD_OPTION: &str = "Option";
 pub const MOD_RESULT: &str = "Result";
 pub const MOD_MAP: &str = "Map";
 pub const MOD_SET: &str = "Set";
+pub const MOD_DATE: &str = "Date";
 
 // ── Variant classification ───────────────────────────────────────
 
@@ -130,6 +131,7 @@ pub fn type_to_stdlib_module(ty: &crate::checker::Type) -> Option<&'static str> 
         Type::Number => Some(MOD_NUMBER),
         Type::Option(_) => Some(MOD_OPTION),
         Type::Result { .. } => Some(MOD_RESULT),
+        Type::Named(name) if name == "Date" => Some(MOD_DATE),
         _ => None,
     }
 }

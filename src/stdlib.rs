@@ -239,6 +239,18 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Set", "union", [set_of(t.clone()), set_of(t.clone())], set_of(t.clone()), "new Set([...$0, ...$1])"),
         stdlib_fn!("Set", "intersect", [set_of(t.clone()), set_of(t.clone())], set_of(t.clone()), "new Set([...$0].filter(x => $1.has(x)))"),
         stdlib_fn!("Set", "diff", [set_of(t.clone()), set_of(t.clone())], set_of(t.clone()), "new Set([...$0].filter(x => !$1.has(x)))"),
+        // ── Date ───────────────────────────────────────────────────
+        stdlib_fn!("Date", "now", [], Type::Named("Date".to_string()), "new Date()"),
+        stdlib_fn!("Date", "from", [Type::String], Type::Named("Date".to_string()), "new Date($0)"),
+        stdlib_fn!("Date", "fromMillis", [Type::Number], Type::Named("Date".to_string()), "new Date($0)"),
+        stdlib_fn!("Date", "year", [Type::Named("Date".to_string())], Type::Number, "$0.getFullYear()"),
+        stdlib_fn!("Date", "month", [Type::Named("Date".to_string())], Type::Number, "($0.getMonth() + 1)"),
+        stdlib_fn!("Date", "day", [Type::Named("Date".to_string())], Type::Number, "$0.getDate()"),
+        stdlib_fn!("Date", "hour", [Type::Named("Date".to_string())], Type::Number, "$0.getHours()"),
+        stdlib_fn!("Date", "minute", [Type::Named("Date".to_string())], Type::Number, "$0.getMinutes()"),
+        stdlib_fn!("Date", "second", [Type::Named("Date".to_string())], Type::Number, "$0.getSeconds()"),
+        stdlib_fn!("Date", "millis", [Type::Named("Date".to_string())], Type::Number, "$0.getTime()"),
+        stdlib_fn!("Date", "toIso", [Type::Named("Date".to_string())], Type::String, "$0.toISOString()"),
         // ── Http ──────────────────────────────────────────────────
         stdlib_fn!("Http", "get", [Type::String], result_of(Type::Named("Response".to_string()), Type::Named("Error".to_string())), "(async () => { try { const _r = await fetch($0); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
         stdlib_fn!("Http", "post", [Type::String, Type::Unknown], result_of(Type::Named("Response".to_string()), Type::Named("Error".to_string())), "(async () => { try { const _r = await fetch($0, { method: \"POST\", body: JSON.stringify($1), headers: { \"Content-Type\": \"application/json\" } }); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
@@ -558,6 +570,7 @@ mod tests {
         assert!(reg.is_module("Map"));
         assert!(reg.is_module("Set"));
         assert!(reg.is_module("Http"));
+        assert!(reg.is_module("Date"));
         assert!(!reg.is_module("Foo"));
     }
 
@@ -575,6 +588,57 @@ mod tests {
         assert!(reg.module_functions("Map").len() >= 12);
         assert!(reg.module_functions("Set").len() >= 11);
         assert!(reg.module_functions("Http").len() >= 6);
+        assert!(reg.module_functions("Date").len() >= 11);
+    }
+
+    #[test]
+    fn lookup_date_now() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Date", "now").unwrap();
+        assert_eq!(f.codegen, "new Date()");
+        assert!(f.params.is_empty());
+    }
+
+    #[test]
+    fn lookup_date_from() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Date", "from").unwrap();
+        assert_eq!(f.codegen, "new Date($0)");
+    }
+
+    #[test]
+    fn lookup_date_from_millis() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Date", "fromMillis").unwrap();
+        assert_eq!(f.codegen, "new Date($0)");
+    }
+
+    #[test]
+    fn lookup_date_year() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Date", "year").unwrap();
+        assert_eq!(f.codegen, "$0.getFullYear()");
+    }
+
+    #[test]
+    fn lookup_date_month() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Date", "month").unwrap();
+        assert_eq!(f.codegen, "($0.getMonth() + 1)");
+    }
+
+    #[test]
+    fn lookup_date_millis() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Date", "millis").unwrap();
+        assert_eq!(f.codegen, "$0.getTime()");
+    }
+
+    #[test]
+    fn lookup_date_to_iso() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Date", "toIso").unwrap();
+        assert_eq!(f.codegen, "$0.toISOString()");
     }
 
     #[test]

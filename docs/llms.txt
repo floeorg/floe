@@ -375,6 +375,16 @@ const isUrgent = tags |> Set.has("urgent")    // boolean
 const teamAll = Set.union(teamA, teamB)
 const overlap = Set.intersect(teamA, teamB)
 const diff = Set.diff(teamA, teamB)
+
+// Date — construction and accessors (no `new` keyword in Floe)
+const now = Date.now()                        // new Date()
+const d = Date.from("2024-01-15")             // new Date("2024-01-15")
+const d2 = Date.fromMillis(1705276800000)     // new Date(1705276800000)
+const year = d |> Date.year                   // d.getFullYear()
+const month = d |> Date.month                 // d.getMonth() + 1 (1-indexed!)
+const day = d |> Date.day                     // d.getDate()
+const ms = d |> Date.millis                   // d.getTime()
+const iso = d |> Date.toIso                   // d.toISOString()
 ```
 
 ## Imports
