@@ -1,9 +1,9 @@
-import { Suspense } from "react"
-import { useSuspenseQuery, QueryErrorResetBoundary } from "@tanstack/react-query"
-import { ErrorBoundary } from "react-error-boundary"
-import { Link } from "@tanstack/react-router"
+import trusted { Suspense } from "react"
+import trusted { useSuspenseQuery, QueryErrorResetBoundary } from "@tanstack/react-query"
+import trusted { ErrorBoundary } from "react-error-boundary"
+import trusted { Link } from "@tanstack/react-router"
 import { Product, ProductId, Review } from "../types"
-import { formatPrice } from "../product"
+import { for Product, formatPrice } from "../product"
 import { fetchProduct } from "../api"
 
 // ── Star rating display ────────────────────────────────
@@ -172,9 +172,9 @@ export fn ProductDetailPage(
             to="/"
             className="mb-6 inline-block text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
         >{"<- Back to catalog"}</Link>
-        <QueryErrorResetBoundary>{(reset) => <ErrorBoundary
+        <QueryErrorResetBoundary>{({ reset }) => <ErrorBoundary
             onReset={reset}
-            fallbackRender={(resetErrorBoundary) => <div
+            fallbackRender={({ resetErrorBoundary, error }) => <div
                 className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
             >
                 <p className="mb-3 text-red-400">{`Failed to load product: ${error.message}`}</p>

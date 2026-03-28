@@ -1,6 +1,6 @@
-import { useState, Suspense } from "react"
-import { useSuspenseQuery, QueryClient, QueryClientProvider, QueryErrorResetBoundary } from "@tanstack/react-query"
-import { ErrorBoundary } from "react-error-boundary"
+import trusted { useState, Suspense } from "react"
+import trusted { useSuspenseQuery, QueryClient, QueryClientProvider, QueryErrorResetBoundary } from "@tanstack/react-query"
+import trusted { ErrorBoundary } from "react-error-boundary"
 
 type Post {
     id: number,
@@ -123,9 +123,9 @@ export fn PostsPage() -> JSX.Element {
     <QueryClientProvider client={queryClient}>
         <h1 className="mb-2 text-3xl font-bold">Posts</h1>
         <p className="mb-6 text-zinc-400">TanStack Query + Suspense demo using JSONPlaceholder API.</p>
-        <QueryErrorResetBoundary>{(reset) => <ErrorBoundary
+        <QueryErrorResetBoundary>{({ reset }) => <ErrorBoundary
             onReset={reset}
-            fallbackRender={(resetErrorBoundary) => <div
+            fallbackRender={({ resetErrorBoundary, error }) => <div
                 className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
             >
                 <p className="mb-3 text-red-400">{`Failed to load posts: ${error.message}`}</p>

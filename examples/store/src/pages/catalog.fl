@@ -1,10 +1,10 @@
-import { useState, Suspense } from "react"
-import { useSuspenseQuery, QueryErrorResetBoundary } from "@tanstack/react-query"
-import { ErrorBoundary } from "react-error-boundary"
-import { Link } from "@tanstack/react-router"
+import trusted { useState, Suspense } from "react"
+import trusted { useSuspenseQuery, QueryErrorResetBoundary } from "@tanstack/react-query"
+import trusted { ErrorBoundary } from "react-error-boundary"
+import trusted { Link } from "@tanstack/react-router"
 import { Product, SortOrder, PriceRange, ApiError } from "../types"
-import { sortProducts, matchesPrice, formatPrice } from "../product"
-import from "../errors"
+import { for Product, for Array, sortProducts, matchesPrice, formatPrice } from "../product"
+import { for ApiError } from "../errors"
 import { fetchProducts, fetchCategories, CategoryResponse } from "../api"
 
 // ── Product card ───────────────────────────────────────
@@ -116,13 +116,13 @@ fn FilterSidebar(
             >Price</h3>
             <div className="space-y-1">{priceRanges |> Array.map(
                 (pair: (string, PriceRange)) => <button
-                    key={pair.pair}
-                    onClick={() => props.onPriceRangeChange(pair.pair)}
-                    className={(props.priceRange == pair.pair) |> match {
+                    key={pair.0}
+                    onClick={() => props.onPriceRangeChange(pair.1)}
+                    className={(props.priceRange == pair.1) |> match {
                         true -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                         false -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
                     }}
-                >{pair.pair}</button>,
+                >{pair.0}</button>,
             )}</div>
         </div>
         <div>
@@ -131,13 +131,13 @@ fn FilterSidebar(
             >Sort By</h3>
             <div className="space-y-1">{sortOptions |> Array.map(
                 (pair: (string, SortOrder)) => <button
-                    key={pair.pair}
-                    onClick={() => props.onSortChange(pair.pair)}
-                    className={(props.sortOrder == pair.pair) |> match {
+                    key={pair.0}
+                    onClick={() => props.onSortChange(pair.1)}
+                    className={(props.sortOrder == pair.1) |> match {
                         true -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                         false -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
                     }}
-                >{pair.pair}</button>,
+                >{pair.0}</button>,
             )}</div>
         </div>
     </aside>
@@ -259,9 +259,9 @@ export fn CatalogPage(props: { onAddToCart: (Product) => () }) -> JSX.Element {
                  />
             </Suspense>
             <div className="flex-1">
-                <QueryErrorResetBoundary>{(reset) => <ErrorBoundary
+                <QueryErrorResetBoundary>{({ reset }) => <ErrorBoundary
                     onReset={reset}
-                    fallbackRender={(resetErrorBoundary) => <div
+                    fallbackRender={({ resetErrorBoundary, error }) => <div
                         className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
                     >
                         <p className="mb-3 text-red-400">{`Failed to load products: ${error.message}`}</p>
