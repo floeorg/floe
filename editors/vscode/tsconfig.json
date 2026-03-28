@@ -8,7 +8,7 @@
     "rootDir": "src",
     "strict": true,
     "moduleResolution": "node10",
-    "ignoreDeprecations": "5.0",
+    "ignoreDeprecations": "6.0",
     "skipLibCheck": true
   },
   "exclude": ["node_modules", "out"]
