@@ -45,16 +45,16 @@ fn undeclared_variable() {
     assert!(has_error_containing(&diags, "is not defined"));
 }
 
-// ── Rule 2: Brand enforcement ───────────────────────────────
+// ── Rule 2: Newtype enforcement ─────────────────────────────
 
 #[test]
-fn brand_comparison_different_tags() {
+fn newtype_comparison_different_types() {
     let diags = check(
         r#"
-type UserId = Brand<string, UserId>
-type Email = Brand<string, Email>
-const a: UserId = UserId("abc")
-const b: Email = Email("test@test.com")
+type UserId { string }
+type Email { string }
+const a = UserId("abc")
+const b = Email("test@test.com")
 const result = a == b
 "#,
     );

@@ -65,10 +65,7 @@ fn format_type_union() {
 
 #[test]
 fn format_type_alias() {
-    assert_fmt(
-        "type UserId = Brand<string,UserId>",
-        "type UserId = Brand<string, UserId>",
-    );
+    assert_fmt("type StringAlias = string", "type StringAlias = string");
 }
 
 // ── Expressions ─────────────────────────────────────────────

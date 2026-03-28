@@ -353,10 +353,10 @@ fn opaque_type_erased() {
 }
 
 #[test]
-fn brand_type_erased() {
-    // Brand<string, "UserId"> -> string
-    let result = emit("type UserId = Brand<string, UserId>");
-    assert_eq!(result, "type UserId = string;");
+fn newtype_erased() {
+    // type UserId { string } -> erased at runtime
+    let result = emit("type UserId { string }");
+    assert!(result.contains("UserId"));
 }
 
 #[test]

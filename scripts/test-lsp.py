@@ -1919,7 +1919,7 @@ def main():
     h = hover_text(lsp.hover(URI, 0, 3))  # fn label
     check("Tour: hover on pipe-into-match fn", h is not None and "label" in (h or ""), f"Got: {h}")
 
-    # Branded types
+    # Newtype wrappers
     lsp.open_doc(URI, NEWTYPE_WRAPPER)
     lsp.collect_notifications("textDocument/publishDiagnostics", timeout=1)
     names = symbol_names(lsp.document_symbols(URI))

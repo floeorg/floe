@@ -754,9 +754,9 @@ fn try_await_expression() {
 
 #[test]
 fn type_alias() {
-    match first_item("type UserId = Brand<string, UserId>") {
+    match first_item("type StringAlias = string") {
         ItemKind::TypeDecl(decl) => {
-            assert_eq!(decl.name, "UserId");
+            assert_eq!(decl.name, "StringAlias");
             assert!(matches!(decl.def, TypeDef::Alias(_)));
         }
         other => panic!("expected type decl, got {other:?}"),

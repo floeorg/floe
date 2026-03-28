@@ -171,22 +171,18 @@ For pure Floe code, prefer regular tagged unions (`| Get | Post`) since they wor
 
 ### Result
 
-For operations that can fail:
+For operations that can fail. `Result` is a built-in type — no need to define it:
 
 ```floe
-type Result<T, E> { | Ok { T } | Err { E } }
-
 const result = Ok(42)
 const error = Err("something went wrong")
 ```
 
 ### Option
 
-For values that may be absent:
+For values that may be absent. `Option` is a built-in type — no need to define it:
 
 ```floe
-type Option<T> { | Some { T } | None }
-
 const found = Some("hello")
 const missing = None
 ```

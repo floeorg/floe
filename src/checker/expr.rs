@@ -1095,25 +1095,6 @@ impl Checker {
                         .with_code("E008"),
                     );
                 }
-                // Rule 2: Brand enforcement
-                if let (Type::Brand { tag: tag_l, .. }, Type::Brand { tag: tag_r, .. }) =
-                    (&left_ty, &right_ty)
-                    && tag_l != tag_r
-                {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "cannot compare branded type `{tag_l}` with `{tag_r}`"
-                            ),
-                            span,
-                        )
-                        .with_label("different branded types")
-                        .with_help(format!(
-                            "`{tag_l}` and `{tag_r}` are distinct types even though they share the same base type"
-                        ))
-                        .with_code("E002"),
-                    );
-                }
                 Type::Bool
             }
             BinOp::Lt | BinOp::Gt | BinOp::LtEq | BinOp::GtEq => Type::Bool,

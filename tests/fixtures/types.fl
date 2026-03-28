@@ -9,4 +9,4 @@ type Status {
     | Inactive { reason: string }
 }
 
-type UserId = Brand<string, UserId>
+type UserId { string }
