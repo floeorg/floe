@@ -308,6 +308,40 @@ fn format_preserves_consecutive_comments() {
     );
 }
 
+// ── Comments in blocks ────────────────────────────────
+
+#[test]
+fn format_preserves_comment_in_block() {
+    assert_fmt(
+        "fn f() {\n    // hello\n    const x = 1\n\n    x\n}",
+        "fn f() {\n    // hello\n    const x = 1\n\n    x\n}",
+    );
+}
+
+#[test]
+fn format_preserves_comment_between_statements() {
+    assert_fmt(
+        "fn f() {\n    const x = 1\n    // middle comment\n    const y = 2\n\n    x + y\n}",
+        "fn f() {\n    const x = 1\n    // middle comment\n    const y = 2\n\n    x + y\n}",
+    );
+}
+
+#[test]
+fn format_preserves_comment_before_final_expr() {
+    assert_fmt(
+        "fn f() {\n    const x = 1\n    // result\n    x\n}",
+        "fn f() {\n    const x = 1\n    // result\n\n    x\n}",
+    );
+}
+
+#[test]
+fn format_preserves_block_comment_in_block() {
+    assert_fmt(
+        "fn f() {\n    /* block comment */\n    const x = 1\n\n    x\n}",
+        "fn f() {\n    /* block comment */\n    const x = 1\n\n    x\n}",
+    );
+}
+
 // ── Idempotency ────────────────────────────────────────
 
 fn assert_idempotent(input: &str) {
