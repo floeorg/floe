@@ -104,6 +104,14 @@ pub fn walk_expr_children_mut(expr: &mut Expr, f: &mut impl FnMut(&mut Expr)) {
         | ExprKind::Grouped(inner)
         | ExprKind::Spread(inner) => walk_expr_mut(inner, f),
         ExprKind::Parse { value, .. } => walk_expr_mut(value, f),
+        ExprKind::Mock { overrides, .. } => {
+            for arg in overrides {
+                match arg {
+                    Arg::Positional(e) => walk_expr_mut(e, f),
+                    Arg::Named { value, .. } => walk_expr_mut(value, f),
+                }
+            }
+        }
         ExprKind::Block(items) | ExprKind::Collect(items) => {
             for item in items {
                 walk_item_mut(item, f);

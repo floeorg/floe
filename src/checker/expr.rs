@@ -340,6 +340,25 @@ impl Checker {
                 }
             }
 
+            ExprKind::Mock {
+                type_arg,
+                overrides,
+            } => {
+                // mock<T> returns T — check override expressions
+                let t = self.resolve_type(type_arg);
+                for arg in overrides {
+                    match arg {
+                        Arg::Positional(e) => {
+                            self.check_expr(e);
+                        }
+                        Arg::Named { value, .. } => {
+                            self.check_expr(value);
+                        }
+                    }
+                }
+                t
+            }
+
             ExprKind::Ok(inner) => {
                 let inner_ty = self.check_expr(inner);
                 // Infer error type from enclosing function's return type if available

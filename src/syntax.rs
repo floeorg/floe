@@ -47,6 +47,7 @@ pub enum SyntaxKind {
 
     // Built-in expressions
     KW_PARSE,
+    KW_MOCK,
     KW_TODO,
     KW_UNREACHABLE,
 
@@ -158,6 +159,7 @@ pub enum SyntaxKind {
     ERR_EXPR,
     SOME_EXPR,
     PARSE_EXPR,
+    MOCK_EXPR,
     OBJECT_EXPR,
     OBJECT_FIELD,
     TODO_EXPR,
@@ -247,6 +249,7 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::Some => SyntaxKind::KW_SOME,
         TokenKind::None => SyntaxKind::KW_NONE,
         TokenKind::Parse => SyntaxKind::KW_PARSE,
+        TokenKind::Mock => SyntaxKind::KW_MOCK,
         TokenKind::Todo => SyntaxKind::KW_TODO,
         TokenKind::Unreachable => SyntaxKind::KW_UNREACHABLE,
         TokenKind::Pipe => SyntaxKind::PIPE,

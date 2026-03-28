@@ -1246,6 +1246,36 @@ impl<'src> CstParser<'src> {
                 self.builder.finish_node();
             }
 
+            Some(TokenKind::Mock) => {
+                self.builder.start_node(SyntaxKind::MOCK_EXPR.into());
+                self.bump(); // mock
+                self.eat_trivia();
+                // mock<T> — type argument
+                self.expect(TokenKind::LessThan);
+                self.eat_trivia();
+                self.parse_type_expr();
+                self.eat_trivia();
+                self.expect(TokenKind::GreaterThan);
+                self.eat_trivia();
+                // Optional (overrides) — named args for field overrides
+                if self.current_kind() == Some(TokenKind::LeftParen) {
+                    self.bump();
+                    self.eat_trivia();
+                    while self.current_kind() != Some(TokenKind::RightParen)
+                        && self.current_kind().is_some()
+                    {
+                        self.parse_call_arg();
+                        self.eat_trivia();
+                        if self.current_kind() == Some(TokenKind::Comma) {
+                            self.bump();
+                            self.eat_trivia();
+                        }
+                    }
+                    self.expect(TokenKind::RightParen);
+                }
+                self.builder.finish_node();
+            }
+
             Some(TokenKind::Try) => {
                 self.builder.start_node(SyntaxKind::TRY_EXPR.into());
                 self.bump(); // try

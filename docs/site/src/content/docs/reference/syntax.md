@@ -212,6 +212,8 @@ unreachable                       // assert unreachable, type never
 parse<T>(value)                   // runtime type validation, returns Result<T, Error>
 json |> parse<User>?              // pipe form (most common)
 data |> parse<Array<Product>>?    // validates arrays
+mock<T>                           // generate test data from type, returns T
+mock<User>(name: "Alice")         // with field overrides
 ```
 
 ### Qualified Variants

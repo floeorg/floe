@@ -218,6 +218,9 @@ impl LanguageServer for FloeLsp {
             "parse" => {
                 "```floe\nparse<T>(value: unknown) -> Result<T, Error>\n```\nCompiler built-in: validates a value matches type T at runtime."
             }
+            "mock" => {
+                "```floe\nmock<T> -> T\n```\nCompiler built-in: generates test data from a type definition. Zero runtime, always in sync with the type."
+            }
             "match" => {
                 "```floe\nmatch expr { pattern -> body, ... }\n```\nExhaustive pattern matching expression."
             }

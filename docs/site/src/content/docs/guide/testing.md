@@ -63,6 +63,24 @@ test "validation" {
 }
 ```
 
+## Generating test data with `mock<T>`
+
+`mock<T>` generates test data from type definitions at compile time -- no faker.js or factories needed.
+
+```floe
+test "user creation" {
+  const user = mock<User>
+  assert user.name |> String.length > 0
+}
+
+test "admin has correct role" {
+  const admin = mock<User>(name: "Alice")
+  assert admin.name == "Alice"
+}
+```
+
+See [Type-Driven Features](/guide/type-driven-features/) for the full guide on `mock<T>`, generation rules, and complex type examples.
+
 ## Running tests
 
 ```bash

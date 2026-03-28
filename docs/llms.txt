@@ -330,6 +330,13 @@ const items = data |> parse<Array<Product>>?
 const point = raw |> parse<{ x: number, y: number }>?
 // parse<T> returns Result<T, Error> — validates unknown data matches the type
 
+// mock<T> — compiler built-in for test data generation
+// No faker.js needed — the compiler generates object literals from the type
+const testUser = mock<User>              // { id: "mock-id-1", name: "mock-name-2", age: 3 }
+const admin = mock<User>(role: Admin)    // override specific fields
+const point = mock<{ x: number, y: number }>  // { x: 1, y: 2 }
+// mock<T> returns T — always in sync with the type definition
+
 // Map<K, V> — immutable key-value maps
 const config = Map.fromArray([("host", "localhost"), ("port", "8080")])
 const updated = config |> Map.set("port", "3000")

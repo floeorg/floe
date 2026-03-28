@@ -56,6 +56,7 @@ export default defineConfig({
             { label: "For Blocks", slug: "guide/for-blocks" },
             { label: "Traits", slug: "guide/traits" },
             { label: "JSX", slug: "guide/jsx" },
+            { label: "Type-Driven Features", slug: "guide/type-driven-features" },
             { label: "Testing", slug: "guide/testing" },
             { label: "Migrating from TypeScript", slug: "guide/from-typescript" },
             { label: "Comparison", slug: "guide/comparison" },

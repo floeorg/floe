@@ -655,6 +655,18 @@ fn collect_member_accesses_expr(
         ExprKind::Parse { value, .. } => {
             collect_member_accesses_expr(value, imported_names, accesses);
         }
+        ExprKind::Mock { overrides, .. } => {
+            for arg in overrides {
+                match arg {
+                    Arg::Positional(e) => {
+                        collect_member_accesses_expr(e, imported_names, accesses);
+                    }
+                    Arg::Named { value, .. } => {
+                        collect_member_accesses_expr(value, imported_names, accesses);
+                    }
+                }
+            }
+        }
         ExprKind::TemplateLiteral(parts) => {
             for part in parts {
                 if let TemplatePart::Expr(e) = part {

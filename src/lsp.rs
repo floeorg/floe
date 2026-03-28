@@ -172,6 +172,11 @@ const BUILTINS: &[(&str, &str, &str)] = &[
         "parse<${1:Type}>(${0:value})",
         "parse<T>(value) -> Result<T, Error>",
     ),
+    (
+        "mock",
+        "mock<${0:Type}>",
+        "mock<T> -> T (compiler-generated test data)",
+    ),
     ("true", "true", "bool literal"),
     ("false", "false", "bool literal"),
 ];

@@ -361,6 +361,45 @@ fn parse_array_type() {
     assert!(matches!(expr, ExprKind::Parse { .. }));
 }
 
+// ── Mock Built-in ───────────────────────────────────────────
+
+#[test]
+fn mock_basic() {
+    let expr = first_expr("mock<string>");
+    assert!(matches!(expr, ExprKind::Mock { .. }));
+}
+
+#[test]
+fn mock_named_type() {
+    let expr = first_expr("mock<User>");
+    match expr {
+        ExprKind::Mock {
+            type_arg,
+            overrides,
+        } => {
+            assert!(matches!(type_arg.kind, TypeExprKind::Named { .. }));
+            assert!(overrides.is_empty());
+        }
+        other => panic!("expected Mock, got {other:?}"),
+    }
+}
+
+#[test]
+fn mock_with_overrides() {
+    let expr = first_expr("mock<User>(name: \"Alice\")");
+    match expr {
+        ExprKind::Mock {
+            type_arg,
+            overrides,
+        } => {
+            assert!(matches!(type_arg.kind, TypeExprKind::Named { .. }));
+            assert_eq!(overrides.len(), 1);
+            assert!(matches!(&overrides[0], Arg::Named { label, .. } if label == "name"));
+        }
+        other => panic!("expected Mock, got {other:?}"),
+    }
+}
+
 // ── Pipe Lambdas ─────────────────────────────────────────────
 
 #[test]

@@ -447,6 +447,12 @@ pub enum ExprKind {
         type_arg: TypeExpr,
         value: Box<Expr>,
     },
+    /// `mock<T>` — compiler built-in for auto-generating test data from types
+    /// Optional overrides: `mock<User>(name: "Alice")`
+    Mock {
+        type_arg: TypeExpr,
+        overrides: Vec<Arg>,
+    },
     /// `todo` — placeholder that panics at runtime, type `never`
     Todo,
     /// `unreachable` — asserts unreachable code path, type `never`

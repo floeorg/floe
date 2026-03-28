@@ -308,6 +308,7 @@ module.exports = grammar({
         $.none,
         $.todo,
         $.unreachable,
+        $.mock_expression,
         $.self,
         $.underscore,
       ),
@@ -354,6 +355,15 @@ module.exports = grammar({
     todo: ($) => "todo",
 
     unreachable: ($) => "unreachable",
+
+    mock_expression: ($) =>
+      seq(
+        "mock",
+        "<",
+        $._type_expression,
+        ">",
+        optional(seq("(", commaSep($.argument), ")")),
+      ),
 
     underscore: ($) => "_",
 

@@ -214,5 +214,19 @@
       "unreachable"
     ],
     "description": "Assert unreachable code path (type never)"
+  },
+  "Mock": {
+    "prefix": "mock",
+    "body": [
+      "mock<${1:Type}>"
+    ],
+    "description": "Generate test data from a type definition"
+  },
+  "Mock with Overrides": {
+    "prefix": "mocko",
+    "body": [
+      "mock<${1:Type}>(${2:field}: ${0:value})"
+    ],
+    "description": "Generate test data with field overrides"
   }
 }

@@ -945,6 +945,32 @@ impl Formatter<'_> {
         }
     }
 
+    pub(crate) fn fmt_mock_expr(&mut self, node: &SyntaxNode) {
+        self.write("mock<");
+        for child in node.children() {
+            if child.kind() == SyntaxKind::TYPE_EXPR {
+                self.fmt_node(&child);
+                break;
+            }
+        }
+        self.write(">");
+        // Check if there are ARG children (overrides)
+        let args: Vec<_> = node
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::ARG)
+            .collect();
+        if !args.is_empty() {
+            self.write("(");
+            for (i, arg) in args.iter().enumerate() {
+                if i > 0 {
+                    self.write(", ");
+                }
+                self.fmt_node(arg);
+            }
+            self.write(")");
+        }
+    }
+
     pub(crate) fn fmt_wrapper_expr(&mut self, node: &SyntaxNode) {
         let keyword = match node.kind() {
             SyntaxKind::OK_EXPR => "Ok",

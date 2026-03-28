@@ -71,6 +71,8 @@ pub enum TokenKind {
     // Built-in expressions
     /// `parse` — compiler built-in for runtime type validation
     Parse,
+    /// `mock` — compiler built-in for auto-generating test data from types
+    Mock,
     /// `todo` — placeholder that panics at runtime, type `never`
     Todo,
     /// `unreachable` — asserts unreachable code path, type `never`
@@ -283,6 +285,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
 
         // Built-in expressions
         "parse" => Some(TokenKind::Parse),
+        "mock" => Some(TokenKind::Mock),
         "todo" => Some(TokenKind::Todo),
         "unreachable" => Some(TokenKind::Unreachable),
 

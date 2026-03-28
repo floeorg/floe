@@ -1522,3 +1522,98 @@ fn use_chained() {
         "second use should nest inside first callback, got: {result}"
     );
 }
+
+// ── Mock Built-in ────────────────────────────────────────────
+
+#[test]
+fn mock_string() {
+    let result = emit("mock<string>");
+    assert!(
+        result.contains("\"mock-string-1\""),
+        "should generate mock string, got: {result}"
+    );
+}
+
+#[test]
+fn mock_number() {
+    let result = emit("mock<number>");
+    assert!(
+        result.contains('1'),
+        "should generate mock number, got: {result}"
+    );
+}
+
+#[test]
+fn mock_boolean() {
+    let result = emit("mock<boolean>");
+    assert!(
+        result.contains("true") || result.contains("false"),
+        "should generate mock boolean, got: {result}"
+    );
+}
+
+#[test]
+fn mock_record_type() {
+    let result = emit("mock<{ name: string, age: number }>");
+    assert!(
+        result.contains("name: \"mock-name-"),
+        "should generate mock name field, got: {result}"
+    );
+    assert!(
+        result.contains("age: "),
+        "should generate mock age field, got: {result}"
+    );
+}
+
+#[test]
+fn mock_named_record() {
+    let result = emit(
+        "type User { name: string, age: number }
+const u = mock<User>",
+    );
+    assert!(
+        result.contains("name: \"mock-name-"),
+        "should generate mock name field, got: {result}"
+    );
+    assert!(
+        result.contains("age: "),
+        "should generate mock age field, got: {result}"
+    );
+}
+
+#[test]
+fn mock_with_override() {
+    let result = emit(
+        "type User { name: string, age: number }
+const u = mock<User>(name: \"Alice\")",
+    );
+    assert!(
+        result.contains("name: \"Alice\""),
+        "override should use provided value, got: {result}"
+    );
+    assert!(
+        result.contains("age: "),
+        "non-overridden field should be mocked, got: {result}"
+    );
+}
+
+#[test]
+fn mock_array_type() {
+    let result = emit("mock<Array<number>>");
+    assert!(
+        result.contains('[') && result.contains(']'),
+        "should generate mock array, got: {result}"
+    );
+}
+
+#[test]
+fn mock_union_type() {
+    let result = emit(
+        "type Status { | Active | Inactive }
+const s = mock<Status>",
+    );
+    assert!(
+        result.contains("tag: \"Active\""),
+        "should pick first variant, got: {result}"
+    );
+}

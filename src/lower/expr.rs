@@ -391,6 +391,31 @@ impl<'src> Lowerer<'src> {
                 ))
             }
 
+            SyntaxKind::MOCK_EXPR => {
+                // mock<T> or mock<T>(overrides...)
+                let type_arg = node
+                    .children()
+                    .find(|c| c.kind() == SyntaxKind::TYPE_EXPR)
+                    .and_then(|c| self.lower_type_expr(&c))?;
+
+                let mut overrides = Vec::new();
+                for child in node.children() {
+                    if child.kind() == SyntaxKind::ARG
+                        && let Some(arg) = self.lower_arg(&child)
+                    {
+                        overrides.push(arg);
+                    }
+                }
+
+                Some(self.expr(
+                    ExprKind::Mock {
+                        type_arg,
+                        overrides,
+                    },
+                    span,
+                ))
+            }
+
             SyntaxKind::OK_EXPR => {
                 let inner = self.lower_first_expr_in(node)?;
                 Some(self.expr(ExprKind::Ok(Box::new(inner)), span))

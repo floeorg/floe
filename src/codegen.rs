@@ -46,6 +46,8 @@ pub struct Codegen {
     unit_variants: HashSet<String>,
     /// Maps variant name -> (union_type_name, field_names)
     variant_info: HashMap<String, (String, Vec<String>)>,
+    /// Maps type name -> TypeDef for mock<T> codegen
+    type_defs: HashMap<String, TypeDef>,
     /// Locally defined function/const names - these shadow stdlib in pipe resolution
     local_names: HashSet<String>,
     /// Resolved imports from other .fl files, for expanding bare imports.
@@ -67,6 +69,7 @@ impl Codegen {
             stdlib: StdlibRegistry::new(),
             unit_variants: HashSet::new(),
             variant_info: HashMap::new(),
+            type_defs: HashMap::new(),
             local_names: HashSet::new(),
             resolved_imports: HashMap::new(),
             import_aliases: HashMap::new(),
@@ -84,10 +87,13 @@ impl Codegen {
     pub fn with_imports(resolved: &HashMap<String, ResolvedImports>) -> Self {
         let mut codegen = Self::new();
         codegen.resolved_imports = resolved.clone();
-        // Pre-register union variant info from imported types
+        // Pre-register union variant info and type defs from imported types
         for imports in resolved.values() {
             for decl in &imports.type_decls {
                 codegen.register_union_variants(decl);
+                codegen
+                    .type_defs
+                    .insert(decl.name.clone(), decl.def.clone());
             }
         }
         codegen
@@ -126,6 +132,7 @@ impl Codegen {
             match &item.kind {
                 ItemKind::TypeDecl(decl) => {
                     self.register_union_variants(decl);
+                    self.type_defs.insert(decl.name.clone(), decl.def.clone());
                     // Register derived function names as local names
                     for trait_name in &decl.deriving {
                         if trait_name.as_str() == "Display" {
@@ -1387,6 +1394,7 @@ impl Codegen {
             stdlib: StdlibRegistry::new(),
             unit_variants: self.unit_variants.clone(),
             variant_info: self.variant_info.clone(),
+            type_defs: self.type_defs.clone(),
             local_names: self.local_names.clone(),
             resolved_imports: self.resolved_imports.clone(),
             import_aliases: self.import_aliases.clone(),

@@ -30,6 +30,7 @@
 (none) @constant.builtin
 (todo) @keyword
 (unreachable) @keyword
+(mock_expression "mock" @keyword)
 
 ; ── Literals ─────────────────────────────────────────────
 (number) @number

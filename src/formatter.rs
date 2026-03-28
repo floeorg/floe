@@ -88,6 +88,7 @@ impl<'src> Formatter<'src> {
                 self.fmt_wrapper_expr(node)
             }
             SyntaxKind::PARSE_EXPR => self.fmt_parse_expr(node),
+            SyntaxKind::MOCK_EXPR => self.fmt_mock_expr(node),
             SyntaxKind::JSX_ELEMENT => self.fmt_jsx(node),
             SyntaxKind::TYPE_DEF_UNION => self.fmt_union(node),
             SyntaxKind::TYPE_DEF_RECORD => self.fmt_record_def(node),
