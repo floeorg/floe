@@ -103,11 +103,7 @@ const cartRoute = createRoute({
   component: () => {
     const { cart, updateQty, removeFromCart } = useStore();
     return (
-      <CartPage
-        cart={cart}
-        onUpdateQty={updateQty}
-        onRemove={removeFromCart}
-      />
+      <CartPage cart={cart} onUpdateQty={updateQty} onRemove={removeFromCart} />
     );
   },
 });

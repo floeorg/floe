@@ -4,7 +4,7 @@
   "description": "Language support for Floe (.fl) - syntax highlighting, diagnostics, and LSP integration",
   "version": "0.1.0",
   "license": "MIT",
-  "publisher": "floelang",
+  "publisher": "floeorg",
   "icon": "icons/floe-icon.png",
   "repository": {
     "type": "git",

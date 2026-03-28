@@ -40,7 +40,11 @@ export async function fetchProduct(
   try {
     const res = await fetch(`https://dummyjson.com/products/${id}`);
     if (!res.ok) {
-      return Err({ tag: "BadResponse", status: res.status, body: await res.text() });
+      return Err({
+        tag: "BadResponse",
+        status: res.status,
+        body: await res.text(),
+      });
     }
     const data: ProductDetailResponse = await res.json();
 
@@ -85,7 +89,11 @@ export async function fetchProducts(
 
     const res = await fetch(url);
     if (!res.ok) {
-      return Err({ tag: "BadResponse", status: res.status, body: await res.text() });
+      return Err({
+        tag: "BadResponse",
+        status: res.status,
+        body: await res.text(),
+      });
     }
     const data: ProductListResponse = await res.json();
     return Ok([data.products, data.total]);
@@ -102,7 +110,11 @@ export async function fetchCategories(): Promise<
   try {
     const res = await fetch("https://dummyjson.com/products/categories");
     if (!res.ok) {
-      return Err({ tag: "BadResponse", status: res.status, body: await res.text() });
+      return Err({
+        tag: "BadResponse",
+        status: res.status,
+        body: await res.text(),
+      });
     }
     const data: CategoryResponse[] = await res.json();
     return Ok(data);
