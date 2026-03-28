@@ -2286,7 +2286,7 @@ type BaseProps {
 
 type ButtonProps {
     ...BaseProps,
-    onClick: fn() -> (),
+    onClick: () => (),
     label: string,
 }
 
@@ -2891,7 +2891,7 @@ const _addTen = add(10, _)
 
 #[test]
 fn partial_application_returns_function_type() {
-    // `add(10, _)` should have type `fn(number) -> number`
+    // `add(10, _)` should have type `(number) => number`
     // so calling it with a number should be fine
     let diags = check(
         r#"
@@ -2961,7 +2961,7 @@ type SaveError {
     | Api { message: string }
 }
 
-fn apply(f: fn(Array<string>) -> SaveError) -> SaveError {
+fn apply(f: (Array<string>) => SaveError) -> SaveError {
     f(["error"])
 }
 
@@ -2996,7 +2996,7 @@ type MyError {
     | Api { message: string }
 }
 
-fn apply(f: fn(number) -> MyError) -> MyError {
+fn apply(f: (number) => MyError) -> MyError {
     f(42)
 }
 

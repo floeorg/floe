@@ -11,7 +11,7 @@ import { fetchProducts, fetchCategories, CategoryResponse } from "../api"
 
 fn ProductCard(props: {
     product: Product,
-    onAddToCart: fn(Product) -> (),
+    onAddToCart: (Product) => (),
 }) -> JSX.Element {
     const product = props.product
     const hasDiscount = product.discountPercentage > 0
@@ -84,11 +84,11 @@ fn ProductCard(props: {
 fn FilterSidebar(props: {
     categories: Array<CategoryResponse>,
     selectedCategory: string,
-    onCategoryChange: fn(string) -> (),
+    onCategoryChange: (string) => (),
     priceRange: PriceRange,
-    onPriceRangeChange: fn(PriceRange) -> (),
+    onPriceRangeChange: (PriceRange) => (),
     sortOrder: SortOrder,
-    onSortChange: fn(SortOrder) -> (),
+    onSortChange: (SortOrder) => (),
 }) -> JSX.Element {
     const priceRanges: Array<(string, PriceRange)> = [
         ("All Prices", Any),
@@ -176,11 +176,11 @@ fn FilterSidebar(props: {
 
 fn CategoryList(props: {
     selectedCategory: string,
-    onCategoryChange: fn(string) -> (),
+    onCategoryChange: (string) => (),
     priceRange: PriceRange,
-    onPriceRangeChange: fn(PriceRange) -> (),
+    onPriceRangeChange: (PriceRange) => (),
     sortOrder: SortOrder,
-    onSortChange: fn(SortOrder) -> (),
+    onSortChange: (SortOrder) => (),
 }) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["categories"],
@@ -210,7 +210,7 @@ fn ProductGrid(props: {
     search: string,
     sortOrder: SortOrder,
     priceRange: PriceRange,
-    onAddToCart: fn(Product) -> (),
+    onAddToCart: (Product) => (),
 }) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["products", props.category, props.search],
@@ -273,7 +273,7 @@ fn SidebarSkeleton() -> JSX.Element {
 // Uses `use` to flatten Suspense/ErrorBoundary nesting.
 
 export fn CatalogPage(props: {
-    onAddToCart: fn(Product) -> (),
+    onAddToCart: (Product) => (),
 }) -> JSX.Element {
     const [category, setCategory] = useState("")
     const [search, setSearch] = useState("")

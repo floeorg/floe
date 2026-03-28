@@ -823,17 +823,24 @@ impl<'src> CstParser<'src> {
     fn parse_type_expr(&mut self) {
         self.builder.start_node(SyntaxKind::TYPE_EXPR.into());
 
+        // Function type: (params) => ReturnType or () => ReturnType
+        if self.at(TokenKind::LeftParen) && self.is_paren_function_type() {
+            self.parse_function_type();
+        }
         // Unit type: ()
-        if self.at(TokenKind::LeftParen) && self.is_unit_type() {
+        else if self.at(TokenKind::LeftParen) && self.peek_is(TokenKind::RightParen) {
             self.bump(); // (
             self.eat_trivia();
             self.bump(); // )
         }
-        // Function type: fn(params) -> ReturnType
-        else if self.at(TokenKind::Fn) {
-            self.parse_function_type();
+        // Function type: fn(params) -> ReturnType (old syntax — error)
+        else if self.at(TokenKind::Fn) && self.peek_is(TokenKind::LeftParen) {
+            self.builder.start_node(SyntaxKind::ERROR.into());
+            self.error("function types use arrow syntax: `(T) => U` instead of `fn(T) -> U`");
+            self.bump(); // fn
+            self.builder.finish_node();
         }
-        // Tuple type: (T, U) — paren with comma, no `->` after `)`
+        // Tuple type: (T, U) — paren with comma, no `=>` after `)`
         else if self.at(TokenKind::LeftParen) && self.is_paren_tuple_type() {
             self.bump(); // (
             self.eat_trivia();
@@ -877,14 +884,12 @@ impl<'src> CstParser<'src> {
     }
 
     fn parse_function_type(&mut self) {
-        self.expect(TokenKind::Fn);
-        self.eat_trivia();
         self.expect(TokenKind::LeftParen);
         self.eat_trivia();
         self.parse_comma_separated(Self::parse_type_expr, TokenKind::RightParen);
         self.expect(TokenKind::RightParen);
         self.eat_trivia();
-        self.expect(TokenKind::ThinArrow);
+        self.expect(TokenKind::FatArrow);
         self.eat_trivia();
         self.parse_type_expr();
     }
@@ -2154,7 +2159,7 @@ impl<'src> CstParser<'src> {
     }
 
     /// Heuristic: is the current `(` a tuple type `(T, U)`?
-    /// Has a comma at depth 1 and is NOT followed by `->`.
+    /// Has a comma at depth 1 and is NOT followed by `=>`.
     fn is_paren_tuple_type(&self) -> bool {
         let mut depth = 0;
         let mut has_comma = false;
@@ -2174,7 +2179,7 @@ impl<'src> CstParser<'src> {
                             j += 1;
                         }
                         return !(j < self.tokens.len()
-                            && self.tokens[j].kind == TokenKind::ThinArrow);
+                            && self.tokens[j].kind == TokenKind::FatArrow);
                     }
                 }
                 TokenKind::Comma if depth == 1 => has_comma = true,
@@ -2238,26 +2243,35 @@ impl<'src> CstParser<'src> {
     }
 
     /// Heuristic: is the current `(` the start of a unit type `()`?
-    fn is_unit_type(&self) -> bool {
-        self.peek_is(TokenKind::RightParen) && !self.peek_after_rparen_is(TokenKind::ThinArrow)
-    }
-
-    fn peek_after_rparen_is(&self, kind: TokenKind) -> bool {
-        // Find ) after current (, then check if followed by kind
-        let mut i = self.pos + 1;
-        // skip trivia
-        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
-            i += 1;
-        }
-        if i < self.tokens.len() && self.tokens[i].kind == TokenKind::RightParen {
-            i += 1;
-            while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
-                i += 1;
+    /// Check if the `(` at the current position has a matching `)` followed by `kind`.
+    fn is_paren_followed_by(&self, kind: TokenKind) -> bool {
+        let mut depth = 0;
+        let mut i = self.pos;
+        while i < self.tokens.len() {
+            match &self.tokens[i].kind {
+                TokenKind::LeftParen => depth += 1,
+                TokenKind::RightParen => {
+                    depth -= 1;
+                    if depth == 0 {
+                        i += 1;
+                        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+                            i += 1;
+                        }
+                        return i < self.tokens.len() && self.tokens[i].kind == kind;
+                    }
+                }
+                TokenKind::Eof => return false,
+                _ => {}
             }
-            return i < self.tokens.len()
-                && std::mem::discriminant(&self.tokens[i].kind) == std::mem::discriminant(&kind);
+            i += 1;
         }
         false
+    }
+
+    /// Heuristic: is the current `(` the start of a function type `(T) => U`?
+    /// Scans to matching `)` and checks if followed by `=>`.
+    fn is_paren_function_type(&self) -> bool {
+        self.is_paren_followed_by(TokenKind::FatArrow)
     }
 
     /// Consume the current token, adding it to the green tree.

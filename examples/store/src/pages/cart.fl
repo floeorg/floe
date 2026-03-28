@@ -6,8 +6,8 @@ import { for Array, formatPrice } from "../product"
 
 fn CartItemRow(props: {
     item: CartItem,
-    onUpdateQty: fn(ProductId, number) -> (),
-    onRemove: fn(ProductId) -> (),
+    onUpdateQty: (ProductId, number) => (),
+    onRemove: (ProductId) => (),
 }) -> JSX.Element {
     const item = props.item
     const product = item.product
@@ -58,7 +58,7 @@ fn CartItemRow(props: {
 fn OrderSummary(props: {
     cart: Array<CartItem>,
     orderStatus: OrderStatus,
-    onCheckout: fn() -> (),
+    onCheckout: () => (),
 }) -> JSX.Element {
     const (subtotal, discount, total) = props.cart |> totals
 
@@ -106,8 +106,8 @@ fn OrderSummary(props: {
 
 export fn CartPage(props: {
     cart: Array<CartItem>,
-    onUpdateQty: fn(ProductId, number) -> (),
-    onRemove: fn(ProductId) -> (),
+    onUpdateQty: (ProductId, number) => (),
+    onRemove: (ProductId) => (),
 }) -> JSX.Element {
     const [orderStatus, setOrderStatus] = useState<OrderStatus>(Pending)
 

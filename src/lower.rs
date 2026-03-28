@@ -761,10 +761,11 @@ impl<'src> Lowerer<'src> {
         // Check for parens → unit or function type
         let has_lparen = self.has_token(node, SyntaxKind::L_PAREN);
         let has_rparen = self.has_token(node, SyntaxKind::R_PAREN);
+        let has_fat_arrow = self.has_token(node, SyntaxKind::FAT_ARROW);
         let has_thin_arrow = self.has_token(node, SyntaxKind::THIN_ARROW);
 
         // Unit type: ()
-        if has_lparen && has_rparen && idents.is_empty() && !has_thin_arrow {
+        if has_lparen && has_rparen && idents.is_empty() && !has_fat_arrow && !has_thin_arrow {
             let child_type_exprs: Vec<_> = node
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::TYPE_EXPR)
@@ -792,8 +793,8 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        // Function type: (params) -> ReturnType
-        if has_thin_arrow {
+        // Function type: (params) => ReturnType
+        if has_fat_arrow || has_thin_arrow {
             let type_exprs: Vec<TypeExpr> = node
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::TYPE_EXPR)
