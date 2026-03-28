@@ -400,3 +400,27 @@ fn format_long_call_args_go_multiline() {
 fn format_short_call_args_stay_inline() {
     assert_fmt("f(a, b, c)", "f(a, b, c)");
 }
+
+// ── Blank line preservation ────────────────────────────
+
+#[test]
+fn format_preserves_blank_lines_between_statements() {
+    assert_fmt(
+        "fn f() {\n    const a = 1\n\n    const b = 2\n\n    a + b\n}",
+        "fn f() {\n    const a = 1\n\n    const b = 2\n\n    a + b\n}",
+    );
+}
+
+#[test]
+fn format_no_blank_line_when_source_has_none() {
+    assert_fmt(
+        "fn f() {\n    const a = 1\n    const b = 2\n\n    a + b\n}",
+        "fn f() {\n    const a = 1\n    const b = 2\n\n    a + b\n}",
+    );
+}
+
+#[test]
+fn format_preserves_blank_line_after_match_block() {
+    let src = "fn f() {\n    const url = x |> match {\n        1 -> \"a\",\n    }\n\n    const data = y\n\n    Ok(data)\n}";
+    assert_fmt(src, src);
+}

@@ -197,6 +197,27 @@ impl<'src> Formatter<'src> {
         }
     }
 
+    /// Check if a node has trailing whitespace containing a blank line (2+ newlines).
+    pub(crate) fn has_trailing_blank_line(&self, node: &SyntaxNode) -> bool {
+        let all_tokens: Vec<_> = node
+            .descendants_with_tokens()
+            .filter_map(|t| t.into_token())
+            .collect();
+
+        for tok in all_tokens.into_iter().rev() {
+            match tok.kind() {
+                SyntaxKind::WHITESPACE => {
+                    if tok.text().chars().filter(|&c| c == '\n').count() >= 2 {
+                        return true;
+                    }
+                }
+                k if k.is_trivia() => continue,
+                _ => break,
+            }
+        }
+        false
+    }
+
     fn fmt_verbatim(&mut self, node: &SyntaxNode) {
         let range = node.text_range();
         let start: usize = range.start().into();

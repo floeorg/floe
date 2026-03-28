@@ -11,22 +11,47 @@ enum NamedArgValue {
 impl Formatter<'_> {
     pub(crate) fn fmt_block(&mut self, node: &SyntaxNode) {
         self.write("{");
-        let children: Vec<_> = node
-            .children()
-            .filter(|c| c.kind() == SyntaxKind::ITEM || c.kind() == SyntaxKind::EXPR_ITEM)
-            .collect();
 
-        if children.is_empty() {
+        // Collect items with whether a blank line preceded them in the source.
+        // Blank lines can appear either as whitespace tokens between items at the
+        // block level, or as trailing trivia inside the previous item.
+        let mut items: Vec<(SyntaxNode, bool)> = Vec::new();
+        let mut saw_blank = false;
+
+        for child_or_tok in node.children_with_tokens() {
+            match child_or_tok {
+                rowan::NodeOrToken::Token(tok) => {
+                    if tok.kind() == SyntaxKind::WHITESPACE
+                        && tok.text().chars().filter(|&c| c == '\n').count() >= 2
+                    {
+                        saw_blank = true;
+                    }
+                }
+                rowan::NodeOrToken::Node(child)
+                    if child.kind() == SyntaxKind::ITEM
+                        || child.kind() == SyntaxKind::EXPR_ITEM =>
+                {
+                    let trailing_blank = self.has_trailing_blank_line(&child);
+                    items.push((child, saw_blank));
+                    saw_blank = trailing_blank;
+                }
+                _ => {}
+            }
+        }
+
+        if items.is_empty() {
             self.write("}");
             return;
         }
 
-        let child_count = children.len();
+        let item_count = items.len();
         self.indent += 1;
-        for (i, child) in children.iter().enumerate() {
-            // Insert a blank line before the final expression in multi-statement blocks
-            if child_count >= 2 && i == child_count - 1 {
-                self.newline();
+        for (i, (child, had_blank)) in items.iter().enumerate() {
+            if i > 0 {
+                let is_final_expr = item_count >= 2 && i == item_count - 1;
+                if *had_blank || is_final_expr {
+                    self.newline();
+                }
             }
             self.newline();
             self.write_indent();
