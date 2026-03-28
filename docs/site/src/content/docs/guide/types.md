@@ -78,22 +78,31 @@ type Color {
 
 ### Qualified Variants
 
-When a variant name could be ambiguous (e.g., multiple unions have a variant called `Active`), use qualified syntax:
+Use `Type.Variant` to qualify which union a variant belongs to:
 
 ```floe
 type Filter { | All | Active | Completed }
 
 const f = Filter.All
 const g = Filter.Active
-```
-
-This is especially useful when passing variants as arguments:
-
-```floe
 setFilter(Filter.Completed)
 ```
 
-Unambiguous variants can still be used without qualification:
+When two unions share a variant name, the compiler requires qualification:
+
+```floe
+type Color { | Red | Green | Blue }
+type Light { | Red | Yellow | Green }
+
+const c = Red
+// Error: variant `Red` is ambiguous — defined in both `Color` and `Light`
+// Help: use `Color.Red` or `Light.Red`
+
+const c = Color.Red   // OK
+const l = Light.Red   // OK
+```
+
+Unambiguous variants can still be used bare. In match arms, bare variants always work because the type is known from the match subject:
 
 ```floe
 match filter {

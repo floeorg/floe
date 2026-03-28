@@ -199,8 +199,10 @@ data |> parse<Array<Product>>?    // validates arrays
 ```floe
 Filter.All              // zero-arg variant
 Filter.Active           // zero-arg variant
-Option.Some(value)      // variant with data
-Result.Ok(value)        // variant with data
+Color.Blue(hex: "#00f") // variant with data
+
+// Required when variant name is ambiguous (exists in multiple unions)
+// Ok, Err, Some, None are always bare (built-in)
 ```
 
 ### Anonymous Functions (Closures)

@@ -77,7 +77,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Closures | `fn(x) x + 1` | `(x) => x + 1` |
 | Dot shorthand | `.name` in callback position | `(x) => x.name` |
 | Dot shorthand (predicate) | `.id != id` in callback position | `(x) => x.id != id` |
-| Implicit member expr | `.Variant` when type is known | `TypeName.Variant` |
+| Qualified variant | `Type.Variant` for disambiguation | `{ tag: "Variant" }` (same as bare) |
 | Default values | `fn f(x: number = 10)` | caller can omit, compiler fills in |
 | Structural equality | `==` on objects compares by value | deep equality check |
 | Unit type | `()` as return type, usable in generics | `undefined` / `void` in TS |
@@ -1377,7 +1377,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `fn(x) x + 1` | `(x) => x + 1` |
 | `.name` (in callback) | `(x) => x.name` |
 | `.id != id` (in callback) | `(x) => x.id != id` |
-| `.Variant` (implicit member) | `Variant` (resolved by compiler) |
+| `Type.Variant` (qualified) | `{ tag: "Variant" }` (same as bare) |
 | `fn f(x: T) -> U { ... }` | `function f(x: T): U { ... }` |
 | `try expr` | `(() => { try { return { ok: true, value: expr }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
 | `match x { A -> ..., B -> ... }` | `x.tag === "A" ? ... : x.tag === "B" ? ... : absurd(x)` |
@@ -1707,7 +1707,7 @@ const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
 | Arrow `->` | Match arms, return types, function types | "Maps to" everywhere — consistent single meaning |
 | `const name = fn(x) ...` | Compile error | If it has a name, use `fn`. No two ways to name a function. |
 | Dot shorthand | `.field` in callback position creates implicit closure | Covers 80% of inline callbacks (filter, map, sort) |
-| Implicit member expr | `.Variant` when type is known from context | Swift-style; NOT used in match arms (match already establishes type) |
+| Qualified variants | `Type.Variant` when ambiguous, bare when unambiguous | Compiler errors on ambiguous bare variants with helpful suggestion |
 | Pipe semantics | First-arg default, `_` placeholder | Gleam approach — clean 90% of the time |
 | Partial application | `f(a, _)` creates `(x) => f(a, x)` | Free bonus from `_` placeholder |
 | Result unwrap | `?` operator (Rust-style) | Cleaner than `use x <- f()`, less new syntax |
