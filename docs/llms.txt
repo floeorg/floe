@@ -134,7 +134,13 @@ const user = User(name: "Ryan", id: "1", email: "r@test.com")
 const updated = User(..user, name: "New Name")
 
 // Union variant construction
-const err = Network(Timeout(3000))
+const err = ApiError.Network(NetworkError.Timeout(ms: 3000))
+
+// Qualified variants required when ambiguous:
+// type Color { | Red | Green } and type Light { | Red | Yellow }
+// const c = Red        // Error: ambiguous
+const c = Color.Red     // OK — qualified
+// Bare variants work when unambiguous or in match arms
 ```
 
 ## Pipe Operator

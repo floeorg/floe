@@ -27,6 +27,27 @@ impl Checker {
 
             ExprKind::Identifier(name) => {
                 self.used_names.insert(name.clone());
+                // Check for ambiguous bare variant usage
+                if let Some(unions) = self.ambiguous_variants.get(name) {
+                    let union_list = unions.join("` and `");
+                    self.diagnostics.push(
+                        Diagnostic::error(
+                            format!(
+                                "variant `{name}` is ambiguous — defined in both `{union_list}`"
+                            ),
+                            expr.span,
+                        )
+                        .with_help(format!(
+                            "use a qualified name: {}",
+                            unions
+                                .iter()
+                                .map(|u| format!("`{u}.{name}`"))
+                                .collect::<Vec<_>>()
+                                .join(" or ")
+                        ))
+                        .with_code("E017"),
+                    );
+                }
                 if let Some(ty) = self.env.lookup(name).cloned() {
                     ty
                 } else if self.stdlib.is_module(name) {
