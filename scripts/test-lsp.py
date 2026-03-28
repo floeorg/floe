@@ -994,6 +994,35 @@ fn describe(e: ApiError) -> string {
 }
 """
 
+QUALIFIED_VARIANT = """\
+type Color { | Red | Green | Blue { hex: string } }
+type Filter { | All | Active | Completed }
+
+const _a = Color.Red
+const _b = Color.Blue(hex: "#00f")
+const _c = Filter.All
+const _d = ("text", Color.Red)
+const _e = [Color.Red, Color.Blue(hex: "#fff")]
+
+fn describe(c: Color) -> string {
+    match c {
+        Red -> "red",
+        Green -> "green",
+        Blue(hex) -> `blue: ${hex}`,
+    }
+}
+"""
+
+AMBIGUOUS_VARIANT = """\
+type Color { | Red | Green | Blue }
+type Light { | Red | Yellow | Green }
+
+const _a = Color.Red
+const _b = Light.Red
+const _c = Blue
+const _d = Yellow
+"""
+
 # ── Run Tests ─────────────────────────────────────────────
 
 
@@ -1743,6 +1772,7 @@ def main():
         ("inline for", INLINE_FOR),
         ("number separators", NUMBER_SEPARATOR),
         ("multi-depth match", MULTI_DEPTH_MATCH),
+        ("qualified variants", QUALIFIED_VARIANT),
     ]:
         lsp.open_doc(URI, source)
         notifs = lsp.collect_notifications("textDocument/publishDiagnostics", timeout=2)
@@ -1945,6 +1975,57 @@ def main():
     lsp.collect_notifications("textDocument/publishDiagnostics", timeout=1)
     names = symbol_names(lsp.document_symbols(URI))
     check("Tour: deriving type in symbols", "Point" in names, f"Names: {names}")
+
+    # ── 23. Qualified Variants ────────────────────────────
+    print(f"\n{BOLD}23. Qualified Variants{NC}")
+
+    # Valid qualified variant file — no errors
+    lsp.open_doc(URI, QUALIFIED_VARIANT)
+    notifs = lsp.collect_notifications("textDocument/publishDiagnostics", timeout=2)
+    errs = diag_errors(notifs)
+    check("QualifiedVariant: valid file no errors", len(errs) == 0, f"Errors: {[e.get('message','') for e in errs[:3]]}")
+
+    # Hover on qualified variant (Color.Red) — hover on "Color" (line 3, char 11)
+    h = hover_text(lsp.hover(URI, 3, 11))
+    check("QualifiedVariant: hover on type name", h is not None and "Color" in (h or ""), f"Got: {h}")
+
+    # Hover on variant after dot (line 3 "Color.Red", hover on "Red" around char 17)
+    h = hover_text(lsp.hover(URI, 3, 17))
+    check("QualifiedVariant: hover on variant after dot", h is not None, f"Got: {h}")
+
+    # Hover on qualified variant with args (Color.Blue, line 4)
+    h = hover_text(lsp.hover(URI, 4, 11))
+    check("QualifiedVariant: hover on type in constructor", h is not None, f"Got: {h}")
+
+    # Go-to-def on qualified variant type name
+    locs = def_locations(lsp.goto_definition(URI, 3, 11))
+    check("QualifiedVariant: goto def on type name", len(locs) > 0, f"Got {len(locs)} locations")
+
+    # Document symbols include types and variants
+    names = symbol_names(lsp.document_symbols(URI))
+    check("QualifiedVariant: Color in symbols", "Color" in names, f"Names: {names}")
+    check("QualifiedVariant: Filter in symbols", "Filter" in names, f"Names: {names}")
+    check("QualifiedVariant: variants in symbols", "Red" in names and "All" in names, f"Names: {names}")
+
+    # Qualified variant in tuple — no errors
+    # (this was the original bug: Color.Red in tuple parsed as 3 elements)
+
+    # Ambiguous variant detection
+    lsp.open_doc(URI, AMBIGUOUS_VARIANT)
+    notifs = lsp.collect_notifications("textDocument/publishDiagnostics", timeout=2)
+    all_d = diag_all(notifs)
+    # Color.Red and Light.Red are qualified — no errors
+    # Blue and Yellow are unambiguous — no errors
+    errs = diag_errors(notifs)
+    check("QualifiedVariant: qualified + unambiguous bare = no errors", len(errs) == 0, f"Errors: {[e.get('message','') for e in errs[:3]]}")
+
+    # Test that bare ambiguous variant DOES error
+    ambig_src = "type Color { | Red | Green | Blue }\ntype Light { | Red | Yellow | Green }\nconst _x = Red\n"
+    lsp.open_doc(URI, ambig_src)
+    notifs = lsp.collect_notifications("textDocument/publishDiagnostics", timeout=2)
+    errs = diag_errors(notifs)
+    has_ambig = any("ambiguous" in e.get("message", "").lower() for e in errs)
+    check("QualifiedVariant: bare ambiguous variant errors", has_ambig, f"Errors: {[e.get('message','') for e in errs[:3]]}")
 
     # ── Done ─────────────────────────────────────────────
     lsp.shutdown()
