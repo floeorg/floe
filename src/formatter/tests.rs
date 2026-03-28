@@ -474,3 +474,15 @@ fn format_underscore_param() {
         "fn f(_: number) -> number {\n    42\n}",
     );
 }
+
+// ── Tuple index access ─────────────────────────────────
+
+#[test]
+fn format_tuple_index_access() {
+    assert_fmt("const x = pair.0", "const x = pair.0");
+}
+
+#[test]
+fn format_tuple_index_access_1() {
+    assert_fmt("const x = pair.1", "const x = pair.1");
+}
