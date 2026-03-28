@@ -824,6 +824,13 @@ const greet = () => "hello"
 const result = add(1, 2)
 """
 
+GENERIC_FN = """\
+fn identity<T>(x: T) -> T { x }
+fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }
+const _n = identity(42)
+const _p = pair(1, "hello")
+"""
+
 DOT_SHORTHAND = """\
 type User { name: string, active: boolean, age: number }
 
@@ -1777,6 +1784,7 @@ def main():
         ("number separators", NUMBER_SEPARATOR),
         ("multi-depth match", MULTI_DEPTH_MATCH),
         ("qualified variants", QUALIFIED_VARIANT),
+        ("generic functions", GENERIC_FN),
     ]:
         lsp.open_doc(URI, source)
         notifs = lsp.collect_notifications("textDocument/publishDiagnostics", timeout=2)
@@ -2030,6 +2038,28 @@ def main():
     errs = diag_errors(notifs)
     has_ambig = any("ambiguous" in e.get("message", "").lower() for e in errs)
     check("QualifiedVariant: bare ambiguous variant errors", has_ambig, f"Errors: {[e.get('message','') for e in errs[:3]]}")
+
+    # ── 24. Generic Functions ────────────────────────────
+    print(f"\n{BOLD}24. Generic Functions{NC}")
+
+    lsp.open_doc(URI, GENERIC_FN)
+    notifs = lsp.collect_notifications("textDocument/publishDiagnostics", timeout=2)
+    errs = diag_errors(notifs)
+    type_mismatch_errs = [e for e in errs if "E001" in e.get("code", {}).get("value", "") or "argument" in e.get("message", "").lower()]
+    check("GenericFn: no type mismatch errors", len(type_mismatch_errs) == 0, f"Errors: {[e.get('message','') for e in errs[:3]]}")
+
+    # Hover on identity — should show <T> in detail
+    h = hover_text(lsp.hover(URI, 0, 3))  # "identity" on line 0
+    check("GenericFn: hover on identity shows <T>", h is not None and "<T>" in (h or ""), f"Got: {h}")
+
+    # Hover on pair — should show <A, B>
+    h = hover_text(lsp.hover(URI, 1, 3))  # "pair" on line 1
+    check("GenericFn: hover on pair shows <A, B>", h is not None and "<A, B>" in (h or ""), f"Got: {h}")
+
+    # Symbols should include generic functions
+    names = symbol_names(lsp.document_symbols(URI))
+    check("GenericFn: identity in symbols", "identity" in names, f"Names: {names}")
+    check("GenericFn: pair in symbols", "pair" in names, f"Names: {names}")
 
     # ── Done ─────────────────────────────────────────────
     lsp.shutdown()
