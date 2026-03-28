@@ -228,8 +228,8 @@ Color.Blue(hex: "#00f") // variant with data
 ### Anonymous Functions (Closures)
 
 ```floe
-(a, b) => a + b
-(x) => x * 2
+(a: number, b: number) => a + b
+(x: number) => x * 2
 () => doSomething()
 ```
 

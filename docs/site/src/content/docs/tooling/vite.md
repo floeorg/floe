@@ -2,7 +2,7 @@
 title: Vite Plugin
 ---
 
-The `@floeorg/vite-plugin` package lets Vite transform `.fl` files during development and production builds.
+The [`@floeorg/vite-plugin`](https://www.npmjs.com/package/@floeorg/vite-plugin) package lets Vite transform `.fl` files during development and production builds.
 
 ## Installation
 

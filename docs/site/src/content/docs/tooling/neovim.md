@@ -27,7 +27,7 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 ```
 
-### With nvim-lspconfig
+### With [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig)
 
 ```lua
 local lspconfig = require("lspconfig")

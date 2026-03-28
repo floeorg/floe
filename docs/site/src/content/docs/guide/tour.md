@@ -26,9 +26,9 @@ fn double(n: number) -> number {
 fn identity<T>(x: T) -> T { x }
 fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }
 
-// Closures use arrow syntax
-const add = (a, b) => a + b
-const log = () => Console.log("clicked")
+// Closures use arrow syntax (always inline, never assigned to const)
+scores |> filter((n: number) => n > 50)
+scores |> map((n: number) => n * 2)
 ```
 
 ## Pipes
