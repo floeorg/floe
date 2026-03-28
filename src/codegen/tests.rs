@@ -1021,60 +1021,7 @@ test "math" {
     assert!(result.contains("FAIL"), "should have fail reporting");
 }
 
-// ── Inline For Declarations ─────────────────────────────────
-
-#[test]
-fn inline_for_emits_same_as_block() {
-    let block_result = emit(
-        r#"
-type User { name: string }
-for User {
-    fn display(self) -> string { self.name }
-}
-"#,
-    );
-    let inline_result = emit(
-        r#"
-type User { name: string }
-for User fn display(self) -> string { self.name }
-"#,
-    );
-    assert_eq!(block_result, inline_result);
-}
-
-#[test]
-fn inline_for_exported() {
-    let result = emit(
-        r#"
-type User { name: string }
-export for User fn display(self) -> string { self.name }
-"#,
-    );
-    // The type is emitted as the full record type
-    assert!(
-        result.contains("export function display(self: "),
-        "expected export function display, got: {result}"
-    );
-}
-
-#[test]
-fn inline_for_multiple_separate() {
-    let result = emit(
-        r#"
-type User { name: string }
-for User fn display(self) -> string { self.name }
-export for User fn greet(self, greeting: string) -> string { greeting }
-"#,
-    );
-    assert!(
-        result.contains("function display(self: "),
-        "expected function display, got: {result}"
-    );
-    assert!(
-        result.contains("export function greet(self: "),
-        "expected export function greet, got: {result}"
-    );
-}
+// (Inline for-declaration tests removed — only block form is supported)
 
 // ── String Literal Unions ───────────────────────────────────
 

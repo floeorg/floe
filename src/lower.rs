@@ -421,7 +421,6 @@ impl<'src> Lowerer<'src> {
                     }
                     SyntaxKind::FUNCTION_DECL => {
                         if let Some(mut decl) = self.lower_for_block_function(&child) {
-                            // For inline for-declarations, export comes from the ITEM node
                             decl.exported = next_exported || item_exported;
                             functions.push(decl);
                         }

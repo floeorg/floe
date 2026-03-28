@@ -83,25 +83,14 @@ module.exports = grammar({
     // ── For Blocks ─────────────────────────────────────────
 
     for_block: ($) =>
-      choice(
-        // Block form: for Type { ... }
-        seq(
-          optional("export"),
-          "for",
-          field("type", $._type_expression),
-          optional(seq(":", field("trait", $.type_identifier))),
-          "{",
-          repeat(seq(optional("export"), $.function_declaration)),
-          "}",
-        ),
-        // Inline form: [export] for Type fn name(...) { ... }
-        seq(
-          optional("export"),
-          "for",
-          field("type", $._type_expression),
-          optional(seq(":", field("trait", $.type_identifier))),
-          $.function_declaration,
-        ),
+      seq(
+        optional("export"),
+        "for",
+        field("type", $._type_expression),
+        optional(seq(":", field("trait", $.type_identifier))),
+        "{",
+        repeat(seq(optional("export"), $.function_declaration)),
+        "}",
       ),
 
     // ── Traits ──────────────────────────────────────────────

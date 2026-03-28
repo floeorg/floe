@@ -132,15 +132,6 @@
     ],
     "description": "For block - group functions under a type"
   },
-  "Inline For Declaration": {
-    "prefix": "efor",
-    "body": [
-      "export for ${1:Type} fn ${2:name}(self) -> ${3:ReturnType} {",
-      "\t$0",
-      "}"
-    ],
-    "description": "Inline for-declaration (single function)"
-  },
   "Import For Type": {
     "prefix": "impfor",
     "body": [

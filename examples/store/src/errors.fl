@@ -2,33 +2,37 @@ import { ApiError, Display } from "./types"
 
 // ── Multi-depth match on nested error unions ───────────
 
-export for ApiError: Display fn display(self) -> string {
-    self |> match {
-        // Level 2: drill into NetworkError variants
-        Network(Timeout(ms)) -> `Request timed out after ${ms}ms`,
-        Network(DnsFailure(host)) -> `Cannot resolve ${host}`,
-        Network(ConnectionRefused) -> "Server is not responding",
+for ApiError: Display {
+    export fn display(self) -> string {
+        self |> match {
+            // Level 2: drill into NetworkError variants
+            Network(Timeout(ms)) -> `Request timed out after ${ms}ms`,
+            Network(DnsFailure(host)) -> `Cannot resolve ${host}`,
+            Network(ConnectionRefused) -> "Server is not responding",
 
-        // Level 1: other ApiError variants
-        NotFound(id) -> `Product #${id} not found`,
-        BadResponse(status, _) -> status |> match {
-            400..499 -> `Client error (${status})`,
-            500..599 -> `Server error (${status})`,
-            s -> `Unexpected status ${s}`,
-        },
-        ParseError(msg) -> `Invalid response: ${msg}`,
+            // Level 1: other ApiError variants
+            NotFound(id) -> `Product #${id} not found`,
+            BadResponse(status, _) -> status |> match {
+                400..499 -> `Client error (${status})`,
+                500..599 -> `Server error (${status})`,
+                s -> `Unexpected status ${s}`,
+            },
+            ParseError(msg) -> `Invalid response: ${msg}`,
+        }
     }
 }
 
-export for ApiError fn isRetryable(self) -> boolean {
-    self |> match {
-        Network(_) -> true,
-        BadResponse(status, _) -> status |> match {
-            429 -> true,
-            500..599 -> true,
+for ApiError {
+    export fn isRetryable(self) -> boolean {
+        self |> match {
+            Network(_) -> true,
+            BadResponse(status, _) -> status |> match {
+                429 -> true,
+                500..599 -> true,
+                _ -> false,
+            },
             _ -> false,
-        },
-        _ -> false,
+        }
     }
 }
 

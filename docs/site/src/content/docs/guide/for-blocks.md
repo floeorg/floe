@@ -26,34 +26,6 @@ for User {
 
 The `self` parameter's type is inferred from the `for` block. No annotation needed.
 
-## Inline Syntax
-
-When you only need a single function, you can skip the block:
-
-```floe
-export for User fn display(self) -> string {
-  `${self.name} (${self.age})`
-}
-
-export for User fn greet(self, greeting: string) -> string {
-  `${greeting}, ${self.name}!`
-}
-```
-
-This is exactly equivalent to a `for` block with one function. Export is per-function and goes before `for`:
-
-```floe
-// Inline: export goes before `for`
-export for User fn display(self) -> string { ... }
-
-// Block: export goes before `fn` inside the block
-for User {
-  export fn display(self) -> string { ... }
-}
-```
-
-Both forms can be mixed freely in the same file.
-
 ## Pipes
 
 For-block functions are pipe-friendly. `self` is always the first argument:
@@ -107,21 +79,21 @@ Importing a type still auto-imports its for-block functions from the same file. 
 From the todo app, validating input strings and filtering todos:
 
 ```floe
-// Inline for-declaration
-export for string fn validate(self) -> Validation {
-  const trimmed = self |> trim
-  const len = trimmed |> String.length
-  match len {
-    0 -> Empty,
-    1 -> TooShort,
-    _ -> match len > 100 {
-      true -> TooLong,
-      false -> Valid(trimmed),
-    },
+for string {
+  export fn validate(self) -> Validation {
+    const trimmed = self |> trim
+    const len = trimmed |> String.length
+    match len {
+      0 -> Empty,
+      1 -> TooShort,
+      _ -> match len > 100 {
+        true -> TooLong,
+        false -> Valid(trimmed),
+      },
+    }
   }
 }
 
-// Block form for grouping related functions
 for Array<Todo> {
   export fn filterBy(self, f: Filter) -> Array<Todo> {
     match f {
@@ -151,19 +123,13 @@ const remaining = todos |> remaining
 
 ## Export
 
-For-block functions can be exported like regular functions:
+For-block functions can be exported by placing `export` before `fn` inside the block:
 
 ```floe
-// Block form: export inside the block
 for User {
   export fn display(self) -> string {
     `${self.name} (${self.age})`
   }
-}
-
-// Inline form: export before `for`
-export for User fn display(self) -> string {
-  `${self.name} (${self.age})`
 }
 ```
 
@@ -173,7 +139,6 @@ export for User fn display(self) -> string {
 2. No `this`, no implicit context
 3. Multiple `for` blocks per type are allowed, even across files
 4. Compiles to standalone TypeScript functions (no classes)
-5. Both block and inline syntax are supported and equivalent
 
 ## What It Compiles To
 

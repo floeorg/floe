@@ -758,19 +758,7 @@ for User {
 }
 ```
 
-**Inline form** — single function, no block:
-
-```floe
-export for User fn display(self) -> string {
-  `${self.name} (${self.age})`
-}
-
-export for User fn greet(self, greeting: string) -> string {
-  `${greeting}, ${self.name}!`
-}
-```
-
-Export is per-function. In inline form, `export` goes before `for`. In block form, `export` goes before `fn` inside the block.
+Export is per-function — `export` goes before `fn` inside the block.
 
 ```floe
 // Works with generic types too
@@ -810,7 +798,7 @@ For block rules:
 4. Importing a type imports same-file `for` blocks automatically
 5. Cross-file `for` blocks use `import { for Type }` syntax
 6. Compiles to standalone functions with `self` explicitly typed
-7. Both block and inline syntax supported; inline creates a ForBlock with one function
+7. Only block syntax is supported (`for Type { ... }`)
 
 ### Traits — Type-Directed Behavioral Contracts
 
@@ -1213,10 +1201,10 @@ enum Expr {
 // Top-level items include ForBlock, TraitDecl, and TestBlock
 enum ItemKind {
     Import, Const, Function, TypeDecl,
-    ForBlock {                 // for Type { fn f(self) ... } or [export] for Type fn f(self) ...
+    ForBlock {                 // for Type { fn f(self) ... }
         type_name: TypeExpr,
         trait_name: Option<String>,  // for Type: Trait { ... }
-        functions: Vec<FunctionDecl>,  // one function for inline, multiple for block form
+        functions: Vec<FunctionDecl>,
     },
     TraitDecl {                // trait Name { fn method(self) ... }
         name: String,

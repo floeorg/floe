@@ -274,9 +274,10 @@ for Array<Todo> {
     }
 }
 
-// Inline form
-export for string fn shout(self) -> string {
-    self |> String.toUpperCase
+for string {
+    export fn shout(self) -> string {
+        self |> String.toUpperCase
+    }
 }
 
 // Use in pipes — self is the piped value

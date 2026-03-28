@@ -127,7 +127,7 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::For) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
-                self.parse_for_block_or_inline();
+                self.parse_for_block();
                 self.builder.finish_node();
             }
             Some(TokenKind::Trait) => {
@@ -610,9 +610,8 @@ impl<'src> CstParser<'src> {
 
     // ── For Blocks ──────────────────────────────────────────────
 
-    /// Parse either a for-block (`for Type { ... }`) or inline for-declaration
-    /// (`[export] for Type fn ...`).
-    fn parse_for_block_or_inline(&mut self) {
+    /// Parse a for-block: `for Type { fn ... }`.
+    fn parse_for_block(&mut self) {
         self.builder.start_node(SyntaxKind::FOR_BLOCK.into());
 
         self.expect(TokenKind::For);
@@ -630,14 +629,6 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        // Inline form: `[export] for Type fn name(...) { ... }`
-        if self.at(TokenKind::Fn) || self.at(TokenKind::Async) {
-            self.parse_for_block_function();
-            self.builder.finish_node();
-            return;
-        }
-
-        // Block form: `for Type { ... }`
         self.expect(TokenKind::LeftBrace);
         self.eat_trivia();
 

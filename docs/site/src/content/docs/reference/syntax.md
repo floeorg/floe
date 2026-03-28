@@ -80,16 +80,10 @@ type Point {
 ### For Block
 
 ```floe
-// Block form: group multiple functions
 for Type {
   fn method(self) -> ReturnType {
     body
   }
-}
-
-// Inline form: single function, no block
-export for Type fn method(self) -> ReturnType {
-  body
 }
 
 for Array<User> {

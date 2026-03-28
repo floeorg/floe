@@ -382,15 +382,16 @@ for Array<Todo> {
     }
 }
 
-// Inline form — single function
-export for string fn validate(self) -> Validation {
-    const trimmed = self |> trim
-    const len = trimmed |> String.length
-    match len {
-        0 -> Empty,
-        1 -> TooShort,
-        _ when len > 100 -> TooLong,
-        _ -> Valid(trimmed),
+for string {
+    export fn validate(self) -> Validation {
+        const trimmed = self |> trim
+        const len = trimmed |> String.length
+        match len {
+            0 -> Empty,
+            1 -> TooShort,
+            _ when len > 100 -> TooLong,
+            _ -> Valid(trimmed),
+        }
     }
 }
 

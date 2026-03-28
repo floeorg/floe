@@ -2,37 +2,43 @@ import { Product, ProductId, CartItem, SortOrder, PriceRange, Display, Discounta
 
 // ── Trait implementations ──────────────────────────────
 
-export for Product: Display fn display(self) -> string {
-    `${self.title} - $${self.price}`
+for Product: Display {
+    export fn display(self) -> string {
+        `${self.title} - $${self.price}`
+    }
 }
 
-export for Product: Discountable fn effectivePrice(self) -> number {
-    self.price * (1 - self.discountPercentage / 100)
+for Product: Discountable {
+    export fn effectivePrice(self) -> number {
+        self.price * (1 - self.discountPercentage / 100)
+    }
 }
 
 // ── Product helpers ────────────────────────────────────
 
-export for Product fn savings(self) -> number {
-    self.price - (self |> effectivePrice)
-}
-
-export for Product fn inStock(self) -> boolean {
-    self.stock > 0
-}
-
-export for Product fn stockLabel(self) -> string {
-    self.stock |> match {
-        0 -> "Out of stock",
-        n when n < 5 -> `Only ${n} left!`,
-        n when n < 20 -> "In stock",
-        _ -> "Plenty in stock",
+for Product {
+    export fn savings(self) -> number {
+        self.price - (self |> effectivePrice)
     }
-}
 
-export for Product fn ratingStars(self) -> string {
-    const full = Math.floor(self.rating)
+    export fn inStock(self) -> boolean {
+        self.stock > 0
+    }
 
-    "*" |> String.repeat(full)
+    export fn stockLabel(self) -> string {
+        self.stock |> match {
+            0 -> "Out of stock",
+            n when n < 5 -> `Only ${n} left!`,
+            n when n < 20 -> "In stock",
+            _ -> "Plenty in stock",
+        }
+    }
+
+    export fn ratingStars(self) -> string {
+        const full = Math.floor(self.rating)
+
+        "*" |> String.repeat(full)
+    }
 }
 
 // ── Cart operations ────────────────────────────────────

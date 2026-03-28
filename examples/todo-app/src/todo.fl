@@ -1,26 +1,27 @@
 import { Todo, Filter, Validation, Display } from "./types"
 
-// Inline for-declaration: single function, no block needed
-export for string fn validate(self) -> Validation {
-    const trimmed = self |> trim
-    const len = trimmed |> String.length
-    match len {
-        0 -> Empty,
-        1 -> TooShort,
-        _ when len > 100 -> TooLong,
-        _ -> Valid(trimmed),
+for string {
+    export fn validate(self) -> Validation {
+        const trimmed = self |> trim
+        const len = trimmed |> String.length
+        match len {
+            0 -> Empty,
+            1 -> TooShort,
+            _ when len > 100 -> TooLong,
+            _ -> Valid(trimmed),
+        }
     }
 }
 
-// Inline for-declaration with trait bound
-export for Todo: Display fn display(self) -> string {
-    match self.done {
-        true -> `[x] ${self.text}`,
-        false -> `[ ] ${self.text}`,
+for Todo: Display {
+    export fn display(self) -> string {
+        match self.done {
+            true -> `[x] ${self.text}`,
+            false -> `[ ] ${self.text}`,
+        }
     }
 }
 
-// Block form still works for grouping related functions
 for Array<Todo> {
     export fn filterBy(self, f: Filter) -> Array<Todo> {
         match f {
