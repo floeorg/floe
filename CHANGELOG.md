@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.9](https://github.com/milkyskies/floe/compare/v0.1.8...v0.1.9) (2026-03-28)
+
+
+### Features
+
+* [[#294](https://github.com/milkyskies/floe/issues/294)] Add mock&lt;T&gt; compiler built-in for test data generation ([#473](https://github.com/milkyskies/floe/issues/473)) ([3614d2f](https://github.com/milkyskies/floe/commit/3614d2fef13adf93303e196697af341620d6359c))
+
 ## [0.1.8](https://github.com/milkyskies/floe/compare/v0.1.7...v0.1.8) (2026-03-28)
 
 
