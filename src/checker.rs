@@ -47,6 +47,7 @@ pub(crate) struct CheckContext {
 // ── Unused name tracking ────────────────────────────────────────
 
 /// Tracks used/defined/imported names for unused detection.
+#[derive(Default)]
 pub(crate) struct UnusedTracker {
     /// Variables/functions referenced.
     pub used_names: HashSet<String>,
@@ -58,34 +59,15 @@ pub(crate) struct UnusedTracker {
     pub defined_sources: HashMap<String, String>,
 }
 
-impl Default for UnusedTracker {
-    fn default() -> Self {
-        Self {
-            used_names: HashSet::new(),
-            defined_names: Vec::new(),
-            imported_names: Vec::new(),
-            defined_sources: HashMap::new(),
-        }
-    }
-}
-
 // ── Trait registry ──────────────────────────────────────────────
 
 /// Tracks trait declarations and implementations.
+#[derive(Default)]
 pub(crate) struct TraitRegistry {
     /// Registered trait declarations: trait name -> methods.
     pub trait_defs: HashMap<String, Vec<TraitMethodSig>>,
     /// Tracks which (type, trait) pairs have been implemented.
     pub trait_impls: HashSet<(String, String)>,
-}
-
-impl Default for TraitRegistry {
-    fn default() -> Self {
-        Self {
-            trait_defs: HashMap::new(),
-            trait_impls: HashSet::new(),
-        }
-    }
 }
 
 // ── Checker ──────────────────────────────────────────────────────
