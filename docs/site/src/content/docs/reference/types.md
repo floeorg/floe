@@ -18,7 +18,6 @@ title: Types Reference
 | `Option<T>` | Present (`Some(T)`) or absent (`None`) |
 | `Array<T>` | Ordered collection |
 | `Promise<T>` | Async value |
-| `type Name { T }` | Newtype wrapper (compile-time distinct) |
 
 ## Record Types
 
@@ -159,7 +158,7 @@ fn(number, number) -> number
 Array<T>
 
 // Tuple
-[string, number]
+(string, number)
 ```
 
 ## Banned Types

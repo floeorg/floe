@@ -838,7 +838,7 @@ impl Codegen {
                 self.emit_string_literal_union_type(variants);
             }
             TypeDef::Alias(type_expr) => {
-                // Brand and opaque types erase to their underlying type
+                // Opaque types erase to their underlying type
                 self.emit_type_expr(type_expr);
             }
         }
@@ -968,11 +968,6 @@ impl Codegen {
             TypeExprKind::Named {
                 name, type_args, ..
             } => {
-                // Brand<T, "Name"> erases to T
-                if name == type_names::BRAND && type_args.len() == 2 {
-                    self.emit_type_expr(&type_args[0]);
-                    return;
-                }
                 // Option<T> becomes T | undefined
                 if name == type_names::OPTION && type_args.len() == 1 {
                     self.emit_type_expr(&type_args[0]);

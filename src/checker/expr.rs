@@ -49,6 +49,16 @@ impl Checker {
                     );
                 }
                 if let Some(ty) = self.env.lookup(name).cloned() {
+                    // Non-unit variant as bare identifier → constructor function
+                    if let Type::Union { ref variants, .. } = ty
+                        && let Some((_, field_types)) = variants.iter().find(|(v, _)| v == name)
+                        && !field_types.is_empty()
+                    {
+                        return Type::Function {
+                            params: field_types.clone(),
+                            return_type: Box::new(ty),
+                        };
+                    }
                     ty
                 } else if self.stdlib.is_module(name) {
                     // Stdlib module names (Array, String, etc.) are valid identifiers
@@ -475,6 +485,21 @@ impl Checker {
                                 .with_code("E002"),
                         );
                     }
+                }
+
+                // Zero-arg reference to non-unit variant → constructor function
+                // Must check early, before field validation would flag missing fields
+                if args.is_empty()
+                    && spread.is_none()
+                    && let Some(ty) = self.env.lookup(type_name).cloned()
+                    && let Type::Union { variants, .. } = &ty
+                    && let Some((_, field_types)) = variants.iter().find(|(v, _)| v == type_name)
+                    && !field_types.is_empty()
+                {
+                    return Type::Function {
+                        params: field_types.clone(),
+                        return_type: Box::new(ty),
+                    };
                 }
 
                 // Rule 3: Opaque enforcement
@@ -1052,25 +1077,6 @@ impl Checker {
                         .with_label("mismatched types")
                         .with_help("both sides of `==` must have the same type")
                         .with_code("E008"),
-                    );
-                }
-                // Rule 2: Brand enforcement
-                if let (Type::Brand { tag: tag_l, .. }, Type::Brand { tag: tag_r, .. }) =
-                    (&left_ty, &right_ty)
-                    && tag_l != tag_r
-                {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "cannot compare branded type `{tag_l}` with `{tag_r}`"
-                            ),
-                            span,
-                        )
-                        .with_label("different branded types")
-                        .with_help(format!(
-                            "`{tag_l}` and `{tag_r}` are distinct types even though they share the same base type"
-                        ))
-                        .with_code("E002"),
                     );
                 }
                 Type::Bool

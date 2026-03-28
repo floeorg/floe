@@ -78,6 +78,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Dot shorthand | `.name` in callback position | `(x) => x.name` |
 | Dot shorthand (predicate) | `.id != id` in callback position | `(x) => x.id != id` |
 | Qualified variant | `Type.Variant` for disambiguation | `{ tag: "Variant" }` (same as bare) |
+| Variant as function | `Validation` (bare, non-unit) | `(errors) => ({ tag: "Validation", errors })` |
 | Default values | `fn f(x: number = 10)` | caller can omit, compiler fills in |
 | Structural equality | `==` on objects compares by value | deep equality check |
 | Unit type | `()` as return type, usable in generics | `undefined` / `void` in TS |

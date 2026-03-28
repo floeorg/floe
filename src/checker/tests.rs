@@ -45,16 +45,16 @@ fn undeclared_variable() {
     assert!(has_error_containing(&diags, "is not defined"));
 }
 
-// ── Rule 2: Brand enforcement ───────────────────────────────
+// ── Rule 2: Newtype enforcement ─────────────────────────────
 
 #[test]
-fn brand_comparison_different_tags() {
+fn newtype_comparison_different_types() {
     let diags = check(
         r#"
-type UserId = Brand<string, UserId>
-type Email = Brand<string, Email>
-const a: UserId = UserId("abc")
-const b: Email = Email("test@test.com")
+type UserId { string }
+type Email { string }
+const a = UserId("abc")
+const b = Email("test@test.com")
 const result = a == b
 "#,
     );
@@ -2948,4 +2948,60 @@ const _result = "hello" |> add(3, _)
         &diags,
         "expected `number`, found `string`"
     ));
+}
+
+// ── Variant constructors as functions ───────────────────────
+
+#[test]
+fn variant_constructor_as_function_no_error() {
+    let diags = check(
+        r#"
+type SaveError {
+    | Validation { errors: Array<string> }
+    | Api { message: string }
+}
+
+fn apply(f: fn(Array<string>) -> SaveError) -> SaveError {
+    f(["error"])
+}
+
+const _result = apply(Validation)
+"#,
+    );
+    assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
+}
+
+#[test]
+fn unit_variant_not_treated_as_function() {
+    let diags = check(
+        r#"
+type Filter {
+    | All
+    | Active
+    | Completed
+}
+
+const _f: Filter = All
+"#,
+    );
+    assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
+}
+
+#[test]
+fn variant_constructor_type_mismatch() {
+    let diags = check(
+        r#"
+type MyError {
+    | Validation { errors: Array<string> }
+    | Api { message: string }
+}
+
+fn apply(f: fn(number) -> MyError) -> MyError {
+    f(42)
+}
+
+const _result = apply(Validation)
+"#,
+    );
+    assert!(has_error(&diags, "E001"));
 }

@@ -15,11 +15,6 @@ pub enum Type {
     Undefined,
     /// A named/user-defined type
     Named(String),
-    /// Brand type: distinct at compile time, erases to base at runtime
-    Brand {
-        base: Box<Type>,
-        tag: String,
-    },
     /// Opaque type: only the defining module can construct/destructure
     Opaque {
         name: String,
@@ -92,7 +87,6 @@ impl Type {
             Type::Bool => "boolean".to_string(),
             Type::Undefined => "undefined".to_string(),
             Type::Named(n) => n.clone(),
-            Type::Brand { tag, .. } => tag.clone(),
             Type::Opaque { name, .. } => name.clone(),
             Type::Result { ok, err } => {
                 format!("Result<{}, {}>", ok.display_name(), err.display_name())

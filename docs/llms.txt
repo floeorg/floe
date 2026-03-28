@@ -141,6 +141,13 @@ const err = ApiError.Network(NetworkError.Timeout(ms: 3000))
 // const c = Red        // Error: ambiguous
 const c = Color.Red     // OK — qualified
 // Bare variants work when unambiguous or in match arms
+
+// Non-unit variants as functions (constructor-as-function):
+// A non-unit variant name used without args becomes an arrow function
+const toValidation = Validation  // (errors) => ({ tag: "Validation", errors })
+const toApi = SaveError.Api      // (message) => ({ tag: "Api", message })
+// Useful with mapErr:
+result |> Result.mapErr(Validation)  // instead of Result.mapErr(fn(e) Validation(e))
 ```
 
 ## Pipe Operator

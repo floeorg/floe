@@ -74,6 +74,25 @@ The return type of a `collect` block is always `Result<T, Array<E>>`.
 
 This is useful for form validation, batch processing, and anywhere you want to report all errors at once instead of stopping at the first one.
 
+## Mapping Error Types
+
+When composing functions with different error types, use `Result.mapErr` to convert errors into a domain type. Variant constructors can be passed directly as functions:
+
+```floe
+type AppError {
+    | Validation { errors: Array<string> }
+    | Api { message: string }
+}
+
+fn saveTodo(text: string, id: string) -> Result<Todo, AppError> {
+    const todo = validateTodo(text, id) |> Result.mapErr(Validation)?
+    const saved = apiSave(todo) |> Result.mapErr(Api)?
+    Ok(saved)
+}
+```
+
+`Validation` here is used as a function — equivalent to `fn(e) Validation(errors: e)`. This works for any non-unit variant.
+
 ## Option
 
 ```floe

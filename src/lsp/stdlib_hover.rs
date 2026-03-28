@@ -54,7 +54,6 @@ pub(super) fn format_type(ty: &crate::checker::Type) -> String {
                 .collect();
             format!("{{ {} }}", f.join(", "))
         }
-        Type::Brand { tag, .. } => tag.clone(),
         Type::Opaque { name, .. } => name.clone(),
         Type::Union { name, .. } => name.clone(),
         Type::StringLiteralUnion { name, .. } => name.clone(),

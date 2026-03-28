@@ -112,6 +112,30 @@ match filter {
 }
 ```
 
+## Variant Constructors as Functions
+
+Non-unit variants (variants with fields) can be used as function values by referencing them without arguments:
+
+```floe
+type SaveError {
+    | Validation { errors: Array<string> }
+    | Api { message: string }
+}
+
+// Bare variant name becomes an arrow function
+const toValidation = Validation
+// Equivalent to: fn(errors) Validation(errors: errors)
+
+// Qualified syntax works too
+const toApi = SaveError.Api
+
+// Most useful with higher-order functions like mapErr:
+result |> Result.mapErr(Validation)
+// Instead of: result |> Result.mapErr(fn(e) Validation(e))
+```
+
+Unit variants (no fields) are values, not functions — `All` produces `{ tag: "All" }` directly.
+
 ## String Literal Unions
 
 For npm interop with TypeScript libraries that use string literal unions:
@@ -147,22 +171,18 @@ For pure Floe code, prefer regular tagged unions (`| Get | Post`) since they wor
 
 ### Result
 
-For operations that can fail:
+For operations that can fail. `Result` is a built-in type — no need to define it:
 
 ```floe
-type Result<T, E> { | Ok { T } | Err { E } }
-
 const result = Ok(42)
 const error = Err("something went wrong")
 ```
 
 ### Option
 
-For values that may be absent:
+For values that may be absent. `Option` is a built-in type — no need to define it:
 
 ```floe
-type Option<T> { | Some { T } | None }
-
 const found = Some("hello")
 const missing = None
 ```

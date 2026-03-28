@@ -8,7 +8,6 @@ pub const UNKNOWN: &str = "unknown";
 pub const OPTION: &str = "Option";
 pub const RESULT: &str = "Result";
 pub const ARRAY: &str = "Array";
-pub const BRAND: &str = "Brand";
 pub const ERROR: &str = "Error";
 pub const RESPONSE: &str = "Response";
 

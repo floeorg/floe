@@ -846,26 +846,6 @@ impl Checker {
                     .unwrap_or(Type::Unknown);
                 Type::Array(Box::new(inner))
             }
-            type_names::BRAND => {
-                let base = type_args
-                    .first()
-                    .map(|t| self.resolve_type(t))
-                    .unwrap_or(Type::Unknown);
-                let tag = type_args
-                    .get(1)
-                    .and_then(|t| {
-                        if let TypeExprKind::Named { name, .. } = &t.kind {
-                            Some(name.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(|| type_names::UNKNOWN.to_string());
-                Type::Brand {
-                    base: Box::new(base),
-                    tag,
-                }
-            }
             _ => {
                 // Check if this is a known user-defined type or imported name.
                 // Skip validation during type registration (forward references).
@@ -1849,7 +1829,6 @@ impl Checker {
             (Type::Named(a), Type::Union { name: b, .. })
             | (Type::Union { name: a, .. }, Type::Named(b)) => a == b,
             (Type::Union { name: a, .. }, Type::Union { name: b, .. }) => a == b,
-            (Type::Brand { tag: a, .. }, Type::Brand { tag: b, .. }) => a == b,
             (Type::Result { ok: o1, err: e1 }, Type::Result { ok: o2, err: e2 }) => {
                 self.types_compatible(o1, o2) && self.types_compatible(e1, e2)
             }

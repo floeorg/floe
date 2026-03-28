@@ -33,6 +33,15 @@ impl Codegen {
                     self.push(&format!("{{ {TAG_FIELD}: \""));
                     self.push(name);
                     self.push("\" }");
+                } else if let Some(field_names) = self
+                    .variant_info
+                    .get(name.as_str())
+                    .filter(|(_, f)| !f.is_empty())
+                    .map(|(_, f)| f.clone())
+                {
+                    // Non-unit variant as function value:
+                    // `Validation` → `(value) => ({ tag: "Validation", value })`
+                    self.emit_variant_constructor_fn(name, &field_names);
                 } else {
                     self.push(name);
                 }
@@ -108,6 +117,20 @@ impl Codegen {
                 spread,
                 args,
             } => {
+                // Qualified non-unit variant with no args → function value
+                // `SaveError.Validation` → `(value) => ({ tag: "Validation", value })`
+                if args.is_empty()
+                    && spread.is_none()
+                    && let Some(field_names) = self
+                        .variant_info
+                        .get(type_name.as_str())
+                        .filter(|(_, f)| !f.is_empty())
+                        .map(|(_, f)| f.clone())
+                {
+                    self.emit_variant_constructor_fn(type_name, &field_names);
+                    return;
+                }
+
                 let variant_field_names = self
                     .variant_info
                     .get(type_name.as_str())
@@ -657,6 +680,26 @@ impl Codegen {
     }
 
     // ── Constructor → Object Literal ─────────────────────────────
+
+    /// Emit a variant constructor as an arrow function.
+    /// `Validation` → `(value) => ({ tag: "Validation", value })`
+    fn emit_variant_constructor_fn(&mut self, variant_name: &str, field_names: &[String]) {
+        self.push("(");
+        for (i, fname) in field_names.iter().enumerate() {
+            if i > 0 {
+                self.push(", ");
+            }
+            self.push(fname);
+        }
+        self.push(&format!(") => ({{ {TAG_FIELD}: \""));
+        self.push(variant_name);
+        self.push("\"");
+        for fname in field_names {
+            self.push(", ");
+            self.push(fname);
+        }
+        self.push(" })");
+    }
 
     /// Emit construct fields, mapping positional args to field names from the type definition.
     fn emit_construct_fields(&mut self, args: &[Arg], field_names: &[String]) {
