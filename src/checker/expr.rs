@@ -283,6 +283,36 @@ impl Checker {
                             _ => "<anonymous>",
                         };
 
+                        // Validate named argument labels against parameter names
+                        if let Some(param_names) = self.fn_param_names.get(callee_name) {
+                            for arg in args.iter() {
+                                if let Arg::Named { label, .. } = arg
+                                    && !param_names.iter().any(|p| p == label)
+                                {
+                                    self.diagnostics.push(
+                                        Diagnostic::error(
+                                            format!(
+                                                "unknown argument `{label}` in call to `{callee_name}`"
+                                            ),
+                                            expr.span,
+                                        )
+                                        .with_label(format!(
+                                            "`{label}` is not a parameter of `{callee_name}`"
+                                        ))
+                                        .with_help(format!(
+                                            "expected one of: {}",
+                                            param_names
+                                                .iter()
+                                                .map(|n| format!("`{n}`"))
+                                                .collect::<Vec<_>>()
+                                                .join(", ")
+                                        ))
+                                        .with_code("E015"),
+                                    );
+                                }
+                            }
+                        }
+
                         // For partial application (non-pipe), the number of actual
                         // (non-placeholder) args must fit within the function's params,
                         // and the total arg count (including placeholders) must match.

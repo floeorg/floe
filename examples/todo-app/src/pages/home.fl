@@ -1,7 +1,7 @@
-import trusted { useState } from "react"
-import trusted { v4 } from "uuid"
+import { useState } from "react"
+import { v4 } from "uuid"
 import { Todo, Filter, Validation } from "../types"
-import { for string, for Array } from "../todo"
+import from "../todo"
 
 export fn HomePage() -> JSX.Element {
     const [todos, setTodos] = useState<Array<Todo>>([])
@@ -18,20 +18,19 @@ export fn HomePage() -> JSX.Element {
             TooShort -> setError("Todo must be at least 2 characters"),
             TooLong -> setError("Todo must be under 100 characters"),
             Valid(text) -> {
-                setTodos(todos |> Array.append(Todo(id: v4(), text: text, done: false)))
+                setTodos(todos |> Array.append(Todo(id: v4(), text:, done: false)))
                 setInput("")
+
                 setError("")
             },
         }
     }
 
     fn handleToggle(id: string) {
-        setTodos(todos |> map((t) =>
-            match t.id == id {
-                true -> Todo(..t, done: !t.done),
-                false -> t,
-            }
-        ))
+        setTodos(todos |> map((t) => match t.id == id {
+            true -> Todo(..t, done: !t.done),
+            false -> t,
+        }))
     }
 
     fn handleDelete(id: string) {
@@ -40,7 +39,6 @@ export fn HomePage() -> JSX.Element {
 
     <div>
         <h1 className="text-3xl font-bold mb-6">Todos</h1>
-
         <div className="flex gap-2 mb-4">
             <input
                 type="text"
@@ -52,20 +50,15 @@ export fn HomePage() -> JSX.Element {
                 }}
                 placeholder="What needs to be done?"
                 className="flex-1 rounded-lg bg-zinc-800 px-4 py-2 text-zinc-100 placeholder-zinc-500 outline-none ring-1 ring-zinc-700 focus:ring-indigo-500"
-            />
+             />
             <button
                 onClick={handleAdd}
                 className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500 transition-colors"
-            >
-                Add
-            </button>
-        </div>
-
-        {match error {
+            >Add</button>
+        </div>{match error {
             "" -> <span />,
             _ -> <p className="text-red-400 text-sm mb-4">{error}</p>,
         }}
-
         <div className="flex gap-2 mb-6">
             <button
                 onClick={() => setFilter(All)}
@@ -73,62 +66,47 @@ export fn HomePage() -> JSX.Element {
                     All -> "rounded-full px-3 py-1 text-sm font-medium bg-indigo-600 text-white",
                     _ -> "rounded-full px-3 py-1 text-sm font-medium bg-zinc-800 text-zinc-400 hover:text-zinc-100",
                 }}
-            >
-                All
-            </button>
+            >All</button>
             <button
                 onClick={() => setFilter(Active)}
                 className={match filter {
                     Active -> "rounded-full px-3 py-1 text-sm font-medium bg-indigo-600 text-white",
                     _ -> "rounded-full px-3 py-1 text-sm font-medium bg-zinc-800 text-zinc-400 hover:text-zinc-100",
                 }}
-            >
-                Active
-            </button>
+            >Active</button>
             <button
                 onClick={() => setFilter(Completed)}
                 className={match filter {
                     Completed -> "rounded-full px-3 py-1 text-sm font-medium bg-indigo-600 text-white",
                     _ -> "rounded-full px-3 py-1 text-sm font-medium bg-zinc-800 text-zinc-400 hover:text-zinc-100",
                 }}
-            >
-                Completed
-            </button>
+            >Completed</button>
         </div>
-
-        <ul className="space-y-2">
-            {visible |> map((item) =>
-                <li key={item.id} className="flex items-center gap-3 rounded-lg bg-zinc-800/50 px-4 py-3">
-                    <button
-                        onClick={() => handleToggle(item.id)}
-                        className={match item.done {
-                            true -> "h-5 w-5 rounded-full border-2 border-indigo-500 bg-indigo-500 flex items-center justify-center",
-                            false -> "h-5 w-5 rounded-full border-2 border-zinc-600",
-                        }}
-                    >
-                        {match item.done {
-                            true -> <span className="text-white text-xs">✓</span>,
-                            false -> <span />,
-                        }}
-                    </button>
-                    <span className={match item.done {
-                        true -> "flex-1 text-zinc-500 line-through",
-                        false -> "flex-1 text-zinc-100",
-                    }}>
-                        {item.text}
-                    </span>
-                    <button
-                        onClick={() => handleDelete(item.id)}
-                        className="text-zinc-600 hover:text-red-400 transition-colors"
-                    >
-                        ✕
-                    </button>
-                </li>
-            )}
-        </ul>
-
-        <p className="mt-6 text-sm text-zinc-500">
-            {`${remainingCount} item(s) remaining`}
-        </p>
+        <ul className="space-y-2">{visible |> map((item) => <li
+            key={item.id}
+            className="flex items-center gap-3 rounded-lg bg-zinc-800/50 px-4 py-3"
+        >
+            <button
+                onClick={() => handleToggle(item.id)}
+                className={match item.done {
+                    true -> "h-5 w-5 rounded-full border-2 border-indigo-500 bg-indigo-500 flex items-center justify-center",
+                    false -> "h-5 w-5 rounded-full border-2 border-zinc-600",
+                }}
+            >{match item.done {
+                true -> <span className="text-white text-xs">✓</span>,
+                false -> <span />,
+            }}</button>
+            <span
+                className={match item.done {
+                    true -> "flex-1 text-zinc-500 line-through",
+                    false -> "flex-1 text-zinc-100",
+                }}
+            >{item.text}</span>
+            <button
+                onClick={() => handleDelete(item.id)}
+                className="text-zinc-600 hover:text-red-400 transition-colors"
+            >✕</button>
+        </li>)}</ul>
+        <p className="mt-6 text-sm text-zinc-500">{`${remainingCount} item(s) remaining`}</p>
     </div>
 }

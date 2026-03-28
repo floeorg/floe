@@ -163,6 +163,15 @@ for User: Eq {
 }
 
 #[test]
+fn snapshot_error_unknown_named_argument() {
+    let output = get_diagnostics(
+        "test.fl",
+        "fn add(a: number, b: number) -> number { a + b }\nconst _x = add(pooopy: 22)",
+    );
+    insta::assert_snapshot!(output);
+}
+
+#[test]
 fn snapshot_error_todo_warning() {
     let output = get_diagnostics("test.fl", "fn process(x: number) -> number {\n  todo\n}");
     insta::assert_snapshot!(output);

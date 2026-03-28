@@ -1,9 +1,9 @@
-import trusted { Suspense } from "react"
-import trusted { useSuspenseQuery, QueryErrorResetBoundary } from "@tanstack/react-query"
-import trusted { ErrorBoundary } from "react-error-boundary"
-import trusted { Link } from "@tanstack/react-router"
+import { Suspense } from "react"
+import { useSuspenseQuery, QueryErrorResetBoundary } from "@tanstack/react-query"
+import { ErrorBoundary } from "react-error-boundary"
+import { Link } from "@tanstack/react-router"
 import { Product, ProductId, Review } from "../types"
-import { for Product, formatPrice } from "../product"
+import { formatPrice } from "../product"
 import { fetchProduct } from "../api"
 
 // ── Star rating display ────────────────────────────────
@@ -24,7 +24,9 @@ fn Stars(props: { rating: number }) -> JSX.Element {
 fn ReviewCard(props: { review: Review }) -> JSX.Element {
     const review = props.review
 
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+    <div
+        className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4"
+    >
         <div className="mb-2 flex items-center justify-between">
             <span className="font-medium text-zinc-200">{review.reviewerName}</span>
             <Stars rating={review.rating} />
@@ -36,10 +38,9 @@ fn ReviewCard(props: { review: Review }) -> JSX.Element {
 
 // ── Product detail content ─────────────────────────────
 
-fn ProductDetailContent(props: {
-    productId: ProductId,
-    onAddToCart: (Product) => (),
-}) -> JSX.Element {
+fn ProductDetailContent(
+    props: { productId: ProductId, onAddToCart: (Product) => () },
+) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["product", props.productId],
         queryFn: async () => fetchProduct(props.productId),
@@ -59,74 +60,59 @@ fn ProductDetailContent(props: {
                     src={product.thumbnail}
                     alt={product.title}
                     className="w-full rounded-xl object-cover"
-                />
-                <div className="mt-3 flex gap-2 overflow-x-auto">
-                    {product.images |> Array.map((img) =>
-                        <img
-                            key={img}
-                            src={img}
-                            alt={product.title}
-                            className="h-20 w-20 shrink-0 rounded-lg object-cover border border-zinc-800"
-                        />
-                    )}
-                </div>
+                 />
+                <div className="mt-3 flex gap-2 overflow-x-auto">{product.images |> Array.map(
+                    (img) => <img
+                        key={img}
+                        src={img}
+                        alt={product.title}
+                        className="h-20 w-20 shrink-0 rounded-lg object-cover border border-zinc-800"
+                     />,
+                )}</div>
             </div>
-
             <div className="w-1/2">
-                <span className="mb-2 inline-block rounded-full bg-zinc-800 px-3 py-1 text-xs text-zinc-400">
-                    {product.category}
-                </span>
-                <h1 className="mb-2 text-3xl font-bold text-zinc-100">{product.title}</h1>
-
-                {product.brand |> match {
+                <span
+                    className="mb-2 inline-block rounded-full bg-zinc-800 px-3 py-1 text-xs text-zinc-400"
+                >{product.category}</span>
+                <h1 className="mb-2 text-3xl font-bold text-zinc-100">{product.title}</h1>{product.brand
+                    |> match {
                     "" -> <span />,
                     brand -> <p className="mb-4 text-sm text-zinc-500">{`by ${brand}`}</p>,
                 }}
-
                 <div className="mb-4 flex items-center gap-3">
                     <Stars rating={product.rating} />
                     <span className="text-sm text-zinc-400">{`${product.rating}/5`}</span>
                     <span className="text-sm text-zinc-600">{`(${reviews |> Array.length} reviews)`}</span>
                 </div>
-
                 <div className="mb-4 flex items-baseline gap-3">
-                    <span className="text-3xl font-bold text-indigo-400">
-                        {product |> effectivePrice |> formatPrice}
-                    </span>
-                    {match hasDiscount {
-                        true -> <span className="text-lg text-zinc-500 line-through">
-                            {formatPrice(product.price)}
-                        </span>,
+                    <span className="text-3xl font-bold text-indigo-400">{product
+                        |> effectivePrice
+                        |> formatPrice}</span>{match hasDiscount {
+                        true -> <span className="text-lg text-zinc-500 line-through">{formatPrice(
+                            product.price,
+                        )}</span>,
                         false -> <span />,
-                    }}
-                    {match hasDiscount {
-                        true -> <span className="rounded bg-emerald-900/50 px-2 py-1 text-sm text-emerald-400">
-                            {`Save ${product |> savings |> formatPrice}`}
-                        </span>,
+                    }}{match hasDiscount {
+                        true -> <span
+                            className="rounded bg-emerald-900/50 px-2 py-1 text-sm text-emerald-400"
+                        >{`Save ${product |> savings |> formatPrice}`}</span>,
                         false -> <span />,
                     }}
                 </div>
-
                 <p className="mb-6 text-zinc-400">{product.description}</p>
-
                 <div className="mb-6 flex items-center gap-3">
-                    <span className={product.stock |> match {
-                        0 -> "rounded-full bg-red-900/30 px-3 py-1 text-sm text-red-400",
-                        n when n < 5 -> "rounded-full bg-amber-900/30 px-3 py-1 text-sm text-amber-400",
-                        _ -> "rounded-full bg-emerald-900/30 px-3 py-1 text-sm text-emerald-400",
-                    }}>
-                        {product |> stockLabel}
-                    </span>
+                    <span
+                        className={product.stock |> match {
+                            0 -> "rounded-full bg-red-900/30 px-3 py-1 text-sm text-red-400",
+                            n when n < 5 -> "rounded-full bg-amber-900/30 px-3 py-1 text-sm text-amber-400",
+                            _ -> "rounded-full bg-emerald-900/30 px-3 py-1 text-sm text-emerald-400",
+                        }}
+                    >{product |> stockLabel}</span>
                 </div>
-
-                <div className="mb-6 flex flex-wrap gap-2">
-                    {product.tags |> Array.map((tag) =>
-                        <span key={tag} className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-400">
-                            {tag}
-                        </span>
-                    )}
-                </div>
-
+                <div className="mb-6 flex flex-wrap gap-2">{product.tags |> Array.map((tag) => <span
+                    key={tag}
+                    className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-400"
+                >{tag}</span>)}</div>
                 <button
                     onClick={() => props.onAddToCart(product)}
                     disabled={!(product |> inStock)}
@@ -134,27 +120,20 @@ fn ProductDetailContent(props: {
                         true -> "w-full rounded-xl bg-indigo-600 py-3 text-lg font-semibold text-white transition-colors hover:bg-indigo-500",
                         false -> "w-full rounded-xl bg-zinc-800 py-3 text-lg font-semibold text-zinc-600 cursor-not-allowed",
                     }}
-                >
-                    {product |> inStock |> match {
-                        true -> "Add to Cart",
-                        false -> "Out of Stock",
-                    }}
-                </button>
+                >{product |> inStock |> match {
+                    true -> "Add to Cart",
+                    false -> "Out of Stock",
+                }}</button>
             </div>
         </div>
-
         <div>
             <h2 className="mb-4 text-xl font-semibold">Reviews</h2>
-            <div className="space-y-3">
-                {reviews |> match {
-                    [] -> <p className="text-zinc-500">No reviews yet.</p>,
-                    revs -> <div className="space-y-3">
-                        {revs |> Array.map((review) =>
-                            <ReviewCard key={review.reviewerName} review={review} />
-                        )}
-                    </div>,
-                }}
-            </div>
+            <div className="space-y-3">{reviews |> match {
+                [] -> <p className="text-zinc-500">No reviews yet.</p>,
+                revs -> <div className="space-y-3">{revs |> Array.map(
+                    (review) => <ReviewCard key={review.reviewerName} review={review} />,
+                )}</div>,
+            }}</div>
         </div>
     </div>
 }
@@ -185,39 +164,29 @@ fn DetailSkeleton() -> JSX.Element {
 
 // ── Exported page component ────────────────────────────
 
-export fn ProductDetailPage(props: {
-    productId: ProductId,
-    onAddToCart: (Product) => (),
-}) -> JSX.Element {
+export fn ProductDetailPage(
+    props: { productId: ProductId, onAddToCart: (Product) => () },
+) -> JSX.Element {
     <div>
-        <Link to="/" className="mb-6 inline-block text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
-            {"<- Back to catalog"}
-        </Link>
-
-        <QueryErrorResetBoundary>
-            {({ reset }) =>
-                <ErrorBoundary
-                    onReset={reset}
-                    fallbackRender={({ resetErrorBoundary, error }) =>
-                        <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center">
-                            <p className="mb-3 text-red-400">{`Failed to load product: ${error.message}`}</p>
-                            <button
-                                onClick={resetErrorBoundary}
-                                className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500"
-                            >
-                                Retry
-                            </button>
-                        </div>
-                    }
-                >
-                    <Suspense fallback={<DetailSkeleton />}>
-                        <ProductDetailContent
-                            productId={props.productId}
-                            onAddToCart={props.onAddToCart}
-                        />
-                    </Suspense>
-                </ErrorBoundary>
-            }
-        </QueryErrorResetBoundary>
+        <Link
+            to="/"
+            className="mb-6 inline-block text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+        >{"<- Back to catalog"}</Link>
+        <QueryErrorResetBoundary>{(reset) => <ErrorBoundary
+            onReset={reset}
+            fallbackRender={(resetErrorBoundary) => <div
+                className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
+            >
+                <p className="mb-3 text-red-400">{`Failed to load product: ${error.message}`}</p>
+                <button
+                    onClick={resetErrorBoundary}
+                    className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500"
+                >Retry</button>
+            </div>}
+        >
+            <Suspense fallback={<DetailSkeleton />}>
+                <ProductDetailContent productId={props.productId} onAddToCart={props.onAddToCart} />
+            </Suspense>
+        </ErrorBoundary>}</QueryErrorResetBoundary>
     </div>
 }
