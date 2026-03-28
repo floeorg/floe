@@ -92,6 +92,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Immutable sort | `Array.sort` returns new array | sorted copy, no mutation |
 | Immutable maps | `Map.set`, `Map.remove` return new maps | `new Map([...old, [k, v]])` |
 | Immutable sets | `Set.add`, `Set.remove` return new sets | `new Set([...old, val])` |
+| Date construction | `Date.now()`, `Date.from("...")` | `new Date()`, `new Date("...")` |
 | Strict parse | `Number.parse("123")` returns `Result` | no silent `NaN` or partial parse |
 | Http module | `Http.get(url)`, `Http.post(url, body)` | async IIFE wrapping `fetch` in `Result` |
 | Number separators | `1_000_000`, `3.141_592`, `0xFF_FF` | underscores stripped in output |

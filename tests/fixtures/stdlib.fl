@@ -101,6 +101,19 @@ const _set_union = Set.union(_set, _set2)
 const _set_inter = Set.intersect(_set, _set2)
 const _set_diff = Set.diff(_set, _set2)
 
+// ── Date ──────────────────────────────────────────────────
+const _date_now = Date.now()
+const _date_from = Date.from("2024-01-15")
+const _date_from_ms = Date.fromMillis(1705276800000)
+const _date_year = Date.year(_date_now)
+const _date_month = Date.month(_date_now)
+const _date_day = Date.day(_date_now)
+const _date_hour = Date.hour(_date_now)
+const _date_minute = Date.minute(_date_now)
+const _date_second = Date.second(_date_now)
+const _date_millis = Date.millis(_date_now)
+const _date_iso = Date.toIso(_date_now)
+
 // ── Pipes with stdlib ───────────────────────────────────────
 const _piped = [3, 1, 2] |> Array.sort
 const _pipe_chain = [1, 2, 3, 4, 5]
@@ -111,3 +124,4 @@ const _pipe_chain = [1, 2, 3, 4, 5]
 const _pipe_opt = Some(10) |> Option.map((n) => n + 1)
 const _pipe_str = "  hello  " |> String.trim
 const _pipe_num = "42" |> Number.parse
+const _pipe_date = Date.now() |> Date.toIso
