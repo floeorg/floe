@@ -756,9 +756,20 @@ impl Formatter<'_> {
             self.fmt_token_callee(node);
         }
         self.write(".");
-        let idents = self.collect_idents(node);
-        if let Some(field) = idents.last() {
-            self.write(field);
+
+        // Find the field name or tuple index after the dot
+        let mut found_dot = false;
+        for t in node.children_with_tokens() {
+            if let Some(tok) = t.as_token() {
+                if tok.kind() == SyntaxKind::DOT {
+                    found_dot = true;
+                } else if found_dot
+                    && (tok.kind() == SyntaxKind::NUMBER || tok.kind() == SyntaxKind::IDENT)
+                {
+                    self.write(tok.text());
+                    return;
+                }
+            }
         }
     }
 
