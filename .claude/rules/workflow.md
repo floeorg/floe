@@ -129,9 +129,13 @@ glb update <num> --claim
 
 Commit semi-frequently - don't save everything for one giant commit.
 
+**Before every commit**, run `cargo fmt` (and `floe fmt` if you touched `.fl` files). Never commit unformatted code.
+
 ### 4. Quality Gate
 
 Run before closing any task, scoped to what you changed.
+
+**Rust quality gate** (if you changed `src/**/*.rs`):
 
 ```bash
 cargo fmt
@@ -142,6 +146,24 @@ RUSTFLAGS="-D warnings" cargo test
 **All warnings are errors.** Clippy uses `-D warnings`; tests use `RUSTFLAGS="-D warnings"`. Fix warnings before proceeding.
 
 Order: fmt -> clippy -> test.
+
+**Floe example quality gate** (if you changed `src/**/*.rs` or `examples/**/*.fl`):
+
+```bash
+floe fmt examples/todo-app/src/ examples/store/src/
+floe check examples/todo-app/src/ examples/store/src/
+floe build examples/todo-app/src/ examples/store/src/
+```
+
+Order: fmt -> check -> build. All must pass with zero errors.
+
+**LSP integration tests** (if you changed LSP, checker, or language syntax):
+
+```bash
+python3 scripts/test-lsp.py ./target/debug/floe
+```
+
+All tests must pass (0 failures).
 
 ### 5. PR (do NOT merge)
 
