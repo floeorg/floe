@@ -5,6 +5,15 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.5](https://github.com/milkyskies/floe/compare/v0.1.4...v0.1.5) (2026-03-28)
+
+
+### Bug Fixes
+
+* add id-token permission for npm trusted publishing ([#445](https://github.com/milkyskies/floe/issues/445)) ([5eec3f0](https://github.com/milkyskies/floe/commit/5eec3f079f52fa662cb318274f6f1811688ad900))
+* trigger release workflow directly from release-please ([#444](https://github.com/milkyskies/floe/issues/444)) ([3ff34a2](https://github.com/milkyskies/floe/commit/3ff34a20f6d55bc0dd112e235234c9f3fc0614e0))
+* VS Code extension publisher and engine version for Open VSX ([#447](https://github.com/milkyskies/floe/issues/447)) ([5475113](https://github.com/milkyskies/floe/commit/54751135a93729c3b87f926785610c92398cee3d))
+
 ## [0.1.4](https://github.com/milkyskies/floe/compare/v0.1.3...v0.1.4) (2026-03-28)
 
 

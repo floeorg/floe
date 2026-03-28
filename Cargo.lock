@@ -296,7 +296,7 @@ dependencies = [
 
 [[package]]
 name = "floe"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "ariadne",
@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "floe-wasm"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "floe",
  "serde",
