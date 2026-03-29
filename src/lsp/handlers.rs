@@ -7,7 +7,7 @@ use tower_lsp::lsp_types::*;
 use crate::stdlib::StdlibRegistry;
 
 use super::completion::{
-    dot_access_completions, dot_access_prefix, import_path_completions, is_in_comment,
+    dot_access_completions, identifier_before_dot, import_path_completions, is_in_comment,
     is_in_import_string, is_in_string_literal, is_pipe_context, resolve_piped_type,
 };
 use super::stdlib_hover;
@@ -275,21 +275,20 @@ impl LanguageServer for FloeLsp {
             return Ok(Some(CompletionResponse::Array(Vec::new())));
         }
 
+        let registry = StdlibRegistry::new();
+
         // ── Dot-access field completions ────────────────────────
-        if let Some(obj_name) = dot_access_prefix(&doc.content, offset) {
-            // Skip stdlib modules — handled below
-            let registry = StdlibRegistry::new();
-            if !registry.is_module(&obj_name) {
-                let items = dot_access_completions(&obj_name, &prefix, &doc.type_map, &doc.index);
-                if !items.is_empty() {
-                    return Ok(Some(CompletionResponse::Array(items)));
-                }
+        if let Some(obj_name) = identifier_before_dot(&doc.content, offset)
+            && !registry.is_module(obj_name)
+        {
+            let items = dot_access_completions(obj_name, &prefix, &doc.type_map, &doc.index);
+            if !items.is_empty() {
+                return Ok(Some(CompletionResponse::Array(items)));
             }
         }
 
         // ── Stdlib module method completions (Array., String., etc.) ──
-        if let Some(module_name) = stdlib_module_prefix(&doc.content, offset) {
-            let registry = StdlibRegistry::new();
+        if let Some(module_name) = stdlib_module_prefix(&doc.content, offset, &registry) {
             let functions = registry.module_functions(&module_name);
             if !functions.is_empty() {
                 let items: Vec<CompletionItem> = functions
@@ -817,35 +816,8 @@ use super::symbols::Symbol;
 ///
 /// For example, in `Array.m|` (where `|` is cursor), this returns `Some("Array")`.
 /// In `nums |> Array.f|`, this also returns `Some("Array")`.
-fn stdlib_module_prefix(source: &str, offset: usize) -> Option<String> {
-    let bytes = source.as_bytes();
-
-    // Walk backwards past the current word prefix (what the user is typing after the dot)
-    let mut pos = offset;
-    while pos > 0 && (bytes[pos - 1].is_ascii_alphanumeric() || bytes[pos - 1] == b'_') {
-        pos -= 1;
-    }
-
-    // Now we should be at the dot
-    if pos == 0 || bytes[pos - 1] != b'.' {
-        return None;
-    }
-    pos -= 1; // skip the dot
-
-    // Walk backwards to find the module name
-    let end = pos;
-    while pos > 0 && (bytes[pos - 1].is_ascii_alphanumeric() || bytes[pos - 1] == b'_') {
-        pos -= 1;
-    }
-
-    if pos == end {
-        return None; // no name before the dot
-    }
-
-    let candidate = &source[pos..end];
-
-    // Check if it's a known stdlib module
-    let registry = StdlibRegistry::new();
+fn stdlib_module_prefix(source: &str, offset: usize, registry: &StdlibRegistry) -> Option<String> {
+    let candidate = super::completion::identifier_before_dot(source, offset)?;
     if registry.is_module(candidate) {
         Some(candidate.to_string())
     } else {

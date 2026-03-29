@@ -170,7 +170,6 @@ pub(super) fn import_path_completions(
 
         let path = entry.path();
         if path.is_dir() {
-            // Offer directory with trailing /
             items.push(CompletionItem {
                 label: format!("{file_name}/"),
                 kind: Some(CompletionItemKind::FOLDER),
@@ -178,8 +177,12 @@ pub(super) fn import_path_completions(
                 insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
                 ..Default::default()
             });
-        } else if path.extension().and_then(|e| e.to_str()) == Some("fl") {
-            // Offer .fl files without extension
+        } else {
+            let detail = match path.extension().and_then(|e| e.to_str()) {
+                Some("fl") => "Floe module",
+                Some("ts" | "tsx") => "TypeScript module",
+                _ => continue,
+            };
             let stem = path
                 .file_stem()
                 .and_then(|s| s.to_str())
@@ -190,26 +193,7 @@ pub(super) fn import_path_completions(
             items.push(CompletionItem {
                 label: stem.to_string(),
                 kind: Some(CompletionItemKind::FILE),
-                detail: Some("Floe module".to_string()),
-                insert_text: Some(stem.to_string()),
-                insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
-                ..Default::default()
-            });
-        } else if path.extension().and_then(|e| e.to_str()) == Some("ts")
-            || path.extension().and_then(|e| e.to_str()) == Some("tsx")
-        {
-            // Offer .ts/.tsx files without extension
-            let stem = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or(&file_name);
-            if !name_prefix.is_empty() && !stem.starts_with(&name_prefix) {
-                continue;
-            }
-            items.push(CompletionItem {
-                label: stem.to_string(),
-                kind: Some(CompletionItemKind::FILE),
-                detail: Some("TypeScript module".to_string()),
+                detail: Some(detail.to_string()),
                 insert_text: Some(stem.to_string()),
                 insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
                 ..Default::default()
@@ -220,34 +204,31 @@ pub(super) fn import_path_completions(
     items
 }
 
-/// Detect dot-access context: if cursor is right after `obj.` or `obj.par`,
-/// return the object name (e.g., "row" from "row." or "row.i").
-pub(super) fn dot_access_prefix(source: &str, offset: usize) -> Option<String> {
+/// Extract the identifier before a dot at the cursor position.
+/// For `row.fi|` returns `Some("row")`, for `foo|` returns `None`.
+pub(super) fn identifier_before_dot(source: &str, offset: usize) -> Option<&str> {
     let bytes = source.as_bytes();
 
-    // Walk backwards past the current word prefix (what user is typing after the dot)
     let mut pos = offset;
     while pos > 0 && (bytes[pos - 1].is_ascii_alphanumeric() || bytes[pos - 1] == b'_') {
         pos -= 1;
     }
 
-    // Now we should be at the dot
     if pos == 0 || bytes[pos - 1] != b'.' {
         return None;
     }
-    pos -= 1; // skip the dot
+    pos -= 1;
 
-    // Walk backwards to find the object name
     let end = pos;
     while pos > 0 && (bytes[pos - 1].is_ascii_alphanumeric() || bytes[pos - 1] == b'_') {
         pos -= 1;
     }
 
     if pos == end {
-        return None; // no name before the dot
+        return None;
     }
 
-    Some(source[pos..end].to_string())
+    Some(&source[pos..end])
 }
 
 /// Generate completions for dot-access on a variable (e.g., `row.` → row's fields).
@@ -261,14 +242,14 @@ pub(super) fn dot_access_completions(
 
     // Look up the object's type in the type_map
     let obj_type = match type_map.get(obj_name) {
-        Some(ty) => ty.clone(),
+        Some(ty) => ty.as_str(),
         None => return items,
     };
 
     // Strategy 1: If the type matches a known type name, look up its fields in the symbol index
     for sym in &index.symbols {
         if sym.kind == SymbolKind::PROPERTY
-            && sym.owner_type.as_deref() == Some(&obj_type)
+            && sym.owner_type.as_deref() == Some(obj_type)
             && (prefix.is_empty() || sym.name.starts_with(prefix))
         {
             items.push(CompletionItem {
@@ -301,10 +282,11 @@ pub(super) fn dot_access_completions(
     }
 
     // Strategy 3: If the type is a record literal like "{ id: number, name: string }",
-    // parse field names from the display string
+    // parse field names from the display string using depth-aware splitting
+    // to handle nested generics like Map<string, number>
     if items.is_empty() && obj_type.starts_with('{') && obj_type.ends_with('}') {
         let inner = &obj_type[1..obj_type.len() - 1];
-        for field_str in inner.split(',') {
+        for field_str in split_top_level(inner, ',') {
             let field_str = field_str.trim();
             if let Some(colon_pos) = field_str.find(':') {
                 let field_name = field_str[..colon_pos].trim();
@@ -461,6 +443,26 @@ pub(super) fn find_top_level_comma(s: &str) -> Option<usize> {
         }
     }
     None
+}
+
+/// Split a string at top-level commas, respecting nested `<>`, `()`, `{}`.
+fn split_top_level(s: &str, delim: char) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0;
+    for (i, c) in s.char_indices() {
+        match c {
+            '<' | '(' | '{' | '[' => depth += 1,
+            '>' | ')' | '}' | ']' => depth -= 1,
+            c if c == delim && depth == 0 => {
+                parts.push(&s[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(&s[start..]);
+    parts
 }
 
 /// Check if a function's first parameter type is compatible with the piped type.
