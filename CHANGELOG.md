@@ -5,6 +5,19 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.15](https://github.com/milkyskies/floe/compare/v0.1.14...v0.1.15) (2026-03-29)
+
+
+### Bug Fixes
+
+* [[#507](https://github.com/milkyskies/floe/issues/507)] LSP hover on 'from' keyword shows Array.from instead of import syntax ([#531](https://github.com/milkyskies/floe/issues/531)) ([95eaef6](https://github.com/milkyskies/floe/commit/95eaef694ac73ef99b4826172a77986789e70395))
+* [[#533](https://github.com/milkyskies/floe/issues/533)] LSP completion gaps - dot-access fields, import paths, context suppression ([#535](https://github.com/milkyskies/floe/issues/535)) ([78251c1](https://github.com/milkyskies/floe/commit/78251c15c48cc5098b4b075c9406ebcba5f17f43))
+* [[#536](https://github.com/milkyskies/floe/issues/536)] Resolve correct for-block overload based on receiver type ([#539](https://github.com/milkyskies/floe/issues/539)) ([09b454a](https://github.com/milkyskies/floe/commit/09b454af14e4b6d34d266b46d3c7b5ef55e4f5c9))
+* [[#537](https://github.com/milkyskies/floe/issues/537)] Resolve typeof function types from npm imports ([#549](https://github.com/milkyskies/floe/issues/549)) ([588f91a](https://github.com/milkyskies/floe/commit/588f91ad9cf92ce48a295ea19f35b4c4602d428d))
+* [[#538](https://github.com/milkyskies/floe/issues/538)] Validate argument count for stdlib method calls ([#541](https://github.com/milkyskies/floe/issues/541)) ([379f613](https://github.com/milkyskies/floe/commit/379f613388485c55d4d7b887c4f478d059b65b7e))
+* [[#540](https://github.com/milkyskies/floe/issues/540)] Console.log/warn/error/info/debug should be variadic ([#545](https://github.com/milkyskies/floe/issues/545)) ([d119510](https://github.com/milkyskies/floe/commit/d11951001631cd83434a0db3a2b157fa5aee8408))
+* [[#550](https://github.com/milkyskies/floe/issues/550)] LSP test script sleeps full timeout on every collect_notifications call ([#551](https://github.com/milkyskies/floe/issues/551)) ([7c74d16](https://github.com/milkyskies/floe/commit/7c74d1612e6ed38798a9e2c7cf57d36e23a6ba7f))
+
 ## [0.1.14](https://github.com/milkyskies/floe/compare/v0.1.13...v0.1.14) (2026-03-29)
 
 
