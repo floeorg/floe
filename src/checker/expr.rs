@@ -235,6 +235,10 @@ impl Checker {
                                 }
                             });
                         self.env.define(&p.name, ty.clone());
+                        // Persist lambda param type for LSP hover (scope is
+                        // popped after the arrow body is checked, so the param
+                        // would be lost from the final name_types merge)
+                        self.name_types.insert(p.name.clone(), ty.display_name());
                         // For destructured params, also define the field names
                         if let Some(ref destructure) = p.destructure {
                             match destructure {
