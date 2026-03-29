@@ -35,17 +35,31 @@ floe({
 
 ## TypeScript Setup
 
-Add `allowArbitraryExtensions` to your `tsconfig.json` so TypeScript can resolve `.fl` imports:
+Add `allowArbitraryExtensions` and `rootDirs` to your `tsconfig.json` so TypeScript can resolve `.fl` imports:
 
 ```json
 {
   "compilerOptions": {
-    "allowArbitraryExtensions": true
+    "allowArbitraryExtensions": true,
+    "rootDirs": ["./src", "./.floe/src"]
   }
 }
 ```
 
-When you run `floe build`, the compiler generates `.d.fl.ts` type declarations alongside the compiled output. This lets TypeScript resolve types for imports like `import { Header } from "./header.fl"` automatically.
+If you use path aliases (like `#/` or `@/`), also add `.floe/` lookups to your `paths`:
+
+```json
+{
+  "compilerOptions": {
+    "paths": {
+      "#/*": ["./src/*", "./.floe/src/*"],
+      "@/*": ["./src/*", "./.floe/src/*"]
+    }
+  }
+}
+```
+
+The compiler generates `.d.fl.ts` type declarations in the `.floe/` directory, and `rootDirs` tells TypeScript to treat `src/` and `.floe/src/` as a single merged directory. This lets TypeScript resolve types for imports like `import { Header } from "./header.fl"` automatically, without polluting the source tree with generated files.
 
 ## How It Works
 

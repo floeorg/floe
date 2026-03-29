@@ -31,7 +31,13 @@ export default function floe(options: FloeOptions = {}) {
     config(config: { resolve?: { extensions?: string[] } }) {
       const existing = config.resolve?.extensions ?? [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"];
       const extensions = existing.includes(".fl") ? existing : [".fl", ...existing];
-      return { resolve: { extensions } };
+      return {
+        resolve: { extensions },
+        esbuild: {
+          include: /\.(tsx?|jsx?|fl)$/,
+          loader: "tsx" as const,
+        },
+      };
     },
 
     transform(this: { error(msg: string): never }, code: string, id: string) {

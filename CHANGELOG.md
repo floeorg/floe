@@ -5,6 +5,26 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.12](https://github.com/milkyskies/floe/compare/v0.1.11...v0.1.12) (2026-03-28)
+
+
+### Features
+
+* [[#498](https://github.com/milkyskies/floe/issues/498)] Output compiled files to .floe/ directory instead of alongside source ([#502](https://github.com/milkyskies/floe/issues/502)) ([3821854](https://github.com/milkyskies/floe/commit/38218543c57c851bea3e2153d3129213163feeac))
+* [[#499](https://github.com/milkyskies/floe/issues/499)] Auto-detect x?: T | null in .d.ts imports as Settable&lt;T&gt; ([#508](https://github.com/milkyskies/floe/issues/508)) ([7e166a7](https://github.com/milkyskies/floe/commit/7e166a7478b8ded5e5fc8c71071921264e25945a))
+* [[#509](https://github.com/milkyskies/floe/issues/509)] Add Date module to stdlib ([#517](https://github.com/milkyskies/floe/issues/517)) ([e8fc12a](https://github.com/milkyskies/floe/commit/e8fc12a9c7a4def5ff5401f289439432edef29a1))
+* [[#511](https://github.com/milkyskies/floe/issues/511)] Resolve types from local .ts/.tsx files imported in .fl files ([#515](https://github.com/milkyskies/floe/issues/515)) ([257a27a](https://github.com/milkyskies/floe/commit/257a27aac3d0e186d10a656c16c772ed26055d9b))
+
+
+### Bug Fixes
+
+* [[#492](https://github.com/milkyskies/floe/issues/492)] Fix JSX formatter to add newlines around match expressions and multi-line tag children ([#500](https://github.com/milkyskies/floe/issues/500)) ([a7ac4d5](https://github.com/milkyskies/floe/commit/a7ac4d561d7c372913a22e2ada74d3bdaf2f1b9a))
+* [[#501](https://github.com/milkyskies/floe/issues/501)] Tell Vite that compiled .fl output is TypeScript ([#505](https://github.com/milkyskies/floe/issues/505)) ([4fd6475](https://github.com/milkyskies/floe/commit/4fd6475e2a748a9edb2e4719cb2af78323792dbf))
+* [[#506](https://github.com/milkyskies/floe/issues/506)] LSP resolves tsconfig path aliases instead of reporting false errors ([#510](https://github.com/milkyskies/floe/issues/510)) ([2facdc6](https://github.com/milkyskies/floe/commit/2facdc6d39ec1737c77465e1fc83ec5ead56af76))
+* [[#512](https://github.com/milkyskies/floe/issues/512)] Vite plugin cross-version type compatibility and .d.fl.ts output ([#514](https://github.com/milkyskies/floe/issues/514)) ([be4cb66](https://github.com/milkyskies/floe/commit/be4cb662e9def60060434f29dd2bd34082f8bed1))
+* [[#512](https://github.com/milkyskies/floe/issues/512)] Write .d.fl.ts next to source and emit from --emit-stdout ([#519](https://github.com/milkyskies/floe/issues/519)) ([1dfda9d](https://github.com/milkyskies/floe/commit/1dfda9d142f8e352264225fdd7e22544bd12f127))
+* [[#516](https://github.com/milkyskies/floe/issues/516)] For-block functions from different types clash when both imported ([#518](https://github.com/milkyskies/floe/issues/518)) ([3b418cb](https://github.com/milkyskies/floe/commit/3b418cb6ce5685ec352f82e768fd858ae37fcf85))
+
 ## [0.1.11](https://github.com/milkyskies/floe/compare/v0.1.10...v0.1.11) (2026-03-28)
 
 
