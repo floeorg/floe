@@ -2166,6 +2166,12 @@ impl Checker {
         {
             return true;
         }
+        if let Type::Named(name) = actual
+            && self.env.lookup_type(name).is_none()
+            && !matches!(expected, Type::Unknown)
+        {
+            return true;
+        }
 
         // Opaque type alias: within the defining module, the underlying type
         // is assignable to the opaque type (e.g. returning `string` as `HashedPassword`).

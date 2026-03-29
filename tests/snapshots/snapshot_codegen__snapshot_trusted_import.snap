@@ -2,8 +2,8 @@
 source: tests/snapshot_codegen.rs
 expression: output
 ---
-import { capitalize, slugify } from "string-utils";
+import { capitalize, type slugify } from "string-utils";
 
-import { trim, fetchUser } from "some-lib";
+import { type trim, type fetchUser } from "some-lib";
 
 const name = capitalize("hello");

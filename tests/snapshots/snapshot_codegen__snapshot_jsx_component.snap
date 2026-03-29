@@ -2,7 +2,7 @@
 source: tests/snapshot_codegen.rs
 expression: output
 ---
-import { useState, JSX } from "react";
+import { useState, type JSX } from "react";
 
 export function Counter(): JSX.Element {
   const [_count, setCount] = useState(0);
