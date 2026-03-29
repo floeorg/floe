@@ -957,8 +957,15 @@ fn collect_member_accesses_jsx(
             props, children, ..
         } => {
             for prop in props {
-                if let Some(value) = &prop.value {
-                    collect_member_accesses_expr(value, imported_names, accesses);
+                match prop {
+                    JsxProp::Named { value, .. } => {
+                        if let Some(value) = value {
+                            collect_member_accesses_expr(value, imported_names, accesses);
+                        }
+                    }
+                    JsxProp::Spread { expr, .. } => {
+                        collect_member_accesses_expr(expr, imported_names, accesses);
+                    }
                 }
             }
             for child in children {

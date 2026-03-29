@@ -562,6 +562,11 @@ export fn App() -> JSX.Element {
         </ul>
     </div>
 }
+
+// JSX spread attributes — forward all props
+export fn Card(props: CardProps) -> JSX.Element {
+    <div {...props} className="card" />
+}
 ```
 
 ## Tests

@@ -16,11 +16,20 @@ impl Codegen {
                 self.push(&format!("<{name}"));
                 for prop in props {
                     self.push(" ");
-                    self.push(&prop.name);
-                    if let Some(value) = &prop.value {
-                        self.push("={");
-                        self.emit_expr(value);
-                        self.push("}");
+                    match prop {
+                        JsxProp::Named { name, value, .. } => {
+                            self.push(name);
+                            if let Some(value) = value {
+                                self.push("={");
+                                self.emit_expr(value);
+                                self.push("}");
+                            }
+                        }
+                        JsxProp::Spread { expr, .. } => {
+                            self.push("{...");
+                            self.emit_expr(expr);
+                            self.push("}");
+                        }
                     }
                 }
                 if *self_closing {

@@ -977,8 +977,8 @@ fn jsx_with_props() {
             ..
         }) => {
             assert_eq!(props.len(), 2);
-            assert_eq!(props[0].name, "label");
-            assert_eq!(props[1].name, "onClick");
+            assert!(matches!(&props[0], JsxProp::Named { name, .. } if name == "label"));
+            assert!(matches!(&props[1], JsxProp::Named { name, .. } if name == "onClick"));
         }
         _ => panic!("expected jsx element"),
     }

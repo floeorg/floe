@@ -178,6 +178,7 @@ pub enum SyntaxKind {
     JSX_CLOSING_TAG,
     JSX_SELF_CLOSING_TAG,
     JSX_PROP,
+    JSX_SPREAD_PROP,
     JSX_EXPR_CHILD,
     JSX_TEXT,
 

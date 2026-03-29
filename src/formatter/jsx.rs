@@ -11,7 +11,7 @@ impl Formatter<'_> {
 
         let props: Vec<_> = node
             .children()
-            .filter(|c| c.kind() == SyntaxKind::JSX_PROP)
+            .filter(|c| c.kind() == SyntaxKind::JSX_PROP || c.kind() == SyntaxKind::JSX_SPREAD_PROP)
             .collect();
 
         let children = self.jsx_collect_children(node);
@@ -111,6 +111,37 @@ impl Formatter<'_> {
     }
 
     fn fmt_jsx_prop(&mut self, node: &SyntaxNode) {
+        // JSX spread prop: {...expr}
+        if node.kind() == SyntaxKind::JSX_SPREAD_PROP {
+            self.write("{...");
+            let mut past_dots = false;
+            for child_or_tok in node.children_with_tokens() {
+                if child_or_tok
+                    .as_token()
+                    .is_some_and(|t| t.kind() == SyntaxKind::DOT_DOT_DOT)
+                {
+                    past_dots = true;
+                    continue;
+                }
+                if !past_dots {
+                    continue;
+                }
+                match child_or_tok {
+                    rowan::NodeOrToken::Token(tok) => {
+                        if tok.kind() == SyntaxKind::R_BRACE {
+                            break;
+                        }
+                        if !tok.kind().is_trivia() {
+                            self.write(tok.text());
+                        }
+                    }
+                    rowan::NodeOrToken::Node(child) => self.fmt_node(&child),
+                }
+            }
+            self.write("}");
+            return;
+        }
+
         // JSX prop names can be identifiers or keywords (e.g., `type`, `for`)
         if let Some(name) = self.first_ident(node) {
             self.write(&name);
@@ -338,7 +369,7 @@ impl Formatter<'_> {
     pub(crate) fn jsx_has_multiline_props(&self, node: &SyntaxNode) -> bool {
         let props: Vec<_> = node
             .children()
-            .filter(|c| c.kind() == SyntaxKind::JSX_PROP)
+            .filter(|c| c.kind() == SyntaxKind::JSX_PROP || c.kind() == SyntaxKind::JSX_SPREAD_PROP)
             .collect();
         !(props.is_empty() || props.len() <= 3 && self.jsx_props_short(&props))
     }

@@ -53,6 +53,11 @@ impl<'src> Lowerer<'src> {
                         props.push(prop);
                     }
                 }
+                SyntaxKind::JSX_SPREAD_PROP => {
+                    if let Some(prop) = self.lower_jsx_spread_prop(&child) {
+                        props.push(prop);
+                    }
+                }
                 SyntaxKind::JSX_EXPR_CHILD => {
                     if let Some(expr) = self.lower_first_expr(&child) {
                         children.push(JsxChild::Expr(expr));
@@ -121,6 +126,13 @@ impl<'src> Lowerer<'src> {
             None
         };
 
-        Some(JsxProp { name, value, span })
+        Some(JsxProp::Named { name, value, span })
+    }
+
+    pub(super) fn lower_jsx_spread_prop(&mut self, node: &SyntaxNode) -> Option<JsxProp> {
+        let span = self.node_span(node);
+        let expr = self.lower_first_expr(node)?;
+
+        Some(JsxProp::Spread { expr, span })
     }
 }
