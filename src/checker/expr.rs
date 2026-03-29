@@ -542,17 +542,40 @@ impl Checker {
         // Check for stdlib call: Array.sort(arr), Option.map(opt, fn), etc.
         if let ExprKind::Member { object, field } = &callee.kind
             && let ExprKind::Identifier(module) = &object.kind
-            && let Some(stdlib_fn) = self.stdlib.lookup(module, field)
+            && let Some(stdlib_fn) = self.stdlib.lookup(module, field).cloned()
         {
             self.unused.used_names.insert(module.clone());
             let ret = stdlib_fn.return_type.clone();
+            let expected_param_count = stdlib_fn.params.len();
+            let display = format!("{module}.{field}");
+
+            // Check argument expressions
+            let mut arg_types = Vec::new();
             for arg in args {
                 match arg {
                     Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                        self.check_expr(e);
+                        arg_types.push(self.check_expr(e));
                     }
                 }
             }
+
+            // Validate argument count
+            if arg_types.len() != expected_param_count {
+                self.diagnostics.push(
+                    Diagnostic::error(
+                        format!(
+                            "`{display}` expects {} argument{}, found {}",
+                            expected_param_count,
+                            if expected_param_count == 1 { "" } else { "s" },
+                            arg_types.len()
+                        ),
+                        span,
+                    )
+                    .with_label("wrong number of arguments")
+                    .with_code("E001"),
+                );
+            }
+
             return ret;
         }
 

@@ -3465,3 +3465,47 @@ fn console_log_variadic_no_error() {
         errors
     );
 }
+
+// ── Stdlib call argument validation ────────────────────
+
+#[test]
+fn stdlib_call_wrong_arity_errors() {
+    let diags = check("const _x = Date.day()");
+    assert!(
+        has_error_containing(&diags, "expects 1 argument"),
+        "stdlib call with wrong arity should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_call_too_many_args_errors() {
+    let diags = check("const _x = Date.now(42)");
+    assert!(
+        has_error_containing(&diags, "expects 0 arguments"),
+        "stdlib call with too many args should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_call_correct_arity_ok() {
+    let diags = check("const _x = Date.now()");
+    assert!(
+        !has_error(&diags, "E001"),
+        "stdlib call with correct arity should not error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
