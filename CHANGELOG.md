@@ -5,6 +5,23 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.19](https://github.com/milkyskies/floe/compare/v0.1.18...v0.1.19) (2026-03-29)
+
+
+### Features
+
+* [[#544](https://github.com/milkyskies/floe/issues/544)] Add type alias probes for complex .d.ts type resolution ([#577](https://github.com/milkyskies/floe/issues/577)) ([d873a0b](https://github.com/milkyskies/floe/commit/d873a0be3be20fd99aeebf05d3e09e8dbf8bb93e))
+
+
+### Bug Fixes
+
+* [[#553](https://github.com/milkyskies/floe/issues/553)] LSP hover on None shows concrete type from context ([#579](https://github.com/milkyskies/floe/issues/579)) ([94d85cd](https://github.com/milkyskies/floe/commit/94d85cdb16d0dd311a1d40b28ea3746c8f3f9f23))
+* [[#580](https://github.com/milkyskies/floe/issues/580)] Await on Promise with union return type and foreign type member access ([#582](https://github.com/milkyskies/floe/issues/582)) ([56643ce](https://github.com/milkyskies/floe/commit/56643ce1e8083a2562de03e2fb622c692bbbf94a))
+* [[#583](https://github.com/milkyskies/floe/issues/583)] Match pattern narrowing and object destructuring for foreign types ([#587](https://github.com/milkyskies/floe/issues/587)) ([1e94055](https://github.com/milkyskies/floe/commit/1e940554d2236da0a18ac72d40f775e4236632f3))
+* [[#590](https://github.com/milkyskies/floe/issues/590)] Emit import type for type-only npm import specifiers ([#591](https://github.com/milkyskies/floe/issues/591)) ([f4ffe05](https://github.com/milkyskies/floe/commit/f4ffe0547446602cc7b71ba3ed842d104bad5fdc))
+* [[#595](https://github.com/milkyskies/floe/issues/595)] Lexer does not support unicode escape sequences in strings ([#598](https://github.com/milkyskies/floe/issues/598)) ([65c8ac3](https://github.com/milkyskies/floe/commit/65c8ac3dafc3b208a4c654a7d3f1149ed1a58b38))
+* [[#602](https://github.com/milkyskies/floe/issues/602)] [[#603](https://github.com/milkyskies/floe/issues/603)] Pipe map lambda inference and for-block import of foreign types ([#604](https://github.com/milkyskies/floe/issues/604)) ([caadcc9](https://github.com/milkyskies/floe/commit/caadcc96df34f10b97450efe85f638d4434c66a3))
+
 ## [0.1.18](https://github.com/milkyskies/floe/compare/v0.1.17...v0.1.18) (2026-03-29)
 
 
