@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.18](https://github.com/milkyskies/floe/compare/v0.1.17...v0.1.18) (2026-03-29)
+
+
+### Features
+
+* [[#574](https://github.com/milkyskies/floe/issues/574)] Log version, executable path, and project dir on LSP startup ([#575](https://github.com/milkyskies/floe/issues/575)) ([1e78a6f](https://github.com/milkyskies/floe/commit/1e78a6f9ed03e6e05f2738d7da763ddb89e52427))
+
 ## [0.1.17](https://github.com/milkyskies/floe/compare/v0.1.16...v0.1.17) (2026-03-29)
 
 
