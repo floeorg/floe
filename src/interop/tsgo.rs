@@ -561,12 +561,43 @@ fn generate_probe(
         }
     }
 
-    // Emit re-exports for non-called imports
-    for reexport in &probe_reexports {
-        lines.push(format!(
-            "export const _r{} = {};",
-            reexport.index, reexport.name,
-        ));
+    // Emit re-exports for non-called imports.
+    // For imports NOT used in call probes, use `_expand()` to force TypeScript
+    // to inline function signatures instead of emitting `typeof X` references.
+    // For imports WITH call probes, keep plain re-export — `_expand` would
+    // collapse overloaded/generic functions (like useState<T>) to their base signature.
+    if !probe_reexports.is_empty() {
+        let called_names: HashSet<&str> = probe_calls
+            .iter()
+            .map(|c| c.callee.split('.').next().unwrap())
+            .collect();
+
+        let needs_expand = probe_reexports
+            .iter()
+            .any(|r| !called_names.contains(r.name.as_str()));
+
+        if needs_expand {
+            lines.push(
+                "declare function _expand<A extends any[], R>(fn: (...args: A) => R): (...args: A) => R;".to_string(),
+            );
+            lines.push("declare function _expand<T>(x: T): T;".to_string());
+        }
+
+        for reexport in &probe_reexports {
+            if called_names.contains(reexport.name.as_str()) {
+                // Already has call probes — keep plain re-export
+                lines.push(format!(
+                    "export const _r{} = {};",
+                    reexport.index, reexport.name,
+                ));
+            } else {
+                // No call probes — use _expand to inline the type
+                lines.push(format!(
+                    "export const _r{} = _expand({});",
+                    reexport.index, reexport.name,
+                ));
+            }
+        }
     }
 
     // Scan the source for member accesses on imported names (e.g. z.object, z.string)
@@ -1523,9 +1554,16 @@ const [count, setCount] = useState(0)"#;
 
         // Array binding: destructured
         assert!(probe.contains("_tmp0 = useState(0);"));
-        // All imports are re-exported (useState and useEffect)
-        assert!(probe.contains("= useState;"), "should re-export useState");
-        assert!(probe.contains("= useEffect;"), "should re-export useEffect");
+        // useState has a call probe, so it uses plain re-export
+        assert!(
+            probe.contains("= useState;"),
+            "should re-export useState (plain, has call probe), got:\n{probe}"
+        );
+        // useEffect has no call probe, so it uses _expand
+        assert!(
+            probe.contains("_expand(useEffect)"),
+            "should re-export useEffect via _expand, got:\n{probe}"
+        );
     }
 
     #[test]
@@ -1771,7 +1809,7 @@ const year = newDate()"#;
             probe.contains("import { newDate } from \"./date.ts\";"),
             "probe should use local filename for relative TS import, got:\n{probe}"
         );
-        // Should re-export to get the type
+        // newDate has a call probe, so it uses plain re-export
         assert!(
             probe.contains("= newDate;"),
             "probe should re-export newDate, got:\n{probe}"
