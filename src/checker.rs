@@ -386,6 +386,13 @@ impl Checker {
     ) -> (Vec<Diagnostic>, HashMap<String, String>, ExprTypeMap) {
         // Pre-register types, traits, and functions from resolved imports
         self.registering_types = true;
+        // Register foreign (npm) type names first so they're in scope when
+        // resolving fields of imported type declarations
+        for resolved in self.resolved_imports.values() {
+            for name in &resolved.foreign_type_names {
+                self.env.define(name, Type::Foreign(name.clone()));
+            }
+        }
         for resolved in self.resolved_imports.values().cloned().collect::<Vec<_>>() {
             for decl in &resolved.type_decls {
                 // Skip naming checks for imported types (already validated in source)

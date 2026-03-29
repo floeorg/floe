@@ -29,6 +29,39 @@ pub const TYPE_RESULT: &str = "Result";
 pub const TYPE_ARRAY: &str = "Array";
 pub const TYPE_ERROR: &str = "Error";
 pub const TYPE_RESPONSE: &str = "Response";
+pub const TYPE_BOOL: &str = "bool";
+pub const TYPE_NEVER: &str = "never";
+pub const TYPE_PROMISE: &str = "Promise";
+pub const TYPE_MAP: &str = "Map";
+pub const TYPE_SET: &str = "Set";
+pub const TYPE_JSX_ELEMENT: &str = "JSX.Element";
+
+/// Returns true if the name is a built-in type (not user-defined or npm).
+/// When adding new built-in types, add a `TYPE_*` constant above and
+/// include it in this match.
+pub fn is_builtin_type(name: &str) -> bool {
+    matches!(
+        name,
+        TYPE_NUMBER
+            | TYPE_STRING
+            | TYPE_BOOLEAN
+            | TYPE_UNIT
+            | TYPE_UNDEFINED
+            | TYPE_UNKNOWN
+            | TYPE_OPTION
+            | TYPE_SETTABLE
+            | TYPE_RESULT
+            | TYPE_ARRAY
+            | TYPE_ERROR
+            | TYPE_RESPONSE
+            | TYPE_BOOL
+            | TYPE_NEVER
+            | TYPE_PROMISE
+            | TYPE_MAP
+            | TYPE_SET
+            | TYPE_JSX_ELEMENT
+    )
+}
 
 // ── Stdlib module name constants ─────────────────────────────────
 

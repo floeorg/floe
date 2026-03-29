@@ -276,6 +276,8 @@ pub struct ResolvedImports {
     pub const_names: Vec<String>,
     /// Exported trait declarations
     pub trait_decls: Vec<TraitDecl>,
+    /// npm type names referenced in exported signatures (transitively needed)
+    pub foreign_type_names: Vec<String>,
 }
 
 /// Resolve all relative imports for a given file.
@@ -417,7 +419,7 @@ fn resolve_single_import(
         }
     }
 
-    // Collect type names referenced in exported function and for-block signatures
+    // Collect type names referenced in exported signatures and type declarations
     let mut referenced_types: HashSet<String> = HashSet::new();
     for block in &exported_for_blocks {
         for func in &block.functions {
@@ -425,10 +427,14 @@ fn resolve_single_import(
         }
     }
     for item in &program.items {
-        if let ItemKind::Function(func) = &item.kind
-            && func.exported
-        {
-            collect_fn_type_names(func, &mut referenced_types);
+        match &item.kind {
+            ItemKind::Function(func) if func.exported => {
+                collect_fn_type_names(func, &mut referenced_types);
+            }
+            ItemKind::TypeDecl(decl) if decl.exported => {
+                collect_type_decl_type_names(decl, &mut referenced_types);
+            }
+            _ => {}
         }
     }
 
@@ -471,6 +477,19 @@ fn resolve_single_import(
             } else {
                 imports.type_decls.push(decl.clone());
             }
+        }
+    }
+
+    // Identify foreign (npm) type names: referenced in exported signatures
+    // but not defined locally as type declarations or builtins
+    let all_local_type_names: HashSet<&str> =
+        all_type_decls.iter().map(|d| d.name.as_str()).collect();
+    for name in &referenced_types {
+        if !all_local_type_names.contains(name.as_str())
+            && !crate::type_layout::is_builtin_type(name)
+            && !exported_type_names.contains(name)
+        {
+            imports.foreign_type_names.push(name.clone());
         }
     }
 
@@ -640,6 +659,29 @@ fn resolve_path(base_dir: &Path, source: &str) -> Option<PathBuf> {
 }
 
 /// Collect type names from a function's parameter and return type annotations.
+fn collect_type_decl_type_names(decl: &TypeDecl, names: &mut HashSet<String>) {
+    match &decl.def {
+        TypeDef::Record(fields) => {
+            for entry in fields {
+                if let RecordEntry::Field(field) = entry {
+                    collect_type_names(&field.type_ann, names);
+                }
+            }
+        }
+        TypeDef::Union(variants) => {
+            for variant in variants {
+                for field in &variant.fields {
+                    collect_type_names(&field.type_ann, names);
+                }
+            }
+        }
+        TypeDef::Alias(type_expr) => {
+            collect_type_names(type_expr, names);
+        }
+        TypeDef::StringLiteralUnion(_) => {}
+    }
+}
+
 fn collect_fn_type_names(func: &FunctionDecl, names: &mut HashSet<String>) {
     for param in &func.params {
         if let Some(type_ann) = &param.type_ann {
