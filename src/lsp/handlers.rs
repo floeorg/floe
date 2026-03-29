@@ -95,6 +95,14 @@ impl LanguageServer for FloeLsp {
             return Ok(None);
         }
 
+        // Check if cursor is on an import line — skip stdlib hover for keywords like `from`
+        let is_import_line = {
+            let line_start = doc.content[..offset].rfind('\n').map_or(0, |p| p + 1);
+            doc.content[line_start..]
+                .trim_start()
+                .starts_with("import ")
+        };
+
         // Compute word start position and whether this is member access (X.word)
         let word_start = {
             let mut s = offset;
@@ -186,7 +194,7 @@ impl LanguageServer for FloeLsp {
         }
 
         // Check stdlib module names (Array, String, Option, etc.)
-        if let Some(hover_text) = stdlib_hover::hover_stdlib_module(word) {
+        if !is_import_line && let Some(hover_text) = stdlib_hover::hover_stdlib_module(word) {
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,
@@ -197,7 +205,10 @@ impl LanguageServer for FloeLsp {
         }
 
         // Check bare stdlib function names (for pipe context only, not member access)
-        if !is_member_access && let Some(hover_text) = stdlib_hover::hover_stdlib_function(word) {
+        if !is_member_access
+            && !is_import_line
+            && let Some(hover_text) = stdlib_hover::hover_stdlib_function(word)
+        {
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,

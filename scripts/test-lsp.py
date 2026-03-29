@@ -2239,6 +2239,18 @@ def main():
         f"Got: {h}",
     )
 
+    # --- Issue #507: 'from' keyword in import should not show Array.from ---
+    lsp.open_doc(URI, 'import { useState } from "react"\nconst x = 42\n')
+    lsp.collect_notifications("textDocument/publishDiagnostics", timeout=1)
+
+    # Hover on "from" keyword (line 0, char 20)
+    h = hover_text(lsp.hover(URI, 0, 20))
+    check(
+        "Hover #507: 'from' in import does not show Array.from",
+        h is None or "Array.from" not in h,
+        f"Got: {h}",
+    )
+
     # ── Done ─────────────────────────────────────────────
     lsp.shutdown()
 
