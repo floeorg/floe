@@ -114,6 +114,8 @@ impl SymbolIndex {
                         }
                         ConstBinding::Name(_) => {}
                     }
+
+                    Self::collect_expr(&decl.value, symbols);
                 }
                 ItemKind::Function(decl) => {
                     let vis = if decl.exported { "export " } else { "" };
@@ -450,13 +452,46 @@ impl SymbolIndex {
             ExprKind::Block(items) => {
                 Self::collect_items(items, symbols);
             }
-            ExprKind::Arrow { body, .. } => {
+            ExprKind::Arrow { params, body, .. } => {
+                for param in params {
+                    let type_ann = param
+                        .type_ann
+                        .as_ref()
+                        .map(|t| format!(": {}", type_expr_to_string(t)))
+                        .unwrap_or_default();
+                    symbols.push(Symbol {
+                        name: param.name.clone(),
+                        kind: SymbolKind::VARIABLE,
+                        start: param.span.start,
+                        end: param.span.end,
+                        import_source: None,
+                        detail: format!("parameter {}{type_ann}", param.name),
+                        first_param_type: None,
+                        return_type_str: None,
+                        owner_type: None,
+                    });
+                }
                 Self::collect_expr(body, symbols);
             }
             ExprKind::Match { arms, .. } => {
                 for arm in arms {
                     Self::collect_expr(&arm.body, symbols);
                 }
+            }
+            ExprKind::Call { callee, args, .. } => {
+                Self::collect_expr(callee, symbols);
+                for arg in args {
+                    match arg {
+                        crate::parser::ast::Arg::Positional(e)
+                        | crate::parser::ast::Arg::Named { value: e, .. } => {
+                            Self::collect_expr(e, symbols);
+                        }
+                    }
+                }
+            }
+            ExprKind::Pipe { left, right } => {
+                Self::collect_expr(left, symbols);
+                Self::collect_expr(right, symbols);
             }
             ExprKind::Await(inner) | ExprKind::Grouped(inner) => {
                 Self::collect_expr(inner, symbols);
