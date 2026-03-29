@@ -5,6 +5,14 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.13](https://github.com/milkyskies/floe/compare/v0.1.12...v0.1.13) (2026-03-29)
+
+
+### Bug Fixes
+
+* [[#520](https://github.com/milkyskies/floe/issues/520)] Option match uses null checks, probe preserves nullability ([#523](https://github.com/milkyskies/floe/issues/523)) ([ef5ee9b](https://github.com/milkyskies/floe/commit/ef5ee9b69f2973e853fd9d8a8bdf86ece392c1ca))
+* [[#521](https://github.com/milkyskies/floe/issues/521)] Formatter deletes // comments inside blocks ([#522](https://github.com/milkyskies/floe/issues/522)) ([389d6e0](https://github.com/milkyskies/floe/commit/389d6e042453a84a179fa2fd435d9c8434287714))
+
 ## [0.1.12](https://github.com/milkyskies/floe/compare/v0.1.11...v0.1.12) (2026-03-28)
 
 
