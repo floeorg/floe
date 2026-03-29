@@ -1542,6 +1542,22 @@ impl Checker {
             _ => {}
         }
 
+        // Named type that couldn't be resolved to a concrete type definition.
+        // This happens when an imported type has no .d.ts resolution — field access
+        // cannot be validated, so we error rather than silently accepting any field.
+        if let Type::Named(name) = obj_ty {
+            self.diagnostics.push(
+                Diagnostic::error(
+                    format!("cannot access `.{field}` on unresolved type `{name}`"),
+                    span,
+                )
+                .with_label("type definition not found")
+                .with_help("ensure the type's source module has a .d.ts file or is a .fl file")
+                .with_code("E020"),
+            );
+            return Type::Unknown;
+        }
+
         Type::Unknown
     }
 

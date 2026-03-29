@@ -31,6 +31,8 @@ pub(super) struct Symbol {
     /// For functions: the return type (for pipe chain type inference)
     #[allow(dead_code)]
     pub(super) return_type_str: Option<String>,
+    /// For properties: the parent type name (e.g., "User" for User.name)
+    pub(super) owner_type: Option<String>,
 }
 
 /// Index of all symbols in a document.
@@ -62,6 +64,7 @@ impl SymbolIndex {
                             detail: format!("import {{ {} }} from \"{}\"", spec.name, decl.source),
                             first_param_type: None,
                             return_type_str: None,
+                            owner_type: None,
                         });
                     }
                 }
@@ -87,6 +90,7 @@ impl SymbolIndex {
                         detail: format!("{vis}const {name}{type_ann}"),
                         first_param_type: None,
                         return_type_str: None,
+                        owner_type: None,
                     });
 
                     // Also index destructured names
@@ -104,6 +108,7 @@ impl SymbolIndex {
                                     detail: format!("const {{ {n} }}"),
                                     first_param_type: None,
                                     return_type_str: None,
+                                    owner_type: None,
                                 });
                             }
                         }
@@ -148,6 +153,7 @@ impl SymbolIndex {
                         ),
                         first_param_type,
                         return_type_str,
+                        owner_type: None,
                     });
 
                     // Index parameters
@@ -166,6 +172,7 @@ impl SymbolIndex {
                             detail: format!("parameter {}{type_ann}", param.name),
                             first_param_type: None,
                             return_type_str: None,
+                            owner_type: None,
                         });
                     }
 
@@ -244,6 +251,7 @@ impl SymbolIndex {
                         detail: format!("{vis}{opaque}type {}{type_params}{body}", decl.name),
                         first_param_type: None,
                         return_type_str: None,
+                        owner_type: None,
                     });
 
                     // Index record fields
@@ -263,6 +271,7 @@ impl SymbolIndex {
                                     ),
                                     first_param_type: None,
                                     return_type_str: None,
+                                    owner_type: Some(decl.name.clone()),
                                 });
                             }
                         }
@@ -280,6 +289,7 @@ impl SymbolIndex {
                                 detail: format!("{}.{}", decl.name, variant.name),
                                 first_param_type: None,
                                 return_type_str: None,
+                                owner_type: None,
                             });
                         }
                     }
@@ -328,6 +338,7 @@ impl SymbolIndex {
                             detail: format!("fn {}({}){ret}", func.name, params.join(", "),),
                             first_param_type,
                             return_type_str,
+                            owner_type: None,
                         });
 
                         // Index `self` parameter so hover works on it
@@ -342,6 +353,7 @@ impl SymbolIndex {
                                     detail: format!("self: {type_str}"),
                                     first_param_type: None,
                                     return_type_str: None,
+                                    owner_type: None,
                                 });
                             } else {
                                 let type_ann = param
@@ -358,6 +370,7 @@ impl SymbolIndex {
                                     detail: format!("parameter {}{type_ann}", param.name),
                                     first_param_type: None,
                                     return_type_str: None,
+                                    owner_type: None,
                                 });
                             }
                         }
@@ -376,6 +389,7 @@ impl SymbolIndex {
                         detail: format!("{vis}trait {}", decl.name),
                         first_param_type: None,
                         return_type_str: None,
+                        owner_type: None,
                     });
 
                     // Index trait methods
@@ -411,6 +425,7 @@ impl SymbolIndex {
                             ),
                             first_param_type: None,
                             return_type_str: method.return_type.as_ref().map(type_expr_to_string),
+                            owner_type: None,
                         });
 
                         // Recurse into default method bodies
@@ -506,6 +521,7 @@ impl SymbolIndex {
                         ),
                         first_param_type,
                         return_type_str,
+                        owner_type: None,
                     });
                 }
             }

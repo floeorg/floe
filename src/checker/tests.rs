@@ -3255,3 +3255,189 @@ for Todo {
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Member access on imported types (tsgo) ─────────────────
+
+#[test]
+fn member_access_on_imported_type_validates_fields() {
+    use crate::interop::{DtsExport, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { AccentRow } from "../services/supabase/row-dto"
+
+type Accent {
+    id: number,
+    accent: string,
+    entryId: number,
+}
+
+for AccentRow {
+    export fn toModel(self) -> Accent {
+        Accent(
+            id: self.id,
+            accent: self.accent,
+            entryId: self.entryId,
+        )
+    }
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // AccentRow has id, accent, entry_id (snake_case) — NOT entryId
+    let accent_row_export = DtsExport {
+        name: "AccentRow".to_string(),
+        ts_type: TsType::Object(vec![
+            ObjectField {
+                name: "id".to_string(),
+                ty: TsType::Primitive("number".to_string()),
+                optional: false,
+            },
+            ObjectField {
+                name: "accent".to_string(),
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            },
+            ObjectField {
+                name: "entry_id".to_string(),
+                ty: TsType::Primitive("number".to_string()),
+                optional: false,
+            },
+        ]),
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "../services/supabase/row-dto".to_string(),
+        vec![accent_row_export],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _types) = checker.check_with_types(&program);
+
+    // self.entryId should error because AccentRow has entry_id, not entryId
+    assert!(
+        has_error_containing(&diags, "has no field `entryId`"),
+        "accessing non-existent field on imported type should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn member_access_on_imported_type_valid_fields_ok() {
+    use crate::interop::{DtsExport, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { UserRow } from "db"
+
+const row = UserRow(id: 1, name: "test")
+const _id = row.id
+const _name = row.name
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let user_row_export = DtsExport {
+        name: "UserRow".to_string(),
+        ts_type: TsType::Object(vec![
+            ObjectField {
+                name: "id".to_string(),
+                ty: TsType::Primitive("number".to_string()),
+                optional: false,
+            },
+            ObjectField {
+                name: "name".to_string(),
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            },
+        ]),
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("db".to_string(), vec![user_row_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "valid field access on imported type should not error, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn member_access_on_unresolved_named_type_errors() {
+    // When a Named type can't be resolved to a concrete definition,
+    // field access should error rather than silently returning Unknown.
+    let diags = check(
+        r#"
+type Wrapper { inner: number }
+
+for Wrapper {
+    fn test(self) -> number {
+        self.nonexistent
+    }
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "has no field `nonexistent`"),
+        "field access on a record type should catch invalid fields, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| format!("{}: {}", d.code.as_deref().unwrap_or(""), d.message))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn member_access_on_imported_for_block_type_no_silent_pass() {
+    // Reproduces the user's bug: imported type in a for-block, field access
+    // on self silently returns Unknown instead of erroring for invalid fields.
+    // When the import can't be resolved (no dts), self becomes unknown-typed
+    // and any field access should error (E020), not silently pass.
+    let diags = check(
+        r#"
+import { AccentRow } from "../services/supabase/row-dto"
+
+type Accent { id: number, entryId: number }
+
+for AccentRow {
+    export fn toModel(self) -> Accent {
+        Accent(
+            id: self.id,
+            entryId: self.entryId,
+        )
+    }
+}
+"#,
+    );
+    // With no import resolution, AccentRow is unknown.
+    // self.id and self.entryId should error because we can't validate them.
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .map(|d| format!("{}: {}", d.code.as_deref().unwrap_or(""), d.message))
+        .collect();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.contains("E020") || e.contains("cannot access")),
+        "field access on unresolved imported type should error, got: {:?}",
+        errors
+    );
+}

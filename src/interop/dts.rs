@@ -407,160 +407,172 @@ fn property_key_name(key: &PropertyKey<'_>) -> Option<String> {
     key.name().map(|n| n.to_string())
 }
 
-/// Convert an oxc TSType to our TsType enum.
-fn convert_oxc_type(ty: &OxcTSType<'_>) -> TsType {
-    match ty {
-        // Keywords
-        OxcTSType::TSStringKeyword(_) => TsType::Primitive("string".to_string()),
-        OxcTSType::TSNumberKeyword(_) => TsType::Primitive("number".to_string()),
-        OxcTSType::TSBooleanKeyword(_) => TsType::Primitive("boolean".to_string()),
-        OxcTSType::TSVoidKeyword(_) => TsType::Primitive("void".to_string()),
-        OxcTSType::TSNeverKeyword(_) => TsType::Primitive("never".to_string()),
-        OxcTSType::TSBigIntKeyword(_) => TsType::Primitive("bigint".to_string()),
-        OxcTSType::TSSymbolKeyword(_) => TsType::Primitive("symbol".to_string()),
-        OxcTSType::TSNullKeyword(_) => TsType::Null,
-        OxcTSType::TSUndefinedKeyword(_) => TsType::Undefined,
-        OxcTSType::TSAnyKeyword(_) => TsType::Any,
-        OxcTSType::TSUnknownKeyword(_) => TsType::Unknown,
+/// Shared match arms for converting oxc type variants to `TsType`.
+///
+/// Both `OxcTSType` and `TSTupleElement` share the same inherited TSType variants
+/// (via oxc's `@inherit TSType` macro). This macro generates the identical match
+/// arms for both enum types, eliminating ~100 lines of duplication.
+macro_rules! convert_shared_type_arms {
+    ($prefix:ident, $value:expr) => {
+        match $value {
+            // Keywords
+            $prefix::TSStringKeyword(_) => TsType::Primitive("string".to_string()),
+            $prefix::TSNumberKeyword(_) => TsType::Primitive("number".to_string()),
+            $prefix::TSBooleanKeyword(_) => TsType::Primitive("boolean".to_string()),
+            $prefix::TSVoidKeyword(_) => TsType::Primitive("void".to_string()),
+            $prefix::TSNeverKeyword(_) => TsType::Primitive("never".to_string()),
+            $prefix::TSBigIntKeyword(_) => TsType::Primitive("bigint".to_string()),
+            $prefix::TSSymbolKeyword(_) => TsType::Primitive("symbol".to_string()),
+            $prefix::TSNullKeyword(_) => TsType::Null,
+            $prefix::TSUndefinedKeyword(_) => TsType::Undefined,
+            $prefix::TSAnyKeyword(_) => TsType::Any,
+            $prefix::TSUnknownKeyword(_) => TsType::Unknown,
 
-        // Union: T | U | V
-        OxcTSType::TSUnionType(union) => {
-            let parts: Vec<TsType> = union.types.iter().map(|t| convert_oxc_type(t)).collect();
-            TsType::Union(parts)
-        }
-
-        // Array shorthand: T[]
-        OxcTSType::TSArrayType(arr) => TsType::Array(Box::new(convert_oxc_type(&arr.element_type))),
-
-        // Tuple: [T, U]
-        OxcTSType::TSTupleType(tuple) => {
-            let parts: Vec<TsType> = tuple
-                .element_types
-                .iter()
-                .map(|el| convert_tuple_element(el))
-                .collect();
-            TsType::Tuple(parts)
-        }
-
-        // Function type: (params) => ReturnType
-        OxcTSType::TSFunctionType(func) => {
-            let param_types: Vec<TsType> = func
-                .params
-                .items
-                .iter()
-                .map(|p| {
-                    p.type_annotation
-                        .as_ref()
-                        .map(|ta| convert_oxc_type(&ta.type_annotation))
-                        .unwrap_or(TsType::Any)
-                })
-                .collect();
-            let ret = convert_oxc_type(&func.return_type.type_annotation);
-            TsType::Function {
-                params: param_types,
-                return_type: Box::new(ret),
+            // Union: T | U | V
+            $prefix::TSUnionType(union) => {
+                TsType::Union(union.types.iter().map(|t| convert_oxc_type(t)).collect())
             }
-        }
 
-        // Type reference: named type or generic
-        OxcTSType::TSTypeReference(type_ref) => {
-            let name = ts_type_name_to_string(&type_ref.type_name);
+            // Array shorthand: T[]
+            $prefix::TSArrayType(arr) => {
+                TsType::Array(Box::new(convert_oxc_type(&arr.element_type)))
+            }
 
-            if let Some(ref type_args) = type_ref.type_arguments {
-                let args: Vec<TsType> = type_args
-                    .params
+            // Tuple: [T, U]
+            $prefix::TSTupleType(tuple) => TsType::Tuple(
+                tuple
+                    .element_types
                     .iter()
-                    .map(|t| convert_oxc_type(t))
+                    .map(|e| convert_tuple_element(e))
+                    .collect(),
+            ),
+
+            // Function type: (params) => ReturnType
+            $prefix::TSFunctionType(func) => {
+                let param_types: Vec<TsType> = func
+                    .params
+                    .items
+                    .iter()
+                    .map(|p| {
+                        p.type_annotation
+                            .as_ref()
+                            .map(|ta| convert_oxc_type(&ta.type_annotation))
+                            .unwrap_or(TsType::Any)
+                    })
                     .collect();
-
-                // Normalize Array<T> to TsType::Array
-                if name == "Array" && args.len() == 1 {
-                    return TsType::Array(Box::new(args.into_iter().next().unwrap()));
+                let ret = convert_oxc_type(&func.return_type.type_annotation);
+                TsType::Function {
+                    params: param_types,
+                    return_type: Box::new(ret),
                 }
-
-                TsType::Generic { name, args }
-            } else {
-                TsType::Named(name)
             }
-        }
 
-        // Object literal type: { key: Type; ... }
-        OxcTSType::TSTypeLiteral(lit) => {
-            let fields: Vec<ObjectField> = lit
-                .members
-                .iter()
-                .filter_map(|sig| match sig {
-                    TSSignature::TSPropertySignature(prop) => convert_property_signature(prop),
-                    _ => None,
-                })
-                .collect();
-            TsType::Object(fields)
-        }
-
-        // Parenthesized type: (T)
-        OxcTSType::TSParenthesizedType(paren) => convert_oxc_type(&paren.type_annotation),
-
-        // Intersection: T & U — use the first non-empty-object type.
-        // The common TS pattern `T & {}` is used for type inference hints and is a no-op.
-        OxcTSType::TSIntersectionType(inter) => {
-            let meaningful: Vec<TsType> = inter
-                .types
-                .iter()
-                .map(|t| convert_oxc_type(t))
-                .filter(|t| !matches!(t, TsType::Object(fields) if fields.is_empty()))
-                .collect();
-            match meaningful.len() {
-                0 => TsType::Object(Vec::new()),
-                1 => meaningful.into_iter().next().unwrap(),
-                _ => meaningful.into_iter().next().unwrap(),
-            }
-        }
-
-        // Literal types (string/number/boolean literals)
-        OxcTSType::TSLiteralType(lit) => match &lit.literal {
-            oxc_ast::ast::TSLiteral::StringLiteral(_) => TsType::Primitive("string".to_string()),
-            oxc_ast::ast::TSLiteral::NumericLiteral(_) => TsType::Primitive("number".to_string()),
-            oxc_ast::ast::TSLiteral::BooleanLiteral(_) => TsType::Primitive("boolean".to_string()),
-            _ => TsType::Named("literal".to_string()),
-        },
-
-        // import("module").Name or import("module").Name<Args>
-        OxcTSType::TSImportType(import_ty) => {
-            if let Some(ref qualifier) = import_ty.qualifier {
-                let name = import_qualifier_to_string(qualifier);
-                if let Some(ref type_args) = import_ty.type_arguments {
+            // Type reference: named type or generic
+            $prefix::TSTypeReference(type_ref) => {
+                let name = ts_type_name_to_string(&type_ref.type_name);
+                if let Some(ref type_args) = type_ref.type_arguments {
                     let args: Vec<TsType> = type_args
                         .params
                         .iter()
                         .map(|t| convert_oxc_type(t))
                         .collect();
+                    // Normalize Array<T> to TsType::Array
+                    if name == "Array" && args.len() == 1 {
+                        return TsType::Array(Box::new(args.into_iter().next().unwrap()));
+                    }
                     TsType::Generic { name, args }
                 } else {
                     TsType::Named(name)
                 }
-            } else {
-                TsType::Named("unknown".to_string())
             }
-        }
 
-        // Type operator: readonly T, keyof T, unique T
-        // For readonly, just unwrap to the inner type
-        OxcTSType::TSTypeOperatorType(op) => convert_oxc_type(&op.type_annotation),
+            // Object literal type: { key: Type; ... }
+            $prefix::TSTypeLiteral(lit) => {
+                let fields: Vec<ObjectField> = lit
+                    .members
+                    .iter()
+                    .filter_map(|sig| match sig {
+                        TSSignature::TSPropertySignature(prop) => convert_property_signature(prop),
+                        _ => None,
+                    })
+                    .collect();
+                TsType::Object(fields)
+            }
 
-        // typeof expression: typeof useState
-        OxcTSType::TSTypeQuery(query) => {
-            let name = match &query.expr_name {
-                oxc_ast::ast::TSTypeQueryExprName::IdentifierReference(ident) => {
-                    ident.name.to_string()
+            // Parenthesized type: (T)
+            $prefix::TSParenthesizedType(paren) => convert_oxc_type(&paren.type_annotation),
+
+            // Intersection: T & U — use the first non-empty-object type.
+            // The common TS pattern `T & {}` is used for type inference hints and is a no-op.
+            $prefix::TSIntersectionType(inter) => {
+                let meaningful: Vec<TsType> = inter
+                    .types
+                    .iter()
+                    .map(|t| convert_oxc_type(t))
+                    .filter(|t| !matches!(t, TsType::Object(fields) if fields.is_empty()))
+                    .collect();
+                match meaningful.len() {
+                    0 => TsType::Object(Vec::new()),
+                    _ => meaningful.into_iter().next().unwrap(),
                 }
-                _ => "unknown".to_string(),
-            };
-            TsType::Named(format!("typeof {name}"))
-        }
+            }
 
-        // Everything else
-        _ => TsType::Named("unknown".to_string()),
-    }
+            // Literal types (string/number/boolean literals)
+            $prefix::TSLiteralType(lit) => match &lit.literal {
+                oxc_ast::ast::TSLiteral::StringLiteral(_) => {
+                    TsType::Primitive("string".to_string())
+                }
+                oxc_ast::ast::TSLiteral::NumericLiteral(_) => {
+                    TsType::Primitive("number".to_string())
+                }
+                oxc_ast::ast::TSLiteral::BooleanLiteral(_) => {
+                    TsType::Primitive("boolean".to_string())
+                }
+                _ => TsType::Named("literal".to_string()),
+            },
+
+            // import("module").Name or import("module").Name<Args>
+            $prefix::TSImportType(import_ty) => {
+                if let Some(ref qualifier) = import_ty.qualifier {
+                    let name = import_qualifier_to_string(qualifier);
+                    if let Some(ref type_args) = import_ty.type_arguments {
+                        let args: Vec<TsType> = type_args
+                            .params
+                            .iter()
+                            .map(|t| convert_oxc_type(t))
+                            .collect();
+                        TsType::Generic { name, args }
+                    } else {
+                        TsType::Named(name)
+                    }
+                } else {
+                    TsType::Named("unknown".to_string())
+                }
+            }
+
+            // Type operator: readonly T, keyof T, unique T
+            $prefix::TSTypeOperatorType(op) => convert_oxc_type(&op.type_annotation),
+
+            // typeof expression: typeof useState
+            $prefix::TSTypeQuery(query) => {
+                let name = match &query.expr_name {
+                    oxc_ast::ast::TSTypeQueryExprName::IdentifierReference(ident) => {
+                        ident.name.to_string()
+                    }
+                    _ => "unknown".to_string(),
+                };
+                TsType::Named(format!("typeof {name}"))
+            }
+
+            // Everything else
+            _ => TsType::Named("unknown".to_string()),
+        }
+    };
+}
+
+/// Convert an oxc TSType to our TsType enum.
+fn convert_oxc_type(ty: &OxcTSType<'_>) -> TsType {
+    convert_shared_type_arms!(OxcTSType, ty)
 }
 
 /// Convert a TSTypeName to a string like "Foo" or "React.FC".
@@ -586,116 +598,16 @@ fn import_qualifier_to_string(q: &oxc_ast::ast::TSImportTypeQualifier<'_>) -> St
 }
 
 /// Convert a TSTupleElement to TsType.
+///
+/// Handles tuple-specific variants (optional, rest, named members) then
+/// delegates inherited TSType variants to the shared macro.
 fn convert_tuple_element(el: &TSTupleElement<'_>) -> TsType {
     match el {
         TSTupleElement::TSOptionalType(opt) => convert_oxc_type(&opt.type_annotation),
         TSTupleElement::TSRestType(rest) => convert_oxc_type(&rest.type_annotation),
-        // TSNamedTupleMember inherits into TSTupleElement from TSType
         TSTupleElement::TSNamedTupleMember(member) => convert_tuple_element(&member.element_type),
-        // All TSType variants are inherited — handle keywords directly
-        TSTupleElement::TSStringKeyword(_) => TsType::Primitive("string".to_string()),
-        TSTupleElement::TSNumberKeyword(_) => TsType::Primitive("number".to_string()),
-        TSTupleElement::TSBooleanKeyword(_) => TsType::Primitive("boolean".to_string()),
-        TSTupleElement::TSVoidKeyword(_) => TsType::Primitive("void".to_string()),
-        TSTupleElement::TSNeverKeyword(_) => TsType::Primitive("never".to_string()),
-        TSTupleElement::TSBigIntKeyword(_) => TsType::Primitive("bigint".to_string()),
-        TSTupleElement::TSSymbolKeyword(_) => TsType::Primitive("symbol".to_string()),
-        TSTupleElement::TSNullKeyword(_) => TsType::Null,
-        TSTupleElement::TSUndefinedKeyword(_) => TsType::Undefined,
-        TSTupleElement::TSAnyKeyword(_) => TsType::Any,
-        TSTupleElement::TSUnknownKeyword(_) => TsType::Unknown,
-        TSTupleElement::TSUnionType(union) => {
-            TsType::Union(union.types.iter().map(|t| convert_oxc_type(t)).collect())
-        }
-        TSTupleElement::TSArrayType(arr) => {
-            TsType::Array(Box::new(convert_oxc_type(&arr.element_type)))
-        }
-        TSTupleElement::TSTupleType(tuple) => TsType::Tuple(
-            tuple
-                .element_types
-                .iter()
-                .map(|e| convert_tuple_element(e))
-                .collect(),
-        ),
-        TSTupleElement::TSFunctionType(func) => {
-            let param_types: Vec<TsType> = func
-                .params
-                .items
-                .iter()
-                .map(|p| {
-                    p.type_annotation
-                        .as_ref()
-                        .map(|ta| convert_oxc_type(&ta.type_annotation))
-                        .unwrap_or(TsType::Any)
-                })
-                .collect();
-            let ret = convert_oxc_type(&func.return_type.type_annotation);
-            TsType::Function {
-                params: param_types,
-                return_type: Box::new(ret),
-            }
-        }
-        TSTupleElement::TSTypeReference(type_ref) => {
-            let name = ts_type_name_to_string(&type_ref.type_name);
-            if let Some(ref type_args) = type_ref.type_arguments {
-                let args: Vec<TsType> = type_args
-                    .params
-                    .iter()
-                    .map(|t| convert_oxc_type(t))
-                    .collect();
-                if name == "Array" && args.len() == 1 {
-                    return TsType::Array(Box::new(args.into_iter().next().unwrap()));
-                }
-                TsType::Generic { name, args }
-            } else {
-                TsType::Named(name)
-            }
-        }
-        TSTupleElement::TSTypeLiteral(lit) => {
-            let fields: Vec<ObjectField> = lit
-                .members
-                .iter()
-                .filter_map(|sig| match sig {
-                    TSSignature::TSPropertySignature(prop) => convert_property_signature(prop),
-                    _ => None,
-                })
-                .collect();
-            TsType::Object(fields)
-        }
-        TSTupleElement::TSParenthesizedType(paren) => convert_oxc_type(&paren.type_annotation),
-        TSTupleElement::TSImportType(import_ty) => {
-            if let Some(ref qualifier) = import_ty.qualifier {
-                let name = import_qualifier_to_string(qualifier);
-                if let Some(ref type_args) = import_ty.type_arguments {
-                    let args: Vec<TsType> = type_args
-                        .params
-                        .iter()
-                        .map(|t| convert_oxc_type(t))
-                        .collect();
-                    TsType::Generic { name, args }
-                } else {
-                    TsType::Named(name)
-                }
-            } else {
-                TsType::Named("unknown".to_string())
-            }
-        }
-        TSTupleElement::TSTypeQuery(query) => {
-            let name = match &query.expr_name {
-                oxc_ast::ast::TSTypeQueryExprName::IdentifierReference(ident) => {
-                    ident.name.to_string()
-                }
-                _ => "unknown".to_string(),
-            };
-            TsType::Named(format!("typeof {name}"))
-        }
-        TSTupleElement::TSLiteralType(lit) => match &lit.literal {
-            oxc_ast::ast::TSLiteral::StringLiteral(_) => TsType::Primitive("string".to_string()),
-            oxc_ast::ast::TSLiteral::NumericLiteral(_) => TsType::Primitive("number".to_string()),
-            oxc_ast::ast::TSLiteral::BooleanLiteral(_) => TsType::Primitive("boolean".to_string()),
-            _ => TsType::Named("literal".to_string()),
-        },
-        _ => TsType::Named("unknown".to_string()),
+        // All other variants are inherited from TSType
+        _ => convert_shared_type_arms!(TSTupleElement, el),
     }
 }
 

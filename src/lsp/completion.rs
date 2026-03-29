@@ -1,5 +1,313 @@
 use std::collections::HashMap;
 
+use tower_lsp::lsp_types::*;
+
+use super::symbols::SymbolIndex;
+
+/// Detect if the cursor is inside a comment (// or /* */).
+pub(super) fn is_in_comment(source: &str, offset: usize) -> bool {
+    let before = &source[..offset];
+
+    // Check for line comment: find the last newline before offset,
+    // then check if there's a `//` between that newline and the offset
+    let line_start = before.rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_before = &source[line_start..offset];
+    if let Some(slash_pos) = line_before.find("//") {
+        // Make sure the // isn't inside a string
+        let before_slash = &line_before[..slash_pos];
+        let quote_count = before_slash.chars().filter(|&c| c == '"').count();
+        if quote_count % 2 == 0 {
+            return true;
+        }
+    }
+
+    // Check for block comment: scan for /* ... */ pairs
+    let mut i = 0;
+    let bytes = source.as_bytes();
+    while i < offset.saturating_sub(1) {
+        if bytes[i] == b'/' && bytes[i + 1] == b'*' {
+            // Found opening /*, look for closing */
+            let mut j = i + 2;
+            while j < source.len().saturating_sub(1) {
+                if bytes[j] == b'*' && bytes[j + 1] == b'/' {
+                    break;
+                }
+                j += 1;
+            }
+            // If offset is between /* and */, we're in a block comment
+            if offset > i + 1 && offset <= j {
+                return true;
+            }
+            i = j + 2;
+        } else {
+            i += 1;
+        }
+    }
+
+    false
+}
+
+/// Detect if the cursor is inside a string literal (not an import path).
+pub(super) fn is_in_string_literal(source: &str, offset: usize) -> bool {
+    // Count unescaped quotes before the offset on the same line
+    let before = &source[..offset];
+    let line_start = before.rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_before = &source[line_start..offset];
+
+    let mut in_string = false;
+    let mut chars = line_before.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' => in_string = !in_string,
+            '\\' if in_string => {
+                chars.next(); // skip escaped char
+            }
+            _ => {}
+        }
+    }
+    // Also check for template literals (backtick)
+    if !in_string {
+        let backtick_count = line_before.chars().filter(|&c| c == '`').count();
+        if backtick_count % 2 == 1 {
+            return true;
+        }
+    }
+    in_string
+}
+
+/// Detect if the cursor is inside an import path string (e.g., `from "./|"`).
+pub(super) fn is_in_import_string(source: &str, offset: usize) -> bool {
+    let before = &source[..offset];
+    let line_start = before.rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line = &source[line_start..];
+    let line_trimmed = line.trim();
+
+    // Must be on an import line
+    if !line_trimmed.starts_with("import") {
+        return false;
+    }
+
+    // Check if offset is inside the string after "from"
+    let line_before_cursor = &source[line_start..offset];
+    if let Some(from_pos) = line_before_cursor.find("from") {
+        let after_from = &line_before_cursor[from_pos + 4..];
+        let quote_count = after_from.chars().filter(|&c| c == '"').count();
+        return quote_count % 2 == 1; // odd = inside a string
+    }
+
+    false
+}
+
+/// Generate import path completion items by scanning the filesystem.
+pub(super) fn import_path_completions(
+    uri: &Url,
+    source: &str,
+    offset: usize,
+) -> Vec<CompletionItem> {
+    let mut items = Vec::new();
+
+    // Extract what the user has typed so far inside the string
+    let before = &source[..offset];
+    let line_start = before.rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_before = &source[line_start..offset];
+
+    // Find the opening quote after "from"
+    let typed_path = if let Some(from_pos) = line_before.find("from") {
+        let after_from = &line_before[from_pos + 4..];
+        // Find the opening quote
+        if let Some(quote_pos) = after_from.find('"') {
+            &after_from[quote_pos + 1..]
+        } else {
+            return items;
+        }
+    } else {
+        return items;
+    };
+
+    // Get the directory of the current file
+    let current_file = match uri.to_file_path() {
+        Ok(p) => p,
+        Err(_) => return items,
+    };
+    let current_dir = match current_file.parent() {
+        Some(d) => d,
+        None => return items,
+    };
+
+    // Resolve the partial path relative to current dir
+    let (search_dir, name_prefix) = if typed_path.contains('/') {
+        let last_slash = typed_path.rfind('/').unwrap();
+        let dir_part = &typed_path[..last_slash + 1];
+        let name_part = &typed_path[last_slash + 1..];
+        let resolved = current_dir.join(dir_part);
+        (resolved, name_part.to_string())
+    } else if typed_path.starts_with('.') {
+        // Just "./" or "../" typed — search current or parent dir
+        let resolved = current_dir.join(typed_path);
+        (resolved, String::new())
+    } else {
+        (current_dir.to_path_buf(), typed_path.to_string())
+    };
+
+    // List directory contents
+    let entries = match std::fs::read_dir(&search_dir) {
+        Ok(e) => e,
+        Err(_) => return items,
+    };
+
+    for entry in entries.flatten() {
+        let file_name = entry.file_name().to_string_lossy().to_string();
+
+        // Filter by prefix
+        if !name_prefix.is_empty() && !file_name.starts_with(&name_prefix) {
+            continue;
+        }
+
+        // Skip hidden files
+        if file_name.starts_with('.') {
+            continue;
+        }
+
+        let path = entry.path();
+        if path.is_dir() {
+            items.push(CompletionItem {
+                label: format!("{file_name}/"),
+                kind: Some(CompletionItemKind::FOLDER),
+                insert_text: Some(format!("{file_name}/")),
+                insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                ..Default::default()
+            });
+        } else {
+            let detail = match path.extension().and_then(|e| e.to_str()) {
+                Some("fl") => "Floe module",
+                Some("ts" | "tsx") => "TypeScript module",
+                _ => continue,
+            };
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(&file_name);
+            if !name_prefix.is_empty() && !stem.starts_with(&name_prefix) {
+                continue;
+            }
+            items.push(CompletionItem {
+                label: stem.to_string(),
+                kind: Some(CompletionItemKind::FILE),
+                detail: Some(detail.to_string()),
+                insert_text: Some(stem.to_string()),
+                insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                ..Default::default()
+            });
+        }
+    }
+
+    items
+}
+
+/// Extract the identifier before a dot at the cursor position.
+/// For `row.fi|` returns `Some("row")`, for `foo|` returns `None`.
+pub(super) fn identifier_before_dot(source: &str, offset: usize) -> Option<&str> {
+    let bytes = source.as_bytes();
+
+    let mut pos = offset;
+    while pos > 0 && (bytes[pos - 1].is_ascii_alphanumeric() || bytes[pos - 1] == b'_') {
+        pos -= 1;
+    }
+
+    if pos == 0 || bytes[pos - 1] != b'.' {
+        return None;
+    }
+    pos -= 1;
+
+    let end = pos;
+    while pos > 0 && (bytes[pos - 1].is_ascii_alphanumeric() || bytes[pos - 1] == b'_') {
+        pos -= 1;
+    }
+
+    if pos == end {
+        return None;
+    }
+
+    Some(&source[pos..end])
+}
+
+/// Generate completions for dot-access on a variable (e.g., `row.` → row's fields).
+pub(super) fn dot_access_completions(
+    obj_name: &str,
+    prefix: &str,
+    type_map: &HashMap<String, String>,
+    index: &SymbolIndex,
+) -> Vec<CompletionItem> {
+    let mut items = Vec::new();
+
+    // Look up the object's type in the type_map
+    let obj_type = match type_map.get(obj_name) {
+        Some(ty) => ty.as_str(),
+        None => return items,
+    };
+
+    // Strategy 1: If the type matches a known type name, look up its fields in the symbol index
+    for sym in &index.symbols {
+        if sym.kind == SymbolKind::PROPERTY
+            && sym.owner_type.as_deref() == Some(obj_type)
+            && (prefix.is_empty() || sym.name.starts_with(prefix))
+        {
+            items.push(CompletionItem {
+                label: sym.name.clone(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                detail: Some(sym.detail.clone()),
+                insert_text: Some(sym.name.clone()),
+                insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                ..Default::default()
+            });
+        }
+    }
+
+    // Strategy 2: If type_map has __field_ entries for this type, use those
+    let field_prefix = format!("__field_{obj_type}_");
+    for (key, field_ty) in type_map {
+        if let Some(field_name) = key.strip_prefix(&field_prefix)
+            && (prefix.is_empty() || field_name.starts_with(prefix))
+            && !items.iter().any(|i| i.label == field_name)
+        {
+            items.push(CompletionItem {
+                label: field_name.to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                detail: Some(format!("(property) {field_name}: {field_ty}")),
+                insert_text: Some(field_name.to_string()),
+                insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                ..Default::default()
+            });
+        }
+    }
+
+    // Strategy 3: If the type is a record literal like "{ id: number, name: string }",
+    // parse field names from the display string using depth-aware splitting
+    // to handle nested generics like Map<string, number>
+    if items.is_empty() && obj_type.starts_with('{') && obj_type.ends_with('}') {
+        let inner = &obj_type[1..obj_type.len() - 1];
+        for field_str in split_top_level(inner, ',') {
+            let field_str = field_str.trim();
+            if let Some(colon_pos) = field_str.find(':') {
+                let field_name = field_str[..colon_pos].trim();
+                let field_type = field_str[colon_pos + 1..].trim();
+                if !field_name.is_empty() && (prefix.is_empty() || field_name.starts_with(prefix)) {
+                    items.push(CompletionItem {
+                        label: field_name.to_string(),
+                        kind: Some(CompletionItemKind::PROPERTY),
+                        detail: Some(format!("(property) {field_name}: {field_type}")),
+                        insert_text: Some(field_name.to_string()),
+                        insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+    }
+
+    items
+}
+
 /// Detect if the cursor is in a pipe context (after `|>`).
 /// Returns true if we find `|>` before the cursor (ignoring whitespace).
 pub(super) fn is_pipe_context(source: &str, offset: usize) -> bool {
@@ -135,6 +443,26 @@ pub(super) fn find_top_level_comma(s: &str) -> Option<usize> {
         }
     }
     None
+}
+
+/// Split a string at top-level commas, respecting nested `<>`, `()`, `{}`.
+fn split_top_level(s: &str, delim: char) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0;
+    for (i, c) in s.char_indices() {
+        match c {
+            '<' | '(' | '{' | '[' => depth += 1,
+            '>' | ')' | '}' | ']' => depth -= 1,
+            c if c == delim && depth == 0 => {
+                parts.push(&s[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(&s[start..]);
+    parts
 }
 
 /// Check if a function's first parameter type is compatible with the piped type.
