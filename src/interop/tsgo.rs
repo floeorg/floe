@@ -625,11 +625,112 @@ fn generate_probe(
         ));
     }
 
-    if probe_index == 0 && member_accesses.is_empty() {
+    // Emit type probes for type aliases that reference imported types.
+    // This lets tsgo resolve conditional/mapped types (e.g. VariantProps<T>).
+    // Also emit const bindings for any local consts used in typeof expressions
+    // so tsgo can resolve `typeof spinnerVariants` → the inferred type.
+    let mut has_type_probes = false;
+    let mut typeof_consts_emitted: HashSet<String> = HashSet::new();
+    for item in &program.items {
+        if let ItemKind::TypeDecl(decl) = &item.kind
+            && let TypeDef::Alias(type_expr) = &decl.def
+            && type_expr_references_imports(type_expr, &imported_names)
+        {
+            collect_typeof_names(type_expr, &mut |name| {
+                if !typeof_consts_emitted.contains(name) {
+                    if let Some(expr) = local_const_exprs.get(name) {
+                        lines.push(format!("const {name} = {expr};"));
+                    }
+                    typeof_consts_emitted.insert(name.to_string());
+                }
+            });
+            let ts_type = type_expr_to_ts(type_expr);
+            lines.push(format!(
+                "export declare const __tprobe_{}: {};",
+                decl.name, ts_type
+            ));
+            has_type_probes = true;
+        }
+    }
+
+    if probe_index == 0 && member_accesses.is_empty() && !has_type_probes {
         return String::new();
     }
 
     lines.join("\n") + "\n"
+}
+
+/// Collect names used in `typeof <name>` expressions within a type expression.
+fn collect_typeof_names(type_expr: &TypeExpr, callback: &mut dyn FnMut(&str)) {
+    match &type_expr.kind {
+        TypeExprKind::TypeOf(name) => callback(name),
+        TypeExprKind::Named { type_args, .. } => {
+            for arg in type_args {
+                collect_typeof_names(arg, callback);
+            }
+        }
+        TypeExprKind::Intersection(types) | TypeExprKind::Tuple(types) => {
+            for ty in types {
+                collect_typeof_names(ty, callback);
+            }
+        }
+        TypeExprKind::Array(inner) => collect_typeof_names(inner, callback),
+        TypeExprKind::Function {
+            params,
+            return_type,
+        } => {
+            for p in params {
+                collect_typeof_names(p, callback);
+            }
+            collect_typeof_names(return_type, callback);
+        }
+        TypeExprKind::Record(fields) => {
+            for f in fields {
+                collect_typeof_names(&f.type_ann, callback);
+            }
+        }
+    }
+}
+
+/// Check if a type expression references any imported names (for type probe detection).
+fn type_expr_references_imports(
+    type_expr: &TypeExpr,
+    imported_names: &HashMap<String, String>,
+) -> bool {
+    match &type_expr.kind {
+        TypeExprKind::Named {
+            name, type_args, ..
+        } => {
+            let root = name.split('.').next().unwrap_or(name);
+            imported_names.contains_key(root)
+                || type_args
+                    .iter()
+                    .any(|a| type_expr_references_imports(a, imported_names))
+        }
+        TypeExprKind::TypeOf(name) => {
+            let root = name.split('.').next().unwrap_or(name);
+            imported_names.contains_key(root)
+        }
+        TypeExprKind::Intersection(types) => types
+            .iter()
+            .any(|t| type_expr_references_imports(t, imported_names)),
+        TypeExprKind::Array(inner) => type_expr_references_imports(inner, imported_names),
+        TypeExprKind::Tuple(types) => types
+            .iter()
+            .any(|t| type_expr_references_imports(t, imported_names)),
+        TypeExprKind::Function {
+            params,
+            return_type,
+        } => {
+            params
+                .iter()
+                .any(|p| type_expr_references_imports(p, imported_names))
+                || type_expr_references_imports(return_type, imported_names)
+        }
+        TypeExprKind::Record(fields) => fields
+            .iter()
+            .any(|f| type_expr_references_imports(&f.type_ann, imported_names)),
+    }
 }
 
 /// Recursively collect all `X.field` member accesses where X is an imported name.
@@ -1314,6 +1415,7 @@ fn build_specifier_map(
 
     // Map member access probe results (__member_X_field exports)
     // and inlined const call probe results (__probe_X_N exports)
+    // and type alias probe results (__tprobe_X exports)
     for export in probe_exports {
         if let Some(rest) = export.name.strip_prefix("__member_") {
             // Find which specifier this belongs to
@@ -1326,6 +1428,17 @@ fn build_specifier_map(
                         .push(export.clone());
                 }
             }
+        }
+        // Type alias probes (__tprobe_SpinnerProps, etc.)
+        // tsgo resolved the complex types (conditional, mapped) for us.
+        // Add to any specifier so the checker can find them.
+        if export.name.starts_with("__tprobe_")
+            && let Some(first_specifier) = result.keys().next().cloned()
+        {
+            result
+                .entry(first_specifier)
+                .or_default()
+                .push(export.clone());
         }
         // Inlined const call probes (__probe_user_5, __probe_posts_7, etc.)
         // These are generated for calls like UserSchema.parse(json) where
@@ -1863,5 +1976,48 @@ const x = 42"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
         assert!(probe.is_empty());
+    }
+
+    #[test]
+    fn generate_probe_includes_type_alias_probe() {
+        let source = r#"import trusted { tv, VariantProps } from "tailwind-variants"
+const spinnerVariants = tv({})
+type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+        assert!(
+            probe.contains("__tprobe_SpinnerProps"),
+            "probe should contain type probe: {probe}"
+        );
+        assert!(
+            probe.contains("VariantProps<typeof spinnerVariants>"),
+            "probe should contain the type expression: {probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_emits_typeof_const_for_type_probe() {
+        let source = r#"import trusted { tv, VariantProps } from "tailwind-variants"
+const spinnerVariants = tv({})
+type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+        // The probe should declare spinnerVariants so typeof can resolve
+        assert!(
+            probe.contains("const spinnerVariants = tv("),
+            "probe should declare const for typeof resolution: {probe}"
+        );
+    }
+
+    #[test]
+    fn type_probe_not_emitted_for_local_only_alias() {
+        let source = r#"import trusted { useState } from "react"
+type MyNum = number"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+        assert!(
+            !probe.contains("__tprobe_MyNum"),
+            "local-only type alias should not be probed: {probe}"
+        );
     }
 }

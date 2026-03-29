@@ -662,10 +662,29 @@ impl Checker {
                 self.env.define(&decl.name, ty);
             }
             TypeDef::Alias(type_expr) => {
-                let ty = self.resolve_type(type_expr);
+                let mut ty = self.resolve_type(type_expr);
+                // If tsgo resolved a type probe for this alias, use it.
+                // This handles conditional/mapped types from npm packages
+                // (e.g. VariantProps<T> which uses Extract<...> internally).
+                if let Some(probe_ty) = self.find_type_probe(&decl.name) {
+                    ty = probe_ty;
+                }
                 self.env.define(&decl.name, ty);
             }
         }
+    }
+
+    /// Search dts_imports for a tsgo type probe matching the given type alias name.
+    fn find_type_probe(&self, type_name: &str) -> Option<Type> {
+        let probe_key = format!("__tprobe_{type_name}");
+        for exports in self.dts_imports.values() {
+            for export in exports {
+                if export.name == probe_key {
+                    return Some(interop::wrap_boundary_type(&export.ts_type));
+                }
+            }
+        }
+        None
     }
 
     /// Flatten record type spreads (`...OtherType`) into regular fields.
