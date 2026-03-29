@@ -1099,6 +1099,13 @@ impl Checker {
                     .unwrap_or(Type::Unknown);
                 Type::Array(Box::new(inner))
             }
+            "Promise" => {
+                let inner = type_args
+                    .first()
+                    .map(|t| self.resolve_type(t))
+                    .unwrap_or(Type::Unknown);
+                Type::Promise(Box::new(inner))
+            }
             _ => {
                 // Check if this is a known user-defined type or imported name.
                 // Skip validation during type registration (forward references).
@@ -1673,7 +1680,20 @@ impl Checker {
         // Check return type compatibility
         if let Some(ref declared_return) = decl.return_type {
             let resolved = self.resolve_type(declared_return);
-            if !self.types_compatible(&resolved, &body_type) && !matches!(body_type, Type::Var(_)) {
+            // For async functions, unwrap Promise from the declared type before comparing,
+            // since the body type is the inner value (async implicitly wraps in Promise)
+            let effective_declared = if decl.async_fn {
+                if let Type::Promise(inner) = &resolved {
+                    inner.as_ref().clone()
+                } else {
+                    resolved.clone()
+                }
+            } else {
+                resolved.clone()
+            };
+            if !self.types_compatible(&effective_declared, &body_type)
+                && !matches!(body_type, Type::Var(_))
+            {
                 self.diagnostics.push(
                     Diagnostic::error(
                         format!(
