@@ -1431,6 +1431,27 @@ impl Checker {
         found.map(|(_, _, e)| interop::wrap_boundary_type(&e.ts_type))
     }
 
+    /// Search for a per-field inlined probe (e.g. `__probe_data_inlined_N` for field `data`).
+    fn find_per_field_probe(&mut self, field_name: &str) -> Option<Type> {
+        let prefix = format!("__probe_{field_name}_inlined_");
+        let mut found: Option<(usize, usize, DtsExport)> = None;
+        for (spec_idx, exports) in self.dts_imports.values().enumerate() {
+            for (exp_idx, export) in exports.iter().enumerate() {
+                let key = (spec_idx, exp_idx);
+                if !self.probe_consumed.contains(&key)
+                    && export.name.starts_with(&prefix)
+                    && found.is_none()
+                {
+                    found = Some((spec_idx, exp_idx, export.clone()));
+                }
+            }
+        }
+        if let Some((spec_idx, exp_idx, _)) = &found {
+            self.probe_consumed.insert((*spec_idx, *exp_idx));
+        }
+        found.map(|(_, _, e)| interop::wrap_boundary_type(&e.ts_type))
+    }
+
     /// Determine the final type for a const binding given value type, declared type, and tsgo probe.
     fn resolve_const_type(
         &mut self,
@@ -1547,13 +1568,16 @@ impl Checker {
         }
 
         for name in names {
+            // First try extracting the field from the Record type
             let field_ty = field_map
                 .as_ref()
                 .and_then(|m| m.get(name.as_str()))
                 .cloned()
-                .cloned()
-                .unwrap_or(Type::Unknown);
-            self.define_const_binding(name, field_ty, false, span);
+                .cloned();
+            // If no field found (e.g. Foreign type), try a per-field probe lookup
+            let ty = field_ty
+                .unwrap_or_else(|| self.find_per_field_probe(name).unwrap_or(Type::Unknown));
+            self.define_const_binding(name, ty, false, span);
         }
     }
 
