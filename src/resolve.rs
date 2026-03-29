@@ -236,9 +236,40 @@ fn resolve_single_import(
     // Flatten spreads in all type decls so importers get fully resolved records.
     let flattened_map = flatten_spreads_in_type_decls(&type_map);
 
+    // Collect exported for-blocks first so we can find their type dependencies
+    let mut exported_for_blocks = Vec::new();
+    for item in &program.items {
+        if let ItemKind::ForBlock(block) = &item.kind {
+            let mut exported_block = block.clone();
+            exported_block.functions.retain(|f| f.exported);
+            if !exported_block.functions.is_empty() {
+                exported_for_blocks.push(exported_block);
+            }
+        }
+    }
+
+    // Collect type names referenced in exported function and for-block signatures
+    let mut referenced_types: HashSet<String> = HashSet::new();
+    for block in &exported_for_blocks {
+        for func in &block.functions {
+            collect_fn_type_names(func, &mut referenced_types);
+        }
+    }
+    for item in &program.items {
+        if let ItemKind::Function(func) = &item.kind
+            && func.exported
+        {
+            collect_fn_type_names(func, &mut referenced_types);
+        }
+    }
+
+    // Track exported type names so we don't duplicate them
+    let mut exported_type_names: HashSet<String> = HashSet::new();
+
     for item in &program.items {
         match &item.kind {
             ItemKind::TypeDecl(decl) if decl.exported => {
+                exported_type_names.insert(decl.name.clone());
                 // Use the flattened version if available
                 if let Some(flattened) = flattened_map.get(&decl.name) {
                     imports.type_decls.push(flattened.clone());
@@ -249,14 +280,6 @@ fn resolve_single_import(
             ItemKind::Function(decl) if decl.exported => {
                 imports.function_decls.push(decl.clone());
             }
-            ItemKind::ForBlock(block) => {
-                // Only include exported for-block functions
-                let mut exported_block = block.clone();
-                exported_block.functions.retain(|f| f.exported);
-                if !exported_block.functions.is_empty() {
-                    imports.for_blocks.push(exported_block);
-                }
-            }
             ItemKind::TraitDecl(decl) if decl.exported => {
                 imports.trait_decls.push(decl.clone());
             }
@@ -266,6 +289,19 @@ fn resolve_single_import(
                 }
             }
             _ => {}
+        }
+    }
+
+    imports.for_blocks.extend(exported_for_blocks);
+
+    // Include non-exported types that are referenced by exported signatures
+    for decl in &all_type_decls {
+        if !exported_type_names.contains(&decl.name) && referenced_types.contains(&decl.name) {
+            if let Some(flattened) = flattened_map.get(&decl.name) {
+                imports.type_decls.push(flattened.clone());
+            } else {
+                imports.type_decls.push(decl.clone());
+            }
         }
     }
 
@@ -429,6 +465,52 @@ fn resolve_path(base_dir: &Path, source: &str) -> Option<PathBuf> {
     }
 
     None
+}
+
+/// Collect type names from a function's parameter and return type annotations.
+fn collect_fn_type_names(func: &FunctionDecl, names: &mut HashSet<String>) {
+    for param in &func.params {
+        if let Some(type_ann) = &param.type_ann {
+            collect_type_names(type_ann, names);
+        }
+    }
+    if let Some(ret) = &func.return_type {
+        collect_type_names(ret, names);
+    }
+}
+
+/// Recursively collect named type references from a type expression.
+fn collect_type_names(type_expr: &TypeExpr, names: &mut HashSet<String>) {
+    match &type_expr.kind {
+        TypeExprKind::Named {
+            name, type_args, ..
+        } => {
+            names.insert(name.clone());
+            for arg in type_args {
+                collect_type_names(arg, names);
+            }
+        }
+        TypeExprKind::Array(inner) => collect_type_names(inner, names),
+        TypeExprKind::Tuple(parts) => {
+            for part in parts {
+                collect_type_names(part, names);
+            }
+        }
+        TypeExprKind::Function {
+            params,
+            return_type,
+        } => {
+            for param in params {
+                collect_type_names(param, names);
+            }
+            collect_type_names(return_type, names);
+        }
+        TypeExprKind::Record(fields) => {
+            for field in fields {
+                collect_type_names(&field.type_ann, names);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
