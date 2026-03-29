@@ -61,12 +61,12 @@ pub(super) fn resolve_relative_import(specifier: &str, source_dir: &Path) -> Opt
     for ext in &[".fl", ".ts", ".tsx", "/index.fl", "/index.ts", "/index.tsx"] {
         let path = PathBuf::from(format!("{}{}", base.display(), ext));
         if path.exists() {
-            return Some(path);
+            return path.canonicalize().ok();
         }
     }
     // Maybe it already has an extension
     if base.exists() && base.is_file() {
-        return Some(base);
+        return base.canonicalize().ok();
     }
     None
 }
