@@ -699,10 +699,15 @@ pub enum JsxElementKind {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct JsxProp {
-    pub name: String,
-    pub value: Option<Expr>,
-    pub span: Span,
+pub enum JsxProp {
+    /// `name={value}` or `name="string"`
+    Named {
+        name: String,
+        value: Option<Expr>,
+        span: Span,
+    },
+    /// `{...expr}`
+    Spread { expr: Expr, span: Span },
 }
 
 #[derive(Debug, Clone, PartialEq)]

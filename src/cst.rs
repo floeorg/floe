@@ -1985,6 +1985,20 @@ impl<'src> CstParser<'src> {
     }
 
     fn parse_jsx_prop(&mut self) {
+        // JSX spread: {...expr}
+        if self.at(TokenKind::LeftBrace) && self.peek_is(TokenKind::DotDotDot) {
+            self.builder.start_node(SyntaxKind::JSX_SPREAD_PROP.into());
+            self.bump(); // {
+            self.eat_trivia();
+            self.bump(); // ...
+            self.eat_trivia();
+            self.parse_expr();
+            self.eat_trivia();
+            self.expect(TokenKind::RightBrace);
+            self.builder.finish_node();
+            return;
+        }
+
         self.builder.start_node(SyntaxKind::JSX_PROP.into());
         // Accept identifiers and keywords as JSX prop names (e.g., type="text", for="id")
         if self.is_ident() || self.is_keyword() {

@@ -1851,3 +1851,17 @@ fn string_literal_type_arg() {
         "should emit string literal type arg, got: {result}"
     );
 }
+
+#[test]
+fn jsx_spread_prop() {
+    let result = emit(
+        "type Props { x: number }
+fn _test(props: Props) -> JSX.Element {
+    <div {...props} />
+}",
+    );
+    assert!(
+        result.contains("{...props}"),
+        "should emit JSX spread prop, got: {result}"
+    );
+}

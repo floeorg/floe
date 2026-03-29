@@ -2068,15 +2068,22 @@ impl Checker {
                     }
                 }
                 for prop in props {
-                    if let Some(ref value) = prop.value {
-                        // For event handler props, set context so lambda params get event type
-                        if prop.name.starts_with("on") && prop.name.len() > 2 {
-                            let prev = self.ctx.event_handler_context;
-                            self.ctx.event_handler_context = true;
-                            self.check_expr(value);
-                            self.ctx.event_handler_context = prev;
-                        } else {
-                            self.check_expr(value);
+                    match prop {
+                        JsxProp::Named { name, value, .. } => {
+                            if let Some(value) = value {
+                                // For event handler props, set context so lambda params get event type
+                                if name.starts_with("on") && name.len() > 2 {
+                                    let prev = self.ctx.event_handler_context;
+                                    self.ctx.event_handler_context = true;
+                                    self.check_expr(value);
+                                    self.ctx.event_handler_context = prev;
+                                } else {
+                                    self.check_expr(value);
+                                }
+                            }
+                        }
+                        JsxProp::Spread { expr, .. } => {
+                            self.check_expr(expr);
                         }
                     }
                 }

@@ -313,8 +313,15 @@ fn walk_jsx_children(element: &JsxElement, f: &mut impl FnMut(&Expr)) {
             props, children, ..
         } => {
             for prop in props {
-                if let Some(value) = &prop.value {
-                    walk_expr(value, f);
+                match prop {
+                    JsxProp::Named { value, .. } => {
+                        if let Some(value) = value {
+                            walk_expr(value, f);
+                        }
+                    }
+                    JsxProp::Spread { expr, .. } => {
+                        walk_expr(expr, f);
+                    }
                 }
             }
             for child in children {
@@ -344,8 +351,15 @@ fn walk_jsx_children(element: &JsxElement, f: &mut impl FnMut(&Expr)) {
 fn walk_jsx_mut(element: &mut JsxElement, f: &mut impl FnMut(&mut Expr)) {
     if let JsxElementKind::Element { props, .. } = &mut element.kind {
         for prop in props {
-            if let Some(value) = &mut prop.value {
-                walk_expr_mut(value, f);
+            match prop {
+                JsxProp::Named { value, .. } => {
+                    if let Some(value) = value {
+                        walk_expr_mut(value, f);
+                    }
+                }
+                JsxProp::Spread { expr, .. } => {
+                    walk_expr_mut(expr, f);
+                }
             }
         }
     }

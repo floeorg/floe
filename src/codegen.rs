@@ -1608,8 +1608,15 @@ fn collect_value_names_from_jsx(jsx: &JsxElement, names: &mut HashSet<String>) {
                 names.insert(name.clone());
             }
             for prop in props {
-                if let Some(value) = &prop.value {
-                    collect_value_names_from_expr(value, names);
+                match prop {
+                    JsxProp::Named { value, .. } => {
+                        if let Some(value) = value {
+                            collect_value_names_from_expr(value, names);
+                        }
+                    }
+                    JsxProp::Spread { expr, .. } => {
+                        collect_value_names_from_expr(expr, names);
+                    }
                 }
             }
             for child in children {

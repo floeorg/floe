@@ -63,6 +63,18 @@ Use pipes with `map`:
 </ul>
 ```
 
+## Spread Attributes
+
+Forward all props to a child element:
+
+```floe
+export fn Card(props: CardProps) -> JSX.Element {
+    <div {...props} className="card" />
+}
+```
+
+Compiles to `<div {...props} className={"card"} />` in TypeScript.
+
 ## Fragments
 
 ```floe
