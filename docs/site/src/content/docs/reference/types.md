@@ -67,6 +67,25 @@ type ButtonProps = BaseProps & { onClick: () => void; label: string };
 
 Multiple spreads are allowed. Field name conflicts are compile errors.
 
+Spreads work with generic types, `typeof`, and npm imports:
+
+```floe
+import trusted { tv, VariantProps } from "tailwind-variants"
+
+const cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
+
+type CardProps {
+  ...VariantProps<typeof cardVariants>,
+  className: string,
+}
+```
+
+Compiles to:
+
+```typescript
+type CardProps = VariantProps<typeof cardVariants> & { className: string };
+```
+
 ## Union Types
 
 Tagged discriminated unions:

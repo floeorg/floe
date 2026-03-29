@@ -464,6 +464,13 @@ type B { y: string }
 type C { ...A, ...B, z: boolean }
 // C has: x, y, z
 
+// Spread with generic types and typeof (npm interop)
+type CardProps {
+    ...VariantProps<typeof cardVariants>,
+    className: string,
+}
+// Compiles to: type CardProps = VariantProps<typeof cardVariants> & { className: string };
+
 // Simple union type (has |)
 type Route {
   | Home

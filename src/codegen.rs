@@ -896,7 +896,11 @@ impl Codegen {
 
         // Emit spreads as intersection types
         for spread in &spreads {
-            self.push(&spread.type_name);
+            if let Some(type_expr) = &spread.type_expr {
+                self.emit_type_expr(type_expr);
+            } else {
+                self.push(&spread.type_name);
+            }
             if !fields.is_empty() || spread != spreads.last().unwrap() {
                 self.push(" & ");
             }

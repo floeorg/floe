@@ -132,6 +132,15 @@ type A { x: number }
 type B { y: string }
 type C { ...A, ...B, z: boolean }
 
+// Spread with generic types and typeof (npm interop)
+import trusted { tv, VariantProps } from "tailwind-variants"
+const variants = tv({ base: "rounded", variants: { size: { sm: "p-2" } } })
+type Props {
+    ...VariantProps<typeof variants>,
+    className: string,
+}
+// Compiles to: type Props = VariantProps<typeof variants> & { className: string };
+
 // Newtypes (single-variant wrappers)
 type UserId { string }
 type Email { string }

@@ -637,10 +637,26 @@ impl<'src> Lowerer<'src> {
                 }
                 SyntaxKind::RECORD_SPREAD => {
                     let span = self.node_span(&child);
-                    let idents = self.collect_idents_direct(&child);
-                    if let Some(type_name) = idents.first() {
+                    // Lower the type expression inside the spread
+                    let type_expr_node =
+                        child.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR);
+                    let type_expr = type_expr_node
+                        .as_ref()
+                        .and_then(|n| self.lower_type_expr(n));
+                    // Extract the base type name for checker lookups
+                    let type_name = type_expr
+                        .as_ref()
+                        .map(|te| match &te.kind {
+                            TypeExprKind::Named { name, .. } => name.clone(),
+                            TypeExprKind::TypeOf(name) => name.clone(),
+                            _ => String::new(),
+                        })
+                        .or_else(|| self.collect_idents_direct(&child).first().cloned())
+                        .unwrap_or_default();
+                    if !type_name.is_empty() {
                         entries.push(RecordEntry::Spread(RecordSpread {
-                            type_name: type_name.clone(),
+                            type_name,
+                            type_expr,
                             span,
                         }));
                     }

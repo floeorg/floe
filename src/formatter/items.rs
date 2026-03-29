@@ -441,7 +441,10 @@ impl Formatter<'_> {
 
     fn fmt_record_spread(&mut self, node: &SyntaxNode) {
         self.write("...");
-        if let Some(name) = self.first_ident(node) {
+        // Look for a TYPE_EXPR child (generic types like Foo<Bar>)
+        if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
+            self.fmt_type_expr(&type_expr);
+        } else if let Some(name) = self.first_ident(node) {
             self.write(&name);
         }
     }
@@ -560,6 +563,64 @@ impl Formatter<'_> {
             }
             self.write(" }");
             return;
+        }
+
+        // Intersection type: A & B & C
+        // The CST nests this as: outer TYPE_EXPR has the LHS tokens + AMP + child TYPE_EXPR(RHS)
+        let has_amp = self.has_token(node, SyntaxKind::AMP);
+        if has_amp {
+            // Format the LHS (everything before the &)
+            let has_typeof = self.has_token(node, SyntaxKind::KW_TYPEOF);
+            if has_typeof {
+                self.write("typeof ");
+            }
+            let has_dot = self.has_token(node, SyntaxKind::DOT);
+            if has_dot {
+                self.write(&idents.join("."));
+            } else if let Some(name) = idents.first() {
+                self.write(name);
+            }
+            // LHS type args (e.g. Generic<T> & B)
+            // Count child TYPE_EXPRs that are type args (before AMP) vs intersection members (after AMP)
+            // In the CST, the AMP token separates type args from intersection RHS
+            let amp_position = node
+                .children_with_tokens()
+                .position(|t| t.as_token().is_some_and(|t| t.kind() == SyntaxKind::AMP));
+            let type_expr_positions: Vec<(usize, SyntaxNode)> = node
+                .children_with_tokens()
+                .enumerate()
+                .filter_map(|(i, t)| {
+                    t.into_node()
+                        .filter(|n| n.kind() == SyntaxKind::TYPE_EXPR)
+                        .map(|n| (i, n))
+                })
+                .collect();
+            let (type_args, intersection_rhs): (Vec<_>, Vec<_>) = type_expr_positions
+                .into_iter()
+                .partition(|(i, _)| amp_position.is_some_and(|ap| *i < ap));
+
+            if !type_args.is_empty() {
+                self.write("<");
+                for (i, (_, te)) in type_args.iter().enumerate() {
+                    if i > 0 {
+                        self.write(", ");
+                    }
+                    self.fmt_type_expr(te);
+                }
+                self.write(">");
+            }
+            // Format each RHS intersection member
+            for (_, te) in &intersection_rhs {
+                self.write(" & ");
+                self.fmt_type_expr(te);
+            }
+            return;
+        }
+
+        // typeof type expression
+        let has_typeof = self.has_token(node, SyntaxKind::KW_TYPEOF);
+        if has_typeof {
+            self.write("typeof ");
         }
 
         // Named type with dots

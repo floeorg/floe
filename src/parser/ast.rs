@@ -198,10 +198,11 @@ pub struct RecordField {
     pub span: Span,
 }
 
-/// A spread entry in a record type: `...TypeName`
+/// A spread entry in a record type: `...TypeName` or `...Generic<T>`
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecordSpread {
     pub type_name: String,
+    pub type_expr: Option<TypeExpr>,
     pub span: Span,
 }
 

@@ -58,10 +58,23 @@ type B { y: string }
 type C { ...A, ...B, z: boolean }
 ```
 
+Spreads work with generic types and `typeof`, including npm imports:
+
+```floe
+import trusted { tv, VariantProps } from "tailwind-variants"
+
+const cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
+
+type CardProps {
+  ...VariantProps<typeof cardVariants>,
+  className: string,
+}
+```
+
 Rules:
-- Spread must reference a record type (not a union or alias)
+- Spread can reference a record type or a generic/foreign type
 - Field name conflicts between spreads or with direct fields are compile errors
-- The resulting type is a flat record
+- The resulting type compiles to a TypeScript intersection
 
 ### Default Field Values
 

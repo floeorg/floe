@@ -1827,3 +1827,18 @@ type C = Array<A> & B",
         "should emit intersection after generic type, got: {result}"
     );
 }
+
+#[test]
+fn record_spread_emits_intersection() {
+    let result = emit(
+        "type A { x: number }
+type B {
+    ...A,
+    y: string,
+}",
+    );
+    assert!(
+        result.contains("type B = A & { y: string }"),
+        "record spread should emit as intersection, got: {result}"
+    );
+}

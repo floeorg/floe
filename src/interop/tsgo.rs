@@ -632,24 +632,72 @@ fn generate_probe(
     let mut has_type_probes = false;
     let mut typeof_consts_emitted: HashSet<String> = HashSet::new();
     for item in &program.items {
-        if let ItemKind::TypeDecl(decl) = &item.kind
-            && let TypeDef::Alias(type_expr) = &decl.def
-            && type_expr_references_imports(type_expr, &imported_names)
-        {
-            collect_typeof_names(type_expr, &mut |name| {
-                if !typeof_consts_emitted.contains(name) {
-                    if let Some(expr) = local_const_exprs.get(name) {
-                        lines.push(format!("const {name} = {expr};"));
-                    }
-                    typeof_consts_emitted.insert(name.to_string());
+        if let ItemKind::TypeDecl(decl) = &item.kind {
+            match &decl.def {
+                TypeDef::Alias(type_expr)
+                    if type_expr_references_imports(type_expr, &imported_names) =>
+                {
+                    collect_typeof_names(type_expr, &mut |name| {
+                        if !typeof_consts_emitted.contains(name) {
+                            if let Some(expr) = local_const_exprs.get(name) {
+                                lines.push(format!("const {name} = {expr};"));
+                            }
+                            typeof_consts_emitted.insert(name.to_string());
+                        }
+                    });
+                    let ts_type = type_expr_to_ts(type_expr);
+                    lines.push(format!(
+                        "export declare const __tprobe_{}: {};",
+                        decl.name, ts_type
+                    ));
+                    has_type_probes = true;
                 }
-            });
-            let ts_type = type_expr_to_ts(type_expr);
-            lines.push(format!(
-                "export declare const __tprobe_{}: {};",
-                decl.name, ts_type
-            ));
-            has_type_probes = true;
+                TypeDef::Record(entries) => {
+                    // Generate probes for record types with spreads referencing imports
+                    let has_import_spreads = entries.iter().any(|e| {
+                        if let Some(spread) = e.as_spread() {
+                            if let Some(type_expr) = &spread.type_expr {
+                                return type_expr_references_imports(type_expr, &imported_names);
+                            }
+                            imported_names.contains_key(&spread.type_name)
+                        } else {
+                            false
+                        }
+                    });
+                    if has_import_spreads {
+                        // Emit typeof const bindings for spreads
+                        for entry in entries {
+                            if let Some(spread) = entry.as_spread()
+                                && let Some(type_expr) = &spread.type_expr
+                            {
+                                collect_typeof_names(type_expr, &mut |name| {
+                                    if !typeof_consts_emitted.contains(name) {
+                                        if let Some(expr) = local_const_exprs.get(name) {
+                                            lines.push(format!("const {name} = {expr};"));
+                                        }
+                                        typeof_consts_emitted.insert(name.to_string());
+                                    }
+                                });
+                            }
+                        }
+                        // Emit the full type as a probe
+                        let ts_type = type_decl_to_ts(decl);
+                        lines.push(format!("export {ts_type}"));
+                        // Also emit a value probe so we can extract the resolved type
+                        let ts_decl = type_decl_to_ts(decl);
+                        // Extract the RHS of the type alias for the value probe
+                        if let Some(eq_pos) = ts_decl.find('=') {
+                            let rhs = ts_decl[eq_pos + 1..].trim().trim_end_matches(';');
+                            lines.push(format!(
+                                "export declare const __tprobe_{}: {};",
+                                decl.name, rhs
+                            ));
+                        }
+                        has_type_probes = true;
+                    }
+                }
+                _ => {}
+            }
         }
     }
 
@@ -938,7 +986,13 @@ fn type_decl_to_ts(decl: &TypeDecl) -> String {
             let spreads: Vec<String> = entries
                 .iter()
                 .filter_map(|e| e.as_spread())
-                .map(|s| s.type_name.clone())
+                .map(|s| {
+                    if let Some(type_expr) = &s.type_expr {
+                        type_expr_to_ts(type_expr)
+                    } else {
+                        s.type_name.clone()
+                    }
+                })
                 .collect();
             if spreads.is_empty() {
                 format!(

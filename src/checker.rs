@@ -621,8 +621,21 @@ impl Checker {
 
         // Register the type name in the value namespace too (for constructors)
         match &flattened_def {
-            TypeDef::Record(_) => {
-                self.env.define(&decl.name, Type::Named(decl.name.clone()));
+            TypeDef::Record(entries) => {
+                // If the record has unresolved spreads (foreign generic types),
+                // use the type probe for the value namespace so member access
+                // resolves through the foreign type system.
+                let has_unresolved_spreads =
+                    entries.iter().any(|e| matches!(e, RecordEntry::Spread(_)));
+                if has_unresolved_spreads {
+                    if let Some(probe_ty) = self.find_type_probe(&decl.name) {
+                        self.env.define(&decl.name, probe_ty);
+                    } else {
+                        self.env.define(&decl.name, Type::Named(decl.name.clone()));
+                    }
+                } else {
+                    self.env.define(&decl.name, Type::Named(decl.name.clone()));
+                }
             }
             TypeDef::Union(variants) => {
                 let var_types: Vec<_> = variants
@@ -708,6 +721,7 @@ impl Checker {
         }
 
         let mut flat_fields: Vec<RecordField> = Vec::new();
+        let mut preserved_spreads: Vec<RecordEntry> = Vec::new();
         let mut seen_names: std::collections::HashMap<String, Span> =
             std::collections::HashMap::new();
 
@@ -778,19 +792,15 @@ impl Checker {
                                 );
                             }
                             TypeDef::Alias(_) | TypeDef::StringLiteralUnion(_) => {
-                                self.diagnostics.push(
-                                    Diagnostic::error(
-                                        format!(
-                                            "cannot spread type `{}` into record type `{}`; spread target must be a record type",
-                                            spread.type_name, type_name
-                                        ),
-                                        spread.span,
-                                    )
-                                    .with_label("spread target must be a record type")
-                                    .with_code("E032"),
-                                );
+                                // If the alias is a foreign type, preserve the spread for codegen
+                                preserved_spreads.push(RecordEntry::Spread(spread.clone()));
                             }
                         }
+                    } else if spread.type_expr.is_some() {
+                        // Foreign/generic type not in local env — preserve for codegen
+                        // (e.g. ...VariantProps<typeof cardVariants>)
+                        self.unused.used_names.insert(spread.type_name.clone());
+                        preserved_spreads.push(RecordEntry::Spread(spread.clone()));
                     } else {
                         self.diagnostics.push(
                             Diagnostic::error(
@@ -805,12 +815,14 @@ impl Checker {
             }
         }
 
-        TypeDef::Record(
+        let mut result_entries: Vec<RecordEntry> = preserved_spreads;
+        result_entries.extend(
             flat_fields
                 .into_iter()
-                .map(|f| RecordEntry::Field(Box::new(f)))
-                .collect(),
-        )
+                .map(|f| RecordEntry::Field(Box::new(f))),
+        );
+
+        TypeDef::Record(result_entries)
     }
 
     /// Second-pass validation of type annotations within type declarations.

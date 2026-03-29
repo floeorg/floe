@@ -3731,3 +3731,19 @@ type C = Array<A> & B",
         "intersection after generic type should work: {diags:?}"
     );
 }
+
+#[test]
+fn record_spread_field_access() {
+    let diags = check(
+        "type A { x: number }
+type B {
+    ...A,
+    y: string,
+}
+fn _test(b: B) -> number { b.x }",
+    );
+    assert!(
+        diags.is_empty(),
+        "record spread should allow accessing spread fields: {diags:?}"
+    );
+}

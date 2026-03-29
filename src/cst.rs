@@ -628,12 +628,12 @@ impl<'src> CstParser<'src> {
     }
 
     fn parse_record_entry(&mut self) {
-        // Check for spread: `...TypeName`
+        // Check for spread: `...TypeName` or `...Generic<T>`
         if self.at(TokenKind::DotDotDot) {
             self.builder.start_node(SyntaxKind::RECORD_SPREAD.into());
             self.bump(); // consume `...`
             self.eat_trivia();
-            self.expect_ident(); // TypeName
+            self.parse_type_expr();
             self.builder.finish_node();
             return;
         }
