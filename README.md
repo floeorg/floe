@@ -15,18 +15,6 @@
 Floe is a strict, functional language that compiles to TypeScript. It works with
 any TypeScript or React library. The compiler is written in Rust.
 
-```floe
-import { useState } from "react"
-
-export fn Counter() -> JSX.Element {
-  let (count, set_count) = useState(0)
-
-  <button on_click={fn () { set_count(count + 1) }}>
-    `Clicked ${count} times`
-  </button>
-}
-```
-
 ## Getting Started
 
 ```bash
