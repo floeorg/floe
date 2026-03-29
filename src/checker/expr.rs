@@ -1110,6 +1110,19 @@ impl Checker {
                     let arg_ty = self.check_expr(e);
                     if let Some(ref field_types) = field_type_map
                         && let Some((_, expected_ty)) = field_types.iter().find(|(n, _)| n == label)
+                    {
+                        // Refine None type: if arg is Option<Unknown> and expected
+                        // is Option<T>, record the concrete type for hover display
+                        if matches!(&arg_ty, Type::Option(inner) if matches!(**inner, Type::Unknown))
+                            && matches!(expected_ty, Type::Option(_))
+                        {
+                            self.expr_types.insert(e.id, expected_ty.clone());
+                            self.refined_spans
+                                .insert((e.span.start, e.span.end), expected_ty.display_name());
+                        }
+                    }
+                    if let Some(ref field_types) = field_type_map
+                        && let Some((_, expected_ty)) = field_types.iter().find(|(n, _)| n == label)
                         && !self.types_compatible(expected_ty, &arg_ty)
                         && !matches!(arg_ty, Type::Unknown | Type::Var(_))
                     {

@@ -228,6 +228,38 @@ impl LanguageServer for FloeLsp {
             }));
         }
 
+        // For None/Some/Ok/Err, try to show the concrete type from context
+        if matches!(word, "None" | "Some" | "Ok" | "Err") {
+            // Look up the expression type at this specific cursor position
+            if let Some(ty) = doc
+                .refined_spans
+                .get(&(word_start, word_start + word.len()))
+            {
+                let hover_text = match word {
+                    "None" => {
+                        format!("```floe\nNone -> {ty}\n```\nRepresents the absence of a value.")
+                    }
+                    "Some" => {
+                        format!("```floe\nSome(value) -> {ty}\n```\nWrap a value in an Option.")
+                    }
+                    "Ok" => format!(
+                        "```floe\nOk(value) -> {ty}\n```\nWrap a success value in a Result."
+                    ),
+                    "Err" => format!(
+                        "```floe\nErr(error) -> {ty}\n```\nWrap an error value in a Result."
+                    ),
+                    _ => unreachable!(),
+                };
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: hover_text,
+                    }),
+                    range: None,
+                }));
+            }
+        }
+
         // Fallback to builtin hover
         let hover_text = match word {
             "Ok" => "```floe\nOk(value: T) -> Result<T, E>\n```\nWrap a success value in a Result.",
