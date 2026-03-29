@@ -50,8 +50,16 @@ impl LanguageServer for FloeLsp {
     }
 
     async fn initialized(&self, _: InitializedParams) {
+        let version = env!("CARGO_PKG_VERSION");
+        let exe_path = std::env::current_exe()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
+
         self.client
-            .log_message(MessageType::INFO, "Floe LSP initialized")
+            .log_message(
+                MessageType::INFO,
+                format!("Floe LSP initialized (v{version}, {exe_path})"),
+            )
             .await;
     }
 

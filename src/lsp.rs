@@ -7,8 +7,8 @@ mod symbols;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -189,6 +189,8 @@ pub struct FloeLsp {
     documents: Arc<RwLock<HashMap<Url, Document>>>,
     /// Cache of resolved .d.ts exports per module specifier
     dts_cache: Arc<RwLock<HashMap<String, Vec<crate::interop::DtsExport>>>>,
+    /// Project directories we've already logged startup info for
+    logged_projects: Arc<RwLock<HashSet<PathBuf>>>,
 }
 
 impl FloeLsp {
@@ -197,7 +199,56 @@ impl FloeLsp {
             client,
             documents: Arc::new(RwLock::new(HashMap::new())),
             dts_cache: Arc::new(RwLock::new(HashMap::new())),
+            logged_projects: Arc::new(RwLock::new(HashSet::new())),
         }
+    }
+
+    /// Log project directory, tsconfig, and path alias info (once per project).
+    async fn log_project_info(
+        &self,
+        project_dir: &Path,
+        tsconfig_paths: &crate::resolve::TsconfigPaths,
+    ) {
+        let canonical = project_dir.to_path_buf();
+        {
+            let logged = self.logged_projects.read().await;
+            if logged.contains(&canonical) {
+                return;
+            }
+        }
+        self.logged_projects.write().await.insert(canonical);
+
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("Project directory: {}", project_dir.display()),
+            )
+            .await;
+
+        let parsed = crate::resolve::ParsedTsconfig::from_project_dir(project_dir);
+        match parsed {
+            Some(ref ts) => {
+                self.client
+                    .log_message(
+                        MessageType::INFO,
+                        format!("tsconfig.json: {}", ts.tsconfig_path.display()),
+                    )
+                    .await;
+            }
+            None => {
+                self.client
+                    .log_message(MessageType::INFO, "tsconfig.json: not found")
+                    .await;
+            }
+        }
+
+        let alias_count = tsconfig_paths.mappings.len();
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("Path alias mappings: {alias_count}"),
+            )
+            .await;
     }
 
     /// Parse and type-check a document, update symbol index, publish diagnostics.
@@ -225,6 +276,10 @@ impl FloeLsp {
                     let source_dir = source_path.parent().unwrap_or(Path::new("."));
                     let project_dir = find_project_dir(source_dir);
                     let paths = crate::resolve::TsconfigPaths::from_project_dir(&project_dir);
+
+                    // Log project info once per project directory
+                    self.log_project_info(&project_dir, &paths).await;
+
                     let resolved = crate::resolve::resolve_imports(&source_path, &program, &paths);
                     (resolved, paths)
                 } else {
