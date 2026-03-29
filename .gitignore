@@ -3,6 +3,9 @@ node_modules/
 dist/
 .floe/
 *.so
+__pycache__/
+*.pyc
+.pytest_cache/
 
 # Claude Code local settings (project rules in .claude/rules/ are intentionally tracked)
 .claude/settings.json

@@ -24,10 +24,10 @@ Every new or changed language construct must have working:
 - **Completions** — appears in autocomplete where relevant
 - **Diagnostics** — reports errors correctly
 
-Update `scripts/test-lsp.py` with test cases covering the new/changed behavior:
+Update `tests/lsp/` with test cases covering the new/changed behavior:
 
 ```bash
-python3 scripts/test-lsp.py ./target/debug/floe
+python3 -m pytest tests/lsp/ --floe-bin=./target/debug/floe
 ```
 
 All tests must pass (0 failures). See `floe-quality.md` for details.

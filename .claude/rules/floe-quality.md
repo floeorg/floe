@@ -33,12 +33,13 @@ A feature is not done until highlighting, IntelliSense, and type checking all wo
 
 ## LSP integration tests
 
-`scripts/test-lsp.py` is the LSP integration test suite. It sends real JSON-RPC messages to `floe lsp` and validates hover, completions, diagnostics, go-to-definition, references, symbols, and code actions.
+`tests/lsp/` is the pytest-based LSP integration test suite. It sends real JSON-RPC messages to `floe lsp` and validates hover, completions, diagnostics, go-to-definition, references, symbols, and code actions.
 
 When adding or modifying LSP features, checker behavior, or language syntax:
-- **Add test cases** to `scripts/test-lsp.py` covering the new/changed behavior
+- **Add test cases** to the appropriate file in `tests/lsp/` covering the new/changed behavior
 - **Update existing test fixtures** if the change affects them (e.g. new keywords, renamed stdlib functions)
-- **Run the suite** before considering the work done: `python3 scripts/test-lsp.py ./target/debug/floe`
+- **Run the suite** before considering the work done: `python3 -m pytest tests/lsp/ --floe-bin=./target/debug/floe`
+- Run a subset with `-k`: `python3 -m pytest tests/lsp/ --floe-bin=./target/debug/floe -k "hover"`
 - All tests must pass (0 failures)
 
 ## Floe File Quality Gate
