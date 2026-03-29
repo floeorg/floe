@@ -374,13 +374,32 @@ fn generate_probe(
                     let method_chain = &name[obj_name.len() + 1..]; // preserves full chain e.g. "auth.signInWithPassword"
                     if let Some(obj_expr) = local_const_exprs.get(obj_name) {
                         let ts_args: Vec<String> = args.iter().map(arg_to_ts_approx).collect();
-                        let binding_name = const_binding_name(&decl.binding);
-                        // Use a separate counter to avoid conflicting with _rN indices
                         let inlined_id = format!("inlined_{}", lines.len());
-                        lines.push(format!(
-                            "export const __probe_{binding_name}_{inlined_id} = {obj_expr}.{method_chain}({});",
-                            ts_args.join(", "),
-                        ));
+                        let call_expr =
+                            format!("{obj_expr}.{method_chain}({})", ts_args.join(", "),);
+                        // For object destructuring, generate per-field exports so tsgo
+                        // expands opaque named types through member access
+                        if let ConstBinding::Object(names) = &decl.binding {
+                            let has_await = matches!(decl.value.kind, ExprKind::Await(_))
+                                || matches!(
+                                    &decl.value.kind,
+                                    ExprKind::Try(inner) if matches!(inner.kind, ExprKind::Await(_))
+                                );
+                            let await_prefix = if has_await { "await " } else { "" };
+                            lines.push(format!(
+                                "const _tmp_{inlined_id} = {await_prefix}{call_expr};"
+                            ));
+                            for field in names {
+                                lines.push(format!(
+                                    "export const __probe_{field}_{inlined_id} = _tmp_{inlined_id}.{field};"
+                                ));
+                            }
+                        } else {
+                            let binding_name = const_binding_name(&decl.binding);
+                            lines.push(format!(
+                                "export const __probe_{binding_name}_{inlined_id} = {call_expr};"
+                            ));
+                        }
                         // Don't increment probe_index — these don't use _rN naming
                         continue;
                     }
