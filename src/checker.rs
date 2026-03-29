@@ -1334,7 +1334,16 @@ impl Checker {
         {
             self.expr_types.insert(decl.value.id, declared.clone());
         }
-        let tsgo_type = self.find_and_consume_tsgo_probe(&decl.binding);
+        let tsgo_type = self.find_and_consume_tsgo_probe(&decl.binding).map(|ty| {
+            // The tsgo probe generates the raw call expression without `await`,
+            // so if the Floe code has `await`, unwrap Promise from the probe type.
+            if Self::expr_has_await(&decl.value)
+                && let Type::Promise(inner) = ty
+            {
+                return *inner;
+            }
+            ty
+        });
         let final_type = self.resolve_const_type(value_type, declared_type, &tsgo_type, span);
 
         match &decl.binding {
@@ -1446,6 +1455,15 @@ impl Checker {
         }
     }
 
+    /// Check if an expression is wrapped in `await` (possibly through `try`).
+    fn expr_has_await(expr: &Expr) -> bool {
+        match &expr.kind {
+            ExprKind::Await(_) => true,
+            ExprKind::Try(inner) => Self::expr_has_await(inner),
+            _ => false,
+        }
+    }
+
     /// Infer the type of an element from an array/tuple destructuring at a given index.
     fn array_element_type(effective_type: &Type, i: usize) -> Type {
         match effective_type {
@@ -1487,12 +1505,6 @@ impl Checker {
         has_tsgo: bool,
         span: Span,
     ) {
-        // If tsgo resolved this as a single-field destructure, assign directly
-        if has_tsgo && names.len() == 1 {
-            self.define_const_binding(&names[0], final_type.clone(), false, span);
-            return;
-        }
-
         let concrete = self
             .env
             .resolve_to_concrete(final_type, &expr::simple_resolve_type_expr);
@@ -1501,6 +1513,18 @@ impl Checker {
             Type::Record(fields) => Some(fields.iter().map(|(n, t)| (n.as_str(), t)).collect()),
             _ => None,
         };
+
+        // If tsgo resolved a single-field destructure and the type isn't a Record
+        // with that field, assign it directly (legacy behavior for field-level probes)
+        if has_tsgo
+            && names.len() == 1
+            && field_map
+                .as_ref()
+                .is_none_or(|m| !m.contains_key(names[0].as_str()))
+        {
+            self.define_const_binding(&names[0], final_type.clone(), false, span);
+            return;
+        }
 
         for name in names {
             let field_ty = field_map

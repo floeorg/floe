@@ -134,6 +134,9 @@ fn wrap_union_boundary(parts: &[TsType]) -> Type {
     } else if non_null_parts.is_empty() {
         // `null | undefined` -> Option<Void> (shouldn't happen in practice)
         Type::Unit
+    } else if let Some(merged) = try_merge_object_union(&non_null_parts) {
+        // All union members are objects — merge common fields for destructuring
+        merged
     } else {
         // Multi-type union without null/undefined: stay as Unknown for now
         // A full implementation would create proper union types
@@ -145,6 +148,91 @@ fn wrap_union_boundary(parts: &[TsType]) -> Type {
     } else {
         inner_type
     }
+}
+
+/// Try to merge a union of object types into a single Record with common fields.
+/// Each field's type is the union of that field across all members.
+/// Returns None if any member is not an object or if there are no common fields.
+///
+/// Example: `{ data: A, error: null } | { data: B, error: E }` → `Record { data: A|B, error: null|E }`
+fn try_merge_object_union(parts: &[&TsType]) -> Option<Type> {
+    use super::ts_types::ObjectField;
+    use std::collections::HashMap;
+
+    if parts.len() < 2 {
+        return None;
+    }
+
+    // Check all parts are objects
+    let objects: Vec<&Vec<ObjectField>> = parts
+        .iter()
+        .filter_map(|p| {
+            if let TsType::Object(fields) = p {
+                Some(fields)
+            } else {
+                None
+            }
+        })
+        .collect();
+    if objects.len() != parts.len() {
+        return None;
+    }
+
+    // Find field names that appear in ALL members
+    let first_names: Vec<&str> = objects[0].iter().map(|f| f.name.as_str()).collect();
+    let common_names: Vec<&str> = first_names
+        .into_iter()
+        .filter(|name| {
+            objects[1..]
+                .iter()
+                .all(|obj| obj.iter().any(|f| f.name == *name))
+        })
+        .collect();
+    if common_names.is_empty() {
+        return None;
+    }
+
+    // Build merged fields: each field's type is a union of its type across all members
+    let mut merged_fields: Vec<(String, Type)> = Vec::new();
+    for name in &common_names {
+        let mut field_types: Vec<TsType> = Vec::new();
+        let mut any_optional = false;
+        for obj in &objects {
+            if let Some(field) = obj.iter().find(|f| f.name == *name) {
+                any_optional |= field.optional;
+                field_types.push(field.ty.clone());
+            }
+        }
+        // Deduplicate identical types
+        field_types.dedup();
+        let merged_ty = if field_types.len() == 1 {
+            let ty = wrap_boundary_type(&field_types[0]);
+            if any_optional {
+                Type::Option(Box::new(ty))
+            } else {
+                ty
+            }
+        } else {
+            // Create a union and wrap it
+            let ty = wrap_boundary_type(&TsType::Union(field_types));
+            if any_optional && !matches!(ty, Type::Option(_)) {
+                Type::Option(Box::new(ty))
+            } else {
+                ty
+            }
+        };
+        // Collect into a hashmap to avoid duplicates from different key positions
+        merged_fields.push((name.to_string(), merged_ty));
+    }
+
+    // Deduplicate by field name (shouldn't happen but just in case)
+    let mut seen = HashMap::new();
+    let deduped: Vec<(String, Type)> = merged_fields
+        .into_iter()
+        .filter(|(name, _)| seen.insert(name.clone(), ()).is_none())
+        .collect();
+
+    Some(Type::Record(deduped))
 }
 
 /// Try to detect the Result discriminated union pattern:
