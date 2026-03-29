@@ -158,24 +158,8 @@ impl SymbolIndex {
                         owner_type: None,
                     });
 
-                    // Index parameters
                     for param in &decl.params {
-                        let type_ann = param
-                            .type_ann
-                            .as_ref()
-                            .map(|t| format!(": {}", type_expr_to_string(t)))
-                            .unwrap_or_default();
-                        symbols.push(Symbol {
-                            name: param.name.clone(),
-                            kind: SymbolKind::VARIABLE,
-                            start: param.span.start,
-                            end: param.span.end,
-                            import_source: None,
-                            detail: format!("parameter {}{type_ann}", param.name),
-                            first_param_type: None,
-                            return_type_str: None,
-                            owner_type: None,
-                        });
+                        Self::push_param_symbol(param, symbols);
                     }
 
                     // Recurse into function body
@@ -358,22 +342,7 @@ impl SymbolIndex {
                                     owner_type: None,
                                 });
                             } else {
-                                let type_ann = param
-                                    .type_ann
-                                    .as_ref()
-                                    .map(|t| format!(": {}", type_expr_to_string(t)))
-                                    .unwrap_or_default();
-                                symbols.push(Symbol {
-                                    name: param.name.clone(),
-                                    kind: SymbolKind::VARIABLE,
-                                    start: param.span.start,
-                                    end: param.span.end,
-                                    import_source: None,
-                                    detail: format!("parameter {}{type_ann}", param.name),
-                                    first_param_type: None,
-                                    return_type_str: None,
-                                    owner_type: None,
-                                });
+                                Self::push_param_symbol(param, symbols);
                             }
                         }
 
@@ -454,22 +423,7 @@ impl SymbolIndex {
             }
             ExprKind::Arrow { params, body, .. } => {
                 for param in params {
-                    let type_ann = param
-                        .type_ann
-                        .as_ref()
-                        .map(|t| format!(": {}", type_expr_to_string(t)))
-                        .unwrap_or_default();
-                    symbols.push(Symbol {
-                        name: param.name.clone(),
-                        kind: SymbolKind::VARIABLE,
-                        start: param.span.start,
-                        end: param.span.end,
-                        import_source: None,
-                        detail: format!("parameter {}{type_ann}", param.name),
-                        first_param_type: None,
-                        return_type_str: None,
-                        owner_type: None,
-                    });
+                    Self::push_param_symbol(param, symbols);
                 }
                 Self::collect_expr(body, symbols);
             }
@@ -480,21 +434,44 @@ impl SymbolIndex {
             }
             ExprKind::Call { callee, args, .. } => {
                 Self::collect_expr(callee, symbols);
-                for arg in args {
-                    match arg {
-                        crate::parser::ast::Arg::Positional(e)
-                        | crate::parser::ast::Arg::Named { value: e, .. } => {
-                            Self::collect_expr(e, symbols);
-                        }
-                    }
-                }
+                Self::collect_args(args, symbols);
             }
-            ExprKind::Pipe { left, right } => {
+            ExprKind::Construct { args, .. }
+            | ExprKind::Mock {
+                overrides: args, ..
+            } => {
+                Self::collect_args(args, symbols);
+            }
+            ExprKind::Pipe { left, right } | ExprKind::Binary { left, right, .. } => {
                 Self::collect_expr(left, symbols);
                 Self::collect_expr(right, symbols);
             }
-            ExprKind::Await(inner) | ExprKind::Grouped(inner) => {
+            ExprKind::Await(inner)
+            | ExprKind::Grouped(inner)
+            | ExprKind::Try(inner)
+            | ExprKind::Unwrap(inner)
+            | ExprKind::Unary { operand: inner, .. }
+            | ExprKind::Spread(inner)
+            | ExprKind::Ok(inner)
+            | ExprKind::Err(inner)
+            | ExprKind::Some(inner)
+            | ExprKind::Value(inner) => {
                 Self::collect_expr(inner, symbols);
+            }
+            ExprKind::Array(items) | ExprKind::Tuple(items) => {
+                for item in items {
+                    Self::collect_expr(item, symbols);
+                }
+            }
+            ExprKind::Index { object, index } => {
+                Self::collect_expr(object, symbols);
+                Self::collect_expr(index, symbols);
+            }
+            ExprKind::Member { object, .. } => {
+                Self::collect_expr(object, symbols);
+            }
+            ExprKind::Collect(items) => {
+                Self::collect_items(items, symbols);
             }
             _ => {}
         }
@@ -561,6 +538,35 @@ impl SymbolIndex {
                 }
             }
         }
+    }
+
+    fn collect_args(args: &[Arg], symbols: &mut Vec<Symbol>) {
+        for arg in args {
+            match arg {
+                Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                    Self::collect_expr(e, symbols);
+                }
+            }
+        }
+    }
+
+    fn push_param_symbol(param: &Param, symbols: &mut Vec<Symbol>) {
+        let type_ann = param
+            .type_ann
+            .as_ref()
+            .map(|t| format!(": {}", type_expr_to_string(t)))
+            .unwrap_or_default();
+        symbols.push(Symbol {
+            name: param.name.clone(),
+            kind: SymbolKind::VARIABLE,
+            start: param.span.start,
+            end: param.span.end,
+            import_source: None,
+            detail: format!("parameter {}{type_ann}", param.name),
+            first_param_type: None,
+            return_type_str: None,
+            owner_type: None,
+        });
     }
 
     pub(super) fn find_by_name(&self, name: &str) -> Vec<&Symbol> {
