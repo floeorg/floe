@@ -423,7 +423,7 @@ const _x = todos
     dts_imports.insert("react".to_string(), vec![use_state_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, types) = checker.check_with_types(&program);
+    let (diags, types, _) = checker.check_with_types(&program);
 
     assert!(
         !has_error_containing(&diags, "not defined"),
@@ -1258,7 +1258,7 @@ const _hello = match true {
     )
     .parse_program()
     .expect("should parse");
-    let (_diags, types) = Checker::new().check_with_types(&program);
+    let (_diags, types, _) = Checker::new().check_with_types(&program);
     if let Some(ty) = types.get("_hello") {
         assert_eq!(ty, "()", "void match should infer (), got: {ty}");
     } else {
@@ -1277,7 +1277,7 @@ const _result = log("test")
     )
     .parse_program()
     .expect("should parse");
-    let (_diags, types) = Checker::new().check_with_types(&program);
+    let (_diags, types, _) = Checker::new().check_with_types(&program);
     if let Some(ty) = types.get("_result") {
         assert_eq!(ty, "()", "void function call should give (), got: {ty}");
     } else {
@@ -1304,7 +1304,7 @@ fn handler() {
     )
     .parse_program()
     .expect("should parse");
-    let (_diags, types) = Checker::new().check_with_types(&program);
+    let (_diags, types, _) = Checker::new().check_with_types(&program);
     eprintln!("types: {:?}", types);
     // handler calls setTodos which returns () — handler should infer ()
     if let Some(ty) = types.get("handler") {
@@ -1363,7 +1363,7 @@ fn handler() {
     dts_imports.insert("react".to_string(), vec![use_state_export, probe_export]);
 
     let checker = Checker::with_all_imports(std::collections::HashMap::new(), dts_imports);
-    let (_diags, types) = checker.check_with_types(&program);
+    let (_diags, types, _) = checker.check_with_types(&program);
     eprintln!("types (real dispatch): {:?}", types);
 
     // setTodos should be a function, NOT Named("Dispatch<...>")
@@ -1436,7 +1436,7 @@ fn handler() {
     dts_imports.insert("react".to_string(), vec![use_state_export, probe_export]);
 
     let checker = Checker::with_all_imports(std::collections::HashMap::new(), dts_imports);
-    let (_diags, types) = checker.check_with_types(&program);
+    let (_diags, types, _) = checker.check_with_types(&program);
     eprintln!("types with dts: {:?}", types);
 
     // setTodos should be a function type, not Named("Dispatch<...>")
@@ -1473,7 +1473,7 @@ fn outer() {
     )
     .parse_program()
     .expect("should parse");
-    let (_diags, types) = Checker::new().check_with_types(&program);
+    let (_diags, types, _) = Checker::new().check_with_types(&program);
     eprintln!("types: {:?}", types);
     if let Some(ty) = types.get("inner") {
         assert!(
@@ -1502,7 +1502,7 @@ const _y = age
     )
     .parse_program()
     .expect("should parse");
-    let (diags, types) = Checker::new().check_with_types(&program);
+    let (diags, types, _) = Checker::new().check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -3315,7 +3315,7 @@ for AccentRow {
     );
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _types) = checker.check_with_types(&program);
+    let (diags, _types, _) = checker.check_with_types(&program);
 
     // self.entryId should error because AccentRow has entry_id, not entryId
     assert!(
@@ -3365,7 +3365,7 @@ const _name = row.name
     dts_imports.insert("db".to_string(), vec![user_row_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _) = checker.check_with_types(&program);
+    let (diags, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -3536,7 +3536,7 @@ const _result = row |> toModel
     .parse_program()
     .expect("should parse");
 
-    let (diags, types) = Checker::new().check_with_types(&program);
+    let (diags, types, _) = Checker::new().check_with_types(&program);
     let errors: Vec<_> = diags
         .iter()
         .filter(|d| d.severity == Severity::Error)
@@ -3578,7 +3578,7 @@ const _result = toModel(row)
     .parse_program()
     .expect("should parse");
 
-    let (diags, types) = Checker::new().check_with_types(&program);
+    let (diags, types, _) = Checker::new().check_with_types(&program);
     let errors: Vec<_> = diags
         .iter()
         .filter(|d| d.severity == Severity::Error)

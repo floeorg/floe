@@ -138,6 +138,9 @@ struct Document {
     index: SymbolIndex,
     /// Type map from the checker: variable/function name -> inferred type display name
     type_map: HashMap<String, String>,
+    /// Refined span types for builtins (None/Some) narrowed by context.
+    /// Maps (start_byte, end_byte) -> concrete type display name.
+    refined_spans: HashMap<(usize, usize), String>,
 }
 
 // ── LSP Protocol Constants ──────────────────────────────────────
@@ -253,7 +256,9 @@ impl FloeLsp {
 
     /// Parse and type-check a document, update symbol index, publish diagnostics.
     async fn update_document(&self, uri: Url, source: &str) {
-        let (diagnostics, index, type_map) = match Parser::new(source).parse_program() {
+        let (diagnostics, index, type_map, refined_spans) = match Parser::new(source)
+            .parse_program()
+        {
             Err(_) => {
                 // Full parse failed — use lossy parse to get a partial AST so
                 // we can still build a symbol index for completions/hover.
@@ -265,6 +270,7 @@ impl FloeLsp {
                     self.convert_diagnostics(source, &floe_diags),
                     index,
                     type_map,
+                    HashMap::new(),
                 )
             }
             Ok(program) => {
@@ -328,13 +334,14 @@ impl FloeLsp {
                 } else {
                     Checker::with_all_imports(resolved_imports, dts_map)
                 };
-                let (mut check_diags, type_map) = checker.check_with_types(&program);
+                let (mut check_diags, type_map, refined_spans) = checker.check_with_types(&program);
                 check_diags.extend(import_diags_early);
 
                 (
                     self.convert_diagnostics(source, &check_diags),
                     index,
                     type_map,
+                    refined_spans,
                 )
             }
         };
@@ -345,6 +352,7 @@ impl FloeLsp {
                 content: source.to_string(),
                 index,
                 type_map,
+                refined_spans,
             },
         );
 
