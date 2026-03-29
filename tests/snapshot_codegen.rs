@@ -190,3 +190,9 @@ fn snapshot_pipe_unwrap() {
     let output = compile_fixture("pipe_unwrap");
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_unicode_escapes() {
+    let output = compile_fixture("unicode_escapes");
+    insta::assert_snapshot!(output);
+}

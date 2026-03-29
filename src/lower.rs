@@ -1084,6 +1084,17 @@ impl<'src> Lowerer<'src> {
                     b'0' => current_raw.push('\0'),
                     b'`' => current_raw.push('`'),
                     b'$' => current_raw.push('$'),
+                    b'u' => {
+                        if let Some((ch, consumed)) =
+                            Self::parse_unicode_escape_bytes(&inner[i + 1..])
+                        {
+                            current_raw.push(ch);
+                            i += consumed;
+                        } else {
+                            current_raw.push('\\');
+                            current_raw.push('u');
+                        }
+                    }
                     c => {
                         current_raw.push('\\');
                         current_raw.push(c as char);
@@ -1335,6 +1346,14 @@ impl<'src> Lowerer<'src> {
                         Some('\\') => result.push('\\'),
                         Some('"') => result.push('"'),
                         Some('0') => result.push('\0'),
+                        Some('u') => {
+                            if let Some(ch) = Self::parse_unicode_escape(&mut chars) {
+                                result.push(ch);
+                            } else {
+                                result.push('\\');
+                                result.push('u');
+                            }
+                        }
                         Some(c) => {
                             result.push('\\');
                             result.push(c);
@@ -1348,6 +1367,44 @@ impl<'src> Lowerer<'src> {
             result
         } else {
             text.to_string()
+        }
+    }
+
+    /// Parse a `\uXXXX` or `\u{XXXX}` unicode escape from a char iterator.
+    /// The `\u` has already been consumed.
+    fn parse_unicode_escape(chars: &mut std::str::Chars<'_>) -> Option<char> {
+        let mut hex = String::new();
+        if chars.as_str().starts_with('{') {
+            chars.next(); // consume '{'
+            for ch in chars.by_ref() {
+                if ch == '}' {
+                    break;
+                }
+                hex.push(ch);
+            }
+        } else {
+            for _ in 0..4 {
+                hex.push(chars.next()?);
+            }
+        }
+        u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32)
+    }
+
+    /// Parse a `\uXXXX` or `\u{XXXX}` unicode escape from a byte slice.
+    /// The `\u` has already been consumed; `rest` starts after the `u`.
+    /// Returns the parsed char and the number of additional bytes consumed.
+    fn parse_unicode_escape_bytes(rest: &str) -> Option<(char, usize)> {
+        if rest.starts_with('{') {
+            let end = rest.find('}')?;
+            let hex = &rest[1..end];
+            let ch = u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)?;
+            Some((ch, end + 1)) // consume through '}'
+        } else if rest.len() >= 4 {
+            let hex = &rest[..4];
+            let ch = u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)?;
+            Some((ch, 4)) // consumed 4 hex digits
+        } else {
+            None
         }
     }
 

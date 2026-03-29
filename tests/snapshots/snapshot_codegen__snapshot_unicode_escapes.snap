@@ -1,0 +1,19 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+function nbsp(): string {
+  return " ";
+}
+
+function smiley(): string {
+  return "😀";
+}
+
+function mixed(): string {
+  return "hello world";
+}
+
+function in_template(): string {
+  return `before after`;
+}

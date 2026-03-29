@@ -464,14 +464,44 @@ impl<'src> Lexer<'src> {
     /// Process a common escape sequence byte, returning the unescaped char.
     /// Returns `None` for context-specific escapes (e.g. `"`, `` ` ``, `$`),
     /// which must be handled at the call site.
-    fn process_escape(&self, escaped: u8) -> Option<char> {
+    fn process_escape(&mut self, escaped: u8) -> Option<char> {
         match escaped {
             b'n' => Some('\n'),
             b't' => Some('\t'),
             b'r' => Some('\r'),
             b'\\' => Some('\\'),
             b'0' => Some('\0'),
+            b'u' => self.process_unicode_escape(),
             _ => None,
+        }
+    }
+
+    /// Process a `\uXXXX` or `\u{XXXX}` unicode escape sequence.
+    /// The `u` has already been consumed. Returns `None` if the sequence is invalid.
+    fn process_unicode_escape(&mut self) -> Option<char> {
+        if self.peek() == Some(b'{') {
+            // \u{XXXX} braced form — 1 to 6 hex digits
+            self.advance(); // consume '{'
+            let start = self.pos;
+            while !self.is_at_end() && self.peek() != Some(b'}') {
+                self.advance();
+            }
+            let hex = &self.source[start..self.pos];
+            if !self.is_at_end() {
+                self.advance(); // consume '}'
+            }
+            u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
+        } else {
+            // \uXXXX fixed 4-digit form
+            let start = self.pos;
+            for _ in 0..4 {
+                if self.is_at_end() {
+                    return None;
+                }
+                self.advance();
+            }
+            let hex = &self.source[start..self.pos];
+            u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
         }
     }
 
