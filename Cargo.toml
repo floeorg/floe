@@ -4,7 +4,7 @@ resolver = "3"
 
 [package]
 name = "floe"
-version = "0.1.13"
+version = "0.1.14"
 edition = "2024"
 description = "A programming language that compiles to TypeScript + React"
 license = "MIT"
