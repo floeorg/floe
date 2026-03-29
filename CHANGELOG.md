@@ -5,6 +5,18 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.21](https://github.com/milkyskies/floe/compare/v0.1.20...v0.1.21) (2026-03-29)
+
+
+### Features
+
+* [[#617](https://github.com/milkyskies/floe/issues/617)] Support JSX spread attributes ([#637](https://github.com/milkyskies/floe/issues/637)) ([084261d](https://github.com/milkyskies/floe/commit/084261d9f7cc38c9a0d3fd7ae6af4ecc6048fa5a))
+
+
+### Bug Fixes
+
+* [[#636](https://github.com/milkyskies/floe/issues/636)] Canonicalize LSP import resolution paths ([#638](https://github.com/milkyskies/floe/issues/638)) ([ce97f5f](https://github.com/milkyskies/floe/commit/ce97f5f5a1c39bdd8688543d5f6229128f0e36d5))
+
 ## [0.1.20](https://github.com/milkyskies/floe/compare/v0.1.19...v0.1.20) (2026-03-29)
 
 
