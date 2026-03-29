@@ -938,6 +938,10 @@ fn type_expr_to_ts(ty: &TypeExpr) -> String {
             format!("readonly [{}]", ps.join(", "))
         }
         TypeExprKind::TypeOf(name) => format!("typeof {name}"),
+        TypeExprKind::Intersection(types) => {
+            let parts: Vec<String> = types.iter().map(type_expr_to_ts).collect();
+            parts.join(" & ")
+        }
     }
 }
 

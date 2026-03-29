@@ -944,6 +944,13 @@ impl<'src> CstParser<'src> {
             }
         }
 
+        // Intersection: A & B & C — parse as flat list within this TYPE_EXPR node
+        while self.at(TokenKind::Amp) {
+            self.bump(); // &
+            self.eat_trivia();
+            self.parse_type_expr();
+        }
+
         self.builder.finish_node();
     }
 

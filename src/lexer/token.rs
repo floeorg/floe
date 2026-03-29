@@ -129,7 +129,9 @@ pub enum TokenKind {
     /// `>=`
     GreaterEqual,
 
-    // Logical
+    // Logical / Type operators
+    /// `&` — intersection type operator
+    Amp,
     /// `&&`
     AmpAmp,
     /// `||`

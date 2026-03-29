@@ -76,6 +76,7 @@ pub enum SyntaxKind {
     GREATER_THAN,  // >
     LESS_EQUAL,    // <=
     GREATER_EQUAL, // >=
+    AMP,           // &
     AMP_AMP,       // &&
     PIPE_PIPE,     // ||
     BANG,          // !
@@ -281,6 +282,7 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::GreaterThan => SyntaxKind::GREATER_THAN,
         TokenKind::LessEqual => SyntaxKind::LESS_EQUAL,
         TokenKind::GreaterEqual => SyntaxKind::GREATER_EQUAL,
+        TokenKind::Amp => SyntaxKind::AMP,
         TokenKind::AmpAmp => SyntaxKind::AMP_AMP,
         TokenKind::PipePipe => SyntaxKind::PIPE_PIPE,
         TokenKind::Bang => SyntaxKind::BANG,

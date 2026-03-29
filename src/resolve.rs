@@ -542,6 +542,11 @@ fn collect_type_names(type_expr: &TypeExpr, names: &mut HashSet<String>) {
             let root = name.split('.').next().unwrap_or(name);
             names.insert(root.to_string());
         }
+        TypeExprKind::Intersection(types) => {
+            for ty in types {
+                collect_type_names(ty, names);
+            }
+        }
     }
 }
 

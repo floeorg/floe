@@ -215,14 +215,13 @@ impl<'src> Lexer<'src> {
                 }
             }
 
-            // AmpAmp (&&)
+            // Amp (&) or AmpAmp (&&)
             b'&' => {
                 if self.peek() == Some(b'&') {
                     self.advance();
                     TokenKind::AmpAmp
                 } else {
-                    // Single `&` is not used in Floe — treat as unknown
-                    TokenKind::Identifier("&".to_string())
+                    TokenKind::Amp
                 }
             }
 

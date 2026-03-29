@@ -645,5 +645,9 @@ pub(super) fn type_expr_to_string(ty: &TypeExpr) -> String {
             format!("({})", ps.join(", "))
         }
         TypeExprKind::TypeOf(name) => format!("typeof {name}"),
+        TypeExprKind::Intersection(types) => {
+            let parts: Vec<String> = types.iter().map(type_expr_to_string).collect();
+            parts.join(" & ")
+        }
     }
 }

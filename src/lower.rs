@@ -787,6 +787,92 @@ impl<'src> Lowerer<'src> {
     fn lower_type_expr(&mut self, node: &SyntaxNode) -> Option<TypeExpr> {
         let span = self.node_span(node);
 
+        // Intersection type: A & B — detected by AMP token
+        let has_amp = node
+            .children_with_tokens()
+            .any(|child| child.kind() == SyntaxKind::AMP);
+        if has_amp {
+            // The left side is this node (without the & and right TYPE_EXPR),
+            // lowered as a non-intersection type. The right side is the child TYPE_EXPR.
+            // For chained intersections (A & B & C), the right child is itself an
+            // intersection which we flatten.
+            let mut types = Vec::new();
+            let amp_pos = node
+                .children_with_tokens()
+                .find(|c| c.kind() == SyntaxKind::AMP)
+                .map(|c| c.text_range().start());
+
+            // Lower the left side: idents/tokens before &
+            let idents = self.collect_idents(node);
+            if !idents.is_empty() {
+                let name = idents.join(".");
+                let is_typeof = node
+                    .children_with_tokens()
+                    .next()
+                    .is_some_and(|first| first.kind() == SyntaxKind::KW_TYPEOF);
+                if is_typeof {
+                    types.push(TypeExpr {
+                        kind: TypeExprKind::TypeOf(name),
+                        span,
+                    });
+                } else {
+                    let type_args: Vec<TypeExpr> = node
+                        .children()
+                        .filter(|c| {
+                            c.kind() == SyntaxKind::TYPE_EXPR
+                                && amp_pos.is_some_and(|pos| c.text_range().start() < pos)
+                        })
+                        .filter_map(|c| self.lower_type_expr(&c))
+                        .collect();
+                    types.push(TypeExpr {
+                        kind: TypeExprKind::Named {
+                            name,
+                            type_args,
+                            bounds: Vec::new(),
+                        },
+                        span,
+                    });
+                }
+            } else {
+                let has_record = node
+                    .children()
+                    .any(|c| c.kind() == SyntaxKind::RECORD_FIELD);
+                if has_record {
+                    let fields: Vec<RecordField> = node
+                        .children()
+                        .filter(|c| c.kind() == SyntaxKind::RECORD_FIELD)
+                        .filter_map(|c| self.lower_record_field(&c))
+                        .collect();
+                    types.push(TypeExpr {
+                        kind: TypeExprKind::Record(fields),
+                        span,
+                    });
+                }
+            }
+
+            // Lower the right side: child TYPE_EXPRs after &, flattening nested intersections
+            for child in node.children() {
+                if child.kind() == SyntaxKind::TYPE_EXPR
+                    && amp_pos.is_some_and(|pos| child.text_range().start() > pos)
+                    && let Some(te) = self.lower_type_expr(&child)
+                {
+                    match te.kind {
+                        TypeExprKind::Intersection(inner) => types.extend(inner),
+                        _ => types.push(te),
+                    }
+                }
+            }
+
+            if types.len() >= 2 {
+                return Some(TypeExpr {
+                    kind: TypeExprKind::Intersection(types),
+                    span,
+                });
+            } else if types.len() == 1 {
+                return Some(types.into_iter().next().unwrap());
+            }
+        }
+
         // Collect direct ident tokens
         let idents = self.collect_idents(node);
 

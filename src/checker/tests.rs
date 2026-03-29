@@ -3675,3 +3675,45 @@ fn array_assignable_to_option_array() {
             .collect::<Vec<_>>()
     );
 }
+
+// ── intersection types ─────────────────────────────────────
+
+#[test]
+fn intersection_two_records() {
+    let diags = check(
+        "type A { x: number }
+type B { y: string }
+type C = A & B
+fn _test(c: C) -> number { c.x }",
+    );
+    assert!(
+        diags.is_empty(),
+        "intersection of two records should allow field access: {diags:?}"
+    );
+}
+
+#[test]
+fn intersection_three_types() {
+    let diags = check(
+        "type A { x: number }
+type B { y: string }
+type D = A & B & { z: boolean }",
+    );
+    assert!(
+        diags.is_empty(),
+        "three-way intersection should work: {diags:?}"
+    );
+}
+
+#[test]
+fn intersection_with_typeof() {
+    let diags = check(
+        "type Config { baseUrl: string }
+const config = Config(baseUrl: \"https://api.com\")
+type Extended = typeof config & { timeout: number }",
+    );
+    assert!(
+        diags.is_empty(),
+        "typeof & record intersection should work: {diags:?}"
+    );
+}

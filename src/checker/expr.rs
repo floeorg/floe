@@ -1726,5 +1726,26 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
             // Without environment context, typeof can't be resolved
             Type::Unknown
         }
+        TypeExprKind::Intersection(types) => {
+            // Merge record fields from all members
+            let mut fields = Vec::new();
+            let mut all_records = true;
+            for ty in types {
+                let resolved = simple_resolve_type_expr(ty);
+                if let Type::Record(ref f) = resolved {
+                    fields.extend(f.clone());
+                } else {
+                    all_records = false;
+                }
+            }
+            if all_records && !fields.is_empty() {
+                Type::Record(fields)
+            } else {
+                types
+                    .first()
+                    .map(simple_resolve_type_expr)
+                    .unwrap_or(Type::Unknown)
+            }
+        }
     }
 }

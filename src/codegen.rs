@@ -1035,6 +1035,14 @@ impl Codegen {
             TypeExprKind::TypeOf(name) => {
                 self.push(&format!("typeof {name}"));
             }
+            TypeExprKind::Intersection(types) => {
+                for (i, ty) in types.iter().enumerate() {
+                    if i > 0 {
+                        self.push(" & ");
+                    }
+                    self.emit_type_expr(ty);
+                }
+            }
         }
     }
 

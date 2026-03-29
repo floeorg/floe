@@ -1769,3 +1769,31 @@ type MyConfig = typeof config",
         "should emit typeof for const binding, got: {result}"
     );
 }
+
+// ── intersection types ──────────────────────────────────────
+
+#[test]
+fn intersection_two_types() {
+    let result = emit(
+        "type A { x: number }
+type B { y: string }
+type C = A & B",
+    );
+    assert!(
+        result.contains("type C = A & B;"),
+        "should emit intersection type, got: {result}"
+    );
+}
+
+#[test]
+fn intersection_three_types() {
+    let result = emit(
+        "type A { x: number }
+type B { y: string }
+type D = A & B & { z: boolean }",
+    );
+    assert!(
+        result.contains("A & B & { z: boolean }"),
+        "should emit three-way intersection, got: {result}"
+    );
+}

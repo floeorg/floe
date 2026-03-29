@@ -340,6 +340,8 @@ pub enum TypeExprKind {
     Tuple(Vec<TypeExpr>),
     /// `typeof <ident>` — extract the type of a value binding
     TypeOf(String),
+    /// `A & B` — intersection type
+    Intersection(Vec<TypeExpr>),
 }
 
 // ── Expressions ──────────────────────────────────────────────────
