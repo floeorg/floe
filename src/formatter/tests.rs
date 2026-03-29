@@ -587,3 +587,27 @@ fn idempotent_jsx_multiline_tag_with_text() {
         "<Link to=\"/search\" className=\"text-2xl font-bold\" title=\"Home\" target=\"_blank\">京阪アクセント辞典</Link>",
     );
 }
+
+#[test]
+fn format_match_arm_jsx_multiline_props_breaks_after_arrow() {
+    assert_fmt(
+        r#"match menuOpen { true -> <div className="absolute left-0 top-20 z-50 w-full border-b border-[var(--line)] bg-[var(--bg)] px-4 pb-4 sm:hidden"><ul>items</ul></div>, false -> <></> }"#,
+        "match menuOpen {\n    true ->\n        <div\n            className=\"absolute left-0 top-20 z-50 w-full border-b border-[var(--line)] bg-[var(--bg)] px-4 pb-4 sm:hidden\"\n        >\n            <ul>items</ul>\n        </div>,\n    false -> <></>,\n}",
+    );
+}
+
+#[test]
+fn format_match_arm_jsx_short_props_stays_inline() {
+    // JSX with few short props should stay on the same line as ->
+    assert_fmt(
+        r#"match x { true -> <X size={24} />, false -> <Y /> }"#,
+        "match x {\n    true -> <X size={24} />,\n    false -> <Y />,\n}",
+    );
+}
+
+#[test]
+fn idempotent_match_arm_jsx_multiline_props() {
+    assert_idempotent(
+        r#"match menuOpen { true -> <div className="absolute left-0 top-20 z-50 w-full border-b border-[var(--line)] bg-[var(--bg)] px-4 pb-4 sm:hidden"><ul>items</ul></div>, false -> <></> }"#,
+    );
+}

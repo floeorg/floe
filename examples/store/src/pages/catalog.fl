@@ -47,11 +47,12 @@ fn ProductCard(props: { product: Product, onAddToCart: (Product) => () }) -> JSX
                 false -> <span />,
             }}
             {match hasDiscount {
-                true -> <span
-                    className="rounded bg-emerald-900/50 px-1.5 py-0.5 text-xs text-emerald-400"
-                >
-                    {`-${Math.round(product.discountPercentage)}%`}
-                </span>,
+                true ->
+                    <span
+                        className="rounded bg-emerald-900/50 px-1.5 py-0.5 text-xs text-emerald-400"
+                    >
+                        {`-${Math.round(product.discountPercentage)}%`}
+                    </span>,
                 false -> <span />,
             }}
         </div>

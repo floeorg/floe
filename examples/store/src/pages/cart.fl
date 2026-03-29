@@ -119,12 +119,13 @@ export fn CartPage(
     <div>
         <h1 className="mb-6 text-3xl font-bold">{`Cart (${_count} item${_count |> match { 1 -> "", _ -> "s" }})`}</h1>
         {props.cart |> match {
-            [] -> <div
-                className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-12 text-center"
-            >
-                <p className="text-lg text-zinc-500">Your cart is empty</p>
-                <p className="mt-2 text-sm text-zinc-600">Browse the store to add some products!</p>
-            </div>,
+            [] ->
+                <div
+                    className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-12 text-center"
+                >
+                    <p className="text-lg text-zinc-500">Your cart is empty</p>
+                    <p className="mt-2 text-sm text-zinc-600">Browse the store to add some products!</p>
+                </div>,
             items -> <div className="flex gap-8">
                 <div className="flex-1 space-y-3">{items |> Array.map((item) => <CartItemRow
                     key={item.product.id}

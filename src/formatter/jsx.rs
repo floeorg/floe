@@ -334,6 +334,15 @@ impl Formatter<'_> {
         comment
     }
 
+    /// Check if a JSX element will be formatted with multi-line props.
+    pub(crate) fn jsx_has_multiline_props(&self, node: &SyntaxNode) -> bool {
+        let props: Vec<_> = node
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::JSX_PROP)
+            .collect();
+        !(props.is_empty() || props.len() <= 3 && self.jsx_props_short(&props))
+    }
+
     fn jsx_props_short(&self, props: &[SyntaxNode]) -> bool {
         let total: usize = props
             .iter()

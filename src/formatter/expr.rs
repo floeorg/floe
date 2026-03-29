@@ -264,9 +264,43 @@ impl Formatter<'_> {
             }
         }
 
+        // Body: expression after ->
+        // Check if the body is a JSX element with multiline props — if so, break
+        // after `->` and indent so the JSX gets its own clean indentation context.
+        let body_node = {
+            let mut past_arrow = false;
+            let mut found = None;
+            for t in node.children_with_tokens() {
+                if let Some(tok) = t.as_token() {
+                    if tok.kind() == SyntaxKind::THIN_ARROW {
+                        past_arrow = true;
+                    }
+                } else if let Some(child) = t.into_node()
+                    && past_arrow
+                {
+                    found = Some(child);
+                    break;
+                }
+            }
+            found
+        };
+
+        let break_after_arrow = body_node.as_ref().is_some_and(|n| {
+            n.kind() == SyntaxKind::JSX_ELEMENT && self.jsx_has_multiline_props(n)
+        });
+
+        if break_after_arrow {
+            self.write(" ->");
+            self.indent += 1;
+            self.newline();
+            self.write_indent();
+            self.fmt_node(body_node.as_ref().unwrap());
+            self.indent -= 1;
+            return;
+        }
+
         self.write(" -> ");
 
-        // Body: expression after ->
         let mut past_arrow = false;
         for t in node.children_with_tokens() {
             if let Some(tok) = t.as_token() {

@@ -97,11 +97,12 @@ fn ProductDetailContent(
                         false -> <span />,
                     }}
                     {match hasDiscount {
-                        true -> <span
-                            className="rounded bg-emerald-900/50 px-2 py-1 text-sm text-emerald-400"
-                        >
-                            {`Save ${product |> savings |> formatPrice}`}
-                        </span>,
+                        true ->
+                            <span
+                                className="rounded bg-emerald-900/50 px-2 py-1 text-sm text-emerald-400"
+                            >
+                                {`Save ${product |> savings |> formatPrice}`}
+                            </span>,
                         false -> <span />,
                     }}
                 </div>
