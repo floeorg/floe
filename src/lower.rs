@@ -787,20 +787,15 @@ impl<'src> Lowerer<'src> {
     fn lower_type_expr(&mut self, node: &SyntaxNode) -> Option<TypeExpr> {
         let span = self.node_span(node);
 
-        // Intersection type: A & B — detected by AMP token
-        let has_amp = node
+        // Intersection type: A & B — single scan to find AMP position
+        let amp_pos = node
             .children_with_tokens()
-            .any(|child| child.kind() == SyntaxKind::AMP);
-        if has_amp {
-            // The left side is this node (without the & and right TYPE_EXPR),
-            // lowered as a non-intersection type. The right side is the child TYPE_EXPR.
-            // For chained intersections (A & B & C), the right child is itself an
-            // intersection which we flatten.
+            .find(|c| c.kind() == SyntaxKind::AMP)
+            .map(|c| c.text_range().start());
+        if let Some(amp_pos) = amp_pos {
+            // Left side is tokens/nodes before &, right side is child TYPE_EXPRs after &.
+            // Chained intersections (A & B & C) are flattened.
             let mut types = Vec::new();
-            let amp_pos = node
-                .children_with_tokens()
-                .find(|c| c.kind() == SyntaxKind::AMP)
-                .map(|c| c.text_range().start());
 
             // Lower the left side: idents/tokens before &
             let idents = self.collect_idents(node);
@@ -819,8 +814,7 @@ impl<'src> Lowerer<'src> {
                     let type_args: Vec<TypeExpr> = node
                         .children()
                         .filter(|c| {
-                            c.kind() == SyntaxKind::TYPE_EXPR
-                                && amp_pos.is_some_and(|pos| c.text_range().start() < pos)
+                            c.kind() == SyntaxKind::TYPE_EXPR && c.text_range().start() < amp_pos
                         })
                         .filter_map(|c| self.lower_type_expr(&c))
                         .collect();
@@ -853,7 +847,7 @@ impl<'src> Lowerer<'src> {
             // Lower the right side: child TYPE_EXPRs after &, flattening nested intersections
             for child in node.children() {
                 if child.kind() == SyntaxKind::TYPE_EXPR
-                    && amp_pos.is_some_and(|pos| child.text_range().start() > pos)
+                    && child.text_range().start() > amp_pos
                     && let Some(te) = self.lower_type_expr(&child)
                 {
                     match te.kind {

@@ -1727,12 +1727,11 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
             Type::Unknown
         }
         TypeExprKind::Intersection(types) => {
-            // Merge record fields from all members
+            let resolved: Vec<Type> = types.iter().map(simple_resolve_type_expr).collect();
             let mut fields = Vec::new();
             let mut all_records = true;
-            for ty in types {
-                let resolved = simple_resolve_type_expr(ty);
-                if let Type::Record(ref f) = resolved {
+            for ty in resolved.iter() {
+                if let Type::Record(f) = ty {
                     fields.extend(f.clone());
                 } else {
                     all_records = false;
@@ -1741,10 +1740,7 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
             if all_records && !fields.is_empty() {
                 Type::Record(fields)
             } else {
-                types
-                    .first()
-                    .map(simple_resolve_type_expr)
-                    .unwrap_or(Type::Unknown)
+                resolved.into_iter().next().unwrap_or(Type::Unknown)
             }
         }
     }
