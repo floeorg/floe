@@ -145,9 +145,26 @@ fn function_with_defaults() {
 
 #[test]
 fn import_named() {
+    // Both names used in value positions → regular import
     assert_eq!(
-        emit(r#"import { useState, useEffect } from "react""#),
-        r#"import { useState, useEffect } from "react";"#
+        emit(
+            r#"import { useState, useEffect } from "react"
+const x = useState(0)
+const y = useEffect"#
+        ),
+        "import { useState, useEffect } from \"react\";\n\nconst x = useState(0);\n\nconst y = useEffect;"
+    );
+}
+
+#[test]
+fn import_type_only_specifier() {
+    // Session only used as a type → import type
+    assert_eq!(
+        emit(
+            r#"import { Session } from "@supabase/supabase-js"
+const x: Option<Session> = None"#
+        ),
+        "import { type Session } from \"@supabase/supabase-js\";\n\nconst x: Session | undefined = undefined;"
     );
 }
 

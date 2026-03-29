@@ -56,6 +56,9 @@ pub struct Codegen {
     import_aliases: HashMap<String, String>,
     /// Whether to emit test blocks (true for `floe test`, false for `floe build`).
     test_mode: bool,
+    /// Names used in value positions (expressions). Names only used in type
+    /// positions should be emitted as `import type { ... }`.
+    value_used_names: HashSet<String>,
 }
 
 impl Codegen {
@@ -74,6 +77,7 @@ impl Codegen {
             resolved_imports: HashMap::new(),
             import_aliases: HashMap::new(),
             test_mode: false,
+            value_used_names: HashSet::new(),
         }
     }
 
@@ -127,6 +131,9 @@ impl Codegen {
 
     /// Generate TypeScript from a Floe program.
     pub fn generate(mut self, program: &Program) -> CodegenOutput {
+        // Collect names used in value positions for import type detection
+        self.value_used_names = collect_value_used_names(program);
+
         // First pass: collect union variant info and local names
         for item in &program.items {
             match &item.kind {
@@ -388,7 +395,16 @@ impl Codegen {
                         .map(|spec| spec.name.clone())
                         .collect()
                 } else {
-                    std::collections::HashSet::new()
+                    // For npm imports: a specifier is type-only if it's NOT used
+                    // in any value position (expression, call, construct).
+                    decl.specifiers
+                        .iter()
+                        .filter(|spec| {
+                            let effective = spec.alias.as_ref().unwrap_or(&spec.name);
+                            !self.value_used_names.contains(effective)
+                        })
+                        .map(|spec| spec.name.clone())
+                        .collect()
                 };
             self.push("import { ");
             let mut first = true;
@@ -1416,6 +1432,7 @@ impl Codegen {
             resolved_imports: self.resolved_imports.clone(),
             import_aliases: self.import_aliases.clone(),
             test_mode: self.test_mode,
+            value_used_names: self.value_used_names.clone(),
         }
     }
 }
@@ -1478,4 +1495,146 @@ pub(super) fn has_placeholder_arg(args: &[Arg]) -> bool {
         Arg::Positional(expr) => matches!(expr.kind, ExprKind::Placeholder),
         Arg::Named { value, .. } => matches!(value.kind, ExprKind::Placeholder),
     })
+}
+
+/// Collect all names used in value positions (expressions, not type annotations).
+/// Used to detect type-only imports for `import type { ... }` codegen.
+fn collect_value_used_names(program: &Program) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for item in &program.items {
+        collect_value_names_from_item(item, &mut names);
+    }
+    names
+}
+
+fn collect_value_names_from_expr(expr: &Expr, names: &mut HashSet<String>) {
+    match &expr.kind {
+        ExprKind::Identifier(name) => {
+            names.insert(name.clone());
+        }
+        ExprKind::Construct {
+            type_name,
+            args,
+            spread,
+            ..
+        } => {
+            names.insert(type_name.clone());
+            if let Some(s) = spread {
+                collect_value_names_from_expr(s, names);
+            }
+            for arg in args {
+                match arg {
+                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                        collect_value_names_from_expr(e, names);
+                    }
+                }
+            }
+        }
+        ExprKind::Call { callee, args, .. } => {
+            collect_value_names_from_expr(callee, names);
+            for arg in args {
+                match arg {
+                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                        collect_value_names_from_expr(e, names);
+                    }
+                }
+            }
+        }
+        ExprKind::Block(items) | ExprKind::Collect(items) => {
+            for item in items {
+                collect_value_names_from_item(item, names);
+            }
+        }
+        ExprKind::Arrow { body, .. } => collect_value_names_from_expr(body, names),
+        ExprKind::Member { object, .. } => collect_value_names_from_expr(object, names),
+        ExprKind::Pipe { left, right } | ExprKind::Binary { left, right, .. } => {
+            collect_value_names_from_expr(left, names);
+            collect_value_names_from_expr(right, names);
+        }
+        ExprKind::Unary { operand, .. } => collect_value_names_from_expr(operand, names),
+        ExprKind::Try(e) | ExprKind::Unwrap(e) | ExprKind::Await(e) => {
+            collect_value_names_from_expr(e, names);
+        }
+        ExprKind::Ok(e) | ExprKind::Err(e) | ExprKind::Some(e) | ExprKind::Value(e) => {
+            collect_value_names_from_expr(e, names);
+        }
+        ExprKind::Match { subject, arms } => {
+            collect_value_names_from_expr(subject, names);
+            for arm in arms {
+                collect_value_names_from_expr(&arm.body, names);
+                if let Some(guard) = &arm.guard {
+                    collect_value_names_from_expr(guard, names);
+                }
+            }
+        }
+        ExprKind::Index { object, index } => {
+            collect_value_names_from_expr(object, names);
+            collect_value_names_from_expr(index, names);
+        }
+        ExprKind::Array(items) | ExprKind::Tuple(items) => {
+            for item in items {
+                collect_value_names_from_expr(item, names);
+            }
+        }
+        ExprKind::TemplateLiteral(parts) => {
+            for part in parts {
+                if let TemplatePart::Expr(e) = part {
+                    collect_value_names_from_expr(e, names);
+                }
+            }
+        }
+        ExprKind::Jsx(jsx) => collect_value_names_from_jsx(jsx, names),
+        _ => {}
+    }
+}
+
+fn collect_value_names_from_jsx(jsx: &JsxElement, names: &mut HashSet<String>) {
+    match &jsx.kind {
+        JsxElementKind::Element {
+            name,
+            props,
+            children,
+            ..
+        } => {
+            // Uppercase component names are value references (e.g. <QueryClientProvider>)
+            if name.starts_with(|c: char| c.is_ascii_uppercase()) {
+                names.insert(name.clone());
+            }
+            for prop in props {
+                if let Some(value) = &prop.value {
+                    collect_value_names_from_expr(value, names);
+                }
+            }
+            for child in children {
+                match child {
+                    JsxChild::Expr(e) => collect_value_names_from_expr(e, names),
+                    JsxChild::Element(el) => collect_value_names_from_jsx(el, names),
+                    JsxChild::Text(_) => {}
+                }
+            }
+        }
+        JsxElementKind::Fragment { children } => {
+            for child in children {
+                match child {
+                    JsxChild::Expr(e) => collect_value_names_from_expr(e, names),
+                    JsxChild::Element(el) => collect_value_names_from_jsx(el, names),
+                    JsxChild::Text(_) => {}
+                }
+            }
+        }
+    }
+}
+
+fn collect_value_names_from_item(item: &Item, names: &mut HashSet<String>) {
+    match &item.kind {
+        ItemKind::Const(decl) => collect_value_names_from_expr(&decl.value, names),
+        ItemKind::Function(decl) => collect_value_names_from_expr(&decl.body, names),
+        ItemKind::ForBlock(block) => {
+            for func in &block.functions {
+                collect_value_names_from_expr(&func.body, names);
+            }
+        }
+        ItemKind::Expr(expr) => collect_value_names_from_expr(expr, names),
+        _ => {}
+    }
 }

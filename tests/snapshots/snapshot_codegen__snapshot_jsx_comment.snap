@@ -2,7 +2,7 @@
 source: tests/snapshot_codegen.rs
 expression: output
 ---
-import { JSX } from "react";
+import { type JSX } from "react";
 
 export function App(): JSX.Element {
   return <div><span>Hello</span></div>;
