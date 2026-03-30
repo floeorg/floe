@@ -510,10 +510,19 @@ impl FloeLsp {
             }
         }
 
-        // Add stdlib functions to pipe completions
+        // Add stdlib functions to pipe completions using bare names
+        // (pipes use type-directed resolution: `|> map(...)` not `|> Array.map(...)`)
         let stdlib = crate::stdlib::StdlibRegistry::new();
         for f in stdlib.all_functions() {
             if !prefix.is_empty() && !f.name.starts_with(prefix) {
+                continue;
+            }
+            // Skip if a user-defined function with the same name is already listed
+            if matched
+                .iter()
+                .chain(unmatched.iter())
+                .any(|i| i.label == f.name)
+            {
                 continue;
             }
             let first_param_str = f.params.first().map(stdlib_hover::format_type);
@@ -522,18 +531,22 @@ impl FloeLsp {
                 .is_some_and(|(pt, fpt)| completion::is_pipe_compatible(fpt, pt));
 
             let sort_prefix = if compatible { "0" } else { "1" };
-            let label = format!("{}.{}", f.module, f.name);
-            let params: Vec<String> = f.params.iter().map(stdlib_hover::format_type).collect();
             let ret = stdlib_hover::format_type(&f.return_type);
-            let detail = format!("({}) -> {}", params.join(", "), ret);
+            let detail = format!(
+                "(for {}) ({}) -> {}",
+                f.module,
+                stdlib_hover::format_params(f),
+                ret
+            );
+            let name = f.name.to_string();
 
             let item = CompletionItem {
-                label: label.clone(),
+                label: name.clone(),
                 kind: Some(CompletionItemKind::FUNCTION),
                 detail: Some(detail),
-                insert_text: Some(label.clone()),
+                insert_text: Some(name),
                 insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
-                sort_text: Some(format!("{sort_prefix}2{label}")),
+                sort_text: Some(format!("{sort_prefix}2{}", f.name)),
                 ..Default::default()
             };
 
