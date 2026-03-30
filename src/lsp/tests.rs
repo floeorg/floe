@@ -314,7 +314,7 @@ fn resolve_piped_type_with_unwrap() {
     let mut type_map = HashMap::new();
     type_map.insert(
         "fetchUser".to_string(),
-        "(number) => Result<User, Error>".to_string(),
+        "(number) -> Result<User, Error>".to_string(),
     );
     let source = "result? |> ";
     let mut tm = HashMap::new();
@@ -325,7 +325,7 @@ fn resolve_piped_type_with_unwrap() {
 
 #[test]
 fn function_symbol_stores_first_param_type() {
-    let source = "fn filter(arr: Array<T>, pred: (T) => boolean) -> Array<T> { arr }";
+    let source = "fn filter(arr: Array<T>, pred: (T) -> boolean) -> Array<T> { arr }";
     let program = Parser::new(source).parse_program().unwrap();
     let index = SymbolIndex::build(&program);
     let syms = index.find_by_name("filter");

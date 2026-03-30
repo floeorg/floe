@@ -330,7 +330,7 @@ pub enum TypeExprKind {
     },
     /// Record type inline: `{ name: string, age: number }`
     Record(Vec<RecordField>),
-    /// Function type: `(a: number, b: string) => Result<T, E>`
+    /// Function type: `(a: number, b: string) -> Result<T, E>`
     Function {
         params: Vec<TypeExpr>,
         return_type: Box<TypeExpr>,

@@ -39,7 +39,7 @@ fn ReviewCard(props: { review: Review }) -> JSX.Element {
 // ── Product detail content ─────────────────────────────
 
 fn ProductDetailContent(
-    props: { productId: ProductId, onAddToCart: (Product) => () },
+    props: { productId: ProductId, onAddToCart: (Product) -> () },
 ) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["product", props.productId],
@@ -178,7 +178,7 @@ fn DetailSkeleton() -> JSX.Element {
 // ── Exported page component ────────────────────────────
 
 export fn ProductDetailPage(
-    props: { productId: ProductId, onAddToCart: (Product) => () },
+    props: { productId: ProductId, onAddToCart: (Product) -> () },
 ) -> JSX.Element {
     <div>
         <Link

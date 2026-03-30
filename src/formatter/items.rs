@@ -526,7 +526,7 @@ impl Formatter<'_> {
             return;
         }
 
-        // Function type: (params) => ReturnType
+        // Function type: (params) -> ReturnType
         if has_fat_arrow || has_thin_arrow {
             self.write("(");
             let param_count = child_type_exprs.len().saturating_sub(1);
@@ -539,7 +539,7 @@ impl Formatter<'_> {
                 }
                 self.fmt_type_expr(te);
             }
-            self.write(") => ");
+            self.write(") -> ");
             if let Some(ret) = child_type_exprs.last() {
                 self.fmt_type_expr(ret);
             }

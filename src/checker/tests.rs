@@ -2385,7 +2385,7 @@ type BaseProps {
 
 type ButtonProps {
     ...BaseProps,
-    onClick: () => (),
+    onClick: () -> (),
     label: string,
 }
 
@@ -3091,7 +3091,7 @@ type SaveError {
     | Api { message: string }
 }
 
-fn apply(f: (Array<string>) => SaveError) -> SaveError {
+fn apply(f: (Array<string>) -> SaveError) -> SaveError {
     f(["error"])
 }
 
@@ -3126,7 +3126,7 @@ type MyError {
     | Api { message: string }
 }
 
-fn apply(f: (number) => MyError) -> MyError {
+fn apply(f: (number) -> MyError) -> MyError {
     f(42)
 }
 
@@ -3173,7 +3173,7 @@ const _p = pair(1, "hello")
 fn generic_function_with_callback() {
     let diags = check(
         r#"
-fn apply<T, U>(x: T, f: (T) => U) -> U { f(x) }
+fn apply<T, U>(x: T, f: (T) -> U) -> U { f(x) }
 fn double(n: number) -> number { n * 2 }
 const _r = apply(5, double)
 "#,
