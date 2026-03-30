@@ -125,7 +125,11 @@ impl Checker {
                         }
                         Type::Number
                     }
-                    UnaryOp::Not => Type::Bool,
+                    UnaryOp::Not => {
+                        let concrete = self.resolve_type_to_concrete(&ty);
+                        self.check_boolean_operand(&ty, &concrete, expr.span, "!");
+                        Type::Bool
+                    }
                 }
             }
 
@@ -889,6 +893,25 @@ impl Checker {
         }
     }
 
+    fn check_boolean_operand(&mut self, ty: &Type, concrete: &Type, span: Span, op: &str) {
+        if !concrete.is_boolean()
+            && !matches!(concrete, Type::Unknown | Type::Var(_) | Type::Foreign(_))
+        {
+            self.diagnostics.push(
+                Diagnostic::error(
+                    format!(
+                        "expected boolean operand for `{op}`, found `{}`",
+                        ty.display_name()
+                    ),
+                    span,
+                )
+                .with_label("expected `boolean`")
+                .with_help("use `match` for non-boolean conditional logic")
+                .with_code("E001"),
+            );
+        }
+    }
+
     // ── Binary Expression Checking ───────────────────────────────
 
     fn check_binary(&mut self, left: &Expr, op: BinOp, right: &Expr, span: Span) -> Type {
@@ -919,7 +942,14 @@ impl Checker {
                 Type::Bool
             }
             BinOp::Lt | BinOp::Gt | BinOp::LtEq | BinOp::GtEq => Type::Bool,
-            BinOp::And | BinOp::Or => Type::Bool,
+            BinOp::And | BinOp::Or => {
+                let op_str = if op == BinOp::And { "&&" } else { "||" };
+                let left_concrete = self.resolve_type_to_concrete(&left_ty);
+                let right_concrete = self.resolve_type_to_concrete(&right_ty);
+                self.check_boolean_operand(&left_ty, &left_concrete, left.span, op_str);
+                self.check_boolean_operand(&right_ty, &right_concrete, right.span, op_str);
+                Type::Bool
+            }
             BinOp::Add => {
                 // Rule 12: String concat with + warning
                 if matches!(left_ty, Type::String) || matches!(right_ty, Type::String) {
