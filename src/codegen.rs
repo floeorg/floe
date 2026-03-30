@@ -3,6 +3,8 @@ mod expr;
 mod items;
 mod jsx;
 mod match_emit;
+mod parse_mock;
+mod pipes;
 #[cfg(test)]
 mod tests;
 mod types;

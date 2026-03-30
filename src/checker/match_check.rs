@@ -9,6 +9,43 @@ enum TupleSlotValue {
     StringLiteral(String),
 }
 
+/// Collect variant names covered by unguarded arms.
+fn covered_variant_names(arms: &[MatchArm]) -> HashSet<&str> {
+    arms.iter()
+        .filter(|arm| arm.guard.is_none())
+        .filter_map(|arm| match &arm.pattern.kind {
+            PatternKind::Variant { name, .. } => Some(name.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Check that all `required` variant names are covered, emit E004 if not.
+fn check_required_variants(
+    checker: &mut Checker,
+    type_name: &str,
+    required: &[&str],
+    arms: &[MatchArm],
+    span: Span,
+) {
+    let covered = covered_variant_names(arms);
+    let missing: Vec<&&str> = required.iter().filter(|r| !covered.contains(**r)).collect();
+    if !missing.is_empty() {
+        let missing_str = missing
+            .iter()
+            .map(|s| format!("`{s}`"))
+            .collect::<Vec<_>>()
+            .join(" and ");
+        checker.emit_error_with_help(
+            format!("non-exhaustive match on `{type_name}`: missing {missing_str}"),
+            span,
+            "E004",
+            "not all cases covered",
+            "add match arms for the missing cases",
+        );
+    }
+}
+
 // ── Match Exhaustiveness ─────────────────────────────────────
 
 impl Checker {
@@ -19,7 +56,6 @@ impl Checker {
         span: Span,
     ) {
         // Resolve Named types to their actual definitions.
-        // Foreign types pass through unchanged (their structure is unknown).
         let resolved_ty;
         let subject_ty = match subject_ty {
             Type::Foreign(_) | Type::Promise(_) => subject_ty,
@@ -35,7 +71,6 @@ impl Checker {
         };
 
         let has_catch_all = arms.iter().any(|arm| {
-            // A guarded catch-all doesn't count as exhaustive
             arm.guard.is_none()
                 && matches!(
                     arm.pattern.kind,
@@ -47,20 +82,10 @@ impl Checker {
             return;
         }
 
-        // For union types, check that all variants are covered
+        // Union types: check all variants covered
         if let Type::Union { name, variants } = subject_ty {
             let variant_names: HashSet<&str> = variants.iter().map(|(n, _)| n.as_str()).collect();
-            let mut covered: HashSet<&str> = HashSet::new();
-
-            for arm in arms {
-                // Guarded arms don't fully cover a variant
-                if arm.guard.is_none()
-                    && let PatternKind::Variant { name, .. } = &arm.pattern.kind
-                {
-                    covered.insert(name.as_str());
-                }
-            }
-
+            let covered = covered_variant_names(arms);
             let missing: Vec<_> = variant_names.difference(&covered).collect();
             if !missing.is_empty() {
                 let missing_str = missing
@@ -78,11 +103,10 @@ impl Checker {
             }
         }
 
-        // For string literal union types, check that all variants are covered
+        // String literal unions: check all string variants covered
         if let Type::StringLiteralUnion { name, variants } = subject_ty {
             let variant_set: HashSet<&str> = variants.iter().map(|s| s.as_str()).collect();
             let mut covered: HashSet<&str> = HashSet::new();
-
             for arm in arms {
                 if arm.guard.is_none()
                     && let PatternKind::Literal(LiteralPattern::String(s)) = &arm.pattern.kind
@@ -90,7 +114,6 @@ impl Checker {
                     covered.insert(s.as_str());
                 }
             }
-
             let missing: Vec<_> = variant_set.difference(&covered).collect();
             if !missing.is_empty() {
                 let missing_str = missing
@@ -108,114 +131,31 @@ impl Checker {
             }
         }
 
-        // For Result types, check Ok and Err are covered
+        // Result: check Ok and Err covered
         if subject_ty.is_result() {
-            let mut has_ok = false;
-            let mut has_err = false;
-            for arm in arms {
-                if arm.guard.is_none()
-                    && let PatternKind::Variant { name, .. } = &arm.pattern.kind
-                {
-                    match name.as_str() {
-                        "Ok" => has_ok = true,
-                        "Err" => has_err = true,
-                        _ => {}
-                    }
-                }
-            }
-            if !has_ok || !has_err {
-                let missing = match (has_ok, has_err) {
-                    (false, false) => "`Ok` and `Err`",
-                    (false, true) => "`Ok`",
-                    (true, false) => "`Err`",
-                    _ => unreachable!(),
-                };
-                self.emit_error_with_help(
-                    format!("non-exhaustive match on `Result`: missing {missing}"),
-                    span,
-                    "E004",
-                    "not all cases covered",
-                    "add match arms for the missing cases",
-                );
-            }
+            check_required_variants(self, "Result", &["Ok", "Err"], arms, span);
         }
 
-        // For Option types, check Some and None are covered
+        // Option: check Some and None covered
         if subject_ty.is_option() {
-            let mut has_some = false;
-            let mut has_none = false;
-            for arm in arms {
-                if arm.guard.is_none() {
-                    match &arm.pattern.kind {
-                        PatternKind::Variant { name, .. } if name == "Some" => has_some = true,
-                        PatternKind::Variant { name, .. } if name == "None" => has_none = true,
-                        _ => {}
-                    }
-                }
-            }
-            if !has_some || !has_none {
-                let missing = match (has_some, has_none) {
-                    (false, false) => "`Some` and `None`",
-                    (false, true) => "`Some`",
-                    (true, false) => "`None`",
-                    _ => unreachable!(),
-                };
-                self.emit_error_with_help(
-                    format!("non-exhaustive match on `Option`: missing {missing}"),
-                    span,
-                    "E004",
-                    "not all cases covered",
-                    "add match arms for the missing cases",
-                );
-            }
+            check_required_variants(self, "Option", &["Some", "None"], arms, span);
         }
 
-        // For Settable types, check Value, Clear, and Unchanged are covered
+        // Settable: check Value, Clear, Unchanged covered
         if subject_ty.is_settable() {
-            let mut has_value = false;
-            let mut has_clear = false;
-            let mut has_unchanged = false;
-            for arm in arms {
-                if arm.guard.is_none() {
-                    match &arm.pattern.kind {
-                        PatternKind::Variant { name, .. } if name == "Value" => has_value = true,
-                        PatternKind::Variant { name, .. } if name == "Clear" => has_clear = true,
-                        PatternKind::Variant { name, .. } if name == "Unchanged" => {
-                            has_unchanged = true
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            if !has_value || !has_clear || !has_unchanged {
-                let mut missing = vec![];
-                if !has_value {
-                    missing.push("`Value`");
-                }
-                if !has_clear {
-                    missing.push("`Clear`");
-                }
-                if !has_unchanged {
-                    missing.push("`Unchanged`");
-                }
-                self.emit_error_with_help(
-                    format!(
-                        "non-exhaustive match on `Settable`: missing {}",
-                        missing.join(" and ")
-                    ),
-                    span,
-                    "E004",
-                    "not all cases covered",
-                    "add match arms for the missing cases",
-                );
-            }
+            check_required_variants(
+                self,
+                "Settable",
+                &["Value", "Clear", "Unchanged"],
+                arms,
+                span,
+            );
         }
 
-        // For array types, check if empty + non-empty are covered
+        // Array: check empty + non-empty covered
         if matches!(subject_ty, Type::Array(_)) {
             let mut has_empty = false;
             let mut has_nonempty_rest = false;
-
             for arm in arms {
                 if arm.guard.is_some() {
                     continue;
@@ -229,8 +169,6 @@ impl Checker {
                     }
                 }
             }
-
-            // If there are array patterns but they don't cover all cases
             let has_any_array_pattern = arms
                 .iter()
                 .any(|a| matches!(a.pattern.kind, PatternKind::Array { .. }));
@@ -251,7 +189,7 @@ impl Checker {
             }
         }
 
-        // For bool, check true/false covered
+        // Bool: check true/false covered
         if matches!(subject_ty, Type::Bool) {
             let mut has_true = false;
             let mut has_false = false;
@@ -277,7 +215,7 @@ impl Checker {
             }
         }
 
-        // For number types, require a `_` catch-all (numbers are unbounded)
+        // Number/String: require catch-all (infinite values)
         if matches!(subject_ty, Type::Number) {
             self.emit_error_with_help(
                 "non-exhaustive match on `number`: cannot cover all values without a catch-all",
@@ -287,8 +225,6 @@ impl Checker {
                 "add a `_ ->` catch-all arm",
             );
         }
-
-        // For string types, require a `_` catch-all (strings are unbounded)
         if matches!(subject_ty, Type::String) {
             self.emit_error_with_help(
                 "non-exhaustive match on `string`: cannot cover all values without a catch-all",
@@ -299,7 +235,7 @@ impl Checker {
             );
         }
 
-        // For tuple types, check exhaustiveness of the product space
+        // Tuple: check product space exhaustiveness
         if let Type::Tuple(elem_types) = subject_ty
             && !self.check_tuple_exhaustiveness(elem_types, arms)
         {
@@ -312,9 +248,6 @@ impl Checker {
             );
         }
     }
-
-    /// Check whether the match arms exhaustively cover a tuple type.
-    /// Returns true if the tuple is fully covered.
     fn check_tuple_exhaustiveness(&self, elem_types: &[Type], arms: &[MatchArm]) -> bool {
         // If any arm is a top-level catch-all (wildcard, binding, or tuple of all wildcards/bindings),
         // the match is exhaustive regardless of element types.
