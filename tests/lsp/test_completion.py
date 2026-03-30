@@ -178,3 +178,25 @@ class TestCompletionPipeFiltering:
         labels = completion_labels(lsp.completion(URI, 1, len("const result = nums |> ")))
         for kw in KEYWORDS:
             assert kw not in labels, f"Keyword '{kw}' should not appear in pipe completions: {labels[:15]}"
+
+    def test_pipe_uses_bare_names(self, lsp):
+        """Pipe completions should use bare names like 'map', not 'Array.map'."""
+        open_doc(lsp, URI, F.COMPLETION_PIPE)
+        labels = completion_labels(lsp.completion(URI, 1, len("const result = nums |> ")))
+        assert "map" in labels, f"Bare 'map' should appear in pipe completions: {labels[:15]}"
+        assert "filter" in labels, f"Bare 'filter' should appear: {labels[:15]}"
+        assert "Array.map" not in labels, f"Qualified 'Array.map' should not appear in pipe completions: {labels[:15]}"
+
+    def test_pipe_for_block_functions(self, lsp):
+        """User-defined for-block functions should appear in pipe completions."""
+        source = 'type Todo { text: string, done: boolean }\n\nfor Array<Todo> {\n    export fn remaining(self) -> number {\n        self |> filter(.done == false) |> length\n    }\n}\n\nconst todos: Array<Todo> = []\nconst r = todos |> \n'
+        open_doc(lsp, URI, source)
+        labels = completion_labels(lsp.completion(URI, 9, len("const r = todos |> ")))
+        assert "remaining" in labels, f"For-block function 'remaining' should appear: {labels[:15]}"
+
+    def test_pipe_string_bare_names(self, lsp):
+        """String pipe completions should use bare names."""
+        open_doc(lsp, URI, 'const s = "hello"\nconst r = s |> \n')
+        labels = completion_labels(lsp.completion(URI, 1, len("const r = s |> ")))
+        assert "trim" in labels, f"Bare 'trim' should appear: {labels[:15]}"
+        assert "String.trim" not in labels, f"Qualified 'String.trim' should not appear: {labels[:15]}"
