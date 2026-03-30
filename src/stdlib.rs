@@ -104,6 +104,9 @@ fn set_of(t: Type) -> Type {
         element: Box::new(t),
     }
 }
+fn promise_of(t: Type) -> Type {
+    Type::Promise(Box::new(t))
+}
 fn fun(params: Vec<Type>, ret: Type) -> Type {
     Type::Function {
         params,
@@ -299,13 +302,13 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Http", "json", [Type::Named("Response".to_string())], result_of(Type::Unknown, Type::Named("Error".to_string())), "(async () => { try { const _r = await $0.json(); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
         stdlib_fn!("Http", "text", [Type::Named("Response".to_string())], result_of(Type::String, Type::Named("Error".to_string())), "(async () => { try { const _r = await $0.text(); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
         // ── Promise ────────────────────────────────────────────────
-        stdlib_fn!("Promise", "all", [array_of(Type::Promise(Box::new(t.clone())))], Type::Promise(Box::new(array_of(t.clone()))), "Promise.all($0)"),
-        stdlib_fn!("Promise", "race", [array_of(Type::Promise(Box::new(t.clone())))], Type::Promise(Box::new(t.clone())), "Promise.race($0)"),
-        stdlib_fn!("Promise", "any", [array_of(Type::Promise(Box::new(t.clone())))], Type::Promise(Box::new(t.clone())), "Promise.any($0)"),
-        stdlib_fn!("Promise", "allSettled", [array_of(Type::Promise(Box::new(t.clone())))], Type::Promise(Box::new(array_of(result_of(t.clone(), Type::Named("Error".to_string()))))), "Promise.allSettled($0).then(_a => _a.map(_v => _v.status === \"fulfilled\" ? { ok: true as const, value: _v.value } : { ok: false as const, error: _v.reason instanceof Error ? _v.reason : new Error(String(_v.reason)) }))"),
-        stdlib_fn!("Promise", "resolve", [t.clone()], Type::Promise(Box::new(t.clone())), "Promise.resolve($0)"),
-        stdlib_fn!("Promise", "reject", [t.clone()], Type::Promise(Box::new(t.clone())), "Promise.reject($0)"),
-        stdlib_fn!("Promise", "delay", [Type::Number], Type::Promise(Box::new(Type::Unit)), "new Promise(_r => setTimeout(_r, $0))"),
+        stdlib_fn!("Promise", "all", [array_of(promise_of(t.clone()))], promise_of(array_of(t.clone())), "Promise.all($0)"),
+        stdlib_fn!("Promise", "race", [array_of(promise_of(t.clone()))], promise_of(t.clone()), "Promise.race($0)"),
+        stdlib_fn!("Promise", "any", [array_of(promise_of(t.clone()))], promise_of(t.clone()), "Promise.any($0)"),
+        stdlib_fn!("Promise", "allSettled", [array_of(promise_of(t.clone()))], promise_of(array_of(result_of(t.clone(), Type::Named("Error".to_string())))), "Promise.allSettled($0).then(_a => _a.map(_v => _v.status === \"fulfilled\" ? { ok: true as const, value: _v.value } : { ok: false as const, error: _v.reason instanceof Error ? _v.reason : new Error(String(_v.reason)) }))"),
+        stdlib_fn!("Promise", "resolve", [t.clone()], promise_of(t.clone()), "Promise.resolve($0)"),
+        stdlib_fn!("Promise", "reject", [u.clone()], promise_of(t.clone()), "Promise.reject($0)"),
+        stdlib_fn!("Promise", "delay", [Type::Number], promise_of(Type::Unit), "new Promise(_r => setTimeout(_r, $0))"),
         // ── Pipe Utilities ────────────────────────────────────────
         stdlib_fn!("Pipe", "tap", [t.clone(), fun(vec![t.clone()], Type::Unit)], t.clone(), "(() => { const _v = $0; ($1)(_v); return _v; })()"),
         // ── JSON ───────────────────────────────────────────────

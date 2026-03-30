@@ -597,7 +597,7 @@ Functions for working with `Promise<T>` values.
 | `Promise.any` | `Array<Promise<T>> -> Promise<T>` | First to resolve, fail if all reject |
 | `Promise.allSettled` | `Array<Promise<T>> -> Promise<Array<Result<T, Error>>>` | Wait for all, return Results |
 | `Promise.resolve` | `T -> Promise<T>` | Wrap a value in a resolved Promise |
-| `Promise.reject` | `T -> Promise<T>` | Create a rejected Promise |
+| `Promise.reject` | `E -> Promise<T>` | Create a rejected Promise |
 | `Promise.delay` | `number -> Promise<()>` | Wait for milliseconds |
 
 ### Examples
