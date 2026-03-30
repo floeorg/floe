@@ -625,7 +625,7 @@ impl Checker {
                 _ => {}
             }
 
-            // Warn on & intersection in { } type definitions (records/unions).
+            // Reject & intersection in { } type definitions (records/unions).
             // & should only appear in = type aliases (TS bridge types).
             if matches!(decl.def, TypeDef::Record(_) | TypeDef::Union(_)) {
                 self.check_no_intersection_in_type_def(&decl.def, span);
@@ -741,37 +741,34 @@ impl Checker {
                     return_type,
                 } => params.iter().any(has_intersection) || has_intersection(return_type),
                 TypeExprKind::Named { type_args, .. } => type_args.iter().any(has_intersection),
+                TypeExprKind::Record(fields) => {
+                    fields.iter().any(|f| has_intersection(&f.type_ann))
+                }
                 _ => false,
             }
         }
 
-        let fields: Vec<&TypeExpr> = match def {
+        let found = match def {
             TypeDef::Record(entries) => entries
                 .iter()
                 .filter_map(|e| e.as_field().map(|f| &f.type_ann))
-                .collect(),
+                .any(has_intersection),
             TypeDef::Union(variants) => variants
                 .iter()
                 .flat_map(|v| v.fields.iter().map(|f| &f.type_ann))
-                .collect(),
+                .any(has_intersection),
             _ => return,
         };
 
-        for field_ty in fields {
-            if has_intersection(field_ty) {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        "`&` intersection types cannot be used in `{ }` type definitions"
-                            .to_string(),
-                        span,
-                    )
-                    .with_help(
-                        "use `...Spread` for record composition, or `=` for TS interop types",
-                    )
-                    .with_code("E025"),
-                );
-                return; // one diagnostic per type is enough
-            }
+        if found {
+            self.diagnostics.push(
+                Diagnostic::error(
+                    "`&` intersection types cannot be used in `{ }` type definitions".to_string(),
+                    span,
+                )
+                .with_help("use `...Spread` for record composition, or `=` for TS interop types")
+                .with_code("E025"),
+            );
         }
     }
 
