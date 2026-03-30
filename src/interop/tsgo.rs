@@ -1071,6 +1071,9 @@ fn type_expr_to_ts(ty: &TypeExpr) -> String {
             name, type_args, ..
         } => {
             let ts_name = match name.as_str() {
+                "()" => "void",
+                "undefined" => "undefined",
+                "never" => "never",
                 "bool" => "boolean",
                 "Option" if type_args.len() == 1 => {
                     let inner = type_expr_to_ts(&type_args[0]);

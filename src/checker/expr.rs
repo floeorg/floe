@@ -1,6 +1,36 @@
 use super::*;
 use crate::type_layout;
 
+/// Check if a string is a single uppercase letter (generic type parameter).
+fn is_generic_param(s: &str) -> bool {
+    s.len() == 1 && s.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+}
+
+/// Parse a Foreign type string like "Context<AuthContextValue>" into
+/// ("Context", ["AuthContextValue"]). Returns None if no generics.
+fn parse_foreign_generics(s: &str) -> Option<(String, Vec<String>)> {
+    let open = s.find('<')?;
+    let base = s[..open].to_string();
+    let inner = s.get(open + 1..s.len() - 1)?; // strip < and >
+    // Split by top-level commas (respecting nested <>)
+    let mut args = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+    for (i, c) in inner.char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' => depth -= 1,
+            ',' if depth == 0 => {
+                args.push(inner[start..i].trim().to_string());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    args.push(inner[start..].trim().to_string());
+    Some((base, args))
+}
+
 // ── Expression Checking ──────────────────────────────────────
 
 impl Checker {
@@ -1381,7 +1411,7 @@ impl Checker {
         seen: &mut std::collections::HashSet<String>,
     ) {
         match ty {
-            Type::Named(n) if n.len() == 1 && n.chars().next().unwrap().is_ascii_uppercase() => {
+            Type::Named(n) if is_generic_param(n) => {
                 if seen.insert(n.clone()) {
                     names.push(n.clone());
                 }
@@ -1413,6 +1443,16 @@ impl Checker {
             }
             Type::Set { element } => {
                 Self::collect_generic_params_from_type(element, names, seen);
+            }
+            Type::Foreign(s) => {
+                // Extract generic params from Foreign strings like "Context<T>"
+                if let Some((_, args)) = parse_foreign_generics(s) {
+                    for arg in &args {
+                        if is_generic_param(arg) && seen.insert(arg.clone()) {
+                            names.push(arg.clone());
+                        }
+                    }
+                }
             }
             _ => {}
         }
@@ -1461,6 +1501,23 @@ impl Checker {
             (Type::Result { ok: po, err: pe }, Type::Result { ok: ao, err: ae }) => {
                 Self::unify_for_inference(po, ao, generics, subs);
                 Self::unify_for_inference(pe, ae, generics, subs);
+            }
+            // Foreign types with matching base names: extract and unify generic args
+            // e.g., Foreign("Context<T>") with Foreign("Context<AuthContextValue>")
+            (Type::Foreign(p_str), Type::Foreign(a_str)) => {
+                if let Some((p_base, p_args)) = parse_foreign_generics(p_str)
+                    && let Some((a_base, a_args)) = parse_foreign_generics(a_str)
+                    && p_base == a_base
+                    && p_args.len() == a_args.len()
+                {
+                    for (p_arg, a_arg) in p_args.iter().zip(a_args.iter()) {
+                        // If the param arg is a single uppercase letter (generic), bind it
+                        if is_generic_param(p_arg) && generics.contains(p_arg) {
+                            subs.entry(p_arg.clone())
+                                .or_insert_with(|| Type::Foreign(a_arg.clone()));
+                        }
+                    }
+                }
             }
             // Union param: try matching arg against first non-generic member
             // e.g., S | (() => S) with arg "hello" → S = string
