@@ -243,7 +243,13 @@ impl Checker {
                 }
             }
 
-            ExprKind::Arrow { params, body, .. } => {
+            ExprKind::Arrow {
+                params,
+                body,
+                async_fn,
+            } => {
+                let prev_inside_async = self.ctx.inside_async;
+                self.ctx.inside_async = *async_fn;
                 self.env.push_scope();
                 let param_types: Vec<_> = params
                     .iter()
@@ -292,6 +298,7 @@ impl Checker {
                     .collect();
                 let return_type = self.check_expr(body);
                 self.env.pop_scope();
+                self.ctx.inside_async = prev_inside_async;
                 Type::Function {
                     params: param_types,
                     return_type: Box::new(return_type),
@@ -348,7 +355,7 @@ impl Checker {
                         )
                         .with_label("not inside an `async` function")
                         .with_help("add `async` to the enclosing function declaration")
-                        .with_code("E005"),
+                        .with_code("E033"),
                     );
                 }
                 let ty = self.check_expr(inner);

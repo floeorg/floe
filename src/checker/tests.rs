@@ -3928,3 +3928,38 @@ async fn init() -> string {
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn await_in_sync_lambda_inside_async_fn_errors() {
+    let diags = check(
+        r#"
+async fn outer() -> number {
+    const f = (x: number) => await fetchData()
+    await f(1)
+}
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "`await` can only be used inside an `async` function"
+    ));
+}
+
+#[test]
+fn await_in_nested_sync_fn_inside_async_fn_errors() {
+    let diags = check(
+        r#"
+async fn outer() -> number {
+    fn inner() -> number {
+        const s = await fetchData()
+        s
+    }
+    await inner()
+}
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "`await` can only be used inside an `async` function"
+    ));
+}
