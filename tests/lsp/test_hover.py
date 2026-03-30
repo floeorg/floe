@@ -335,6 +335,13 @@ class TestHoverRecordSpread:
         assert "onClick" in h, f"Expected onClick field in hover, got: {h}"
         assert "label" in h, f"Expected label field in hover, got: {h}"
 
+    def test_member_access_shows_field_type(self, lsp):
+        open_doc(lsp, URI, F.MEMBER_ACCESS)
+        # Hover on 'name' in user.name (line 6, col 21)
+        h = hover_text(lsp.hover(URI, 6, 21))
+        assert h is not None, f"Expected hover for user.name, got None"
+        assert "string" in h, f"Expected string type for name field, got: {h}"
+
     def test_pipe_into_match_fn(self, lsp):
         open_doc(lsp, URI,F.PIPE_INTO_MATCH)
         h = hover_text(lsp.hover(URI, 0, 3))

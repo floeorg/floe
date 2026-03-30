@@ -210,6 +210,20 @@ impl LanguageServer for FloeLsp {
                     }));
                 }
 
+                // Check typed AST before falling back to generic display
+                if let Some((_, ref ty)) = typed_ast {
+                    return Ok(Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: format!(
+                                "```floe\n(property) {word}: {}\n```",
+                                ty.display_name()
+                            ),
+                        }),
+                        range: None,
+                    }));
+                }
+
                 // Fall back to showing object type + member
                 return Ok(Some(Hover {
                     contents: HoverContents::Markup(MarkupContent {

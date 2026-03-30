@@ -809,3 +809,15 @@ type ButtonProps {
     label: string,
 }
 """
+
+# ── Member access hover ─────────────────────────────────────
+
+MEMBER_ACCESS = """\
+type User {
+    name: string,
+    age: number,
+}
+
+const user = User(name: "Ryan", age: 30)
+const _name = user.name
+"""
