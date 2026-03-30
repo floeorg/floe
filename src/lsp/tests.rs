@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use super::completion::*;
-use super::handlers::{
-    detect_match_context, import_path_at_offset, is_in_jsx_tag, jsx_attribute_completions,
-    lambda_event_completions,
+use super::completions::{
+    detect_match_context, is_in_jsx_tag, jsx_attribute_completions, lambda_event_completions,
 };
+use super::goto_def::import_path_at_offset;
 use super::symbols::*;
 use super::*;
 
@@ -456,7 +456,7 @@ fn jsx_fixture_type_map_has_counter() {
 
 // ── Hover type display tests (#180) ─────────────────────────
 
-use super::handlers::enrich_hover_detail;
+use super::hover::enrich_hover_detail;
 
 /// Simulate hover: look up symbol by name, then build the hover detail
 /// using the same enrich_hover_detail function the LSP handler uses.

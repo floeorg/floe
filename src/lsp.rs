@@ -1,5 +1,9 @@
+mod code_actions;
 mod completion;
+mod completions;
+mod goto_def;
 mod handlers;
+mod hover;
 mod resolution;
 mod stdlib_hover;
 mod symbols;
