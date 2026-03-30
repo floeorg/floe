@@ -1740,6 +1740,29 @@ impl Checker {
         Some(fn_type.clone())
     }
 
+    /// Look up a for-block method for member-access syntax (`obj.method()`).
+    /// Strips the `self` parameter since the object provides it implicitly.
+    fn resolve_for_block_method(&self, field: &str, obj_ty: &Type) -> Option<Type> {
+        let type_name = match obj_ty {
+            Type::Named(n) | Type::Foreign(n) => n.as_str(),
+            _ => return None,
+        };
+        let overloads = self.for_block_overloads.get(field)?;
+        let (_, fn_type) = overloads.iter().find(|(tn, _)| tn == type_name)?;
+        if let Type::Function {
+            params,
+            return_type,
+        } = fn_type
+        {
+            Some(Type::Function {
+                params: params.iter().skip(1).cloned().collect(),
+                return_type: return_type.clone(),
+            })
+        } else {
+            Some(fn_type.clone())
+        }
+    }
+
     /// Resolve the type of a member access (`obj_ty.field`), producing diagnostics for errors.
     fn resolve_member_type(&mut self, obj_ty: &Type, field: &str, span: Span) -> Type {
         // Rule 6: No property access on unnarrowed unions
@@ -1802,6 +1825,11 @@ impl Checker {
             if let Some((_, ty)) = fields.iter().find(|(n, _)| n == field) {
                 return ty.clone();
             }
+            // Check for-block methods before reporting missing field —
+            // `row.toModel()` should resolve to the for-block method.
+            if let Some(ty) = self.resolve_for_block_method(field, obj_ty) {
+                return ty;
+            }
             let type_name = if let Type::Named(name) = obj_ty {
                 format!("`{name}`")
             } else {
@@ -1860,6 +1888,12 @@ impl Checker {
                 return Type::Unknown;
             }
             _ => {}
+        }
+
+        // For-block methods: check before foreign/named fallback so that
+        // `a.toModel()` resolves to the for-block method's type.
+        if let Some(ty) = self.resolve_for_block_method(field, obj_ty) {
+            return ty;
         }
 
         // Foreign types: allow member access, return Foreign for chained access
