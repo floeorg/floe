@@ -176,3 +176,12 @@ fn snapshot_error_todo_warning() {
     let output = get_diagnostics("test.fl", "fn process(x: number) -> number {\n  todo\n}");
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_error_member_access_on_non_record_type() {
+    let output = get_diagnostics(
+        "test.fl",
+        "fn check(items: [number]) -> number {\n  items.gibberish\n}",
+    );
+    insta::assert_snapshot!(output);
+}

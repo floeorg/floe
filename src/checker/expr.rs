@@ -1868,6 +1868,28 @@ impl Checker {
             return Type::Unknown;
         }
 
+        // Never is the bottom type — member access propagates Never
+        if matches!(obj_ty, Type::Never) {
+            return Type::Never;
+        }
+
+        // Unresolved type variables — can't diagnose yet, return Unknown
+        if matches!(obj_ty, Type::Var(_)) {
+            return Type::Unknown;
+        }
+
+        // Fallback: type doesn't support member access
+        self.diagnostics.push(
+            Diagnostic::error(
+                format!(
+                    "cannot access `.{field}` on type `{}`",
+                    obj_ty.display_name()
+                ),
+                span,
+            )
+            .with_label("this type does not support member access")
+            .with_code("E017"),
+        );
         Type::Unknown
     }
 
