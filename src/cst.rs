@@ -2691,6 +2691,17 @@ mod tests {
     }
 
     #[test]
+    fn type_string_literal_union_rejected_in_braces() {
+        // String literal unions are only valid in = type aliases (TS interop).
+        // They must not be accepted inside { } type definitions.
+        let parse = cst_parse(r#"type Method { | "GET" | "POST" }"#);
+        assert!(
+            !parse.errors.is_empty(),
+            "string literal union in {{ }} should produce parse errors"
+        );
+    }
+
+    #[test]
     fn type_alias() {
         assert_no_errors("type Name = string");
     }
