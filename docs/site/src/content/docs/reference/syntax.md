@@ -77,7 +77,7 @@ type Name = string
 type UserId { string }
 
 // Opaque
-opaque type Email = string
+opaque type Email { string }
 
 // Deriving traits
 type Point {
@@ -246,9 +246,9 @@ Dot shorthand for field access:
 ### Function Types
 
 ```floe
-() => ()                    // takes nothing, returns nothing
-(string) => number          // takes string, returns number
-(number, number) => boolean    // takes two numbers, returns boolean
+() -> ()                    // takes nothing, returns nothing
+(string) -> number          // takes string, returns number
+(number, number) -> boolean    // takes two numbers, returns boolean
 ```
 
 ### JSX

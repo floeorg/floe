@@ -23,12 +23,12 @@ All array functions return new arrays. They never mutate the original.
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `Array.sort` | `Array<number> -> Array<number>` | Sort numerically (returns new array) |
-| `Array.sortBy` | `Array<T>, (T) => number -> Array<T>` | Sort by key function |
-| `Array.map` | `Array<T>, (T) => U -> Array<U>` | Transform each element |
-| `Array.filter` | `Array<T>, (T) => boolean -> Array<T>` | Keep elements matching predicate |
-| `Array.find` | `Array<T>, (T) => boolean -> Option<T>` | First element matching predicate |
-| `Array.findIndex` | `Array<T>, (T) => boolean -> Option<number>` | Index of first match |
-| `Array.flatMap` | `Array<T>, (T) => Array<U> -> Array<U>` | Map then flatten one level |
+| `Array.sortBy` | `Array<T>, (T) -> number -> Array<T>` | Sort by key function |
+| `Array.map` | `Array<T>, (T) -> U -> Array<U>` | Transform each element |
+| `Array.filter` | `Array<T>, (T) -> boolean -> Array<T>` | Keep elements matching predicate |
+| `Array.find` | `Array<T>, (T) -> boolean -> Option<T>` | First element matching predicate |
+| `Array.findIndex` | `Array<T>, (T) -> boolean -> Option<number>` | Index of first match |
+| `Array.flatMap` | `Array<T>, (T) -> Array<U> -> Array<U>` | Map then flatten one level |
 | `Array.at` | `Array<T>, number -> Option<T>` | Safe index access |
 | `Array.contains` | `Array<T>, T -> boolean` | Check if element exists (structural equality) |
 | `Array.head` | `Array<T> -> Option<T>` | First element |
@@ -36,16 +36,16 @@ All array functions return new arrays. They never mutate the original.
 | `Array.take` | `Array<T>, number -> Array<T>` | First n elements |
 | `Array.drop` | `Array<T>, number -> Array<T>` | All except first n elements |
 | `Array.reverse` | `Array<T> -> Array<T>` | Reverse order (returns new array) |
-| `Array.reduce` | `Array<T>, U, (U, T) => U -> U` | Fold into a single value |
+| `Array.reduce` | `Array<T>, U, (U, T) -> U -> U` | Fold into a single value |
 | `Array.length` | `Array<T> -> number` | Number of elements |
-| `Array.any` | `Array<T>, (T) => boolean -> boolean` | True if any element matches predicate |
-| `Array.all` | `Array<T>, (T) => boolean -> boolean` | True if all elements match predicate |
+| `Array.any` | `Array<T>, (T) -> boolean -> boolean` | True if any element matches predicate |
+| `Array.all` | `Array<T>, (T) -> boolean -> boolean` | True if all elements match predicate |
 | `Array.sum` | `Array<number> -> number` | Sum all elements |
 | `Array.join` | `Array<string>, string -> string` | Join elements with separator |
 | `Array.isEmpty` | `Array<T> -> boolean` | True if array has no elements |
 | `Array.chunk` | `Array<T>, number -> Array<Array<T>>` | Split into chunks of given size |
 | `Array.unique` | `Array<T> -> Array<T>` | Remove duplicate elements |
-| `Array.groupBy` | `Array<T>, (T) => string -> Record` | Group elements by key function |
+| `Array.groupBy` | `Array<T>, (T) -> string -> Record` | Group elements by key function |
 | `Array.zip` | `Array<T>, Array<U> -> Array<[T, U]>` | Pair elements from two arrays |
 
 ### Examples
@@ -94,8 +94,8 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Option.map` | `Option<T>, (T) => U -> Option<U>` | Transform the inner value if present |
-| `Option.flatMap` | `Option<T>, (T) => Option<U> -> Option<U>` | Chain option-returning operations |
+| `Option.map` | `Option<T>, (T) -> U -> Option<U>` | Transform the inner value if present |
+| `Option.flatMap` | `Option<T>, (T) -> Option<U> -> Option<U>` | Chain option-returning operations |
 | `Option.unwrapOr` | `Option<T>, T -> T` | Extract value or use default |
 | `Option.isSome` | `Option<T> -> boolean` | Check if value is present |
 | `Option.isNone` | `Option<T> -> boolean` | Check if value is absent |
@@ -130,9 +130,9 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Result.map` | `Result<T, E>, (T) => U -> Result<U, E>` | Transform the Ok value |
-| `Result.mapErr` | `Result<T, E>, (E) => F -> Result<T, F>` | Transform the Err value |
-| `Result.flatMap` | `Result<T, E>, (T) => Result<U, E> -> Result<U, E>` | Chain result-returning operations |
+| `Result.map` | `Result<T, E>, (T) -> U -> Result<U, E>` | Transform the Ok value |
+| `Result.mapErr` | `Result<T, E>, (E) -> F -> Result<T, F>` | Transform the Err value |
+| `Result.flatMap` | `Result<T, E>, (T) -> Result<U, E> -> Result<U, E>` | Chain result-returning operations |
 | `Result.unwrapOr` | `Result<T, E>, T -> T` | Extract Ok value or use default |
 | `Result.isOk` | `Result<T, E> -> boolean` | Check if result is Ok |
 | `Result.isErr` | `Result<T, E> -> boolean` | Check if result is Err |
@@ -284,7 +284,7 @@ Standard math functions. Compile directly to JavaScript `Math` methods.
 | `Math.sin` | `number -> number` | Sine |
 | `Math.cos` | `number -> number` | Cosine |
 | `Math.tan` | `number -> number` | Tangent |
-| `Math.random` | `() => number` | Random number between 0 (inclusive) and 1 (exclusive) |
+| `Math.random` | `() -> number` | Random number between 0 (inclusive) and 1 (exclusive) |
 
 ### Examples
 
@@ -503,7 +503,7 @@ Utility functions for pipeline debugging and control flow.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `tap` | `T, (T) => () -> T` | Call a function for side effects, return value unchanged |
+| `tap` | `T, (T) -> () -> T` | Call a function for side effects, return value unchanged |
 
 ### Examples
 

@@ -53,7 +53,7 @@ type BaseProps {
 
 type ButtonProps {
   ...BaseProps,
-  onClick: () => (),
+  onClick: () -> (),
   label: string,
 }
 ```
@@ -150,7 +150,7 @@ type PostId { string }
 Types where internals are hidden from other modules:
 
 ```floe
-opaque type Email = string
+opaque type Email { string }
 ```
 
 Only code in the module that defines `Email` can construct or destructure it. Other modules see it as an opaque blob.
@@ -168,7 +168,7 @@ Result<User, Error>
 Option<string>
 
 // Function
-(number, number) => number
+(number, number) -> number
 
 // Record (inline)
 { name: string, age: number }

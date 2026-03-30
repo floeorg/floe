@@ -26,7 +26,7 @@ A React developer should read Floe and understand it in 30 minutes. We keep fami
 
 ```
 (x) => arrow closures         (a) => a + 1
-->    match arms              Ok(x) -> x
+->    match arms, fn types    Ok(x) -> x, (T) -> U
 |>    pipe data through       data |> transform
 ?     unwrap Result/Option    fetchUser(id)?
 .x    dot shorthand           .name (implicit closure for field access)
@@ -66,7 +66,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `unreachable` | assert unreachable, type `never` | `(() => { throw new Error("unreachable"); })()` |
 | `?` operator | `fetchUser(id)?` | early return on Err/None |
 | Newtypes | `type UserId { string }` | `string` at runtime (single-variant wrapper) |
-| Opaque types | `opaque type HashedPw = string` | `string`, but only the defining module can create/read |
+| Opaque types | `opaque type HashedPw { string }` | `string`, but only the defining module can create/read |
 | Tagged unions | `type Route { \| Home \| Profile { id: string } }` | discriminated union |
 | String literal unions | `type Method = "GET" \| "POST" \| "PUT"` | `"GET" \| "POST" \| "PUT"` (pass-through for npm interop) |
 | Nested unions | `type ApiError { \| Network { NetworkError } \| NotFound }` | nested discriminated union (compiler generates tags) |
@@ -116,7 +116,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `x?: T` | Optional fields | `x: Option<T>` |
 | `+` on strings | Silent coercion bugs | Template literals only (warning) |
 | `void` | Not a real type, can't use in generics | Unit type `()` — a real value |
-| `=>` in expressions | Two syntaxes for functions is one too many | `fn(x) expr` for anonymous functions; `=>` is reserved for function types like `(T) => U` |
+| `=>` in expressions | Two syntaxes for functions is one too many | `fn(x) expr` for anonymous functions; `->` is used for function types like `(T) -> U` |
 | `function` | Verbose keyword | `fn` |
 | `if`/`else` | Redundant control flow | `match` expression |
 | `return` | Implicit returns — last expression is the value | Omit `return`; the last expression in a block is the return value |
@@ -453,7 +453,7 @@ type BaseProps {
 
 type ButtonProps {
   ...BaseProps,
-  onClick: () => (),
+  onClick: () -> (),
   label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -613,7 +613,7 @@ sendEmail(id, "hello")  // COMPILE ERROR: UserId is not Email
 
 ```floe
 // auth/password.fl
-opaque type HashedPassword = string
+opaque type HashedPassword { string }
 
 export fn hash(raw: string): HashedPassword {
   bcrypt(raw)  // only this module can create one
@@ -772,7 +772,7 @@ fetchUsers(limit: 50, sort: Descending)          // override two
 // On React component props
 type ButtonProps {
   label: string                      // required
-  onClick: () => ()                  // required
+  onClick: () -> ()                  // required
   variant: Variant = Primary         // default
   size: Size = Medium                // default
   disabled: boolean = false             // default
@@ -1256,8 +1256,8 @@ Key tokens beyond standard TypeScript:
 | Token | Lexeme |
 |-------|--------|
 | `Pipe` | `\|>` |
-| `Arrow` | `->` (match arms, return types) |
-| `FatArrow` | `=>` (function types) |
+| `Arrow` | `->` (match arms, return types, function types) |
+| `FatArrow` | `=>` (closures) |
 | `Question` | `?` (postfix, Result/Option unwrap) |
 | `Underscore` | `_` (placeholder/partial application) |
 | `PipePipe` | `\|\|` (boolean OR) |
@@ -1291,7 +1291,7 @@ Banned tokens (immediate compile errors with helpful messages):
 - `enum` → "Use type with | variants"
 - `void` → "Use the unit type () instead"
 - `function` → "Use fn instead"
-- `=>` after `fn(x)` → "Use fn(x) for closures — the => is only for function types like (T) => U"
+- `=>` after `fn(x)` → "Use fn(x) for closures — function types use -> like (T) -> U"
 
 ### Parser (`floe_parser`)
 
@@ -1537,7 +1537,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `Array.groupBy(arr, fn)` | `Object.groupBy(arr, fn)` |
 | `Number.parse("123")` | strict parse returning `Result` |
 | `type UserId { string }` | `string` (newtype erased) |
-| `opaque type X = T` | `T` (erased, access controlled at compile time) |
+| `opaque type X { T }` | `T` (erased, access controlled at compile time) |
 | `for User { fn display(self) -> string { ... } }` | `function display(self: User): string { ... }` |
 | `trait Display { fn display(self) -> string }` | *(erased — no output)* |
 | `for User: Display { fn display(self) -> string { ... } }` | `function display(self: User): string { ... }` (same as plain for block) |
@@ -1754,7 +1754,7 @@ fn deleteUser(id: UserId) -> Result<(), ApiError> {
 
 // Callbacks
 type ButtonProps {
-  onClick: () => ()
+  onClick: () -> ()
 }
 ```
 
@@ -1833,8 +1833,7 @@ const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
 |----------|----------|-----------|
 | Syntax style | TS keywords + Gleam match/pipe | Familiar to React devs, 30min learning curve |
 | Function style | `fn` for named, `(x) => expr` for inline closures, `.field` for shorthand | One keyword, two closure forms, no overlap |
-| Arrow `->` | Match arms, return types | "Maps to" for control flow and declarations |
-| Fat arrow `=>` | Function types | `(T) => U` mirrors TypeScript's function type syntax |
+| Arrow `->` | Match arms, return types, function types | `(T) -> U` for function types, `match x { A -> ... }` for match arms, `fn f() -> T` for return types |
 | `const name = (x) => ...` | Compile error | If it has a name, use `fn`. No two ways to name a function. |
 | Dot shorthand | `.field` in callback position creates implicit closure | Covers 80% of inline callbacks (filter, map, sort) |
 | Qualified variants | `Type.Variant` when ambiguous, bare when unambiguous | Compiler errors on ambiguous bare variants with helpful suggestion |

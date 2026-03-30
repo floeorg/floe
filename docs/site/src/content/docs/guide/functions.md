@@ -65,7 +65,7 @@ fn identity<T>(x: T) -> T { x }
 
 fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }
 
-fn mapResult<T, U, E>(r: Result<T, E>, f: (T) => U) -> Result<U, E> {
+fn mapResult<T, U, E>(r: Result<T, E>, f: (T) -> U) -> Result<U, E> {
     match r {
         Ok(value) -> Ok(f(value)),
         Err(e) -> Err(e),
@@ -118,12 +118,12 @@ fn double(x: number) -> number { x * 2 }
 
 ### Function Types
 
-Use `=>` to describe function types:
+Use `->` to describe function types:
 
 ```floe
-type Transform = (string) => number
-type Predicate = (Todo) => boolean
-type Callback = () => ()
+type Transform = (string) -> number
+type Predicate = (Todo) -> boolean
+type Callback = () -> ()
 ```
 
 ### Async Functions
@@ -170,7 +170,7 @@ Console.log("done")
 - **No `class`** - use functions and records
 - **No `this`** - functions are pure by default
 - **No `function*` generators** - use arrays and pipes
-- **No `=>` in expressions** - use `fn(x)` for closures; `=>` is only for function types like `(T) => U`
+- **No `=>` in expressions** - use `fn(x)` for closures; `->` is used for function types like `(T) -> U`
 - **No `function` keyword** - use `fn` for named functions
 
 These are removed intentionally. See the [comparison](/guide/comparison) for the reasoning.

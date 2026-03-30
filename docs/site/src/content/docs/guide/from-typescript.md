@@ -41,7 +41,7 @@ const result = items |> Array.filter(.active)
 onClick={() => setCount(count + 1)}
 ```
 
-### `->` for return types, `=>` for function types
+### `->` for return types and function types
 
 ```typescript
 // TypeScript
@@ -50,7 +50,7 @@ type Transform = (s: string) => number
 
 // Floe
 fn add(a: number, b: number) -> number { ... }
-type Transform = (string) => number
+type Transform = (string) -> number
 ```
 
 ### `const` only

@@ -44,7 +44,7 @@ type BaseProps {
 
 type ButtonProps {
   ...BaseProps,
-  onClick: () => (),
+  onClick: () -> (),
   label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -274,7 +274,7 @@ type PostId { string }
 Types where only the defining module can see the internal structure:
 
 ```floe
-opaque type Email = string
+opaque type Email { string }
 
 // Only this module can construct/destructure Email values
 ```
@@ -309,7 +309,7 @@ Tuples compile to TypeScript readonly tuples: `(number, string)` becomes `readon
 
 ```floe
 type Name = string
-type Callback = (Event) => ()
+type Callback = (Event) -> ()
 ```
 
 ## Differences from TypeScript

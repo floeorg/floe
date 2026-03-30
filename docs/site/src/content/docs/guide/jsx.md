@@ -26,7 +26,7 @@ Components are exported `fn` declarations with a `JSX.Element` return type. The 
 ```floe
 type ButtonProps {
   label: string,
-  onClick: () => (),
+  onClick: () -> (),
   disabled: boolean,
 }
 
