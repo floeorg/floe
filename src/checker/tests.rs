@@ -899,20 +899,24 @@ fn foo() -> string { "hi" }
 }
 
 #[test]
-fn shadow_not_allowed_in_inner_scope() {
-    // No shadowing ever — even function params can't shadow outer names
+fn shadow_allowed_in_inner_scope() {
+    // Function params can shadow outer names (like Rust/Gleam)
     let diags = check(
         r#"
 const x = 5
 fn double(x: number) -> number { x * 2 }
 "#,
     );
-    assert!(has_error_containing(&diags, "already defined"));
+    assert!(
+        !has_error_containing(&diags, "already defined"),
+        "inner-scope shadowing should be allowed, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }
 
 #[test]
 fn shadow_inner_scope_const_shadows_for_block_fn() {
-    // A const INSIDE a function body shadowing a for-block function should error
+    // A const INSIDE a function body can shadow a for-block function
     let diags = check(
         r#"
 type Todo { text: string, done: boolean }
@@ -926,15 +930,15 @@ fn test() -> number {
 "#,
     );
     assert!(
-        has_error_containing(&diags, "already defined"),
-        "inner-scope const should not shadow for-block fn, got: {:?}",
+        !has_error_containing(&diags, "already defined"),
+        "inner-scope shadowing of for-block fn should be allowed, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
 fn shadow_inner_scope_const_shadows_outer_const() {
-    // A const inside a function body shadowing an outer const should error
+    // A const inside a function body can shadow an outer const
     let diags = check(
         r#"
 const x = 5
@@ -945,15 +949,15 @@ fn test() -> number {
 "#,
     );
     assert!(
-        has_error_containing(&diags, "already defined"),
-        "inner-scope const should not shadow outer const, got: {:?}",
+        !has_error_containing(&diags, "already defined"),
+        "inner-scope shadowing of outer const should be allowed, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn for_block_pipe_then_shadow_errors() {
-    // Real-world case: piping into for-block fn then shadowing its name
+fn shadow_for_block_pipe_then_shadow_allowed() {
+    // Real-world case: piping into for-block fn then shadowing its name in inner scope
     let diags = check(
         r#"
 type Todo { text: string, done: boolean }
@@ -968,16 +972,16 @@ fn test() -> number {
 "#,
     );
     assert!(
-        has_error_containing(&diags, "already defined"),
-        "should error on shadowing for-block fn, got: {:?}",
+        !has_error_containing(&diags, "already defined"),
+        "inner-scope shadowing of for-block fn should be allowed, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
-// ── Bug #192: Shadowing error context ───────────────────────
+// ── Same-scope redefinition error messages ──────────────────
 
 #[test]
-fn shadow_error_includes_source_const() {
+fn same_scope_redefinition_const() {
     let diags = check(
         r#"
 const x = 5
@@ -985,14 +989,14 @@ const x = 10
 "#,
     );
     assert!(
-        has_error_containing(&diags, "already defined (const)"),
-        "shadow error should mention source 'const', got: {:?}",
+        has_error_containing(&diags, "already defined in this scope"),
+        "same-scope const redefinition should error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn shadow_error_includes_source_function() {
+fn same_scope_redefinition_function_then_const() {
     let diags = check(
         r#"
 fn double(x: number) -> number { x * 2 }
@@ -1000,14 +1004,14 @@ const double = 42
 "#,
     );
     assert!(
-        has_error_containing(&diags, "already defined (function)"),
-        "shadow error should mention source 'function', got: {:?}",
+        has_error_containing(&diags, "already defined in this scope"),
+        "same-scope fn then const redefinition should error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn shadow_error_includes_source_for_block() {
+fn same_scope_redefinition_for_block_then_const() {
     let diags = check(
         r#"
 type Todo { text: string, done: boolean }
@@ -1018,8 +1022,8 @@ const remaining = 5
 "#,
     );
     assert!(
-        has_error_containing(&diags, "already defined (for-block function)"),
-        "shadow error should mention source 'for-block function', got: {:?}",
+        has_error_containing(&diags, "already defined in this scope"),
+        "same-scope for-block fn then const redefinition should error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
