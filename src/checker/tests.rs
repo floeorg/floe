@@ -4119,3 +4119,29 @@ const x = pair[i]
         "tuple index must be a numeric literal"
     ));
 }
+
+// ── Qualified for-block pipe ────────────────────────────────────
+
+#[test]
+fn pipe_qualified_for_block_resolves_return_type() {
+    let diags = check(
+        r#"
+type Out { value: number }
+type In { x: number }
+
+for In {
+    fn convert(self) -> Out {
+        Out(value: self.x)
+    }
+}
+
+const input = In(x: 42)
+const _result: Out = input |> In.convert
+"#,
+    );
+    assert!(
+        !has_error(&diags, "E017"),
+        "should not error on qualified for-block pipe"
+    );
+    assert!(!has_error(&diags, "E001"), "return type should match Out");
+}
