@@ -856,7 +856,10 @@ impl LanguageServer for FloeLsp {
             return Ok(None);
         };
 
-        let formatted = crate::formatter::format(&doc.content);
+        let Some(formatted) = crate::formatter::format(&doc.content) else {
+            // Skip formatting if file has parse errors
+            return Ok(None);
+        };
 
         if formatted == doc.content {
             return Ok(None);

@@ -8,14 +8,17 @@ use crate::cst::CstParser;
 use crate::lexer::Lexer;
 use crate::syntax::{SyntaxKind, SyntaxNode};
 
-/// Format Floe source code.
-pub fn format(source: &str) -> String {
+/// Format Floe source code. Returns `None` if the file has parse errors.
+pub fn format(source: &str) -> Option<String> {
     let tokens = Lexer::new(source).tokenize_with_trivia();
     let parse = CstParser::new(source, tokens).parse();
+    if !parse.errors.is_empty() {
+        return None;
+    }
     let root = parse.syntax();
     let mut formatter = Formatter::new(source);
     formatter.fmt_node(&root);
-    formatter.finish()
+    Some(formatter.finish())
 }
 
 pub(crate) enum JsxChildInfo {

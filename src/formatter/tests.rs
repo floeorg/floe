@@ -1,7 +1,7 @@
 use super::format;
 
 fn assert_fmt(input: &str, expected: &str) {
-    let result = format(input);
+    let result = format(input).expect("format should succeed (no parse errors)");
     assert_eq!(
         result.trim(),
         expected.trim(),
@@ -345,8 +345,8 @@ fn format_preserves_block_comment_in_block() {
 // ── Idempotency ────────────────────────────────────────
 
 fn assert_idempotent(input: &str) {
-    let first = format(input);
-    let second = format(&first);
+    let first = format(input).expect("first format should succeed");
+    let second = format(&first).expect("second format should succeed");
     assert_eq!(
         first, second,
         "\nFormatter is not idempotent!\n--- 1st ---\n{first}\n--- 2nd ---\n{second}"
