@@ -18,14 +18,14 @@ function __floeEq(a: unknown, b: unknown): boolean {
 
 type User = { name: string; age: number };
 
-function display(self: User): string {
+function User__display(self: User): string {
   return `${self.name} (${self.age})`;
 }
 
-function eq(self: User, other: string): boolean {
+function User__eq(self: User, other: string): boolean {
   return __floeEq(self.name, other);
 }
 
-function greet(self: User, greeting: string): string {
+function User__greet(self: User, greeting: string): string {
   return `${greeting}, ${self.name}!`;
 }
