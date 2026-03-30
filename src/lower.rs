@@ -1,6 +1,8 @@
 mod expr;
+mod items;
 mod jsx;
 mod pattern;
+mod types;
 
 use crate::lexer::span::Span;
 use crate::parser::ParseError;
@@ -91,947 +93,11 @@ impl<'src> Lowerer<'src> {
         Program { items, span }
     }
 
-    fn lower_item(&mut self, node: &SyntaxNode) -> Option<Item> {
-        let span = self.node_span(node);
-
-        // Find the declaration node inside ITEM
-        for child in node.children() {
-            match child.kind() {
-                SyntaxKind::IMPORT_DECL => {
-                    let decl = self.lower_import(&child)?;
-                    return Some(Item {
-                        kind: ItemKind::Import(decl),
-                        span,
-                    });
-                }
-                SyntaxKind::CONST_DECL => {
-                    let decl = self.lower_const(&child, node)?;
-                    return Some(Item {
-                        kind: ItemKind::Const(decl),
-                        span,
-                    });
-                }
-                SyntaxKind::FUNCTION_DECL => {
-                    let decl = self.lower_function(&child, node)?;
-                    return Some(Item {
-                        kind: ItemKind::Function(decl),
-                        span,
-                    });
-                }
-                SyntaxKind::TYPE_DECL => {
-                    let decl = self.lower_type_decl(&child, node)?;
-                    return Some(Item {
-                        kind: ItemKind::TypeDecl(decl),
-                        span,
-                    });
-                }
-                SyntaxKind::FOR_BLOCK => {
-                    let exported = self.has_keyword(node, SyntaxKind::KW_EXPORT);
-                    let block = self.lower_for_block(&child, exported)?;
-                    return Some(Item {
-                        kind: ItemKind::ForBlock(block),
-                        span,
-                    });
-                }
-                SyntaxKind::TRAIT_DECL => {
-                    let decl = self.lower_trait_decl(&child, node)?;
-                    return Some(Item {
-                        kind: ItemKind::TraitDecl(decl),
-                        span,
-                    });
-                }
-                SyntaxKind::TEST_BLOCK => {
-                    let block = self.lower_test_block(&child)?;
-                    return Some(Item {
-                        kind: ItemKind::TestBlock(block),
-                        span,
-                    });
-                }
-                _ => {}
-            }
-        }
-
-        // Could be an expression item directly in ITEM
-        if let Some(expr) = self.lower_first_expr(node) {
-            return Some(Item {
-                kind: ItemKind::Expr(expr),
-                span,
-            });
-        }
-
-        None
-    }
-
-    fn lower_import(&mut self, node: &SyntaxNode) -> Option<ImportDecl> {
-        let mut specifiers = Vec::new();
-        let mut for_specifiers = Vec::new();
-        let mut source = String::new();
-
-        for child in node.children() {
-            if child.kind() == SyntaxKind::IMPORT_SPECIFIER
-                && let Some(spec) = self.lower_import_specifier(&child)
-            {
-                specifiers.push(spec);
-            } else if child.kind() == SyntaxKind::IMPORT_FOR_SPECIFIER
-                && let Some(spec) = self.lower_import_for_specifier(&child)
-            {
-                for_specifiers.push(spec);
-            }
-        }
-
-        // Find the string token for the source
-        for token in node.children_with_tokens() {
-            if let Some(token) = token.as_token()
-                && token.kind() == SyntaxKind::STRING
-            {
-                source = self.unquote_string(token.text());
-            }
-        }
-
-        // Check for module-level `trusted` keyword (an IDENT "trusted" directly in IMPORT_DECL)
-        let module_trusted = node.children_with_tokens().any(|child| {
-            child
-                .as_token()
-                .is_some_and(|t| t.kind() == SyntaxKind::IDENT && t.text() == "trusted")
-        });
-
-        Some(ImportDecl {
-            trusted: module_trusted,
-            specifiers,
-            for_specifiers,
-            source,
-        })
-    }
-
-    fn lower_import_for_specifier(&mut self, node: &SyntaxNode) -> Option<ForImportSpecifier> {
-        let span = self.node_span(node);
-        let idents = self.collect_idents(node);
-        let type_name = idents.first()?.clone();
-
-        Some(ForImportSpecifier { type_name, span })
-    }
-
-    fn lower_import_specifier(&mut self, node: &SyntaxNode) -> Option<ImportSpecifier> {
-        let span = self.node_span(node);
-        let idents = self.collect_idents(node);
-
-        // Check for per-specifier `trusted` — appears as first IDENT "trusted"
-        let per_trusted = idents.first().is_some_and(|name| name == "trusted") && idents.len() >= 2;
-
-        let (name, alias) = if per_trusted {
-            // "trusted", "name" [, "alias"]
-            (idents[1].clone(), idents.get(2).cloned())
-        } else {
-            (idents.first()?.clone(), idents.get(1).cloned())
-        };
-
-        Some(ImportSpecifier {
-            name,
-            alias,
-            trusted: per_trusted,
-            span,
-        })
-    }
-
-    fn lower_const(&mut self, node: &SyntaxNode, item_node: &SyntaxNode) -> Option<ConstDecl> {
-        let exported = self.has_keyword(item_node, SyntaxKind::KW_EXPORT);
-
-        let mut binding = None;
-        let mut type_ann = None;
-
-        // Collect idents only before `=` to avoid capturing value-side idents
-        let idents = self.collect_idents_before_eq(node);
-        let has_lbracket = self.has_token_before_eq(node, SyntaxKind::L_BRACKET);
-        let has_lbrace = self.has_token_before_eq(node, SyntaxKind::L_BRACE);
-        let has_lparen = self.has_token_before_eq(node, SyntaxKind::L_PAREN);
-
-        if has_lbracket {
-            binding = Some(ConstBinding::Array(idents));
-        } else if has_lparen
-            && idents.len() >= 2
-            && !node.children().any(|c| c.kind() == SyntaxKind::TYPE_EXPR)
-        {
-            // Tuple destructuring: const (a, b) = ...
-            binding = Some(ConstBinding::Tuple(idents));
-        } else if has_lbrace && !node.children().any(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
-            // Object destructuring — but only if { } is NOT a type expr's record
-            // We need to check if the braces are for destructuring vs type annotation
-            let fields = self.collect_object_destructure_fields(node, true);
-            binding = Some(ConstBinding::Object(fields));
-        } else if let Some(name) = idents.first() {
-            binding = Some(ConstBinding::Name(name.clone()));
-        }
-
-        // Type annotation
-        for child in node.children() {
-            if child.kind() == SyntaxKind::TYPE_EXPR {
-                type_ann = self.lower_type_expr(&child);
-                break;
-            }
-        }
-
-        // Value expression — find the expression after `=`
-        let value = self.lower_expr_after_eq(node);
-
-        Some(ConstDecl {
-            exported,
-            binding: binding?,
-            type_ann,
-            value: value?,
-        })
-    }
-
-    fn lower_function(
-        &mut self,
-        node: &SyntaxNode,
-        item_node: &SyntaxNode,
-    ) -> Option<FunctionDecl> {
-        let exported = self.has_keyword(item_node, SyntaxKind::KW_EXPORT);
-        let async_fn = self.has_keyword(node, SyntaxKind::KW_ASYNC);
-
-        let idents = self.collect_idents_direct(node);
-        let name = idents.first()?.clone();
-
-        // Collect type parameters: idents between < and >
-        let type_params = self.collect_type_params(node);
-
-        // Detect `fn name = expr` (derived binding) vs `fn name(params) { body }`
-        let is_binding = self.has_token(node, SyntaxKind::EQUAL);
-
-        let mut params = Vec::new();
-        let mut return_type = None;
-        let mut body = None;
-
-        for child in node.children() {
-            match child.kind() {
-                SyntaxKind::PARAM if !is_binding => {
-                    if let Some(param) = self.lower_param(&child) {
-                        params.push(param);
-                    }
-                }
-                SyntaxKind::TYPE_EXPR if !is_binding => {
-                    if return_type.is_none() {
-                        return_type = self.lower_type_expr(&child);
-                    }
-                }
-                SyntaxKind::BLOCK_EXPR if !is_binding => {
-                    body = self.lower_expr_node(&child);
-                }
-                _ if is_binding && body.is_none() => {
-                    // For `fn name = expr`, the body is the expression after `=`
-                    body = self.lower_expr_node(&child);
-                }
-                _ => {}
-            }
-        }
-
-        // For binding form, also try token expressions (e.g. identifiers)
-        if is_binding && body.is_none() {
-            body = self.lower_token_expr_after_eq(node);
-        }
-
-        Some(FunctionDecl {
-            exported,
-            async_fn,
-            name,
-            type_params,
-            params,
-            return_type,
-            body: Box::new(body?),
-        })
-    }
-
-    fn lower_param(&mut self, node: &SyntaxNode) -> Option<Param> {
-        let span = self.node_span(node);
-        let idents = self.collect_idents(node);
-        let has_lbrace = self.has_token(node, SyntaxKind::L_BRACE);
-
-        let has_lparen = self.has_token(node, SyntaxKind::L_PAREN);
-
-        let (name, destructure) = if has_lbrace {
-            // Destructured param: { name, age } or { name: n, age: a }
-            let fields = self.collect_object_destructure_fields(node, false);
-            let synthetic_name = format!(
-                "_{}",
-                fields
-                    .iter()
-                    .map(|f| f.bound_name())
-                    .collect::<Vec<_>>()
-                    .join("_")
-            );
-            (synthetic_name, Some(ParamDestructure::Object(fields)))
-        } else if has_lparen {
-            // Tuple destructured param: (a, b)
-            let fields: Vec<String> = idents.clone();
-            let synthetic_name = format!("_{}", fields.join("_"));
-            (synthetic_name, Some(ParamDestructure::Array(fields)))
-        } else {
-            (idents.first()?.clone(), None)
-        };
-
-        let mut type_ann = None;
-
-        for child in node.children() {
-            if child.kind() == SyntaxKind::TYPE_EXPR && type_ann.is_none() {
-                type_ann = self.lower_type_expr(&child);
-            }
-        }
-
-        // Default value: find expression after `=`
-        let default = self.lower_expr_after_eq(node);
-
-        Some(Param {
-            name,
-            type_ann,
-            default,
-            destructure,
-            span,
-        })
-    }
-
-    fn lower_type_decl(&mut self, node: &SyntaxNode, item_node: &SyntaxNode) -> Option<TypeDecl> {
-        let exported = self.has_keyword(item_node, SyntaxKind::KW_EXPORT);
-        let opaque = self.has_keyword(node, SyntaxKind::KW_OPAQUE);
-
-        // Collect idents: first is name, rest are type params
-        let idents = self.collect_idents_direct(node);
-        let name = idents.first()?.clone();
-        let type_params = idents[1..].to_vec();
-
-        let mut def = None;
-        let mut deriving = Vec::new();
-        for child in node.children() {
-            match child.kind() {
-                SyntaxKind::TYPE_DEF_RECORD => {
-                    def = Some(self.lower_type_def_record(&child));
-                }
-                SyntaxKind::TYPE_DEF_UNION => {
-                    def = Some(self.lower_type_def_union(&child));
-                }
-                SyntaxKind::TYPE_DEF_ALIAS => {
-                    def = Some(self.lower_type_def_alias(&child)?);
-                }
-                SyntaxKind::TYPE_DEF_STRING_UNION => {
-                    def = Some(self.lower_type_def_string_literal_union(&child));
-                }
-                SyntaxKind::DERIVING_CLAUSE => {
-                    deriving = self.collect_idents_direct(&child);
-                }
-                _ => {}
-            }
-        }
-
-        Some(TypeDecl {
-            exported,
-            opaque,
-            name,
-            type_params,
-            def: def?,
-            deriving,
-        })
-    }
-
-    fn lower_for_block(&mut self, node: &SyntaxNode, item_exported: bool) -> Option<ForBlock> {
-        let span = self.node_span(node);
-
-        // Find the type expression (first TYPE_EXPR child)
-        let mut type_name = None;
-        let mut trait_name = None;
-        let mut functions = Vec::new();
-
-        // Collect idents that appear after a colon (trait name)
-        let mut saw_colon = false;
-        let mut next_exported = false;
-        for child_or_token in node.children_with_tokens() {
-            match child_or_token {
-                rowan::NodeOrToken::Token(token) => {
-                    if token.kind() == SyntaxKind::KW_EXPORT {
-                        next_exported = true;
-                    } else if token.kind() == SyntaxKind::COLON {
-                        saw_colon = true;
-                    } else if saw_colon && token.kind() == SyntaxKind::IDENT {
-                        trait_name = Some(token.text().to_string());
-                        saw_colon = false;
-                    }
-                }
-                rowan::NodeOrToken::Node(child) => match child.kind() {
-                    SyntaxKind::TYPE_EXPR if type_name.is_none() => {
-                        type_name = self.lower_type_expr(&child);
-                    }
-                    SyntaxKind::FUNCTION_DECL => {
-                        if let Some(mut decl) = self.lower_for_block_function(&child) {
-                            decl.exported = next_exported || item_exported;
-                            functions.push(decl);
-                        }
-                        next_exported = false;
-                    }
-                    _ => {}
-                },
-            }
-        }
-
-        Some(ForBlock {
-            type_name: type_name?,
-            trait_name,
-            functions,
-            span,
-        })
-    }
-
-    fn lower_trait_decl(&mut self, node: &SyntaxNode, item_node: &SyntaxNode) -> Option<TraitDecl> {
-        let exported = self.has_keyword(item_node, SyntaxKind::KW_EXPORT);
-        let span = self.node_span(node);
-
-        let idents = self.collect_idents_direct(node);
-        let name = idents.first()?.clone();
-
-        let mut methods = Vec::new();
-        for child in node.children() {
-            if child.kind() == SyntaxKind::FUNCTION_DECL
-                && let Some(method) = self.lower_trait_method(&child)
-            {
-                methods.push(method);
-            }
-        }
-
-        Some(TraitDecl {
-            exported,
-            name,
-            methods,
-            span,
-        })
-    }
-
-    fn lower_trait_method(&mut self, node: &SyntaxNode) -> Option<TraitMethod> {
-        let span = self.node_span(node);
-
-        let idents = self.collect_idents_direct(node);
-        let name = idents.first()?.clone();
-
-        let mut params = Vec::new();
-        let mut return_type = None;
-        let mut body = None;
-
-        for child in node.children() {
-            match child.kind() {
-                SyntaxKind::PARAM => {
-                    if let Some(param) = self.lower_for_block_param(&child) {
-                        params.push(param);
-                    }
-                }
-                SyntaxKind::TYPE_EXPR => {
-                    if return_type.is_none() {
-                        return_type = self.lower_type_expr(&child);
-                    }
-                }
-                SyntaxKind::BLOCK_EXPR => {
-                    body = self.lower_expr_node(&child);
-                }
-                _ => {}
-            }
-        }
-
-        Some(TraitMethod {
-            name,
-            params,
-            return_type,
-            body,
-            span,
-        })
-    }
-
-    fn lower_for_block_function(&mut self, node: &SyntaxNode) -> Option<FunctionDecl> {
-        let async_fn = self.has_keyword(node, SyntaxKind::KW_ASYNC);
-
-        let idents = self.collect_idents_direct(node);
-        let name = idents.first()?.clone();
-
-        let mut params = Vec::new();
-        let mut return_type = None;
-        let mut body = None;
-
-        for child in node.children() {
-            match child.kind() {
-                SyntaxKind::PARAM => {
-                    if let Some(param) = self.lower_for_block_param(&child) {
-                        params.push(param);
-                    }
-                }
-                SyntaxKind::TYPE_EXPR => {
-                    if return_type.is_none() {
-                        return_type = self.lower_type_expr(&child);
-                    }
-                }
-                SyntaxKind::BLOCK_EXPR => {
-                    body = self.lower_expr_node(&child);
-                }
-                _ => {}
-            }
-        }
-
-        Some(FunctionDecl {
-            exported: false,
-            async_fn,
-            name,
-            type_params: self.collect_type_params(node),
-            params,
-            return_type,
-            body: Box::new(body?),
-        })
-    }
-
-    fn lower_for_block_param(&mut self, node: &SyntaxNode) -> Option<Param> {
-        let span = self.node_span(node);
-
-        // Check if this is a `self` parameter
-        let has_self = self.has_keyword(node, SyntaxKind::KW_SELF);
-        if has_self {
-            return Some(Param {
-                name: "self".to_string(),
-                type_ann: None,
-                default: None,
-                destructure: None,
-                span,
-            });
-        }
-
-        // Regular parameter
-        self.lower_param(node)
-    }
-
-    fn lower_test_block(&mut self, node: &SyntaxNode) -> Option<TestBlock> {
-        let span = self.node_span(node);
-
-        // Find the string token for the test name
-        let mut name = String::new();
-        for token in node.children_with_tokens() {
-            if let Some(token) = token.as_token()
-                && token.kind() == SyntaxKind::STRING
-            {
-                name = self.unquote_string(token.text());
-                break;
-            }
-        }
-
-        // Lower body: assert expressions and regular expressions
-        let mut body = Vec::new();
-        for child in node.children() {
-            match child.kind() {
-                SyntaxKind::ASSERT_EXPR => {
-                    let assert_span = self.node_span(&child);
-                    if let Some(expr) = self.lower_first_expr(&child) {
-                        body.push(TestStatement::Assert(expr, assert_span));
-                    }
-                }
-                _ => {
-                    if let Some(expr) = self.lower_expr_node(&child) {
-                        body.push(TestStatement::Expr(expr));
-                    }
-                }
-            }
-        }
-
-        Some(TestBlock { name, body, span })
-    }
-
-    fn lower_type_def_record(&mut self, node: &SyntaxNode) -> TypeDef {
-        let mut entries = Vec::new();
-        for child in node.children() {
-            match child.kind() {
-                SyntaxKind::RECORD_FIELD => {
-                    if let Some(field) = self.lower_record_field(&child) {
-                        entries.push(RecordEntry::Field(Box::new(field)));
-                    }
-                }
-                SyntaxKind::RECORD_SPREAD => {
-                    let span = self.node_span(&child);
-                    // Lower the type expression inside the spread
-                    let type_expr_node =
-                        child.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR);
-                    let type_expr = type_expr_node
-                        .as_ref()
-                        .and_then(|n| self.lower_type_expr(n));
-                    // Extract the base type name for checker lookups
-                    let type_name = type_expr
-                        .as_ref()
-                        .map(|te| match &te.kind {
-                            TypeExprKind::Named { name, .. } => name.clone(),
-                            TypeExprKind::TypeOf(name) => name.clone(),
-                            _ => String::new(),
-                        })
-                        .or_else(|| self.collect_idents_direct(&child).first().cloned())
-                        .unwrap_or_default();
-                    if !type_name.is_empty() {
-                        entries.push(RecordEntry::Spread(RecordSpread {
-                            type_name,
-                            type_expr,
-                            span,
-                        }));
-                    }
-                }
-                _ => {}
-            }
-        }
-        TypeDef::Record(entries)
-    }
-
-    fn lower_type_def_union(&mut self, node: &SyntaxNode) -> TypeDef {
-        let mut variants = Vec::new();
-
-        // Check for newtype case: VARIANT_FIELD directly inside TYPE_DEF_UNION (no VARIANT wrapper)
-        // This happens for `type OrderId { number }` — synthesize a variant from the parent type name
-        let has_direct_field = node
-            .children()
-            .any(|c| c.kind() == SyntaxKind::VARIANT_FIELD);
-        if has_direct_field {
-            // Get the type name from the parent TYPE_DECL
-            if let Some(parent) = node.parent()
-                && let Some(type_name) = self.collect_idents_direct(&parent).first().cloned()
-            {
-                let span = self.node_span(node);
-                let mut fields = Vec::new();
-                for child in node.children() {
-                    if child.kind() == SyntaxKind::VARIANT_FIELD
-                        && let Some(field) = self.lower_variant_field(&child)
-                    {
-                        fields.push(field);
-                    }
-                }
-                variants.push(Variant {
-                    name: type_name,
-                    fields,
-                    span,
-                });
-            }
-            return TypeDef::Union(variants);
-        }
-
-        for child in node.children() {
-            if child.kind() == SyntaxKind::VARIANT
-                && let Some(variant) = self.lower_variant(&child)
-            {
-                variants.push(variant);
-            }
-        }
-        TypeDef::Union(variants)
-    }
-
-    fn lower_type_def_alias(&mut self, node: &SyntaxNode) -> Option<TypeDef> {
-        for child in node.children() {
-            if child.kind() == SyntaxKind::TYPE_EXPR {
-                let type_expr = self.lower_type_expr(&child)?;
-                return Some(TypeDef::Alias(type_expr));
-            }
-        }
-        None
-    }
-
-    fn lower_type_def_string_literal_union(&mut self, node: &SyntaxNode) -> TypeDef {
-        let mut variants = Vec::new();
-        for token in node.children_with_tokens() {
-            if let Some(token) = token.as_token()
-                && token.kind() == SyntaxKind::STRING
-            {
-                variants.push(self.unquote_string(token.text()));
-            }
-        }
-        TypeDef::StringLiteralUnion(variants)
-    }
-
-    fn lower_variant(&mut self, node: &SyntaxNode) -> Option<Variant> {
-        let span = self.node_span(node);
-        let idents = self.collect_idents_direct(node);
-        let name = idents.first()?.clone();
-
-        let mut fields = Vec::new();
-        for child in node.children() {
-            if child.kind() == SyntaxKind::VARIANT_FIELD
-                && let Some(field) = self.lower_variant_field(&child)
-            {
-                fields.push(field);
-            }
-        }
-
-        Some(Variant { name, fields, span })
-    }
-
-    fn lower_variant_field(&mut self, node: &SyntaxNode) -> Option<VariantField> {
-        let span = self.node_span(node);
-        let idents = self.collect_idents(node);
-
-        // If there's an ident followed by a type expr, it's named
-        let mut type_expr_node = None;
-        for child in node.children() {
-            if child.kind() == SyntaxKind::TYPE_EXPR {
-                type_expr_node = Some(child);
-                break;
-            }
-        }
-
-        let type_ann = self.lower_type_expr(&type_expr_node?)?;
-
-        // Check if first ident is the field name (before the colon)
-        let has_colon = self.has_token(node, SyntaxKind::COLON);
-        let name = if has_colon {
-            idents.first().cloned()
-        } else {
-            None
-        };
-
-        Some(VariantField {
-            name,
-            type_ann,
-            span,
-        })
-    }
-
-    fn lower_record_field(&mut self, node: &SyntaxNode) -> Option<RecordField> {
-        let span = self.node_span(node);
-        let idents = self.collect_idents_direct(node);
-        let name = idents.first()?.clone();
-
-        let mut type_ann = None;
-        for child in node.children() {
-            if child.kind() == SyntaxKind::TYPE_EXPR {
-                type_ann = self.lower_type_expr(&child);
-                break;
-            }
-        }
-
-        let default = self.lower_expr_after_eq(node);
-
-        Some(RecordField {
-            name,
-            type_ann: type_ann?,
-            default,
-            span,
-        })
-    }
-
-    fn lower_type_expr(&mut self, node: &SyntaxNode) -> Option<TypeExpr> {
-        let span = self.node_span(node);
-
-        // Intersection type: A & B — single scan to find AMP position
-        let amp_pos = node
-            .children_with_tokens()
-            .find(|c| c.kind() == SyntaxKind::AMP)
-            .map(|c| c.text_range().start());
-        if let Some(amp_pos) = amp_pos {
-            // Left side is tokens/nodes before &, right side is child TYPE_EXPRs after &.
-            // Chained intersections (A & B & C) are flattened.
-            let mut types = Vec::new();
-
-            // Lower the left side: idents/tokens before &
-            let idents = self.collect_idents(node);
-            if !idents.is_empty() {
-                let name = idents.join(".");
-                let is_typeof = node
-                    .children_with_tokens()
-                    .next()
-                    .is_some_and(|first| first.kind() == SyntaxKind::KW_TYPEOF);
-                if is_typeof {
-                    types.push(TypeExpr {
-                        kind: TypeExprKind::TypeOf(name),
-                        span,
-                    });
-                } else {
-                    let type_args: Vec<TypeExpr> = node
-                        .children()
-                        .filter(|c| {
-                            c.kind() == SyntaxKind::TYPE_EXPR && c.text_range().start() < amp_pos
-                        })
-                        .filter_map(|c| self.lower_type_expr(&c))
-                        .collect();
-                    types.push(TypeExpr {
-                        kind: TypeExprKind::Named {
-                            name,
-                            type_args,
-                            bounds: Vec::new(),
-                        },
-                        span,
-                    });
-                }
-            } else {
-                let has_record = node
-                    .children()
-                    .any(|c| c.kind() == SyntaxKind::RECORD_FIELD);
-                if has_record {
-                    let fields: Vec<RecordField> = node
-                        .children()
-                        .filter(|c| c.kind() == SyntaxKind::RECORD_FIELD)
-                        .filter_map(|c| self.lower_record_field(&c))
-                        .collect();
-                    types.push(TypeExpr {
-                        kind: TypeExprKind::Record(fields),
-                        span,
-                    });
-                }
-            }
-
-            // Lower the right side: child TYPE_EXPRs after &, flattening nested intersections
-            for child in node.children() {
-                if child.kind() == SyntaxKind::TYPE_EXPR
-                    && child.text_range().start() > amp_pos
-                    && let Some(te) = self.lower_type_expr(&child)
-                {
-                    match te.kind {
-                        TypeExprKind::Intersection(inner) => types.extend(inner),
-                        _ => types.push(te),
-                    }
-                }
-            }
-
-            if types.len() >= 2 {
-                return Some(TypeExpr {
-                    kind: TypeExprKind::Intersection(types),
-                    span,
-                });
-            } else if types.len() == 1 {
-                return Some(types.into_iter().next().unwrap());
-            }
-        }
-
-        // Collect direct ident tokens
-        let idents = self.collect_idents(node);
-
-        // Check for parens → unit or function type
-        let has_lparen = self.has_token(node, SyntaxKind::L_PAREN);
-        let has_rparen = self.has_token(node, SyntaxKind::R_PAREN);
-        let has_fat_arrow = self.has_token(node, SyntaxKind::FAT_ARROW);
-        let has_thin_arrow = self.has_token(node, SyntaxKind::THIN_ARROW);
-
-        // Unit type: ()
-        if has_lparen && has_rparen && idents.is_empty() && !has_fat_arrow && !has_thin_arrow {
-            let child_type_exprs: Vec<_> = node
-                .children()
-                .filter(|c| c.kind() == SyntaxKind::TYPE_EXPR)
-                .collect();
-            if child_type_exprs.is_empty() {
-                return Some(TypeExpr {
-                    kind: TypeExprKind::Named {
-                        name: "()".to_string(),
-                        type_args: Vec::new(),
-                        bounds: Vec::new(),
-                    },
-                    span,
-                });
-            }
-            // Tuple type: (T, U) — parens with multiple child type exprs, no arrow
-            if child_type_exprs.len() >= 2 {
-                let types: Vec<TypeExpr> = child_type_exprs
-                    .iter()
-                    .filter_map(|c| self.lower_type_expr(c))
-                    .collect();
-                return Some(TypeExpr {
-                    kind: TypeExprKind::Tuple(types),
-                    span,
-                });
-            }
-        }
-
-        // Function type: (params) -> ReturnType
-        if has_fat_arrow || has_thin_arrow {
-            let type_exprs: Vec<TypeExpr> = node
-                .children()
-                .filter(|c| c.kind() == SyntaxKind::TYPE_EXPR)
-                .filter_map(|c| self.lower_type_expr(&c))
-                .collect();
-
-            if let Some((return_type, params)) = type_exprs.split_last() {
-                return Some(TypeExpr {
-                    kind: TypeExprKind::Function {
-                        params: params.to_vec(),
-                        return_type: Box::new(return_type.clone()),
-                    },
-                    span,
-                });
-            }
-        }
-
-        // Tuple: [T, U]
-        let has_lbracket = self.has_token(node, SyntaxKind::L_BRACKET);
-        if has_lbracket {
-            let types: Vec<TypeExpr> = node
-                .children()
-                .filter(|c| c.kind() == SyntaxKind::TYPE_EXPR)
-                .filter_map(|c| self.lower_type_expr(&c))
-                .collect();
-            return Some(TypeExpr {
-                kind: TypeExprKind::Tuple(types),
-                span,
-            });
-        }
-
-        // Record type: { ... }
-        let has_record_fields = node
-            .children()
-            .any(|c| c.kind() == SyntaxKind::RECORD_FIELD);
-        if has_record_fields {
-            let fields: Vec<RecordField> = node
-                .children()
-                .filter(|c| c.kind() == SyntaxKind::RECORD_FIELD)
-                .filter_map(|c| self.lower_record_field(&c))
-                .collect();
-            return Some(TypeExpr {
-                kind: TypeExprKind::Record(fields),
-                span,
-            });
-        }
-
-        // typeof <ident> — check first token to avoid scanning all children
-        let has_typeof = node
-            .children_with_tokens()
-            .next()
-            .is_some_and(|first| first.kind() == SyntaxKind::KW_TYPEOF);
-        if has_typeof && !idents.is_empty() {
-            let name = idents.join(".");
-            return Some(TypeExpr {
-                kind: TypeExprKind::TypeOf(name),
-                span,
-            });
-        }
-
-        let string_lit = node.children_with_tokens().find_map(|t| {
-            t.as_token()
-                .filter(|tok| tok.kind() == SyntaxKind::STRING)
-                .map(|tok| self.unquote_string(tok.text()))
-        });
-        if let Some(value) = string_lit {
-            return Some(TypeExpr {
-                kind: TypeExprKind::StringLiteral(value),
-                span,
-            });
-        }
-
-        // Named type with optional type args
-        if !idents.is_empty() {
-            // Join dotted names
-            let name = idents.join(".");
-
-            let type_args: Vec<TypeExpr> = node
-                .children()
-                .filter(|c| c.kind() == SyntaxKind::TYPE_EXPR)
-                .filter_map(|c| self.lower_type_expr(&c))
-                .collect();
-
-            return Some(TypeExpr {
-                kind: TypeExprKind::Named {
-                    name,
-                    type_args,
-                    bounds: Vec::new(),
-                },
-                span,
-            });
-        }
-
-        None
-    }
-
-    // ── Template literal lowering ─────────────────────────────
+    // ── Template literal lowering ─────────────────────────────────
 
     /// Parse a template literal source text (including backticks) into AST
     /// `TemplatePart`s, properly lowering interpolated expressions.
-    fn lower_template_literal(&self, text: &str) -> Vec<TemplatePart> {
+    pub(super) fn lower_template_literal(&self, text: &str) -> Vec<TemplatePart> {
         // Strip backticks
         let inner = if text.len() >= 2 && text.starts_with('`') && text.ends_with('`') {
             &text[1..text.len() - 1]
@@ -1188,7 +254,7 @@ impl<'src> Lowerer<'src> {
 
     // ── Utility helpers ─────────────────────────────────────────
 
-    fn node_span(&self, node: &SyntaxNode) -> Span {
+    pub(super) fn node_span(&self, node: &SyntaxNode) -> Span {
         let range = node.text_range();
         let start = range.start().into();
         let end = range.end().into();
@@ -1198,7 +264,7 @@ impl<'src> Lowerer<'src> {
         Span::new(start, end, line, column)
     }
 
-    fn token_span(&self, token: &rowan::SyntaxToken<FloeLang>) -> Span {
+    pub(super) fn token_span(&self, token: &rowan::SyntaxToken<FloeLang>) -> Span {
         let range = token.text_range();
         let start: usize = range.start().into();
         let end: usize = range.end().into();
@@ -1221,7 +287,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Collect ident tokens that appear before the `=` sign.
-    fn collect_idents_before_eq(&self, node: &SyntaxNode) -> Vec<String> {
+    pub(super) fn collect_idents_before_eq(&self, node: &SyntaxNode) -> Vec<String> {
         let mut idents = Vec::new();
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
@@ -1239,7 +305,7 @@ impl<'src> Lowerer<'src> {
     /// Collect object destructure fields (with optional `: alias`) from tokens inside `{ }`.
     /// When `stop_at_equal` is true, stops before `=` (for const declarations).
     /// Tokens: `{ data: rows, error }` → [("data", Some("rows")), ("error", None)]
-    fn collect_object_destructure_fields(
+    pub(super) fn collect_object_destructure_fields(
         &self,
         node: &SyntaxNode,
         stop_at_equal: bool,
@@ -1309,7 +375,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Check if a token kind appears before the `=` sign.
-    fn has_token_before_eq(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
+    pub(super) fn has_token_before_eq(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
                 if token.kind() == SyntaxKind::EQUAL {
@@ -1323,7 +389,7 @@ impl<'src> Lowerer<'src> {
         false
     }
 
-    fn collect_idents(&self, node: &SyntaxNode) -> Vec<String> {
+    pub(super) fn collect_idents(&self, node: &SyntaxNode) -> Vec<String> {
         let mut idents = Vec::new();
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token()
@@ -1336,7 +402,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Collect only direct ident tokens (not from child nodes).
-    fn collect_idents_direct(&self, node: &SyntaxNode) -> Vec<String> {
+    pub(super) fn collect_idents_direct(&self, node: &SyntaxNode) -> Vec<String> {
         let mut idents = Vec::new();
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token()
@@ -1349,7 +415,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Collect type parameter names from `<T, U>` in function declarations.
-    fn collect_type_params(&self, node: &SyntaxNode) -> Vec<String> {
+    pub(super) fn collect_type_params(&self, node: &SyntaxNode) -> Vec<String> {
         let mut params = Vec::new();
         let mut in_angle = false;
         for token in node.children_with_tokens() {
@@ -1369,7 +435,7 @@ impl<'src> Lowerer<'src> {
 
     /// Collect ident tokens that appear before the first `(` token.
     /// Used for CONSTRUCT_EXPR to handle qualified variants like `Route.Profile(...)`.
-    fn collect_idents_before_lparen(&self, node: &SyntaxNode) -> Vec<String> {
+    pub(super) fn collect_idents_before_lparen(&self, node: &SyntaxNode) -> Vec<String> {
         let mut idents = Vec::new();
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
@@ -1384,7 +450,7 @@ impl<'src> Lowerer<'src> {
         idents
     }
 
-    fn collect_numbers(&self, node: &SyntaxNode) -> Vec<String> {
+    pub(super) fn collect_numbers(&self, node: &SyntaxNode) -> Vec<String> {
         let mut numbers = Vec::new();
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token()
@@ -1396,12 +462,12 @@ impl<'src> Lowerer<'src> {
         numbers
     }
 
-    fn has_keyword(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
+    pub(super) fn has_keyword(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
         node.children_with_tokens()
             .any(|t| t.as_token().is_some_and(|t| t.kind() == kind))
     }
 
-    fn has_token(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
+    pub(super) fn has_token(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
         node.children_with_tokens()
             .any(|t| t.as_token().is_some_and(|t| t.kind() == kind))
     }
@@ -1409,7 +475,7 @@ impl<'src> Lowerer<'src> {
     /// Check if a MATCH_EXPR node has no subject expression (used for pipe-into-match).
     /// A subjectless match has `match` keyword followed directly by `{`, with no
     /// expression child nodes before the first MATCH_ARM.
-    fn is_subjectless_match(&self, node: &SyntaxNode) -> bool {
+    pub(super) fn is_subjectless_match(&self, node: &SyntaxNode) -> bool {
         // A subjectless match has no child expression nodes — only MATCH_ARM children
         for child in node.children() {
             if child.kind() == SyntaxKind::MATCH_ARM {
@@ -1438,7 +504,7 @@ impl<'src> Lowerer<'src> {
         true
     }
 
-    fn unquote_string(&self, text: &str) -> String {
+    pub(super) fn unquote_string(&self, text: &str) -> String {
         // Remove surrounding quotes
         if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
             let inner = &text[1..text.len() - 1];
@@ -1516,7 +582,7 @@ impl<'src> Lowerer<'src> {
         }
     }
 
-    fn find_binary_op(&self, node: &SyntaxNode) -> Option<BinOp> {
+    pub(super) fn find_binary_op(&self, node: &SyntaxNode) -> Option<BinOp> {
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
                 let op = match token.kind() {
@@ -1543,7 +609,7 @@ impl<'src> Lowerer<'src> {
         None
     }
 
-    fn find_unary_op(&self, node: &SyntaxNode) -> Option<UnaryOp> {
+    pub(super) fn find_unary_op(&self, node: &SyntaxNode) -> Option<UnaryOp> {
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
                 match token.kind() {
@@ -1556,7 +622,7 @@ impl<'src> Lowerer<'src> {
         None
     }
 
-    fn lower_expr_after_eq(&mut self, node: &SyntaxNode) -> Option<Expr> {
+    pub(super) fn lower_expr_after_eq(&mut self, node: &SyntaxNode) -> Option<Expr> {
         let mut past_eq = false;
         for child_or_token in node.children_with_tokens() {
             match child_or_token {
