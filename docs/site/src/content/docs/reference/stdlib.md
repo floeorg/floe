@@ -47,6 +47,7 @@ All array functions return new arrays. They never mutate the original.
 | `Array.unique` | `Array<T> -> Array<T>` | Remove duplicate elements |
 | `Array.groupBy` | `Array<T>, (T) -> string -> Record` | Group elements by key function |
 | `Array.zip` | `Array<T>, Array<U> -> Array<[T, U]>` | Pair elements from two arrays |
+| `Array.mapResult` | `Array<T>, (T) -> Result<U, E> -> Result<Array<U>, E>` | Map fallible function, short-circuit on first Err |
 
 ### Examples
 
@@ -100,6 +101,15 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 | `Option.isSome` | `Option<T> -> boolean` | Check if value is present |
 | `Option.isNone` | `Option<T> -> boolean` | Check if value is absent |
 | `Option.toResult` | `Option<T>, E -> Result<T, E>` | Convert to Result with error for None |
+| `Option.filter` | `Option<T>, (T) -> boolean -> Option<T>` | Keep Some if predicate passes, else None |
+| `Option.unwrap` | `Option<T> -> T` | Extract value or throw (use for scripts/prototyping) |
+| `Option.mapOr` | `Option<T>, U, (T) -> U -> U` | Map + default in one step |
+| `Option.flatten` | `Option<Option<T>> -> Option<T>` | Unwrap nested Options |
+| `Option.zip` | `Option<T>, Option<U> -> Option<(T, U)>` | Combine two Options into a tuple |
+| `Option.inspect` | `Option<T>, (T) -> () -> Option<T>` | Side-effect without changing the value |
+| `Option.toErr` | `Option<E> -> Result<(), E>` | Convert to Err if present (for `{ data, error }` patterns) |
+| `Option.all` | `Array<Option<T>> -> Option<Array<T>>` | Collect all Some values, None if any missing |
+| `Option.any` | `Array<Option<T>> -> Option<T>` | Return first Some, or None |
 
 ### Examples
 
@@ -120,6 +130,23 @@ const display = user.nickname
 // Convert to Result for error handling
 const name = user.nickname
   |> Option.toResult("User has no nickname")
+
+// Filter — keep Some only if predicate passes
+const longName = user.nickname
+  |> Option.filter((n) => String.length(n) > 3)
+
+// Zip — combine two Options
+const pair = Option.zip(firstName, lastName)
+// Some(("Alice", "Smith")) or None
+
+// Handle { data, error } pattern (TanStack Query, Supabase, etc.)
+const { data, error } = await supabase.rpc("get_entries", { query })
+error |> Option.toErr?              // bail if error exists
+const rows = data |> Option.unwrapOr([])
+
+// Collect all Options
+const allNames = [Some("Alice"), Some("Bob"), None]
+  |> Option.all   // None (one is missing)
 ```
 
 ---
@@ -137,6 +164,16 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 | `Result.isOk` | `Result<T, E> -> boolean` | Check if result is Ok |
 | `Result.isErr` | `Result<T, E> -> boolean` | Check if result is Err |
 | `Result.toOption` | `Result<T, E> -> Option<T>` | Convert to Option (drops error) |
+| `Result.filter` | `Result<T, E>, (T) -> boolean, E -> Result<T, E>` | Keep Ok if predicate passes, else Err |
+| `Result.unwrap` | `Result<T, E> -> T` | Extract Ok value or throw error |
+| `Result.unwrapErr` | `Result<T, E> -> E` | Extract Err value or throw |
+| `Result.mapOr` | `Result<T, E>, U, (T) -> U -> U` | Map + default in one step |
+| `Result.flatten` | `Result<Result<T, E>, E> -> Result<T, E>` | Unwrap nested Results |
+| `Result.zip` | `Result<T, E>, Result<U, E> -> Result<(T, U), E>` | Combine two Results into a tuple |
+| `Result.inspect` | `Result<T, E>, (T) -> () -> Result<T, E>` | Side-effect on Ok value |
+| `Result.inspectErr` | `Result<T, E>, (E) -> () -> Result<T, E>` | Side-effect on Err value |
+| `Result.all` | `Array<Result<T, E>> -> Result<Array<T>, E>` | Collect all Ok values, fail on first Err |
+| `Result.any` | `Array<Result<T, E>> -> Result<T, Array<E>>` | First Ok, or all Errs |
 
 ### Examples
 
@@ -156,6 +193,23 @@ const profile = fetchUser(id)
 // Extract with fallback
 const count = fetchCount()
   |> Result.unwrapOr(0)
+
+// Filter — keep Ok only if predicate passes
+const validAge = parseAge(input)
+  |> Result.filter((n) => n >= 18, "must be 18+")
+
+// Zip — combine two Results
+const pair = Result.zip(fetchUser(id), fetchProfile(id))
+// Ok(("Alice", Profile(...))) or first Err
+
+// Collect all Results
+const users = [fetchUser(1), fetchUser(2), fetchUser(3)]
+  |> Result.all   // Ok([...]) or first Err
+
+// Debug with inspect
+const result = fetchUser(id)
+  |> Result.inspect((u) => Console.log("got user", u))
+  |> Result.mapErr((e) => AppError(e))
 ```
 
 ---
@@ -529,6 +583,41 @@ const name = "  Alice  "
 ```
 
 `tap` is the pipeline equivalent of a `console.log` that doesn't interrupt the flow. The function you pass receives the value but its return is ignored -- the original value passes through unchanged.
+
+---
+
+## Promise
+
+Functions for working with `Promise<T>` values.
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `Promise.all` | `Array<Promise<T>> -> Promise<Array<T>>` | Wait for all, fail on first rejection |
+| `Promise.race` | `Array<Promise<T>> -> Promise<T>` | First to settle (resolve or reject) |
+| `Promise.any` | `Array<Promise<T>> -> Promise<T>` | First to resolve, fail if all reject |
+| `Promise.allSettled` | `Array<Promise<T>> -> Promise<Array<Result<T, Error>>>` | Wait for all, return Results |
+| `Promise.resolve` | `T -> Promise<T>` | Wrap a value in a resolved Promise |
+| `Promise.reject` | `E -> Promise<T>` | Create a rejected Promise |
+| `Promise.delay` | `number -> Promise<()>` | Wait for milliseconds |
+
+### Examples
+
+```floe
+// Wait for all fetches
+const users = await Promise.all([fetchUser(1), fetchUser(2), fetchUser(3)])
+
+// Race — first response wins
+const fastest = await Promise.race([fetchFromCDN(url), fetchFromOrigin(url)])
+
+// allSettled returns Array<Result<T, Error>> — natural fit for Floe
+const results = await Promise.allSettled([fetchA(), fetchB(), fetchC()])
+const successes = results |> Array.filter(Result.isOk)
+
+// Delay
+await Promise.delay(1000)  // wait 1 second
+```
+
+`Promise.allSettled` returns `Array<Result<T, Error>>` instead of JavaScript's `{status, value, reason}` shape, so you can use all Result helpers on the output.
 
 ---
 

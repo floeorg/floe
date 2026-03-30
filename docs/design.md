@@ -95,6 +95,8 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Date construction | `Date.now()`, `Date.from("...")` | `new Date()`, `new Date("...")` |
 | Strict parse | `Number.parse("123")` returns `Result` | no silent `NaN` or partial parse |
 | Http module | `Http.get(url)`, `Http.post(url, body)` | async IIFE wrapping `fetch` in `Result` |
+| Promise module | `Promise.all`, `Promise.allSettled` | `allSettled` returns `Array<Result<T, Error>>` |
+| Array.mapResult | `Array.mapResult(arr, fn)` | map fallible fn, short-circuit on Err |
 | Number separators | `1_000_000`, `3.141_592`, `0xFF_FF` | underscores stripped in output |
 | Mock data | `mock<User>`, `mock<User>(name: "Alice")` | object literal with generated test data |
 
@@ -385,6 +387,28 @@ The return type of `collect { ... }` is `Result<T, Array<E>>` where:
 - `T` is the type of the last expression in the block
 - `E` is the error type from `?` operations in the block
 
+#### Full Result helpers
+
+| Function | Type | Description |
+|---|---|---|
+| `map` | `Result<T, E>, (T) -> U -> Result<U, E>` | Transform Ok value |
+| `mapErr` | `Result<T, E>, (E) -> F -> Result<T, F>` | Transform Err value |
+| `flatMap` | `Result<T, E>, (T) -> Result<U, E> -> Result<U, E>` | Chain result-returning ops |
+| `filter` | `Result<T, E>, (T) -> bool, E -> Result<T, E>` | Keep Ok if predicate passes |
+| `unwrapOr` | `Result<T, E>, T -> T` | Extract Ok or default |
+| `unwrap` | `Result<T, E> -> T` | Extract Ok or throw |
+| `unwrapErr` | `Result<T, E> -> E` | Extract Err or throw |
+| `mapOr` | `Result<T, E>, U, (T) -> U -> U` | Map + default |
+| `flatten` | `Result<Result<T, E>, E> -> Result<T, E>` | Unwrap nested |
+| `zip` | `Result<T, E>, Result<U, E> -> Result<(T, U), E>` | Combine two Results |
+| `inspect` | `Result<T, E>, (T) -> () -> Result<T, E>` | Side-effect on Ok |
+| `inspectErr` | `Result<T, E>, (E) -> () -> Result<T, E>` | Side-effect on Err |
+| `isOk` | `Result<T, E> -> bool` | Check Ok |
+| `isErr` | `Result<T, E> -> bool` | Check Err |
+| `toOption` | `Result<T, E> -> Option<T>` | Drop error |
+| `all` | `Array<Result<T, E>> -> Result<Array<T>, E>` | Collect, fail on first Err |
+| `any` | `Array<Result<T, E>> -> Result<T, Array<E>>` | First Ok, or all Errs |
+
 ### Option<T> - No Null, No Undefined
 
 ```floe
@@ -409,7 +433,39 @@ const upper: Option<string> = user.nickname |> Option.map((n) => toUpperCase(n))
 // Chain
 const avatar = user.nickname |> Option.flatMap((n) => findAvatar(n))
 
+// Filter
+const longNick = user.nickname |> Option.filter((n) => String.length(n) > 3)
+
+// Zip two Options
+const pair = Option.zip(firstName, lastName)  // Option<(string, string)>
+
+// Collect an array of Options
+const allNames = Option.all([Some("a"), Some("b")])  // Some(["a", "b"])
+
+// Handle { data, error } pattern (Supabase, TanStack Query, etc.)
+error |> Option.toErr?              // bail if error is Some
+const rows = data |> Option.unwrapOr([])
 ```
+
+#### Full Option helpers
+
+| Function | Type | Description |
+|---|---|---|
+| `map` | `Option<T>, (T) -> U -> Option<U>` | Transform inner value |
+| `flatMap` | `Option<T>, (T) -> Option<U> -> Option<U>` | Chain option-returning ops |
+| `filter` | `Option<T>, (T) -> bool -> Option<T>` | Keep Some if predicate passes |
+| `unwrapOr` | `Option<T>, T -> T` | Extract or default |
+| `unwrap` | `Option<T> -> T` | Extract or throw |
+| `mapOr` | `Option<T>, U, (T) -> U -> U` | Map + default |
+| `flatten` | `Option<Option<T>> -> Option<T>` | Unwrap nested |
+| `zip` | `Option<T>, Option<U> -> Option<(T, U)>` | Combine two Options |
+| `inspect` | `Option<T>, (T) -> () -> Option<T>` | Side-effect |
+| `isSome` | `Option<T> -> bool` | Check present |
+| `isNone` | `Option<T> -> bool` | Check absent |
+| `toResult` | `Option<T>, E -> Result<T, E>` | Convert to Result |
+| `toErr` | `Option<E> -> Result<(), E>` | Convert to Err (for `{ data, error }`) |
+| `all` | `Array<Option<T>> -> Option<Array<T>>` | Collect, None if any missing |
+| `any` | `Array<Option<T>> -> Option<T>` | First Some |
 
 ### Settable<T> - Three-State Fields for Partial Updates
 
