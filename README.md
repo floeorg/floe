@@ -7,6 +7,7 @@
   <a href="https://crates.io/crates/floe"><img src="https://img.shields.io/crates/v/floe" alt="crates.io"></a>
   <a href="https://www.npmjs.com/package/@floeorg/vite-plugin"><img src="https://img.shields.io/npm/v/@floeorg/vite-plugin" alt="npm"></a>
   <a href="https://open-vsx.org/extension/floeorg/floe"><img src="https://img.shields.io/open-vsx/v/floeorg/floe" alt="Open VSX"></a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=floeorg.floe"><img src="https://img.shields.io/visual-studio-marketplace/v/floeorg.floe" alt="VS Code Marketplace"></a>
 </p>
 
 <!-- A spacer -->

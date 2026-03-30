@@ -153,7 +153,7 @@ jobs:
           npm publish --access public --provenance
 
   publish-extension:
-    name: Publish to Open VSX
+    name: Publish VS Code Extension
     needs: release
     runs-on: ubuntu-latest
     steps:
@@ -174,9 +174,13 @@ jobs:
         working-directory: editors/vscode
         run: npm run compile
 
-      - name: Install ovsx
-        run: npm install -g ovsx
+      - name: Install publishing tools
+        run: npm install -g ovsx @vscode/vsce
 
       - name: Publish to Open VSX
         working-directory: editors/vscode
         run: ovsx publish -p ${{ secrets.OVSX_TOKEN }}
+
+      - name: Publish to VS Code Marketplace
+        working-directory: editors/vscode
+        run: vsce publish -p ${{ secrets.VSCE_PAT }}
