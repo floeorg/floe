@@ -553,6 +553,38 @@ impl Codegen {
         }
     }
 
+    /// Try to emit a qualified for-block call in pipe context.
+    /// `row |> AccentRow.toModel(args)` → `AccentRow__toModel(row, args)`
+    fn try_emit_for_block_pipe(
+        &mut self,
+        left: &Expr,
+        type_name: &str,
+        field: &str,
+        args: &[Arg],
+    ) -> bool {
+        if let Some(mangled) = self
+            .for_block_fns
+            .get(&(type_name.to_string(), field.to_string()))
+        {
+            let name = self
+                .import_aliases
+                .get(mangled)
+                .cloned()
+                .unwrap_or_else(|| mangled.clone());
+            self.push(&name);
+            self.push("(");
+            self.emit_expr(left);
+            if !args.is_empty() {
+                self.push(", ");
+                self.emit_args(args);
+            }
+            self.push(")");
+            true
+        } else {
+            false
+        }
+    }
+
     /// Try to resolve a bare function name in pipe context via type-directed stdlib lookup.
     /// Uses the checker's type map to determine which stdlib module to use.
     /// e.g., `arr |> length` → left is Array → use Array.length template.
@@ -609,22 +641,8 @@ impl Codegen {
                 // Qualified for-block: `row |> AccentRow.toModel(args)` → `AccentRow__toModel(row, args)`
                 if let ExprKind::Member { object, field } = &callee.kind
                     && let ExprKind::Identifier(type_name) = &object.kind
-                    && let Some(mangled) =
-                        self.for_block_fns.get(&(type_name.clone(), field.clone()))
+                    && self.try_emit_for_block_pipe(left, type_name, field, args)
                 {
-                    let name = self
-                        .import_aliases
-                        .get(mangled)
-                        .cloned()
-                        .unwrap_or_else(|| mangled.clone());
-                    self.push(&name);
-                    self.push("(");
-                    self.emit_expr(left);
-                    if !args.is_empty() {
-                        self.push(", ");
-                        self.emit_args(args);
-                    }
-                    self.push(")");
                     return;
                 }
                 // Fall through to normal call handling below
@@ -654,18 +672,8 @@ impl Codegen {
                 }
                 // Qualified for-block: `row |> AccentRow.toModel` → `AccentRow__toModel(row)`
                 if let ExprKind::Identifier(type_name) = &object.kind
-                    && let Some(mangled) =
-                        self.for_block_fns.get(&(type_name.clone(), field.clone()))
+                    && self.try_emit_for_block_pipe(left, type_name, field, &[])
                 {
-                    let name = self
-                        .import_aliases
-                        .get(mangled)
-                        .cloned()
-                        .unwrap_or_else(|| mangled.clone());
-                    self.push(&name);
-                    self.push("(");
-                    self.emit_expr(left);
-                    self.push(")");
                     return;
                 }
                 // Fallback: treat as function call

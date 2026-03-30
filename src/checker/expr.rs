@@ -1355,9 +1355,10 @@ impl Checker {
             && let Some((_, fn_type)) = overloads.iter().find(|(tn, _)| tn == type_name)
         {
             self.unused.used_names.insert(func_name.to_string());
-            if let Type::Function { return_type, .. } = fn_type {
-                return *return_type.clone();
-            }
+            return match fn_type {
+                Type::Function { return_type, .. } => *return_type.clone(),
+                _ => Type::Unknown,
+            };
         }
 
         // Extract the bare function name from the right side
