@@ -571,8 +571,28 @@ impl Codegen {
                     self.push(&output);
                     return;
                 }
+                // Qualified for-block: `row |> AccentRow.toModel(args)` → `AccentRow__toModel(row, args)`
+                if let ExprKind::Member { object, field } = &callee.kind
+                    && let ExprKind::Identifier(type_name) = &object.kind
+                    && let Some(mangled) =
+                        self.for_block_fns.get(&(type_name.clone(), field.clone()))
+                {
+                    let name = self
+                        .import_aliases
+                        .get(mangled)
+                        .cloned()
+                        .unwrap_or_else(|| mangled.clone());
+                    self.push(&name);
+                    self.push("(");
+                    self.emit_expr(left);
+                    if !args.is_empty() {
+                        self.push(", ");
+                        self.emit_args(args);
+                    }
+                    self.push(")");
+                    return;
+                }
                 // Fall through to normal call handling below
-                // Use aliased import name if available (avoids TDZ conflicts)
                 let callee_alias = if let ExprKind::Identifier(name) = &callee.kind {
                     self.import_aliases.get(name.as_str()).cloned()
                 } else {
@@ -591,10 +611,26 @@ impl Codegen {
                 }
                 self.push(")");
             }
-            ExprKind::Member { .. } => {
+            ExprKind::Member { object, field } => {
                 // Bare stdlib: `arr |> Array.sort` (no args)
                 if let Some(output) = self.try_emit_stdlib_pipe(left, right, &[]) {
                     self.push(&output);
+                    return;
+                }
+                // Qualified for-block: `row |> AccentRow.toModel` → `AccentRow__toModel(row)`
+                if let ExprKind::Identifier(type_name) = &object.kind
+                    && let Some(mangled) =
+                        self.for_block_fns.get(&(type_name.clone(), field.clone()))
+                {
+                    let name = self
+                        .import_aliases
+                        .get(mangled)
+                        .cloned()
+                        .unwrap_or_else(|| mangled.clone());
+                    self.push(&name);
+                    self.push("(");
+                    self.emit_expr(left);
+                    self.push(")");
                     return;
                 }
                 // Fallback: treat as function call

@@ -1349,6 +1349,17 @@ impl Checker {
             return self.validate_stdlib_pipe_call(&stdlib_fn, &display, left_ty, right);
         }
 
+        // Qualified for-block call: `row |> AccentRow.toModel` or `row |> AccentRow.toModel(args)`
+        if let Some((type_name, func_name)) = member_info
+            && let Some(overloads) = self.for_block_overloads.get(func_name)
+            && let Some((_, fn_type)) = overloads.iter().find(|(tn, _)| tn == type_name)
+        {
+            self.unused.used_names.insert(func_name.to_string());
+            if let Type::Function { return_type, .. } = fn_type {
+                return *return_type.clone();
+            }
+        }
+
         // Extract the bare function name from the right side
         let bare_name = match &right.kind {
             ExprKind::Identifier(name) => Some(name.as_str()),
