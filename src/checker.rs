@@ -624,6 +624,12 @@ impl Checker {
                 TypeDef::Record(_) => {}
                 _ => {}
             }
+
+            // Warn on & intersection in { } type definitions (records/unions).
+            // & should only appear in = type aliases (TS bridge types).
+            if matches!(decl.def, TypeDef::Record(_) | TypeDef::Union(_)) {
+                self.check_no_intersection_in_type_def(&decl.def, span);
+            }
         }
 
         // Flatten record spreads into a flat record definition
@@ -721,6 +727,52 @@ impl Checker {
             }
         }
         None
+    }
+
+    /// Check that `&` intersection types don't appear in `{ }` type definitions.
+    fn check_no_intersection_in_type_def(&mut self, def: &TypeDef, span: Span) {
+        fn has_intersection(ty: &TypeExpr) -> bool {
+            match &ty.kind {
+                TypeExprKind::Intersection(_) => true,
+                TypeExprKind::Array(inner) => has_intersection(inner),
+                TypeExprKind::Tuple(parts) => parts.iter().any(has_intersection),
+                TypeExprKind::Function {
+                    params,
+                    return_type,
+                } => params.iter().any(has_intersection) || has_intersection(return_type),
+                TypeExprKind::Named { type_args, .. } => type_args.iter().any(has_intersection),
+                _ => false,
+            }
+        }
+
+        let fields: Vec<&TypeExpr> = match def {
+            TypeDef::Record(entries) => entries
+                .iter()
+                .filter_map(|e| e.as_field().map(|f| &f.type_ann))
+                .collect(),
+            TypeDef::Union(variants) => variants
+                .iter()
+                .flat_map(|v| v.fields.iter().map(|f| &f.type_ann))
+                .collect(),
+            _ => return,
+        };
+
+        for field_ty in fields {
+            if has_intersection(field_ty) {
+                self.diagnostics.push(
+                    Diagnostic::error(
+                        "`&` intersection types cannot be used in `{ }` type definitions"
+                            .to_string(),
+                        span,
+                    )
+                    .with_help(
+                        "use `...Spread` for record composition, or `=` for TS interop types",
+                    )
+                    .with_code("E025"),
+                );
+                return; // one diagnostic per type is enough
+            }
+        }
     }
 
     /// Flatten record type spreads (`...OtherType`) into regular fields.
