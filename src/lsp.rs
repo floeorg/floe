@@ -542,9 +542,6 @@ impl FloeLsp {
         matched
     }
 
-    /// Resolve an import specifier to a Location in the source file (.d.ts or .fl).
-    /// For `.d.ts` files, finds the line where the symbol is exported.
-    /// For relative imports, finds the file and looks for the symbol definition.
     /// Resolve an import specifier to a file path.
     /// Handles relative imports, tsconfig path aliases, and npm packages.
     fn resolve_specifier_to_path(specifier: &str, source_dir: &Path) -> Option<PathBuf> {
@@ -560,6 +557,9 @@ impl FloeLsp {
         resolution::resolve_npm_dts(specifier, &project_dir)
     }
 
+    /// Resolve an import specifier to a Location in the source file (.d.ts or .fl).
+    /// For `.d.ts` files, finds the line where the symbol is exported.
+    /// For relative imports, finds the file and looks for the symbol definition.
     fn resolve_import_location(
         source_uri: &Url,
         specifier: &str,
