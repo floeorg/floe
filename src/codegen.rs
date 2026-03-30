@@ -1,6 +1,8 @@
 mod expr;
 mod jsx;
 mod match_emit;
+mod parse_mock;
+mod pipes;
 #[cfg(test)]
 mod tests;
 
