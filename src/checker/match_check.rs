@@ -68,14 +68,12 @@ impl Checker {
                     .map(|s| format!("`{s}`"))
                     .collect::<Vec<_>>()
                     .join(", ");
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!("non-exhaustive match on `{name}`: missing {missing_str}"),
-                        span,
-                    )
-                    .with_label("not all variants covered")
-                    .with_help("add match arms for the missing variants, or add a `_ ->` catch-all")
-                    .with_code("E004"),
+                self.emit_error_with_help(
+                    format!("non-exhaustive match on `{name}`: missing {missing_str}"),
+                    span,
+                    "E004",
+                    "not all variants covered",
+                    "add match arms for the missing variants, or add a `_ ->` catch-all",
                 );
             }
         }
@@ -100,14 +98,12 @@ impl Checker {
                     .map(|s| format!("`\"{s}\"`"))
                     .collect::<Vec<_>>()
                     .join(", ");
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!("non-exhaustive match on `{name}`: missing {missing_str}"),
-                        span,
-                    )
-                    .with_label("not all variants covered")
-                    .with_help("add match arms for the missing variants, or add a `_ ->` catch-all")
-                    .with_code("E004"),
+                self.emit_error_with_help(
+                    format!("non-exhaustive match on `{name}`: missing {missing_str}"),
+                    span,
+                    "E004",
+                    "not all variants covered",
+                    "add match arms for the missing variants, or add a `_ ->` catch-all",
                 );
             }
         }
@@ -134,14 +130,12 @@ impl Checker {
                     (true, false) => "`Err`",
                     _ => unreachable!(),
                 };
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!("non-exhaustive match on `Result`: missing {missing}"),
-                        span,
-                    )
-                    .with_label("not all cases covered")
-                    .with_help("add match arms for the missing cases")
-                    .with_code("E004"),
+                self.emit_error_with_help(
+                    format!("non-exhaustive match on `Result`: missing {missing}"),
+                    span,
+                    "E004",
+                    "not all cases covered",
+                    "add match arms for the missing cases",
                 );
             }
         }
@@ -166,14 +160,12 @@ impl Checker {
                     (true, false) => "`None`",
                     _ => unreachable!(),
                 };
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!("non-exhaustive match on `Option`: missing {missing}"),
-                        span,
-                    )
-                    .with_label("not all cases covered")
-                    .with_help("add match arms for the missing cases")
-                    .with_code("E004"),
+                self.emit_error_with_help(
+                    format!("non-exhaustive match on `Option`: missing {missing}"),
+                    span,
+                    "E004",
+                    "not all cases covered",
+                    "add match arms for the missing cases",
                 );
             }
         }
@@ -206,17 +198,15 @@ impl Checker {
                 if !has_unchanged {
                     missing.push("`Unchanged`");
                 }
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!(
-                            "non-exhaustive match on `Settable`: missing {}",
-                            missing.join(" and ")
-                        ),
-                        span,
-                    )
-                    .with_label("not all cases covered")
-                    .with_help("add match arms for the missing cases")
-                    .with_code("E004"),
+                self.emit_error_with_help(
+                    format!(
+                        "non-exhaustive match on `Settable`: missing {}",
+                        missing.join(" and ")
+                    ),
+                    span,
+                    "E004",
+                    "not all cases covered",
+                    "add match arms for the missing cases",
                 );
             }
         }
@@ -251,16 +241,12 @@ impl Checker {
                     (true, false) => "non-empty array `[_, .._]`",
                     _ => unreachable!(),
                 };
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!("non-exhaustive match on array: missing {missing}"),
-                        span,
-                    )
-                    .with_label("not all cases covered")
-                    .with_help(
-                        "add match arms for both `[]` and `[_, ..rest]`, or add a `_ ->` catch-all",
-                    )
-                    .with_code("E004"),
+                self.emit_error_with_help(
+                    format!("non-exhaustive match on array: missing {missing}"),
+                    span,
+                    "E004",
+                    "not all cases covered",
+                    "add match arms for both `[]` and `[_, ..rest]`, or add a `_ ->` catch-all",
                 );
             }
         }
@@ -281,38 +267,35 @@ impl Checker {
                 }
             }
             if !has_true || !has_false {
-                self.diagnostics.push(
-                    Diagnostic::error("non-exhaustive match on `boolean`: missing a case", span)
-                        .with_label("not all cases covered")
-                        .with_help("add match arms for both `true` and `false`")
-                        .with_code("E004"),
+                self.emit_error_with_help(
+                    "non-exhaustive match on `boolean`: missing a case",
+                    span,
+                    "E004",
+                    "not all cases covered",
+                    "add match arms for both `true` and `false`",
                 );
             }
         }
 
         // For number types, require a `_` catch-all (numbers are unbounded)
         if matches!(subject_ty, Type::Number) {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    "non-exhaustive match on `number`: cannot cover all values without a catch-all",
-                    span,
-                )
-                .with_label("number type has infinite values")
-                .with_help("add a `_ ->` catch-all arm")
-                .with_code("E004"),
+            self.emit_error_with_help(
+                "non-exhaustive match on `number`: cannot cover all values without a catch-all",
+                span,
+                "E004",
+                "number type has infinite values",
+                "add a `_ ->` catch-all arm",
             );
         }
 
         // For string types, require a `_` catch-all (strings are unbounded)
         if matches!(subject_ty, Type::String) {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    "non-exhaustive match on `string`: cannot cover all values without a catch-all",
-                    span,
-                )
-                .with_label("string type has infinite values")
-                .with_help("add a `_ ->` catch-all arm")
-                .with_code("E004"),
+            self.emit_error_with_help(
+                "non-exhaustive match on `string`: cannot cover all values without a catch-all",
+                span,
+                "E004",
+                "string type has infinite values",
+                "add a `_ ->` catch-all arm",
             );
         }
 
@@ -320,14 +303,12 @@ impl Checker {
         if let Type::Tuple(elem_types) = subject_ty
             && !self.check_tuple_exhaustiveness(elem_types, arms)
         {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    "non-exhaustive match on tuple: not all combinations are covered",
-                    span,
-                )
-                .with_label("not all cases covered")
-                .with_help("add match arms for the missing combinations, or add a `_ ->` catch-all")
-                .with_code("E004"),
+            self.emit_error_with_help(
+                "non-exhaustive match on tuple: not all combinations are covered",
+                span,
+                "E004",
+                "not all cases covered",
+                "add match arms for the missing combinations, or add a `_ ->` catch-all",
             );
         }
     }
@@ -531,16 +512,14 @@ impl Checker {
             PatternKind::StringPattern { segments } => {
                 // String patterns require the subject to be a string type
                 if !matches!(subject_ty, Type::String | Type::Unknown) {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "string pattern used on non-string type `{}`",
-                                subject_ty.display_name()
-                            ),
-                            pattern.span,
-                        )
-                        .with_label("expected string type")
-                        .with_code("E005"),
+                    self.emit_error(
+                        format!(
+                            "string pattern used on non-string type `{}`",
+                            subject_ty.display_name()
+                        ),
+                        pattern.span,
+                        "E005",
+                        "expected string type",
                     );
                 }
                 // Bind all captured variables as string

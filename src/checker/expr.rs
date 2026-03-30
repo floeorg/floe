@@ -93,10 +93,11 @@ impl Checker {
                     // Stdlib module names (Array, String, etc.) are valid identifiers
                     Type::Unknown
                 } else {
-                    self.diagnostics.push(
-                        Diagnostic::error(format!("`{name}` is not defined"), expr.span)
-                            .with_label("not found in scope")
-                            .with_code("E002"),
+                    self.emit_error(
+                        format!("`{name}` is not defined"),
+                        expr.span,
+                        "E002",
+                        "not found in scope",
                     );
                     Type::Unknown
                 }
@@ -111,16 +112,14 @@ impl Checker {
                 match op {
                     UnaryOp::Neg => {
                         if !ty.is_numeric() && !matches!(ty, Type::Unknown | Type::Var(_)) {
-                            self.diagnostics.push(
-                                Diagnostic::error(
-                                    format!(
-                                        "cannot negate type `{}`, expected `number`",
-                                        ty.display_name()
-                                    ),
-                                    expr.span,
-                                )
-                                .with_label("expected `number`")
-                                .with_code("E001"),
+                            self.emit_error(
+                                format!(
+                                    "cannot negate type `{}`, expected `number`",
+                                    ty.display_name()
+                                ),
+                                expr.span,
+                                "E001",
+                                "expected `number`",
                             );
                         }
                         Type::Number
@@ -146,28 +145,20 @@ impl Checker {
                     match &self.ctx.current_return_type {
                         Some(ret) if ret.is_result() || ret.is_option() => {}
                         Some(_) => {
-                            self.diagnostics.push(
-                                Diagnostic::error(
-                                    "`?` operator requires function to return `Result` or `Option`",
-                                    expr.span,
-                                )
-                                .with_label(
-                                    "enclosing function does not return `Result` or `Option`",
-                                )
-                                .with_help(
-                                    "change the function's return type to `Result` or `Option`",
-                                )
-                                .with_code("E005"),
+                            self.emit_error_with_help(
+                                "`?` operator requires function to return `Result` or `Option`",
+                                expr.span,
+                                "E005",
+                                "enclosing function does not return `Result` or `Option`",
+                                "change the function's return type to `Result` or `Option`",
                             );
                         }
                         None => {
-                            self.diagnostics.push(
-                                Diagnostic::error(
-                                    "`?` operator can only be used inside a function",
-                                    expr.span,
-                                )
-                                .with_label("not inside a function")
-                                .with_code("E005"),
+                            self.emit_error(
+                                "`?` operator can only be used inside a function",
+                                expr.span,
+                                "E005",
+                                "not inside a function",
                             );
                         }
                     }
@@ -182,16 +173,14 @@ impl Checker {
                     }
                     Type::Option(inner) => *inner,
                     _ => {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!(
-                                    "`?` can only be used on `Result` or `Option`, found `{}`",
-                                    ty.display_name()
-                                ),
-                                expr.span,
-                            )
-                            .with_label("not a `Result` or `Option`")
-                            .with_code("E005"),
+                        self.emit_error(
+                            format!(
+                                "`?` can only be used on `Result` or `Option`, found `{}`",
+                                ty.display_name()
+                            ),
+                            expr.span,
+                            "E005",
+                            "not a `Result` or `Option`",
                         );
                         Type::Unknown
                     }
@@ -248,16 +237,14 @@ impl Checker {
                     Type::Array(inner) => {
                         // Index must be a number
                         if !matches!(idx_ty, Type::Number | Type::Unknown) {
-                            self.diagnostics.push(
-                                Diagnostic::error(
-                                    format!(
-                                        "array index must be `number`, found `{}`",
-                                        idx_ty.display_name()
-                                    ),
-                                    index.span,
-                                )
-                                .with_label("expected `number`")
-                                .with_code("E017"),
+                            self.emit_error(
+                                format!(
+                                    "array index must be `number`, found `{}`",
+                                    idx_ty.display_name()
+                                ),
+                                index.span,
+                                "E017",
+                                "expected `number`",
                             );
                         }
                         Type::Option(inner.clone())
@@ -293,13 +280,11 @@ impl Checker {
                                 Type::Unknown
                             }
                         } else {
-                            self.diagnostics.push(
-                                Diagnostic::error(
-                                    "tuple index must be a numeric literal",
-                                    index.span,
-                                )
-                                .with_label("dynamic indexing is not allowed on tuples")
-                                .with_code("E017"),
+                            self.emit_error(
+                                "tuple index must be a numeric literal",
+                                index.span,
+                                "E017",
+                                "dynamic indexing is not allowed on tuples",
                             );
                             Type::Unknown
                         }
@@ -312,16 +297,14 @@ impl Checker {
                         {
                             return Type::Unknown;
                         }
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!(
-                                    "cannot use bracket access on type `{}`",
-                                    obj_ty.display_name()
-                                ),
-                                expr.span,
-                            )
-                            .with_label("not an array or tuple type")
-                            .with_code("E017"),
+                        self.emit_error(
+                            format!(
+                                "cannot use bracket access on type `{}`",
+                                obj_ty.display_name()
+                            ),
+                            expr.span,
+                            "E017",
+                            "not an array or tuple type",
                         );
                         Type::Unknown
                     }
@@ -420,17 +403,15 @@ impl Checker {
                             && !matches!(arm_type, Type::Unknown | Type::Var(_))
                             && !matches!(first_type, Type::Unknown | Type::Var(_))
                         {
-                            self.diagnostics.push(
-                                Diagnostic::error(
-                                    format!(
+                            self.emit_error(
+                                format!(
                                         "match arms have incompatible types: first arm returns `{}`, this arm returns `{}`",
                                         first_type.display_name(),
                                         arm_type.display_name()
                                     ),
-                                    arm.body.span,
-                                )
-                                .with_label(format!("expected `{}`", first_type.display_name()))
-                                .with_code("E001"),
+                                arm.body.span,
+                                "E001",
+                                format!("expected `{}`", first_type.display_name()),
                             );
                         }
                         result_type = Some(Self::merge_types(first_type, &arm_type));
@@ -443,14 +424,12 @@ impl Checker {
 
             ExprKind::Await(inner) => {
                 if !self.ctx.inside_async {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            "`await` can only be used inside an `async` function",
-                            expr.span,
-                        )
-                        .with_label("not inside an `async` function")
-                        .with_help("add `async` to the enclosing function declaration")
-                        .with_code("E033"),
+                    self.emit_error_with_help(
+                        "`await` can only be used inside an `async` function",
+                        expr.span,
+                        "E033",
+                        "not inside an `async` function",
+                        "add `async` to the enclosing function declaration",
                     );
                 }
                 let ty = self.check_expr(inner);
@@ -542,14 +521,12 @@ impl Checker {
             ExprKind::Unchanged => Type::Settable(Box::new(Type::Unknown)),
 
             ExprKind::Todo => {
-                self.diagnostics.push(
-                    Diagnostic::warning(
-                        "`todo` is a placeholder that will panic at runtime",
-                        expr.span,
-                    )
-                    .with_label("not yet implemented")
-                    .with_help("replace with actual implementation before shipping")
-                    .with_code("W002"),
+                self.emit_warning_with_help(
+                    "`todo` is a placeholder that will panic at runtime",
+                    expr.span,
+                    "W002",
+                    "not yet implemented",
+                    "replace with actual implementation before shipping",
                 );
                 Type::Never
             }
@@ -703,18 +680,16 @@ impl Checker {
             }
 
             if !variadic && arg_count != expected_param_count {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!(
-                            "`{display}` expects {} argument{}, found {}",
-                            expected_param_count,
-                            if expected_param_count == 1 { "" } else { "s" },
-                            arg_count
-                        ),
-                        span,
-                    )
-                    .with_label("wrong number of arguments")
-                    .with_code("E001"),
+                self.emit_error(
+                    format!(
+                        "`{display}` expects {} argument{}, found {}",
+                        expected_param_count,
+                        if expected_param_count == 1 { "" } else { "s" },
+                        arg_count
+                    ),
+                    span,
+                    "E001",
+                    "wrong number of arguments",
                 );
             }
 
@@ -726,16 +701,12 @@ impl Checker {
             && !self.ctx.inside_try
             && self.untrusted_imports.contains(name)
         {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!("calling untrusted import `{name}` requires `try`"),
-                    span,
-                )
-                .with_label("untrusted import")
-                .with_help(format!(
-                    "use `try {name}(...)` or mark the import as `trusted`"
-                ))
-                .with_code("E014"),
+            self.emit_error_with_help(
+                format!("calling untrusted import `{name}` requires `try`"),
+                span,
+                "E014",
+                "untrusted import",
+                format!("use `try {name}(...)` or mark the import as `trusted`"),
             );
         }
 
@@ -762,13 +733,11 @@ impl Checker {
         let has_placeholder = placeholder_count > 0;
 
         if placeholder_count > 1 {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    "only one `_` placeholder allowed per call - use `(x, y) => f(x, y)` for multiple parameters",
-                    span,
-                )
-                .with_label("multiple `_` placeholders")
-                .with_code("E023"),
+            self.emit_error(
+                "only one `_` placeholder allowed per call - use `(x, y) => f(x, y)` for multiple parameters",
+                span,
+                "E023",
+                "multiple `_` placeholders",
             );
         }
 
@@ -867,16 +836,14 @@ impl Checker {
                     } else {
                         format!("{} to {} arguments", required_params, params.len())
                     };
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "`{callee_name}` expects {expected_msg}, found {}",
-                                arg_types.len()
-                            ),
-                            span,
-                        )
-                        .with_label("wrong number of arguments")
-                        .with_code("E001"),
+                    self.emit_error(
+                        format!(
+                            "`{callee_name}` expects {expected_msg}, found {}",
+                            arg_types.len()
+                        ),
+                        span,
+                        "E001",
+                        "wrong number of arguments",
                     );
                 }
 
@@ -911,18 +878,16 @@ impl Checker {
                             continue;
                         }
                         if !self.types_compatible(param_ty, arg_ty) {
-                            self.diagnostics.push(
-                                Diagnostic::error(
-                                    format!(
-                                        "argument {} to `{callee_name}`: expected `{}`, found `{}`",
-                                        i + 1,
-                                        param_ty.display_name(),
-                                        arg_ty.display_name()
-                                    ),
-                                    span,
-                                )
-                                .with_label(format!("expected `{}`", param_ty.display_name()))
-                                .with_code("E001"),
+                            self.emit_error(
+                                format!(
+                                    "argument {} to `{callee_name}`: expected `{}`, found `{}`",
+                                    i + 1,
+                                    param_ty.display_name(),
+                                    arg_ty.display_name()
+                                ),
+                                span,
+                                "E001",
+                                format!("expected `{}`", param_ty.display_name()),
                             );
                         }
                     }
@@ -952,18 +917,16 @@ impl Checker {
                     // Normal call: check all argument types
                     for (i, (arg_ty, param_ty)) in arg_types.iter().zip(params.iter()).enumerate() {
                         if !self.types_compatible(param_ty, arg_ty) {
-                            self.diagnostics.push(
-                                Diagnostic::error(
-                                    format!(
-                                        "argument {} to `{callee_name}`: expected `{}`, found `{}`",
-                                        i + 1,
-                                        param_ty.display_name(),
-                                        arg_ty.display_name()
-                                    ),
-                                    span,
-                                )
-                                .with_label(format!("expected `{}`", param_ty.display_name()))
-                                .with_code("E001"),
+                            self.emit_error(
+                                format!(
+                                    "argument {} to `{callee_name}`: expected `{}`, found `{}`",
+                                    i + 1,
+                                    param_ty.display_name(),
+                                    arg_ty.display_name()
+                                ),
+                                span,
+                                "E001",
+                                format!("expected `{}`", param_ty.display_name()),
                             );
                         }
                     }
@@ -978,17 +941,15 @@ impl Checker {
         if !concrete.is_boolean()
             && !matches!(concrete, Type::Unknown | Type::Var(_) | Type::Foreign(_))
         {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!(
-                        "expected boolean operand for `{op}`, found `{}`",
-                        ty.display_name()
-                    ),
-                    span,
-                )
-                .with_label("expected `boolean`")
-                .with_help("use `match` for non-boolean conditional logic")
-                .with_code("E001"),
+            self.emit_error_with_help(
+                format!(
+                    "expected boolean operand for `{op}`, found `{}`",
+                    ty.display_name()
+                ),
+                span,
+                "E001",
+                "expected `boolean`",
+                "use `match` for non-boolean conditional logic",
             );
         }
     }
@@ -1006,18 +967,16 @@ impl Checker {
                     && !matches!(left_ty, Type::Unknown | Type::Var(_))
                     && !matches!(right_ty, Type::Unknown | Type::Var(_))
                 {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "cannot compare `{}` with `{}`",
-                                left_ty.display_name(),
-                                right_ty.display_name()
-                            ),
-                            span,
-                        )
-                        .with_label("mismatched types")
-                        .with_help("both sides of `==` must have the same type")
-                        .with_code("E008"),
+                    self.emit_error_with_help(
+                        format!(
+                            "cannot compare `{}` with `{}`",
+                            left_ty.display_name(),
+                            right_ty.display_name()
+                        ),
+                        span,
+                        "E008",
+                        "mismatched types",
+                        "both sides of `==` must have the same type",
                     );
                 }
                 Type::Bool
@@ -1034,14 +993,12 @@ impl Checker {
             BinOp::Add => {
                 // Rule 12: String concat with + warning
                 if matches!(left_ty, Type::String) || matches!(right_ty, Type::String) {
-                    self.diagnostics.push(
-                        Diagnostic::warning(
-                            "use template literal instead of `+` for string concatenation",
-                            span,
-                        )
-                        .with_label("prefer template literal")
-                        .with_help("use `\"${a}${b}\"` instead")
-                        .with_code("W002"),
+                    self.emit_warning_with_help(
+                        "use template literal instead of `+` for string concatenation",
+                        span,
+                        "W002",
+                        "prefer template literal",
+                        "use `\"${a}${b}\"` instead",
                     );
                 }
                 if matches!(left_ty, Type::Number) && matches!(right_ty, Type::Number) {
@@ -1073,10 +1030,11 @@ impl Checker {
                 .is_some_and(|ty| matches!(ty, Type::Union { .. }));
             let is_known_value = self.env.lookup(type_name).is_some();
             if !is_variant && !is_known_value {
-                self.diagnostics.push(
-                    Diagnostic::error(format!("unknown type `{type_name}`"), span)
-                        .with_label("not defined")
-                        .with_code("E002"),
+                self.emit_error(
+                    format!("unknown type `{type_name}`"),
+                    span,
+                    "E002",
+                    "not defined",
                 );
             }
         }
@@ -1099,16 +1057,12 @@ impl Checker {
         if let Some(ref info) = type_info
             && info.opaque
         {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!(
-                        "cannot construct opaque type `{type_name}` outside its defining module"
-                    ),
-                    span,
-                )
-                .with_label("opaque type cannot be constructed directly")
-                .with_help("use the module's exported constructor function instead")
-                .with_code("E003"),
+            self.emit_error_with_help(
+                format!("cannot construct opaque type `{type_name}` outside its defining module"),
+                span,
+                "E003",
+                "opaque type cannot be constructed directly",
+                "use the module's exported constructor function instead",
             );
         }
 
@@ -1162,21 +1116,19 @@ impl Checker {
 
             for label in &named_labels {
                 if !fields.iter().any(|f| f == label) {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!("unknown field `{label}` on type `{type_name}`"),
-                            span,
-                        )
-                        .with_label(format!("`{label}` is not a field of `{type_name}`"))
-                        .with_help(format!(
+                    self.emit_error_with_help(
+                        format!("unknown field `{label}` on type `{type_name}`"),
+                        span,
+                        "E015",
+                        format!("`{label}` is not a field of `{type_name}`"),
+                        format!(
                             "available fields: {}",
                             fields
                                 .iter()
                                 .map(|f| format!("`{f}`"))
                                 .collect::<Vec<_>>()
                                 .join(", ")
-                        ))
-                        .with_code("E015"),
+                        ),
                     );
                 }
             }
@@ -1209,15 +1161,13 @@ impl Checker {
                     let has_default = has_defaults.contains(field);
 
                     if !provided_by_name && !provided_by_position && !has_default {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!(
-                                    "missing required field `{field}` in `{type_name}` constructor"
-                                ),
-                                span,
-                            )
-                            .with_label(format!("field `{field}` is required"))
-                            .with_code("E016"),
+                        self.emit_error(
+                            format!(
+                                "missing required field `{field}` in `{type_name}` constructor"
+                            ),
+                            span,
+                            "E016",
+                            format!("field `{field}` is required"),
                         );
                     }
                 }
@@ -1234,16 +1184,12 @@ impl Checker {
                     if let Arg::Named { label, .. } = arg
                         && spread_keys.contains(&label.as_str())
                     {
-                        self.diagnostics.push(
-                            Diagnostic::warning(
-                                format!(
-                                    "field `{label}` from spread is overwritten by explicit field"
-                                ),
-                                span,
-                            )
-                            .with_label(format!("`{label}` exists in the spread source"))
-                            .with_help("the spread value will be replaced by the explicit field")
-                            .with_code("W003"),
+                        self.emit_warning_with_help(
+                            format!("field `{label}` from spread is overwritten by explicit field"),
+                            span,
+                            "W003",
+                            format!("`{label}` exists in the spread source"),
+                            "the spread value will be replaced by the explicit field",
                         );
                     }
                 }
@@ -1288,17 +1234,15 @@ impl Checker {
                         && !self.types_compatible(expected_ty, &arg_ty)
                         && !matches!(arg_ty, Type::Unknown | Type::Var(_))
                     {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!(
-                                    "field `{label}`: expected `{}`, found `{}`",
-                                    expected_ty.display_name(),
-                                    arg_ty.display_name()
-                                ),
-                                span,
-                            )
-                            .with_label(format!("expected `{}`", expected_ty.display_name()))
-                            .with_code("E001"),
+                        self.emit_error(
+                            format!(
+                                "field `{label}`: expected `{}`, found `{}`",
+                                expected_ty.display_name(),
+                                arg_ty.display_name()
+                            ),
+                            span,
+                            "E001",
+                            format!("expected `{}`", expected_ty.display_name()),
                         );
                     }
                 }
@@ -1431,17 +1375,15 @@ impl Checker {
                     if let Some(first_param) = params.first()
                         && !self.types_compatible(first_param, left_ty)
                     {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!(
-                                    "argument 1 to `{name}`: expected `{}`, found `{}`",
-                                    first_param.display_name(),
-                                    left_ty.display_name()
-                                ),
-                                right.span,
-                            )
-                            .with_label(format!("expected `{}`", first_param.display_name()))
-                            .with_code("E001"),
+                        self.emit_error(
+                            format!(
+                                "argument 1 to `{name}`: expected `{}`, found `{}`",
+                                first_param.display_name(),
+                                left_ty.display_name()
+                            ),
+                            right.span,
+                            "E001",
+                            format!("expected `{}`", first_param.display_name()),
                         );
                     }
                     return *return_type;
@@ -1450,16 +1392,14 @@ impl Checker {
                 Type::Unknown | Type::Var(_) => {}
                 // Non-function types: error
                 _ => {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "cannot pipe into `{name}`: expected a function, found `{}`",
-                                right_ty.display_name()
-                            ),
-                            right.span,
-                        )
-                        .with_label("not a function")
-                        .with_code("E001"),
+                    self.emit_error(
+                        format!(
+                            "cannot pipe into `{name}`: expected a function, found `{}`",
+                            right_ty.display_name()
+                        ),
+                        right.span,
+                        "E001",
+                        "not a function",
                     );
                 }
             }
@@ -1480,17 +1420,15 @@ impl Checker {
         if let Some(first_param) = stdlib_fn.params.first()
             && !self.types_compatible(first_param, left_ty)
         {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!(
-                        "argument 1 to `{display_name}`: expected `{}`, found `{}`",
-                        first_param.display_name(),
-                        left_ty.display_name()
-                    ),
-                    right.span,
-                )
-                .with_label(format!("expected `{}`", first_param.display_name()))
-                .with_code("E001"),
+            self.emit_error(
+                format!(
+                    "argument 1 to `{display_name}`: expected `{}`, found `{}`",
+                    first_param.display_name(),
+                    left_ty.display_name()
+                ),
+                right.span,
+                "E001",
+                format!("expected `{}`", first_param.display_name()),
             );
         }
         if let Type::Array(elem) = left_ty {
@@ -1768,53 +1706,48 @@ impl Checker {
     fn resolve_member_type(&mut self, obj_ty: &Type, field: &str, span: Span) -> Type {
         // Rule 6: No property access on unnarrowed unions
         if let Type::Result { .. } = obj_ty {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!("cannot access `.{field}` on `Result` - use `match` or `?` first"),
-                    span,
-                )
-                .with_label("`Result` must be narrowed first")
-                .with_help("use `match result { Ok(v) -> ..., Err(e) -> ... }`")
-                .with_code("E006"),
+            self.emit_error_with_help(
+                format!("cannot access `.{field}` on `Result` - use `match` or `?` first"),
+                span,
+                "E006",
+                "`Result` must be narrowed first",
+                "use `match result { Ok(v) -> ..., Err(e) -> ... }`",
             );
             return Type::Unknown;
         }
         if let Type::Union { name, .. } = obj_ty {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!("cannot access `.{field}` on union `{name}` - use `match` first"),
-                    span,
-                )
-                .with_label("union must be narrowed first")
-                .with_help("use `match` to narrow the union first")
-                .with_code("E006"),
+            self.emit_error_with_help(
+                format!("cannot access `.{field}` on union `{name}` - use `match` first"),
+                span,
+                "E006",
+                "union must be narrowed first",
+                "use `match` to narrow the union first",
             );
             return Type::Unknown;
         }
 
         // Error on member access on Promise — must await first
         if let Type::Promise(_) = obj_ty {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!(
-                        "cannot access `.{field}` on `{}` — use `await` first",
-                        obj_ty.display_name()
-                    ),
-                    span,
-                )
-                .with_label("must `await` the Promise before accessing members")
-                .with_code("E021"),
+            self.emit_error(
+                format!(
+                    "cannot access `.{field}` on `{}` — use `await` first",
+                    obj_ty.display_name()
+                ),
+                span,
+                "E021",
+                "must `await` the Promise before accessing members",
             );
             return Type::Unknown;
         }
 
         // Error on member access on `unknown` — must narrow first
         if matches!(obj_ty, Type::Unknown) {
-            self.diagnostics.push(
-                Diagnostic::error(format!("cannot access `.{field}` on `unknown`"), span)
-                    .with_label("`unknown` must be narrowed before member access")
-                    .with_help("use `match`, type validation (e.g. Zod), or pattern matching")
-                    .with_code("E020"),
+            self.emit_error_with_help(
+                format!("cannot access `.{field}` on `unknown`"),
+                span,
+                "E020",
+                "`unknown` must be narrowed before member access",
+                "use `match`, type validation (e.g. Zod), or pattern matching",
             );
             return Type::Unknown;
         }
@@ -1836,18 +1769,19 @@ impl Checker {
             } else {
                 format!("`{}`", obj_ty.display_name())
             };
-            self.diagnostics.push(
-                Diagnostic::error(format!("type {type_name} has no field `{field}`"), span)
-                    .with_label("unknown field")
-                    .with_help(format!(
-                        "available fields: {}",
-                        fields
-                            .iter()
-                            .map(|(n, _)| format!("`{n}`"))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ))
-                    .with_code("E017"),
+            self.emit_error_with_help(
+                format!("type {type_name} has no field `{field}`"),
+                span,
+                "E017",
+                "unknown field",
+                format!(
+                    "available fields: {}",
+                    fields
+                        .iter()
+                        .map(|(n, _)| format!("`{n}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
             );
             return Type::Unknown;
         }
@@ -1875,16 +1809,14 @@ impl Checker {
         // Error on member access on primitive types
         match obj_ty {
             Type::Number | Type::String | Type::Bool | Type::Unit => {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!(
-                            "cannot access `.{field}` on type `{}`",
-                            obj_ty.display_name()
-                        ),
-                        span,
-                    )
-                    .with_label("not a record type")
-                    .with_code("E017"),
+                self.emit_error(
+                    format!(
+                        "cannot access `.{field}` on type `{}`",
+                        obj_ty.display_name()
+                    ),
+                    span,
+                    "E017",
+                    "not a record type",
                 );
                 return Type::Unknown;
             }
@@ -1909,14 +1841,12 @@ impl Checker {
             if self.env.lookup_type(name).is_none() {
                 return Type::Foreign(format!("{name}.{field}"));
             }
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!("cannot access `.{field}` on unresolved type `{name}`"),
-                    span,
-                )
-                .with_label("type definition not found")
-                .with_help("ensure the type's source module has a .d.ts file or is a .fl file")
-                .with_code("E020"),
+            self.emit_error_with_help(
+                format!("cannot access `.{field}` on unresolved type `{name}`"),
+                span,
+                "E020",
+                "type definition not found",
+                "ensure the type's source module has a .d.ts file or is a .fl file",
             );
             return Type::Unknown;
         }
@@ -1932,16 +1862,14 @@ impl Checker {
         }
 
         // Fallback: type doesn't support member access
-        self.diagnostics.push(
-            Diagnostic::error(
-                format!(
-                    "cannot access `.{field}` on type `{}`",
-                    obj_ty.display_name()
-                ),
-                span,
-            )
-            .with_label("this type does not support member access")
-            .with_code("E017"),
+        self.emit_error(
+            format!(
+                "cannot access `.{field}` on type `{}`",
+                obj_ty.display_name()
+            ),
+            span,
+            "E017",
+            "this type does not support member access",
         );
         Type::Unknown
     }
