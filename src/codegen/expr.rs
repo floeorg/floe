@@ -4,6 +4,22 @@ const DEEP_EQUAL_FN: &str = "__floeEq";
 const THROW_NOT_IMPLEMENTED: &str = "(() => { throw new Error(\"not implemented\"); })()";
 const THROW_UNREACHABLE: &str = "(() => { throw new Error(\"unreachable\"); })()";
 
+/// Alternative codegen templates for Map operations on plain-object Records.
+/// TS Record<K, V> maps to Floe Map<K, V>, but at runtime it's a plain object,
+/// not a JS Map, so we use bracket access instead of Map API methods.
+fn record_map_template(method: &str) -> Option<&'static str> {
+    match method {
+        "get" => Some("$0[$1]"),
+        "has" => Some("($1 in $0)"),
+        "keys" => Some("Object.keys($0)"),
+        "values" => Some("Object.values($0)"),
+        "entries" => Some("Object.entries($0)"),
+        "size" => Some("Object.keys($0).length"),
+        "isEmpty" => Some("Object.keys($0).length === 0"),
+        _ => None,
+    }
+}
+
 impl Codegen {
     // ── Expressions ──────────────────────────────────────────────
 
@@ -489,12 +505,27 @@ impl Codegen {
             && let ExprKind::Identifier(module) = &object.kind
             && let Some(stdlib_fn) = self.stdlib.lookup(module, field)
         {
-            let template = stdlib_fn.codegen.to_string();
+            // For Map.get(obj, key) etc., check if the first arg is a Record-backed Map
+            let template = if module == "Map"
+                && let Some(first_arg) = args.first()
+                && let Arg::Positional(first_expr) = first_arg
+                && self.is_record_map(&first_expr.ty)
+            {
+                record_map_template(field).unwrap_or(stdlib_fn.codegen)
+            } else {
+                stdlib_fn.codegen
+            };
             let arg_strings = self.emit_arg_strings(args);
-            Some(self.apply_stdlib_template(&template, &arg_strings))
+            Some(self.apply_stdlib_template(template, &arg_strings))
         } else {
             None
         }
+    }
+
+    /// Check if an expression's type is a Map that came from a TS Record
+    /// (plain object at runtime, not a JS Map).
+    fn is_record_map(&self, ty: &crate::checker::Type) -> bool {
+        matches!(ty, crate::checker::Type::RecordMap { .. })
     }
 
     /// Try to emit a stdlib call in pipe context (piped value is first arg).
@@ -508,11 +539,15 @@ impl Codegen {
             && let ExprKind::Identifier(module) = &object.kind
             && let Some(stdlib_fn) = self.stdlib.lookup(module, field)
         {
-            let template = stdlib_fn.codegen.to_string();
+            let template = if module == "Map" && self.is_record_map(&left.ty) {
+                record_map_template(field).unwrap_or(stdlib_fn.codegen)
+            } else {
+                stdlib_fn.codegen
+            };
             let left_str = self.emit_expr_string(left);
             let mut arg_strings = vec![left_str];
             arg_strings.extend(self.emit_arg_strings(extra_args));
-            Some(self.apply_stdlib_template(&template, &arg_strings))
+            Some(self.apply_stdlib_template(template, &arg_strings))
         } else {
             None
         }

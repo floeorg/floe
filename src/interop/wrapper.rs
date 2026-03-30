@@ -46,6 +46,11 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                 "FloeOption" if args.len() == 1 => {
                     Type::Option(Box::new(wrap_boundary_type(&args[0])))
                 }
+                // TS Record<K, V> → Floe RecordMap<K, V> (plain-object map)
+                "Record" if args.len() == 2 => Type::RecordMap {
+                    key: Box::new(wrap_boundary_type(&args[0])),
+                    value: Box::new(wrap_boundary_type(&args[1])),
+                },
                 // React's Dispatch<SetStateAction<T>> is a function: (T) -> ()
                 "Dispatch" if args.len() == 1 => {
                     let inner = unwrap_set_state_action(&args[0]);

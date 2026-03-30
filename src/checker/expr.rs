@@ -1495,7 +1495,7 @@ impl Checker {
                 Self::collect_generic_params_from_type(ok, names, seen);
                 Self::collect_generic_params_from_type(err, names, seen);
             }
-            Type::Map { key, value } => {
+            Type::Map { key, value } | Type::RecordMap { key, value } => {
                 Self::collect_generic_params_from_type(key, names, seen);
                 Self::collect_generic_params_from_type(value, names, seen);
             }
@@ -1546,7 +1546,10 @@ impl Checker {
             (Type::Array(p), Type::Array(a)) => {
                 Self::unify_for_inference(p, a, generics, subs);
             }
-            (Type::Map { key: pk, value: pv }, Type::Map { key: ak, value: av }) => {
+            (
+                Type::Map { key: pk, value: pv } | Type::RecordMap { key: pk, value: pv },
+                Type::Map { key: ak, value: av } | Type::RecordMap { key: ak, value: av },
+            ) => {
                 Self::unify_for_inference(pk, ak, generics, subs);
                 Self::unify_for_inference(pv, av, generics, subs);
             }
@@ -1592,6 +1595,10 @@ impl Checker {
             Type::Named(n) if subs.contains_key(n) => subs[n].clone(),
             Type::Array(inner) => Type::Array(Box::new(Self::substitute_generics(inner, subs))),
             Type::Map { key, value } => Type::Map {
+                key: Box::new(Self::substitute_generics(key, subs)),
+                value: Box::new(Self::substitute_generics(value, subs)),
+            },
+            Type::RecordMap { key, value } => Type::RecordMap {
                 key: Box::new(Self::substitute_generics(key, subs)),
                 value: Box::new(Self::substitute_generics(value, subs)),
             },

@@ -41,8 +41,14 @@ pub enum Type {
     },
     /// Array type
     Array(Box<Type>),
-    /// Map type: Map<K, V>
+    /// Map type: Map<K, V> (JS Map at runtime)
     Map {
+        key: Box<Type>,
+        value: Box<Type>,
+    },
+    /// TS Record<K, V> — plain object at runtime, supports Map operations
+    /// via bracket access codegen instead of JS Map API
+    RecordMap {
         key: Box<Type>,
         value: Box<Type>,
     },
@@ -125,7 +131,7 @@ impl Type {
                 format!("({}) -> {}", p.join(", "), return_type.display_name())
             }
             Type::Array(inner) => format!("Array<{}>", inner.display_name()),
-            Type::Map { key, value } => {
+            Type::Map { key, value } | Type::RecordMap { key, value } => {
                 format!("Map<{}, {}>", key.display_name(), value.display_name())
             }
             Type::Set { element } => format!("Set<{}>", element.display_name()),
