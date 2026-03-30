@@ -1809,6 +1809,54 @@ test "bad assert" {
     );
 }
 
+// ── Boolean operand enforcement ──────────────────────────────
+
+#[test]
+fn and_or_require_boolean_operands() {
+    let diags = check(r#"const _x = 1 && 2"#);
+    assert!(
+        has_error_containing(&diags, "expected boolean operand for `&&`"),
+        "non-boolean && should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let diags = check(r#"const _x = "a" || "b""#);
+    assert!(
+        has_error_containing(&diags, "expected boolean operand for `||`"),
+        "non-boolean || should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn and_or_accept_booleans() {
+    let diags = check(r#"const _x = true && false"#);
+    assert!(
+        !has_error_containing(&diags, "expected boolean operand"),
+        "boolean && should not error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn not_requires_boolean_operand() {
+    let diags = check(r#"const _x = !42"#);
+    assert!(
+        has_error_containing(&diags, "expected boolean operand for `!`"),
+        "non-boolean ! should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn not_accepts_boolean() {
+    let diags = check(r#"const _x = !true"#);
+    assert!(
+        !has_error_containing(&diags, "expected boolean operand"),
+        "boolean ! should not error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 #[test]
 fn trait_default_method_not_required() {
     let diags = check(
