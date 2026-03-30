@@ -5,6 +5,19 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.23](https://github.com/milkyskies/floe/compare/v0.1.22...v0.1.23) (2026-03-30)
+
+
+### Features
+
+* [[#650](https://github.com/milkyskies/floe/issues/650)] Change function type arrow from =&gt; to -&gt; in type position ([#657](https://github.com/milkyskies/floe/issues/657)) ([4b5c9c1](https://github.com/milkyskies/floe/commit/4b5c9c15a8db3ed9bcea578e7d578b68e0b42593))
+
+
+### Bug Fixes
+
+* [[#594](https://github.com/milkyskies/floe/issues/594)] Vite plugin resolves .fl file when .ts file was intended for extensionless imports ([#655](https://github.com/milkyskies/floe/issues/655)) ([c22a1c9](https://github.com/milkyskies/floe/commit/c22a1c92da2ec54096eb7c34820aa7079d23845b))
+* [[#644](https://github.com/milkyskies/floe/issues/644)] Codegen name collision for same-named functions in different for-blocks ([#647](https://github.com/milkyskies/floe/issues/647)) ([18dd0f9](https://github.com/milkyskies/floe/commit/18dd0f9b20c8979e3ec36c517e35361f447a3727))
+
 ## [0.1.22](https://github.com/milkyskies/floe/compare/v0.1.21...v0.1.22) (2026-03-29)
 
 
