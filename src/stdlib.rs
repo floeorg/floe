@@ -941,4 +941,645 @@ mod tests {
         let f = reg.lookup("Promise", "delay").unwrap();
         assert!(f.codegen.contains("setTimeout"));
     }
+
+    // ── Structural validation ─────────────────────────────────
+
+    #[test]
+    fn all_functions_have_valid_codegen_placeholders() {
+        let reg = StdlibRegistry::new();
+        for f in reg.all_functions() {
+            if f.is_variadic() {
+                assert!(
+                    f.codegen.contains("$.."),
+                    "{}.{} is variadic but codegen has no $.. placeholder",
+                    f.module,
+                    f.name
+                );
+            } else if !f.params.is_empty() {
+                assert!(
+                    f.codegen.contains("$0"),
+                    "{}.{} has {} params but codegen has no $0 placeholder",
+                    f.module,
+                    f.name,
+                    f.params.len()
+                );
+                // Verify all declared params have corresponding placeholders
+                for i in 0..f.params.len() {
+                    let placeholder = format!("${i}");
+                    assert!(
+                        f.codegen.contains(&placeholder),
+                        "{}.{} has {} params but codegen is missing {placeholder}",
+                        f.module,
+                        f.name,
+                        f.params.len()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn no_duplicate_function_registrations() {
+        let reg = StdlibRegistry::new();
+        let mut seen = std::collections::HashSet::new();
+        for f in reg.all_functions() {
+            let key = format!("{}.{}", f.module, f.name);
+            assert!(
+                seen.insert(key.clone()),
+                "duplicate stdlib registration: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_function_is_findable_by_lookup() {
+        let reg = StdlibRegistry::new();
+        for f in reg.all_functions() {
+            assert!(
+                reg.lookup(f.module, f.name).is_some(),
+                "lookup failed for {}.{}",
+                f.module,
+                f.name
+            );
+        }
+    }
+
+    #[test]
+    fn lookup_by_name_returns_all_overloads() {
+        let reg = StdlibRegistry::new();
+        // "map" exists in Array, Option, and Result
+        let maps = reg.lookup_by_name("map");
+        assert!(
+            maps.len() >= 3,
+            "expected map in at least 3 modules, found {}",
+            maps.len()
+        );
+    }
+
+    // ── Array (remaining) ─────────────────────────────────────
+
+    #[test]
+    fn lookup_array_map() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "map").unwrap();
+        assert_eq!(f.codegen, "$0.map($1)");
+    }
+
+    #[test]
+    fn lookup_array_filter() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "filter").unwrap();
+        assert_eq!(f.codegen, "$0.filter($1)");
+    }
+
+    #[test]
+    fn lookup_array_find() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "find").unwrap();
+        assert_eq!(f.codegen, "$0.find($1)");
+    }
+
+    #[test]
+    fn lookup_array_find_index() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "findIndex").unwrap();
+        assert!(f.codegen.contains("findIndex"));
+    }
+
+    #[test]
+    fn lookup_array_flat_map() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "flatMap").unwrap();
+        assert_eq!(f.codegen, "$0.flatMap($1)");
+    }
+
+    #[test]
+    fn lookup_array_at() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "at").unwrap();
+        assert_eq!(f.codegen, "$0[$1]");
+    }
+
+    #[test]
+    fn lookup_array_contains() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "contains").unwrap();
+        assert!(f.codegen.contains("__floeEq"));
+    }
+
+    #[test]
+    fn lookup_array_head() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "head").unwrap();
+        assert_eq!(f.codegen, "$0[0]");
+    }
+
+    #[test]
+    fn lookup_array_last() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "last").unwrap();
+        assert!(f.codegen.contains("length - 1"));
+    }
+
+    #[test]
+    fn lookup_array_take() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "take").unwrap();
+        assert_eq!(f.codegen, "$0.slice(0, $1)");
+    }
+
+    #[test]
+    fn lookup_array_drop() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "drop").unwrap();
+        assert_eq!(f.codegen, "$0.slice($1)");
+    }
+
+    #[test]
+    fn lookup_array_reverse() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "reverse").unwrap();
+        assert_eq!(f.codegen, "[...$0].reverse()");
+    }
+
+    #[test]
+    fn lookup_array_reduce() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "reduce").unwrap();
+        assert_eq!(f.codegen, "$0.reduce($1, $2)");
+    }
+
+    #[test]
+    fn lookup_array_length() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "length").unwrap();
+        assert_eq!(f.codegen, "$0.length");
+    }
+
+    #[test]
+    fn lookup_array_concat() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "concat").unwrap();
+        assert_eq!(f.codegen, "[...$0, ...$1]");
+    }
+
+    #[test]
+    fn lookup_array_append() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "append").unwrap();
+        assert_eq!(f.codegen, "[...$0, $1]");
+    }
+
+    #[test]
+    fn lookup_array_prepend() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "prepend").unwrap();
+        assert_eq!(f.codegen, "[$1, ...$0]");
+    }
+
+    #[test]
+    fn lookup_array_sort_by() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "sortBy").unwrap();
+        assert!(f.codegen.contains("sort"));
+        assert!(f.codegen.contains("($1)"));
+    }
+
+    #[test]
+    fn lookup_array_zip() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "zip").unwrap();
+        assert!(f.codegen.contains("as const"));
+    }
+
+    #[test]
+    fn lookup_array_from() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "from").unwrap();
+        assert_eq!(f.codegen, "Array.from($0, $1)");
+    }
+
+    // ── Option (remaining) ────────────────────────────────────
+
+    #[test]
+    fn lookup_option_flat_map() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "flatMap").unwrap();
+        assert!(f.codegen.contains("undefined"));
+        assert!(f.codegen.contains("($1)($0)"));
+    }
+
+    #[test]
+    fn lookup_option_unwrap_or() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "unwrapOr").unwrap();
+        assert_eq!(f.codegen, "$0 !== undefined ? $0 : $1");
+    }
+
+    #[test]
+    fn lookup_option_is_some() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "isSome").unwrap();
+        assert_eq!(f.codegen, "$0 !== undefined");
+    }
+
+    #[test]
+    fn lookup_option_is_none() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "isNone").unwrap();
+        assert_eq!(f.codegen, "$0 === undefined");
+    }
+
+    #[test]
+    fn lookup_option_to_result() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "toResult").unwrap();
+        assert!(f.codegen.contains("ok: true"));
+        assert!(f.codegen.contains("ok: false"));
+    }
+
+    // ── Result (remaining) ────────────────────────────────────
+
+    #[test]
+    fn lookup_result_map() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "map").unwrap();
+        assert!(f.codegen.contains("($1)($0.value)"));
+    }
+
+    #[test]
+    fn lookup_result_map_err() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "mapErr").unwrap();
+        assert!(f.codegen.contains("($1)($0.error)"));
+    }
+
+    #[test]
+    fn lookup_result_flat_map() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "flatMap").unwrap();
+        assert!(f.codegen.contains("($1)($0.value)"));
+    }
+
+    #[test]
+    fn lookup_result_unwrap_or() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "unwrapOr").unwrap();
+        assert!(f.codegen.contains("$0.value"));
+        assert!(f.codegen.contains("$1"));
+    }
+
+    #[test]
+    fn lookup_result_is_ok() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "isOk").unwrap();
+        assert_eq!(f.codegen, "$0.ok");
+    }
+
+    #[test]
+    fn lookup_result_is_err() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "isErr").unwrap();
+        assert_eq!(f.codegen, "!$0.ok");
+    }
+
+    #[test]
+    fn lookup_result_to_option() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "toOption").unwrap();
+        assert!(f.codegen.contains("$0.value"));
+        assert!(f.codegen.contains("undefined"));
+    }
+
+    // ── String ────────────────────────────────────────────────
+
+    #[test]
+    fn lookup_string_trim() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "trim").unwrap();
+        assert_eq!(f.codegen, "$0.trim()");
+    }
+
+    #[test]
+    fn lookup_string_trim_start() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "trimStart").unwrap();
+        assert_eq!(f.codegen, "$0.trimStart()");
+    }
+
+    #[test]
+    fn lookup_string_trim_end() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "trimEnd").unwrap();
+        assert_eq!(f.codegen, "$0.trimEnd()");
+    }
+
+    #[test]
+    fn lookup_string_split() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "split").unwrap();
+        assert_eq!(f.codegen, "$0.split($1)");
+    }
+
+    #[test]
+    fn lookup_string_replace() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "replace").unwrap();
+        assert_eq!(f.codegen, "$0.replace($1, $2)");
+    }
+
+    #[test]
+    fn lookup_string_starts_with() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "startsWith").unwrap();
+        assert_eq!(f.codegen, "$0.startsWith($1)");
+    }
+
+    #[test]
+    fn lookup_string_ends_with() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "endsWith").unwrap();
+        assert_eq!(f.codegen, "$0.endsWith($1)");
+    }
+
+    #[test]
+    fn lookup_string_contains() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "contains").unwrap();
+        assert_eq!(f.codegen, "$0.includes($1)");
+    }
+
+    #[test]
+    fn lookup_string_to_upper_case() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "toUpperCase").unwrap();
+        assert_eq!(f.codegen, "$0.toUpperCase()");
+    }
+
+    #[test]
+    fn lookup_string_to_lower_case() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "toLowerCase").unwrap();
+        assert_eq!(f.codegen, "$0.toLowerCase()");
+    }
+
+    #[test]
+    fn lookup_string_length() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "length").unwrap();
+        assert_eq!(f.codegen, "$0.length");
+    }
+
+    #[test]
+    fn lookup_string_slice() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "slice").unwrap();
+        assert_eq!(f.codegen, "$0.slice($1, $2)");
+    }
+
+    #[test]
+    fn lookup_string_pad_start() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "padStart").unwrap();
+        assert_eq!(f.codegen, "$0.padStart($1, $2)");
+    }
+
+    #[test]
+    fn lookup_string_pad_end() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "padEnd").unwrap();
+        assert_eq!(f.codegen, "$0.padEnd($1, $2)");
+    }
+
+    #[test]
+    fn lookup_string_repeat() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "repeat").unwrap();
+        assert_eq!(f.codegen, "$0.repeat($1)");
+    }
+
+    #[test]
+    fn lookup_string_locale_compare() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("String", "localeCompare").unwrap();
+        assert_eq!(f.codegen, "$0.localeCompare($1)");
+    }
+
+    // ── Number ────────────────────────────────────────────────
+
+    #[test]
+    fn lookup_number_parse() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Number", "parse").unwrap();
+        assert!(f.codegen.contains("Number($0)"));
+        assert!(f.codegen.contains("isNaN"));
+    }
+
+    #[test]
+    fn lookup_number_clamp() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Number", "clamp").unwrap();
+        assert_eq!(f.codegen, "Math.min(Math.max($0, $1), $2)");
+    }
+
+    #[test]
+    fn lookup_number_is_finite() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Number", "isFinite").unwrap();
+        assert_eq!(f.codegen, "Number.isFinite($0)");
+    }
+
+    #[test]
+    fn lookup_number_is_integer() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Number", "isInteger").unwrap();
+        assert_eq!(f.codegen, "Number.isInteger($0)");
+    }
+
+    #[test]
+    fn lookup_number_to_fixed() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Number", "toFixed").unwrap();
+        assert_eq!(f.codegen, "$0.toFixed($1)");
+    }
+
+    #[test]
+    fn lookup_number_to_string() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Number", "toString").unwrap();
+        assert_eq!(f.codegen, "String($0)");
+    }
+
+    // ── Console (remaining) ───────────────────────────────────
+
+    #[test]
+    fn lookup_console_warn() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Console", "warn").unwrap();
+        assert_eq!(f.codegen, "console.warn($..)");
+        assert!(f.is_variadic());
+    }
+
+    #[test]
+    fn lookup_console_error() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Console", "error").unwrap();
+        assert_eq!(f.codegen, "console.error($..)");
+    }
+
+    #[test]
+    fn lookup_console_info() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Console", "info").unwrap();
+        assert_eq!(f.codegen, "console.info($..)");
+    }
+
+    #[test]
+    fn lookup_console_debug() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Console", "debug").unwrap();
+        assert_eq!(f.codegen, "console.debug($..)");
+    }
+
+    #[test]
+    fn lookup_console_time() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Console", "time").unwrap();
+        assert_eq!(f.codegen, "console.time($0)");
+        assert!(!f.is_variadic());
+    }
+
+    #[test]
+    fn lookup_console_time_end() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Console", "timeEnd").unwrap();
+        assert_eq!(f.codegen, "console.timeEnd($0)");
+    }
+
+    // ── Math (remaining) ──────────────────────────────────────
+
+    #[test]
+    fn lookup_math_ceil() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(reg.lookup("Math", "ceil").unwrap().codegen, "Math.ceil($0)");
+    }
+
+    #[test]
+    fn lookup_math_round() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(
+            reg.lookup("Math", "round").unwrap().codegen,
+            "Math.round($0)"
+        );
+    }
+
+    #[test]
+    fn lookup_math_abs() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(reg.lookup("Math", "abs").unwrap().codegen, "Math.abs($0)");
+    }
+
+    #[test]
+    fn lookup_math_min() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(
+            reg.lookup("Math", "min").unwrap().codegen,
+            "Math.min($0, $1)"
+        );
+    }
+
+    #[test]
+    fn lookup_math_max() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(
+            reg.lookup("Math", "max").unwrap().codegen,
+            "Math.max($0, $1)"
+        );
+    }
+
+    #[test]
+    fn lookup_math_pow() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(
+            reg.lookup("Math", "pow").unwrap().codegen,
+            "Math.pow($0, $1)"
+        );
+    }
+
+    #[test]
+    fn lookup_math_sqrt() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(reg.lookup("Math", "sqrt").unwrap().codegen, "Math.sqrt($0)");
+    }
+
+    #[test]
+    fn lookup_math_sign() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(reg.lookup("Math", "sign").unwrap().codegen, "Math.sign($0)");
+    }
+
+    #[test]
+    fn lookup_math_trunc() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(
+            reg.lookup("Math", "trunc").unwrap().codegen,
+            "Math.trunc($0)"
+        );
+    }
+
+    #[test]
+    fn lookup_math_log() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(reg.lookup("Math", "log").unwrap().codegen, "Math.log($0)");
+    }
+
+    #[test]
+    fn lookup_math_trig() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(reg.lookup("Math", "sin").unwrap().codegen, "Math.sin($0)");
+        assert_eq!(reg.lookup("Math", "cos").unwrap().codegen, "Math.cos($0)");
+        assert_eq!(reg.lookup("Math", "tan").unwrap().codegen, "Math.tan($0)");
+    }
+
+    // ── Date (remaining) ──────────────────────────────────────
+
+    #[test]
+    fn lookup_date_day() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(reg.lookup("Date", "day").unwrap().codegen, "$0.getDate()");
+    }
+
+    #[test]
+    fn lookup_date_hour() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(reg.lookup("Date", "hour").unwrap().codegen, "$0.getHours()");
+    }
+
+    #[test]
+    fn lookup_date_minute() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(
+            reg.lookup("Date", "minute").unwrap().codegen,
+            "$0.getMinutes()"
+        );
+    }
+
+    #[test]
+    fn lookup_date_second() {
+        let reg = StdlibRegistry::new();
+        assert_eq!(
+            reg.lookup("Date", "second").unwrap().codegen,
+            "$0.getSeconds()"
+        );
+    }
+
+    // ── JSON ──────────────────────────────────────────────────
+
+    #[test]
+    fn lookup_json_parse() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("JSON", "parse").unwrap();
+        assert!(f.codegen.contains("JSON.parse($0)"));
+        assert!(f.codegen.contains("ok: true"));
+    }
 }
