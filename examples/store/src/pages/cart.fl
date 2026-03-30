@@ -5,7 +5,7 @@ import { for Array, formatPrice } from "../product"
 // ── Cart item row ──────────────────────────────────────
 
 fn CartItemRow(
-    props: { item: CartItem, onUpdateQty: (ProductId, number) => (), onRemove: (ProductId) => () },
+    props: { item: CartItem, onUpdateQty: (ProductId, number) -> (), onRemove: (ProductId) -> () },
 ) -> JSX.Element {
     const item = props.item
     const product = item.product
@@ -54,7 +54,7 @@ fn CartItemRow(
 // ── Order summary with tuple destructuring ─────────────
 
 fn OrderSummary(
-    props: { cart: Array<CartItem>, orderStatus: OrderStatus, onCheckout: () => () },
+    props: { cart: Array<CartItem>, orderStatus: OrderStatus, onCheckout: () -> () },
 ) -> JSX.Element {
     const (subtotal, discount, total) = props.cart |> totals
 
@@ -104,7 +104,7 @@ fn OrderSummary(
 // ── Cart page ──────────────────────────────────────────
 
 export fn CartPage(
-    props: { cart: Array<CartItem>, onUpdateQty: (ProductId, number) => (), onRemove: (ProductId) => () },
+    props: { cart: Array<CartItem>, onUpdateQty: (ProductId, number) -> (), onRemove: (ProductId) -> () },
 ) -> JSX.Element {
     const [orderStatus, setOrderStatus] = useState<OrderStatus>(Pending)
 

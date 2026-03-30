@@ -874,7 +874,7 @@ impl<'src> CstParser<'src> {
     fn parse_type_expr(&mut self) {
         self.builder.start_node(SyntaxKind::TYPE_EXPR.into());
 
-        // Function type: (params) => ReturnType or () => ReturnType
+        // Function type: (params) -> ReturnType or () -> ReturnType
         if self.at(TokenKind::LeftParen) && self.is_paren_function_type() {
             self.parse_function_type();
         }
@@ -887,11 +887,11 @@ impl<'src> CstParser<'src> {
         // Function type: fn(params) -> ReturnType (old syntax — error)
         else if self.at(TokenKind::Fn) && self.peek_is(TokenKind::LeftParen) {
             self.builder.start_node(SyntaxKind::ERROR.into());
-            self.error("function types use arrow syntax: `(T) => U` instead of `fn(T) -> U`");
+            self.error("function types use arrow syntax: `(T) -> U` instead of `fn(T) -> U`");
             self.bump(); // fn
             self.builder.finish_node();
         }
-        // Tuple type: (T, U) — paren with comma, no `=>` after `)`
+        // Tuple type: (T, U) — paren with comma, no `->` after `)`
         else if self.at(TokenKind::LeftParen) && self.is_paren_tuple_type() {
             self.bump(); // (
             self.eat_trivia();
@@ -965,7 +965,13 @@ impl<'src> CstParser<'src> {
         self.parse_comma_separated(Self::parse_type_expr, TokenKind::RightParen);
         self.expect(TokenKind::RightParen);
         self.eat_trivia();
-        self.expect(TokenKind::FatArrow);
+        // Accept -> for function types; give helpful error if user writes =>
+        if self.at(TokenKind::FatArrow) {
+            self.error("function types use `->` not `=>`: write `(T) -> U`");
+            self.bump(); // consume => anyway to recover
+        } else {
+            self.expect(TokenKind::ThinArrow);
+        }
         self.eat_trivia();
         self.parse_type_expr();
     }
@@ -2309,7 +2315,7 @@ impl<'src> CstParser<'src> {
     }
 
     /// Heuristic: is the current `(` a tuple type `(T, U)`?
-    /// Has a comma at depth 1 and is NOT followed by `=>`.
+    /// Has a comma at depth 1 and is NOT followed by `->`.
     fn is_paren_tuple_type(&self) -> bool {
         let mut depth = 0;
         let mut has_comma = false;
@@ -2329,7 +2335,7 @@ impl<'src> CstParser<'src> {
                             j += 1;
                         }
                         return !(j < self.tokens.len()
-                            && self.tokens[j].kind == TokenKind::FatArrow);
+                            && self.tokens[j].kind == TokenKind::ThinArrow);
                     }
                 }
                 TokenKind::Comma if depth == 1 => has_comma = true,
@@ -2369,9 +2375,9 @@ impl<'src> CstParser<'src> {
         false
     }
 
-    /// Heuristic: is the current `(` the start of a function type `(T) => U`?
+    /// Heuristic: is the current `(` the start of a function type `(T) -> U`?
     fn is_paren_function_type(&self) -> bool {
-        self.is_paren_followed_by(TokenKind::FatArrow)
+        self.is_paren_followed_by(TokenKind::ThinArrow)
     }
 
     /// Heuristic: is the current `(` the start of an arrow closure `(params) => body`?
