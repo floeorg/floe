@@ -91,6 +91,10 @@ pub struct Codegen {
     /// Maps (type_name, method_name) → mangled name for for-block functions.
     /// Used to resolve `Entry.toModel` → `Entry__toModel` in call sites.
     for_block_fns: HashMap<(String, String), String>,
+    /// Type names that have for-block methods (e.g. "AccentRow" from `for AccentRow { ... }`).
+    for_block_type_names: HashSet<String>,
+    /// Type names used as runtime constructors (e.g. `User(name: "x")`).
+    constructor_used_names: HashSet<String>,
 }
 
 impl Codegen {
@@ -111,6 +115,8 @@ impl Codegen {
             test_mode: false,
             value_used_names: HashSet::new(),
             for_block_fns: HashMap::new(),
+            for_block_type_names: HashSet::new(),
+            constructor_used_names: HashSet::new(),
         }
     }
 
@@ -166,6 +172,7 @@ impl Codegen {
     pub fn generate(mut self, program: &Program) -> CodegenOutput {
         // Collect names used in value positions for import type detection
         self.value_used_names = collect_value_used_names(program);
+        self.constructor_used_names = collect_constructor_names(program);
 
         // First pass: collect union variant info and local names
         for item in &program.items {
@@ -437,11 +444,15 @@ impl Codegen {
                 } else {
                     // For npm imports: a specifier is type-only if it's NOT used
                     // in any value position (expression, call, construct).
+                    // Names only used as for-block type prefixes (e.g. AccentRow in
+                    // AccentRow.toModel) are type-only since the codegen mangles
+                    // them away.
                     decl.specifiers
                         .iter()
                         .filter(|spec| {
                             let effective = spec.alias.as_ref().unwrap_or(&spec.name);
                             !self.value_used_names.contains(effective)
+                                || self.is_for_block_type_only(effective)
                         })
                         .map(|spec| spec.name.clone())
                         .collect()
@@ -731,6 +742,7 @@ impl Codegen {
             TypeExprKind::Named { name, .. } => name.clone(),
             _ => return,
         };
+        self.for_block_type_names.insert(type_name.clone());
         for func in &block.functions {
             let mangled = for_block_fn_name(&block.type_name, &func.name);
             self.for_block_fns
@@ -1493,7 +1505,17 @@ impl Codegen {
             test_mode: self.test_mode,
             value_used_names: self.value_used_names.clone(),
             for_block_fns: self.for_block_fns.clone(),
+            for_block_type_names: self.for_block_type_names.clone(),
+            constructor_used_names: self.constructor_used_names.clone(),
         }
+    }
+
+    /// Returns true if the name is used as a for-block type prefix but NOT
+    /// as a runtime value (constructor, call, etc). For-block type prefixes
+    /// like `AccentRow` in `AccentRow.toModel` are mangled away by codegen,
+    /// but if `AccentRow(...)` also appears, it's still needed at runtime.
+    fn is_for_block_type_only(&self, name: &str) -> bool {
+        self.for_block_type_names.contains(name) && !self.constructor_used_names.contains(name)
     }
 }
 
@@ -1555,6 +1577,129 @@ pub(super) fn has_placeholder_arg(args: &[Arg]) -> bool {
         Arg::Positional(expr) => matches!(expr.kind, ExprKind::Placeholder),
         Arg::Named { value, .. } => matches!(value.kind, ExprKind::Placeholder),
     })
+}
+
+/// Collect type names used as constructors (e.g. `User(name: "x")`).
+fn collect_constructor_names(program: &Program) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for item in &program.items {
+        collect_constructors_from_item(item, &mut names);
+    }
+    names
+}
+
+fn collect_constructors_from_expr(expr: &Expr, names: &mut HashSet<String>) {
+    match &expr.kind {
+        ExprKind::Construct {
+            type_name,
+            args,
+            spread,
+            ..
+        } => {
+            names.insert(type_name.clone());
+            if let Some(s) = spread {
+                collect_constructors_from_expr(s, names);
+            }
+            for arg in args {
+                match arg {
+                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                        collect_constructors_from_expr(e, names);
+                    }
+                }
+            }
+        }
+        ExprKind::Block(items) | ExprKind::Collect(items) => {
+            for item in items {
+                collect_constructors_from_item(item, names);
+            }
+        }
+        ExprKind::Call { callee, args, .. } => {
+            collect_constructors_from_expr(callee, names);
+            for arg in args {
+                match arg {
+                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                        collect_constructors_from_expr(e, names);
+                    }
+                }
+            }
+        }
+        ExprKind::Arrow { body, .. } => collect_constructors_from_expr(body, names),
+        ExprKind::Pipe { left, right } | ExprKind::Binary { left, right, .. } => {
+            collect_constructors_from_expr(left, names);
+            collect_constructors_from_expr(right, names);
+        }
+        ExprKind::Match { subject, arms } => {
+            collect_constructors_from_expr(subject, names);
+            for arm in arms {
+                collect_constructors_from_expr(&arm.body, names);
+            }
+        }
+        ExprKind::Try(e)
+        | ExprKind::Unwrap(e)
+        | ExprKind::Await(e)
+        | ExprKind::Ok(e)
+        | ExprKind::Err(e)
+        | ExprKind::Some(e)
+        | ExprKind::Value(e)
+        | ExprKind::Unary { operand: e, .. } => {
+            collect_constructors_from_expr(e, names);
+        }
+        ExprKind::Array(items) | ExprKind::Tuple(items) => {
+            for item in items {
+                collect_constructors_from_expr(item, names);
+            }
+        }
+        ExprKind::Jsx(jsx) => collect_constructors_from_jsx(jsx, names),
+        _ => {}
+    }
+}
+
+fn collect_constructors_from_jsx(jsx: &JsxElement, names: &mut HashSet<String>) {
+    match &jsx.kind {
+        JsxElementKind::Element {
+            props, children, ..
+        } => {
+            for prop in props {
+                match prop {
+                    JsxProp::Named { value: Some(v), .. } => {
+                        collect_constructors_from_expr(v, names)
+                    }
+                    JsxProp::Spread { expr, .. } => collect_constructors_from_expr(expr, names),
+                    _ => {}
+                }
+            }
+            for child in children {
+                match child {
+                    JsxChild::Expr(e) => collect_constructors_from_expr(e, names),
+                    JsxChild::Element(el) => collect_constructors_from_jsx(el, names),
+                    _ => {}
+                }
+            }
+        }
+        JsxElementKind::Fragment { children } => {
+            for child in children {
+                match child {
+                    JsxChild::Expr(e) => collect_constructors_from_expr(e, names),
+                    JsxChild::Element(el) => collect_constructors_from_jsx(el, names),
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+fn collect_constructors_from_item(item: &Item, names: &mut HashSet<String>) {
+    match &item.kind {
+        ItemKind::Const(decl) => collect_constructors_from_expr(&decl.value, names),
+        ItemKind::Function(decl) => collect_constructors_from_expr(&decl.body, names),
+        ItemKind::ForBlock(block) => {
+            for func in &block.functions {
+                collect_constructors_from_expr(&func.body, names);
+            }
+        }
+        ItemKind::Expr(expr) => collect_constructors_from_expr(expr, names),
+        _ => {}
+    }
 }
 
 /// Collect all names used in value positions (expressions, not type annotations).
