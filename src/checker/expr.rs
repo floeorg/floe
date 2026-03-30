@@ -340,6 +340,17 @@ impl Checker {
             }
 
             ExprKind::Await(inner) => {
+                if !self.ctx.inside_async {
+                    self.diagnostics.push(
+                        Diagnostic::error(
+                            "`await` can only be used inside an `async` function",
+                            expr.span,
+                        )
+                        .with_label("not inside an `async` function")
+                        .with_help("add `async` to the enclosing function declaration")
+                        .with_code("E005"),
+                    );
+                }
                 let ty = self.check_expr(inner);
                 match ty {
                     Type::Promise(inner) => *inner,

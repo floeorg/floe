@@ -3894,3 +3894,37 @@ type Props = string & { extra: number }
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Await in non-async function ─────────────────────────────
+
+#[test]
+fn await_in_non_async_function_errors() {
+    let diags = check(
+        r#"
+fn init() {
+    const s = await getSession()
+}
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "`await` can only be used inside an `async` function"
+    ));
+}
+
+#[test]
+fn await_in_async_function_ok() {
+    let diags = check(
+        r#"
+async fn init() -> string {
+    const s = await fetchData()
+    s
+}
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "`await` can only be used"),
+        "await in async fn should be allowed, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
