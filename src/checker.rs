@@ -659,6 +659,17 @@ impl Checker {
                 } else {
                     self.env.define(&decl.name, Type::Named(decl.name.clone()));
                 }
+
+                // Populate __field_ entries for dot-access completions
+                for entry in entries {
+                    if let RecordEntry::Field(field) = entry {
+                        let field_ty = self.resolve_type(&field.type_ann);
+                        self.name_types.insert(
+                            format!("__field_{}_{}", decl.name, field.name),
+                            field_ty.display_name(),
+                        );
+                    }
+                }
             }
             TypeDef::Union(variants) => {
                 let var_types: Vec<_> = variants

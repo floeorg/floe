@@ -1003,3 +1003,46 @@ fn goto_def_union_variant_in_match() {
         "go-to-def on union variant in match arm should find definition"
     );
 }
+
+#[test]
+fn type_map_has_field_entries_for_records() {
+    let source = r#"
+type User { name: string, age: number }
+const u = User(name: "a", age: 1)
+"#;
+    let (_, type_map) = build_index_and_types(source);
+    assert_eq!(
+        type_map.get("__field_User_name").map(String::as_str),
+        Some("string"),
+        "type_map should have __field_User_name"
+    );
+    assert_eq!(
+        type_map.get("__field_User_age").map(String::as_str),
+        Some("number"),
+        "type_map should have __field_User_age"
+    );
+    assert_eq!(
+        type_map.get("u").map(String::as_str),
+        Some("User"),
+        "type_map should have u -> User"
+    );
+}
+
+#[test]
+fn dot_access_completions_for_record_type() {
+    let source = r#"
+type User { name: string, age: number }
+const u = User(name: "a", age: 1)
+"#;
+    let (index, type_map) = build_index_and_types(source);
+    let items = dot_access_completions("u", "", &type_map, &index);
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+        labels.contains(&"name"),
+        "should suggest 'name', got: {labels:?}"
+    );
+    assert!(
+        labels.contains(&"age"),
+        "should suggest 'age', got: {labels:?}"
+    );
+}

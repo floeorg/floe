@@ -1,7 +1,5 @@
 """Tests for textDocument/completion."""
 
-import pytest
-
 from .conftest import URI, completion_labels, open_doc
 from . import fixtures as F
 
@@ -95,11 +93,17 @@ class TestCompletionAdvanced:
 class TestCompletionDotAccess:
     """Dot-access should return only fields of the accessed type, never global symbols."""
 
-    @pytest.mark.xfail(reason="dot-access field resolution not yet working for record types")
     def test_record_fields(self, lsp):
         open_doc(lsp, URI, DOT_ACCESS_SOURCE)
         labels = completion_labels(lsp.completion(URI, 2, 13))
-        assert "name" in labels or "age" in labels, f"Labels: {labels[:15]}"
+        assert "name" in labels, f"Labels: {labels[:15]}"
+        assert "age" in labels, f"Labels: {labels[:15]}"
+
+    def test_no_unrelated_fields(self, lsp):
+        source = 'type User { name: string, age: number }\ntype Item { title: string }\nconst u = User(name: "a", age: 1)\nconst n = u.\n'
+        open_doc(lsp, URI, source)
+        labels = completion_labels(lsp.completion(URI, 3, 13))
+        assert "title" not in labels, f"Item field 'title' leaked into User dot-access: {labels[:15]}"
 
     def test_no_keywords_in_dot_access(self, lsp):
         open_doc(lsp, URI, DOT_ACCESS_SOURCE)
@@ -122,6 +126,13 @@ class TestCompletionDotAccess:
         assert "foo" not in labels, f"Global var leaked into unresolved dot-access: {labels[:15]}"
         for kw in KEYWORDS:
             assert kw not in labels, f"Keyword '{kw}' leaked into unresolved dot-access: {labels[:15]}"
+
+    def test_spread_record_fields(self, lsp):
+        source = 'type Base { id: string }\ntype Extended { ...Base, extra: number }\nconst e = Extended(id: "1", extra: 42)\nconst n = e.\n'
+        open_doc(lsp, URI, source)
+        labels = completion_labels(lsp.completion(URI, 3, 13))
+        assert "id" in labels, f"Spread field 'id' missing: {labels[:15]}"
+        assert "extra" in labels, f"Field 'extra' missing: {labels[:15]}"
 
 
 # ── Suppression tests ───────────────────────────────────────
