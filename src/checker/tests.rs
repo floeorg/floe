@@ -3858,3 +3858,35 @@ type B = Array<\"div\">",
         "string literal type argument should parse and check: {diags:?}"
     );
 }
+
+// ── Intersection restriction ─────────────────────────────────
+
+#[test]
+fn intersection_in_record_type_is_error() {
+    let diags = check(
+        r#"
+type Props {
+    value: string & { extra: number },
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, "E025"),
+        "& in {{ }} type definition should be an error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn intersection_in_type_alias_is_ok() {
+    let diags = check(
+        r#"
+type Props = string & { extra: number }
+"#,
+    );
+    assert!(
+        !has_error(&diags, "E025"),
+        "& in = type alias should be allowed, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
