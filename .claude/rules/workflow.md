@@ -182,7 +182,7 @@ Order: fmt -> check -> build. All must pass with zero errors.
 **LSP integration tests** (if you changed LSP, checker, or language syntax):
 
 ```bash
-python3 scripts/test-lsp.py ./target/debug/floe
+python3 -m pytest tests/lsp/ --floe-bin=./target/debug/floe
 ```
 
 All tests must pass (0 failures).

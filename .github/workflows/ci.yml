@@ -120,5 +120,8 @@ jobs:
       - name: Make binary executable
         run: chmod +x floe
 
+      - name: Install pytest
+        run: pip install pytest
+
       - name: LSP integration tests
-        run: python3 scripts/test-lsp.py ./floe
+        run: python3 -m pytest tests/lsp/ --floe-bin=./floe -v --tb=short
