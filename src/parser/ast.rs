@@ -138,6 +138,21 @@ pub enum ConstBinding {
     Tuple(Vec<String>),
 }
 
+impl ConstBinding {
+    /// A `_`-joined name for identification purposes (probe keys, etc.).
+    pub fn binding_name(&self) -> String {
+        match self {
+            ConstBinding::Name(name) => name.clone(),
+            ConstBinding::Array(names) | ConstBinding::Tuple(names) => names.join("_"),
+            ConstBinding::Object(fields) => fields
+                .iter()
+                .map(|f| f.bound_name())
+                .collect::<Vec<_>>()
+                .join("_"),
+        }
+    }
+}
+
 // ── Function Declaration ─────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]

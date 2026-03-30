@@ -1501,16 +1501,7 @@ impl Checker {
 
     /// Search dts_imports for a tsgo probe matching the binding name, consume it, and return its type.
     fn find_and_consume_tsgo_probe(&mut self, binding: &ConstBinding) -> Option<Type> {
-        let binding_name = match binding {
-            ConstBinding::Name(n) => n.clone(),
-            ConstBinding::Array(names) => names.join("_"),
-            ConstBinding::Object(fields) => fields
-                .iter()
-                .map(|f| f.bound_name())
-                .collect::<Vec<_>>()
-                .join("_"),
-            ConstBinding::Tuple(names) => names.join("_"),
-        };
+        let binding_name = binding.binding_name();
         let probe_key = format!("__probe_{binding_name}");
         let probe_prefix = format!("__probe_{binding_name}_");
         self.consume_probe(
@@ -1648,7 +1639,6 @@ impl Checker {
             // If no field found (e.g. Foreign type), try a per-field probe lookup
             let ty = field_ty
                 .unwrap_or_else(|| self.find_per_field_probe(&f.field).unwrap_or(Type::Unknown));
-            // Bind under the alias (or field name if no alias)
             self.define_const_binding(f.bound_name(), ty, false, span);
         }
     }

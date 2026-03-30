@@ -393,7 +393,7 @@ fn generate_probe(
                                 ));
                             }
                         } else {
-                            let binding_name = const_binding_name(&decl.binding);
+                            let binding_name = decl.binding.binding_name();
                             lines.push(format!(
                                 "export const __probe_{binding_name}_{inlined_id} = {call_expr};"
                             ));
@@ -1408,7 +1408,7 @@ fn build_specifier_map(
             && imported_names.contains_key(type_name)
         {
             let specifier = &imported_names[type_name];
-            let binding_name = const_binding_name(&decl.binding);
+            let binding_name = decl.binding.binding_name();
             let probe_name = format!("_r{probe_index}");
             if let Some(export) = probe_exports.iter().find(|e| e.name == probe_name) {
                 result
@@ -1440,7 +1440,7 @@ fn build_specifier_map(
                 } else {
                     &imported_names[root_name]
                 };
-                let binding_name = const_binding_name(&decl.binding);
+                let binding_name = decl.binding.binding_name();
 
                 // For array bindings, collect individual element types
                 if let ConstBinding::Array(names) = &decl.binding {
@@ -1570,20 +1570,6 @@ fn build_specifier_map(
     }
 
     result
-}
-
-/// Get the binding name from a ConstBinding for identification purposes.
-fn const_binding_name(binding: &ConstBinding) -> String {
-    match binding {
-        ConstBinding::Name(name) => name.clone(),
-        ConstBinding::Array(names) => names.join("_"),
-        ConstBinding::Object(fields) => fields
-            .iter()
-            .map(|f| f.bound_name())
-            .collect::<Vec<_>>()
-            .join("_"),
-        ConstBinding::Tuple(names) => names.join("_"),
-    }
 }
 
 /// Unwrap Try, Unwrap, and Await wrappers to find the inner expression.

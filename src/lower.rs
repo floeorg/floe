@@ -256,7 +256,7 @@ impl<'src> Lowerer<'src> {
         } else if has_lbrace && !node.children().any(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
             // Object destructuring — but only if { } is NOT a type expr's record
             // We need to check if the braces are for destructuring vs type annotation
-            let fields = self.collect_object_destructure_fields_before_eq(node);
+            let fields = self.collect_object_destructure_fields(node, true);
             binding = Some(ConstBinding::Object(fields));
         } else if let Some(name) = idents.first() {
             binding = Some(ConstBinding::Name(name.clone()));
@@ -350,7 +350,7 @@ impl<'src> Lowerer<'src> {
 
         let (name, destructure) = if has_lbrace {
             // Destructured param: { name, age } or { name: n, age: a }
-            let fields = self.collect_object_destructure_fields(node);
+            let fields = self.collect_object_destructure_fields(node, false);
             let synthetic_name = format!(
                 "_{}",
                 fields
@@ -1236,117 +1236,73 @@ impl<'src> Lowerer<'src> {
         idents
     }
 
-    /// Collect object destructure fields (with optional `: alias`) before `=`.
+    /// Collect object destructure fields (with optional `: alias`) from tokens inside `{ }`.
+    /// When `stop_at_equal` is true, stops before `=` (for const declarations).
     /// Tokens: `{ data: rows, error }` → [("data", Some("rows")), ("error", None)]
-    fn collect_object_destructure_fields_before_eq(
+    fn collect_object_destructure_fields(
         &self,
         node: &SyntaxNode,
+        stop_at_equal: bool,
     ) -> Vec<ObjectDestructureField> {
         let mut fields = Vec::new();
-        let mut tokens: Vec<(SyntaxKind, String)> = Vec::new();
-
-        // Collect all tokens between { } before =
         let mut inside_braces = false;
+        // Pending field name waiting to see if a `: alias` follows
+        let mut pending_field: Option<String> = None;
+        let mut expect_alias = false;
+
         for token in node.children_with_tokens() {
-            if let Some(token) = token.as_token() {
-                let kind = token.kind();
-                if kind == SyntaxKind::EQUAL {
-                    break;
+            let Some(token) = token.as_token() else {
+                continue;
+            };
+            let kind = token.kind();
+
+            if stop_at_equal && kind == SyntaxKind::EQUAL {
+                break;
+            }
+            if kind == SyntaxKind::L_BRACE {
+                inside_braces = true;
+                continue;
+            }
+            if kind == SyntaxKind::R_BRACE {
+                break;
+            }
+            if !inside_braces || kind.is_trivia() {
+                continue;
+            }
+
+            match kind {
+                SyntaxKind::IDENT if expect_alias => {
+                    // This ident is the alias after `:`
+                    let field = pending_field.take().unwrap();
+                    fields.push(ObjectDestructureField {
+                        field,
+                        alias: Some(token.text().to_string()),
+                    });
+                    expect_alias = false;
                 }
-                if kind == SyntaxKind::L_BRACE {
-                    inside_braces = true;
-                    continue;
+                SyntaxKind::IDENT => {
+                    // Flush any pending field without alias
+                    if let Some(field) = pending_field.take() {
+                        fields.push(ObjectDestructureField { field, alias: None });
+                    }
+                    pending_field = Some(token.text().to_string());
                 }
-                if kind == SyntaxKind::R_BRACE {
-                    break;
+                SyntaxKind::COLON if pending_field.is_some() => {
+                    expect_alias = true;
                 }
-                if inside_braces
-                    && (kind == SyntaxKind::IDENT
-                        || kind == SyntaxKind::COLON
-                        || kind == SyntaxKind::COMMA)
-                {
-                    tokens.push((kind, token.text().to_string()));
+                _ => {
+                    // Comma or other — flush pending field without alias
+                    if let Some(field) = pending_field.take() {
+                        fields.push(ObjectDestructureField { field, alias: None });
+                    }
+                    expect_alias = false;
                 }
             }
         }
 
-        // Parse tokens into fields: IDENT (COLON IDENT)? (COMMA ...)*
-        let mut i = 0;
-        while i < tokens.len() {
-            if tokens[i].0 == SyntaxKind::IDENT {
-                let field_name = tokens[i].1.clone();
-                let alias = if i + 2 < tokens.len()
-                    && tokens[i + 1].0 == SyntaxKind::COLON
-                    && tokens[i + 2].0 == SyntaxKind::IDENT
-                {
-                    let a = Some(tokens[i + 2].1.clone());
-                    i += 3; // skip field, colon, alias
-                    a
-                } else {
-                    i += 1; // skip field only
-                    None
-                };
-                fields.push(ObjectDestructureField {
-                    field: field_name,
-                    alias,
-                });
-            } else {
-                i += 1; // skip comma or other
-            }
-        }
-
-        fields
-    }
-
-    /// Collect object destructure fields (with optional `: alias`) from the entire node.
-    /// Used for param destructuring where there is no `=` delimiter.
-    fn collect_object_destructure_fields(&self, node: &SyntaxNode) -> Vec<ObjectDestructureField> {
-        let mut fields = Vec::new();
-        let mut tokens: Vec<(SyntaxKind, String)> = Vec::new();
-
-        let mut inside_braces = false;
-        for token in node.children_with_tokens() {
-            if let Some(token) = token.as_token() {
-                let kind = token.kind();
-                if kind == SyntaxKind::L_BRACE {
-                    inside_braces = true;
-                    continue;
-                }
-                if kind == SyntaxKind::R_BRACE {
-                    break;
-                }
-                if inside_braces
-                    && (kind == SyntaxKind::IDENT
-                        || kind == SyntaxKind::COLON
-                        || kind == SyntaxKind::COMMA)
-                {
-                    tokens.push((kind, token.text().to_string()));
-                }
-            }
-        }
-
-        let mut i = 0;
-        while i < tokens.len() {
-            if tokens[i].0 == SyntaxKind::IDENT {
-                let field_name = tokens[i].1.clone();
-                let alias = if i + 2 < tokens.len()
-                    && tokens[i + 1].0 == SyntaxKind::COLON
-                    && tokens[i + 2].0 == SyntaxKind::IDENT
-                {
-                    let a = Some(tokens[i + 2].1.clone());
-                    i += 3;
-                    a
-                } else {
-                    i += 1;
-                    None
-                };
-                fields.push(ObjectDestructureField {
-                    field: field_name,
-                    alias,
-                });
-            } else {
-                i += 1;
-            }
+        // Flush trailing field (e.g. `{ error }` with no trailing comma)
+        if let Some(field) = pending_field {
+            fields.push(ObjectDestructureField { field, alias: None });
         }
 
         fields
