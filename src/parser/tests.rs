@@ -1677,7 +1677,72 @@ fn lambda_object_destructure_binds_variables() {
             let param = &params[0];
             match &param.destructure {
                 Some(ParamDestructure::Object(fields)) => {
-                    assert_eq!(fields, &["x".to_string(), "y".to_string()]);
+                    assert_eq!(fields.len(), 2);
+                    assert_eq!(fields[0].field, "x");
+                    assert_eq!(fields[0].alias, None);
+                    assert_eq!(fields[1].field, "y");
+                    assert_eq!(fields[1].alias, None);
+                }
+                other => panic!("expected Object destructure, got {other:?}"),
+            }
+        }
+        other => panic!("expected arrow, got {other:?}"),
+    }
+}
+
+// ── Destructuring rename ─────────────────────────────────────
+
+#[test]
+fn const_object_destructure_with_rename() {
+    let program = parse_ok("const { data: rows, error: err } = response");
+    let item = &program.items[0];
+    match &item.kind {
+        ItemKind::Const(decl) => match &decl.binding {
+            ConstBinding::Object(fields) => {
+                assert_eq!(fields.len(), 2);
+                assert_eq!(fields[0].field, "data");
+                assert_eq!(fields[0].alias, Some("rows".to_string()));
+                assert_eq!(fields[1].field, "error");
+                assert_eq!(fields[1].alias, Some("err".to_string()));
+            }
+            other => panic!("expected Object binding, got {other:?}"),
+        },
+        other => panic!("expected Const, got {other:?}"),
+    }
+}
+
+#[test]
+fn const_object_destructure_mixed_rename_and_plain() {
+    let program = parse_ok("const { data: rows, error } = response");
+    let item = &program.items[0];
+    match &item.kind {
+        ItemKind::Const(decl) => match &decl.binding {
+            ConstBinding::Object(fields) => {
+                assert_eq!(fields.len(), 2);
+                assert_eq!(fields[0].field, "data");
+                assert_eq!(fields[0].alias, Some("rows".to_string()));
+                assert_eq!(fields[1].field, "error");
+                assert_eq!(fields[1].alias, None);
+            }
+            other => panic!("expected Object binding, got {other:?}"),
+        },
+        other => panic!("expected Const, got {other:?}"),
+    }
+}
+
+#[test]
+fn lambda_object_destructure_with_rename() {
+    let expr = first_expr("({ data: d, error: e }) => d");
+    match expr {
+        ExprKind::Arrow { params, .. } => {
+            assert_eq!(params.len(), 1);
+            match &params[0].destructure {
+                Some(ParamDestructure::Object(fields)) => {
+                    assert_eq!(fields.len(), 2);
+                    assert_eq!(fields[0].field, "data");
+                    assert_eq!(fields[0].alias, Some("d".to_string()));
+                    assert_eq!(fields[1].field, "error");
+                    assert_eq!(fields[1].alias, Some("e".to_string()));
                 }
                 other => panic!("expected Object destructure, got {other:?}"),
             }

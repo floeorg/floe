@@ -72,7 +72,19 @@ impl SymbolIndex {
                     let name = match &decl.binding {
                         ConstBinding::Name(n) => n.clone(),
                         ConstBinding::Array(names) => format!("[{}]", names.join(", ")),
-                        ConstBinding::Object(names) => format!("{{ {} }}", names.join(", ")),
+                        ConstBinding::Object(fields) => format!(
+                            "{{ {} }}",
+                            fields
+                                .iter()
+                                .map(|f| {
+                                    match &f.alias {
+                                        Some(a) => format!("{}: {}", f.field, a),
+                                        None => f.field.clone(),
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
                         ConstBinding::Tuple(names) => format!("({})", names.join(", ")),
                     };
                     let vis = if decl.exported { "export " } else { "" };
@@ -95,12 +107,26 @@ impl SymbolIndex {
 
                     // Also index destructured names
                     match &decl.binding {
-                        ConstBinding::Array(names)
-                        | ConstBinding::Object(names)
-                        | ConstBinding::Tuple(names) => {
+                        ConstBinding::Array(names) | ConstBinding::Tuple(names) => {
                             for n in names {
                                 symbols.push(Symbol {
                                     name: n.clone(),
+                                    kind: SymbolKind::VARIABLE,
+                                    start: item.span.start,
+                                    end: item.span.end,
+                                    import_source: None,
+                                    detail: format!("const {{ {n} }}"),
+                                    first_param_type: None,
+                                    return_type_str: None,
+                                    owner_type: None,
+                                });
+                            }
+                        }
+                        ConstBinding::Object(fields) => {
+                            for f in fields {
+                                let n = f.bound_name();
+                                symbols.push(Symbol {
+                                    name: n.to_string(),
                                     kind: SymbolKind::VARIABLE,
                                     start: item.span.start,
                                     end: item.span.end,

@@ -245,10 +245,10 @@ impl<'src> CstParser<'src> {
             self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightBracket);
             self.expect(TokenKind::RightBracket);
         } else if self.at(TokenKind::LeftBrace) {
-            // Object destructuring
+            // Object destructuring: { a, b } or { a: x, b: y }
             self.bump();
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightBrace);
+            self.parse_comma_separated(Self::parse_destructure_field, TokenKind::RightBrace);
             self.expect(TokenKind::RightBrace);
         } else if self.at(TokenKind::LeftParen) && self.is_const_tuple_destructuring() {
             // Tuple destructuring: const (a, b) = ...
@@ -359,10 +359,10 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::PARAM.into());
 
         if self.at(TokenKind::LeftBrace) {
-            // Destructured param: { name, age }
+            // Destructured param: { name, age } or { name: n, age: a }
             self.bump(); // {
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightBrace);
+            self.parse_comma_separated(Self::parse_destructure_field, TokenKind::RightBrace);
             self.expect(TokenKind::RightBrace);
             self.eat_trivia();
         } else if self.at(TokenKind::LeftParen) {
@@ -2510,6 +2510,17 @@ impl<'src> CstParser<'src> {
 
     fn expect_ident_item(&mut self) {
         self.expect_ident();
+    }
+
+    /// Parse a destructuring field: `ident` or `ident: ident` (with rename).
+    fn parse_destructure_field(&mut self) {
+        self.expect_ident();
+        self.eat_trivia();
+        if self.at(TokenKind::Colon) {
+            self.bump(); // eat ':'
+            self.eat_trivia();
+            self.expect_ident(); // alias
+        }
     }
 
     fn error(&mut self, message: &str) {

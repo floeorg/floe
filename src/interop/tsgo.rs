@@ -379,19 +379,21 @@ fn generate_probe(
                             format!("{obj_expr}.{method_chain}({})", ts_args.join(", "),);
                         // For object destructuring, generate per-field exports so tsgo
                         // expands opaque named types through member access
-                        if let ConstBinding::Object(names) = &decl.binding {
+                        if let ConstBinding::Object(fields) = &decl.binding {
                             let has_await = crate::checker::expr_has_await(&decl.value);
                             let await_prefix = if has_await { "await " } else { "" };
                             lines.push(format!(
                                 "const _tmp_{inlined_id} = {await_prefix}{call_expr};"
                             ));
-                            for field in names {
+                            for f in fields {
+                                // Probe uses the original field name to access the property
+                                let field = &f.field;
                                 lines.push(format!(
                                     "export const __probe_{field}_{inlined_id} = _tmp_{inlined_id}.{field};"
                                 ));
                             }
                         } else {
-                            let binding_name = const_binding_name(&decl.binding);
+                            let binding_name = decl.binding.binding_name();
                             lines.push(format!(
                                 "export const __probe_{binding_name}_{inlined_id} = {call_expr};"
                             ));
@@ -564,7 +566,7 @@ fn generate_probe(
                 "export const [{}] = {tmp};",
                 destructured.join(", "),
             ));
-        } else if let ConstBinding::Object(names) = &call.binding {
+        } else if let ConstBinding::Object(fields) = &call.binding {
             // For object destructuring: const { data } = useSuspenseQuery(...)
             let tmp = format!("_tmp{}", call.index);
             lines.push(format!(
@@ -573,10 +575,10 @@ fn generate_probe(
             ));
             lines.push(format!(
                 "export const {{ {} }} = {tmp};",
-                names
+                fields
                     .iter()
                     .enumerate()
-                    .map(|(i, n)| format!("{n}: _r{}_{i}", call.index))
+                    .map(|(i, f)| format!("{}: _r{}_{i}", f.field, call.index))
                     .collect::<Vec<_>>()
                     .join(", "),
             ));
@@ -1406,7 +1408,7 @@ fn build_specifier_map(
             && imported_names.contains_key(type_name)
         {
             let specifier = &imported_names[type_name];
-            let binding_name = const_binding_name(&decl.binding);
+            let binding_name = decl.binding.binding_name();
             let probe_name = format!("_r{probe_index}");
             if let Some(export) = probe_exports.iter().find(|e| e.name == probe_name) {
                 result
@@ -1438,7 +1440,7 @@ fn build_specifier_map(
                 } else {
                     &imported_names[root_name]
                 };
-                let binding_name = const_binding_name(&decl.binding);
+                let binding_name = decl.binding.binding_name();
 
                 // For array bindings, collect individual element types
                 if let ConstBinding::Array(names) = &decl.binding {
@@ -1461,9 +1463,9 @@ fn build_specifier_map(
                             name: format!("__probe_{}", binding_name),
                             ts_type: TsType::Tuple(elem_types),
                         });
-                } else if let ConstBinding::Object(names) = &decl.binding {
+                } else if let ConstBinding::Object(fields) = &decl.binding {
                     // For object destructuring: const { data } = f(...)
-                    let elem_types: Vec<TsType> = names
+                    let elem_types: Vec<TsType> = fields
                         .iter()
                         .enumerate()
                         .map(|(i, _)| {
@@ -1477,13 +1479,15 @@ fn build_specifier_map(
                         .collect();
                     // Create individual probes for each destructured field
                     // Use probe_index to disambiguate when same field name appears multiple times
-                    for (i, name) in names.iter().enumerate() {
+                    for (i, f) in fields.iter().enumerate() {
                         if i < elem_types.len() {
+                            // Probes use the original field name for lookup
+                            let field = &f.field;
                             result
                                 .entry(specifier.clone())
                                 .or_default()
                                 .push(DtsExport {
-                                    name: format!("__probe_{name}_{probe_index}"),
+                                    name: format!("__probe_{field}_{probe_index}"),
                                     ts_type: elem_types[i].clone(),
                                 });
                         }
@@ -1566,16 +1570,6 @@ fn build_specifier_map(
     }
 
     result
-}
-
-/// Get the binding name from a ConstBinding for identification purposes.
-fn const_binding_name(binding: &ConstBinding) -> String {
-    match binding {
-        ConstBinding::Name(name) => name.clone(),
-        ConstBinding::Array(names) => names.join("_"),
-        ConstBinding::Object(names) => names.join("_"),
-        ConstBinding::Tuple(names) => names.join("_"),
-    }
 }
 
 /// Unwrap Try, Unwrap, and Await wrappers to find the inner expression.
