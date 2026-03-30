@@ -347,9 +347,9 @@ impl LanguageServer for FloeLsp {
             && !registry.is_module(obj_name)
         {
             let items = dot_access_completions(obj_name, &prefix, &doc.type_map, &doc.index);
-            if !items.is_empty() {
-                return Ok(Some(CompletionResponse::Array(items)));
-            }
+            // Always return here — never fall through to global completions in dot context.
+            // If we can't resolve fields, returning empty is better than dumping every symbol.
+            return Ok(Some(CompletionResponse::Array(items)));
         }
 
         // ── Stdlib module method completions (Array., String., etc.) ──
