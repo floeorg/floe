@@ -171,6 +171,7 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Array", "groupBy", [array_of(t.clone()), fun(vec![t.clone()], Type::String)], Type::Named("Record".to_string()), "Object.groupBy($0, $1)"),
         stdlib_fn!("Array", "zip", [array_of(t.clone()), array_of(u.clone())], array_of(Type::Tuple(vec![t.clone(), u.clone()])), "$0.map((_v, _i) => [_v, $1[_i]] as const)"),
         stdlib_fn!("Array", "from", [t.clone(), fun(vec![t.clone(), Type::Number], u.clone())], array_of(u.clone()), "Array.from($0, $1)"),
+        stdlib_fn!("Array", "mapResult", [array_of(t.clone()), fun(vec![t.clone()], result_of(u.clone(), tv(2)))], result_of(array_of(u.clone()), tv(2)), "(() => { const _a = $0; const _f = $1; const _r = []; for (const _v of _a) { const _res = _f(_v); if (!_res.ok) return _res; _r.push(_res.value); } return { ok: true as const, value: _r }; })()"),
         // ── Option ──────────────────────────────────────────────
         stdlib_fn!("Option", "map", [option_of(t.clone()), fun(vec![t.clone()], u.clone())], option_of(u.clone()), "$0 !== undefined ? ($1)($0) : undefined"),
         stdlib_fn!("Option", "flatMap", [option_of(t.clone()), fun(vec![t.clone()], option_of(u.clone()))], option_of(u.clone()), "$0 !== undefined ? ($1)($0) : undefined"),
@@ -178,6 +179,15 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Option", "isSome", [option_of(t.clone())], Type::Bool, "$0 !== undefined"),
         stdlib_fn!("Option", "isNone", [option_of(t.clone())], Type::Bool, "$0 === undefined"),
         stdlib_fn!("Option", "toResult", [option_of(t.clone()), u.clone()], result_of(t.clone(), u.clone()), "$0 !== undefined ? { ok: true as const, value: $0 } : { ok: false as const, error: $1 }"),
+        stdlib_fn!("Option", "filter", [option_of(t.clone()), fun(vec![t.clone()], Type::Bool)], option_of(t.clone()), "$0 !== undefined && ($1)($0) ? $0 : undefined"),
+        stdlib_fn!("Option", "unwrap", [option_of(t.clone())], t.clone(), "(() => { if ($0 === undefined) throw new Error(\"called Option.unwrap on None\"); return $0; })()"),
+        stdlib_fn!("Option", "mapOr", [option_of(t.clone()), u.clone(), fun(vec![t.clone()], u.clone())], u.clone(), "$0 !== undefined ? ($2)($0) : $1"),
+        stdlib_fn!("Option", "flatten", [option_of(option_of(t.clone()))], option_of(t.clone()), "$0"),
+        stdlib_fn!("Option", "zip", [option_of(t.clone()), option_of(u.clone())], option_of(Type::Tuple(vec![t.clone(), u.clone()])), "$0 !== undefined && $1 !== undefined ? [$0, $1] as const : undefined"),
+        stdlib_fn!("Option", "inspect", [option_of(t.clone()), fun(vec![t.clone()], Type::Unit)], option_of(t.clone()), "(() => { const _v = $0; if (_v !== undefined) ($1)(_v); return _v; })()"),
+        stdlib_fn!("Option", "toErr", [option_of(t.clone())], result_of(Type::Unit, t.clone()), "$0 !== undefined ? { ok: false as const, error: $0 } : { ok: true as const, value: undefined }"),
+        stdlib_fn!("Option", "all", [array_of(option_of(t.clone()))], option_of(array_of(t.clone())), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (_v === undefined) return undefined; _r.push(_v); } return _r; })()"),
+        stdlib_fn!("Option", "any", [array_of(option_of(t.clone()))], option_of(t.clone()), "$0.find(_v => _v !== undefined)"),
         // ── Result ──────────────────────────────────────────────
         stdlib_fn!("Result", "map", [result_of(t.clone(), u.clone()), fun(vec![t.clone()], tv(2))], result_of(tv(2), u.clone()), "$0.ok ? { ok: true as const, value: ($1)($0.value) } : $0"),
         stdlib_fn!("Result", "mapErr", [result_of(t.clone(), u.clone()), fun(vec![u.clone()], tv(2))], result_of(t.clone(), tv(2)), "$0.ok ? $0 : { ok: false as const, error: ($1)($0.error) }"),
@@ -186,6 +196,16 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Result", "isOk", [result_of(t.clone(), u.clone())], Type::Bool, "$0.ok"),
         stdlib_fn!("Result", "isErr", [result_of(t.clone(), u.clone())], Type::Bool, "!$0.ok"),
         stdlib_fn!("Result", "toOption", [result_of(t.clone(), u.clone())], option_of(t.clone()), "$0.ok ? $0.value : undefined"),
+        stdlib_fn!("Result", "filter", [result_of(t.clone(), u.clone()), fun(vec![t.clone()], Type::Bool), u.clone()], result_of(t.clone(), u.clone()), "$0.ok && ($1)($0.value) ? $0 : $0.ok ? { ok: false as const, error: $2 } : $0"),
+        stdlib_fn!("Result", "unwrap", [result_of(t.clone(), u.clone())], t.clone(), "(() => { if (!$0.ok) throw $0.error; return $0.value; })()"),
+        stdlib_fn!("Result", "unwrapErr", [result_of(t.clone(), u.clone())], u.clone(), "(() => { if ($0.ok) throw new Error(\"called Result.unwrapErr on Ok\"); return $0.error; })()"),
+        stdlib_fn!("Result", "mapOr", [result_of(t.clone(), u.clone()), tv(2), fun(vec![t.clone()], tv(2))], tv(2), "$0.ok ? ($2)($0.value) : $1"),
+        stdlib_fn!("Result", "flatten", [result_of(result_of(t.clone(), u.clone()), u.clone())], result_of(t.clone(), u.clone()), "$0.ok ? $0.value : $0"),
+        stdlib_fn!("Result", "zip", [result_of(t.clone(), u.clone()), result_of(tv(2), u.clone())], result_of(Type::Tuple(vec![t.clone(), tv(2)]), u.clone()), "$0.ok && $1.ok ? { ok: true as const, value: [$0.value, $1.value] as const } : !$0.ok ? $0 : $1"),
+        stdlib_fn!("Result", "inspect", [result_of(t.clone(), u.clone()), fun(vec![t.clone()], Type::Unit)], result_of(t.clone(), u.clone()), "(() => { const _v = $0; if (_v.ok) ($1)(_v.value); return _v; })()"),
+        stdlib_fn!("Result", "inspectErr", [result_of(t.clone(), u.clone()), fun(vec![u.clone()], Type::Unit)], result_of(t.clone(), u.clone()), "(() => { const _v = $0; if (!_v.ok) ($1)(_v.error); return _v; })()"),
+        stdlib_fn!("Result", "all", [array_of(result_of(t.clone(), u.clone()))], result_of(array_of(t.clone()), u.clone()), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (!_v.ok) return _v; _r.push(_v.value); } return { ok: true as const, value: _r }; })()"),
+        stdlib_fn!("Result", "any", [array_of(result_of(t.clone(), u.clone()))], result_of(t.clone(), array_of(u.clone())), "(() => { const _a = $0; const _e = []; for (const _v of _a) { if (_v.ok) return _v; _e.push(_v.error); } return { ok: false as const, error: _e }; })()"),
         // ── String ──────────────────────────────────────────────
         stdlib_fn!("String", "trim", [Type::String], Type::String, "$0.trim()"),
         stdlib_fn!("String", "trimStart", [Type::String], Type::String, "$0.trimStart()"),
@@ -278,6 +298,14 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Http", "delete", [Type::String], result_of(Type::Named("Response".to_string()), Type::Named("Error".to_string())), "(async () => { try { const _r = await fetch($0, { method: \"DELETE\" }); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
         stdlib_fn!("Http", "json", [Type::Named("Response".to_string())], result_of(Type::Unknown, Type::Named("Error".to_string())), "(async () => { try { const _r = await $0.json(); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
         stdlib_fn!("Http", "text", [Type::Named("Response".to_string())], result_of(Type::String, Type::Named("Error".to_string())), "(async () => { try { const _r = await $0.text(); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
+        // ── Promise ────────────────────────────────────────────────
+        stdlib_fn!("Promise", "all", [array_of(Type::Promise(Box::new(t.clone())))], Type::Promise(Box::new(array_of(t.clone()))), "Promise.all($0)"),
+        stdlib_fn!("Promise", "race", [array_of(Type::Promise(Box::new(t.clone())))], Type::Promise(Box::new(t.clone())), "Promise.race($0)"),
+        stdlib_fn!("Promise", "any", [array_of(Type::Promise(Box::new(t.clone())))], Type::Promise(Box::new(t.clone())), "Promise.any($0)"),
+        stdlib_fn!("Promise", "allSettled", [array_of(Type::Promise(Box::new(t.clone())))], Type::Promise(Box::new(array_of(result_of(t.clone(), Type::Named("Error".to_string()))))), "Promise.allSettled($0).then(_a => _a.map(_v => _v.status === \"fulfilled\" ? { ok: true as const, value: _v.value } : { ok: false as const, error: _v.reason instanceof Error ? _v.reason : new Error(String(_v.reason)) }))"),
+        stdlib_fn!("Promise", "resolve", [t.clone()], Type::Promise(Box::new(t.clone())), "Promise.resolve($0)"),
+        stdlib_fn!("Promise", "reject", [t.clone()], Type::Promise(Box::new(t.clone())), "Promise.reject($0)"),
+        stdlib_fn!("Promise", "delay", [Type::Number], Type::Promise(Box::new(Type::Unit)), "new Promise(_r => setTimeout(_r, $0))"),
         // ── Pipe Utilities ────────────────────────────────────────
         stdlib_fn!("Pipe", "tap", [t.clone(), fun(vec![t.clone()], Type::Unit)], t.clone(), "(() => { const _v = $0; ($1)(_v); return _v; })()"),
         // ── JSON ───────────────────────────────────────────────
@@ -591,15 +619,17 @@ mod tests {
         assert!(reg.is_module("Set"));
         assert!(reg.is_module("Http"));
         assert!(reg.is_module("Date"));
+        assert!(reg.is_module("Promise"));
         assert!(!reg.is_module("Foo"));
     }
 
     #[test]
     fn module_functions_count() {
         let reg = StdlibRegistry::new();
-        assert!(reg.module_functions("Array").len() >= 15);
-        assert!(reg.module_functions("Option").len() >= 5);
-        assert!(reg.module_functions("Result").len() >= 6);
+        assert!(reg.module_functions("Array").len() >= 16);
+        assert!(reg.module_functions("Option").len() >= 13);
+        assert!(reg.module_functions("Result").len() >= 16);
+        assert!(reg.module_functions("Promise").len() >= 7);
         assert!(reg.module_functions("String").len() >= 10);
         assert!(reg.module_functions("Number").len() >= 5);
         assert!(reg.module_functions("Console").len() >= 5);
@@ -696,5 +726,216 @@ mod tests {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("JSON", "stringify").unwrap();
         assert_eq!(f.codegen, "JSON.stringify($0)");
+    }
+
+    // ── Option new functions ──────────────────────────────────
+
+    #[test]
+    fn lookup_option_filter() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "filter").unwrap();
+        assert!(f.codegen.contains("undefined"));
+        assert!(f.codegen.contains("($1)($0)"));
+    }
+
+    #[test]
+    fn lookup_option_unwrap() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "unwrap").unwrap();
+        assert!(f.codegen.contains("throw"));
+    }
+
+    #[test]
+    fn lookup_option_map_or() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "mapOr").unwrap();
+        assert!(f.codegen.contains("($2)($0)"));
+        assert!(f.codegen.contains("$1"));
+    }
+
+    #[test]
+    fn lookup_option_flatten() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "flatten").unwrap();
+        assert_eq!(f.codegen, "$0");
+    }
+
+    #[test]
+    fn lookup_option_zip() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "zip").unwrap();
+        assert!(f.codegen.contains("[$0, $1]"));
+    }
+
+    #[test]
+    fn lookup_option_inspect() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "inspect").unwrap();
+        assert!(f.codegen.contains("($1)(_v)"));
+        assert!(f.codegen.contains("return _v"));
+    }
+
+    #[test]
+    fn lookup_option_to_err() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "toErr").unwrap();
+        assert!(f.codegen.contains("ok: false"));
+        assert!(f.codegen.contains("ok: true"));
+    }
+
+    #[test]
+    fn lookup_option_all() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "all").unwrap();
+        assert!(f.codegen.contains("for"));
+        assert!(f.codegen.contains("undefined"));
+    }
+
+    #[test]
+    fn lookup_option_any() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Option", "any").unwrap();
+        assert!(f.codegen.contains("find"));
+    }
+
+    // ── Result new functions ──────────────────────────────────
+
+    #[test]
+    fn lookup_result_filter() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "filter").unwrap();
+        assert!(f.codegen.contains("($1)($0.value)"));
+    }
+
+    #[test]
+    fn lookup_result_unwrap() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "unwrap").unwrap();
+        assert!(f.codegen.contains("throw"));
+        assert!(f.codegen.contains("$0.error"));
+    }
+
+    #[test]
+    fn lookup_result_unwrap_err() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "unwrapErr").unwrap();
+        assert!(f.codegen.contains("throw"));
+        assert!(f.codegen.contains("$0.error"));
+    }
+
+    #[test]
+    fn lookup_result_map_or() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "mapOr").unwrap();
+        assert!(f.codegen.contains("($2)($0.value)"));
+    }
+
+    #[test]
+    fn lookup_result_flatten() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "flatten").unwrap();
+        assert!(f.codegen.contains("$0.value"));
+    }
+
+    #[test]
+    fn lookup_result_zip() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "zip").unwrap();
+        assert!(f.codegen.contains("$0.value, $1.value"));
+    }
+
+    #[test]
+    fn lookup_result_inspect() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "inspect").unwrap();
+        assert!(f.codegen.contains("_v.ok"));
+        assert!(f.codegen.contains("($1)(_v.value)"));
+    }
+
+    #[test]
+    fn lookup_result_inspect_err() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "inspectErr").unwrap();
+        assert!(f.codegen.contains("!_v.ok"));
+        assert!(f.codegen.contains("($1)(_v.error)"));
+    }
+
+    #[test]
+    fn lookup_result_all() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "all").unwrap();
+        assert!(f.codegen.contains("for"));
+        assert!(f.codegen.contains("!_v.ok"));
+    }
+
+    #[test]
+    fn lookup_result_any() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Result", "any").unwrap();
+        assert!(f.codegen.contains("for"));
+        assert!(f.codegen.contains("_v.ok"));
+    }
+
+    // ── Array new functions ───────────────────────────────────
+
+    #[test]
+    fn lookup_array_map_result() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "mapResult").unwrap();
+        assert!(f.codegen.contains("for"));
+        assert!(f.codegen.contains("!_res.ok"));
+    }
+
+    // ── Promise functions ─────────────────────────────────────
+
+    #[test]
+    fn lookup_promise_all() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Promise", "all").unwrap();
+        assert_eq!(f.codegen, "Promise.all($0)");
+    }
+
+    #[test]
+    fn lookup_promise_race() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Promise", "race").unwrap();
+        assert_eq!(f.codegen, "Promise.race($0)");
+    }
+
+    #[test]
+    fn lookup_promise_any() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Promise", "any").unwrap();
+        assert_eq!(f.codegen, "Promise.any($0)");
+    }
+
+    #[test]
+    fn lookup_promise_all_settled() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Promise", "allSettled").unwrap();
+        assert!(f.codegen.contains("allSettled"));
+        assert!(f.codegen.contains("ok: true"));
+        assert!(f.codegen.contains("ok: false"));
+    }
+
+    #[test]
+    fn lookup_promise_resolve() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Promise", "resolve").unwrap();
+        assert_eq!(f.codegen, "Promise.resolve($0)");
+    }
+
+    #[test]
+    fn lookup_promise_reject() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Promise", "reject").unwrap();
+        assert_eq!(f.codegen, "Promise.reject($0)");
+    }
+
+    #[test]
+    fn lookup_promise_delay() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Promise", "delay").unwrap();
+        assert!(f.codegen.contains("setTimeout"));
     }
 }

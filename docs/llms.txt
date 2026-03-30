@@ -347,6 +347,16 @@ match user.nickname {
 // Option helpers
 user.nickname |> Option.unwrapOr(user.name)
 user.nickname |> Option.map((n) => toUpperCase(n))
+user.nickname |> Option.filter((n) => String.length(n) > 3)
+user.nickname |> Option.inspect((n) => Console.log(n))
+Option.zip(firstName, lastName)        // Option<(string, string)>
+Option.all([Some(1), Some(2), None])   // None
+Option.any([None, Some(1), None])      // Some(1)
+
+// Option.toErr — for { data, error } patterns (Supabase, TanStack Query, etc.)
+const { data, error } = await supabase.rpc("get_entries", { query })
+error |> Option.toErr?              // bail if error exists
+const rows = data |> Option.unwrapOr([])
 
 // collect block — accumulate all errors instead of short-circuiting
 fn validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> {
@@ -359,6 +369,21 @@ fn validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> {
     }
 }
 // Inside collect, ? records errors and continues. Returns Err(Array<E>) if any failed.
+
+// Result helpers
+result |> Result.filter((n) => n > 0, "must be positive")
+result |> Result.inspect((v) => Console.log(v))
+result |> Result.inspectErr((e) => Console.error(e))
+Result.zip(fetchUser(id), fetchProfile(id))   // Result<(User, Profile), Error>
+Result.all([Ok(1), Ok(2), Err("fail")])        // Err("fail")
+Result.any([Err("a"), Ok(1), Err("b")])        // Ok(1)
+users |> Array.mapResult(validateUser)          // Result<Array<ValidUser>, Error>
+
+// Promise helpers
+const users = await Promise.all([fetchUser(1), fetchUser(2)])
+const fastest = await Promise.race([fetchFromCDN(url), fetchFromOrigin(url)])
+const results = await Promise.allSettled([fetchA(), fetchB()])  // Array<Result<T, Error>>
+await Promise.delay(1000)   // wait 1 second
 
 // parse<T> — compiler built-in for runtime type validation
 // No runtime library needed — the compiler inlines the checks
