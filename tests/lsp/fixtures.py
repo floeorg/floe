@@ -805,7 +805,7 @@ type BaseProps {
 
 type ButtonProps {
     ...BaseProps,
-    onClick: () => (),
+    onClick: () -> (),
     label: string,
 }
 """
