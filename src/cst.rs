@@ -2697,7 +2697,7 @@ mod tests {
 
     #[test]
     fn type_opaque() {
-        assert_no_errors("opaque type Id = string");
+        assert_no_errors("opaque type Id { string }");
     }
 
     #[test]

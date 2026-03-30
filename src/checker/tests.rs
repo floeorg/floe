@@ -301,10 +301,10 @@ const _x = HashedPassword("abc")
 }
 
 #[test]
-fn opaque_type_alias_allows_underlying_type_in_defining_module() {
+fn opaque_type_allows_underlying_type_in_defining_module() {
     let diags = check(
         r#"
-opaque type HashedPassword = string
+opaque type HashedPassword { string }
 
 fn hash(pw: string) -> HashedPassword {
     pw
@@ -313,16 +313,16 @@ fn hash(pw: string) -> HashedPassword {
     );
     assert!(
         !has_error_containing(&diags, "expected return type"),
-        "opaque alias should accept underlying type in the defining module, got: {:?}",
+        "opaque type should accept underlying type in the defining module, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn opaque_type_alias_rejects_wrong_type() {
+fn opaque_type_rejects_wrong_type() {
     let diags = check(
         r#"
-opaque type HashedPassword = string
+opaque type HashedPassword { string }
 
 fn hash(pw: number) -> HashedPassword {
     pw
@@ -331,7 +331,7 @@ fn hash(pw: number) -> HashedPassword {
     );
     assert!(
         has_error_containing(&diags, "expected return type"),
-        "opaque alias should reject non-underlying type, got: {:?}",
+        "opaque type should reject non-underlying type, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
