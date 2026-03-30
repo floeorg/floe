@@ -3894,3 +3894,72 @@ type Props = string & { extra: number }
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Await in non-async function ─────────────────────────────
+
+#[test]
+fn await_in_non_async_function_errors() {
+    let diags = check(
+        r#"
+fn init() {
+    const s = await getSession()
+}
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "`await` can only be used inside an `async` function"
+    ));
+}
+
+#[test]
+fn await_in_async_function_ok() {
+    let diags = check(
+        r#"
+async fn init() -> string {
+    const s = await fetchData()
+    s
+}
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "`await` can only be used"),
+        "await in async fn should be allowed, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn await_in_sync_lambda_inside_async_fn_errors() {
+    let diags = check(
+        r#"
+async fn outer() -> number {
+    const f = (x: number) => await fetchData()
+    await f(1)
+}
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "`await` can only be used inside an `async` function"
+    ));
+}
+
+#[test]
+fn await_in_nested_sync_fn_inside_async_fn_errors() {
+    let diags = check(
+        r#"
+async fn outer() -> number {
+    fn inner() -> number {
+        const s = await fetchData()
+        s
+    }
+    await inner()
+}
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "`await` can only be used inside an `async` function"
+    ));
+}

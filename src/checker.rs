@@ -47,6 +47,8 @@ pub(crate) struct CheckContext {
     pub collect_err_type: Option<Type>,
     /// Whether we are checking an event handler prop value (onChange, onClick, etc.)
     pub event_handler_context: bool,
+    /// Whether we are currently inside an `async` function.
+    pub inside_async: bool,
     /// Hint for lambda parameter type inference from calling context.
     pub lambda_param_hint: Option<Type>,
     /// When inside a pipe, holds the type of the piped (left) value.
@@ -1711,7 +1713,9 @@ impl Checker {
 
         // Set up scope for function body
         let prev_return_type = self.ctx.current_return_type.take();
+        let prev_inside_async = self.ctx.inside_async;
         self.ctx.current_return_type = Some(return_type.clone());
+        self.ctx.inside_async = decl.async_fn;
 
         self.env.push_scope();
 
@@ -1835,6 +1839,7 @@ impl Checker {
 
         self.env.pop_scope();
         self.ctx.current_return_type = prev_return_type;
+        self.ctx.inside_async = prev_inside_async;
     }
 
     fn check_for_block(&mut self, block: &ForBlock, _span: Span) {
