@@ -1797,8 +1797,7 @@ impl Checker {
             return Type::Unknown;
         }
 
-        // If we reach here, it's a type that doesn't support member access
-        // (e.g. Array, Option, Function, Map, Set, Opaque, etc.)
+        // Fallback: type doesn't support member access
         self.diagnostics.push(
             Diagnostic::error(
                 format!(
