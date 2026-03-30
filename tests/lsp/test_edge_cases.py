@@ -1,32 +1,30 @@
 """Tests for edge cases, error recovery, and rapid document updates."""
 
-import pytest
-
-from .conftest import URI, hover_text, completion_labels, symbol_names, open_and_diagnose
+from .conftest import URI, completion_labels, symbol_names, open_doc
 from . import fixtures as F
 
 
 class TestEdgeCases:
     def test_empty_file_no_crash(self, lsp):
-        result = open_and_diagnose(lsp, URI, F.EMPTY_FILE)
+        result = open_doc(lsp, URI, F.EMPTY_FILE)
         assert result.errors == []
 
     def test_comment_only_no_errors(self, lsp):
-        result = open_and_diagnose(lsp, URI, F.SINGLE_COMMENT)
+        result = open_doc(lsp, URI, F.SINGLE_COMMENT)
         assert result.errors == []
 
     def test_hover_on_empty_file(self, lsp):
-        open_and_diagnose(lsp, URI, F.EMPTY_FILE)
+        open_doc(lsp, URI, F.EMPTY_FILE)
         resp = lsp.hover(URI, 0, 0)
         assert resp is not None, "Server should respond to hover on empty file"
 
     def test_completion_on_comment_only(self, lsp):
-        open_and_diagnose(lsp, URI, F.SINGLE_COMMENT)
+        open_doc(lsp, URI, F.SINGLE_COMMENT)
         labels = completion_labels(lsp.completion(URI, 0, 0))
         assert len(labels) > 0
 
     def test_symbols_on_empty_file(self, lsp):
-        open_and_diagnose(lsp, URI, F.EMPTY_FILE)
+        open_doc(lsp, URI, F.EMPTY_FILE)
         names = symbol_names(lsp.document_symbols(URI))
         assert names == []
 

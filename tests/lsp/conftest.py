@@ -310,6 +310,26 @@ def open_and_diagnose(
     )
 
 
+# ── Shared helpers ────────────────────────────────────────
+
+
+def result_list(resp: dict | None) -> list:
+    """Extract result list from an LSP response."""
+    if resp is None:
+        return []
+    result = resp.get("result")
+    if result is None:
+        return []
+    if isinstance(result, list):
+        return result
+    return [result] if isinstance(result, dict) else []
+
+
+def open_doc(lsp: LspClient, uri: str, text: str, timeout: float = 1.0):
+    """Open a document and drain its diagnostics."""
+    return open_and_diagnose(lsp, uri, text, timeout=timeout)
+
+
 # ── Fixtures ──────────────────────────────────────────────
 
 URI = "file:///tmp/test.fl"
