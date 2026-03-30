@@ -1,0 +1,280 @@
+use std::collections::HashMap;
+
+use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::*;
+
+use super::stdlib_hover;
+use super::symbols::Symbol;
+use super::{FloeLsp, find_expr_type_at_offset, position_to_offset, word_at_offset};
+
+impl FloeLsp {
+    pub(super) async fn handle_hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+
+        let docs = self.documents.read().await;
+        let Some(doc) = docs.get(&uri) else {
+            return Ok(None);
+        };
+
+        let offset = position_to_offset(&doc.content, position);
+        let word = word_at_offset(&doc.content, offset);
+
+        if word.is_empty() {
+            return Ok(None);
+        }
+
+        // Check if cursor is on an import line — skip stdlib hover for keywords like `from`
+        let is_import_line = {
+            let line_start = doc.content[..offset].rfind('\n').map_or(0, |p| p + 1);
+            doc.content[line_start..]
+                .trim_start()
+                .starts_with("import ")
+        };
+
+        // Compute word start position and whether this is member access (X.word)
+        let word_start = {
+            let mut s = offset;
+            let bytes = doc.content.as_bytes();
+            while s > 0 && (bytes[s - 1].is_ascii_alphanumeric() || bytes[s - 1] == b'_') {
+                s -= 1;
+            }
+            s
+        };
+        let is_member_access =
+            word_start > 0 && doc.content.as_bytes().get(word_start - 1) == Some(&b'.');
+
+        // Check symbol index — for definitions, imports, and bindings at the cursor.
+        let symbols = doc.index.find_by_name(word);
+        let best_sym = symbols
+            .iter()
+            .find(|s| offset >= s.start && offset <= s.end);
+
+        // If both SymbolIndex and typed AST match, prefer the tighter span.
+        // This avoids showing a function definition when the cursor is on a
+        // usage of the same name inside the function body.
+        let typed_ast = doc
+            .typed_program
+            .as_ref()
+            .and_then(|p| find_expr_type_at_offset(p, offset));
+
+        if let Some(sym) = best_sym {
+            if let Some((ast_width, ref ty)) = typed_ast
+                && ast_width < sym.end - sym.start
+            {
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!("```floe\n{word}: {}\n```", ty.display_name()),
+                    }),
+                    range: None,
+                }));
+            }
+
+            let detail = enrich_hover_detail(sym, &doc.type_map);
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: format!("```floe\n{detail}\n```"),
+                }),
+                range: None,
+            }));
+        }
+
+        // Check for member access (e.g. z.object, Array.map, user.name)
+        if is_member_access {
+            let bytes = doc.content.as_bytes();
+            let dot_pos = word_start - 1;
+            let mut obj_start = dot_pos;
+            while obj_start > 0
+                && (bytes[obj_start - 1].is_ascii_alphanumeric() || bytes[obj_start - 1] == b'_')
+            {
+                obj_start -= 1;
+            }
+            let obj_name = &doc.content[obj_start..dot_pos];
+
+            // Check stdlib module method (e.g., Array.map, String.split)
+            if let Some(hover_text) = stdlib_hover::hover_stdlib_method(obj_name, word) {
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: hover_text,
+                    }),
+                    range: None,
+                }));
+            }
+
+            // Check tsgo member probes (npm imports like z.object)
+            if let Some(ty) = doc.type_map.get(&format!("__member_{obj_name}_{word}")) {
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!("```floe\n(property) {obj_name}.{word}: {ty}\n```"),
+                    }),
+                    range: None,
+                }));
+            }
+
+            // Resolve field type from type_map: look for __field_{type}_{field}
+            // or fall back to showing the object type
+            if let Some(obj_ty) = doc.type_map.get(obj_name) {
+                // Try to find the specific field type
+                if let Some(field_ty) = doc.type_map.get(&format!("__field_{obj_ty}_{word}")) {
+                    return Ok(Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: format!("```floe\n(property) {word}: {field_ty}\n```"),
+                        }),
+                        range: None,
+                    }));
+                }
+
+                // Check typed AST before falling back to generic display
+                if let Some((_, ref ty)) = typed_ast {
+                    return Ok(Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: format!(
+                                "```floe\n(property) {word}: {}\n```",
+                                ty.display_name()
+                            ),
+                        }),
+                        range: None,
+                    }));
+                }
+
+                // Fall back to showing object type + member
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!(
+                            "```floe\n(property) {obj_name}.{word}\n```\n`{obj_name}: {obj_ty}`"
+                        ),
+                    }),
+                    range: None,
+                }));
+            }
+        }
+
+        // Check stdlib module names (Array, String, Option, etc.)
+        if !is_import_line && let Some(hover_text) = stdlib_hover::hover_stdlib_module(word) {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: hover_text,
+                }),
+                range: None,
+            }));
+        }
+
+        // Check bare stdlib function names (for pipe context only, not member access)
+        if !is_member_access
+            && !is_import_line
+            && let Some(hover_text) = stdlib_hover::hover_stdlib_function(word)
+        {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: hover_text,
+                }),
+                range: None,
+            }));
+        }
+
+        // Check typed AST — the single source of truth for expression types.
+        // Typed AST fallback — for expressions not matched by symbol index or stdlib.
+        if let Some((_, ref ty)) = typed_ast {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: format!("```floe\n{word}: {}\n```", ty.display_name()),
+                }),
+                range: None,
+            }));
+        }
+
+        // Fallback to builtin hover
+        let hover_text = match word {
+            "Ok" => "```floe\nOk(value: T) -> Result<T, E>\n```\nWrap a success value in a Result.",
+            "Err" => {
+                "```floe\nErr(error: E) -> Result<T, E>\n```\nWrap an error value in a Result."
+            }
+            "Some" => "```floe\nSome(value: T) -> Option<T>\n```\nWrap a value in an Option.",
+            "None" => "```floe\nNone -> Option<T>\n```\nRepresents the absence of a value.",
+            "parse" => {
+                "```floe\nparse<T>(value: unknown) -> Result<T, Error>\n```\nCompiler built-in: validates a value matches type T at runtime."
+            }
+            "mock" => {
+                "```floe\nmock<T> -> T\n```\nCompiler built-in: generates test data from a type definition. Zero runtime, always in sync with the type."
+            }
+            "match" => {
+                "```floe\nmatch expr { pattern -> body, ... }\n```\nExhaustive pattern matching expression."
+            }
+            "|>" => {
+                "```floe\nexpr |> function\n```\nPipe operator: passes left side as first argument to right side."
+            }
+            "todo" => "```floe\ntodo\n```\nPlaceholder for unfinished code. Throws at runtime.",
+            "unreachable" => {
+                "```floe\nunreachable\n```\nAsserts a code path is impossible. Throws at runtime."
+            }
+            _ => return Ok(None),
+        };
+
+        Ok(Some(Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: hover_text.to_string(),
+            }),
+            range: None,
+        }))
+    }
+}
+
+// ── Hover enrichment ─────────────────────────────────────────────
+
+/// Enrich a symbol's hover detail with the inferred type from the checker's
+/// type_map when the symbol doesn't already have a type annotation.
+pub(super) fn enrich_hover_detail(sym: &Symbol, type_map: &HashMap<String, String>) -> String {
+    let detail = &sym.detail;
+
+    // For imports, show the resolved type if available (TS-like hover)
+    if sym.import_source.is_some() {
+        let source = sym.import_source.as_deref().unwrap_or("unknown");
+        if let Some(inferred) = type_map.get(&sym.name)
+            && !inferred.contains("?T")
+            && inferred != "unknown"
+        {
+            // Skip circular display where inferred type equals the name
+            if inferred != &sym.name {
+                return format!("(import) {}: {inferred}\nfrom \"{source}\"", sym.name);
+            }
+        }
+        // For type-only imports, show (type) prefix
+        return format!("(type) {}\nfrom \"{source}\"", sym.name);
+    }
+
+    // For consts/variables, always show the resolved type
+    if sym.kind == SymbolKind::CONSTANT || sym.kind == SymbolKind::VARIABLE {
+        if let Some(inferred) = type_map.get(&sym.name)
+            && !inferred.contains("?T")
+        {
+            if detail.contains(':') {
+                return detail.clone();
+            }
+            return format!("{detail}: {inferred}");
+        }
+        return detail.clone();
+    }
+
+    // For functions without return type annotation, show the inferred return type
+    if sym.kind == SymbolKind::FUNCTION
+        && !detail.contains("->")
+        && let Some(inferred) = type_map.get(&sym.name)
+        && let Some((_, ret)) = inferred.rsplit_once(" -> ")
+        && !ret.contains("?T")
+    {
+        return format!("{detail} -> {ret}");
+    }
+
+    detail.clone()
+}
