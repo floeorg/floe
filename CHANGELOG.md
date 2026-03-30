@@ -5,6 +5,28 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.26](https://github.com/milkyskies/floe/compare/v0.1.25...v0.1.26) (2026-03-30)
+
+
+### Features
+
+* [[#597](https://github.com/milkyskies/floe/issues/597)] Enforce boolean-only operands for &&, ||, and ! ([#689](https://github.com/milkyskies/floe/issues/689)) ([157cd6a](https://github.com/milkyskies/floe/commit/157cd6ae313443dd596287eea9cad42089bfe88e))
+* [[#690](https://github.com/milkyskies/floe/issues/690)] Support Record&lt;K, V&gt; from TS interop as Map with bracket-access codegen ([#698](https://github.com/milkyskies/floe/issues/698)) ([fe30639](https://github.com/milkyskies/floe/commit/fe3063929eb3ea6a1183356ae8301a539e9fa69f))
+
+
+### Bug Fixes
+
+* [[#585](https://github.com/milkyskies/floe/issues/585)] Go-to-definition not working for tsconfig path alias imports ([#688](https://github.com/milkyskies/floe/issues/688)) ([a4e88a1](https://github.com/milkyskies/floe/commit/a4e88a173048cd7e5b7b0f54a1b5027e67a9bbcc))
+* [[#593](https://github.com/milkyskies/floe/issues/593)] For-block methods resolve via member access ([#699](https://github.com/milkyskies/floe/issues/699)) ([22a8e78](https://github.com/milkyskies/floe/commit/22a8e78d7005d779b18e969da1390f09e2eba9dc))
+* [[#600](https://github.com/milkyskies/floe/issues/600)] Foreign type member access too lenient ([#697](https://github.com/milkyskies/floe/issues/697)) ([ba0240d](https://github.com/milkyskies/floe/commit/ba0240d94281daf9f3a17cf4396e60d34dcafe9c))
+* [[#607](https://github.com/milkyskies/floe/issues/607)] Pipe does not support qualified for-block syntax ([#700](https://github.com/milkyskies/floe/issues/700)) ([7c5e2f6](https://github.com/milkyskies/floe/commit/7c5e2f6c034d516be84339949ad485545a07f936))
+* [[#635](https://github.com/milkyskies/floe/issues/635)] Probe resolves chained calls without intermediate const ([#696](https://github.com/milkyskies/floe/issues/696)) ([a3e0d12](https://github.com/milkyskies/floe/commit/a3e0d1250af5b4d149e96026671eca37c2533dc1))
+* [[#686](https://github.com/milkyskies/floe/issues/686)] await in non-async function should be a compile error ([#687](https://github.com/milkyskies/floe/issues/687)) ([876afe8](https://github.com/milkyskies/floe/commit/876afe84be997cf5948fb6fa1dd22e8faf780302))
+* [[#691](https://github.com/milkyskies/floe/issues/691)] floe fmt should skip files with parse errors ([#694](https://github.com/milkyskies/floe/issues/694)) ([c2b77d3](https://github.com/milkyskies/floe/commit/c2b77d3a7233881e184e3328730cff5d50738316))
+* [[#693](https://github.com/milkyskies/floe/issues/693)] Bracket access is completely unchecked ([#695](https://github.com/milkyskies/floe/issues/695)) ([4c84a53](https://github.com/milkyskies/floe/commit/4c84a5374e576963b4c25c3b0b5fd357252d4a34))
+* [[#701](https://github.com/milkyskies/floe/issues/701)] Dot-access completions fall through to global symbols ([#704](https://github.com/milkyskies/floe/issues/704)) ([abafa83](https://github.com/milkyskies/floe/commit/abafa83a9fed13d5c8a90254ff8a4060ad15739b))
+* [[#705](https://github.com/milkyskies/floe/issues/705)] Dot-access completions do not resolve record type fields ([#713](https://github.com/milkyskies/floe/issues/713)) ([3e355db](https://github.com/milkyskies/floe/commit/3e355db6899c543a43b533419337c1eb83c1bfb9))
+
 ## [0.1.25](https://github.com/milkyskies/floe/compare/v0.1.24...v0.1.25) (2026-03-30)
 
 
