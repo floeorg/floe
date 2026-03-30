@@ -53,375 +53,33 @@ impl Checker {
                 Type::String
             }
             ExprKind::Bool(_) => Type::Bool,
-
-            ExprKind::Identifier(name) => {
-                self.unused.used_names.insert(name.clone());
-                // Check for ambiguous bare variant usage
-                if let Some(unions) = self.ambiguous_variants.get(name) {
-                    let union_list = unions.join("` and `");
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "variant `{name}` is ambiguous — defined in both `{union_list}`"
-                            ),
-                            expr.span,
-                        )
-                        .with_help(format!(
-                            "use a qualified name: {}",
-                            unions
-                                .iter()
-                                .map(|u| format!("`{u}.{name}`"))
-                                .collect::<Vec<_>>()
-                                .join(" or ")
-                        ))
-                        .with_code("E017"),
-                    );
-                }
-                if let Some(ty) = self.env.lookup(name).cloned() {
-                    // Non-unit variant as bare identifier → constructor function
-                    if let Type::Union { ref variants, .. } = ty
-                        && let Some((_, field_types)) = variants.iter().find(|(v, _)| v == name)
-                        && !field_types.is_empty()
-                    {
-                        return Type::Function {
-                            params: field_types.clone(),
-                            return_type: Box::new(ty),
-                        };
-                    }
-                    ty
-                } else if self.stdlib.is_module(name) {
-                    // Stdlib module names (Array, String, etc.) are valid identifiers
-                    Type::Unknown
-                } else {
-                    self.emit_error(
-                        format!("`{name}` is not defined"),
-                        expr.span,
-                        "E002",
-                        "not found in scope",
-                    );
-                    Type::Unknown
-                }
-            }
-
+            ExprKind::Identifier(name) => self.check_identifier(name, expr.span),
             ExprKind::Placeholder => Type::Unknown,
-
             ExprKind::Binary { left, op, right } => self.check_binary(left, *op, right, expr.span),
-
-            ExprKind::Unary { op, operand } => {
-                let ty = self.check_expr(operand);
-                match op {
-                    UnaryOp::Neg => {
-                        if !ty.is_numeric() && !matches!(ty, Type::Unknown | Type::Var(_)) {
-                            self.emit_error(
-                                format!(
-                                    "cannot negate type `{}`, expected `number`",
-                                    ty.display_name()
-                                ),
-                                expr.span,
-                                "E001",
-                                "expected `number`",
-                            );
-                        }
-                        Type::Number
-                    }
-                    UnaryOp::Not => {
-                        let concrete = self.resolve_type_to_concrete(&ty);
-                        self.check_boolean_operand(&ty, &concrete, expr.span, "!");
-                        Type::Bool
-                    }
-                }
-            }
-
+            ExprKind::Unary { op, operand } => self.check_unary(*op, operand, expr.span),
             ExprKind::Pipe { left, right } => {
                 let left_ty = self.check_expr(left);
                 self.check_pipe_right(&left_ty, right)
             }
-
-            ExprKind::Unwrap(inner) => {
-                let ty = self.check_expr(inner);
-                // Rule 5: ? only allowed in functions returning Result/Option,
-                // OR inside a collect block (where ? accumulates errors)
-                if !self.ctx.inside_collect {
-                    match &self.ctx.current_return_type {
-                        Some(ret) if ret.is_result() || ret.is_option() => {}
-                        Some(_) => {
-                            self.emit_error_with_help(
-                                "`?` operator requires function to return `Result` or `Option`",
-                                expr.span,
-                                "E005",
-                                "enclosing function does not return `Result` or `Option`",
-                                "change the function's return type to `Result` or `Option`",
-                            );
-                        }
-                        None => {
-                            self.emit_error(
-                                "`?` operator can only be used inside a function",
-                                expr.span,
-                                "E005",
-                                "not inside a function",
-                            );
-                        }
-                    }
-                }
-                // Unwrap the inner type
-                match ty {
-                    Type::Result { ok, err } => {
-                        if self.ctx.inside_collect {
-                            self.ctx.collect_err_type = Some(*err);
-                        }
-                        *ok
-                    }
-                    Type::Option(inner) => *inner,
-                    _ => {
-                        self.emit_error(
-                            format!(
-                                "`?` can only be used on `Result` or `Option`, found `{}`",
-                                ty.display_name()
-                            ),
-                            expr.span,
-                            "E005",
-                            "not a `Result` or `Option`",
-                        );
-                        Type::Unknown
-                    }
-                }
-            }
-
+            ExprKind::Unwrap(inner) => self.check_unwrap(inner, expr.span),
             ExprKind::Call {
                 callee,
                 type_args,
                 args,
             } => self.check_call(callee, type_args, args, expr.span),
-
             ExprKind::Construct {
                 type_name,
                 spread,
                 args,
             } => self.check_construct(type_name, spread.as_deref(), args, expr.span),
-
-            ExprKind::Member { object, field } => {
-                let obj_ty = self.check_expr(object);
-
-                // Check for npm member access via tsgo probes (e.g. z.object, z.string)
-                if let ExprKind::Identifier(name) = &object.kind {
-                    let member_key = format!("__member_{name}_{field}");
-                    for exports in self.dts_imports.values() {
-                        if let Some(export) = exports.iter().find(|e| e.name == member_key) {
-                            let ty = crate::interop::wrap_boundary_type(&export.ts_type);
-                            self.name_types.insert(member_key, ty.display_name());
-                            return ty;
-                        }
-                    }
-                }
-
-                // Allow stdlib module access (e.g. JSON.parse) before unknown check
-                if matches!(obj_ty, Type::Unknown)
-                    && let ExprKind::Identifier(name) = &object.kind
-                    && self.stdlib.is_module(name)
-                    && let Some(stdlib_fn) = self.stdlib.lookup(name, field)
-                {
-                    return stdlib_fn.return_type.clone();
-                }
-
-                self.resolve_member_type(&obj_ty, field, expr.span)
-            }
-
-            ExprKind::Index { object, index } => {
-                let obj_ty = self.check_expr(object);
-                let idx_ty = self.check_expr(index);
-
-                // Resolve Named types to their concrete definition
-                let concrete = self.resolve_type_to_concrete(&obj_ty);
-
-                match &concrete {
-                    Type::Array(inner) => {
-                        // Index must be a number
-                        if !matches!(idx_ty, Type::Number | Type::Unknown) {
-                            self.emit_error(
-                                format!(
-                                    "array index must be `number`, found `{}`",
-                                    idx_ty.display_name()
-                                ),
-                                index.span,
-                                "E017",
-                                "expected `number`",
-                            );
-                        }
-                        Type::Option(inner.clone())
-                    }
-                    Type::Tuple(elements) => {
-                        // Tuple indexing requires a numeric literal
-                        if let ExprKind::Number(n) = &index.kind {
-                            if let Ok(idx) = n.parse::<usize>() {
-                                if idx < elements.len() {
-                                    elements[idx].clone()
-                                } else {
-                                    self.diagnostics.push(
-                                        Diagnostic::error(
-                                            format!(
-                                                "tuple index `{}` out of bounds — tuple has {} element(s)",
-                                                n,
-                                                elements.len()
-                                            ),
-                                            index.span,
-                                        )
-                                        .with_code("E017"),
-                                    );
-                                    Type::Unknown
-                                }
-                            } else {
-                                self.diagnostics.push(
-                                    Diagnostic::error(
-                                        format!("tuple index must be a non-negative integer, found `{n}`"),
-                                        index.span,
-                                    )
-                                    .with_code("E017"),
-                                );
-                                Type::Unknown
-                            }
-                        } else {
-                            self.emit_error(
-                                "tuple index must be a numeric literal",
-                                index.span,
-                                "E017",
-                                "dynamic indexing is not allowed on tuples",
-                            );
-                            Type::Unknown
-                        }
-                    }
-                    Type::Unknown | Type::Foreign(_) | Type::Never => Type::Unknown,
-                    Type::Var(_) => Type::Unknown,
-                    _ => {
-                        if let Type::Named(name) = &obj_ty
-                            && self.env.lookup_type(name).is_none()
-                        {
-                            return Type::Unknown;
-                        }
-                        self.emit_error(
-                            format!(
-                                "cannot use bracket access on type `{}`",
-                                obj_ty.display_name()
-                            ),
-                            expr.span,
-                            "E017",
-                            "not an array or tuple type",
-                        );
-                        Type::Unknown
-                    }
-                }
-            }
-
+            ExprKind::Member { object, field } => self.check_member(object, field, expr.span),
+            ExprKind::Index { object, index } => self.check_index(object, index, expr.span),
             ExprKind::Arrow {
                 params,
                 body,
                 async_fn,
-            } => {
-                let prev_inside_async = self.ctx.inside_async;
-                self.ctx.inside_async = *async_fn;
-                self.env.push_scope();
-                let param_types: Vec<_> = params
-                    .iter()
-                    .map(|p| {
-                        let ty = p
-                            .type_ann
-                            .as_ref()
-                            .map(|t| self.resolve_type(t))
-                            .unwrap_or_else(|| {
-                                // Use lambda param hint from calling context if available
-                                if let Some(hint) = self.ctx.lambda_param_hint.take() {
-                                    return hint;
-                                }
-                                // In event handler context, infer Event type for the parameter
-                                if self.ctx.event_handler_context && p.destructure.is_none() {
-                                    Type::Named("Event".to_string())
-                                } else {
-                                    self.fresh_type_var()
-                                }
-                            });
-                        self.env.define(&p.name, ty.clone());
-                        // Persist lambda param type for LSP hover (scope is
-                        // popped after the arrow body is checked, so the param
-                        // would be lost from the final name_types merge)
-                        self.name_types.insert(p.name.clone(), ty.display_name());
-                        // For destructured params, also define the field names
-                        if let Some(ref destructure) = p.destructure {
-                            match destructure {
-                                ParamDestructure::Object(fields) => {
-                                    for f in fields {
-                                        let name = f.bound_name();
-                                        let field_ty = match f.field.as_str() {
-                                            "error" => {
-                                                Type::Named(type_layout::TYPE_ERROR.to_string())
-                                            }
-                                            _ => Type::Unknown,
-                                        };
-                                        self.env.define(name, field_ty);
-                                    }
-                                }
-                                ParamDestructure::Array(fields) => {
-                                    for field in fields {
-                                        let field_ty = match field.as_str() {
-                                            "error" => {
-                                                Type::Named(type_layout::TYPE_ERROR.to_string())
-                                            }
-                                            _ => Type::Unknown,
-                                        };
-                                        self.env.define(field, field_ty);
-                                    }
-                                }
-                            }
-                        }
-                        ty
-                    })
-                    .collect();
-                let return_type = self.check_expr(body);
-                self.env.pop_scope();
-                self.ctx.inside_async = prev_inside_async;
-                Type::Function {
-                    params: param_types,
-                    return_type: Box::new(return_type),
-                }
-            }
-
-            ExprKind::Match { subject, arms } => {
-                let subject_ty = self.check_expr(subject);
-                self.check_match_exhaustiveness(&subject_ty, arms, expr.span);
-
-                let mut result_type: Option<Type> = None;
-                for arm in arms {
-                    self.env.push_scope();
-                    self.check_pattern(&arm.pattern, &subject_ty);
-                    // Type-check guard expression if present
-                    if let Some(guard) = &arm.guard {
-                        self.check_expr(guard);
-                    }
-                    let arm_type = self.check_expr(&arm.body);
-                    self.env.pop_scope();
-
-                    if let Some(ref first_type) = result_type {
-                        if !self.types_unifiable(first_type, &arm_type)
-                            && !matches!(arm_type, Type::Unknown | Type::Var(_))
-                            && !matches!(first_type, Type::Unknown | Type::Var(_))
-                        {
-                            self.emit_error(
-                                format!(
-                                        "match arms have incompatible types: first arm returns `{}`, this arm returns `{}`",
-                                        first_type.display_name(),
-                                        arm_type.display_name()
-                                    ),
-                                arm.body.span,
-                                "E001",
-                                format!("expected `{}`", first_type.display_name()),
-                            );
-                        }
-                        result_type = Some(Self::merge_types(first_type, &arm_type));
-                    } else {
-                        result_type = Some(arm_type);
-                    }
-                }
-                result_type.unwrap_or(Type::Unit)
-            }
-
+            } => self.check_arrow(params, body, *async_fn),
+            ExprKind::Match { subject, arms } => self.check_match(subject, arms, expr.span),
             ExprKind::Await(inner) => {
                 if !self.ctx.inside_async {
                     self.emit_error_with_help(
@@ -438,7 +96,6 @@ impl Checker {
                     other => other,
                 }
             }
-
             ExprKind::Try(inner) => {
                 let inner_ty =
                     self.with_context(|ctx| ctx.inside_try = true, |this| this.check_expr(inner));
@@ -447,11 +104,8 @@ impl Checker {
                     err: Box::new(Type::Named(type_layout::TYPE_ERROR.to_string())),
                 }
             }
-
             ExprKind::Parse { type_arg, value } => {
-                // parse<T>(value) returns Result<T, Error>
                 let t = self.resolve_type(type_arg);
-                // Check the value expression (should be unknown/any at runtime)
                 if !matches!(value.kind, ExprKind::Placeholder) {
                     self.check_expr(value);
                 }
@@ -460,12 +114,10 @@ impl Checker {
                     err: Box::new(Type::Named(type_layout::TYPE_ERROR.to_string())),
                 }
             }
-
             ExprKind::Mock {
                 type_arg,
                 overrides,
             } => {
-                // mock<T> returns T — check override expressions
                 let t = self.resolve_type(type_arg);
                 for arg in overrides {
                     match arg {
@@ -479,10 +131,8 @@ impl Checker {
                 }
                 t
             }
-
             ExprKind::Ok(inner) => {
                 let inner_ty = self.check_expr(inner);
-                // Infer error type from enclosing function's return type if available
                 let err_ty = match &self.ctx.current_return_type {
                     Some(Type::Result { err, .. }) => (**err).clone(),
                     _ => Type::Unknown,
@@ -492,10 +142,8 @@ impl Checker {
                     err: Box::new(err_ty),
                 }
             }
-
             ExprKind::Err(inner) => {
                 let err_ty = self.check_expr(inner);
-                // Infer ok type from enclosing function's return type if available
                 let ok_ty = match &self.ctx.current_return_type {
                     Some(Type::Result { ok, .. }) => (**ok).clone(),
                     _ => Type::Unknown,
@@ -505,21 +153,17 @@ impl Checker {
                     err: Box::new(err_ty),
                 }
             }
-
             ExprKind::Some(inner) => {
                 let inner_ty = self.check_expr(inner);
                 Type::Option(Box::new(inner_ty))
             }
-
             ExprKind::None => Type::Option(Box::new(Type::Unknown)),
-
             ExprKind::Value(inner) => {
                 let inner_ty = self.check_expr(inner);
                 Type::Settable(Box::new(inner_ty))
             }
             ExprKind::Clear => Type::Settable(Box::new(Type::Unknown)),
             ExprKind::Unchanged => Type::Settable(Box::new(Type::Unknown)),
-
             ExprKind::Todo => {
                 self.emit_warning_with_help(
                     "`todo` is a placeholder that will panic at runtime",
@@ -530,64 +174,19 @@ impl Checker {
                 );
                 Type::Never
             }
-
             ExprKind::Unreachable => Type::Never,
-
             ExprKind::Unit => Type::Unit,
-
             ExprKind::Jsx(element) => {
                 self.check_jsx(element);
                 Type::Named("JSX.Element".to_string())
             }
-
-            ExprKind::Collect(items) => {
-                // collect { ... } — accumulates errors from ? instead of short-circuiting
-                // The block returns Result<T, Array<E>> where T is the last expression type
-                // and E is the error type from ? operations
-                self.env.push_scope();
-                let prev_inside_collect = self.ctx.inside_collect;
-                self.ctx.inside_collect = true;
-                let mut last_type = Type::Unit;
-                let mut err_type: Option<Type> = None;
-
-                for (i, item) in items.iter().enumerate() {
-                    let is_last = i == items.len() - 1;
-                    if is_last {
-                        if let ItemKind::Expr(e) = &item.kind {
-                            last_type = self.check_expr(e);
-                        } else {
-                            self.check_item(item);
-                        }
-                    } else {
-                        self.check_item(item);
-                    }
-                    // Collect error types from ? operations within
-                    // (The checker tracks them via collect_err_type)
-                    if let Some(ref et) = self.ctx.collect_err_type
-                        && err_type.is_none()
-                    {
-                        err_type = Some(et.clone());
-                    }
-                }
-
-                self.ctx.inside_collect = prev_inside_collect;
-                self.ctx.collect_err_type = None;
-                self.env.pop_scope();
-
-                let e = err_type.unwrap_or(Type::Unknown);
-                Type::Result {
-                    ok: Box::new(last_type),
-                    err: Box::new(Type::Array(Box::new(e))),
-                }
-            }
-
+            ExprKind::Collect(items) => self.check_collect(items),
             ExprKind::Block(items) => self.in_scope(|this| {
                 let mut last_type = Type::Unit;
                 for (i, item) in items.iter().enumerate() {
                     let is_last = i == items.len() - 1;
                     if is_last {
                         if let ItemKind::Expr(expr) = &item.kind {
-                            // Check last expression once and use its type as block type
                             last_type = this.check_expr(expr);
                         } else {
                             this.check_item(item);
@@ -598,54 +197,428 @@ impl Checker {
                 }
                 last_type
             }),
-
             ExprKind::Grouped(inner) => self.check_expr(inner),
-
-            ExprKind::Array(elements) => {
-                let mut elem_type: Option<Type> = None;
-                let mut mixed = false;
-                for el in elements {
-                    let ty = self.check_expr(el);
-                    if let Some(ref prev) = elem_type {
-                        if !self.types_compatible(prev, &ty)
-                            && !matches!(ty, Type::Unknown | Type::Var(_))
-                            && !matches!(prev, Type::Unknown | Type::Var(_))
-                        {
-                            mixed = true;
-                        }
-                    } else {
-                        elem_type = Some(ty);
-                    }
-                }
-                if mixed {
-                    Type::Array(Box::new(Type::Unknown))
-                } else {
-                    Type::Array(Box::new(elem_type.unwrap_or(Type::Unknown)))
-                }
-            }
-
+            ExprKind::Array(elements) => self.check_array(elements),
             ExprKind::Tuple(elements) => {
                 let types: Vec<Type> = elements.iter().map(|el| self.check_expr(el)).collect();
                 Type::Tuple(types)
             }
-
             ExprKind::Spread(inner) => self.check_expr(inner),
-
             ExprKind::Object(fields) => {
                 for (_key, value) in fields {
                     self.check_expr(value);
                 }
                 Type::Unknown
             }
-
             ExprKind::DotShorthand { predicate, .. } => {
-                // Check the predicate RHS expression if present
                 if let Some((_op, rhs)) = predicate {
                     self.check_expr(rhs);
                 }
-                // Dot shorthand produces a function
                 Type::Unknown
             }
+        }
+    }
+
+    // ── Extracted Expression Checkers ────────────────────────────────
+
+    fn check_identifier(&mut self, name: &str, span: Span) -> Type {
+        self.unused.used_names.insert(name.to_string());
+        // Check for ambiguous bare variant usage
+        if let Some(unions) = self.ambiguous_variants.get(name) {
+            let union_list = unions.join("` and `");
+            self.diagnostics.push(
+                Diagnostic::error(
+                    format!("variant `{name}` is ambiguous — defined in both `{union_list}`"),
+                    span,
+                )
+                .with_help(format!(
+                    "use a qualified name: {}",
+                    unions
+                        .iter()
+                        .map(|u| format!("`{u}.{name}`"))
+                        .collect::<Vec<_>>()
+                        .join(" or ")
+                ))
+                .with_code("E017"),
+            );
+        }
+        if let Some(ty) = self.env.lookup(name).cloned() {
+            // Non-unit variant as bare identifier → constructor function
+            if let Type::Union { ref variants, .. } = ty
+                && let Some((_, field_types)) = variants.iter().find(|(v, _)| v == name)
+                && !field_types.is_empty()
+            {
+                return Type::Function {
+                    params: field_types.clone(),
+                    return_type: Box::new(ty),
+                };
+            }
+            ty
+        } else if self.stdlib.is_module(name) {
+            // Stdlib module names (Array, String, etc.) are valid identifiers
+            Type::Unknown
+        } else {
+            self.emit_error(
+                format!("`{name}` is not defined"),
+                span,
+                "E002",
+                "not found in scope",
+            );
+            Type::Unknown
+        }
+    }
+
+    fn check_unary(&mut self, op: UnaryOp, operand: &Expr, span: Span) -> Type {
+        let ty = self.check_expr(operand);
+        match op {
+            UnaryOp::Neg => {
+                if !ty.is_numeric() && !matches!(ty, Type::Unknown | Type::Var(_)) {
+                    self.emit_error(
+                        format!(
+                            "cannot negate type `{}`, expected `number`",
+                            ty.display_name()
+                        ),
+                        span,
+                        "E001",
+                        "expected `number`",
+                    );
+                }
+                Type::Number
+            }
+            UnaryOp::Not => {
+                let concrete = self.resolve_type_to_concrete(&ty);
+                self.check_boolean_operand(&ty, &concrete, span, "!");
+                Type::Bool
+            }
+        }
+    }
+
+    fn check_unwrap(&mut self, inner: &Expr, span: Span) -> Type {
+        let ty = self.check_expr(inner);
+        // Rule 5: ? only allowed in functions returning Result/Option,
+        // OR inside a collect block (where ? accumulates errors)
+        if !self.ctx.inside_collect {
+            match &self.ctx.current_return_type {
+                Some(ret) if ret.is_result() || ret.is_option() => {}
+                Some(_) => {
+                    self.emit_error_with_help(
+                        "`?` operator requires function to return `Result` or `Option`",
+                        span,
+                        "E005",
+                        "enclosing function does not return `Result` or `Option`",
+                        "change the function's return type to `Result` or `Option`",
+                    );
+                }
+                None => {
+                    self.emit_error(
+                        "`?` operator can only be used inside a function",
+                        span,
+                        "E005",
+                        "not inside a function",
+                    );
+                }
+            }
+        }
+        // Unwrap the inner type
+        match ty {
+            Type::Result { ok, err } => {
+                if self.ctx.inside_collect {
+                    self.ctx.collect_err_type = Some(*err);
+                }
+                *ok
+            }
+            Type::Option(inner) => *inner,
+            _ => {
+                self.emit_error(
+                    format!(
+                        "`?` can only be used on `Result` or `Option`, found `{}`",
+                        ty.display_name()
+                    ),
+                    span,
+                    "E005",
+                    "not a `Result` or `Option`",
+                );
+                Type::Unknown
+            }
+        }
+    }
+
+    fn check_member(&mut self, object: &Expr, field: &str, span: Span) -> Type {
+        let obj_ty = self.check_expr(object);
+
+        // Check for npm member access via tsgo probes (e.g. z.object, z.string)
+        if let ExprKind::Identifier(name) = &object.kind {
+            let member_key = format!("__member_{name}_{field}");
+            for exports in self.dts_imports.values() {
+                if let Some(export) = exports.iter().find(|e| e.name == member_key) {
+                    let ty = crate::interop::wrap_boundary_type(&export.ts_type);
+                    self.name_types.insert(member_key, ty.display_name());
+                    return ty;
+                }
+            }
+        }
+
+        // Allow stdlib module access (e.g. JSON.parse) before unknown check
+        if matches!(obj_ty, Type::Unknown)
+            && let ExprKind::Identifier(name) = &object.kind
+            && self.stdlib.is_module(name)
+            && let Some(stdlib_fn) = self.stdlib.lookup(name, field)
+        {
+            return stdlib_fn.return_type.clone();
+        }
+
+        self.resolve_member_type(&obj_ty, field, span)
+    }
+
+    fn check_index(&mut self, object: &Expr, index: &Expr, span: Span) -> Type {
+        let obj_ty = self.check_expr(object);
+        let idx_ty = self.check_expr(index);
+
+        // Resolve Named types to their concrete definition
+        let concrete = self.resolve_type_to_concrete(&obj_ty);
+
+        match &concrete {
+            Type::Array(inner) => {
+                // Index must be a number
+                if !matches!(idx_ty, Type::Number | Type::Unknown) {
+                    self.emit_error(
+                        format!(
+                            "array index must be `number`, found `{}`",
+                            idx_ty.display_name()
+                        ),
+                        index.span,
+                        "E017",
+                        "expected `number`",
+                    );
+                }
+                Type::Option(inner.clone())
+            }
+            Type::Tuple(elements) => {
+                // Tuple indexing requires a numeric literal
+                if let ExprKind::Number(n) = &index.kind {
+                    if let Ok(idx) = n.parse::<usize>() {
+                        if idx < elements.len() {
+                            elements[idx].clone()
+                        } else {
+                            self.diagnostics.push(
+                                Diagnostic::error(
+                                    format!(
+                                        "tuple index `{}` out of bounds — tuple has {} element(s)",
+                                        n,
+                                        elements.len()
+                                    ),
+                                    index.span,
+                                )
+                                .with_code("E017"),
+                            );
+                            Type::Unknown
+                        }
+                    } else {
+                        self.diagnostics.push(
+                            Diagnostic::error(
+                                format!("tuple index must be a non-negative integer, found `{n}`"),
+                                index.span,
+                            )
+                            .with_code("E017"),
+                        );
+                        Type::Unknown
+                    }
+                } else {
+                    self.emit_error(
+                        "tuple index must be a numeric literal",
+                        index.span,
+                        "E017",
+                        "dynamic indexing is not allowed on tuples",
+                    );
+                    Type::Unknown
+                }
+            }
+            Type::Unknown | Type::Foreign(_) | Type::Never => Type::Unknown,
+            Type::Var(_) => Type::Unknown,
+            _ => {
+                if let Type::Named(name) = &obj_ty
+                    && self.env.lookup_type(name).is_none()
+                {
+                    return Type::Unknown;
+                }
+                self.emit_error(
+                    format!(
+                        "cannot use bracket access on type `{}`",
+                        obj_ty.display_name()
+                    ),
+                    span,
+                    "E017",
+                    "not an array or tuple type",
+                );
+                Type::Unknown
+            }
+        }
+    }
+
+    fn check_arrow(&mut self, params: &[Param], body: &Expr, async_fn: bool) -> Type {
+        let prev_inside_async = self.ctx.inside_async;
+        self.ctx.inside_async = async_fn;
+        self.env.push_scope();
+        let param_types: Vec<_> = params
+            .iter()
+            .map(|p| {
+                let ty = p
+                    .type_ann
+                    .as_ref()
+                    .map(|t| self.resolve_type(t))
+                    .unwrap_or_else(|| {
+                        // Use lambda param hint from calling context if available
+                        if let Some(hint) = self.ctx.lambda_param_hint.take() {
+                            return hint;
+                        }
+                        // In event handler context, infer Event type for the parameter
+                        if self.ctx.event_handler_context && p.destructure.is_none() {
+                            Type::Named("Event".to_string())
+                        } else {
+                            self.fresh_type_var()
+                        }
+                    });
+                self.env.define(&p.name, ty.clone());
+                // Persist lambda param type for LSP hover (scope is
+                // popped after the arrow body is checked, so the param
+                // would be lost from the final name_types merge)
+                self.name_types.insert(p.name.clone(), ty.display_name());
+                // For destructured params, also define the field names
+                if let Some(ref destructure) = p.destructure {
+                    match destructure {
+                        ParamDestructure::Object(fields) => {
+                            for f in fields {
+                                let name = f.bound_name();
+                                let field_ty = match f.field.as_str() {
+                                    "error" => Type::Named(type_layout::TYPE_ERROR.to_string()),
+                                    _ => Type::Unknown,
+                                };
+                                self.env.define(name, field_ty);
+                            }
+                        }
+                        ParamDestructure::Array(fields) => {
+                            for field in fields {
+                                let field_ty = match field.as_str() {
+                                    "error" => Type::Named(type_layout::TYPE_ERROR.to_string()),
+                                    _ => Type::Unknown,
+                                };
+                                self.env.define(field, field_ty);
+                            }
+                        }
+                    }
+                }
+                ty
+            })
+            .collect();
+        let return_type = self.check_expr(body);
+        self.env.pop_scope();
+        self.ctx.inside_async = prev_inside_async;
+        Type::Function {
+            params: param_types,
+            return_type: Box::new(return_type),
+        }
+    }
+
+    fn check_match(&mut self, subject: &Expr, arms: &[MatchArm], span: Span) -> Type {
+        let subject_ty = self.check_expr(subject);
+        self.check_match_exhaustiveness(&subject_ty, arms, span);
+
+        let mut result_type: Option<Type> = None;
+        for arm in arms {
+            self.env.push_scope();
+            self.check_pattern(&arm.pattern, &subject_ty);
+            // Type-check guard expression if present
+            if let Some(guard) = &arm.guard {
+                self.check_expr(guard);
+            }
+            let arm_type = self.check_expr(&arm.body);
+            self.env.pop_scope();
+
+            if let Some(ref first_type) = result_type {
+                if !self.types_unifiable(first_type, &arm_type)
+                    && !matches!(arm_type, Type::Unknown | Type::Var(_))
+                    && !matches!(first_type, Type::Unknown | Type::Var(_))
+                {
+                    self.emit_error(
+                        format!(
+                            "match arms have incompatible types: first arm returns `{}`, this arm returns `{}`",
+                            first_type.display_name(),
+                            arm_type.display_name()
+                        ),
+                        arm.body.span,
+                        "E001",
+                        format!("expected `{}`", first_type.display_name()),
+                    );
+                }
+                result_type = Some(Self::merge_types(first_type, &arm_type));
+            } else {
+                result_type = Some(arm_type);
+            }
+        }
+        result_type.unwrap_or(Type::Unit)
+    }
+
+    fn check_collect(&mut self, items: &[Item]) -> Type {
+        // collect { ... } — accumulates errors from ? instead of short-circuiting
+        // The block returns Result<T, Array<E>> where T is the last expression type
+        // and E is the error type from ? operations
+        self.env.push_scope();
+        let prev_inside_collect = self.ctx.inside_collect;
+        self.ctx.inside_collect = true;
+        let mut last_type = Type::Unit;
+        let mut err_type: Option<Type> = None;
+
+        for (i, item) in items.iter().enumerate() {
+            let is_last = i == items.len() - 1;
+            if is_last {
+                if let ItemKind::Expr(e) = &item.kind {
+                    last_type = self.check_expr(e);
+                } else {
+                    self.check_item(item);
+                }
+            } else {
+                self.check_item(item);
+            }
+            // Collect error types from ? operations within
+            // (The checker tracks them via collect_err_type)
+            if let Some(ref et) = self.ctx.collect_err_type
+                && err_type.is_none()
+            {
+                err_type = Some(et.clone());
+            }
+        }
+
+        self.ctx.inside_collect = prev_inside_collect;
+        self.ctx.collect_err_type = None;
+        self.env.pop_scope();
+
+        let e = err_type.unwrap_or(Type::Unknown);
+        Type::Result {
+            ok: Box::new(last_type),
+            err: Box::new(Type::Array(Box::new(e))),
+        }
+    }
+
+    fn check_array(&mut self, elements: &[Expr]) -> Type {
+        let mut elem_type: Option<Type> = None;
+        let mut mixed = false;
+        for el in elements {
+            let ty = self.check_expr(el);
+            if let Some(ref prev) = elem_type {
+                if !self.types_compatible(prev, &ty)
+                    && !matches!(ty, Type::Unknown | Type::Var(_))
+                    && !matches!(prev, Type::Unknown | Type::Var(_))
+                {
+                    mixed = true;
+                }
+            } else {
+                elem_type = Some(ty);
+            }
+        }
+        if mixed {
+            Type::Array(Box::new(Type::Unknown))
+        } else {
+            Type::Array(Box::new(elem_type.unwrap_or(Type::Unknown)))
         }
     }
 
