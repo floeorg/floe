@@ -256,7 +256,8 @@ impl<'src> Lowerer<'src> {
         } else if has_lbrace && !node.children().any(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
             // Object destructuring — but only if { } is NOT a type expr's record
             // We need to check if the braces are for destructuring vs type annotation
-            binding = Some(ConstBinding::Object(idents));
+            let fields = self.collect_object_destructure_fields_before_eq(node);
+            binding = Some(ConstBinding::Object(fields));
         } else if let Some(name) = idents.first() {
             binding = Some(ConstBinding::Name(name.clone()));
         }
@@ -348,9 +349,16 @@ impl<'src> Lowerer<'src> {
         let has_lparen = self.has_token(node, SyntaxKind::L_PAREN);
 
         let (name, destructure) = if has_lbrace {
-            // Destructured param: { name, age }
-            let fields: Vec<String> = idents.clone();
-            let synthetic_name = format!("_{}", fields.join("_"));
+            // Destructured param: { name, age } or { name: n, age: a }
+            let fields = self.collect_object_destructure_fields(node);
+            let synthetic_name = format!(
+                "_{}",
+                fields
+                    .iter()
+                    .map(|f| f.bound_name())
+                    .collect::<Vec<_>>()
+                    .join("_")
+            );
             (synthetic_name, Some(ParamDestructure::Object(fields)))
         } else if has_lparen {
             // Tuple destructured param: (a, b)
@@ -1226,6 +1234,122 @@ impl<'src> Lowerer<'src> {
             }
         }
         idents
+    }
+
+    /// Collect object destructure fields (with optional `: alias`) before `=`.
+    /// Tokens: `{ data: rows, error }` → [("data", Some("rows")), ("error", None)]
+    fn collect_object_destructure_fields_before_eq(
+        &self,
+        node: &SyntaxNode,
+    ) -> Vec<ObjectDestructureField> {
+        let mut fields = Vec::new();
+        let mut tokens: Vec<(SyntaxKind, String)> = Vec::new();
+
+        // Collect all tokens between { } before =
+        let mut inside_braces = false;
+        for token in node.children_with_tokens() {
+            if let Some(token) = token.as_token() {
+                let kind = token.kind();
+                if kind == SyntaxKind::EQUAL {
+                    break;
+                }
+                if kind == SyntaxKind::L_BRACE {
+                    inside_braces = true;
+                    continue;
+                }
+                if kind == SyntaxKind::R_BRACE {
+                    break;
+                }
+                if inside_braces
+                    && (kind == SyntaxKind::IDENT
+                        || kind == SyntaxKind::COLON
+                        || kind == SyntaxKind::COMMA)
+                {
+                    tokens.push((kind, token.text().to_string()));
+                }
+            }
+        }
+
+        // Parse tokens into fields: IDENT (COLON IDENT)? (COMMA ...)*
+        let mut i = 0;
+        while i < tokens.len() {
+            if tokens[i].0 == SyntaxKind::IDENT {
+                let field_name = tokens[i].1.clone();
+                let alias = if i + 2 < tokens.len()
+                    && tokens[i + 1].0 == SyntaxKind::COLON
+                    && tokens[i + 2].0 == SyntaxKind::IDENT
+                {
+                    let a = Some(tokens[i + 2].1.clone());
+                    i += 3; // skip field, colon, alias
+                    a
+                } else {
+                    i += 1; // skip field only
+                    None
+                };
+                fields.push(ObjectDestructureField {
+                    field: field_name,
+                    alias,
+                });
+            } else {
+                i += 1; // skip comma or other
+            }
+        }
+
+        fields
+    }
+
+    /// Collect object destructure fields (with optional `: alias`) from the entire node.
+    /// Used for param destructuring where there is no `=` delimiter.
+    fn collect_object_destructure_fields(&self, node: &SyntaxNode) -> Vec<ObjectDestructureField> {
+        let mut fields = Vec::new();
+        let mut tokens: Vec<(SyntaxKind, String)> = Vec::new();
+
+        let mut inside_braces = false;
+        for token in node.children_with_tokens() {
+            if let Some(token) = token.as_token() {
+                let kind = token.kind();
+                if kind == SyntaxKind::L_BRACE {
+                    inside_braces = true;
+                    continue;
+                }
+                if kind == SyntaxKind::R_BRACE {
+                    break;
+                }
+                if inside_braces
+                    && (kind == SyntaxKind::IDENT
+                        || kind == SyntaxKind::COLON
+                        || kind == SyntaxKind::COMMA)
+                {
+                    tokens.push((kind, token.text().to_string()));
+                }
+            }
+        }
+
+        let mut i = 0;
+        while i < tokens.len() {
+            if tokens[i].0 == SyntaxKind::IDENT {
+                let field_name = tokens[i].1.clone();
+                let alias = if i + 2 < tokens.len()
+                    && tokens[i + 1].0 == SyntaxKind::COLON
+                    && tokens[i + 2].0 == SyntaxKind::IDENT
+                {
+                    let a = Some(tokens[i + 2].1.clone());
+                    i += 3;
+                    a
+                } else {
+                    i += 1;
+                    None
+                };
+                fields.push(ObjectDestructureField {
+                    field: field_name,
+                    alias,
+                });
+            } else {
+                i += 1;
+            }
+        }
+
+        fields
     }
 
     /// Check if a token kind appears before the `=` sign.

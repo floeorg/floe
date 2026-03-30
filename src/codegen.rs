@@ -571,9 +571,9 @@ impl Codegen {
                             self.push(&names.join(", "));
                             self.push("]");
                         }
-                        ConstBinding::Object(names) => {
+                        ConstBinding::Object(fields) => {
                             self.push("{ ");
-                            self.push(&names.join(", "));
+                            self.emit_object_destructure_fields(fields);
                             self.push(" }");
                         }
                     }
@@ -612,14 +612,9 @@ impl Codegen {
                 }
                 self.push("]");
             }
-            ConstBinding::Object(names) => {
+            ConstBinding::Object(fields) => {
                 self.push("{ ");
-                for (i, name) in names.iter().enumerate() {
-                    if i > 0 {
-                        self.push(", ");
-                    }
-                    self.push(name);
-                }
+                self.emit_object_destructure_fields(fields);
                 self.push(" }");
             }
         }
@@ -690,6 +685,19 @@ impl Codegen {
         }
     }
 
+    fn emit_object_destructure_fields(&mut self, fields: &[ObjectDestructureField]) {
+        for (i, f) in fields.iter().enumerate() {
+            if i > 0 {
+                self.push(", ");
+            }
+            self.push(&f.field);
+            if let Some(alias) = &f.alias {
+                self.push(": ");
+                self.push(alias);
+            }
+        }
+    }
+
     fn emit_params(&mut self, params: &[Param]) {
         for (i, param) in params.iter().enumerate() {
             if i > 0 {
@@ -703,12 +711,7 @@ impl Codegen {
         match &param.destructure {
             Some(ParamDestructure::Object(fields)) => {
                 self.push("{ ");
-                for (i, field) in fields.iter().enumerate() {
-                    if i > 0 {
-                        self.push(", ");
-                    }
-                    self.push(field);
-                }
+                self.emit_object_destructure_fields(fields);
                 self.push(" }");
             }
             Some(ParamDestructure::Array(fields)) => {
@@ -1414,8 +1417,9 @@ impl Codegen {
                     out.push_str(&format!("export declare const {name}: any;"));
                 }
             }
-            ConstBinding::Object(names) => {
-                for name in names {
+            ConstBinding::Object(fields) => {
+                for f in fields {
+                    let name = f.bound_name();
                     out.push_str(&format!("export declare const {name}: any;"));
                 }
             }

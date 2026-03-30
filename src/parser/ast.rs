@@ -110,14 +110,30 @@ pub struct ConstDecl {
     pub value: Expr,
 }
 
+/// A field in an object destructuring pattern, optionally renamed.
+/// `{ data }` → field="data", alias=None
+/// `{ data: rows }` → field="data", alias=Some("rows")
+#[derive(Debug, Clone, PartialEq)]
+pub struct ObjectDestructureField {
+    pub field: String,
+    pub alias: Option<String>,
+}
+
+impl ObjectDestructureField {
+    /// The name this field is bound to in scope — alias if present, otherwise the field name.
+    pub fn bound_name(&self) -> &str {
+        self.alias.as_deref().unwrap_or(&self.field)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConstBinding {
     /// Simple name: `const x = ...`
     Name(String),
     /// Array destructuring: `const [a, b] = ...`
     Array(Vec<String>),
-    /// Object destructuring: `const { a, b } = ...`
-    Object(Vec<String>),
+    /// Object destructuring: `const { a, b } = ...` or `const { a: x, b: y } = ...`
+    Object(Vec<ObjectDestructureField>),
     /// Tuple destructuring: `const (a, b) = ...`
     Tuple(Vec<String>),
 }
@@ -149,8 +165,8 @@ pub struct Param {
 /// Destructuring pattern for a function/lambda parameter.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParamDestructure {
-    /// Object destructuring: `{ field1, field2 }`
-    Object(Vec<String>),
+    /// Object destructuring: `{ field1, field2 }` or `{ field1: alias1 }`
+    Object(Vec<ObjectDestructureField>),
     /// Array destructuring: `[a, b]`
     Array(Vec<String>),
 }

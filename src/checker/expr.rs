@@ -272,10 +272,20 @@ impl Checker {
                         // For destructured params, also define the field names
                         if let Some(ref destructure) = p.destructure {
                             match destructure {
-                                ParamDestructure::Object(fields)
-                                | ParamDestructure::Array(fields) => {
+                                ParamDestructure::Object(fields) => {
+                                    for f in fields {
+                                        let name = f.bound_name();
+                                        let field_ty = match f.field.as_str() {
+                                            "error" => {
+                                                Type::Named(type_layout::TYPE_ERROR.to_string())
+                                            }
+                                            _ => Type::Unknown,
+                                        };
+                                        self.env.define(name, field_ty);
+                                    }
+                                }
+                                ParamDestructure::Array(fields) => {
                                     for field in fields {
-                                        // Infer type for well-known field names
                                         let field_ty = match field.as_str() {
                                             "error" => {
                                                 Type::Named(type_layout::TYPE_ERROR.to_string())

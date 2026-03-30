@@ -1504,7 +1504,11 @@ impl Checker {
         let binding_name = match binding {
             ConstBinding::Name(n) => n.clone(),
             ConstBinding::Array(names) => names.join("_"),
-            ConstBinding::Object(names) => names.join("_"),
+            ConstBinding::Object(fields) => fields
+                .iter()
+                .map(|f| f.bound_name())
+                .collect::<Vec<_>>()
+                .join("_"),
             ConstBinding::Tuple(names) => names.join("_"),
         };
         let probe_key = format!("__probe_{binding_name}");
@@ -1606,7 +1610,7 @@ impl Checker {
     /// Handle object destructuring for const bindings.
     fn define_object_destructured_bindings(
         &mut self,
-        names: &[String],
+        fields: &[ObjectDestructureField],
         final_type: &Type,
         has_tsgo: bool,
         span: Span,
@@ -1616,33 +1620,36 @@ impl Checker {
             .resolve_to_concrete(final_type, &expr::simple_resolve_type_expr);
 
         let field_map: Option<std::collections::HashMap<&str, &Type>> = match &concrete {
-            Type::Record(fields) => Some(fields.iter().map(|(n, t)| (n.as_str(), t)).collect()),
+            Type::Record(rec_fields) => {
+                Some(rec_fields.iter().map(|(n, t)| (n.as_str(), t)).collect())
+            }
             _ => None,
         };
 
         // If tsgo resolved a single-field destructure and the type isn't a Record
         // with that field, assign it directly (legacy behavior for field-level probes)
         if has_tsgo
-            && names.len() == 1
+            && fields.len() == 1
             && field_map
                 .as_ref()
-                .is_none_or(|m| !m.contains_key(names[0].as_str()))
+                .is_none_or(|m| !m.contains_key(fields[0].field.as_str()))
         {
-            self.define_const_binding(&names[0], final_type.clone(), false, span);
+            self.define_const_binding(fields[0].bound_name(), final_type.clone(), false, span);
             return;
         }
 
-        for name in names {
-            // First try extracting the field from the Record type
+        for f in fields {
+            // Look up by the original field name in the source type
             let field_ty = field_map
                 .as_ref()
-                .and_then(|m| m.get(name.as_str()))
+                .and_then(|m| m.get(f.field.as_str()))
                 .cloned()
                 .cloned();
             // If no field found (e.g. Foreign type), try a per-field probe lookup
             let ty = field_ty
-                .unwrap_or_else(|| self.find_per_field_probe(name).unwrap_or(Type::Unknown));
-            self.define_const_binding(name, ty, false, span);
+                .unwrap_or_else(|| self.find_per_field_probe(&f.field).unwrap_or(Type::Unknown));
+            // Bind under the alias (or field name if no alias)
+            self.define_const_binding(f.bound_name(), ty, false, span);
         }
     }
 
@@ -1726,6 +1733,30 @@ impl Checker {
                 self.check_no_redefinition(&param.name, span);
             }
             self.env.define(&param.name, ty.clone());
+
+            // For destructured params, define the individual field names in scope
+            if let Some(ref destructure) = param.destructure {
+                match destructure {
+                    ParamDestructure::Object(fields) => {
+                        for f in fields {
+                            let field_ty = match ty {
+                                Type::Record(rec_fields) => rec_fields
+                                    .iter()
+                                    .find(|(n, _)| n == &f.field)
+                                    .map(|(_, t)| t.clone())
+                                    .unwrap_or(Type::Unknown),
+                                _ => Type::Unknown,
+                            };
+                            self.env.define(f.bound_name(), field_ty);
+                        }
+                    }
+                    ParamDestructure::Array(fields) => {
+                        for field in fields {
+                            self.env.define(field, Type::Unknown);
+                        }
+                    }
+                }
+            }
         }
 
         // Type-check default parameter values
