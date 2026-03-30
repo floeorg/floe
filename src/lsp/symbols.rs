@@ -527,7 +527,7 @@ impl SymbolIndex {
                         start: pattern.span.start,
                         end: pattern.span.end,
                         import_source: None,
-                        detail: format!("const {rest_name}"),
+                        detail: format!("binding {rest_name}"),
                         first_param_type: None,
                         return_type_str: None,
                         owner_type: None,
