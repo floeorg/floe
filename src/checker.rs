@@ -509,6 +509,56 @@ impl Checker {
         (self.diagnostics, self.name_types, self.expr_types)
     }
 
+    // ── Diagnostic helpers ────────────────────────────────────────
+
+    fn emit_error(
+        &mut self,
+        msg: impl Into<String>,
+        span: Span,
+        code: &str,
+        label: impl Into<String>,
+    ) {
+        self.diagnostics.push(
+            Diagnostic::error(msg, span)
+                .with_label(label)
+                .with_code(code),
+        );
+    }
+
+    fn emit_error_with_help(
+        &mut self,
+        msg: impl Into<String>,
+        span: Span,
+        code: &str,
+        label: impl Into<String>,
+        help: impl Into<String>,
+    ) {
+        self.diagnostics.push(
+            Diagnostic::error(msg, span)
+                .with_label(label)
+                .with_help(help)
+                .with_code(code),
+        );
+    }
+
+    fn emit_warning_with_help(
+        &mut self,
+        msg: impl Into<String>,
+        span: Span,
+        code: &str,
+        label: impl Into<String>,
+        help: impl Into<String>,
+    ) {
+        self.diagnostics.push(
+            Diagnostic::warning(msg, span)
+                .with_label(label)
+                .with_help(help)
+                .with_code(code),
+        );
+    }
+
+    // ── Type helpers ────────────────────────────────────────────────
+
     fn fresh_type_var(&mut self) -> Type {
         let id = self.next_var;
         self.next_var += 1;
@@ -565,11 +615,7 @@ impl Checker {
         // duplicate definitions within the same scope.
         if self.env.is_defined_in_current_scope(name) {
             let msg = format!("`{name}` is already defined in this scope");
-            self.diagnostics.push(
-                Diagnostic::error(msg, span)
-                    .with_label("already defined")
-                    .with_code("E016"),
-            );
+            self.emit_error(msg, span, "E016", "already defined");
         }
     }
 
@@ -580,21 +626,19 @@ impl Checker {
         if span.start != 0 || span.end != 0 {
             // Only check local declarations (not imports with dummy spans)
             if decl.name.starts_with(char::is_lowercase) {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!(
-                            "type name `{}` must start with an uppercase letter",
-                            decl.name
-                        ),
-                        span,
-                    )
-                    .with_label("must be uppercase")
-                    .with_help(format!(
+                self.emit_error_with_help(
+                    format!(
+                        "type name `{}` must start with an uppercase letter",
+                        decl.name
+                    ),
+                    span,
+                    "E024",
+                    "must be uppercase",
+                    format!(
                         "rename to `{}{}`",
                         decl.name[..1].to_uppercase(),
                         &decl.name[1..]
-                    ))
-                    .with_code("E024"),
+                    ),
                 );
             }
             match &decl.def {
@@ -806,17 +850,15 @@ impl Checker {
             match entry {
                 RecordEntry::Field(field) => {
                     if seen_names.contains_key(&field.name) {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!(
-                                    "duplicate field `{}` in record type `{}`",
-                                    field.name, type_name
-                                ),
-                                field.span,
-                            )
-                            .with_label("duplicate field")
-                            .with_help("field was already defined elsewhere in this record type")
-                            .with_code("E030"),
+                        self.emit_error_with_help(
+                            format!(
+                                "duplicate field `{}` in record type `{}`",
+                                field.name, type_name
+                            ),
+                            field.span,
+                            "E030",
+                            "duplicate field",
+                            "field was already defined elsewhere in this record type",
                         );
                     } else {
                         seen_names.insert(field.name.clone(), field.span);
@@ -837,17 +879,15 @@ impl Checker {
                                     .collect();
                                 for field in &spread_fields {
                                     if seen_names.contains_key(&field.name) {
-                                        self.diagnostics.push(
-                                            Diagnostic::error(
-                                                format!(
+                                        self.emit_error_with_help(
+                                            format!(
                                                     "field `{}` from spread `...{}` conflicts with existing field in `{}`",
                                                     field.name, spread.type_name, type_name
                                                 ),
-                                                spread.span,
-                                            )
-                                            .with_label(format!("field `{}` already defined", field.name))
-                                            .with_help("field was already defined elsewhere in this record type")
-                                            .with_code("E031"),
+                                            spread.span,
+                                            "E031",
+                                            format!("field `{}` already defined", field.name),
+                                            "field was already defined elsewhere in this record type",
                                         );
                                     } else {
                                         seen_names.insert(field.name.clone(), spread.span);
@@ -856,16 +896,14 @@ impl Checker {
                                 }
                             }
                             TypeDef::Union(_) => {
-                                self.diagnostics.push(
-                                    Diagnostic::error(
-                                        format!(
-                                            "cannot spread union type `{}` into record type `{}`",
-                                            spread.type_name, type_name
-                                        ),
-                                        spread.span,
-                                    )
-                                    .with_label("spread target must be a record type")
-                                    .with_code("E032"),
+                                self.emit_error(
+                                    format!(
+                                        "cannot spread union type `{}` into record type `{}`",
+                                        spread.type_name, type_name
+                                    ),
+                                    spread.span,
+                                    "E032",
+                                    "spread target must be a record type",
                                 );
                             }
                             TypeDef::Alias(_) | TypeDef::StringLiteralUnion(_) => {
@@ -879,13 +917,11 @@ impl Checker {
                         self.unused.used_names.insert(spread.type_name.clone());
                         preserved_spreads.push(RecordEntry::Spread(spread.clone()));
                     } else {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!("unknown type `{}` in spread", spread.type_name),
-                                spread.span,
-                            )
-                            .with_label("type not found")
-                            .with_code("E002"),
+                        self.emit_error(
+                            format!("unknown type `{}` in spread", spread.type_name),
+                            spread.span,
+                            "E002",
+                            "type not found",
                         );
                     }
                 }
@@ -915,31 +951,27 @@ impl Checker {
                             seen_default = true;
                             let default_ty = self.check_expr(default_expr);
                             if !self.types_compatible(&field_ty, &default_ty) {
-                                self.diagnostics.push(
-                                    Diagnostic::error(
-                                        format!(
-                                            "default value for `{}`: expected `{}`, found `{}`",
-                                            field.name,
-                                            field_ty.display_name(),
-                                            default_ty.display_name()
-                                        ),
-                                        field.span,
-                                    )
-                                    .with_label(format!("expected `{}`", field_ty.display_name()))
-                                    .with_code("E001"),
+                                self.emit_error(
+                                    format!(
+                                        "default value for `{}`: expected `{}`, found `{}`",
+                                        field.name,
+                                        field_ty.display_name(),
+                                        default_ty.display_name()
+                                    ),
+                                    field.span,
+                                    "E001",
+                                    format!("expected `{}`", field_ty.display_name()),
                                 );
                             }
                         } else if seen_default {
-                            self.diagnostics.push(
-                                Diagnostic::error(
-                                    format!(
-                                        "required field `{}` must come before fields with defaults",
-                                        field.name
-                                    ),
-                                    field.span,
-                                )
-                                .with_label("move this field before defaulted fields")
-                                .with_code("E001"),
+                            self.emit_error(
+                                format!(
+                                    "required field `{}` must come before fields with defaults",
+                                    field.name
+                                ),
+                                field.span,
+                                "E001",
+                                "move this field before defaulted fields",
                             );
                         }
                     }
@@ -978,17 +1010,15 @@ impl Checker {
 
         // deriving only works on record types
         if !matches!(&decl.def, TypeDef::Record(_)) {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!(
-                        "`deriving` can only be used on record types, but `{}` is not a record",
-                        decl.name
-                    ),
-                    span,
-                )
-                .with_label("not a record type")
-                .with_help("remove the `deriving` clause or change this to a record type")
-                .with_code("E019"),
+            self.emit_error_with_help(
+                format!(
+                    "`deriving` can only be used on record types, but `{}` is not a record",
+                    decl.name
+                ),
+                span,
+                "E019",
+                "not a record type",
+                "remove the `deriving` clause or change this to a record type",
             );
             return;
         }
@@ -998,14 +1028,12 @@ impl Checker {
         for trait_name in &decl.deriving {
             match trait_name.as_str() {
                 "Eq" => {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            "`Eq` cannot be derived — structural equality is built-in for all types via `==`".to_string(),
-                            span,
-                        )
-                        .with_label("not needed")
-                        .with_help("remove `Eq` from the deriving clause — use `==` for equality comparison")
-                        .with_code("E019"),
+                    self.emit_error_with_help(
+                        "`Eq` cannot be derived — structural equality is built-in for all types via `==`".to_string(),
+                        span,
+                        "E019",
+                        "not needed",
+                        "remove `Eq` from the deriving clause — use `==` for equality comparison",
                     );
                 }
                 "Display" => {
@@ -1026,11 +1054,12 @@ impl Checker {
                         .insert((type_name.clone(), "Display".to_string()));
                 }
                 _ => {
-                    self.diagnostics.push(
-                        Diagnostic::error(format!("trait `{trait_name}` cannot be derived"), span)
-                            .with_label("not a derivable trait")
-                            .with_help("only `Display` can be derived")
-                            .with_code("E019"),
+                    self.emit_error_with_help(
+                        format!("trait `{trait_name}` cannot be derived"),
+                        span,
+                        "E019",
+                        "not a derivable trait",
+                        "only `Display` can be derived",
                     );
                 }
             }
@@ -1114,14 +1143,12 @@ impl Checker {
                 if let Some(ty) = self.env.lookup(name) {
                     ty.clone()
                 } else {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!("cannot use `typeof` on undefined binding `{name}`"),
-                            type_expr.span,
-                        )
-                        .with_label("not defined")
-                        .with_help("typeof can only be used with value bindings (const, fn)")
-                        .with_code("E002"),
+                    self.emit_error_with_help(
+                        format!("cannot use `typeof` on undefined binding `{name}`"),
+                        type_expr.span,
+                        "E002",
+                        "not defined",
+                        "typeof can only be used with value bindings (const, fn)",
                     );
                     Type::Unknown
                 }
@@ -1197,11 +1224,12 @@ impl Checker {
                 {
                     Type::Named(name.to_string())
                 } else {
-                    self.diagnostics.push(
-                        Diagnostic::error(format!("unknown type `{name}`"), span)
-                            .with_label("not defined")
-                            .with_help("check the spelling or import/define this type")
-                            .with_code("E002"),
+                    self.emit_error_with_help(
+                        format!("unknown type `{name}`"),
+                        span,
+                        "E002",
+                        "not defined",
+                        "check the spelling or import/define this type",
                     );
                     Type::Unknown
                 }
@@ -1224,11 +1252,12 @@ impl Checker {
                 let ty = self.check_expr(expr);
                 // Rule 5: No floating Results/Options
                 if ty.is_result() {
-                    self.diagnostics.push(
-                        Diagnostic::error("unhandled `Result` value", expr.span)
-                            .with_label("this `Result` is not used")
-                            .with_help("use `?`, `match`, or assign to `_`")
-                            .with_code("E005"),
+                    self.emit_error_with_help(
+                        "unhandled `Result` value",
+                        expr.span,
+                        "E005",
+                        "this `Result` is not used",
+                        "use `?`, `match`, or assign to `_`",
                     );
                 }
             }
@@ -1539,30 +1568,26 @@ impl Checker {
             tsgo_ty.clone()
         } else if let Some(ref declared) = declared_type {
             if matches!(value_type, Type::Unknown) && !matches!(declared, Type::Unknown) {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!(
-                            "cannot narrow `unknown` to `{}` — use runtime validation instead",
-                            declared.display_name()
-                        ),
-                        span,
-                    )
-                    .with_label("unsafe narrowing from `unknown`")
-                    .with_help("use a validation library like Zod, or match on the value")
-                    .with_code("E019"),
+                self.emit_error_with_help(
+                    format!(
+                        "cannot narrow `unknown` to `{}` — use runtime validation instead",
+                        declared.display_name()
+                    ),
+                    span,
+                    "E019",
+                    "unsafe narrowing from `unknown`",
+                    "use a validation library like Zod, or match on the value",
                 );
             } else if !self.types_compatible(declared, &value_type) {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!(
-                            "expected `{}`, found `{}`",
-                            declared.display_name(),
-                            value_type.display_name()
-                        ),
-                        span,
-                    )
-                    .with_label(format!("expected `{}`", declared.display_name()))
-                    .with_code("E001"),
+                self.emit_error(
+                    format!(
+                        "expected `{}`, found `{}`",
+                        declared.display_name(),
+                        value_type.display_name()
+                    ),
+                    span,
+                    "E001",
+                    format!("expected `{}`", declared.display_name()),
                 );
             }
             declared.clone()
@@ -1657,17 +1682,15 @@ impl Checker {
     fn check_function(&mut self, decl: &FunctionDecl, span: Span) {
         // Rule: Exported functions must declare return types
         if decl.exported && decl.return_type.is_none() {
-            self.diagnostics.push(
-                Diagnostic::error(
-                    format!(
-                        "exported function `{}` must declare a return type",
-                        decl.name
-                    ),
-                    span,
-                )
-                .with_label("missing return type")
-                .with_help("add `-> ReturnType` after the parameter list")
-                .with_code("E010"),
+            self.emit_error_with_help(
+                format!(
+                    "exported function `{}` must declare a return type",
+                    decl.name
+                ),
+                span,
+                "E010",
+                "missing return type",
+                "add `-> ReturnType` after the parameter list",
             );
         }
 
@@ -1767,18 +1790,16 @@ impl Checker {
             if let Some(default_expr) = &param.default {
                 let default_ty = self.check_expr(default_expr);
                 if !self.types_compatible(ty, &default_ty) {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "default value for `{}`: expected `{}`, found `{}`",
-                                param.name,
-                                ty.display_name(),
-                                default_ty.display_name()
-                            ),
-                            param.span,
-                        )
-                        .with_label(format!("expected `{}`", ty.display_name()))
-                        .with_code("E001"),
+                    self.emit_error(
+                        format!(
+                            "default value for `{}`: expected `{}`, found `{}`",
+                            param.name,
+                            ty.display_name(),
+                            default_ty.display_name()
+                        ),
+                        param.span,
+                        "E001",
+                        format!("expected `{}`", ty.display_name()),
                     );
                 }
             }
@@ -1812,18 +1833,16 @@ impl Checker {
             if !self.types_compatible(&effective_declared, &body_type)
                 && !matches!(body_type, Type::Var(_))
             {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!(
-                            "function `{}`: expected return type `{}`, found `{}`",
-                            decl.name,
-                            resolved.display_name(),
-                            body_type.display_name()
-                        ),
-                        span,
-                    )
-                    .with_label(format!("expected `{}`", resolved.display_name()))
-                    .with_code("E001"),
+                self.emit_error(
+                    format!(
+                        "function `{}`: expected return type `{}`, found `{}`",
+                        decl.name,
+                        resolved.display_name(),
+                        body_type.display_name()
+                    ),
+                    span,
+                    "E001",
+                    format!("expected `{}`", resolved.display_name()),
                 );
             }
 
@@ -1832,18 +1851,16 @@ impl Checker {
                 && matches!(body_type, Type::Unit)
                 && !self.body_has_return(&decl.body)
             {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!(
-                            "function `{}` must return a value of type `{}`",
-                            decl.name,
-                            resolved.display_name()
-                        ),
-                        span,
-                    )
-                    .with_label("missing return value")
-                    .with_help("add a return expression or change return type to `()`")
-                    .with_code("E013"),
+                self.emit_error_with_help(
+                    format!(
+                        "function `{}` must return a value of type `{}`",
+                        decl.name,
+                        resolved.display_name()
+                    ),
+                    span,
+                    "E013",
+                    "missing return value",
+                    "add a return expression or change return type to `()`",
                 );
             }
         }
@@ -1948,18 +1965,16 @@ impl Checker {
                 if let Some(default_expr) = &param.default {
                     let default_ty = self.check_expr(default_expr);
                     if !self.types_compatible(ty, &default_ty) {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!(
-                                    "default value for `{}`: expected `{}`, found `{}`",
-                                    param.name,
-                                    ty.display_name(),
-                                    default_ty.display_name()
-                                ),
-                                param.span,
-                            )
-                            .with_label(format!("expected `{}`", ty.display_name()))
-                            .with_code("E001"),
+                        self.emit_error(
+                            format!(
+                                "default value for `{}`: expected `{}`, found `{}`",
+                                param.name,
+                                ty.display_name(),
+                                default_ty.display_name()
+                            ),
+                            param.span,
+                            "E001",
+                            format!("expected `{}`", ty.display_name()),
                         );
                     }
                 }
@@ -1972,18 +1987,16 @@ impl Checker {
                 if !self.types_compatible(&resolved, &body_type)
                     && !matches!(body_type, Type::Var(_))
                 {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "function `{}`: expected return type `{}`, found `{}`",
-                                func.name,
-                                resolved.display_name(),
-                                body_type.display_name()
-                            ),
-                            block.span,
-                        )
-                        .with_label(format!("expected `{}`", resolved.display_name()))
-                        .with_code("E001"),
+                    self.emit_error(
+                        format!(
+                            "function `{}`: expected return type `{}`, found `{}`",
+                            func.name,
+                            resolved.display_name(),
+                            body_type.display_name()
+                        ),
+                        block.span,
+                        "E001",
+                        format!("expected `{}`", resolved.display_name()),
                     );
                 }
             }
@@ -2003,16 +2016,14 @@ impl Checker {
                     let ty = self.check_expr(expr);
                     // Ensure assert expression evaluates to boolean
                     if !matches!(ty, Type::Bool | Type::Unknown | Type::Var(_)) {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!(
-                                    "assert expression must be boolean, found `{}`",
-                                    ty.display_name()
-                                ),
-                                *span,
-                            )
-                            .with_label("expected boolean expression")
-                            .with_code("E017"),
+                        self.emit_error(
+                            format!(
+                                "assert expression must be boolean, found `{}`",
+                                ty.display_name()
+                            ),
+                            *span,
+                            "E017",
+                            "expected boolean expression",
                         );
                     }
                 }
@@ -2096,11 +2107,12 @@ impl Checker {
         let trait_methods = match self.traits.trait_defs.get(trait_name) {
             Some(methods) => methods.clone(),
             None => {
-                self.diagnostics.push(
-                    Diagnostic::error(format!("unknown trait `{trait_name}`"), span)
-                        .with_label("not defined")
-                        .with_help("check the spelling or define this trait")
-                        .with_code("E017"),
+                self.emit_error_with_help(
+                    format!("unknown trait `{trait_name}`"),
+                    span,
+                    "E017",
+                    "not defined",
+                    "check the spelling or define this trait",
                 );
                 return;
             }
@@ -2111,20 +2123,18 @@ impl Checker {
 
         for method in &trait_methods {
             if !method.has_default && !impl_names.contains(method.name.as_str()) {
-                self.diagnostics.push(
-                    Diagnostic::error(
-                        format!(
+                self.emit_error_with_help(
+                    format!(
                             "trait `{trait_name}` requires method `{}` but it is not implemented for `{type_name}`",
                             method.name
                         ),
-                        span,
-                    )
-                    .with_label(format!("missing method `{}`", method.name))
-                    .with_help(format!(
+                    span,
+                    "E018",
+                    format!("missing method `{}`", method.name),
+                    format!(
                         "add `fn {}(self, ...) {{ ... }}` to the for block",
                         method.name
-                    ))
-                    .with_code("E018"),
+                    ),
                 );
             }
         }
@@ -2148,13 +2158,11 @@ impl Checker {
                 if name.starts_with(|c: char| c.is_uppercase()) {
                     self.unused.used_names.insert(name.clone());
                     if self.env.lookup(name).is_none() {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!("component `{name}` is not defined"),
-                                element.span,
-                            )
-                            .with_label("not found in scope")
-                            .with_code("E002"),
+                        self.emit_error(
+                            format!("component `{name}` is not defined"),
+                            element.span,
+                            "E002",
+                            "not found in scope",
                         );
                     }
                 }
