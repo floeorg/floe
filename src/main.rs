@@ -486,11 +486,16 @@ fn cmd_fmt(path: &Path, check_only: bool) -> Result<()> {
 
     let mut unformatted = 0;
     let mut formatted = 0;
+    let mut skipped = 0;
 
     for file in &files {
         let source = read_fl_file(file)?;
 
-        let result = floe::formatter::format(&source);
+        let Some(result) = floe::formatter::format(&source) else {
+            eprintln!("  skipping {} (parse error)", file.display());
+            skipped += 1;
+            continue;
+        };
 
         if result == source {
             formatted += 1;
@@ -518,6 +523,9 @@ fn cmd_fmt(path: &Path, check_only: bool) -> Result<()> {
         println!("{total} file(s) already formatted");
     } else {
         println!("{total} file(s) formatted");
+    }
+    if skipped > 0 {
+        eprintln!("{skipped} file(s) skipped due to parse errors");
     }
     Ok(())
 }
