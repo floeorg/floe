@@ -342,6 +342,13 @@ class TestHoverRecordSpread:
         assert h is not None, f"Expected hover for user.name, got None"
         assert "string" in h, f"Expected string type for name field, got: {h}"
 
+    def test_match_pattern_binding_shows_type(self, lsp):
+        open_doc(lsp, URI, F.MATCH_PATTERN_BINDING)
+        # Hover on 'u' in Some(u) pattern (line 6, col 13)
+        h = hover_text(lsp.hover(URI, 6, 13))
+        assert h is not None, f"Expected hover for pattern binding u, got None"
+        assert "User" in h, f"Expected User type for pattern binding, got: {h}"
+
     def test_pipe_into_match_fn(self, lsp):
         open_doc(lsp, URI,F.PIPE_INTO_MATCH)
         h = hover_text(lsp.hover(URI, 0, 3))

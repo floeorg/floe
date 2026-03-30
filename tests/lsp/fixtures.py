@@ -821,3 +821,18 @@ type User {
 const user = User(name: "Ryan", age: 30)
 const _name = user.name
 """
+
+# ── Match pattern bindings ──────────────────────────────────
+
+MATCH_PATTERN_BINDING = """\
+type User {
+    name: string,
+}
+
+fn _test(x: Option<User>) -> string {
+    match x {
+        Some(u) -> u.name,
+        None -> "unknown",
+    }
+}
+"""
