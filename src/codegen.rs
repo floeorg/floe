@@ -12,6 +12,35 @@ use crate::stdlib::StdlibRegistry;
 use crate::type_layout;
 use crate::type_layout::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
 
+/// Produce a mangled name for a for-block function: `TypeName__funcName`.
+/// Generic types are flattened: `Array<User>` → `Array_User`, `Map<string, number>` → `Map_string_number`.
+pub fn for_block_fn_name(type_expr: &TypeExpr, fn_name: &str) -> String {
+    let type_prefix = mangle_type_name(type_expr);
+    format!("{type_prefix}__{fn_name}")
+}
+
+/// Mangle a type expression into a valid identifier fragment.
+fn mangle_type_name(type_expr: &TypeExpr) -> String {
+    match &type_expr.kind {
+        TypeExprKind::Named {
+            name, type_args, ..
+        } => {
+            if type_args.is_empty() {
+                name.replace('.', "_")
+            } else {
+                let args: Vec<String> = type_args.iter().map(mangle_type_name).collect();
+                format!("{}_{}", name.replace('.', "_"), args.join("_"))
+            }
+        }
+        TypeExprKind::Array(inner) => format!("Array_{}", mangle_type_name(inner)),
+        TypeExprKind::Tuple(parts) => {
+            let parts: Vec<String> = parts.iter().map(mangle_type_name).collect();
+            format!("Tuple_{}", parts.join("_"))
+        }
+        other => unreachable!("for-block type cannot be mangled: {other:?}"),
+    }
+}
+
 /// Code generation result: the emitted TypeScript source and whether it contains JSX.
 pub struct CodegenOutput {
     pub code: String,
@@ -59,6 +88,9 @@ pub struct Codegen {
     /// Names used in value positions (expressions). Names only used in type
     /// positions should be emitted as `import type { ... }`.
     value_used_names: HashSet<String>,
+    /// Maps (type_name, method_name) → mangled name for for-block functions.
+    /// Used to resolve `Entry.toModel` → `Entry__toModel` in call sites.
+    for_block_fns: HashMap<(String, String), String>,
 }
 
 impl Codegen {
@@ -78,6 +110,7 @@ impl Codegen {
             import_aliases: HashMap::new(),
             test_mode: false,
             value_used_names: HashSet::new(),
+            for_block_fns: HashMap::new(),
         }
     }
 
@@ -160,8 +193,15 @@ impl Codegen {
                         let name = spec.alias.as_ref().unwrap_or(&spec.name);
                         self.local_names.insert(name.clone());
                     }
+                    // Register for-block functions from imports
+                    if let Some(resolved) = self.resolved_imports.get(&decl.source).cloned() {
+                        for block in &resolved.for_blocks {
+                            self.register_for_block_fns(block);
+                        }
+                    }
                 }
                 ItemKind::ForBlock(block) => {
+                    self.register_for_block_fns(block);
                     for func in &block.functions {
                         self.local_names.insert(func.name.clone());
                     }
@@ -351,7 +391,7 @@ impl Codegen {
                 for block in &resolved.for_blocks {
                     for func in &block.functions {
                         if func.exported {
-                            names.push(func.name.clone());
+                            names.push(for_block_fn_name(&block.type_name, &func.name));
                         }
                     }
                 }
@@ -686,6 +726,18 @@ impl Codegen {
 
     // ── For Blocks ────────────────────────────────────────────────
 
+    fn register_for_block_fns(&mut self, block: &ForBlock) {
+        let type_name = match &block.type_name.kind {
+            TypeExprKind::Named { name, .. } => name.clone(),
+            _ => return,
+        };
+        for func in &block.functions {
+            let mangled = for_block_fn_name(&block.type_name, &func.name);
+            self.for_block_fns
+                .insert((type_name.clone(), func.name.clone()), mangled);
+        }
+    }
+
     fn emit_for_block(&mut self, block: &ForBlock) {
         for (i, func) in block.functions.iter().enumerate() {
             if i > 0 {
@@ -704,7 +756,7 @@ impl Codegen {
             self.push("async ");
         }
         self.push("function ");
-        self.push(&func.name);
+        self.push(&for_block_fn_name(for_type, &func.name));
         self.push("(");
 
         // Emit parameters, replacing `self` with the for block's type
@@ -1082,7 +1134,7 @@ impl Codegen {
                     if base_type_name == for_spec.type_name {
                         for func in &block.functions {
                             if func.exported {
-                                names.push(func.name.clone());
+                                names.push(for_block_fn_name(&block.type_name, &func.name));
                             }
                         }
                     }
@@ -1178,7 +1230,7 @@ impl Codegen {
                 for block in &resolved.for_blocks {
                     for func in &block.functions {
                         if func.exported {
-                            value_names.push(func.name.clone());
+                            value_names.push(for_block_fn_name(&block.type_name, &func.name));
                         }
                     }
                 }
@@ -1369,7 +1421,7 @@ impl Codegen {
             out.push_str("async ");
         }
         out.push_str("function ");
-        out.push_str(&func.name);
+        out.push_str(&for_block_fn_name(for_type, &func.name));
         out.push('(');
 
         for (i, param) in func.params.iter().enumerate() {
@@ -1440,6 +1492,7 @@ impl Codegen {
             import_aliases: self.import_aliases.clone(),
             test_mode: self.test_mode,
             value_used_names: self.value_used_names.clone(),
+            for_block_fns: self.for_block_fns.clone(),
         }
     }
 }

@@ -184,8 +184,20 @@ impl Codegen {
             }
 
             ExprKind::Member { object, field } => {
-                // Check for union variant access: `Filter.All` → `{ tag: "All" }`
+                // Check for for-block function: `Entry.toModel` → `Entry__toModel`
                 if let ExprKind::Identifier(type_name) = &object.kind
+                    && let Some(mangled) =
+                        self.for_block_fns.get(&(type_name.clone(), field.clone()))
+                {
+                    let name = self
+                        .import_aliases
+                        .get(mangled)
+                        .cloned()
+                        .unwrap_or_else(|| mangled.clone());
+                    self.push(&name);
+                }
+                // Check for union variant access: `Filter.All` → `{ tag: "All" }`
+                else if let ExprKind::Identifier(type_name) = &object.kind
                     && self
                         .variant_info
                         .get(field.as_str())
