@@ -322,6 +322,19 @@ class TestHoverTour:
         h = hover_text(lsp.hover(URI, 1, 6))
         assert h is not None, f"Got: {h}"
 
+
+class TestHoverRecordSpread:
+    """Hover on record types with spread shows spread members."""
+
+    def test_record_spread_shows_members(self, lsp):
+        open_doc(lsp, URI, F.RECORD_SPREAD_HOVER)
+        # Hover on ButtonProps (line 5)
+        h = hover_text(lsp.hover(URI, 5, 6))
+        assert h is not None, f"Expected hover for ButtonProps, got None"
+        assert "...BaseProps" in h, f"Expected spread member in hover, got: {h}"
+        assert "onClick" in h, f"Expected onClick field in hover, got: {h}"
+        assert "label" in h, f"Expected label field in hover, got: {h}"
+
     def test_pipe_into_match_fn(self, lsp):
         open_doc(lsp, URI,F.PIPE_INTO_MATCH)
         h = hover_text(lsp.hover(URI, 0, 3))
