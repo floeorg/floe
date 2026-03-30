@@ -239,11 +239,92 @@ impl Checker {
 
             ExprKind::Index { object, index } => {
                 let obj_ty = self.check_expr(object);
-                self.check_expr(index);
-                if let Type::Array(inner) = obj_ty {
-                    Type::Option(inner)
-                } else {
-                    Type::Unknown
+                let idx_ty = self.check_expr(index);
+
+                // Resolve Named types to their concrete definition
+                let concrete = self.resolve_type_to_concrete(&obj_ty);
+
+                match &concrete {
+                    Type::Array(inner) => {
+                        // Index must be a number
+                        if !matches!(idx_ty, Type::Number | Type::Unknown) {
+                            self.diagnostics.push(
+                                Diagnostic::error(
+                                    format!(
+                                        "array index must be `number`, found `{}`",
+                                        idx_ty.display_name()
+                                    ),
+                                    index.span,
+                                )
+                                .with_label("expected `number`")
+                                .with_code("E017"),
+                            );
+                        }
+                        Type::Option(inner.clone())
+                    }
+                    Type::Tuple(elements) => {
+                        // Tuple indexing requires a numeric literal
+                        if let ExprKind::Number(n) = &index.kind {
+                            if let Ok(idx) = n.parse::<usize>() {
+                                if idx < elements.len() {
+                                    elements[idx].clone()
+                                } else {
+                                    self.diagnostics.push(
+                                        Diagnostic::error(
+                                            format!(
+                                                "tuple index `{}` out of bounds — tuple has {} element(s)",
+                                                n,
+                                                elements.len()
+                                            ),
+                                            index.span,
+                                        )
+                                        .with_code("E017"),
+                                    );
+                                    Type::Unknown
+                                }
+                            } else {
+                                self.diagnostics.push(
+                                    Diagnostic::error(
+                                        format!("tuple index must be a non-negative integer, found `{n}`"),
+                                        index.span,
+                                    )
+                                    .with_code("E017"),
+                                );
+                                Type::Unknown
+                            }
+                        } else {
+                            self.diagnostics.push(
+                                Diagnostic::error(
+                                    "tuple index must be a numeric literal",
+                                    index.span,
+                                )
+                                .with_label("dynamic indexing is not allowed on tuples")
+                                .with_code("E017"),
+                            );
+                            Type::Unknown
+                        }
+                    }
+                    Type::Unknown | Type::Foreign(_) | Type::Never => Type::Unknown,
+                    Type::Var(_) => Type::Unknown,
+                    _ => {
+                        if let Type::Named(name) = &obj_ty
+                            && self.env.lookup_type(name).is_none()
+                        {
+                            return Type::Unknown;
+                        }
+                        self.diagnostics.push(
+                            Diagnostic::error(
+                                format!(
+                                    "cannot use bracket access on type `{}`",
+                                    obj_ty.display_name()
+                                ),
+                                expr.span,
+                            )
+                            .with_label("not an array or tuple type")
+                            .with_code("E017"),
+                        );
+                        Type::Unknown
+                    }
                 }
             }
 

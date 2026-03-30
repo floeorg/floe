@@ -4011,3 +4011,111 @@ async fn outer() -> number {
         "`await` can only be used inside an `async` function"
     ));
 }
+
+// ── Bracket access (index) checking ─────────────────────────────
+
+#[test]
+fn bracket_access_array_with_number_ok() {
+    let diags = check(
+        r#"
+const items: Array<string> = ["a", "b"]
+const x = items[0]
+"#,
+    );
+    assert!(!has_error(&diags, "E017"));
+}
+
+#[test]
+fn bracket_access_array_with_string_errors() {
+    let diags = check(
+        r#"
+const items: Array<string> = ["a", "b"]
+const x = items["foo"]
+"#,
+    );
+    assert!(has_error_containing(&diags, "array index must be `number`"));
+}
+
+#[test]
+fn bracket_access_on_string_errors() {
+    let diags = check(
+        r#"
+const s = "hello"
+const x = s[0]
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "cannot use bracket access on type"
+    ));
+}
+
+#[test]
+fn bracket_access_on_number_errors() {
+    let diags = check(
+        r#"
+const n = 42
+const x = n[0]
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "cannot use bracket access on type"
+    ));
+}
+
+#[test]
+fn bracket_access_on_record_errors() {
+    let diags = check(
+        r#"
+type User { name: string, age: number }
+const u = User { name: "Alice", age: 30 }
+const x = u[0]
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "cannot use bracket access on type"
+    ));
+}
+
+#[test]
+fn bracket_access_tuple_in_bounds_ok() {
+    let diags = check(
+        r#"
+const pair: [string, number] = ["hello", 42]
+const x = pair[0]
+const y = pair[1]
+"#,
+    );
+    assert!(!has_error(&diags, "E017"));
+}
+
+#[test]
+fn bracket_access_tuple_out_of_bounds_errors() {
+    let diags = check(
+        r#"
+const pair: [string, number] = ["hello", 42]
+const x = pair[5]
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "tuple index")
+            && has_error_containing(&diags, "out of bounds")
+    );
+}
+
+#[test]
+fn bracket_access_tuple_dynamic_index_errors() {
+    let diags = check(
+        r#"
+const pair: [string, number] = ["hello", 42]
+const i = 0
+const x = pair[i]
+"#,
+    );
+    assert!(has_error_containing(
+        &diags,
+        "tuple index must be a numeric literal"
+    ));
+}
