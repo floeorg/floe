@@ -288,7 +288,9 @@ impl FloeLsp {
                 let (program, parse_errors) = Parser::parse_lossy(source);
                 let floe_diags = floe_diag::from_parse_errors(&parse_errors);
                 let index = SymbolIndex::build(&program);
-                let type_map = HashMap::new();
+                // Run the checker on the partial AST to populate the type_map
+                // (e.g. __field_ entries for record types, variable types).
+                let (_, type_map, _) = Checker::new().check_with_types(&program);
                 (
                     self.convert_diagnostics(source, &floe_diags),
                     index,
