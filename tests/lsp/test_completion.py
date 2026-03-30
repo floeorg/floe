@@ -67,9 +67,12 @@ class TestCompletionAdvanced:
         assert "apple" in labels and "apricot" in labels, f"Labels: {labels[:10]}"
 
     def test_imported_symbols(self, lsp):
-        _open(lsp, 'import { useState } from "react"\n\n')
+        # Use a local import (cross-file) so this doesn't depend on npm packages
+        lsp.open_doc("file:///tmp/helpers.fl", "export fn helperFn() -> number { 42 }\n")
+        lsp.collect_notifications("textDocument/publishDiagnostics", timeout=1)
+        _open(lsp, 'import { helperFn } from "./helpers"\n\n')
         labels = completion_labels(lsp.completion(URI, 1, 0))
-        assert "useState" in labels, f"Labels: {labels[:15]}"
+        assert "helperFn" in labels, f"Labels: {labels[:15]}"
 
     def test_local_vars_in_fn_body(self, lsp):
         _open(lsp, "fn outer() -> number {\n    const local = 42\n    \n}")
