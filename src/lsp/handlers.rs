@@ -900,14 +900,18 @@ pub(super) fn enrich_hover_detail(sym: &Symbol, type_map: &HashMap<String, Strin
 
     // For imports, show the resolved type if available (TS-like hover)
     if sym.import_source.is_some() {
+        let source = sym.import_source.as_deref().unwrap_or("unknown");
         if let Some(inferred) = type_map.get(&sym.name)
             && !inferred.contains("?T")
             && inferred != "unknown"
         {
-            let source = sym.import_source.as_deref().unwrap_or("unknown");
-            return format!("(import) {}: {inferred}\nfrom \"{source}\"", sym.name);
+            // Skip circular display where inferred type equals the name
+            if inferred != &sym.name {
+                return format!("(import) {}: {inferred}\nfrom \"{source}\"", sym.name);
+            }
         }
-        return detail.clone();
+        // For type-only imports, show (type) prefix
+        return format!("(type) {}\nfrom \"{source}\"", sym.name);
     }
 
     // For consts/variables, always show the resolved type

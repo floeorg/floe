@@ -441,6 +441,7 @@ impl SymbolIndex {
             }
             ExprKind::Match { arms, .. } => {
                 for arm in arms {
+                    Self::collect_pattern_bindings(&arm.pattern, symbols);
                     Self::collect_expr(&arm.body, symbols);
                 }
             }
@@ -484,6 +485,54 @@ impl SymbolIndex {
             }
             ExprKind::Collect(items) => {
                 Self::collect_items(items, symbols);
+            }
+            _ => {}
+        }
+    }
+
+    /// Walk match patterns to index binding names for hover.
+    fn collect_pattern_bindings(pattern: &crate::parser::ast::Pattern, symbols: &mut Vec<Symbol>) {
+        match &pattern.kind {
+            PatternKind::Binding(name) if name != "_" => {
+                symbols.push(Symbol {
+                    name: name.clone(),
+                    kind: SymbolKind::VARIABLE,
+                    start: pattern.span.start,
+                    end: pattern.span.end,
+                    import_source: None,
+                    detail: format!("binding {name}"),
+                    first_param_type: None,
+                    return_type_str: None,
+                    owner_type: None,
+                });
+            }
+            PatternKind::Variant { fields, .. } => {
+                for field in fields {
+                    Self::collect_pattern_bindings(field, symbols);
+                }
+            }
+            PatternKind::Record { fields, .. } => {
+                for (_, field) in fields {
+                    Self::collect_pattern_bindings(field, symbols);
+                }
+            }
+            PatternKind::Array { elements, rest } => {
+                for elem in elements {
+                    Self::collect_pattern_bindings(elem, symbols);
+                }
+                if let Some(rest_name) = rest {
+                    symbols.push(Symbol {
+                        name: rest_name.clone(),
+                        kind: SymbolKind::VARIABLE,
+                        start: pattern.span.start,
+                        end: pattern.span.end,
+                        import_source: None,
+                        detail: format!("binding {rest_name}"),
+                        first_param_type: None,
+                        return_type_str: None,
+                        owner_type: None,
+                    });
+                }
             }
             _ => {}
         }
