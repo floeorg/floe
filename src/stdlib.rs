@@ -963,6 +963,17 @@ mod tests {
                     f.name,
                     f.params.len()
                 );
+                // Verify all declared params have corresponding placeholders
+                for i in 0..f.params.len() {
+                    let placeholder = format!("${i}");
+                    assert!(
+                        f.codegen.contains(&placeholder),
+                        "{}.{} has {} params but codegen is missing {placeholder}",
+                        f.module,
+                        f.name,
+                        f.params.len()
+                    );
+                }
             }
         }
     }
