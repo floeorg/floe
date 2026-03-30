@@ -51,7 +51,11 @@ capitalize("hello")             // trusted, no try needed
 const data = try fetchData()    // not trusted, try required
 ```
 
-## String literal unions
+## Bridge types (`=` syntax)
+
+When you need to reference TypeScript types, Floe uses the `=` syntax. This is distinct from `{ }` which creates new Floe types. See [Types](/guide/types/#two-kinds-of-type-declarations) for the full mental model.
+
+### String literal unions
 
 Many TypeScript libraries use string literal unions for configuration and options:
 
@@ -79,6 +83,22 @@ fn describe(method: HttpMethod) -> string {
 ```
 
 The match is exhaustive -- if you miss a variant, the compiler tells you. The type compiles directly to the same TypeScript string union (no tags, no wrapping).
+
+### Type aliases and intersections
+
+Alias TypeScript types or combine them with `&`:
+
+```floe
+import trusted { ComponentProps } from "react"
+import trusted { tv, VariantProps } from "tailwind-variants"
+
+type DivProps = ComponentProps<"div">
+
+const cardVariants = tv({ base: "rounded-xl", variants: { size: { sm: "p-2" } } })
+type CardProps = VariantProps<typeof cardVariants> & { className: string }
+```
+
+`&` intersections are only valid in `=` declarations. For Floe-native record composition, use `...Spread` in `{ }` definitions.
 
 ## Nullable and optional type conversion
 
