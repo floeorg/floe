@@ -5,6 +5,19 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.25](https://github.com/milkyskies/floe/compare/v0.1.24...v0.1.25) (2026-03-30)
+
+
+### Features
+
+* [[#676](https://github.com/milkyskies/floe/issues/676)] Add Option, Result, Promise stdlib and Array.mapResult ([#682](https://github.com/milkyskies/floe/issues/682)) ([68e36aa](https://github.com/milkyskies/floe/commit/68e36aa5b3aa446f2ba8ef41f3b6f90e79c71223))
+* [[#679](https://github.com/milkyskies/floe/issues/679)] Support destructuring rename syntax ([#684](https://github.com/milkyskies/floe/issues/684)) ([9712df3](https://github.com/milkyskies/floe/commit/9712df3764d77caa8ccbb42490d2af54ab03d9e5))
+
+
+### Bug Fixes
+
+* [[#671](https://github.com/milkyskies/floe/issues/671)] [[#672](https://github.com/milkyskies/floe/issues/672)] Hover for type-only imports and match pattern bindings ([#675](https://github.com/milkyskies/floe/issues/675)) ([acf73a7](https://github.com/milkyskies/floe/commit/acf73a77a88ff339406581b157c874e0132dc8b2))
+
 ## [0.1.24](https://github.com/milkyskies/floe/compare/v0.1.23...v0.1.24) (2026-03-30)
 
 
