@@ -144,9 +144,8 @@ Pipes shine when you have a sequence of transformations. They replace:
 Floe has three arrow-like operators:
 
 ```
-fn(x) anonymous closures  fn(a) a + 1
-->    match arms / returns Ok(x) -> x, fn add(a) -> number
-=>    function types       (string) => number
+(x) => closures            (a) => a + 1
+->    match arms / returns / function types  Ok(x) -> x, fn add(a) -> number, (string) -> number
 |>    pipe data             data |> transform
 ```
 

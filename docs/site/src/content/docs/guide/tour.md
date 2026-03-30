@@ -160,7 +160,7 @@ const id = OrderId(42)
 const OrderId(n) = id   // destructure to get inner value
 
 // Opaque types — only the defining module can create/read
-opaque type HashedPassword = string
+opaque type HashedPassword { string }
 
 // String literal unions (for npm interop)
 type Method = "GET" | "POST" | "PUT" | "DELETE"
@@ -168,7 +168,7 @@ type Method = "GET" | "POST" | "PUT" | "DELETE"
 // Record composition
 type ButtonProps {
     ...BaseProps,
-    onClick: () => (),
+    onClick: () -> (),
     label: string,
 }
 

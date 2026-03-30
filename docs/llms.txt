@@ -111,14 +111,6 @@ type ApiError {
 // Newtype (single-value wrapper)
 type OrderId { number }
 
-// String literal union (for npm interop)
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
-
-// String literal type arguments (for npm interop)
-// Used with React's ComponentProps, event emitters, etc.
-import trusted { ComponentProps } from "react"
-type DivProps = ComponentProps<"div">
-
 // Record type composition with spread
 type BaseProps {
     className: string,
@@ -127,7 +119,7 @@ type BaseProps {
 
 type ButtonProps {
     ...BaseProps,
-    onClick: () => (),
+    onClick: () -> (),
     label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -137,6 +129,25 @@ type A { x: number }
 type B { y: string }
 type C { ...A, ...B, z: boolean }
 
+// Newtypes (single-variant wrappers)
+type UserId { string }
+type Email { string }
+
+// ── Floe types use { }, TS interop types use = ──────
+
+// Opaque types (only defining module can create/read)
+opaque type HashedPassword { string }
+
+// ── TS interop types (= syntax) ────────────────────
+
+// String literal union (for npm interop)
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
+
+// String literal type arguments (for npm interop)
+// Used with React's ComponentProps, event emitters, etc.
+import trusted { ComponentProps } from "react"
+type DivProps = ComponentProps<"div">
+
 // Spread with generic types and typeof (npm interop)
 import trusted { tv, VariantProps } from "tailwind-variants"
 const variants = tv({ base: "rounded", variants: { size: { sm: "p-2" } } })
@@ -145,13 +156,6 @@ type Props {
     className: string,
 }
 // Compiles to: type Props = VariantProps<typeof variants> & { className: string };
-
-// Newtypes (single-variant wrappers)
-type UserId { string }
-type Email { string }
-
-// Opaque types (only defining module can create/read)
-opaque type HashedPassword = string
 
 // Tuples
 const point: (number, number) = (10, 20)
@@ -610,7 +614,7 @@ match key {
 | `? :` (ternary) | `match` expression |
 | `?.` (optional chain) | `match` on `Option` or `?` |
 | `??` (nullish coalesce) | `Option.unwrapOr` |
-| `=>` (arrow function) | `(x) => expr` closure; `=>` reserved for function types `(T) => U` |
+| `=>` (arrow function) | `(x) => expr` closure; function types use `->`: `(T) -> U` |
 | `function` keyword | `fn` |
 | `void` | Unit type `()` |
 | `as` (type assertion) | Type guards or `match` |
