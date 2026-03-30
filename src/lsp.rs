@@ -542,6 +542,21 @@ impl FloeLsp {
         matched
     }
 
+    /// Resolve an import specifier to a file path.
+    /// Handles relative imports, tsconfig path aliases, and npm packages.
+    fn resolve_specifier_to_path(specifier: &str, source_dir: &Path) -> Option<PathBuf> {
+        let is_relative = specifier.starts_with("./") || specifier.starts_with("../");
+        if is_relative {
+            return resolution::resolve_relative_import(specifier, source_dir);
+        }
+        let project_dir = find_project_dir(source_dir);
+        let tsconfig_paths = crate::resolve::TsconfigPaths::from_project_dir(&project_dir);
+        if let Some(resolved) = tsconfig_paths.resolve(specifier) {
+            return Some(resolved);
+        }
+        resolution::resolve_npm_dts(specifier, &project_dir)
+    }
+
     /// Resolve an import specifier to a Location in the source file (.d.ts or .fl).
     /// For `.d.ts` files, finds the line where the symbol is exported.
     /// For relative imports, finds the file and looks for the symbol definition.
@@ -553,14 +568,7 @@ impl FloeLsp {
         let source_path = source_uri.to_file_path().ok()?;
         let source_dir = source_path.parent()?;
 
-        let is_relative = specifier.starts_with("./") || specifier.starts_with("../");
-
-        let resolved_path = if is_relative {
-            resolution::resolve_relative_import(specifier, source_dir)?
-        } else {
-            let project_dir = find_project_dir(source_dir);
-            resolution::resolve_npm_dts(specifier, &project_dir)?
-        };
+        let resolved_path = Self::resolve_specifier_to_path(specifier, source_dir)?;
 
         let file_content = std::fs::read_to_string(&resolved_path).ok()?;
         let target_uri = Url::from_file_path(&resolved_path).ok()?;
@@ -608,14 +616,7 @@ impl FloeLsp {
         let source_path = source_uri.to_file_path().ok()?;
         let source_dir = source_path.parent()?;
 
-        let is_relative = specifier.starts_with("./") || specifier.starts_with("../");
-
-        let resolved_path = if is_relative {
-            resolution::resolve_relative_import(specifier, source_dir)?
-        } else {
-            let project_dir = find_project_dir(source_dir);
-            resolution::resolve_npm_dts(specifier, &project_dir)?
-        };
+        let resolved_path = Self::resolve_specifier_to_path(specifier, source_dir)?;
 
         let target_uri = Url::from_file_path(&resolved_path).ok()?;
 
