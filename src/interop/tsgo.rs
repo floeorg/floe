@@ -403,6 +403,34 @@ fn generate_probe(
                     }
                 }
             }
+
+            // Chained call on an import without intermediate const:
+            // e.g. `getSupabaseClient().auth.signOut()` — callee_name is None because
+            // expr_to_callee_name can't traverse Call nodes, but the full expression
+            // can be converted to TS via expr_to_ts_approx for the probe.
+            if callee_name.is_none() && expr_contains_import(callee, &imported_names) {
+                let call_ts = expr_to_ts_approx(inner_value);
+                let inlined_id = format!("inlined_{}", lines.len());
+                if let ConstBinding::Object(fields) = &decl.binding {
+                    let has_await = crate::checker::expr_has_await(&decl.value);
+                    let await_prefix = if has_await { "await " } else { "" };
+                    lines.push(format!(
+                        "const _tmp_{inlined_id} = {await_prefix}{call_ts};"
+                    ));
+                    for f in fields {
+                        let field = &f.field;
+                        lines.push(format!(
+                            "export const __probe_{field}_{inlined_id} = _tmp_{inlined_id}.{field};"
+                        ));
+                    }
+                } else {
+                    let binding_name = decl.binding.binding_name();
+                    lines.push(format!(
+                        "export const __probe_{binding_name}_{inlined_id} = {call_ts};"
+                    ));
+                }
+                continue;
+            }
         }
     }
 
@@ -1127,6 +1155,17 @@ fn type_expr_to_ts(ty: &TypeExpr) -> String {
             parts.join(" & ")
         }
         TypeExprKind::StringLiteral(value) => format!("\"{value}\""),
+    }
+}
+
+/// Check if an expression tree contains a reference to an imported name.
+/// Walks through Member and Call nodes to find if any Identifier is an import.
+fn expr_contains_import(expr: &Expr, imported_names: &HashMap<String, String>) -> bool {
+    match &expr.kind {
+        ExprKind::Identifier(name) => imported_names.contains_key(name),
+        ExprKind::Member { object, .. } => expr_contains_import(object, imported_names),
+        ExprKind::Call { callee, .. } => expr_contains_import(callee, imported_names),
+        _ => false,
     }
 }
 
