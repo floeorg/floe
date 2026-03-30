@@ -2,6 +2,26 @@
 title: Types
 ---
 
+## Two Kinds of Type Declarations
+
+Floe uses one keyword (`type`) with two forms:
+
+```floe
+type User { name: string }                  // { } — defines a new Floe type
+type DivProps = ComponentProps<"div">        // = — names a TypeScript shape
+```
+
+**`type Name { ... }`** creates a new, distinct Floe type. Two types with identical fields are NOT interchangeable — `User` is not `Product` even if both have a `name: string` field. Use `...Spread` to compose records.
+
+**`type Name = ...`** aliases an existing TypeScript type. Use this when bridging to npm libraries — for string literal unions (`"GET" | "POST"`), type aliases (`ComponentProps<"div">`), and intersections (`A & { extra: string }`).
+
+| | `{ }` — Floe types | `=` — TS bridge types |
+|---|---|---|
+| **Creates** | New nominal type | Alias to existing type |
+| **Used for** | Records, unions, newtypes, opaque | Aliases, string literal unions, `&` intersections |
+| **Composition** | `...Spread` | `&` |
+| **When to use** | Your own data types | Referencing TS library types |
+
 ## Primitives
 
 ```floe
@@ -171,7 +191,11 @@ result |> Result.mapErr(Validation)
 
 Unit variants (no fields) are values, not functions — `All` produces `{ tag: "All" }` directly.
 
-## String Literal Unions
+## TS Bridge Types (`=` syntax)
+
+The `=` syntax creates type aliases that reference TypeScript types. Use these when working with npm libraries.
+
+### String Literal Unions
 
 For npm interop with TypeScript libraries that use string literal unions:
 
@@ -194,13 +218,26 @@ fn describe(method: HttpMethod) -> string {
 // Compiler error if you miss a variant
 ```
 
-String literal unions compile to the same TypeScript type:
+For pure Floe code, prefer tagged unions (`type Method { | Get | Post }`) since they work with constructors, for-blocks, and provide better type safety. String literal unions exist for seamless npm interop.
 
-```typescript
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+### Type Aliases
+
+Reference an existing type by a new name:
+
+```floe
+type DivProps = ComponentProps<"div">
+type Callback = (Event) -> ()
 ```
 
-For pure Floe code, prefer regular tagged unions (`| Get | Post`) since they work with constructors, for-blocks, and provide better type safety. String literal unions exist primarily for seamless npm interop.
+### Intersections
+
+Combine TypeScript types with `&` (only in `=` declarations):
+
+```floe
+type CardProps = VariantProps<typeof cardVariants> & { className: string }
+```
+
+For Floe-native record composition, use `...Spread` instead (see [Record Type Composition](#record-type-composition) above).
 
 ## Result and Option
 
@@ -304,13 +341,6 @@ match divmod(10, 3) {
 ```
 
 Tuples compile to TypeScript readonly tuples: `(number, string)` becomes `readonly [number, string]`, and `(1, "a")` becomes `[1, "a"] as const`.
-
-## Type Aliases
-
-```floe
-type Name = string
-type Callback = (Event) -> ()
-```
 
 ## Differences from TypeScript
 

@@ -19,7 +19,18 @@ title: Types Reference
 | `Array<T>` | Ordered collection |
 | `Promise<T>` | Async value |
 
-## Record Types
+## Type Declarations
+
+Floe has two forms of type declaration:
+
+| Syntax | Meaning | Used for |
+|---|---|---|
+| `type Name { ... }` | Define a new Floe type | Records, unions, newtypes, opaque types |
+| `type Name = ...` | Alias a TypeScript type | TS interop aliases, string literal unions, `&` intersections |
+
+## Floe Types (`{ }` syntax)
+
+### Record Types
 
 Named product types with fields:
 
@@ -86,7 +97,7 @@ Compiles to:
 type CardProps = VariantProps<typeof cardVariants> & { className: string };
 ```
 
-## Union Types
+### Union Types
 
 Tagged discriminated unions:
 
@@ -107,7 +118,30 @@ type Shape =
   | { _tag: "Point" };
 ```
 
-## String Literal Unions
+### Newtypes
+
+Single-variant wrappers that are distinct at compile time but erase to their base type at runtime:
+
+```floe
+type UserId { string }
+type PostId { string }
+```
+
+`UserId` and `PostId` are both `string` at runtime, but the compiler prevents mixing them up.
+
+### Opaque Types
+
+Types where internals are hidden from other modules:
+
+```floe
+opaque type Email { string }
+```
+
+Only code in the module that defines `Email` can construct or destructure it. Other modules see it as an opaque blob.
+
+## TS Bridge Types (`=` syntax)
+
+### String Literal Unions
 
 String literal unions for npm interop:
 
@@ -134,26 +168,21 @@ match method {
 
 Exhaustiveness is checked -- missing a variant is a compile error.
 
-## Newtypes
-
-Single-variant wrappers that are distinct at compile time but erase to their base type at runtime:
+### Type Aliases
 
 ```floe
-type UserId { string }
-type PostId { string }
+type DivProps = ComponentProps<"div">
 ```
 
-`UserId` and `PostId` are both `string` at runtime, but the compiler prevents mixing them up.
+### Intersections
 
-## Opaque Types
-
-Types where internals are hidden from other modules:
+Combine TypeScript types with `&` (only valid in `=` declarations):
 
 ```floe
-opaque type Email { string }
+type CardProps = VariantProps<typeof variants> & { className: string }
 ```
 
-Only code in the module that defines `Email` can construct or destructure it. Other modules see it as an opaque blob.
+For Floe-native record composition, use `...Spread` in `{ }` definitions instead.
 
 ## Type Expressions
 
