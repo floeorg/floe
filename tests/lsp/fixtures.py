@@ -794,3 +794,18 @@ fn convert(rows: Array<Row>) -> Array<Accent> {
     accents
 }
 """
+
+# ── Record spread hover ─────────────────────────────────────
+
+RECORD_SPREAD_HOVER = """\
+type BaseProps {
+    className: string,
+    disabled: boolean,
+}
+
+type ButtonProps {
+    ...BaseProps,
+    onClick: () => (),
+    label: string,
+}
+"""

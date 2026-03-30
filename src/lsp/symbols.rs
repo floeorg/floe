@@ -177,17 +177,29 @@ impl SymbolIndex {
                     // Build detailed type body for hover
                     let body = match &decl.def {
                         TypeDef::Record(entries) => {
-                            let fields: Vec<String> = entries
+                            let members: Vec<String> = entries
                                 .iter()
-                                .filter_map(|e| e.as_field())
-                                .map(|f| {
-                                    format!("    {}: {}", f.name, type_expr_to_string(&f.type_ann))
+                                .map(|e| match e {
+                                    RecordEntry::Field(f) => {
+                                        format!(
+                                            "    {}: {}",
+                                            f.name,
+                                            type_expr_to_string(&f.type_ann)
+                                        )
+                                    }
+                                    RecordEntry::Spread(s) => {
+                                        if let Some(ref type_expr) = s.type_expr {
+                                            format!("    ...{}", type_expr_to_string(type_expr))
+                                        } else {
+                                            format!("    ...{}", s.type_name)
+                                        }
+                                    }
                                 })
                                 .collect();
-                            if fields.is_empty() {
+                            if members.is_empty() {
                                 " {}".to_string()
                             } else {
-                                format!(" {{\n{},\n}}", fields.join(",\n"))
+                                format!(" {{\n{},\n}}", members.join(",\n"))
                             }
                         }
                         TypeDef::Union(variants) => {
