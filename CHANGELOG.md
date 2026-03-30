@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.27](https://github.com/milkyskies/floe/compare/v0.1.26...v0.1.27) (2026-03-30)
+
+
+### Features
+
+* [[#155](https://github.com/milkyskies/floe/issues/155)] LSP autocomplete for type-directed pipe resolution ([#724](https://github.com/milkyskies/floe/issues/724)) ([670508a](https://github.com/milkyskies/floe/commit/670508ad0e2721f8df32b4e010f870350db62ac8))
+
 ## [0.1.26](https://github.com/milkyskies/floe/compare/v0.1.25...v0.1.26) (2026-03-30)
 
 
