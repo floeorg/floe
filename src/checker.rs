@@ -559,12 +559,10 @@ impl Checker {
     }
 
     fn check_no_redefinition(&mut self, name: &str, span: Span) {
-        if self.env.is_defined_in_any_scope(name) {
-            let msg = if let Some(source) = self.unused.defined_sources.get(name) {
-                format!("`{name}` is already defined ({source}) and cannot be shadowed")
-            } else {
-                format!("`{name}` is already defined and cannot be shadowed")
-            };
+        // Allow shadowing from outer scopes (like Rust/Gleam) — only reject
+        // duplicate definitions within the same scope.
+        if self.env.is_defined_in_current_scope(name) {
+            let msg = format!("`{name}` is already defined in this scope");
             self.diagnostics.push(
                 Diagnostic::error(msg, span)
                     .with_label("already defined")
