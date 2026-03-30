@@ -304,12 +304,9 @@ impl Checker {
                             Type::Unknown
                         }
                     }
-                    // Allow bracket access on Unknown (don't cascade errors)
-                    Type::Unknown => Type::Unknown,
-                    // Allow bracket access on Foreign (npm interop, can't check)
-                    Type::Foreign(_) => Type::Unknown,
+                    Type::Unknown | Type::Foreign(_) | Type::Never => Type::Unknown,
+                    Type::Var(_) => Type::Unknown,
                     _ => {
-                        // Named type with no local definition — treat as foreign
                         if let Type::Named(name) = &obj_ty
                             && self.env.lookup_type(name).is_none()
                         {
