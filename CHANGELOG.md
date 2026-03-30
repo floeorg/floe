@@ -5,6 +5,21 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.24](https://github.com/milkyskies/floe/compare/v0.1.23...v0.1.24) (2026-03-30)
+
+
+### Features
+
+* [[#651](https://github.com/milkyskies/floe/issues/651)] Change opaque type syntax from = to { } ([#659](https://github.com/milkyskies/floe/issues/659)) ([76130d6](https://github.com/milkyskies/floe/commit/76130d6fa5f52f6f64178d15daf948b00c4fc7ad))
+* [[#652](https://github.com/milkyskies/floe/issues/652)] Restrict & intersection to = type aliases only ([#663](https://github.com/milkyskies/floe/issues/663)) ([36b113b](https://github.com/milkyskies/floe/commit/36b113be82b391eca635b3a5b73d023ae5af5856))
+
+
+### Bug Fixes
+
+* [[#584](https://github.com/milkyskies/floe/issues/584)] Member access hover shows resolved field types ([#667](https://github.com/milkyskies/floe/issues/667)) ([b78aab2](https://github.com/milkyskies/floe/commit/b78aab2499d7cb8ac618237ccf61d660a2c7c6e2))
+* [[#641](https://github.com/milkyskies/floe/issues/641)] LSP hover shows nothing for record types with spreads ([#662](https://github.com/milkyskies/floe/issues/662)) ([004e58b](https://github.com/milkyskies/floe/commit/004e58b5dd2a0eed5dde6cfbc416e848ff1dc5e2))
+* [[#648](https://github.com/milkyskies/floe/issues/648)] Codegen emits value import for type-only exports used in for-block params ([#658](https://github.com/milkyskies/floe/issues/658)) ([2702e5d](https://github.com/milkyskies/floe/commit/2702e5d93b5254bfe3596dfcf4a98e63b5fe32d0))
+
 ## [0.1.23](https://github.com/milkyskies/floe/compare/v0.1.22...v0.1.23) (2026-03-30)
 
 
