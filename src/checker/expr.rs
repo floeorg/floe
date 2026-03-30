@@ -1802,6 +1802,29 @@ impl Checker {
             if let Some((_, ty)) = fields.iter().find(|(n, _)| n == field) {
                 return ty.clone();
             }
+            // Check for-block methods before reporting missing field —
+            // `row.toModel()` should resolve to the for-block method.
+            // Strip the `self` parameter since member access provides it implicitly.
+            if let Some(overloads) = self.for_block_overloads.get(field) {
+                let type_name = match obj_ty {
+                    Type::Named(n) | Type::Foreign(n) => n.as_str(),
+                    _ => "",
+                };
+                if let Some((_, fn_type)) = overloads.iter().find(|(tn, _)| tn == type_name) {
+                    if let Type::Function {
+                        params,
+                        return_type,
+                    } = fn_type
+                    {
+                        // Drop the first param (self) for method-style access
+                        return Type::Function {
+                            params: params.iter().skip(1).cloned().collect(),
+                            return_type: return_type.clone(),
+                        };
+                    }
+                    return fn_type.clone();
+                }
+            }
             let type_name = if let Type::Named(name) = obj_ty {
                 format!("`{name}`")
             } else {
@@ -1862,7 +1885,31 @@ impl Checker {
             _ => {}
         }
 
+        // For-block methods: check before foreign/named fallback so that
+        // `a.toModel()` resolves to the for-block method's type instead of
+        // falling through to Foreign leniency.
+        if let Some(overloads) = self.for_block_overloads.get(field) {
+            let type_name = match obj_ty {
+                Type::Named(n) | Type::Foreign(n) => n.as_str(),
+                _ => "",
+            };
+            if let Some((_, fn_type)) = overloads.iter().find(|(tn, _)| tn == type_name) {
+                if let Type::Function {
+                    params,
+                    return_type,
+                } = fn_type
+                {
+                    return Type::Function {
+                        params: params.iter().skip(1).cloned().collect(),
+                        return_type: return_type.clone(),
+                    };
+                }
+                return fn_type.clone();
+            }
+        }
+
         // Foreign types: allow member access, return Foreign for chained access
+        // (for-block methods already checked above)
         if let Type::Foreign(name) = obj_ty {
             return Type::Foreign(format!("{name}.{field}"));
         }

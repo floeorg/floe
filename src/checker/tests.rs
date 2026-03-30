@@ -4145,3 +4145,63 @@ const _result: Out = input |> In.convert
     );
     assert!(!has_error(&diags, "E001"), "return type should match Out");
 }
+
+// ── For-block member access ─────────────────────────────────
+
+#[test]
+fn for_block_method_resolves_via_member_access() {
+    let diags = check(
+        r#"
+type AccentRow { id: number, entryId: number }
+type Accent { id: number, entryId: number }
+
+for AccentRow {
+    fn toModel(self) -> Accent {
+        Accent(id: self.id, entryId: self.entryId)
+    }
+}
+
+fn convert(row: AccentRow) -> Accent {
+    row.toModel()
+}
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "for-block method via member access should resolve, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn for_block_method_in_map_resolves_return_type() {
+    let diags = check(
+        r#"
+type AccentRow { id: number, entryId: number }
+type Accent { id: number, entryId: number }
+
+for AccentRow {
+    fn toModel(self) -> Accent {
+        Accent(id: self.id, entryId: self.entryId)
+    }
+}
+
+fn convertAll(rows: Array<AccentRow>) -> Array<Accent> {
+    rows |> Array.map((a) => a.toModel())
+}
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "for-block method in map should resolve return type, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
