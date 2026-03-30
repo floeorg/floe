@@ -921,7 +921,7 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        // Function type: (params) => ReturnType
+        // Function type: (params) -> ReturnType
         if has_fat_arrow || has_thin_arrow {
             let type_exprs: Vec<TypeExpr> = node
                 .children()
