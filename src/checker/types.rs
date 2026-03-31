@@ -123,16 +123,14 @@ impl Type {
 
     /// Unwrap Option<T> → T. If not an Option, return self.
     pub fn unwrap_option(self) -> Type {
-        if let Type::Union { name, mut variants } = self {
-            if name == crate::type_layout::TYPE_OPTION
-                && let Some(pos) = variants
-                    .iter()
-                    .position(|(n, _)| n == crate::type_layout::VARIANT_SOME)
-            {
-                let (_, mut fields) = variants.swap_remove(pos);
-                return fields.pop().unwrap_or(Type::Unknown);
+        if let Type::Union { name, variants } = self {
+            if name == crate::type_layout::TYPE_OPTION {
+                return variants
+                    .into_iter()
+                    .find(|(n, _)| n == crate::type_layout::VARIANT_SOME)
+                    .and_then(|(_, mut fields)| fields.pop())
+                    .unwrap_or(Type::Unknown);
             }
-            // Not an Option union, reconstruct
             Type::Union { name, variants }
         } else {
             self

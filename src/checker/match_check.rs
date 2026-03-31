@@ -133,12 +133,30 @@ impl Checker {
 
         // Result: check Ok and Err covered
         if subject_ty.is_result() {
-            check_required_variants(self, "Result", &["Ok", "Err"], arms, span);
+            check_required_variants(
+                self,
+                crate::type_layout::TYPE_RESULT,
+                &[
+                    crate::type_layout::VARIANT_OK,
+                    crate::type_layout::VARIANT_ERR,
+                ],
+                arms,
+                span,
+            );
         }
 
         // Option: check Some and None covered
         if subject_ty.is_option() {
-            check_required_variants(self, "Option", &["Some", "None"], arms, span);
+            check_required_variants(
+                self,
+                crate::type_layout::TYPE_OPTION,
+                &[
+                    crate::type_layout::VARIANT_SOME,
+                    crate::type_layout::VARIANT_NONE,
+                ],
+                arms,
+                span,
+            );
         }
 
         // Settable: check Value, Clear, Unchanged covered
@@ -407,13 +425,13 @@ impl Checker {
                 }
                 if let Type::Result { ok, err } = subject_ty {
                     match name.as_str() {
-                        "Ok" => {
+                        crate::type_layout::VARIANT_OK => {
                             if let Some(pat) = fields.first() {
                                 self.check_pattern(pat, ok);
                             }
                             handled = true;
                         }
-                        "Err" => {
+                        crate::type_layout::VARIANT_ERR => {
                             if let Some(pat) = fields.first() {
                                 self.check_pattern(pat, err);
                             }

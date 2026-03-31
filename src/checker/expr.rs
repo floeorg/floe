@@ -1269,21 +1269,18 @@ impl Checker {
             );
         }
 
-        // Collect positional arg types for generic inference
-        let pos_arg_types: Vec<Type> = args
-            .iter()
-            .filter_map(|a| {
-                if let Arg::Positional(e) = a {
-                    Some(self.expr_types.get(&e.id).cloned().unwrap_or(Type::Unknown))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
         // Option<T>: infer T from the Some argument
-        if type_name == crate::type_layout::TYPE_OPTION {
-            let inner = pos_arg_types.first().cloned().unwrap_or(Type::Unknown);
+        if type_name == crate::type_layout::VARIANT_SOME {
+            let inner = args
+                .iter()
+                .find_map(|a| {
+                    if let Arg::Positional(e) = a {
+                        Some(self.expr_types.get(&e.id).cloned().unwrap_or(Type::Unknown))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(Type::Unknown);
             return Type::option_of(inner);
         }
 
@@ -1569,6 +1566,13 @@ impl Checker {
             }
             Type::Set { element } => {
                 Self::collect_generic_params_from_type(element, names, seen);
+            }
+            Type::Union { variants, .. } => {
+                for (_, field_types) in variants {
+                    for ft in field_types {
+                        Self::collect_generic_params_from_type(ft, names, seen);
+                    }
+                }
             }
             Type::Foreign(s) => {
                 // Extract generic params from Foreign strings like "Context<T>"
