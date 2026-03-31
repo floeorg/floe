@@ -1,9 +1,10 @@
 ---
 source: tests/snapshot_codegen.rs
+assertion_line: 65
 expression: output
 ---
 type User = { id: string; name: string; email: string };
 
-type Status = { tag: "Active" } | { tag: "Inactive"; reason: string };
+type Status = { tag: "Active" } | { tag: "Inactive"; reason: string } | { tag: "Suspended"; value: string } | { tag: "Error"; _0: number; _1: string };
 
 type UserId = { tag: "UserId"; value: string };

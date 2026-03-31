@@ -498,12 +498,18 @@ impl<'src> CstParser<'src> {
             self.expect_ident();
             self.eat_trivia();
 
-            // Variant fields now use { } instead of ( )
+            // Variant fields: { named } or (positional)
             if self.at(TokenKind::LeftBrace) {
                 self.bump(); // {
                 self.eat_trivia();
                 self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightBrace);
                 self.expect(TokenKind::RightBrace);
+                self.eat_trivia();
+            } else if self.at(TokenKind::LeftParen) {
+                self.bump(); // (
+                self.eat_trivia();
+                self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightParen);
+                self.expect(TokenKind::RightParen);
                 self.eat_trivia();
             }
 
