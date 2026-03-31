@@ -180,14 +180,14 @@ fn wrap_null_undefined_union_becomes_option() {
 }
 
 #[test]
-fn wrap_plain_union_stays_non_option() {
-    // string | number -> Unknown (multi-type union without null)
+fn wrap_plain_union_becomes_ts_union() {
+    // string | number -> TsUnion([String, Number])
     let ts = TsType::Union(vec![
         TsType::Primitive("string".to_string()),
         TsType::Primitive("number".to_string()),
     ]);
     let wrapped = wrap_boundary_type(&ts);
-    assert_eq!(wrapped, Type::Unknown);
+    assert_eq!(wrapped, Type::TsUnion(vec![Type::String, Type::Number]));
 }
 
 #[test]

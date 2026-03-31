@@ -70,6 +70,9 @@ pub enum Type {
         name: String,
         variants: Vec<String>,
     },
+    /// Untagged union from TypeScript interop: `Date | number | string`
+    /// Compatible if the value matches any member type.
+    TsUnion(Vec<Type>),
     /// Type variable (for inference)
     Var(usize),
     /// The unknown/any escape hatch
@@ -190,6 +193,10 @@ impl Type {
                 name.clone()
             }
             Type::StringLiteralUnion { name, .. } => name.clone(),
+            Type::TsUnion(members) => {
+                let m: Vec<_> = members.iter().map(|t| t.display_name()).collect();
+                m.join(" | ")
+            }
             Type::Var(id) => format!("?T{id}"),
             Type::Unknown => "unknown".to_string(),
             Type::Unit => "()".to_string(),
