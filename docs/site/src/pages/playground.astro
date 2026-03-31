@@ -1,4 +1,8 @@
-<!DOCTYPE html>
+---
+// Playground page — Astro routes this under the base path (/floe/playground/)
+// WASM files are in public/playground/pkg/ and served at /playground/pkg/
+---
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -150,10 +154,7 @@
       gap: 8px;
     }
 
-    .diagnostic-item .severity {
-      font-weight: 600;
-    }
-
+    .diagnostic-item .severity { font-weight: 600; }
     .diagnostic-item .severity.error { color: var(--red); }
     .diagnostic-item .severity.warning { color: var(--yellow); }
     .diagnostic-item .location { color: var(--subtext); }
@@ -188,26 +189,26 @@
       <div class="pane-header">
         <span>input.fl</span>
       </div>
-      <textarea id="input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">import { useState } from "react"
+      <textarea id="input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">{`import trusted { useState } from "react"
 
-type Todo = {
-  id: string
-  text: string
-  done: bool
+type Todo {
+  id: string,
+  text: string,
+  done: boolean,
 }
 
 export fn App() -> JSX.Element {
-  const [todos, setTodos] = useState([])
+  const [todos, setTodos] = useState<Array<Todo>>([])
 
   const completed = todos
-    |> Array.filter(.done)
-    |> Array.length
+    |> filter(.done)
+    |> length
 
-  return &lt;div&gt;
-    &lt;h1&gt;Todos ({completed} done)&lt;/h1&gt;
-    {todos |> Array.map(|t| &lt;p key={t.id}&gt;{t.text}&lt;/p&gt;)}
-  &lt;/div&gt;
-}</textarea>
+  <div>
+    <h1>Todos ({completed} done)</h1>
+    {todos |> map((todo) => <p key={todo.id}>{todo.text}</p>)}
+  </div>
+}`}</textarea>
     </div>
 
     <div class="pane">
@@ -225,12 +226,12 @@ export fn App() -> JSX.Element {
     <span class="no-diagnostics">No diagnostics</span>
   </div>
 
-  <script type="module">
-    import init, { compile, version } from './pkg/floe_wasm.js';
+  <script is:inline>
+    // Use absolute path — public/ files are at root, not under /floe/
+    const wasmPath = '/playground/pkg/floe_wasm.js';
 
-    let compileTimeout = null;
-
-    async function main() {
+    import(wasmPath).then(async (mod) => {
+      const { default: init, compile } = mod;
       await init();
 
       const input = document.getElementById('input');
@@ -242,33 +243,27 @@ export fn App() -> JSX.Element {
 
       loading.remove();
 
-      // Load source from URL hash if present
+      // Load source from URL hash
       const hash = window.location.hash.slice(1);
       if (hash) {
-        try {
-          input.value = decodeURIComponent(atob(hash));
-        } catch { /* ignore invalid hash */ }
+        try { input.value = decodeURIComponent(atob(hash)); } catch {}
       }
+
+      let compileTimeout = null;
 
       function doCompile() {
         const source = input.value;
         const result = compile(source);
 
-        // Show output
-        if (result.output) {
-          output.textContent = result.output;
-        } else {
-          output.textContent = '// No output';
-        }
+        output.textContent = result.output || '// No output';
 
-        // Show diagnostics
         if (result.diagnostics && result.diagnostics.length > 0) {
           statusDot.className = 'status error';
           diagnosticsEl.innerHTML = result.diagnostics.map(d => {
             const sev = d.severity.toLowerCase();
-            const sevClass = sev.includes('error') ? 'error' : 'warning';
+            const cls = sev.includes('error') ? 'error' : 'warning';
             return `<div class="diagnostic-item">
-              <span class="severity ${sevClass}">${sev}</span>
+              <span class="severity ${cls}">${sev}</span>
               <span class="location">${d.line}:${d.column}</span>
               <span class="message">${escapeHtml(d.message)}</span>
             </div>`;
@@ -279,13 +274,11 @@ export fn App() -> JSX.Element {
         }
       }
 
-      // Debounced compile on input
       input.addEventListener('input', () => {
         clearTimeout(compileTimeout);
         compileTimeout = setTimeout(doCompile, 150);
       });
 
-      // Tab key inserts spaces
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Tab') {
           e.preventDefault();
@@ -298,7 +291,6 @@ export fn App() -> JSX.Element {
         }
       });
 
-      // Share button
       shareBtn.addEventListener('click', () => {
         const encoded = btoa(encodeURIComponent(input.value));
         window.location.hash = encoded;
@@ -308,15 +300,15 @@ export fn App() -> JSX.Element {
         });
       });
 
-      // Initial compile
       doCompile();
-    }
+    }).catch(err => {
+      document.getElementById('loading').textContent = 'Failed to load compiler. Build WASM with: wasm-pack build crates/floe-wasm --target web --out-dir ../../docs/site/public/playground/pkg';
+      console.error(err);
+    });
 
     function escapeHtml(str) {
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
-
-    main().catch(console.error);
   </script>
 </body>
 </html>
