@@ -3223,6 +3223,92 @@ const _y = consume(x)
     );
 }
 
+// ── Bug #784: Foreign type compatibility should reject primitives ──
+
+#[test]
+fn foreign_rejects_primitive_string() {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    // takesClient(c: QueryClient): void — should reject a string
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { takesClient } from "some-lib"
+const _x = takesClient("hello")
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let export = DtsExport {
+        name: "takesClient".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Named("QueryClient".to_string()),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Primitive("void".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        has_error_containing(&diags, "expected"),
+        "passing string to Foreign(QueryClient) should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn foreign_accepts_same_foreign() {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    // getClient(): QueryClient, takesClient(c: QueryClient): void
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { getClient, takesClient } from "some-lib"
+const client = getClient()
+const _x = takesClient(client)
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let get_export = DtsExport {
+        name: "getClient".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Named("QueryClient".to_string())),
+        },
+    };
+    let takes_export = DtsExport {
+        name: "takesClient".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Named("QueryClient".to_string()),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Primitive("void".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![get_export, takes_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        !has_error_containing(&diags, "expected"),
+        "passing Foreign(QueryClient) to Foreign(QueryClient) should work, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Bug #334: Object literal keys should not be resolved as variables ──
 
 #[test]
