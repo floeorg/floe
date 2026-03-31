@@ -22,21 +22,25 @@ path = "src/lib.rs"
 name = "floe"
 path = "src/main.rs"
 
+[features]
+default = ["cli"]
+cli = ["dep:anyhow", "dep:clap", "dep:notify", "dep:tokio", "dep:tower-lsp", "dep:tempfile"]
+
 [dependencies]
-anyhow = "1"
+anyhow = { version = "1", optional = true }
 ariadne = "0.6"
-clap = { version = "4", features = ["derive"] }
-notify = "8"
+clap = { version = "4", features = ["derive"], optional = true }
+notify = { version = "8", optional = true }
 oxc_allocator = "0.123.0"
 oxc_ast = "0.123.0"
 oxc_parser = "0.123.0"
 oxc_span = "0.123.0"
 rowan = "0.16"
-serde = "1.0.228"
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-tempfile = "3.27.0"
-tokio = { version = "1.50.0", features = ["full"] }
-tower-lsp = "0.20.0"
+tempfile = { version = "3.27.0", optional = true }
+tokio = { version = "1.50.0", features = ["full"], optional = true }
+tower-lsp = { version = "0.20.0", optional = true }
 
 [dev-dependencies]
 insta = "1.47.2"

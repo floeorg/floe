@@ -7,6 +7,7 @@ pub mod formatter;
 pub mod interop;
 pub mod lexer;
 pub mod lower;
+#[cfg(feature = "cli")]
 pub mod lsp;
 pub mod parser;
 pub mod resolve;

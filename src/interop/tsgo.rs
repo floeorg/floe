@@ -6,6 +6,7 @@
 //! `.d.ts`, and parse the fully-resolved types from the output.
 
 mod probe_gen;
+#[cfg(feature = "cli")]
 mod probe_run;
 mod specifier_map;
 mod typeof_resolve;
@@ -21,6 +22,7 @@ use super::TsType;
 use super::dts::parse_dts_exports_from_str;
 
 use probe_gen::generate_probe;
+#[cfg(feature = "cli")]
 use probe_run::{create_probe_dir, run_tsgo};
 use specifier_map::build_specifier_map;
 use typeof_resolve::resolve_typeof_types;
@@ -53,67 +55,72 @@ impl TsgoResolver {
         source_dir: &Path,
         tsconfig_paths: &crate::resolve::TsconfigPaths,
     ) -> HashMap<String, Vec<DtsExport>> {
-        // Find imports that resolved to .ts/.tsx (not .fl)
-        let ts_imports =
-            find_relative_ts_imports(program, resolved_imports, source_dir, tsconfig_paths);
-
-        let probe = generate_probe(program, resolved_imports, &ts_imports);
-        if probe.is_empty() {
+        #[cfg(not(feature = "cli"))]
+        {
+            let _ = (program, resolved_imports, source_dir, tsconfig_paths);
             return HashMap::new();
         }
 
-        // Check cache by content hash
-        let hash = {
-            let mut hasher = DefaultHasher::new();
-            probe.hash(&mut hasher);
-            hasher.finish()
-        };
-        if let Some(cached) = self.cache.get(&hash) {
-            // Reconstruct the specifier map from cached exports
-            return build_specifier_map(program, cached, &ts_imports);
+        #[cfg(feature = "cli")]
+        {
+            // Find imports that resolved to .ts/.tsx (not .fl)
+            let ts_imports =
+                find_relative_ts_imports(program, resolved_imports, source_dir, tsconfig_paths);
+
+            let probe = generate_probe(program, resolved_imports, &ts_imports);
+            if probe.is_empty() {
+                return HashMap::new();
+            }
+
+            // Check cache by content hash
+            let hash = {
+                let mut hasher = DefaultHasher::new();
+                probe.hash(&mut hasher);
+                hasher.finish()
+            };
+            if let Some(cached) = self.cache.get(&hash) {
+                return build_specifier_map(program, cached, &ts_imports);
+            }
+
+            // Create temp directory with probe file, tsconfig, and symlinked local TS files
+            let tmp = match create_probe_dir(&self.project_dir, &probe, &ts_imports) {
+                Ok(dir) => dir,
+                Err(e) => {
+                    eprintln!("[floe] tsgo: failed to create probe dir: {e}");
+                    return HashMap::new();
+                }
+            };
+
+            let probe_dir = tmp.path();
+
+            // Run tsgo
+            let dts_content = match run_tsgo(probe_dir) {
+                Ok(content) => content,
+                Err(e) => {
+                    eprintln!("[floe] tsgo: {e}");
+                    return HashMap::new();
+                }
+            };
+
+            if std::env::var("FLOE_DEBUG_PROBE").is_ok() {
+                eprintln!("[floe] DTS OUTPUT:\n{dts_content}");
+            }
+
+            let exports = match parse_dts_exports_from_str(&dts_content) {
+                Ok(exports) => exports,
+                Err(e) => {
+                    eprintln!("[floe] tsgo: failed to parse output: {e}");
+                    return HashMap::new();
+                }
+            };
+
+            self.cache.insert(hash, exports.clone());
+
+            let mut result = build_specifier_map(program, &exports, &ts_imports);
+            resolve_typeof_types(&mut result, &self.project_dir, program);
+
+            result
         }
-
-        // Create temp directory with probe file, tsconfig, and symlinked local TS files
-        let tmp = match create_probe_dir(&self.project_dir, &probe, &ts_imports) {
-            Ok(dir) => dir,
-            Err(e) => {
-                eprintln!("[floe] tsgo: failed to create probe dir: {e}");
-                return HashMap::new();
-            }
-        };
-
-        let probe_dir = tmp.path();
-
-        // Run tsgo
-        let dts_content = match run_tsgo(probe_dir) {
-            Ok(content) => content,
-            Err(e) => {
-                eprintln!("[floe] tsgo: {e}");
-                return HashMap::new();
-            }
-        };
-
-        if std::env::var("FLOE_DEBUG_PROBE").is_ok() {
-            eprintln!("[floe] DTS OUTPUT:\n{dts_content}");
-        }
-
-        let exports = match parse_dts_exports_from_str(&dts_content) {
-            Ok(exports) => exports,
-            Err(e) => {
-                eprintln!("[floe] tsgo: failed to parse output: {e}");
-                return HashMap::new();
-            }
-        };
-
-        // Cache the result
-        self.cache.insert(hash, exports.clone());
-
-        let mut result = build_specifier_map(program, &exports, &ts_imports);
-
-        // Post-process: resolve `typeof X` types against the original package .d.ts files
-        resolve_typeof_types(&mut result, &self.project_dir, program);
-
-        result
     }
 }
 
