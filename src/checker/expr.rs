@@ -485,24 +485,60 @@ impl Checker {
                 self.name_types.insert(p.name.clone(), ty.display_name());
                 // For destructured params, also define the field names
                 if let Some(ref destructure) = p.destructure {
+                    let concrete_ty = self.resolve_type_to_concrete(&ty);
                     match destructure {
                         ParamDestructure::Object(fields) => {
-                            for f in fields {
-                                let name = f.bound_name();
-                                let field_ty = match f.field.as_str() {
-                                    "error" => Type::Named(type_layout::TYPE_ERROR.to_string()),
-                                    _ => Type::Unknown,
-                                };
-                                self.env.define(name, field_ty);
+                            if let Type::Record(ref rec_fields) = concrete_ty {
+                                for f in fields {
+                                    let name = f.bound_name();
+                                    let field_ty = rec_fields
+                                        .iter()
+                                        .find(|(n, _)| n == &f.field)
+                                        .map(|(_, t)| t.clone())
+                                        .unwrap_or_else(|| {
+                                            self.emit_error(
+                                                format!(
+                                                    "field `{}` does not exist on type `{}`",
+                                                    f.field,
+                                                    ty.display_name()
+                                                ),
+                                                p.span,
+                                                "E001",
+                                                format!(
+                                                    "`{}` has no field `{}`",
+                                                    ty.display_name(),
+                                                    f.field
+                                                ),
+                                            );
+                                            Type::Unknown
+                                        });
+                                    self.env.define(name, field_ty);
+                                }
+                            } else {
+                                // No type annotation resolved to a record — try special cases
+                                for f in fields {
+                                    let name = f.bound_name();
+                                    let field_ty = match f.field.as_str() {
+                                        "error" => Type::Named(type_layout::TYPE_ERROR.to_string()),
+                                        _ => Type::Unknown,
+                                    };
+                                    self.env.define(name, field_ty);
+                                }
                             }
                         }
                         ParamDestructure::Array(fields) => {
-                            for field in fields {
-                                let field_ty = match field.as_str() {
-                                    "error" => Type::Named(type_layout::TYPE_ERROR.to_string()),
-                                    _ => Type::Unknown,
-                                };
-                                self.env.define(field, field_ty);
+                            if let Type::Array(inner) = &concrete_ty {
+                                for field in fields {
+                                    self.env.define(field, *inner.clone());
+                                }
+                            } else {
+                                for field in fields {
+                                    let field_ty = match field.as_str() {
+                                        "error" => Type::Named(type_layout::TYPE_ERROR.to_string()),
+                                        _ => Type::Unknown,
+                                    };
+                                    self.env.define(field, field_ty);
+                                }
                             }
                         }
                     }
@@ -1848,7 +1884,7 @@ impl Checker {
     }
 
     /// Resolve a type to its concrete definition, following Named type lookups.
-    fn resolve_type_to_concrete(&mut self, ty: &Type) -> Type {
+    pub(crate) fn resolve_type_to_concrete(&mut self, ty: &Type) -> Type {
         let resolved = self.env.resolve_to_concrete(ty, &simple_resolve_type_expr);
         // If still Named after type_defs resolution, check if it's a known
         // value (e.g. built-in Response, Error) that has a concrete type
