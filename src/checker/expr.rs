@@ -183,10 +183,11 @@ impl Checker {
             }
             ExprKind::Spread(inner) => self.check_expr(inner),
             ExprKind::Object(fields) => {
-                for (_key, value) in fields {
-                    self.check_expr(value);
-                }
-                Type::Unknown
+                let field_types: Vec<(String, Type)> = fields
+                    .iter()
+                    .map(|(key, value)| (key.clone(), self.check_expr(value)))
+                    .collect();
+                Type::Record(field_types)
             }
             ExprKind::DotShorthand { predicate, .. } => {
                 if let Some((_op, rhs)) = predicate {
