@@ -155,10 +155,25 @@ impl Checker {
                     Type::Foreign(name.to_string())
                 } else if self.registering_types
                     || self.env.lookup_type(name).is_some()
-                    || self.env.lookup(name).is_some()
                     || name.contains('.')
                 {
                     Type::Named(name.to_string())
+                } else if let Some(ty) = self.env.lookup(name) {
+                    // Accept values as type names if they represent type-like values:
+                    // unions (variant constructors), records (imported TS objects),
+                    // or named types. Reject arbitrary values like component functions.
+                    if matches!(ty, Type::Union { .. } | Type::Record(_) | Type::Named(_)) {
+                        Type::Named(name.to_string())
+                    } else {
+                        self.emit_error_with_help(
+                            format!("`{name}` is a value, not a type"),
+                            span,
+                            "E002",
+                            "cannot use a value as a type",
+                            "check the spelling or import/define this type",
+                        );
+                        Type::Unknown
+                    }
                 } else {
                     self.emit_error_with_help(
                         format!("unknown type `{name}`"),
