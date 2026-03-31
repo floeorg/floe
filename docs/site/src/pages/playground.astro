@@ -227,8 +227,7 @@ export fn App() -> JSX.Element {
   </div>
 
   <script is:inline>
-    // Use absolute path — public/ files are at root, not under /floe/
-    const wasmPath = '/playground/pkg/floe_wasm.js';
+    const wasmPath = '/floe/playground/pkg/floe_wasm.js';
 
     import(wasmPath).then(async (mod) => {
       const { default: init, compile } = mod;
