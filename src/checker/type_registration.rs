@@ -132,10 +132,12 @@ impl Checker {
                 }
             }
             TypeDef::StringLiteralUnion(variants) => {
-                let ty = Type::StringLiteralUnion {
-                    name: decl.name.clone(),
-                    variants: variants.clone(),
-                };
+                let ty = Type::TsUnion(
+                    variants
+                        .iter()
+                        .map(|s| Type::StringLiteral(s.clone()))
+                        .collect(),
+                );
                 self.env.define(&decl.name, ty);
             }
             TypeDef::Alias(type_expr) => {

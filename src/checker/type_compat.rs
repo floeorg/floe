@@ -199,6 +199,8 @@ impl Checker {
             | (Type::Bool, Type::Bool)
             | (Type::Unit, Type::Unit)
             | (Type::Undefined, Type::Undefined) => true,
+            (Type::String, Type::StringLiteral(_)) => true,
+            (Type::StringLiteral(a), Type::StringLiteral(b)) => a == b,
             (Type::Named(a), Type::Named(b)) => a == b,
             (Type::Named(a), Type::Union { name: b, .. })
             | (Type::Union { name: a, .. }, Type::Named(b)) => a == b,

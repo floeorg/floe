@@ -104,8 +104,8 @@ impl Checker {
         }
 
         // String literal unions: check all string variants covered
-        if let Type::StringLiteralUnion { name, variants } = subject_ty {
-            let variant_set: HashSet<&str> = variants.iter().map(|s| s.as_str()).collect();
+        if let Some(string_variants) = subject_ty.as_string_literal_variants() {
+            let variant_set: HashSet<&str> = string_variants.into_iter().collect();
             let mut covered: HashSet<&str> = HashSet::new();
             for arm in arms {
                 if arm.guard.is_none()
@@ -116,13 +116,14 @@ impl Checker {
             }
             let missing: Vec<_> = variant_set.difference(&covered).collect();
             if !missing.is_empty() {
+                let type_name = subject_ty.display_name();
                 let missing_str = missing
                     .iter()
                     .map(|s| format!("`\"{s}\"`"))
                     .collect::<Vec<_>>()
                     .join(", ");
                 self.emit_error_with_help(
-                    format!("non-exhaustive match on `{name}`: missing {missing_str}"),
+                    format!("non-exhaustive match on `{type_name}`: missing {missing_str}"),
                     span,
                     "E004",
                     "not all variants covered",
@@ -350,12 +351,15 @@ impl Checker {
                     .map(|(name, _)| TupleSlotValue::Variant(name.clone()))
                     .collect(),
             ),
-            Type::StringLiteralUnion { variants, .. } => Some(
-                variants
-                    .iter()
-                    .map(|s| TupleSlotValue::StringLiteral(s.clone()))
-                    .collect(),
-            ),
+            _ if ty.as_string_literal_variants().is_some() => {
+                let variants = ty.as_string_literal_variants().unwrap();
+                Some(
+                    variants
+                        .into_iter()
+                        .map(|s| TupleSlotValue::StringLiteral(s.to_string()))
+                        .collect(),
+                )
+            }
             _ => None, // number, string, etc. are unbounded
         }
     }
