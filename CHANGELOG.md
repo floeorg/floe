@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.30](https://github.com/floeorg/floe/compare/v0.1.29...v0.1.30) (2026-03-31)
+
+
+### Bug Fixes
+
+* use mangled name for bare for-block function calls ([#747](https://github.com/floeorg/floe/issues/747)) ([c4e475f](https://github.com/floeorg/floe/commit/c4e475fb69e19f609f0bded23ab8efac26d5a710))
+
 ## [0.1.29](https://github.com/floeorg/floe/compare/v0.1.28...v0.1.29) (2026-03-31)
 
 
