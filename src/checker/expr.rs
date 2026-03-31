@@ -101,9 +101,19 @@ impl Checker {
                     );
                 }
                 let ty = self.check_expr(inner);
-                match ty {
-                    Type::Promise(inner) => *inner,
-                    other => other,
+                match &ty {
+                    Type::Promise(inner) => *inner.clone(),
+                    _ if ty.is_result() && matches!(ty.result_ok(), Some(Type::Promise(_))) => {
+                        self.emit_error_with_help(
+                            "`await try` wraps the Promise in a Result before awaiting",
+                            expr.span,
+                            "E034",
+                            "wrong order",
+                            "use `try await` instead — await the Promise first, then wrap in Result",
+                        );
+                        ty
+                    }
+                    _ => ty,
                 }
             }
             ExprKind::Try(inner) => {
