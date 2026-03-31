@@ -7,6 +7,6 @@ hero:
     - text: Get Started
       link: /floe/guide/introduction/
     - text: GitHub
-      link: https://github.com/milkyskies/floe
+      link: https://github.com/floeorg/floe
       variant: minimal
 ---

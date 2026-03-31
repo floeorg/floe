@@ -10,7 +10,7 @@ Floe ships as a single Rust binary called `floe`.
 
 ```bash
 # Clone and build
-git clone https://github.com/milkyskies/floe
+git clone https://github.com/floeorg/floe
 cd floe
 cargo install --path .
 

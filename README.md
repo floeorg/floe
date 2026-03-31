@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/milkyskies/floe/releases"><img src="https://img.shields.io/github/release/milkyskies/floe" alt="GitHub release"></a>
+  <a href="https://github.com/floeorg/floe/releases"><img src="https://img.shields.io/github/release/floeorg/floe" alt="GitHub release"></a>
   <a href="https://crates.io/crates/floe"><img src="https://img.shields.io/crates/v/floe" alt="crates.io"></a>
   <a href="https://www.npmjs.com/package/@floeorg/vite-plugin"><img src="https://img.shields.io/npm/v/@floeorg/vite-plugin" alt="npm"></a>
   <a href="https://open-vsx.org/extension/floeorg/floe"><img src="https://img.shields.io/open-vsx/v/floeorg/floe" alt="Open VSX"></a>
@@ -31,8 +31,8 @@ floe build src/
 
 ## Editor Support
 
-- **[VS Code](https://milkyskies.github.io/floe/tooling/vscode/)** -- syntax highlighting, diagnostics, hover, go-to-definition
-- **[Neovim](https://milkyskies.github.io/floe/tooling/neovim/)** -- tree-sitter highlighting + LSP
+- **[VS Code](https://floeorg.github.io/floe/tooling/vscode/)** -- syntax highlighting, diagnostics, hover, go-to-definition
+- **[Neovim](https://floeorg.github.io/floe/tooling/neovim/)** -- tree-sitter highlighting + LSP
 
 ## Vite Integration
 
@@ -51,7 +51,7 @@ export default defineConfig({
 
 ## Links
 
-- [Documentation](https://milkyskies.github.io/floe)
-- [Language Tour](https://milkyskies.github.io/floe/guide/tour/)
-- [CLI Reference](https://milkyskies.github.io/floe/tooling/cli/)
+- [Documentation](https://floeorg.github.io/floe)
+- [Language Tour](https://floeorg.github.io/floe/guide/tour/)
+- [CLI Reference](https://floeorg.github.io/floe/tooling/cli/)
 - [Changelog](CHANGELOG.md)

@@ -8,7 +8,7 @@
   "icon": "icons/floe-icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/milkyskies/floe"
+    "url": "https://github.com/floeorg/floe"
   },
   "engines": {
     "vscode": "^1.85.0"

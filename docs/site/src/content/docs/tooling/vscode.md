@@ -8,7 +8,7 @@ The Floe VS Code extension provides syntax highlighting, LSP integration, and co
 
 ### From Open VSX
 
-Install from [Open VSX](https://open-vsx.org/extension/milkyskies/floe), or search for "Floe" in the VS Code extensions panel.
+Install from [Open VSX](https://open-vsx.org/extension/floeorg/floe), or search for "Floe" in the VS Code extensions panel.
 
 ### From Source
 

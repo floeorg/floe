@@ -4,7 +4,7 @@ version = "0.1.28"
 edition = "2024"
 description = "WASM build of the Floe compiler for browser usage"
 license = "MIT"
-repository = "https://github.com/milkyskies/floe"
+repository = "https://github.com/floeorg/floe"
 publish = false
 
 [lib]

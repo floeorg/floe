@@ -9,7 +9,7 @@ const floeLang = {
 };
 
 export default defineConfig({
-  site: "https://milkyskies.github.io",
+  site: "https://floeorg.github.io",
   base: "/floe",
   markdown: {
     shikiConfig: {
@@ -36,7 +36,7 @@ export default defineConfig({
         {
           icon: "github",
           label: "GitHub",
-          href: "https://github.com/milkyskies/floe",
+          href: "https://github.com/floeorg/floe",
         },
       ],
       sidebar: [
@@ -56,9 +56,15 @@ export default defineConfig({
             { label: "For Blocks", slug: "guide/for-blocks" },
             { label: "Traits", slug: "guide/traits" },
             { label: "JSX", slug: "guide/jsx" },
-            { label: "Type-Driven Features", slug: "guide/type-driven-features" },
+            {
+              label: "Type-Driven Features",
+              slug: "guide/type-driven-features",
+            },
             { label: "Testing", slug: "guide/testing" },
-            { label: "Migrating from TypeScript", slug: "guide/from-typescript" },
+            {
+              label: "Migrating from TypeScript",
+              slug: "guide/from-typescript",
+            },
             { label: "Comparison", slug: "guide/comparison" },
           ],
         },
