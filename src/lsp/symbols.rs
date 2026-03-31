@@ -493,7 +493,6 @@ impl SymbolIndex {
             | ExprKind::Spread(inner)
             | ExprKind::Ok(inner)
             | ExprKind::Err(inner)
-            | ExprKind::Some(inner)
             | ExprKind::Value(inner) => {
                 Self::collect_expr(inner, symbols);
             }

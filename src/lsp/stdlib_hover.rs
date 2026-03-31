@@ -35,7 +35,13 @@ pub(super) fn format_type(ty: &crate::checker::Type) -> String {
             format!("Map<{}, {}>", format_type(key), format_type(value))
         }
         Type::Set { element } => format!("Set<{}>", format_type(element)),
-        Type::Option(inner) => format!("Option<{}>", format_type(inner)),
+        _ if ty.is_option() => {
+            if let Some(inner) = ty.option_inner() {
+                format!("Option<{}>", format_type(inner))
+            } else {
+                "Option<unknown>".to_string()
+            }
+        }
         Type::Settable(inner) => format!("Settable<{}>", format_type(inner)),
         Type::Result { ok, err } => {
             format!("Result<{}, {}>", format_type(ok), format_type(err))

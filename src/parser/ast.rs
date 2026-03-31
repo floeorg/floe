@@ -476,10 +476,6 @@ pub enum ExprKind {
     Ok(Box<Expr>),
     /// `Err(expr)`
     Err(Box<Expr>),
-    /// `Some(expr)`
-    Some(Box<Expr>),
-    /// `None`
-    None,
     /// `Value(expr)` — Settable value present
     Value(Box<Expr>),
     /// `Clear` — Settable value explicitly null

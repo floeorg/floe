@@ -426,11 +426,6 @@ impl<'src> Lowerer<'src> {
                 Some(self.expr(ExprKind::Err(Box::new(inner)), span))
             }
 
-            SyntaxKind::SOME_EXPR => {
-                let inner = self.lower_first_expr_in(node)?;
-                Some(self.expr(ExprKind::Some(Box::new(inner)), span))
-            }
-
             SyntaxKind::VALUE_EXPR => {
                 let inner = self.lower_first_expr_in(node)?;
                 Some(self.expr(ExprKind::Value(Box::new(inner)), span))
@@ -694,7 +689,6 @@ impl<'src> Lowerer<'src> {
             SyntaxKind::BOOL => Some(self.expr(ExprKind::Bool(text == "true"), span)),
             SyntaxKind::IDENT => Some(self.expr(ExprKind::Identifier(text.to_string()), span)),
             SyntaxKind::UNDERSCORE => Some(self.expr(ExprKind::Placeholder, span)),
-            SyntaxKind::KW_NONE => Some(self.expr(ExprKind::None, span)),
             SyntaxKind::KW_CLEAR => Some(self.expr(ExprKind::Clear, span)),
             SyntaxKind::KW_UNCHANGED => Some(self.expr(ExprKind::Unchanged, span)),
             SyntaxKind::KW_TODO => Some(self.expr(ExprKind::Todo, span)),

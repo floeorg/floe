@@ -85,7 +85,7 @@ fn array_of(t: Type) -> Type {
     Type::Array(Box::new(t))
 }
 fn option_of(t: Type) -> Type {
-    Type::Option(Box::new(t))
+    Type::option_of(t)
 }
 fn result_of(ok: Type, err: Type) -> Type {
     Type::Result {

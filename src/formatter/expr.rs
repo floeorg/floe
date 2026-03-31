@@ -353,11 +353,7 @@ impl Formatter<'_> {
                         }
                         return;
                     }
-                    SyntaxKind::KW_NONE => {
-                        self.write("None");
-                        return;
-                    }
-                    SyntaxKind::KW_OK | SyntaxKind::KW_ERR | SyntaxKind::KW_SOME => {
+                    SyntaxKind::KW_OK | SyntaxKind::KW_ERR => {
                         self.write(tok.text());
                         if !sub_patterns.is_empty() {
                             self.write("(");
@@ -971,8 +967,7 @@ impl Formatter<'_> {
                     | SyntaxKind::STRING
                     | SyntaxKind::BOOL
                     | SyntaxKind::IDENT
-                    | SyntaxKind::UNDERSCORE
-                    | SyntaxKind::KW_NONE => {
+                    | SyntaxKind::UNDERSCORE => {
                         if !first {
                             self.write(", ");
                         }
@@ -1009,8 +1004,7 @@ impl Formatter<'_> {
                     | SyntaxKind::STRING
                     | SyntaxKind::BOOL
                     | SyntaxKind::IDENT
-                    | SyntaxKind::UNDERSCORE
-                    | SyntaxKind::KW_NONE => {
+                    | SyntaxKind::UNDERSCORE => {
                         elems.push(PipeSegment::Token(tok.text().to_string()));
                     }
                     _ => {}
@@ -1099,7 +1093,6 @@ impl Formatter<'_> {
         let keyword = match node.kind() {
             SyntaxKind::OK_EXPR => "Ok",
             SyntaxKind::ERR_EXPR => "Err",
-            SyntaxKind::SOME_EXPR => "Some",
             SyntaxKind::VALUE_EXPR => "Value",
             _ => unreachable!(),
         };

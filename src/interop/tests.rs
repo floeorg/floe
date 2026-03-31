@@ -153,7 +153,7 @@ fn wrap_null_union_becomes_option() {
     // string | null -> Option<String>
     let ts = TsType::Union(vec![TsType::Primitive("string".to_string()), TsType::Null]);
     let wrapped = wrap_boundary_type(&ts);
-    assert_eq!(wrapped, Type::Option(Box::new(Type::String)));
+    assert_eq!(wrapped, Type::option_of(Type::String));
 }
 
 #[test]
@@ -164,7 +164,7 @@ fn wrap_undefined_union_becomes_option() {
         TsType::Undefined,
     ]);
     let wrapped = wrap_boundary_type(&ts);
-    assert_eq!(wrapped, Type::Option(Box::new(Type::Number)));
+    assert_eq!(wrapped, Type::option_of(Type::Number));
 }
 
 #[test]
@@ -176,7 +176,7 @@ fn wrap_null_undefined_union_becomes_option() {
         TsType::Undefined,
     ]);
     let wrapped = wrap_boundary_type(&ts);
-    assert_eq!(wrapped, Type::Option(Box::new(Type::String)));
+    assert_eq!(wrapped, Type::option_of(Type::String));
 }
 
 #[test]
@@ -204,7 +204,7 @@ fn wrap_function_wraps_params_and_return() {
     assert_eq!(
         wrapped,
         Type::Function {
-            params: vec![Type::Option(Box::new(Type::String))],
+            params: vec![Type::option_of(Type::String)],
             return_type: Box::new(Type::Unknown),
         }
     );
@@ -230,7 +230,7 @@ fn wrap_function_optional_params_become_option() {
     assert_eq!(
         wrapped,
         Type::Function {
-            params: vec![Type::String, Type::Option(Box::new(Type::Number))],
+            params: vec![Type::String, Type::option_of(Type::Number)],
             return_type: Box::new(Type::Unit),
         }
     );
@@ -246,7 +246,7 @@ fn wrap_array_wraps_inner() {
     let wrapped = wrap_boundary_type(&ts);
     assert_eq!(
         wrapped,
-        Type::Array(Box::new(Type::Option(Box::new(Type::String))))
+        Type::Array(Box::new(Type::option_of(Type::String)))
     );
 }
 
@@ -269,7 +269,7 @@ fn wrap_object_wraps_fields() {
         wrapped,
         Type::Record(vec![
             ("name".to_string(), Type::String),
-            ("value".to_string(), Type::Option(Box::new(Type::Number))),
+            ("value".to_string(), Type::option_of(Type::Number)),
         ])
     );
 }
@@ -305,8 +305,8 @@ fn wrap_optional_non_nullable_becomes_option() {
         wrapped,
         Type::Record(vec![(
             "nickname".to_string(),
-            Type::Option(Box::new(Type::String))
-        ),])
+            Type::option_of(Type::String),
+        )])
     );
 }
 
@@ -323,8 +323,8 @@ fn wrap_required_nullable_stays_option() {
         wrapped,
         Type::Record(vec![(
             "deletedAt".to_string(),
-            Type::Option(Box::new(Type::String))
-        ),])
+            Type::option_of(Type::String),
+        )])
     );
 }
 
@@ -388,7 +388,7 @@ fn parse_function_nullable_return_wraps_to_option() {
         wrapped,
         Type::Function {
             params: vec![Type::String],
-            return_type: Box::new(Type::Option(Box::new(Type::Foreign("Element".to_string())))),
+            return_type: Box::new(Type::option_of(Type::Foreign("Element".to_string()))),
         }
     );
 }

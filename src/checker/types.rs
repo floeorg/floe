@@ -30,8 +30,8 @@ pub enum Type {
         ok: Box<Type>,
         err: Box<Type>,
     },
-    /// Option<T> = T | undefined
-    Option(Box<Type>),
+    // Option<T> is now represented as Type::Union { name: "Option", variants: [("Some", [T]), ("None", [])] }
+    // Use Type::option_of(inner) to construct, ty.is_option() / ty.option_inner() to inspect.
     /// Settable<T> = Set(T) | Clear | Unchanged
     Settable(Box<Type>),
     /// Function type
@@ -81,23 +81,61 @@ pub enum Type {
 }
 
 impl Type {
+    /// Construct an Option<T> as a Union type.
+    pub fn option_of(inner: Type) -> Type {
+        Type::Union {
+            name: crate::type_layout::TYPE_OPTION.to_string(),
+            variants: vec![
+                (crate::type_layout::VARIANT_SOME.to_string(), vec![inner]),
+                (crate::type_layout::VARIANT_NONE.to_string(), vec![]),
+            ],
+        }
+    }
+
     pub(crate) fn is_result(&self) -> bool {
         matches!(self, Type::Result { .. })
     }
 
     pub(crate) fn is_option(&self) -> bool {
-        matches!(self, Type::Option(_))
+        matches!(
+            self,
+            Type::Union { name, .. } if name == crate::type_layout::TYPE_OPTION
+        )
     }
 
     pub(crate) fn is_settable(&self) -> bool {
         matches!(self, Type::Settable(_))
     }
 
+    /// Extract T from Option<T> (the Union representation). Returns None if not an Option.
+    pub fn option_inner(&self) -> Option<&Type> {
+        if let Type::Union { name, variants } = self
+            && name == crate::type_layout::TYPE_OPTION
+        {
+            variants
+                .iter()
+                .find(|(n, _)| n == crate::type_layout::VARIANT_SOME)
+                .and_then(|(_, fields)| fields.first())
+        } else {
+            None
+        }
+    }
+
     /// Unwrap Option<T> → T. If not an Option, return self.
     pub fn unwrap_option(self) -> Type {
-        match self {
-            Type::Option(inner) => *inner,
-            other => other,
+        if let Type::Union { name, mut variants } = self {
+            if name == crate::type_layout::TYPE_OPTION
+                && let Some(pos) = variants
+                    .iter()
+                    .position(|(n, _)| n == crate::type_layout::VARIANT_SOME)
+            {
+                let (_, mut fields) = variants.swap_remove(pos);
+                return fields.pop().unwrap_or(Type::Unknown);
+            }
+            // Not an Option union, reconstruct
+            Type::Union { name, variants }
+        } else {
+            self
         }
     }
 
@@ -121,7 +159,6 @@ impl Type {
             Type::Result { ok, err } => {
                 format!("Result<{}, {}>", ok.display_name(), err.display_name())
             }
-            Type::Option(inner) => format!("Option<{}>", inner.display_name()),
             Type::Settable(inner) => format!("Settable<{}>", inner.display_name()),
             Type::Function {
                 params,
@@ -146,7 +183,14 @@ impl Type {
                     .collect();
                 format!("{{ {} }}", f.join(", "))
             }
-            Type::Union { name, .. } => name.clone(),
+            Type::Union { name, .. } => {
+                if name == crate::type_layout::TYPE_OPTION
+                    && let Some(inner) = self.option_inner()
+                {
+                    return format!("Option<{}>", inner.display_name());
+                }
+                name.clone()
+            }
             Type::StringLiteralUnion { name, .. } => name.clone(),
             Type::Var(id) => format!("?T{id}"),
             Type::Unknown => "unknown".to_string(),

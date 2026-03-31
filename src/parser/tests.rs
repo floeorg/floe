@@ -49,8 +49,8 @@ fn bool_literal() {
 }
 
 #[test]
-fn none_literal() {
-    assert_eq!(first_expr("None"), ExprKind::None);
+fn none_is_identifier() {
+    assert_eq!(first_expr("None"), ExprKind::Identifier("None".to_string()));
 }
 
 #[test]
@@ -325,7 +325,7 @@ fn err_constructor() {
 #[test]
 fn some_constructor() {
     let expr = first_expr("Some(x)");
-    assert!(matches!(expr, ExprKind::Some(_)));
+    assert!(matches!(expr, ExprKind::Construct { .. }));
 }
 
 // ── Parse Built-in ───────────────────────────────────────────

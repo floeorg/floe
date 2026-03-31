@@ -724,8 +724,8 @@ mod tests {
             vec![
                 TokenKind::Ok,
                 TokenKind::Err,
-                TokenKind::Some,
-                TokenKind::None,
+                TokenKind::Identifier("Some".to_string()),
+                TokenKind::Identifier("None".to_string()),
                 TokenKind::Bool(true),
                 TokenKind::Bool(false),
                 TokenKind::Eof,

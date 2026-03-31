@@ -43,9 +43,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                     Type::Promise(Box::new(wrap_boundary_type(&args[0])))
                 }
                 // FloeOption<T> → Option<T> (our probe wrapper for Option)
-                "FloeOption" if args.len() == 1 => {
-                    Type::Option(Box::new(wrap_boundary_type(&args[0])))
-                }
+                "FloeOption" if args.len() == 1 => Type::option_of(wrap_boundary_type(&args[0])),
                 // TS Record<K, V> → Floe RecordMap<K, V> (plain-object map)
                 "Record" if args.len() == 2 => Type::RecordMap {
                     key: Box::new(wrap_boundary_type(&args[0])),
@@ -80,11 +78,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                 .iter()
                 .map(|p| {
                     let ty = wrap_boundary_type(&p.ty);
-                    if p.optional {
-                        Type::Option(Box::new(ty))
-                    } else {
-                        ty
-                    }
+                    if p.optional { Type::option_of(ty) } else { ty }
                 })
                 .collect();
             let wrapped_return = wrap_boundary_type(return_type);
@@ -107,7 +101,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                         Type::Settable(Box::new(inner))
                     } else if f.optional {
                         // x?: T → Option<T>
-                        Type::Option(Box::new(wrap_boundary_type(&f.ty)))
+                        Type::option_of(wrap_boundary_type(&f.ty))
                     } else {
                         wrap_boundary_type(&f.ty)
                     };
@@ -138,7 +132,7 @@ fn wrap_union_boundary(parts: &[TsType]) -> Type {
         && let Some(result_type) = try_parse_result_union(&non_null_parts)
     {
         return if nullable {
-            Type::Option(Box::new(result_type))
+            Type::option_of(result_type)
         } else {
             result_type
         };
@@ -159,7 +153,7 @@ fn wrap_union_boundary(parts: &[TsType]) -> Type {
     };
 
     if nullable {
-        Type::Option(Box::new(inner_type))
+        Type::option_of(inner_type)
     } else {
         inner_type
     }
@@ -223,15 +217,15 @@ fn try_merge_object_union(parts: &[&TsType]) -> Option<Type> {
         let merged_ty = if field_types.len() == 1 {
             let ty = wrap_boundary_type(&field_types[0]);
             if any_optional {
-                Type::Option(Box::new(ty))
+                Type::option_of(ty)
             } else {
                 ty
             }
         } else {
             // Create a union and wrap it
             let ty = wrap_boundary_type(&TsType::Union(field_types));
-            if any_optional && !matches!(ty, Type::Option(_)) {
-                Type::Option(Box::new(ty))
+            if any_optional && !ty.is_option() {
+                Type::option_of(ty)
             } else {
                 ty
             }

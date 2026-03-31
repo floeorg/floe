@@ -199,7 +199,7 @@ impl Checker {
         let error_record = Type::Record(vec![
             ("message".to_string(), Type::String),
             ("name".to_string(), Type::String),
-            ("stack".to_string(), Type::Option(Box::new(Type::String))),
+            ("stack".to_string(), Type::option_of(Type::String)),
         ]);
 
         let event_record = Type::Record(vec![
@@ -233,6 +233,11 @@ impl Checker {
         env.define("Response", response_record);
         env.define("Error", error_record);
         env.define("Event", event_record);
+
+        // Register Option variant names so Some/None resolve as variants
+        let option_unknown = Type::option_of(Type::Unknown);
+        env.define(type_layout::VARIANT_SOME, option_unknown.clone());
+        env.define(type_layout::VARIANT_NONE, option_unknown);
 
         // ── Browser/runtime globals ─────────────────────────────────
 

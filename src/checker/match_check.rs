@@ -422,9 +422,10 @@ impl Checker {
                         _ => {}
                     }
                 }
-                if let Type::Option(inner) = subject_ty
-                    && name == "Some"
+                if subject_ty.is_option()
+                    && name == crate::type_layout::VARIANT_SOME
                     && let Some(pat) = fields.first()
+                    && let Some(inner) = subject_ty.option_inner()
                 {
                     self.check_pattern(pat, inner);
                     handled = true;

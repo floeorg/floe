@@ -311,15 +311,7 @@ impl Codegen {
                 self.push(" }");
             }
 
-            // Some(value) → value
-            ExprKind::Some(inner) => {
-                self.emit_expr(inner);
-            }
-
-            // None → undefined
-            ExprKind::None => {
-                self.push("undefined");
-            }
+            // Some/None are desugared before codegen (Some → identity, None → undefined)
 
             // Value(x) → x (after desugar, shouldn't reach here normally)
             ExprKind::Value(inner) => {

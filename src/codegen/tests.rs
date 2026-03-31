@@ -944,6 +944,7 @@ fn emit_with_types(input: &str) -> String {
     let (_, expr_types) = crate::checker::Checker::new().check_full(&program);
     let mut program = program;
     crate::checker::annotate_types(&mut program, &expr_types);
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
     Codegen::new().generate(&program).code.trim().to_string()
 }
 
