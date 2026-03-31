@@ -94,6 +94,24 @@ impl Checker {
         }
     }
 
+    /// Check if an actual record is compatible with an expected record.
+    /// Fields with Settable or Option types can be omitted (default to Unchanged/None).
+    fn records_compatible(&self, expected: &[(String, Type)], actual: &[(String, Type)]) -> bool {
+        // Every expected field must either match an actual field or be omittable
+        expected.iter().all(|(name, ty)| {
+            if let Some((_, act_ty)) = actual.iter().find(|(n, _)| n == name) {
+                self.types_compatible(ty, act_ty)
+            } else {
+                // Field omitted — OK if it's Settable or Option
+                ty.is_settable() || ty.is_option()
+            }
+        })
+        // No extra fields in actual that aren't in expected
+        && actual.iter().all(|(name, _)| {
+            expected.iter().any(|(n, _)| n == name)
+        })
+    }
+
     pub(crate) fn types_compatible(&self, expected: &Type, actual: &Type) -> bool {
         // Unknown/Var as EXPECTED: anything can be assigned to unknown (widening)
         if matches!(expected, Type::Unknown | Type::Var(_)) {
@@ -176,22 +194,12 @@ impl Checker {
         if let Some(Type::Record(ref exp_fields)) = expected_concrete
             && let Type::Record(act_fields) = actual
         {
-            return exp_fields.len() == act_fields.len()
-                && exp_fields.iter().all(|(name, ty)| {
-                    act_fields
-                        .iter()
-                        .any(|(n, t)| n == name && self.types_compatible(ty, t))
-                });
+            return self.records_compatible(exp_fields, act_fields);
         }
         if let Some(Type::Record(ref act_fields)) = actual_concrete
             && let Type::Record(exp_fields) = expected
         {
-            return exp_fields.len() == act_fields.len()
-                && exp_fields.iter().all(|(name, ty)| {
-                    act_fields
-                        .iter()
-                        .any(|(n, t)| n == name && self.types_compatible(ty, t))
-                });
+            return self.records_compatible(exp_fields, act_fields);
         }
 
         match (expected, actual) {
@@ -284,14 +292,9 @@ impl Checker {
             (_, Type::TsUnion(members)) => {
                 members.iter().all(|m| self.types_compatible(expected, m))
             }
-            // Structural record compatibility: { a: T, b: U } matches { a: T, b: U }
+            // Structural record compatibility
             (Type::Record(fields_a), Type::Record(fields_b)) => {
-                fields_a.len() == fields_b.len()
-                    && fields_a.iter().all(|(name_a, ty_a)| {
-                        fields_b.iter().any(|(name_b, ty_b)| {
-                            name_a == name_b && self.types_compatible(ty_a, ty_b)
-                        })
-                    })
+                self.records_compatible(fields_a, fields_b)
             }
             _ => false,
         }
