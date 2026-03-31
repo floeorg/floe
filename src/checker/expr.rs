@@ -469,16 +469,18 @@ impl Checker {
         let prev_inside_async = self.ctx.inside_async;
         self.ctx.inside_async = async_fn;
         self.env.push_scope();
+        let param_hints = std::mem::take(&mut self.ctx.lambda_param_hints);
         let param_types: Vec<_> = params
             .iter()
-            .map(|p| {
+            .enumerate()
+            .map(|(i, p)| {
                 let ty = p
                     .type_ann
                     .as_ref()
                     .map(|t| self.resolve_type(t))
                     .unwrap_or_else(|| {
                         // Use lambda param hint from calling context if available
-                        if let Some(hint) = self.ctx.lambda_param_hint.take() {
+                        if let Some(hint) = param_hints.get(i).cloned() {
                             return hint;
                         }
                         // In event handler context, infer Event type for the parameter
@@ -681,7 +683,7 @@ impl Checker {
         if let Some(ref piped) = piped_ty
             && let Type::Array(elem_ty) = piped
         {
-            self.ctx.lambda_param_hint = Some((**elem_ty).clone());
+            self.ctx.lambda_param_hints = vec![(**elem_ty).clone()];
         }
 
         // Detect placeholder args for partial application
@@ -711,7 +713,7 @@ impl Checker {
                 Arg::Positional(e) | Arg::Named { value: e, .. } => self.check_expr(e),
             })
             .collect();
-        self.ctx.lambda_param_hint = None;
+        self.ctx.lambda_param_hints.clear();
 
         // Handle piped value insertion
         if let Some(piped_ty) = piped_ty {
@@ -1395,14 +1397,14 @@ impl Checker {
             );
         }
         if let Type::Array(elem) = left_ty {
-            self.ctx.lambda_param_hint = Some((**elem).clone());
+            self.ctx.lambda_param_hints = vec![(**elem).clone()];
         } else if let Type::Option(inner) = left_ty {
-            self.ctx.lambda_param_hint = Some((**inner).clone());
+            self.ctx.lambda_param_hints = vec![(**inner).clone()];
         }
 
         // Check lambda args and capture return type for generic inference
         let lambda_return = self.check_pipe_right_args_with_return(right);
-        self.ctx.lambda_param_hint = None;
+        self.ctx.lambda_param_hints.clear();
 
         // Resolve return type: if the stdlib fn's return type uses a different
         // type var than the input (e.g. map: Array<T> -> Array<U>), infer U

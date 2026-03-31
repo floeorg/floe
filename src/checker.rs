@@ -55,8 +55,9 @@ pub(crate) struct CheckContext {
     pub event_handler_context: bool,
     /// Whether we are currently inside an `async` function.
     pub inside_async: bool,
-    /// Hint for lambda parameter type inference from calling context.
-    pub lambda_param_hint: Option<Type>,
+    /// Hints for lambda parameter type inference from calling context.
+    /// Each element corresponds to a parameter position (index 0 = first param, etc.).
+    pub lambda_param_hints: Vec<Type>,
     /// When inside a pipe, holds the type of the piped (left) value.
     pub pipe_input_type: Option<Type>,
 }
@@ -144,6 +145,9 @@ pub struct Checker {
     /// Maps component_name -> prop_name -> resolved callback parameter type.
     /// Populated from tsgo probe results for JSX props with arrow function values.
     jsx_callback_hints: HashMap<String, HashMap<String, Type>>,
+    /// Maps component_name -> Vec of parameter types for children render props.
+    /// Populated from tsgo probe results (__jsxc_Component_N entries).
+    jsx_children_hints: HashMap<String, Vec<Type>>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -316,6 +320,7 @@ impl Checker {
             fn_param_names: HashMap::new(),
             for_block_overloads: HashMap::new(),
             jsx_callback_hints: HashMap::new(),
+            jsx_children_hints: HashMap::new(),
         }
     }
 
@@ -479,9 +484,29 @@ impl Checker {
         self.registering_types = false;
 
         // Build JSX callback hints from tsgo probe results (__jsx_Component_prop entries)
+        // and children render prop hints (__jsxc_Component_N entries)
         for exports in self.dts_imports.values() {
             for export in exports {
-                if let Some(rest) = export.name.strip_prefix("__jsx_")
+                if let Some(rest) = export.name.strip_prefix("__jsxc_") {
+                    if let Some(sep) = rest.rfind('_') {
+                        let component = &rest[..sep];
+                        let index: usize = match rest[sep + 1..].parse() {
+                            Ok(i) => i,
+                            Err(_) => continue,
+                        };
+                        let ty = interop::wrap_boundary_type(&export.ts_type);
+                        if !matches!(ty, Type::Unknown | Type::Never) {
+                            let params = self
+                                .jsx_children_hints
+                                .entry(component.to_string())
+                                .or_default();
+                            if index >= params.len() {
+                                params.resize(index + 1, Type::Unknown);
+                            }
+                            params[index] = ty;
+                        }
+                    }
+                } else if let Some(rest) = export.name.strip_prefix("__jsx_")
                     && let Some(sep) = rest.find('_')
                 {
                     let component = &rest[..sep];

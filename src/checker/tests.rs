@@ -4277,3 +4277,97 @@ fn page() {
         );
     }
 }
+
+#[test]
+fn jsx_children_render_prop_params_inferred_from_probe() {
+    use crate::interop::{DtsExport, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    // Source: Draggable with a render prop child (function-as-child pattern)
+    let program = crate::parser::Parser::new(
+        r#"
+import { Draggable } from "@hello-pangea/dnd"
+
+fn page() {
+    <Draggable draggableId="id" index={0}>
+        {(provided, snapshot) =>
+            <div />
+        }
+    </Draggable>
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Simulate tsgo probe results for children params:
+    // __jsxc_Draggable_0 -> { innerRef: Ref, draggableProps: Record }
+    // __jsxc_Draggable_1 -> { isDragging: boolean }
+    let probe_0 = DtsExport {
+        name: "__jsxc_Draggable_0".to_string(),
+        ts_type: TsType::Object(vec![
+            ObjectField {
+                name: "innerRef".to_string(),
+                ty: TsType::Primitive("Ref".to_string()),
+                optional: false,
+            },
+            ObjectField {
+                name: "draggableProps".to_string(),
+                ty: TsType::Primitive("Record".to_string()),
+                optional: false,
+            },
+        ]),
+    };
+    let probe_1 = DtsExport {
+        name: "__jsxc_Draggable_1".to_string(),
+        ts_type: TsType::Object(vec![ObjectField {
+            name: "isDragging".to_string(),
+            ty: TsType::Primitive("boolean".to_string()),
+            optional: false,
+        }]),
+    };
+
+    let draggable_export = DtsExport {
+        name: "Draggable".to_string(),
+        ts_type: TsType::Named("Draggable".to_string()),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "@hello-pangea/dnd".to_string(),
+        vec![draggable_export, probe_0, probe_1],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, name_types, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "children render prop should not error, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+
+    // `provided` (first param) should have innerRef/draggableProps fields
+    if let Some(provided_type) = name_types.get("provided") {
+        assert!(
+            provided_type.contains("innerRef"),
+            "provided param should be inferred from probe, got: {provided_type}"
+        );
+    } else {
+        panic!("provided param type not found in name_types");
+    }
+
+    // `snapshot` (second param) should have isDragging field
+    if let Some(snapshot_type) = name_types.get("snapshot") {
+        assert!(
+            snapshot_type.contains("isDragging"),
+            "snapshot param should be inferred from probe, got: {snapshot_type}"
+        );
+    } else {
+        panic!("snapshot param type not found in name_types");
+    }
+}

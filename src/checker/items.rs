@@ -658,17 +658,17 @@ impl Checker {
                                     self.ctx.event_handler_context = prev;
                                 } else if matches!(value.kind, ExprKind::Arrow { .. }) {
                                     // Set callback param hint from tsgo probe if available
-                                    let prev = self.ctx.lambda_param_hint.take();
+                                    let prev = std::mem::take(&mut self.ctx.lambda_param_hints);
                                     if let Some(hint_ty) = self
                                         .jsx_callback_hints
                                         .get(name)
                                         .and_then(|m| m.get(prop_name))
                                         .cloned()
                                     {
-                                        self.ctx.lambda_param_hint = Some(hint_ty);
+                                        self.ctx.lambda_param_hints = vec![hint_ty];
                                     }
                                     self.check_expr(value);
-                                    self.ctx.lambda_param_hint = prev;
+                                    self.ctx.lambda_param_hints = prev;
                                 } else {
                                     self.check_expr(value);
                                 }
@@ -679,19 +679,33 @@ impl Checker {
                         }
                     }
                 }
-                self.check_jsx_children(children);
+                self.check_jsx_children(children, Some(name));
             }
             JsxElementKind::Fragment { children } => {
-                self.check_jsx_children(children);
+                self.check_jsx_children(children, None);
             }
         }
     }
 
-    pub(crate) fn check_jsx_children(&mut self, children: &[JsxChild]) {
+    pub(crate) fn check_jsx_children(
+        &mut self,
+        children: &[JsxChild],
+        component_name: Option<&str>,
+    ) {
         for child in children {
             match child {
                 JsxChild::Expr(e) => {
-                    self.check_expr(e);
+                    // Set children render prop hints for arrow function children
+                    if matches!(e.kind, ExprKind::Arrow { .. })
+                        && let Some(name) = component_name
+                        && let Some(hints) = self.jsx_children_hints.get(name).cloned()
+                    {
+                        let prev = std::mem::replace(&mut self.ctx.lambda_param_hints, hints);
+                        self.check_expr(e);
+                        self.ctx.lambda_param_hints = prev;
+                    } else {
+                        self.check_expr(e);
+                    }
                 }
                 JsxChild::Element(el) => {
                     self.check_jsx(el);
