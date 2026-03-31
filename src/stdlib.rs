@@ -188,7 +188,7 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Option", "toErr", [option_of(t.clone())], result_of(Type::Unit, t.clone()), "$0 !== undefined ? { ok: false as const, error: $0 } : { ok: true as const, value: undefined }"),
         stdlib_fn!("Option", "all", [array_of(option_of(t.clone()))], option_of(array_of(t.clone())), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (_v === undefined) return undefined; _r.push(_v); } return _r; })()"),
         stdlib_fn!("Option", "any", [array_of(option_of(t.clone()))], option_of(t.clone()), "$0.find(_v => _v !== undefined)"),
-        stdlib_fn!("Option", "values", [array_of(option_of(t.clone()))], array_of(t.clone()), "$0.filter(_v => _v !== undefined)"),
+        stdlib_fn!("Option", "values", [array_of(option_of(t.clone()))], array_of(t.clone()), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (_v !== undefined) _r.push(_v); } return _r; })()"),
         // ── Result ──────────────────────────────────────────────
         stdlib_fn!("Result", "map", [result_of(t.clone(), u.clone()), fun(vec![t.clone()], tv(2))], result_of(tv(2), u.clone()), "$0.ok ? { ok: true as const, value: ($1)($0.value) } : $0"),
         stdlib_fn!("Result", "mapErr", [result_of(t.clone(), u.clone()), fun(vec![u.clone()], tv(2))], result_of(t.clone(), tv(2)), "$0.ok ? $0 : { ok: false as const, error: ($1)($0.error) }"),
@@ -206,7 +206,7 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Result", "inspectErr", [result_of(t.clone(), u.clone()), fun(vec![u.clone()], Type::Unit)], result_of(t.clone(), u.clone()), "(() => { const _v = $0; if (!_v.ok) ($1)(_v.error); return _v; })()"),
         stdlib_fn!("Result", "all", [array_of(result_of(t.clone(), u.clone()))], result_of(array_of(t.clone()), u.clone()), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (!_v.ok) return _v; _r.push(_v.value); } return { ok: true as const, value: _r }; })()"),
         stdlib_fn!("Result", "any", [array_of(result_of(t.clone(), u.clone()))], result_of(t.clone(), array_of(u.clone())), "(() => { const _a = $0; const _e = []; for (const _v of _a) { if (_v.ok) return _v; _e.push(_v.error); } return { ok: false as const, error: _e }; })()"),
-        stdlib_fn!("Result", "values", [array_of(result_of(t.clone(), u.clone()))], array_of(t.clone()), "$0.filter(_v => _v.ok).map(_v => _v.value)"),
+        stdlib_fn!("Result", "values", [array_of(result_of(t.clone(), u.clone()))], array_of(t.clone()), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (_v.ok) _r.push(_v.value); } return _r; })()"),
         stdlib_fn!("Result", "partition", [array_of(result_of(t.clone(), u.clone()))], Type::Tuple(vec![array_of(t.clone()), array_of(u.clone())]), "(() => { const _a = $0; const _ok = []; const _err = []; for (const _v of _a) { if (_v.ok) _ok.push(_v.value); else _err.push(_v.error); } return [_ok, _err] as const; })()"),
         // ── String ──────────────────────────────────────────────
         stdlib_fn!("String", "trim", [Type::String], Type::String, "$0.trim()"),
@@ -751,7 +751,7 @@ mod tests {
     fn lookup_option_values() {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Option", "values").unwrap();
-        assert!(f.codegen.contains("filter"));
+        assert!(f.codegen.contains("_r.push(_v)"));
     }
 
     #[test]
@@ -827,8 +827,7 @@ mod tests {
     fn lookup_result_values() {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Result", "values").unwrap();
-        assert!(f.codegen.contains("filter"));
-        assert!(f.codegen.contains("value"));
+        assert!(f.codegen.contains("_r.push(_v.value)"));
     }
 
     #[test]
