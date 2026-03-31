@@ -59,6 +59,10 @@ const _opt_none = undefined === undefined;
 
 const _opt_to_res = 42 !== undefined ? { ok: true as const, value: 42 } : { ok: false as const, error: "not found" };
 
+const _opt_or = undefined !== undefined ? undefined : 99;
+
+const _opt_values = (() => { const _a = [1, undefined, 3]; const _r = []; for (const _v of _a) { if (_v !== undefined) _r.push(_v); } return _r; })();
+
 const _res_mapped = { ok: true as const, value: 42 }.ok ? { ok: true as const, value: ((n) => n + 1)({ ok: true as const, value: 42 }.value) } : { ok: true as const, value: 42 };
 
 const _res_map_err = { ok: false as const, error: "bad" }.ok ? { ok: false as const, error: "bad" } : { ok: false as const, error: ((e) => e)({ ok: false as const, error: "bad" }.error) };
@@ -72,6 +76,12 @@ const _res_ok = { ok: true as const, value: 1 }.ok;
 const _res_err = !{ ok: false as const, error: "fail" }.ok;
 
 const _res_to_opt = { ok: true as const, value: 42 }.ok ? { ok: true as const, value: 42 }.value : undefined;
+
+const _res_or = { ok: false as const, error: "fail" }.ok ? { ok: false as const, error: "fail" } : { ok: true as const, value: 42 };
+
+const _res_values = (() => { const _a = [{ ok: true as const, value: 1 }, { ok: false as const, error: "x" }, { ok: true as const, value: 3 }]; const _r = []; for (const _v of _a) { if (_v.ok) _r.push(_v.value); } return _r; })();
+
+const _res_partition = (() => { const _a = [{ ok: true as const, value: 1 }, { ok: false as const, error: "x" }, { ok: true as const, value: 3 }]; const _ok = []; const _err = []; for (const _v of _a) { if (_v.ok) _ok.push(_v.value); else _err.push(_v.error); } return [_ok, _err] as const; })();
 
 const _trimmed = "  hello  ".trim();
 
