@@ -29,7 +29,12 @@ impl Checker {
             (Type::Result { ok: o1, err: e1 }, Type::Result { ok: o2, err: e2 }) => {
                 self.types_unifiable(o1, o2) && self.types_unifiable(e1, e2)
             }
-            (Type::Option(a), Type::Option(b)) => self.types_unifiable(a, b),
+            (a, b) if a.is_option() && b.is_option() => {
+                match (a.option_inner(), b.option_inner()) {
+                    (Some(ai), Some(bi)) => self.types_unifiable(ai, bi),
+                    _ => true,
+                }
+            }
             (Type::Promise(a), Type::Promise(b)) => self.types_unifiable(a, b),
             (Type::Array(a), Type::Array(b)) => self.types_unifiable(a, b),
             (Type::Tuple(a), Type::Tuple(b)) => {
@@ -53,8 +58,10 @@ impl Checker {
                 ok: Box::new(Self::merge_types(o1, o2)),
                 err: Box::new(Self::merge_types(e1, e2)),
             },
-            (Type::Option(a_inner), Type::Option(b_inner)) => {
-                Type::Option(Box::new(Self::merge_types(a_inner, b_inner)))
+            (a, b) if a.is_option() && b.is_option() => {
+                let a_inner = a.option_inner().cloned().unwrap_or(Type::Unknown);
+                let b_inner = b.option_inner().cloned().unwrap_or(Type::Unknown);
+                Type::option_of(Self::merge_types(&a_inner, &b_inner))
             }
             (Type::Promise(a_inner), Type::Promise(b_inner)) => {
                 Type::Promise(Box::new(Self::merge_types(a_inner, b_inner)))
@@ -186,12 +193,24 @@ impl Checker {
             (Type::Result { ok: o1, err: e1 }, Type::Result { ok: o2, err: e2 }) => {
                 self.types_compatible(o1, o2) && self.types_compatible(e1, e2)
             }
-            (Type::Option(_), Type::Option(b)) if matches!(**b, Type::Unknown) => {
-                true // None (Option<Unknown>) is compatible with any Option<T>
+            (expected, actual) if expected.is_option() && actual.is_option() => {
+                // None (Option<Unknown>) is compatible with any Option<T>
+                if matches!(actual.option_inner(), Some(Type::Unknown)) {
+                    return true;
+                }
+                match (expected.option_inner(), actual.option_inner()) {
+                    (Some(e), Some(a)) => self.types_compatible(e, a),
+                    _ => true,
+                }
             }
-            (Type::Option(a), Type::Option(b)) => self.types_compatible(a, b),
             // A concrete value T is assignable to Option<T> (implicit Some wrapping)
-            (Type::Option(inner), actual) => self.types_compatible(inner, actual),
+            (expected, actual) if expected.is_option() => {
+                if let Some(inner) = expected.option_inner() {
+                    self.types_compatible(inner, actual)
+                } else {
+                    true
+                }
+            }
             (Type::Promise(a), Type::Promise(b)) => self.types_compatible(a, b),
             (Type::Settable(_), Type::Settable(b)) if matches!(**b, Type::Unknown) => {
                 true // Clear/Unchanged (Settable<Unknown>) is compatible with any Settable<T>

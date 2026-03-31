@@ -5,6 +5,7 @@
 
 use floe::checker::{self, Checker};
 use floe::codegen::Codegen;
+use floe::desugar;
 use floe::parser::Parser;
 
 fn compile(source: &str) -> String {
@@ -13,6 +14,7 @@ fn compile(source: &str) -> String {
         .expect("fixture should parse");
     let (_, expr_types) = Checker::new().check_full(&program);
     checker::annotate_types(&mut program, &expr_types);
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
     Codegen::new().generate(&program).code
 }
 

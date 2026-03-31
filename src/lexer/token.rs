@@ -67,8 +67,6 @@ pub enum TokenKind {
     // Built-in type constructors
     Ok,
     Err,
-    Some,
-    None,
     Value,
     Clear,
     Unchanged,
@@ -288,8 +286,6 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         // Built-in constructors
         "Ok" => Some(TokenKind::Ok),
         "Err" => Some(TokenKind::Err),
-        "Some" => Some(TokenKind::Some),
-        "None" => Some(TokenKind::None),
         "Value" => Some(TokenKind::Value),
         "Clear" => Some(TokenKind::Clear),
         "Unchanged" => Some(TokenKind::Unchanged),
@@ -333,8 +329,8 @@ mod tests {
         assert_eq!(lookup_keyword("trait"), Some(TokenKind::Trait));
         assert_eq!(lookup_keyword("Ok"), Some(TokenKind::Ok));
         assert_eq!(lookup_keyword("Err"), Some(TokenKind::Err));
-        assert_eq!(lookup_keyword("Some"), Some(TokenKind::Some));
-        assert_eq!(lookup_keyword("None"), Some(TokenKind::None));
+        assert_eq!(lookup_keyword("Some"), None);
+        assert_eq!(lookup_keyword("None"), None);
         assert_eq!(lookup_keyword("for"), Some(TokenKind::For));
         assert_eq!(lookup_keyword("self"), Some(TokenKind::SelfKw));
         assert_eq!(lookup_keyword("when"), Some(TokenKind::When));

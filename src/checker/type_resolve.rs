@@ -125,7 +125,7 @@ impl Checker {
                     .first()
                     .map(|t| self.resolve_type(t))
                     .unwrap_or(Type::Unknown);
-                Type::Option(Box::new(inner))
+                Type::option_of(inner)
             }
             type_layout::TYPE_SETTABLE => {
                 let inner = type_args

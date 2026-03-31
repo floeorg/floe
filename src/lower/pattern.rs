@@ -158,16 +158,7 @@ impl<'src> Lowerer<'src> {
                             span,
                         });
                     }
-                    SyntaxKind::KW_NONE => {
-                        return Some(Pattern {
-                            kind: PatternKind::Variant {
-                                name: "None".to_string(),
-                                fields: Vec::new(),
-                            },
-                            span,
-                        });
-                    }
-                    SyntaxKind::KW_OK | SyntaxKind::KW_ERR | SyntaxKind::KW_SOME => {
+                    SyntaxKind::KW_OK | SyntaxKind::KW_ERR => {
                         let name = token.text().to_string();
                         let fields: Vec<Pattern> = node
                             .children()

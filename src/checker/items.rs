@@ -35,8 +35,9 @@ impl Checker {
         // Refine None: if value is Option<Unknown> and declared type is Option<T>,
         // Refine None: record the concrete Option type for hover
         if let Some(ref declared) = declared_type
-            && matches!(&value_type, Type::Option(inner) if matches!(**inner, Type::Unknown))
-            && matches!(declared, Type::Option(_))
+            && value_type.is_option()
+            && matches!(value_type.option_inner(), Some(Type::Unknown))
+            && declared.is_option()
         {
             self.expr_types.insert(decl.value.id, declared.clone());
         }

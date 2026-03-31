@@ -100,7 +100,6 @@ pub fn walk_expr_children_mut(expr: &mut Expr, f: &mut impl FnMut(&mut Expr)) {
         | ExprKind::Unwrap(inner)
         | ExprKind::Ok(inner)
         | ExprKind::Err(inner)
-        | ExprKind::Some(inner)
         | ExprKind::Value(inner)
         | ExprKind::Grouped(inner)
         | ExprKind::Spread(inner) => walk_expr_mut(inner, f),
@@ -147,7 +146,6 @@ pub fn walk_expr_children_mut(expr: &mut Expr, f: &mut impl FnMut(&mut Expr)) {
         | ExprKind::Bool(_)
         | ExprKind::Identifier(_)
         | ExprKind::Placeholder
-        | ExprKind::None
         | ExprKind::Clear
         | ExprKind::Unchanged
         | ExprKind::Todo
@@ -227,7 +225,6 @@ pub fn walk_expr_children(expr: &Expr, f: &mut impl FnMut(&Expr)) {
         | ExprKind::Unwrap(inner)
         | ExprKind::Ok(inner)
         | ExprKind::Err(inner)
-        | ExprKind::Some(inner)
         | ExprKind::Value(inner)
         | ExprKind::Grouped(inner)
         | ExprKind::Spread(inner) => {
@@ -278,7 +275,6 @@ pub fn walk_expr_children(expr: &Expr, f: &mut impl FnMut(&Expr)) {
         | ExprKind::Bool(_)
         | ExprKind::Identifier(_)
         | ExprKind::Placeholder
-        | ExprKind::None
         | ExprKind::Clear
         | ExprKind::Unchanged
         | ExprKind::Todo

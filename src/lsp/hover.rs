@@ -199,8 +199,6 @@ impl FloeLsp {
             "Err" => {
                 "```floe\nErr(error: E) -> Result<T, E>\n```\nWrap an error value in a Result."
             }
-            "Some" => "```floe\nSome(value: T) -> Option<T>\n```\nWrap a value in an Option.",
-            "None" => "```floe\nNone -> Option<T>\n```\nRepresents the absence of a value.",
             "parse" => {
                 "```floe\nparse<T>(value: unknown) -> Result<T, Error>\n```\nCompiler built-in: validates a value matches type T at runtime."
             }

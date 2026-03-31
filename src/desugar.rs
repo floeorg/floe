@@ -5,8 +5,8 @@
 //! emit without needing semantic knowledge.
 //!
 //! Current transforms:
-//! - `Some(x)` → `x` (identity — Option is `T | undefined`)
-//! - `None`   → `Identifier("undefined")`
+//! - `Some(x)` (Construct) → `x` (identity — Option is `T | undefined`)
+//! - `None` (Construct or Identifier) → `Identifier("undefined")`
 //! - Record constructors with omitted default fields → args filled in
 
 use std::collections::{HashMap, HashSet};
@@ -46,13 +46,26 @@ fn desugar_expr(expr: &mut Expr) {
     let span = expr.span;
     match &mut expr.kind {
         // Some(x) → x (Option is T | undefined at runtime)
-        ExprKind::Some(inner) => {
-            let inner = std::mem::replace(inner.as_mut(), Expr::synthetic(ExprKind::Unit, span));
-            expr.kind = inner.kind;
-            expr.span = inner.span;
+        ExprKind::Construct {
+            type_name,
+            args,
+            spread: None,
+        } if type_name == crate::type_layout::VARIANT_SOME && args.len() == 1 => {
+            if let Some(Arg::Positional(inner)) = args.pop() {
+                expr.kind = inner.kind;
+                expr.span = inner.span;
+            }
         }
-        // None → undefined
-        ExprKind::None => {
+        // None → undefined (when used as a construct with no args)
+        ExprKind::Construct {
+            type_name,
+            args,
+            spread: None,
+        } if type_name == crate::type_layout::VARIANT_NONE && args.is_empty() => {
+            expr.kind = ExprKind::Identifier("undefined".to_string());
+        }
+        // None → undefined (when used as a bare identifier)
+        ExprKind::Identifier(name) if name == crate::type_layout::VARIANT_NONE => {
             expr.kind = ExprKind::Identifier("undefined".to_string());
         }
         // Value(x) → x (Settable wraps value directly)

@@ -930,7 +930,6 @@ fn collect_member_accesses_expr(
         | ExprKind::Try(inner)
         | ExprKind::Ok(inner)
         | ExprKind::Err(inner)
-        | ExprKind::Some(inner)
         | ExprKind::Spread(inner) => {
             collect_member_accesses_expr(inner, imported_names, accesses);
         }
@@ -1251,7 +1250,6 @@ fn expr_to_ts_approx(expr: &Expr) -> String {
         }
         ExprKind::Grouped(inner) => format!("({})", expr_to_ts_approx(inner)),
         ExprKind::Unit => "undefined".to_string(),
-        ExprKind::None => "null".to_string(),
         // For anything else, use a placeholder that TypeScript can handle
         _ => "undefined as any".to_string(),
     }

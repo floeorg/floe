@@ -98,10 +98,10 @@ pub enum VariantLayout {
 /// `Some(x)` is just `x`, `None` is `undefined`.
 pub fn variant_layout(name: &str) -> VariantLayout {
     match name {
-        "Ok" => VariantLayout::Ok,
-        "Err" => VariantLayout::Err,
-        "Some" => VariantLayout::OptionSome,
-        "None" => VariantLayout::OptionNone,
+        VARIANT_OK => VariantLayout::Ok,
+        VARIANT_ERR => VariantLayout::Err,
+        VARIANT_SOME => VariantLayout::OptionSome,
+        VARIANT_NONE => VariantLayout::OptionNone,
         _ => VariantLayout::Tagged,
     }
 }
@@ -161,6 +161,13 @@ pub fn variant_field_accessor(
     }
 }
 
+// ── Built-in variant name constants ─────────────────────────
+
+pub const VARIANT_SOME: &str = "Some";
+pub const VARIANT_NONE: &str = "None";
+pub const VARIANT_OK: &str = "Ok";
+pub const VARIANT_ERR: &str = "Err";
+
 // ── Positional field naming ─────────────────────────────────
 
 /// Generate the runtime field name for an unnamed (positional) variant field.
@@ -186,7 +193,7 @@ pub fn type_to_stdlib_module(ty: &crate::checker::Type) -> Option<&'static str> 
         Type::Set { .. } => Some(MOD_SET),
         Type::String => Some(MOD_STRING),
         Type::Number => Some(MOD_NUMBER),
-        Type::Option(_) => Some(MOD_OPTION),
+        _ if ty.is_option() => Some(MOD_OPTION),
         Type::Result { .. } => Some(MOD_RESULT),
         Type::Promise(_) => Some(MOD_PROMISE),
         Type::Named(name) if name == "Date" => Some(MOD_DATE),

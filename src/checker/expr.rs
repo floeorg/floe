@@ -163,11 +163,7 @@ impl Checker {
                     err: Box::new(err_ty),
                 }
             }
-            ExprKind::Some(inner) => {
-                let inner_ty = self.check_expr(inner);
-                Type::Option(Box::new(inner_ty))
-            }
-            ExprKind::None => Type::Option(Box::new(Type::Unknown)),
+            // Some/None are handled by check_construct as variant constructors
             ExprKind::Value(inner) => {
                 let inner_ty = self.check_expr(inner);
                 Type::Settable(Box::new(inner_ty))
@@ -337,7 +333,7 @@ impl Checker {
                 }
                 *ok
             }
-            Type::Option(inner) => *inner,
+            _ if ty.is_option() => ty.unwrap_option(),
             _ => {
                 self.emit_error(
                     format!(
@@ -401,7 +397,7 @@ impl Checker {
                         "expected `number`",
                     );
                 }
-                Type::Option(inner.clone())
+                Type::option_of((**inner).clone())
             }
             Type::Tuple(elements) => {
                 // Tuple indexing requires a numeric literal
@@ -1202,8 +1198,9 @@ impl Checker {
                     {
                         // Refine None type: if arg is Option<Unknown> and expected
                         // is Option<T>, record the concrete type for hover display
-                        if matches!(&arg_ty, Type::Option(inner) if matches!(**inner, Type::Unknown))
-                            && matches!(expected_ty, Type::Option(_))
+                        if arg_ty.is_option()
+                            && matches!(arg_ty.option_inner(), Some(Type::Unknown))
+                            && expected_ty.is_option()
                         {
                             self.expr_types.insert(e.id, expected_ty.clone());
                         }
@@ -1270,6 +1267,21 @@ impl Checker {
                     if field_types.len() == 1 { "" } else { "s" }
                 ),
             );
+        }
+
+        // Option<T>: infer T from the Some argument
+        if type_name == crate::type_layout::VARIANT_SOME {
+            let inner = args
+                .iter()
+                .find_map(|a| {
+                    if let Arg::Positional(e) = a {
+                        Some(self.expr_types.get(&e.id).cloned().unwrap_or(Type::Unknown))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(Type::Unknown);
+            return Type::option_of(inner);
         }
 
         // Return parent union type for variant constructors
@@ -1453,8 +1465,8 @@ impl Checker {
         }
         if let Type::Array(elem) = left_ty {
             self.ctx.lambda_param_hints = vec![(**elem).clone()];
-        } else if let Type::Option(inner) = left_ty {
-            self.ctx.lambda_param_hints = vec![(**inner).clone()];
+        } else if let Some(inner) = left_ty.option_inner() {
+            self.ctx.lambda_param_hints = vec![inner.clone()];
         }
 
         // Check lambda args and capture return type for generic inference
@@ -1467,7 +1479,9 @@ impl Checker {
         let infer_from_lambda = lambda_return.is_some()
             && match (&stdlib_fn.return_type, stdlib_fn.params.first()) {
                 (Type::Array(ret_elem), Some(Type::Array(in_elem))) => ret_elem != in_elem,
-                (Type::Option(ret_elem), Some(Type::Option(in_elem))) => ret_elem != in_elem,
+                (ret, Some(inp)) if ret.is_option() && inp.is_option() => {
+                    ret.option_inner() != inp.option_inner()
+                }
                 _ => false,
             };
         match (&stdlib_fn.return_type, left_ty) {
@@ -1475,10 +1489,10 @@ impl Checker {
                 Type::Array(Box::new(lambda_return.unwrap()))
             }
             (Type::Array(_), Type::Array(elem)) => Type::Array(elem.clone()),
-            (Type::Option(_), _) if infer_from_lambda => {
-                Type::Option(Box::new(lambda_return.unwrap()))
+            (ret, _) if ret.is_option() && infer_from_lambda => {
+                Type::option_of(lambda_return.unwrap())
             }
-            (Type::Option(_), Type::Option(inner)) => Type::Option(inner.clone()),
+            (ret, actual) if ret.is_option() && actual.is_option() => actual.clone(),
             _ => stdlib_fn.return_type.clone(),
         }
     }
@@ -1525,7 +1539,7 @@ impl Checker {
                     names.push(n.clone());
                 }
             }
-            Type::Array(inner) | Type::Option(inner) => {
+            Type::Array(inner) => {
                 Self::collect_generic_params_from_type(inner, names, seen);
             }
             Type::Tuple(types) => {
@@ -1552,6 +1566,13 @@ impl Checker {
             }
             Type::Set { element } => {
                 Self::collect_generic_params_from_type(element, names, seen);
+            }
+            Type::Union { variants, .. } => {
+                for (_, field_types) in variants {
+                    for ft in field_types {
+                        Self::collect_generic_params_from_type(ft, names, seen);
+                    }
+                }
             }
             Type::Foreign(s) => {
                 // Extract generic params from Foreign strings like "Context<T>"
@@ -1607,8 +1628,10 @@ impl Checker {
             (Type::Set { element: pe }, Type::Set { element: ae }) => {
                 Self::unify_for_inference(pe, ae, generics, subs);
             }
-            (Type::Option(p), Type::Option(a)) => {
-                Self::unify_for_inference(p, a, generics, subs);
+            (p, a) if p.is_option() && a.is_option() => {
+                if let (Some(pi), Some(ai)) = (p.option_inner(), a.option_inner()) {
+                    Self::unify_for_inference(pi, ai, generics, subs);
+                }
             }
             (Type::Result { ok: po, err: pe }, Type::Result { ok: ao, err: ae }) => {
                 Self::unify_for_inference(po, ao, generics, subs);
@@ -1656,7 +1679,13 @@ impl Checker {
             Type::Set { element } => Type::Set {
                 element: Box::new(Self::substitute_generics(element, subs)),
             },
-            Type::Option(inner) => Type::Option(Box::new(Self::substitute_generics(inner, subs))),
+            _ if ty.is_option() => {
+                if let Some(inner) = ty.option_inner() {
+                    Type::option_of(Self::substitute_generics(inner, subs))
+                } else {
+                    ty.clone()
+                }
+            }
             Type::Tuple(types) => Type::Tuple(
                 types
                     .iter()
@@ -2027,7 +2056,7 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
                     .first()
                     .map(simple_resolve_type_expr)
                     .unwrap_or(Type::Unknown);
-                Type::Option(Box::new(inner))
+                Type::option_of(inner)
             }
             type_layout::TYPE_SETTABLE => {
                 let inner = type_args

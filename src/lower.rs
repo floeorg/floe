@@ -792,8 +792,8 @@ mod tests {
     }
 
     #[test]
-    fn literal_none() {
-        assert_eq!(first_expr("None"), ExprKind::None);
+    fn none_is_identifier() {
+        assert_eq!(first_expr("None"), ExprKind::Identifier("None".to_string()));
     }
 
     #[test]
@@ -1045,7 +1045,7 @@ mod tests {
 
     #[test]
     fn some_constructor() {
-        assert!(matches!(first_expr("Some(1)"), ExprKind::Some(_)));
+        assert!(matches!(first_expr("Some(1)"), ExprKind::Construct { .. }));
     }
 
     // ── For blocks ────────────────────────────────────────────────
