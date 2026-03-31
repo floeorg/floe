@@ -1,1 +1,1 @@
-../../../docs/llms.txt
+../../llms.txt
