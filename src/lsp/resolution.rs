@@ -168,7 +168,8 @@ pub(super) fn enrich_from_imports(
                 } = &dts_export.ts_type
                 {
                     sym.kind = tower_lsp::lsp_types::SymbolKind::FUNCTION;
-                    sym.first_param_type = params.first().map(interop::ts_type_to_string);
+                    sym.first_param_type =
+                        params.first().map(|p| interop::ts_type_to_string(&p.ty));
                     sym.return_type_str = Some(interop::ts_type_to_string(return_type));
                 }
             }

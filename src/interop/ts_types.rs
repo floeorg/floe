@@ -8,6 +8,13 @@ pub struct ObjectField {
     pub optional: bool,
 }
 
+/// A parameter in a TypeScript function type, tracking optionality.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionParam {
+    pub ty: TsType,
+    pub optional: bool,
+}
+
 impl TsType {
     /// Returns true if this type contains null or undefined (directly or in a union).
     pub fn is_nullable(&self) -> bool {
@@ -42,7 +49,7 @@ pub enum TsType {
     Union(Vec<TsType>),
     /// Function: `(params) => ReturnType`
     Function {
-        params: Vec<TsType>,
+        params: Vec<FunctionParam>,
         return_type: Box<TsType>,
     },
     /// Array shorthand: `T[]`
@@ -74,7 +81,7 @@ pub fn ts_type_to_string(ty: &TsType) -> String {
             params,
             return_type,
         } => {
-            let params_str: Vec<String> = params.iter().map(ts_type_to_string).collect();
+            let params_str: Vec<String> = params.iter().map(|p| ts_type_to_string(&p.ty)).collect();
             format!(
                 "({}) => {}",
                 params_str.join(", "),
@@ -142,7 +149,10 @@ pub(super) fn parse_type_str(s: &str) -> TsType {
             let params = parse_param_types(params_str);
             let return_type = parse_type_str(ret_str.trim());
             return TsType::Function {
-                params,
+                params: params
+                    .into_iter()
+                    .map(|(ty, optional)| FunctionParam { ty, optional })
+                    .collect(),
                 return_type: Box::new(return_type),
             };
         }
@@ -207,9 +217,10 @@ pub(super) fn parse_type_str(s: &str) -> TsType {
     }
 }
 
-/// Parse parameter types from a param string like "x: string, y: number".
+/// Parse parameter types from a param string like "x: string, y?: number".
+/// Returns (type, optional) pairs.
 #[cfg(test)]
-pub(super) fn parse_param_types(params_str: &str) -> Vec<TsType> {
+pub(super) fn parse_param_types(params_str: &str) -> Vec<(TsType, bool)> {
     if params_str.trim().is_empty() {
         return Vec::new();
     }
@@ -223,10 +234,12 @@ pub(super) fn parse_param_types(params_str: &str) -> Vec<TsType> {
             }
             // "name: Type" or "name?: Type" or "...name: Type"
             if let Some(colon) = part.find(':') {
-                Some(parse_type_str(part[colon + 1..].trim()))
+                let before_colon = part[..colon].trim();
+                let optional = before_colon.ends_with('?');
+                Some((parse_type_str(part[colon + 1..].trim()), optional))
             } else {
                 // Bare type (rare in .d.ts but handle it)
-                Some(parse_type_str(part))
+                Some((parse_type_str(part), false))
             }
         })
         .collect()

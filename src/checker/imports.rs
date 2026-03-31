@@ -14,11 +14,18 @@ impl Checker {
                 self.lookup_resolved_symbol(&spec.name, resolved)
             } else if let Some(ref exports) = dts_exports {
                 // Look up in .d.ts exports
-                exports
-                    .iter()
-                    .find(|e| e.name == spec.name)
-                    .map(|e| interop::wrap_boundary_type(&e.ts_type))
-                    .unwrap_or_else(|| Type::Foreign(spec.name.clone()))
+                if let Some(dts_export) = exports.iter().find(|e| e.name == spec.name) {
+                    if let interop::TsType::Function { params, .. } = &dts_export.ts_type {
+                        let required = params.iter().filter(|p| !p.optional).count();
+                        if required < params.len() {
+                            self.fn_required_params
+                                .insert(effective_name.to_string(), required);
+                        }
+                    }
+                    interop::wrap_boundary_type(&dts_export.ts_type)
+                } else {
+                    Type::Foreign(spec.name.clone())
+                }
             } else {
                 // No .fl resolution and no .d.ts — type is foreign to Floe
                 Type::Foreign(spec.name.clone())

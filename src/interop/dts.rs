@@ -333,29 +333,37 @@ fn extract_from_namespace_body(body: &Option<TSModuleDeclarationBody<'_>>) -> Ve
 
 // ── Type conversion helpers ─────────────────────────────────────
 
+/// Convert oxc formal parameters to our FunctionParam list.
+fn convert_formal_params(params: &FormalParameters<'_>) -> Vec<FunctionParam> {
+    params
+        .items
+        .iter()
+        .map(|p| {
+            let ty = p
+                .type_annotation
+                .as_ref()
+                .map(|ta| convert_oxc_type(&ta.type_annotation))
+                .unwrap_or(TsType::Any);
+            FunctionParam {
+                ty,
+                optional: p.optional,
+            }
+        })
+        .collect()
+}
+
 /// Convert an oxc function declaration to our TsType::Function.
 fn convert_function(
     params: &FormalParameters<'_>,
     return_type: &Option<oxc_allocator::Box<'_, oxc_ast::ast::TSTypeAnnotation<'_>>>,
 ) -> TsType {
-    let param_types: Vec<TsType> = params
-        .items
-        .iter()
-        .map(|p| {
-            p.type_annotation
-                .as_ref()
-                .map(|ta| convert_oxc_type(&ta.type_annotation))
-                .unwrap_or(TsType::Any)
-        })
-        .collect();
-
     let ret = return_type
         .as_ref()
         .map(|ta| convert_oxc_type(&ta.type_annotation))
         .unwrap_or(TsType::Primitive("void".to_string()));
 
     TsType::Function {
-        params: param_types,
+        params: convert_formal_params(params),
         return_type: Box::new(ret),
     }
 }
@@ -449,20 +457,9 @@ macro_rules! convert_shared_type_arms {
 
             // Function type: (params) => ReturnType
             $prefix::TSFunctionType(func) => {
-                let param_types: Vec<TsType> = func
-                    .params
-                    .items
-                    .iter()
-                    .map(|p| {
-                        p.type_annotation
-                            .as_ref()
-                            .map(|ta| convert_oxc_type(&ta.type_annotation))
-                            .unwrap_or(TsType::Any)
-                    })
-                    .collect();
                 let ret = convert_oxc_type(&func.return_type.type_annotation);
                 TsType::Function {
-                    params: param_types,
+                    params: convert_formal_params(&func.params),
                     return_type: Box::new(ret),
                 }
             }
@@ -644,7 +641,10 @@ pub(super) fn parse_function_export(rest: &str) -> Option<DtsExport> {
     Some(DtsExport {
         name,
         ts_type: TsType::Function {
-            params,
+            params: params
+                .into_iter()
+                .map(|(ty, optional)| FunctionParam { ty, optional })
+                .collect(),
             return_type: Box::new(return_type),
         },
     })
