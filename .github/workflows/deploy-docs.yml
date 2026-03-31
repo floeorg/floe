@@ -26,6 +26,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install pnpm
+        run: npm install -g pnpm
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -41,12 +44,11 @@ jobs:
         run: wasm-pack build crates/floe-wasm --target web --out-dir ../../docs/site/public/playground/pkg
 
       - name: Install dependencies
-        working-directory: docs/site
-        run: npm install
+        run: pnpm install
 
       - name: Build site
         working-directory: docs/site
-        run: npm run build
+        run: npx astro build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
