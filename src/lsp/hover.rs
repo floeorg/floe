@@ -195,10 +195,6 @@ impl FloeLsp {
 
         // Fallback to builtin hover
         let hover_text = match word {
-            "Ok" => "```floe\nOk(value: T) -> Result<T, E>\n```\nWrap a success value in a Result.",
-            "Err" => {
-                "```floe\nErr(error: E) -> Result<T, E>\n```\nWrap an error value in a Result."
-            }
             "parse" => {
                 "```floe\nparse<T>(value: unknown) -> Result<T, Error>\n```\nCompiler built-in: validates a value matches type T at runtime."
             }

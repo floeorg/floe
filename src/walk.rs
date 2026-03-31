@@ -98,8 +98,6 @@ pub fn walk_expr_children_mut(expr: &mut Expr, f: &mut impl FnMut(&mut Expr)) {
         ExprKind::Await(inner)
         | ExprKind::Try(inner)
         | ExprKind::Unwrap(inner)
-        | ExprKind::Ok(inner)
-        | ExprKind::Err(inner)
         | ExprKind::Value(inner)
         | ExprKind::Grouped(inner)
         | ExprKind::Spread(inner) => walk_expr_mut(inner, f),
@@ -223,8 +221,6 @@ pub fn walk_expr_children(expr: &Expr, f: &mut impl FnMut(&Expr)) {
         ExprKind::Await(inner)
         | ExprKind::Try(inner)
         | ExprKind::Unwrap(inner)
-        | ExprKind::Ok(inner)
-        | ExprKind::Err(inner)
         | ExprKind::Value(inner)
         | ExprKind::Grouped(inner)
         | ExprKind::Spread(inner) => {

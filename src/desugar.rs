@@ -79,8 +79,8 @@ fn desugar_expr(expr: &mut Expr) {
             expr.kind = ExprKind::Identifier("null".to_string());
         }
         // Unchanged is NOT desugared — codegen detects it and omits the field
-        // Ok/Err are NOT desugared here because codegen emits `as const`
-        // annotations needed for TypeScript discriminated union narrowing.
+        // Ok/Err are now regular Construct expressions — codegen handles them
+        // in the Construct branch (emitting `as const` for TS discriminated unions).
         _ => {}
     }
 }

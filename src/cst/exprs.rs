@@ -245,30 +245,6 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::Todo) => self.bump(),
             Some(TokenKind::Unreachable) => self.bump(),
 
-            Some(TokenKind::Ok) => {
-                self.builder.start_node(SyntaxKind::OK_EXPR.into());
-                self.bump();
-                self.eat_trivia();
-                self.expect(TokenKind::LeftParen);
-                self.eat_trivia();
-                self.parse_expr();
-                self.eat_trivia();
-                self.expect(TokenKind::RightParen);
-                self.builder.finish_node();
-            }
-
-            Some(TokenKind::Err) => {
-                self.builder.start_node(SyntaxKind::ERR_EXPR.into());
-                self.bump();
-                self.eat_trivia();
-                self.expect(TokenKind::LeftParen);
-                self.eat_trivia();
-                self.parse_expr();
-                self.eat_trivia();
-                self.expect(TokenKind::RightParen);
-                self.builder.finish_node();
-            }
-
             Some(TokenKind::Value) => {
                 self.builder.start_node(SyntaxKind::VALUE_EXPR.into());
                 self.bump();
@@ -787,16 +763,6 @@ impl<'src> CstParser<'src> {
                 self.parse_comma_separated(Self::parse_pattern, TokenKind::RightParen);
                 self.expect(TokenKind::RightParen);
             }
-            Some(TokenKind::Ok) | Some(TokenKind::Err) => {
-                self.bump();
-                self.eat_trivia();
-                if self.at(TokenKind::LeftParen) {
-                    self.bump();
-                    self.eat_trivia();
-                    self.parse_comma_separated(Self::parse_pattern, TokenKind::RightParen);
-                    self.expect(TokenKind::RightParen);
-                }
-            }
             // Implicit variant pattern: .Variant or .Variant(args)
             Some(TokenKind::Dot) if matches!(self.peek_nth_non_trivia_kind(1), Some(TokenKind::Identifier(n)) if n.starts_with(char::is_uppercase)) =>
             {
@@ -820,13 +786,8 @@ impl<'src> CstParser<'src> {
                     if self.at(TokenKind::Dot) {
                         self.bump(); // .
                         self.eat_trivia();
-                        // Accept identifiers and keywords (Ok, Err, Some) after dot
-                        if self.is_ident()
-                            || matches!(
-                                self.current_kind(),
-                                Some(TokenKind::Ok) | Some(TokenKind::Err)
-                            )
-                        {
+                        // Accept identifiers after dot
+                        if self.is_ident() {
                             self.bump();
                         } else {
                             self.expect_ident();

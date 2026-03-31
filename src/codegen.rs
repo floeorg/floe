@@ -550,8 +550,6 @@ fn collect_constructors_from_expr(expr: &Expr, names: &mut HashSet<String>) {
         ExprKind::Try(e)
         | ExprKind::Unwrap(e)
         | ExprKind::Await(e)
-        | ExprKind::Ok(e)
-        | ExprKind::Err(e)
         | ExprKind::Value(e)
         | ExprKind::Unary { operand: e, .. } => {
             collect_constructors_from_expr(e, names);
@@ -672,7 +670,7 @@ fn collect_value_names_from_expr(expr: &Expr, names: &mut HashSet<String>) {
         ExprKind::Try(e) | ExprKind::Unwrap(e) | ExprKind::Await(e) => {
             collect_value_names_from_expr(e, names);
         }
-        ExprKind::Ok(e) | ExprKind::Err(e) | ExprKind::Value(e) => {
+        ExprKind::Value(e) => {
             collect_value_names_from_expr(e, names);
         }
         ExprKind::Match { subject, arms } => {

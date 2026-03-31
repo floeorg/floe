@@ -41,8 +41,6 @@ pub enum SyntaxKind {
     KW_TYPEOF,
 
     // Built-in constructors
-    KW_OK,
-    KW_ERR,
     KW_VALUE,
     KW_CLEAR,
     KW_UNCHANGED,
@@ -158,8 +156,6 @@ pub enum SyntaxKind {
     COLLECT_EXPR,
     TUPLE_EXPR,
     DOT_SHORTHAND,
-    OK_EXPR,
-    ERR_EXPR,
     VALUE_EXPR,
     PARSE_EXPR,
     MOCK_EXPR,
@@ -278,8 +274,6 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::Deriving => SyntaxKind::KW_DERIVING,
         TokenKind::Use => SyntaxKind::KW_USE,
         TokenKind::Typeof => SyntaxKind::KW_TYPEOF,
-        TokenKind::Ok => SyntaxKind::KW_OK,
-        TokenKind::Err => SyntaxKind::KW_ERR,
         TokenKind::Value => SyntaxKind::KW_VALUE,
         TokenKind::Clear => SyntaxKind::KW_CLEAR,
         TokenKind::Unchanged => SyntaxKind::KW_UNCHANGED,

@@ -472,10 +472,6 @@ pub enum ExprKind {
     Try(Box<Expr>),
 
     // -- Built-in constructors --
-    /// `Ok(expr)`
-    Ok(Box<Expr>),
-    /// `Err(expr)`
-    Err(Box<Expr>),
     /// `Value(expr)` — Settable value present
     Value(Box<Expr>),
     /// `Clear` — Settable value explicitly null

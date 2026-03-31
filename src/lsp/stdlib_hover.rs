@@ -42,10 +42,18 @@ pub(super) fn format_type(ty: &crate::checker::Type) -> String {
                 "Option<unknown>".to_string()
             }
         }
-        Type::Settable(inner) => format!("Settable<{}>", format_type(inner)),
-        Type::Result { ok, err } => {
-            format!("Result<{}, {}>", format_type(ok), format_type(err))
+        _ if ty.is_result() => {
+            let ok = ty
+                .result_ok()
+                .map(format_type)
+                .unwrap_or_else(|| "unknown".to_string());
+            let err = ty
+                .result_err()
+                .map(format_type)
+                .unwrap_or_else(|| "unknown".to_string());
+            format!("Result<{ok}, {err}>")
         }
+        Type::Settable(inner) => format!("Settable<{}>", format_type(inner)),
         Type::Tuple(types) => {
             let t: Vec<_> = types.iter().map(format_type).collect();
             format!("[{}]", t.join(", "))

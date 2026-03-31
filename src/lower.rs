@@ -1035,12 +1035,15 @@ mod tests {
 
     #[test]
     fn ok_constructor() {
-        assert!(matches!(first_expr("Ok(42)"), ExprKind::Ok(_)));
+        assert!(matches!(first_expr("Ok(42)"), ExprKind::Construct { .. }));
     }
 
     #[test]
     fn err_constructor() {
-        assert!(matches!(first_expr("Err(\"fail\")"), ExprKind::Err(_)));
+        assert!(matches!(
+            first_expr("Err(\"fail\")"),
+            ExprKind::Construct { .. }
+        ));
     }
 
     #[test]

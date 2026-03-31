@@ -88,10 +88,7 @@ fn option_of(t: Type) -> Type {
     Type::option_of(t)
 }
 fn result_of(ok: Type, err: Type) -> Type {
-    Type::Result {
-        ok: Box::new(ok),
-        err: Box::new(err),
-    }
+    Type::result_of(ok, err)
 }
 fn map_of(k: Type, v: Type) -> Type {
     Type::Map {

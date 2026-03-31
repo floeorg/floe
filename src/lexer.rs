@@ -722,8 +722,8 @@ mod tests {
         assert_eq!(
             lex("Ok Err Some None true false"),
             vec![
-                TokenKind::Ok,
-                TokenKind::Err,
+                TokenKind::Identifier("Ok".to_string()),
+                TokenKind::Identifier("Err".to_string()),
                 TokenKind::Identifier("Some".to_string()),
                 TokenKind::Identifier("None".to_string()),
                 TokenKind::Bool(true),
@@ -948,7 +948,7 @@ mod tests {
                 TokenKind::Match,
                 TokenKind::Identifier("x".to_string()),
                 TokenKind::LeftBrace,
-                TokenKind::Ok,
+                TokenKind::Identifier("Ok".to_string()),
                 TokenKind::LeftParen,
                 TokenKind::Identifier("v".to_string()),
                 TokenKind::RightParen,

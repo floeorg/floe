@@ -158,18 +158,6 @@ impl<'src> Lowerer<'src> {
                             span,
                         });
                     }
-                    SyntaxKind::KW_OK | SyntaxKind::KW_ERR => {
-                        let name = token.text().to_string();
-                        let fields: Vec<Pattern> = node
-                            .children()
-                            .filter(|c| c.kind() == SyntaxKind::PATTERN)
-                            .filter_map(|c| self.lower_pattern(&c))
-                            .collect();
-                        return Some(Pattern {
-                            kind: PatternKind::Variant { name, fields },
-                            span,
-                        });
-                    }
                     SyntaxKind::IDENT => {
                         let name = token.text().to_string();
                         if name.starts_with(char::is_uppercase) {

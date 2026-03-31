@@ -1,5 +1,6 @@
 ---
 source: tests/snapshot_codegen.rs
+assertion_line: 121
 expression: output
 ---
 function __floeEq(a: unknown, b: unknown): boolean {
@@ -62,7 +63,7 @@ const _res_mapped = { ok: true as const, value: 42 }.ok ? { ok: true as const, v
 
 const _res_map_err = { ok: false as const, error: "bad" }.ok ? { ok: false as const, error: "bad" } : { ok: false as const, error: ((e) => e)({ ok: false as const, error: "bad" }.error) };
 
-const _res_flat = { ok: true as const, value: 42 }.ok ? ((n) => { ok: true as const, value: n + 1 })({ ok: true as const, value: 42 }.value) : { ok: true as const, value: 42 };
+const _res_flat = { ok: true as const, value: 42 }.ok ? ((n) => ({ ok: true as const, value: n + 1 }))({ ok: true as const, value: 42 }.value) : { ok: true as const, value: 42 };
 
 const _res_unwrap = { ok: false as const, error: "fail" }.ok ? { ok: false as const, error: "fail" }.value : 0;
 

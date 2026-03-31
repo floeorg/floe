@@ -88,9 +88,7 @@ impl<'src> Formatter<'src> {
             SyntaxKind::GROUPED_EXPR => self.fmt_grouped(node),
             SyntaxKind::TUPLE_EXPR => self.fmt_tuple(node),
             SyntaxKind::ARRAY_EXPR => self.fmt_array(node),
-            SyntaxKind::OK_EXPR | SyntaxKind::ERR_EXPR | SyntaxKind::VALUE_EXPR => {
-                self.fmt_wrapper_expr(node)
-            }
+            SyntaxKind::VALUE_EXPR => self.fmt_wrapper_expr(node),
             SyntaxKind::PARSE_EXPR => self.fmt_parse_expr(node),
             SyntaxKind::MOCK_EXPR => self.fmt_mock_expr(node),
             SyntaxKind::JSX_ELEMENT => self.fmt_jsx(node),
