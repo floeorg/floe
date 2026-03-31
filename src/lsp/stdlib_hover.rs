@@ -74,11 +74,11 @@ pub(super) fn format_type(ty: &crate::checker::Type) -> String {
         }
         Type::Opaque { name, .. } => name.clone(),
         Type::Union { name, .. } => name.clone(),
-        Type::StringLiteralUnion { name, .. } => name.clone(),
         Type::TsUnion(members) => {
             let m: Vec<_> = members.iter().map(format_type).collect();
             m.join(" | ")
         }
+        Type::StringLiteral(s) => format!("\"{s}\""),
         Type::Never => "never".to_string(),
     }
 }

@@ -62,14 +62,11 @@ pub enum Type {
         name: String,
         variants: Vec<(String, Vec<Type>)>,
     },
-    /// String literal union: `"GET" | "POST" | "PUT" | "DELETE"`
-    StringLiteralUnion {
-        name: String,
-        variants: Vec<String>,
-    },
-    /// Untagged union from TypeScript interop: `Date | number | string`
+    /// Untagged union: `Date | number | string` or `"GET" | "POST"`
     /// Compatible if the value matches any member type.
     TsUnion(Vec<Type>),
+    /// String literal type: `"GET"`, `"POST"`, etc.
+    StringLiteral(String),
     /// Type variable (for inference)
     Var(usize),
     /// The unknown/any escape hatch
@@ -190,8 +187,33 @@ impl Type {
     pub(crate) fn is_primitive(&self) -> bool {
         matches!(
             self,
-            Type::Number | Type::String | Type::Bool | Type::Unit | Type::Undefined
+            Type::Number
+                | Type::String
+                | Type::Bool
+                | Type::Unit
+                | Type::Undefined
+                | Type::StringLiteral(_)
         )
+    }
+
+    /// If this is a TsUnion of all StringLiterals, return the string values.
+    pub(crate) fn as_string_literal_variants(&self) -> Option<Vec<&str>> {
+        if let Type::TsUnion(members) = self {
+            let strings: Vec<&str> = members
+                .iter()
+                .filter_map(|m| {
+                    if let Type::StringLiteral(s) = m {
+                        Some(s.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if strings.len() == members.len() && !strings.is_empty() {
+                return Some(strings);
+            }
+        }
+        None
     }
 
     pub(crate) fn display_name(&self) -> String {
@@ -246,11 +268,11 @@ impl Type {
                 }
                 name.clone()
             }
-            Type::StringLiteralUnion { name, .. } => name.clone(),
             Type::TsUnion(members) => {
                 let m: Vec<_> = members.iter().map(|t| t.display_name()).collect();
                 m.join(" | ")
             }
+            Type::StringLiteral(s) => format!("\"{s}\""),
             Type::Var(id) => format!("?T{id}"),
             Type::Unknown => "unknown".to_string(),
             Type::Unit => "()".to_string(),
@@ -395,10 +417,12 @@ impl TypeEnv {
                     variants: var_types,
                 }
             }
-            crate::parser::ast::TypeDef::StringLiteralUnion(variants) => Type::StringLiteralUnion {
-                name: name.to_string(),
-                variants: variants.clone(),
-            },
+            crate::parser::ast::TypeDef::StringLiteralUnion(variants) => Type::TsUnion(
+                variants
+                    .iter()
+                    .map(|s| Type::StringLiteral(s.clone()))
+                    .collect(),
+            ),
             crate::parser::ast::TypeDef::Alias(type_expr) => {
                 // For typeof aliases, use the pre-resolved env binding
                 // (simple_resolve_type_expr can't resolve typeof without env context)
