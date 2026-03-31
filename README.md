@@ -13,45 +13,60 @@
 <!-- A spacer -->
 <div>&nbsp;</div>
 
-Floe is a strict, functional language that compiles to TypeScript. It works with
-any TypeScript or React library. The compiler is written in Rust.
+Floe is a functional language that compiles to TypeScript. Pipes, pattern matching, Result/Option types, and full npm interop. The compiler is written in Rust.
 
-## Getting Started
+```floe
+import trusted { useState } from "react"
 
-```bash
-# Install
-cargo install floe
+type Todo {
+  id: string,
+  text: string,
+  done: boolean,
+}
 
-# Create a project
-floe init my-app && cd my-app && npm install
+export fn App() -> JSX.Element {
+  const [todos, setTodos] = useState<Array<Todo>>([])
 
-# Build
-floe build src/
+  const completed = todos
+    |> filter(.done)
+    |> length
+
+  <div>
+    <h1>Todos ({completed} done)</h1>
+    {todos |> map((todo) => <p key={todo.id}>{todo.text}</p>)}
+  </div>
+}
 ```
 
-## Editor Support
+## Install
 
-- **[VS Code](https://floeorg.github.io/floe/tooling/vscode/)** -- syntax highlighting, diagnostics, hover, go-to-definition
-- **[Neovim](https://floeorg.github.io/floe/tooling/neovim/)** -- tree-sitter highlighting + LSP
+```bash
+cargo install floe
+```
 
-## Vite Integration
+## Add to a Vite project
 
 ```bash
 npm install -D @floeorg/vite-plugin
 ```
 
 ```ts
+// vite.config.ts
 import floe from "@floeorg/vite-plugin"
+import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
 export default defineConfig({
-  plugins: [floe()],
+  plugins: [floe(), react()],
 })
 ```
+
+Write `.fl` files next to your `.ts` files. Import in either direction.
 
 ## Links
 
 - [Documentation](https://floeorg.github.io/floe)
 - [Language Tour](https://floeorg.github.io/floe/guide/tour/)
-- [CLI Reference](https://floeorg.github.io/floe/tooling/cli/)
+- [Your First Project](https://floeorg.github.io/floe/guide/first-program/)
+- [CLI Reference](https://floeorg.github.io/floe/reference/cli/)
 - [Changelog](CHANGELOG.md)

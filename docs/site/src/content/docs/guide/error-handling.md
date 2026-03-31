@@ -168,18 +168,7 @@ At runtime, `unreachable` throws `Error("unreachable")`.
 - **`todo`** = "I haven't written this yet" (development aid)
 - **`unreachable`** = "This should never happen" (safety assertion)
 
-## Runtime Type Validation with `parse<T>`
-
-The `parse<T>` built-in validates unknown data against a type at runtime. The compiler generates the validation code -- no runtime library needed.
-
-```floe
-const user = json |> parse<User>?
-const point = data |> parse<{ x: number, y: number }>?
-```
-
-`parse<T>` returns `Result<T, Error>`. Use `?` to unwrap or `match` to handle errors.
-
-See [Type-Driven Features](/guide/type-driven-features/) for the full guide on `parse<T>`, supported types, and generated output.
+For runtime type validation with `parse<T>`, see [Type-Driven Features](/guide/type-driven-features/).
 
 ## Comparison with TypeScript
 

@@ -16,8 +16,12 @@ title: Types Reference
 |------|-------------|
 | `Result<T, E>` | Success (`Ok(T)`) or failure (`Err(E)`) |
 | `Option<T>` | Present (`Some(T)`) or absent (`None`) |
+| `Settable<T>` | Three-state: `Value(T)`, `Clear`, or `Unchanged` (for partial updates) |
 | `Array<T>` | Ordered collection |
+| `Map<K, V>` | Immutable key-value map |
+| `Set<T>` | Immutable unique collection |
 | `Promise<T>` | Async value |
+| `JSX.Element` | React JSX element |
 
 ## Type Declarations
 
@@ -50,6 +54,21 @@ type User = {
   email: string;
   age: number;
 };
+```
+
+### Default Field Values
+
+Record fields can have default values, which are used when the field is omitted at construction:
+
+```floe
+type Config {
+  baseUrl: string,
+  timeout: number = 5000,
+  retries: number = 3,
+}
+
+const cfg = Config(baseUrl: "https://api.com")
+// timeout is 5000, retries is 3
 ```
 
 ### Record Type Composition

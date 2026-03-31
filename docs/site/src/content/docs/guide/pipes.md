@@ -79,7 +79,7 @@ const total = orders
 
 ## Debugging with `tap`
 
-Need to inspect a value mid-pipeline without breaking the chain? Use `tap`:
+`tap` runs a side-effect function (like logging) without breaking the pipeline:
 
 ```floe
 const result = users
@@ -131,7 +131,7 @@ const label = product
 
 ## When to Use Pipes
 
-Pipes shine when you have a sequence of transformations. They replace:
+Pipes replace nested function calls with a flat, left-to-right sequence:
 
 | Instead of | Use |
 |---|---|

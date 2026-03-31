@@ -1,0 +1,726 @@
+---
+import { Code } from "astro:components";
+import floeLang from "../../../../editors/vscode/syntaxes/floe.tmLanguage.json";
+---
+
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Floe - A functional language for the TypeScript ecosystem</title>
+    <meta
+      name="description"
+      content="A functional language that compiles to TypeScript. Use any npm package. Drop into any existing project. Eject to clean TypeScript anytime."
+    />
+    <link rel="icon" type="image/svg+xml" href="/floe/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      const t = localStorage.getItem("theme");
+      if (t === "light") document.documentElement.setAttribute("data-theme", "light");
+      else if (!t && window.matchMedia("(prefers-color-scheme: light)").matches)
+        document.documentElement.setAttribute("data-theme", "light");
+    </script>
+    <style>
+      /* ============ Reset ============ */
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      a { text-decoration: none; color: inherit; }
+      button { border: none; background: none; cursor: pointer; font: inherit; }
+      img { display: block; }
+
+      /* ============ Theme ============ */
+      :root[data-theme="dark"] {
+        --bg: #080e1a;
+        --bg-alt: #060b15;
+        --surface: #0b1221;
+        --surface-head: #0a1020;
+        --border: #162032;
+        --text: #d4dde8;
+        --text-dim: #7a8da2;
+        --text-faint: #4d6178;
+        --accent: #4d96e8;
+        --accent-hover: #6aabf0;
+        --dot-fl: rgba(77, 150, 232, 0.5);
+        --dot-ts: rgba(49, 120, 198, 0.5);
+        --code-bg: #0b1221;
+        --pill-bg: #0b1221;
+        --pill-border: #162032;
+        --glow: rgba(50, 120, 220, 0.06);
+      }
+
+      :root[data-theme="light"] {
+        --bg: #f5f8fc;
+        --bg-alt: #edf2f8;
+        --surface: #ffffff;
+        --surface-head: #f5f8fb;
+        --border: #dde4ed;
+        --text: #1a2535;
+        --text-dim: #5a6d82;
+        --text-faint: #8a9bb0;
+        --accent: #3075cc;
+        --accent-hover: #2565b5;
+        --dot-fl: rgba(48, 117, 204, 0.45);
+        --dot-ts: rgba(49, 120, 198, 0.45);
+        --code-bg: #111c2e;
+        --pill-bg: #ffffff;
+        --pill-border: #dde4ed;
+        --glow: rgba(50, 120, 220, 0.04);
+      }
+
+      /* ============ Base ============ */
+      html {
+        font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap {
+        max-width: 1020px;
+        margin: 0 auto;
+        padding-left: 28px;
+        padding-right: 28px;
+      }
+
+      /* ============ Glow ============ */
+      .glow {
+        position: fixed;
+        top: -250px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 800px;
+        height: 500px;
+        border-radius: 50%;
+        background: var(--glow);
+        filter: blur(80px);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      /* ============ Nav ============ */
+      nav {
+        position: relative;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 24px;
+        padding-bottom: 24px;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+
+      .logo img { width: 24px; height: 24px; }
+
+      .nav-right {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+
+      .nav-right a {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-dim);
+        transition: color 0.15s;
+      }
+
+      .nav-right a:hover { color: var(--text); }
+
+      .theme-btn {
+        margin-left: 4px;
+        padding: 6px;
+        border-radius: 6px;
+        color: var(--text-faint);
+        transition: color 0.15s, background 0.15s;
+      }
+
+      .theme-btn:hover {
+        color: var(--text-dim);
+        background: var(--border);
+      }
+
+      .theme-btn svg { width: 16px; height: 16px; display: block; }
+      [data-theme="dark"] .icon-moon { display: none; }
+      [data-theme="dark"] .icon-sun { display: block; }
+      [data-theme="light"] .icon-moon { display: block; }
+      [data-theme="light"] .icon-sun { display: none; }
+
+      /* ============ Hero ============ */
+      .hero {
+        position: relative;
+        z-index: 1;
+        padding-top: 88px;
+        padding-bottom: 96px;
+      }
+
+      .hero h1 {
+        font-size: clamp(32px, 5vw, 50px);
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+        max-width: 560px;
+      }
+
+      .hero p {
+        margin-top: 22px;
+        font-size: 16px;
+        line-height: 1.7;
+        color: var(--text-dim);
+        max-width: 400px;
+      }
+
+      .btns {
+        display: flex;
+        gap: 10px;
+        margin-top: 32px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        transition: all 0.15s;
+      }
+
+      .btn-accent {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .btn-accent:hover { background: var(--accent-hover); }
+
+      .btn-outline {
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        background: var(--surface);
+      }
+
+      .btn-outline:hover {
+        color: var(--text);
+        border-color: var(--text-faint);
+      }
+
+      /* ============ Section ============ */
+      .section {
+        position: relative;
+        z-index: 1;
+        padding-bottom: 100px;
+      }
+
+      .section h2 {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.25;
+      }
+
+      .section .desc {
+        margin-top: 10px;
+        margin-bottom: 28px;
+        font-size: 15px;
+        line-height: 1.7;
+        color: var(--text-dim);
+        max-width: 440px;
+      }
+
+      .desc code {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        color: var(--accent);
+        background: var(--surface);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+
+      /* ============ Code blocks ============ */
+      .cb {
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      .cb-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: var(--surface-head);
+        border-bottom: 1px solid var(--border);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text-faint);
+      }
+
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+      }
+
+      .dot-fl { background: var(--dot-fl); }
+      .dot-ts { background: var(--dot-ts); }
+
+      .cb :global(pre) {
+        margin: 0 !important;
+        padding: 18px 20px !important;
+        background: var(--code-bg) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        font-size: 13px !important;
+        line-height: 1.7 !important;
+        text-align: left !important;
+      }
+
+      /* ============ Side-by-side ============ */
+      .compare {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        align-items: stretch;
+      }
+
+      .compare-arrow {
+        display: none;
+      }
+
+      /* ============ Connector pill ============ */
+      .connector {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 0;
+      }
+
+      .connector::before,
+      .connector::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+
+      .connector span {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text-faint);
+        background: var(--pill-bg);
+        border: 1px solid var(--pill-border);
+        padding: 4px 14px;
+        border-radius: 20px;
+        white-space: nowrap;
+      }
+
+      /* ============ Band ============ */
+      .band {
+        position: relative;
+        z-index: 1;
+        background: var(--bg-alt);
+        padding: 72px 0;
+        margin-bottom: 100px;
+      }
+
+      .band .section { padding-bottom: 0; }
+
+      /* ============ Steps ============ */
+      .get-started {
+        position: relative;
+        z-index: 1;
+        padding-bottom: 72px;
+      }
+
+      .get-started h2 {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 28px;
+      }
+
+      .install-cmd {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+        padding: 14px 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        margin-bottom: 24px;
+        display: inline-block;
+      }
+
+      .install-prompt {
+        color: var(--text-faint);
+        user-select: none;
+        margin-right: 8px;
+      }
+
+      .get-started-btns {
+        display: flex;
+        gap: 10px;
+      }
+
+      /* ============ Footer ============ */
+      footer {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid var(--border);
+        padding: 24px 0;
+        font-size: 13px;
+        color: var(--text-faint);
+      }
+
+      .footer-links {
+        display: flex;
+        gap: 20px;
+      }
+
+      .footer-links a {
+        color: var(--text-faint);
+        transition: color 0.15s;
+      }
+
+      .footer-links a:hover { color: var(--text-dim); }
+
+      /* ============ Responsive ============ */
+      @media (max-width: 768px) {
+        .hero { padding-top: 56px; padding-bottom: 64px; }
+        .compare { grid-template-columns: 1fr; }
+        .get-started-btns { flex-wrap: wrap; }
+        footer { flex-direction: column; gap: 12px; text-align: center; }
+        .band { padding: 56px 0; margin-bottom: 72px; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="glow"></div>
+
+    <nav class="wrap">
+      <a href="/floe/" class="logo">
+        <img src="/floe/logo.svg" alt="Floe" />
+        Floe
+      </a>
+      <div class="nav-right">
+        <a href="/floe/guide/tour/">Tour</a>
+        <a href="/floe/guide/introduction/">Docs</a>
+        <a href="/floe/playground/">Playground</a>
+        <a href="https://github.com/floeorg/floe">GitHub</a>
+        <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">
+          <svg class="icon-sun" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+          </svg>
+          <svg class="icon-moon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+          </svg>
+        </button>
+      </div>
+    </nav>
+
+    <section class="hero wrap">
+      <h1>A functional language for the TypeScript ecosystem</h1>
+      <p>
+        Floe compiles to TypeScript you can read and debug.
+        It works with any npm package and fits into projects you already have.
+      </p>
+      <div class="btns">
+        <a href="/floe/guide/introduction/" class="btn btn-accent">Get Started</a>
+        <a href="/floe/playground/" class="btn btn-outline">Playground</a>
+      </div>
+    </section>
+
+    <!-- Side-by-side comparison -->
+    <section class="section wrap">
+      <h2>Write Floe, ship TypeScript</h2>
+      <p class="desc">
+        Floe looks like TypeScript with pipes and pattern matching.
+        The compiler outputs <code>.tsx</code> files you can check into git.
+      </p>
+      <div class="compare">
+        <div class="cb">
+          <div class="cb-head">
+            <span class="dot dot-fl"></span>
+            app.fl
+          </div>
+          <Code
+            code={`import trusted { useState } from "react"
+
+type Todo {
+  id: string,
+  text: string,
+  done: boolean,
+}
+
+export fn App() -> JSX.Element {
+  const [todos, setTodos] = useState<Array<Todo>>([])
+
+  const completed = todos
+    |> filter(.done)
+    |> length
+
+  fn toggle(id: string) -> () {
+    setTodos(todos |> map((todo) =>
+      match todo.id == id {
+        true -> Todo(..todo, done: !todo.done),
+        false -> todo,
+      }
+    ))
+  }
+
+
+  <div>
+    <h1>Todos ({completed} done)</h1>
+    {todos |> map((todo) =>
+      <p key={todo.id} onClick={() => toggle(todo.id)}>
+        {todo.text}
+      </p>
+    )}
+  </div>
+}`}
+            lang={floeLang}
+            theme="github-dark-default"
+          />
+        </div>
+        <div class="cb">
+          <div class="cb-head">
+            <span class="dot dot-ts"></span>
+            app.tsx
+          </div>
+          <Code
+            code={`import { useState } from "react";
+
+type Todo = {
+  id: string;
+  text: string;
+  done: boolean;
+};
+
+export function App(): JSX.Element {
+  const [todos, setTodos] = useState<Todo[]>([]);
+
+  const completed = todos
+    .filter((todo) => todo.done)
+    .length;
+
+  function toggle(id: string): void {
+    setTodos(todos.map((todo) =>
+      todo.id === id
+        ? { ...todo, done: !todo.done }
+        : todo
+    ));
+  }
+
+  return (
+    <div>
+      <h1>Todos ({completed} done)</h1>
+      {todos.map((todo) =>
+        <p key={todo.id} onClick={() => toggle(todo.id)}>
+          {todo.text}
+        </p>
+      )}
+    </div>
+  );
+}`}
+            lang="tsx"
+            theme="github-dark-default"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipes -->
+    <section class="section wrap">
+      <h2>Pipes</h2>
+      <p class="desc">
+        Chain transformations in reading order with <code>|&gt;</code>.
+        Dot shorthands pull fields. Placeholders slot arguments where you want them.
+      </p>
+      <div class="cb">
+        <div class="cb-head">
+          <span class="dot dot-fl"></span>
+          pipeline.fl
+        </div>
+        <Code
+          code={`// Dot shorthand — .field becomes an accessor function
+const activeNames = users
+  |> filter(.isActive)
+  |> sort_by(.lastLogin)
+  |> map(.displayName)
+
+// Placeholder _ controls argument position
+const discounted = items
+  |> map(.price)
+  |> filter(less_than(_, 100))
+  |> reduce(add, 0, _)
+
+// Tap for side effects without breaking the chain
+const result = data
+  |> validate
+  |> tap(Console.log)
+  |> transform
+  |> save`}
+          lang={floeLang}
+          theme="github-dark-default"
+        />
+      </div>
+    </section>
+
+    <!-- Pattern matching — tinted band -->
+    <div class="band">
+      <section class="section wrap">
+        <h2>Exhaustive pattern matching</h2>
+        <p class="desc">
+          Add a variant to a union type. The compiler flags every <code>match</code>
+          that doesn't handle it yet.
+        </p>
+        <div class="cb">
+          <div class="cb-head">
+            <span class="dot dot-fl"></span>
+            route.fl
+          </div>
+          <Code
+            code={`type Route {
+  | Home
+  | Profile(string)
+  | Settings
+  | NotFound
+}
+
+fn render(route: Route) -> JSX.Element {
+  match route {
+    Home -> <HomePage />,
+    Profile(id) -> <ProfilePage id={id} />,
+    Settings -> <SettingsPage />,
+    NotFound -> <NotFoundPage />,
+  }
+}`}
+            lang={floeLang}
+            theme="github-dark-default"
+          />
+        </div>
+      </section>
+    </div>
+
+    <!-- Error handling -->
+    <section class="section wrap">
+      <h2>Result and Option types</h2>
+      <p class="desc">
+        Floe has no null, undefined, or exceptions.
+        Functions return <code>Result</code> or <code>Option</code>, and <code>?</code> propagates errors up.
+      </p>
+      <div class="cb">
+        <div class="cb-head">
+          <span class="dot dot-fl"></span>
+          user.fl
+        </div>
+        <Code
+          code={`fn getUser(id: string) -> Result<User, ApiError> {
+  const response = fetch("/api/users/{id}")?
+  const user = response.json()?
+
+  Ok(user)
+}
+
+// The caller sees exactly what can go wrong
+match getUser("123") {
+  Ok(user) -> renderProfile(user),
+  Err(NotFound) -> <p>User not found</p>,
+  Err(Unauthorized) -> redirect("/login"),
+}`}
+          lang={floeLang}
+          theme="github-dark-default"
+        />
+      </div>
+    </section>
+
+    <!-- Drop in -->
+    <section class="section wrap">
+      <h2>Works inside existing projects</h2>
+      <p class="desc">
+        Add the Vite plugin and write <code>.fl</code> files alongside <code>.ts</code>.
+        Import in either direction.
+      </p>
+      <div class="cb">
+        <div class="cb-head">
+          <span class="dot dot-ts"></span>
+          vite.config.ts
+        </div>
+        <Code
+          code={`import floe from "@floeorg/vite-plugin"
+import { defineConfig } from "vite"
+
+export default defineConfig({
+  plugins: [floe()],
+})`}
+          lang="ts"
+          theme="github-dark-default"
+        />
+      </div>
+      <div class="connector">
+        <span>then import .fl from TypeScript</span>
+      </div>
+      <div class="cb">
+        <div class="cb-head">
+          <span class="dot dot-ts"></span>
+          main.tsx
+        </div>
+        <Code
+          code={`import { App } from "./app.fl"
+
+ReactDOM.createRoot(document.getElementById("root")!).render(<App />)`}
+          lang="tsx"
+          theme="github-dark-default"
+        />
+      </div>
+    </section>
+
+    <!-- Get started -->
+    <section class="get-started wrap">
+      <h2>Get started</h2>
+      <div class="install-cmd">
+        <span class="install-prompt">$</span> cargo install floe
+      </div>
+      <div class="get-started-btns">
+        <a href="/floe/guide/installation/" class="btn btn-accent">Installation Guide</a>
+        <a href="/floe/guide/tour/" class="btn btn-outline">Language Tour</a>
+      </div>
+    </section>
+
+    <footer class="wrap">
+      <span>Floe is open source under MIT.</span>
+      <div class="footer-links">
+        <a href="/floe/guide/introduction/">Docs</a>
+        <a href="/floe/guide/tour/">Tour</a>
+        <a href="/floe/playground/">Playground</a>
+        <a href="https://github.com/floeorg/floe">GitHub</a>
+      </div>
+    </footer>
+
+    <script is:inline>
+      document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.documentElement;
+        const current = html.getAttribute("data-theme");
+        const next = current === "dark" ? "light" : "dark";
+        html.setAttribute("data-theme", next);
+        localStorage.setItem("theme", next);
+      });
+    </script>
+  </body>
+</html>

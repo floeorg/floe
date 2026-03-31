@@ -20,8 +20,9 @@ const name: string = "hello"
 export const PI = 3.14159
 
 // Destructuring
-const [a, b] = pair
-const { name, age } = user
+const (a, b) = pair             // tuple
+const [first, second] = items   // array
+const { name, age } = user      // record
 ```
 
 ### Function
@@ -119,6 +120,38 @@ for Array<User> {
 }
 ```
 
+### Trait
+
+```floe
+trait Display {
+  fn display(self) -> string
+}
+
+// Trait with default implementation
+trait Eq {
+  fn eq(self, other: Self) -> boolean
+  fn neq(self, other: Self) -> boolean {
+    !(self |> eq(other))
+  }
+}
+
+// Implement a trait
+for User: Display {
+  fn display(self) -> string {
+    `${self.name} (${self.age})`
+  }
+}
+```
+
+### Test Block
+
+```floe
+test "addition works" {
+  assert add(1, 2) == 3
+  assert add(-1, 1) == 0
+}
+```
+
 ## Expressions
 
 ### Literals
@@ -174,7 +207,8 @@ expr |> match {
 }
 ```
 
-Patterns: literals (`42`, `"hello"`, `true`), ranges (`1..10`), variants (`Ok(x)`), records (`{ x, y }`), string patterns (`"/users/{id}"`), bindings (`x`), wildcard (`_`).
+Patterns: literals (`42`, `"hello"`, `true`), ranges (`1..10`), variants (`Ok(x)`), records (`{ x, y }`), string patterns (`"/users/{id}"`), bindings (`x`), wildcard (`_`), array patterns (`[first, ..rest]`).
+
 ### Function Call
 
 ```floe
@@ -267,6 +301,16 @@ import { name } from "module"
 import { name as alias } from "module"
 import { a, b, c } from "module"
 
+// npm imports are unsafe by default
+import { parseYaml } from "yaml-lib"
+const result = try parseYaml(input)   // wraps in Result<T, Error>
+
+// trusted imports skip the try requirement
+import trusted { useState } from "react"
+
+// Per-function trust
+import { trusted capitalize, fetchData } from "some-lib"
+
 // Import for-block functions by type
 import { for User } from "./helpers"
 import { for Array, for Map } from "./collections"
@@ -278,7 +322,7 @@ import { Todo, Filter, for Array } from "./todo"
 ## Patterns
 
 ```floe
-42                    // literal
+42                    // number literal
 "hello"               // string literal
 true                  // boolean literal
 x                     // binding
@@ -286,5 +330,10 @@ _                     // wildcard
 Ok(x)                 // variant
 Some(inner)           // option
 { field, other }      // record destructure
-1..10                 // range
+1..10                 // range (inclusive)
+[]                    // empty array
+[only]                // single-element array
+[first, ..rest]       // array with rest
+"/users/{id}"         // string pattern with captures
+_ when x > 10        // guard
 ```

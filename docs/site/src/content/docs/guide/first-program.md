@@ -1,41 +1,53 @@
 ---
-title: Your First Program
+title: Your First Project
 ---
 
-## Hello World
+## Vite + React Setup
 
-Create a file called `hello.fl`:
-
-```floe
-export fn greet(name: string) -> string {
-  `Hello, ${name}!`
-}
-
-greet("world") |> Console.log
-```
-
-Compile it:
+Scaffold a React project and add Floe:
 
 ```bash
-floe build hello.fl
+npm create vite@latest my-app -- --template react-ts
+cd my-app
+npm install
+npm install -D @floeorg/vite-plugin
 ```
 
-This produces `hello.ts`:
+### Configure Vite
 
 ```typescript
-export function greet(name: string): string {
-  return `Hello, ${name}!`;
-}
+// vite.config.ts
+import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react"
+import floe from "@floeorg/vite-plugin"
 
-console.log(greet("world"));
+export default defineConfig({
+  plugins: [
+    floe(),  // must come before React plugin
+    react(),
+  ],
+})
 ```
 
-## A React Component
+### Configure TypeScript
 
-Create `counter.fl`:
+Add `allowArbitraryExtensions` and `rootDirs` to `tsconfig.json` so TypeScript can resolve `.fl` imports:
+
+```json
+{
+  "compilerOptions": {
+    "allowArbitraryExtensions": true,
+    "rootDirs": ["./src", "./.floe/src"]
+  }
+}
+```
+
+### Write a Component
+
+Create `src/Counter.fl`:
 
 ```floe
-import { useState } from "react"
+import trusted { useState } from "react"
 
 export fn Counter() -> JSX.Element {
   const [count, setCount] = useState(0)
@@ -47,41 +59,50 @@ export fn Counter() -> JSX.Element {
 }
 ```
 
-Compile it:
+Import it from your existing TypeScript:
+
+```typescript
+// src/App.tsx
+import { Counter } from "./Counter.fl"
+
+function App() {
+  return <Counter />
+}
+```
+
+### Run the Dev Server
 
 ```bash
-floe build counter.fl
+npm run dev
 ```
 
-This produces `counter.tsx`, a standard React component that works with any React setup.
+Vite compiles `.fl` files on the fly. HMR works automatically.
 
-## Using Pipes
+## Standalone (without Vite)
 
-Pipes let you read transformations left-to-right instead of inside-out:
+For scripts or non-React projects, use `floe build` directly:
 
-```floe
-// Without pipes (nested calls)
-const result = toString(add(multiply(value, 2), 1))
+```bash
+# Create a file
+cat > hello.fl << 'EOF'
+export fn greet(name: string) -> string {
+  `Hello, ${name}!`
+}
 
-// With pipes (left to right)
-const result = value
-  |> multiply(2)
-  |> add(1)
-  |> toString
+greet("world") |> Console.log
+EOF
+
+# Compile to TypeScript
+floe build hello.fl
+
+# Run the output
+npx tsx hello.ts
 ```
 
-By default, the piped value is inserted as the first argument. Use `_` when you need it in a different position: `value |> f(other, _)` becomes `f(other, value)`.
+### Type Checking
 
-## Type Checking
-
-Run the type checker without generating output:
+Run the checker without generating output:
 
 ```bash
 floe check src/
 ```
-
-This catches errors like:
-- Using `any` (use `unknown` instead)
-- Nullable values without `Option<T>`
-- Non-exhaustive pattern matches
-- Unused variables and imports

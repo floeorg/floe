@@ -58,7 +58,7 @@ export function App(): JSX.Element {
   const completedCount = length(filter(todos, (t) => t.done));
 
   return <div>
-    <h1>Todos ({completed} done)</h1>
+    <h1>Todos ({completedCount} done)</h1>
   </div>;
 }
 ```
@@ -69,3 +69,45 @@ export function App(): JSX.Element {
 2. **Plain output** - the compiler emits readable TypeScript
 3. **Eject anytime** - if you stop using Floe, you have normal `.ts` files
 4. **Strictness is a feature** - every restriction exists to prevent a category of bugs
+
+## How Floe Compares
+
+### vs Gleam
+
+| | Gleam | Floe |
+|---|---|---|
+| **Target** | Erlang/JS | TypeScript |
+| **Ecosystem** | Hex/npm | npm |
+| **JSX** | No | Yes |
+| **React** | No | First-class |
+| **Syntax** | ML-family | TS-family |
+| **Pipes** | Yes | Yes |
+| **Pattern matching** | Yes | Yes |
+| **Adoption** | Hex + npm | npm |
+
+Floe borrows Gleam's ideas (pipes, Result, strict type safety) but targets the TypeScript/React ecosystem.
+
+### vs Elm
+
+| | Elm | Floe |
+|---|---|---|
+| **Target** | JavaScript | TypeScript |
+| **Architecture** | TEA required | Any React pattern |
+| **npm interop** | Ports (indirect) | Direct imports |
+| **Learning curve** | ML-family syntax | TS-family syntax |
+| **JSX** | No (virtual DOM DSL) | Yes |
+| **Community** | Small | TS/React ecosystem |
+
+Floe does not enforce an architecture pattern. You choose how to structure your code.
+
+### vs ReScript
+
+| | ReScript | Floe |
+|---|---|---|
+| **Target** | JavaScript | TypeScript |
+| **Syntax** | OCaml-inspired | TS-inspired |
+| **JSX** | Custom (`@react.component`) | Standard JSX |
+| **npm interop** | Bindings required | Direct imports |
+| **Output** | JavaScript | TypeScript |
+
+Floe's output is TypeScript, not JavaScript. The output itself is type-safe and can be checked by `tsc`.
