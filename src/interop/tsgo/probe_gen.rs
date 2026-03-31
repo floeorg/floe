@@ -1096,7 +1096,6 @@ pub(super) fn type_expr_to_ts(ty: &TypeExpr) -> String {
                 "()" => "void",
                 "undefined" => "undefined",
                 "never" => "never",
-                "bool" => "boolean",
                 "Option" if type_args.len() == 1 => {
                     let inner = type_expr_to_ts(&type_args[0]);
                     return format!("FloeOption<{inner}>");

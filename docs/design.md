@@ -395,7 +395,7 @@ The return type of `collect { ... }` is `Result<T, Array<E>>` where:
 | `map` | `Result<T, E>, (T) -> U -> Result<U, E>` | Transform Ok value |
 | `mapErr` | `Result<T, E>, (E) -> F -> Result<T, F>` | Transform Err value |
 | `flatMap` | `Result<T, E>, (T) -> Result<U, E> -> Result<U, E>` | Chain result-returning ops |
-| `filter` | `Result<T, E>, (T) -> bool, E -> Result<T, E>` | Keep Ok if predicate passes |
+| `filter` | `Result<T, E>, (T) -> boolean, E -> Result<T, E>` | Keep Ok if predicate passes |
 | `unwrapOr` | `Result<T, E>, T -> T` | Extract Ok or default |
 | `or` | `Result<T, E>, Result<T, E> -> Result<T, E>` | First Ok, else second |
 | `values` | `Array<Result<T, E>> -> Array<T>` | Extract all Ok values |
@@ -405,8 +405,8 @@ The return type of `collect { ... }` is `Result<T, Array<E>>` where:
 | `zip` | `Result<T, E>, Result<U, E> -> Result<(T, U), E>` | Combine two Results |
 | `inspect` | `Result<T, E>, (T) -> () -> Result<T, E>` | Side-effect on Ok |
 | `inspectErr` | `Result<T, E>, (E) -> () -> Result<T, E>` | Side-effect on Err |
-| `isOk` | `Result<T, E> -> bool` | Check Ok |
-| `isErr` | `Result<T, E> -> bool` | Check Err |
+| `isOk` | `Result<T, E> -> boolean` | Check Ok |
+| `isErr` | `Result<T, E> -> boolean` | Check Err |
 | `toOption` | `Result<T, E> -> Option<T>` | Drop error |
 | `all` | `Array<Result<T, E>> -> Result<Array<T>, E>` | Collect, fail on first Err |
 | `any` | `Array<Result<T, E>> -> Result<T, Array<E>>` | First Ok, or all Errs |
@@ -455,7 +455,7 @@ const rows = data |> Option.unwrapOr([])
 |---|---|---|
 | `map` | `Option<T>, (T) -> U -> Option<U>` | Transform inner value |
 | `flatMap` | `Option<T>, (T) -> Option<U> -> Option<U>` | Chain option-returning ops |
-| `filter` | `Option<T>, (T) -> bool -> Option<T>` | Keep Some if predicate passes |
+| `filter` | `Option<T>, (T) -> boolean -> Option<T>` | Keep Some if predicate passes |
 | `unwrapOr` | `Option<T>, T -> T` | Extract or default |
 | `or` | `Option<T>, Option<T> -> Option<T>` | First Some, else second |
 | `values` | `Array<Option<T>> -> Array<T>` | Extract all Some values |
@@ -463,8 +463,8 @@ const rows = data |> Option.unwrapOr([])
 | `flatten` | `Option<Option<T>> -> Option<T>` | Unwrap nested |
 | `zip` | `Option<T>, Option<U> -> Option<(T, U)>` | Combine two Options |
 | `inspect` | `Option<T>, (T) -> () -> Option<T>` | Side-effect |
-| `isSome` | `Option<T> -> bool` | Check present |
-| `isNone` | `Option<T> -> bool` | Check absent |
+| `isSome` | `Option<T> -> boolean` | Check present |
+| `isNone` | `Option<T> -> boolean` | Check absent |
 | `toResult` | `Option<T>, E -> Result<T, E>` | Convert to Result |
 | `toErr` | `Option<E> -> Result<(), E>` | Convert to Err (for `{ data, error }`) |
 | `all` | `Array<Option<T>> -> Option<Array<T>>` | Collect, None if any missing |
@@ -864,14 +864,14 @@ Two syntactic forms are supported:
 **Block form** — group multiple functions:
 
 ```floe
-type User { name: string, age: number, active: bool }
+type User { name: string, age: number, active: boolean }
 
 for User {
   fn display(self) -> string {
     `${self.name} (${self.age})`
   }
 
-  fn isAdult(self) -> bool {
+  fn isAdult(self) -> boolean {
     self.age >= 18
   }
 

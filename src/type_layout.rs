@@ -29,7 +29,6 @@ pub const TYPE_RESULT: &str = "Result";
 pub const TYPE_ARRAY: &str = "Array";
 pub const TYPE_ERROR: &str = "Error";
 pub const TYPE_RESPONSE: &str = "Response";
-pub const TYPE_BOOL: &str = "bool";
 pub const TYPE_NEVER: &str = "never";
 pub const TYPE_PROMISE: &str = "Promise";
 pub const TYPE_MAP: &str = "Map";
@@ -54,7 +53,6 @@ pub fn is_builtin_type(name: &str) -> bool {
             | TYPE_ARRAY
             | TYPE_ERROR
             | TYPE_RESPONSE
-            | TYPE_BOOL
             | TYPE_NEVER
             | TYPE_PROMISE
             | TYPE_MAP
