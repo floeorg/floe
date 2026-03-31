@@ -633,3 +633,40 @@ fn idempotent_long_array_with_constructors() {
         r#"const navItems: Array<NavItem> = [NavItem(to: "/", label: "Dashboard", icon: Grid), NavItem(to: "/board", label: "Board", icon: Columns), NavItem(to: "/backlog", label: "Backlog", icon: List)]"#,
     );
 }
+
+// ── JSX multiline arrow body in expression child ──────────
+
+#[test]
+fn format_jsx_arrow_with_multiline_jsx_body_breaks_after_arrow() {
+    assert_fmt(
+        r#"<nav className="flex-1 p-2">{items |> map((item) => <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
+        r#"<nav className="flex-1 p-2">
+    {items |> map((item) =>
+        <NavLink
+            key={item.to}
+            to={item.to}
+            className="flex items-center gap-3 px-3 py-2 rounded-md"
+        >
+            <span>{item.icon}</span>
+            {item.label}
+        </NavLink>
+    )}
+</nav>"#,
+    );
+}
+
+#[test]
+fn idempotent_jsx_arrow_with_multiline_jsx_body() {
+    assert_idempotent(
+        r#"<nav className="flex-1 p-2">{items |> map((item) => <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
+    );
+}
+
+#[test]
+fn format_jsx_arrow_simple_jsx_stays_inline() {
+    // Arrow with inline JSX body should not break
+    assert_fmt(
+        r#"<div>{items |> map((x) => <span>{x}</span>)}</div>"#,
+        r#"<div>{items |> map((x) => <span>{x}</span>)}</div>"#,
+    );
+}

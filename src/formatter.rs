@@ -279,6 +279,14 @@ impl<'src> Formatter<'src> {
         self.col + first_line_len <= MAX_WIDTH
     }
 
+    /// Check if a node is a JSX element that formats as multiline.
+    pub(crate) fn is_multiline_jsx(&self, node: &SyntaxNode) -> bool {
+        node.kind() == SyntaxKind::JSX_ELEMENT && {
+            let inline = self.try_inline(|f| f.fmt_jsx(node));
+            inline.contains('\n')
+        }
+    }
+
     // ── CST query helpers ───────────────────────────────────────
 
     pub(crate) fn has_token(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {

@@ -618,7 +618,24 @@ impl Formatter<'_> {
             f.write(")");
         });
 
-        if self.fits_inline(&inline) {
+        if !inline.contains('\n') && self.fits_inline(&inline) {
+            self.write(&inline);
+        } else if args.len() == 1
+            && inline.contains('\n')
+            && self.fits_inline(&inline)
+            && self.arg_has_jsx_arrow_body(&args[0])
+        {
+            // Single arg with arrow returning multiline JSX: hug format
+            // map((item) =>
+            //     <Body />
+            // )
+            self.write("(");
+            self.fmt_arg(&args[0]);
+            self.newline();
+            self.write_indent();
+            self.write(")");
+        } else if self.fits_inline(&inline) {
+            // Multiline content but not JSX arrow: write as-is (e.g. match in arrow)
             self.write(&inline);
         } else {
             // Multi-line args
@@ -635,6 +652,15 @@ impl Formatter<'_> {
             self.write_indent();
             self.write(")");
         }
+    }
+
+    /// Check if an ARG node contains an arrow expression whose body is a multiline JSX element.
+    /// Only checks direct children of the arg, not deeply nested arrows.
+    fn arg_has_jsx_arrow_body(&self, arg: &SyntaxNode) -> bool {
+        arg.children().any(|c| {
+            c.kind() == SyntaxKind::ARROW_EXPR
+                && c.children().any(|body| self.is_multiline_jsx(&body))
+        })
     }
 
     pub(crate) fn fmt_arg(&mut self, node: &SyntaxNode) {
@@ -882,15 +908,29 @@ impl Formatter<'_> {
             }
             self.fmt_param(param);
         }
-        self.write(") => ");
+        self.write(")");
 
-        for child in node.children() {
-            if child.kind() != SyntaxKind::PARAM {
-                self.fmt_node(&child);
-                return;
+        // Find the body node
+        let body = node.children().find(|c| c.kind() != SyntaxKind::PARAM);
+
+        if let Some(body) = body {
+            // Only break after => for JSX elements that format as multiline.
+            // Blocks and match expressions should stay on the same line as =>.
+            if self.is_multiline_jsx(&body) {
+                self.write(" =>");
+                self.indent += 1;
+                self.newline();
+                self.write_indent();
+                self.fmt_node(&body);
+                self.indent -= 1;
+            } else {
+                self.write(" => ");
+                self.fmt_node(&body);
             }
+        } else {
+            self.write(" => ");
+            self.fmt_token_expr_after_lambda_delim(node);
         }
-        self.fmt_token_expr_after_lambda_delim(node);
     }
 
     // ── Return ──────────────────────────────────────────────────

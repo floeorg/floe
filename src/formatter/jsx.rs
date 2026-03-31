@@ -337,10 +337,11 @@ impl Formatter<'_> {
         children
     }
 
-    /// Check if a JSX_EXPR_CHILD contains multi-line content (e.g., a match expression).
+    /// Check if a JSX_EXPR_CHILD contains multi-line content (e.g., a match expression,
+    /// or a pipe/call with a multiline arrow body).
     fn jsx_expr_is_multiline(&self, node: &SyntaxNode) -> bool {
-        node.children()
-            .any(|c| matches!(c.kind(), SyntaxKind::MATCH_EXPR | SyntaxKind::BLOCK_EXPR))
+        let inline = self.try_inline(|f| f.fmt_jsx_expr_child(node));
+        inline.contains('\n')
     }
 
     /// If a `JSX_EXPR_CHILD` contains only a block comment (no real expression),
