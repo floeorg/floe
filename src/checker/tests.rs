@@ -4885,3 +4885,38 @@ async fn handler() {
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Bug #805: Settable/Option fields default when omitted ───
+
+#[test]
+fn option_fields_can_be_omitted() {
+    // Option fields in a record should allow omission (default to None)
+    let diags = check(
+        r#"
+type Config { name: string, nickname: Option<string> }
+fn _take(c: Config) { c }
+const _x = _take({ name: "Alice" })
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "expected"),
+        "omitting Option fields should be allowed, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn required_fields_cannot_be_omitted() {
+    let diags = check(
+        r#"
+type Config { name: string, email: string }
+fn _take(c: Config) { c }
+const _x = _take({ name: "Alice" })
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "expected"),
+        "omitting required fields should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
