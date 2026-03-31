@@ -588,4 +588,39 @@ fn page() {
             "probe should not probe non-arrow props, got:\n{probe}"
         );
     }
+
+    #[test]
+    fn generate_probe_jsx_children_render_prop() {
+        let source = r#"import { Draggable } from "@hello-pangea/dnd"
+
+fn page() {
+    <Draggable draggableId="id" index={0}>
+        {(provided, snapshot) =>
+            <div />
+        }
+    </Draggable>
+}"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        // Should contain the children callback helper type
+        assert!(
+            probe.contains("type _JCBC<T>"),
+            "probe should contain _JCBC helper type, got:\n{probe}"
+        );
+        // Should contain probes for each parameter position
+        assert!(
+            probe.contains("__jsxc_Draggable_0"),
+            "probe should contain children probe for param 0, got:\n{probe}"
+        );
+        assert!(
+            probe.contains("__jsxc_Draggable_1"),
+            "probe should contain children probe for param 1, got:\n{probe}"
+        );
+        // Should reference the children prop
+        assert!(
+            probe.contains("[\"children\"]"),
+            "probe should extract from children prop, got:\n{probe}"
+        );
+    }
 }

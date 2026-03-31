@@ -615,7 +615,8 @@ pub(super) fn generate_probe(
 
     // Emit JSX callback parameter probes: extract callback param types from
     // component props using TS conditional types (e.g. NavLink's className).
-    let jsx_callback_probes = collect_jsx_callback_probes(program, &imported_names);
+    let (jsx_callback_probes, jsx_children_probes) =
+        collect_jsx_callback_probes(program, &imported_names);
     if !jsx_callback_probes.is_empty() {
         lines.push(
             "type _JCB<T> = T extends (arg: infer P, ...rest: any[]) => any ? P : never;"
@@ -629,8 +630,25 @@ pub(super) fn generate_probe(
             ));
         }
     }
+    // Emit children render prop probes: extract each parameter type individually.
+    if !jsx_children_probes.is_empty() {
+        lines.push(
+            "type _JCBC<T> = T extends (...args: any[]) => any ? Parameters<T> : never;"
+                .to_string(),
+        );
+        for probe in &jsx_children_probes {
+            for i in 0..probe.param_count {
+                lines.push(format!(
+                    "export declare const __jsxc_{comp}_{i}:\
+                     _JCBC<NonNullable<Parameters<typeof {comp}>[0][\"children\"]>>[{i}];",
+                    comp = probe.component,
+                    i = i,
+                ));
+            }
+        }
+    }
 
-    let has_jsx_probes = !jsx_callback_probes.is_empty();
+    let has_jsx_probes = !jsx_callback_probes.is_empty() || !jsx_children_probes.is_empty();
 
     if probe_index == 0 && member_accesses.is_empty() && !has_type_probes && !has_jsx_probes {
         return String::new();
@@ -644,30 +662,46 @@ struct JsxCallbackProbe {
     prop: String,
 }
 
-/// Walk the AST to find JSX callback props on imported components.
+struct JsxChildrenProbe {
+    component: String,
+    param_count: usize,
+}
+
+/// Walk the AST to find JSX callback props and children render props on imported components.
 /// Uses `walk_program` for expression traversal; only inspects JSX elements directly.
 fn collect_jsx_callback_probes(
     program: &Program,
     imported_names: &HashMap<String, String>,
-) -> Vec<JsxCallbackProbe> {
+) -> (Vec<JsxCallbackProbe>, Vec<JsxChildrenProbe>) {
     let mut probes = Vec::new();
+    let mut children_probes = Vec::new();
     let mut seen = HashSet::new();
+    let mut children_seen = HashSet::new();
     crate::walk::walk_program(program, &mut |expr| {
         if let ExprKind::Jsx(jsx) = &expr.kind {
-            inspect_jsx_for_callback_probes(jsx, imported_names, &mut probes, &mut seen);
+            inspect_jsx_for_callback_probes(
+                jsx,
+                imported_names,
+                &mut probes,
+                &mut children_probes,
+                &mut seen,
+                &mut children_seen,
+            );
         }
     });
-    probes
+    (probes, children_probes)
 }
 
-/// Inspect a JSX element tree for callback props on imported components.
+/// Inspect a JSX element tree for callback props and children render props on imported components.
 /// Only recurses into nested `JsxChild::Element` nodes; expression traversal
 /// is handled by the caller (`walk_program`).
 fn inspect_jsx_for_callback_probes(
     jsx: &JsxElement,
     imported_names: &HashMap<String, String>,
     probes: &mut Vec<JsxCallbackProbe>,
+    children_probes: &mut Vec<JsxChildrenProbe>,
     seen: &mut HashSet<(String, String)>,
+    children_seen: &mut HashSet<String>,
 ) {
     if let JsxElementKind::Element {
         name,
@@ -699,17 +733,43 @@ fn inspect_jsx_for_callback_probes(
                     }
                 }
             }
+            // Check children for arrow function render props
+            for child in children {
+                if let JsxChild::Expr(expr) = child
+                    && let ExprKind::Arrow { params, .. } = &expr.kind
+                    && children_seen.insert(name.clone())
+                {
+                    children_probes.push(JsxChildrenProbe {
+                        component: name.clone(),
+                        param_count: params.len(),
+                    });
+                }
+            }
         }
         for child in children {
             if let JsxChild::Element(el) = child {
-                inspect_jsx_for_callback_probes(el, imported_names, probes, seen);
+                inspect_jsx_for_callback_probes(
+                    el,
+                    imported_names,
+                    probes,
+                    children_probes,
+                    seen,
+                    children_seen,
+                );
             }
         }
     }
     if let JsxElementKind::Fragment { children } = &jsx.kind {
         for child in children {
             if let JsxChild::Element(el) = child {
-                inspect_jsx_for_callback_probes(el, imported_names, probes, seen);
+                inspect_jsx_for_callback_probes(
+                    el,
+                    imported_names,
+                    probes,
+                    children_probes,
+                    seen,
+                    children_seen,
+                );
             }
         }
     }
