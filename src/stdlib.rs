@@ -96,6 +96,12 @@ fn map_of(k: Type, v: Type) -> Type {
         value: Box::new(v),
     }
 }
+fn record_of(k: Type, v: Type) -> Type {
+    Type::RecordMap {
+        key: Box::new(k),
+        value: Box::new(v),
+    }
+}
 fn set_of(t: Type) -> Type {
     Type::Set {
         element: Box::new(t),
@@ -267,6 +273,14 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Map", "size", [map_of(t.clone(), u.clone())], Type::Number, "$0.size"),
         stdlib_fn!("Map", "isEmpty", [map_of(t.clone(), u.clone())], Type::Bool, "$0.size === 0"),
         stdlib_fn!("Map", "merge", [map_of(t.clone(), u.clone()), map_of(t.clone(), u.clone())], map_of(t.clone(), u.clone()), "new Map([...$0, ...$1])"),
+        // ── Record (plain-object maps from TS Record<K, V>) ───────
+        stdlib_fn!("Record", "get", [record_of(t.clone(), u.clone()), t.clone()], option_of(u.clone()), "$0[$1]"),
+        stdlib_fn!("Record", "has", [record_of(t.clone(), u.clone()), t.clone()], Type::Bool, "($1 in $0)"),
+        stdlib_fn!("Record", "keys", [record_of(t.clone(), u.clone())], array_of(t.clone()), "Object.keys($0)"),
+        stdlib_fn!("Record", "values", [record_of(t.clone(), u.clone())], array_of(u.clone()), "Object.values($0)"),
+        stdlib_fn!("Record", "entries", [record_of(t.clone(), u.clone())], array_of(Type::Tuple(vec![t.clone(), u.clone()])), "Object.entries($0)"),
+        stdlib_fn!("Record", "size", [record_of(t.clone(), u.clone())], Type::Number, "Object.keys($0).length"),
+        stdlib_fn!("Record", "isEmpty", [record_of(t.clone(), u.clone())], Type::Bool, "Object.keys($0).length === 0"),
         // ── Set ────────────────────────────────────────────────────
         stdlib_fn!("Set", "empty", [], set_of(t.clone()), "new Set()"),
         stdlib_fn!("Set", "fromArray", [array_of(t.clone())], set_of(t.clone()), "new Set($0)"),
@@ -407,6 +421,20 @@ mod tests {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Map", "get").unwrap();
         assert_eq!(f.codegen, "$0.has($1) ? $0.get($1) : undefined");
+    }
+
+    #[test]
+    fn lookup_record_get() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Record", "get").unwrap();
+        assert_eq!(f.codegen, "$0[$1]");
+    }
+
+    #[test]
+    fn lookup_record_keys() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Record", "keys").unwrap();
+        assert_eq!(f.codegen, "Object.keys($0)");
     }
 
     #[test]
@@ -616,6 +644,7 @@ mod tests {
         assert!(reg.is_module("JSON"));
         assert!(reg.is_module("Pipe"));
         assert!(reg.is_module("Map"));
+        assert!(reg.is_module("Record"));
         assert!(reg.is_module("Set"));
         assert!(reg.is_module("Http"));
         assert!(reg.is_module("Date"));

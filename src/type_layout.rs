@@ -73,6 +73,7 @@ pub const MOD_RESULT: &str = "Result";
 pub const MOD_MAP: &str = "Map";
 pub const MOD_SET: &str = "Set";
 pub const MOD_DATE: &str = "Date";
+pub const MOD_RECORD: &str = "Record";
 pub const MOD_PROMISE: &str = "Promise";
 
 // ── Variant classification ───────────────────────────────────────
@@ -189,7 +190,8 @@ pub fn type_to_stdlib_module(ty: &crate::checker::Type) -> Option<&'static str> 
     use crate::checker::Type;
     match ty {
         Type::Array(_) => Some(MOD_ARRAY),
-        Type::Map { .. } | Type::RecordMap { .. } => Some(MOD_MAP),
+        Type::Map { .. } => Some(MOD_MAP),
+        Type::RecordMap { .. } => Some(MOD_RECORD),
         Type::Set { .. } => Some(MOD_SET),
         Type::String => Some(MOD_STRING),
         Type::Number => Some(MOD_NUMBER),
