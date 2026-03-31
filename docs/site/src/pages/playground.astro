@@ -189,25 +189,32 @@
       <div class="pane-header">
         <span>input.fl</span>
       </div>
-      <textarea id="input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">{`import trusted { useState } from "react"
-
-type Todo {
-  id: string,
-  text: string,
-  done: boolean,
+      <textarea id="input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">{`fn greet(name: string) -> string {
+  \`Hello, \${name}!\`
 }
 
-export fn App() -> JSX.Element {
-  const [todos, setTodos] = useState<Array<Todo>>([])
+const message = "world"
+  |> greet
 
-  const completed = todos
-    |> filter(.done)
-    |> length
+type Color {
+  | Red
+  | Green
+  | Blue
+}
 
-  <div>
-    <h1>Todos ({completed} done)</h1>
-    {todos |> map((todo) => <p key={todo.id}>{todo.text}</p>)}
-  </div>
+fn describe(color: Color) -> string {
+  match color {
+    Red -> "red",
+    Green -> "green",
+    Blue -> "blue",
+  }
+}
+
+fn safeDivide(a: number, b: number) -> Result<number, string> {
+  match b {
+    0 -> Err("division by zero"),
+    _ -> Ok(a / b),
+  }
 }`}</textarea>
     </div>
 
