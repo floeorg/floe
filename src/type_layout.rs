@@ -71,9 +71,9 @@ pub const MOD_NUMBER: &str = "Number";
 pub const MOD_OPTION: &str = "Option";
 pub const MOD_RESULT: &str = "Result";
 pub const MOD_MAP: &str = "Map";
+pub const MOD_RECORD: &str = "Record";
 pub const MOD_SET: &str = "Set";
 pub const MOD_DATE: &str = "Date";
-pub const MOD_RECORD: &str = "Record";
 pub const MOD_PROMISE: &str = "Promise";
 
 // ── Variant classification ───────────────────────────────────────

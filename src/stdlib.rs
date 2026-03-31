@@ -174,7 +174,7 @@ fn build_stdlib() -> Vec<StdlibFn> {
         stdlib_fn!("Array", "isEmpty", [array_of(t.clone())], Type::Bool, "$0.length === 0"),
         stdlib_fn!("Array", "chunk", [array_of(t.clone()), Type::Number], array_of(array_of(t.clone())), "(() => { const _a = $0; const _n = $1; const _r = []; for (let _i = 0; _i < _a.length; _i += _n) _r.push(_a.slice(_i, _i + _n)); return _r; })()"),
         stdlib_fn!("Array", "unique", [array_of(t.clone())], array_of(t.clone()), "[...new Set($0)]"),
-        stdlib_fn!("Array", "groupBy", [array_of(t.clone()), fun(vec![t.clone()], Type::String)], Type::Named("Record".to_string()), "Object.groupBy($0, $1)"),
+        stdlib_fn!("Array", "groupBy", [array_of(t.clone()), fun(vec![t.clone()], Type::String)], record_of(Type::String, array_of(t.clone())), "Object.groupBy($0, $1)"),
         stdlib_fn!("Array", "zip", [array_of(t.clone()), array_of(u.clone())], array_of(Type::Tuple(vec![t.clone(), u.clone()])), "$0.map((_v, _i) => [_v, $1[_i]] as const)"),
         stdlib_fn!("Array", "from", [t.clone(), fun(vec![t.clone(), Type::Number], u.clone())], array_of(u.clone()), "Array.from($0, $1)"),
         stdlib_fn!("Array", "mapResult", [array_of(t.clone()), fun(vec![t.clone()], result_of(u.clone(), tv(2)))], result_of(array_of(u.clone()), tv(2)), "(() => { const _a = $0; const _f = $1; const _r = []; for (const _v of _a) { const _res = _f(_v); if (!_res.ok) return _res; _r.push(_res.value); } return { ok: true as const, value: _r }; })()"),
