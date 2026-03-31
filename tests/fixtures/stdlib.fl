@@ -24,6 +24,8 @@ const _opt_unwrap = Option.unwrapOr(None, 0)
 const _opt_some = Option.isSome(Some(1))
 const _opt_none = Option.isNone(None)
 const _opt_to_res = Option.toResult(Some(42), "not found")
+const _opt_or = Option.or(None, Some(99))
+const _opt_values = Option.values([Some(1), None, Some(3)])
 
 // ── Result ──────────────────────────────────────────────────
 const _res_mapped = Result.map(Ok(42), (n) => n + 1)
@@ -33,6 +35,9 @@ const _res_unwrap = Result.unwrapOr(Err("fail"), 0)
 const _res_ok = Result.isOk(Ok(1))
 const _res_err = Result.isErr(Err("fail"))
 const _res_to_opt = Result.toOption(Ok(42))
+const _res_or = Result.or(Err("fail"), Ok(42))
+const _res_values = Result.values([Ok(1), Err("x"), Ok(3)])
+const _res_partition = Result.partition([Ok(1), Err("x"), Ok(3)])
 
 // ── String ──────────────────────────────────────────────────
 const _trimmed = String.trim("  hello  ")

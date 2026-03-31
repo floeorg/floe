@@ -396,8 +396,9 @@ The return type of `collect { ... }` is `Result<T, Array<E>>` where:
 | `flatMap` | `Result<T, E>, (T) -> Result<U, E> -> Result<U, E>` | Chain result-returning ops |
 | `filter` | `Result<T, E>, (T) -> bool, E -> Result<T, E>` | Keep Ok if predicate passes |
 | `unwrapOr` | `Result<T, E>, T -> T` | Extract Ok or default |
-| `unwrap` | `Result<T, E> -> T` | Extract Ok or throw |
-| `unwrapErr` | `Result<T, E> -> E` | Extract Err or throw |
+| `or` | `Result<T, E>, Result<T, E> -> Result<T, E>` | First Ok, else second |
+| `values` | `Array<Result<T, E>> -> Array<T>` | Extract all Ok values |
+| `partition` | `Array<Result<T, E>> -> (Array<T>, Array<E>)` | Split into Ok and Err arrays |
 | `mapOr` | `Result<T, E>, U, (T) -> U -> U` | Map + default |
 | `flatten` | `Result<Result<T, E>, E> -> Result<T, E>` | Unwrap nested |
 | `zip` | `Result<T, E>, Result<U, E> -> Result<(T, U), E>` | Combine two Results |
@@ -455,7 +456,8 @@ const rows = data |> Option.unwrapOr([])
 | `flatMap` | `Option<T>, (T) -> Option<U> -> Option<U>` | Chain option-returning ops |
 | `filter` | `Option<T>, (T) -> bool -> Option<T>` | Keep Some if predicate passes |
 | `unwrapOr` | `Option<T>, T -> T` | Extract or default |
-| `unwrap` | `Option<T> -> T` | Extract or throw |
+| `or` | `Option<T>, Option<T> -> Option<T>` | First Some, else second |
+| `values` | `Array<Option<T>> -> Array<T>` | Extract all Some values |
 | `mapOr` | `Option<T>, U, (T) -> U -> U` | Map + default |
 | `flatten` | `Option<Option<T>> -> Option<T>` | Unwrap nested |
 | `zip` | `Option<T>, Option<U> -> Option<(T, U)>` | Combine two Options |

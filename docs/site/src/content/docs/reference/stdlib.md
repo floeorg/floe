@@ -106,7 +106,8 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 | `Option.isNone` | `Option<T> -> boolean` | Check if value is absent |
 | `Option.toResult` | `Option<T>, E -> Result<T, E>` | Convert to Result with error for None |
 | `Option.filter` | `Option<T>, (T) -> boolean -> Option<T>` | Keep Some if predicate passes, else None |
-| `Option.unwrap` | `Option<T> -> T` | Extract value or throw (use for scripts/prototyping) |
+| `Option.or` | `Option<T>, Option<T> -> Option<T>` | Return first Some, else second |
+| `Option.values` | `Array<Option<T>> -> Array<T>` | Extract all Some values, discard None |
 | `Option.mapOr` | `Option<T>, U, (T) -> U -> U` | Map + default in one step |
 | `Option.flatten` | `Option<Option<T>> -> Option<T>` | Unwrap nested Options |
 | `Option.zip` | `Option<T>, Option<U> -> Option<(T, U)>` | Combine two Options into a tuple |
@@ -169,8 +170,9 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 | `Result.isErr` | `Result<T, E> -> boolean` | Check if result is Err |
 | `Result.toOption` | `Result<T, E> -> Option<T>` | Convert to Option (drops error) |
 | `Result.filter` | `Result<T, E>, (T) -> boolean, E -> Result<T, E>` | Keep Ok if predicate passes, else Err |
-| `Result.unwrap` | `Result<T, E> -> T` | Extract Ok value or throw error |
-| `Result.unwrapErr` | `Result<T, E> -> E` | Extract Err value or throw |
+| `Result.or` | `Result<T, E>, Result<T, E> -> Result<T, E>` | Return first Ok, else second |
+| `Result.values` | `Array<Result<T, E>> -> Array<T>` | Extract all Ok values, discard Errs |
+| `Result.partition` | `Array<Result<T, E>> -> (Array<T>, Array<E>)` | Split into Ok and Err arrays |
 | `Result.mapOr` | `Result<T, E>, U, (T) -> U -> U` | Map + default in one step |
 | `Result.flatten` | `Result<Result<T, E>, E> -> Result<T, E>` | Unwrap nested Results |
 | `Result.zip` | `Result<T, E>, Result<U, E> -> Result<(T, U), E>` | Combine two Results into a tuple |
