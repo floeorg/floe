@@ -131,6 +131,22 @@ impl Codegen {
         self
     }
 
+    /// Look up a for-block function by bare name (without type qualifier).
+    /// Returns the mangled name if found (e.g., "toChar" → "Icon__toChar").
+    fn lookup_for_block_fn_by_name(&self, name: &str) -> Option<String> {
+        for ((_, fn_name), mangled) in &self.for_block_fns {
+            if fn_name == name {
+                return Some(
+                    self.import_aliases
+                        .get(mangled)
+                        .cloned()
+                        .unwrap_or_else(|| mangled.clone()),
+                );
+            }
+        }
+        None
+    }
+
     /// Create a codegen with resolved import info.
     pub fn with_imports(resolved: &HashMap<String, ResolvedImports>) -> Self {
         let mut codegen = Self::new();
