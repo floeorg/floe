@@ -229,6 +229,16 @@ impl Checker {
                         .all(|(x, y)| self.types_compatible(x, y))
                     && self.types_compatible(r1, r2)
             }
+            // TsUnion vs TsUnion: every actual member must match at least one expected member
+            (Type::TsUnion(exp_members), Type::TsUnion(act_members)) => act_members
+                .iter()
+                .all(|a| exp_members.iter().any(|e| self.types_compatible(e, a))),
+            // TsUnion as expected: actual must match at least one member
+            (Type::TsUnion(members), _) => members.iter().any(|m| self.types_compatible(m, actual)),
+            // TsUnion as actual: every member must be compatible with expected
+            (_, Type::TsUnion(members)) => {
+                members.iter().all(|m| self.types_compatible(expected, m))
+            }
             // Structural record compatibility: { a: T, b: U } matches { a: T, b: U }
             (Type::Record(fields_a), Type::Record(fields_b)) => {
                 fields_a.len() == fields_b.len()

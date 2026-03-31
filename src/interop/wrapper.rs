@@ -153,9 +153,13 @@ fn wrap_union_boundary(parts: &[TsType]) -> Type {
         // All union members are objects — merge common fields for destructuring
         merged
     } else {
-        // Multi-type union without null/undefined: stay as Unknown for now
-        // A full implementation would create proper union types
-        Type::Unknown
+        // Multi-type union: preserve as TsUnion for strict type checking
+        Type::TsUnion(
+            non_null_parts
+                .iter()
+                .map(|p| wrap_boundary_type(p))
+                .collect(),
+        )
     };
 
     if nullable {

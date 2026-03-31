@@ -3069,6 +3069,160 @@ const _x = doStuff("hi", 1, true)
     );
 }
 
+// ── Bug #781: Imported TS union types should be strict ──
+
+#[test]
+fn ts_union_accepts_compatible_member() {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    // format(date: Date | number | string, fmt: string): string
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { format } from "date-fns"
+const _x = format("2024-01-01", "PPpp")
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let export = DtsExport {
+        name: "format".to_string(),
+        ts_type: TsType::Function {
+            params: vec![
+                FunctionParam {
+                    ty: TsType::Union(vec![
+                        TsType::Named("Date".to_string()),
+                        TsType::Primitive("number".to_string()),
+                        TsType::Primitive("string".to_string()),
+                    ]),
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                },
+            ],
+            return_type: Box::new(TsType::Primitive("string".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("date-fns".to_string(), vec![export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        !has_error_containing(&diags, "expected"),
+        "passing string to Date | number | string should be accepted, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn ts_union_rejects_incompatible_type() {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    // doStuff(x: number | string): void
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { doStuff } from "some-lib"
+const _x = doStuff(true)
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let export = DtsExport {
+        name: "doStuff".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Union(vec![
+                    TsType::Primitive("number".to_string()),
+                    TsType::Primitive("string".to_string()),
+                ]),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Primitive("void".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        has_error_containing(&diags, "expected"),
+        "passing boolean to number | string should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn ts_union_compatible_with_itself() {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    // identity(x: number | string): number | string
+    // calling with return value of same type should work
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { identity, consume } from "some-lib"
+const x = identity()
+const _y = consume(x)
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let union_params = || {
+        vec![FunctionParam {
+            ty: TsType::Union(vec![
+                TsType::Primitive("number".to_string()),
+                TsType::Primitive("string".to_string()),
+            ]),
+            optional: false,
+        }]
+    };
+    let union_ret = || {
+        Box::new(TsType::Union(vec![
+            TsType::Primitive("number".to_string()),
+            TsType::Primitive("string".to_string()),
+        ]))
+    };
+
+    let identity_export = DtsExport {
+        name: "identity".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: union_ret(),
+        },
+    };
+    let consume_export = DtsExport {
+        name: "consume".to_string(),
+        ts_type: TsType::Function {
+            params: union_params(),
+            return_type: Box::new(TsType::Primitive("void".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "some-lib".to_string(),
+        vec![identity_export, consume_export],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        !has_error_containing(&diags, "expected"),
+        "TsUnion should be compatible with itself, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Bug #334: Object literal keys should not be resolved as variables ──
 
 #[test]
