@@ -5,6 +5,21 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.33](https://github.com/floeorg/floe/compare/v0.1.32...v0.1.33) (2026-03-31)
+
+
+### Features
+
+* [[#758](https://github.com/floeorg/floe/issues/758)] Add Record.get to stdlib for dynamic key access on plain objects ([#794](https://github.com/floeorg/floe/issues/794)) ([6ec22d2](https://github.com/floeorg/floe/commit/6ec22d2c6df3ffe540970f5b2407e50a56033e14))
+* [[#799](https://github.com/floeorg/floe/issues/799)] Show default values for optional parameters in function signatures ([#801](https://github.com/floeorg/floe/issues/801)) ([e0ea91a](https://github.com/floeorg/floe/commit/e0ea91a2ed3df64cef41fba8e90e5ede92065bb4))
+
+
+### Bug Fixes
+
+* [[#733](https://github.com/floeorg/floe/issues/733)] Dot shorthand works as general function arguments ([#793](https://github.com/floeorg/floe/issues/793)) ([92baa16](https://github.com/floeorg/floe/commit/92baa1682792f28961ac1ba12649579facbe9437))
+* [[#734](https://github.com/floeorg/floe/issues/734)] Checker silently accepts unknown where concrete types are expected ([#800](https://github.com/floeorg/floe/issues/800)) ([e50cdbc](https://github.com/floeorg/floe/commit/e50cdbc2ab8fcf8ec019087fd6bdaf360298682f))
+* [[#795](https://github.com/floeorg/floe/issues/795)] Remove throwing unwrap functions, add or/values/partition helpers ([#798](https://github.com/floeorg/floe/issues/798)) ([f3cc9a7](https://github.com/floeorg/floe/commit/f3cc9a709b2dc78a4e4deaa0213619009f8415a9))
+
 ## [0.1.32](https://github.com/floeorg/floe/compare/v0.1.31...v0.1.32) (2026-03-31)
 
 
