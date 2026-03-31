@@ -26,6 +26,20 @@ jobs:
         with:
           node-version: 22
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Build WASM playground
+        run: wasm-pack build crates/floe-wasm --target web --out-dir ../../docs/site/public/playground/pkg
+
       - name: Install dependencies
         working-directory: docs/site
         run: npm install
