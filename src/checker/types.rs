@@ -234,8 +234,11 @@ impl Type {
                 format!("({}) -> {}", p.join(", "), return_type.display_name())
             }
             Type::Array(inner) => format!("Array<{}>", inner.display_name()),
-            Type::Map { key, value } | Type::RecordMap { key, value } => {
+            Type::Map { key, value } => {
                 format!("Map<{}, {}>", key.display_name(), value.display_name())
+            }
+            Type::RecordMap { key, value } => {
+                format!("Record<{}, {}>", key.display_name(), value.display_name())
             }
             Type::Set { element } => format!("Set<{}>", element.display_name()),
             Type::Tuple(types) => {

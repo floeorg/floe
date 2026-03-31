@@ -4787,7 +4787,6 @@ fn page() {
 
 #[test]
 fn unknown_arg_rejected_for_concrete_param() {
-    // unknown should not be assignable to a concrete type
     let diags = check(
         r#"
 fn takesString(s: string) -> string { s }
@@ -4804,7 +4803,6 @@ const _result = takesString(x)
 
 #[test]
 fn unknown_callee_emits_warning() {
-    // calling a function with unknown type should warn
     let diags = check(
         r#"
 fn returnsUnknown() -> unknown { "hello" }
@@ -4816,4 +4814,34 @@ const _result = f(42)
         has_warning_containing(&diags, "unknown type"),
         "should warn when calling unknown-typed value, got: {diags:?}"
     );
+}
+
+// ── Dot shorthand in function arguments ──────────────────────
+
+#[test]
+fn dot_shorthand_as_function_argument() {
+    let diags = check(
+        r#"
+type Store { sidebarOpen: boolean, name: string }
+fn select(store: Store, f: (Store) -> boolean) -> boolean { f(store) }
+const store = Store(sidebarOpen: true, name: "test")
+const _r = select(store, .sidebarOpen)
+"#,
+    );
+    assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
+}
+
+#[test]
+fn dot_shorthand_predicate_as_function_argument() {
+    let diags = check(
+        r#"
+type User { name: string, active: boolean }
+fn find(users: Array<User>, f: (User) -> boolean) -> Array<User> {
+    users |> filter(f)
+}
+const users = [User(name: "a", active: true)]
+const _r = find(users, .name == "a")
+"#,
+    );
+    assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
 }

@@ -31,8 +31,11 @@ pub(super) fn format_type(ty: &crate::checker::Type) -> String {
         Type::Promise(inner) => format!("Promise<{}>", format_type(inner)),
         Type::Var(id) => type_var_name(*id).to_string(),
         Type::Array(inner) => format!("Array<{}>", format_type(inner)),
-        Type::Map { key, value } | Type::RecordMap { key, value } => {
+        Type::Map { key, value } => {
             format!("Map<{}, {}>", format_type(key), format_type(value))
+        }
+        Type::RecordMap { key, value } => {
+            format!("Record<{}, {}>", format_type(key), format_type(value))
         }
         Type::Set { element } => format!("Set<{}>", format_type(element)),
         _ if ty.is_option() => {

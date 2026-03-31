@@ -846,6 +846,39 @@ impl Checker {
                         return_type: Box::new(return_type),
                     }
                 } else {
+                    // Resolve dot shorthand args against expected function params.
+                    // `.field` becomes `(x) => x.field` when the expected param is a function.
+                    // When a piped arg is prepended, args are offset by 1 in arg_types/params.
+                    let param_offset = if !piped_ty_was_none && !has_placeholder {
+                        1
+                    } else {
+                        0
+                    };
+                    for (i, arg) in args.iter().enumerate() {
+                        let e = match arg {
+                            Arg::Positional(e) | Arg::Named { value: e, .. } => e,
+                        };
+                        if let ExprKind::DotShorthand { field, predicate } = &e.kind
+                            && let Some(Type::Function {
+                                params: fn_params, ..
+                            }) = params.get(i + param_offset)
+                            && let Some(self_ty) = fn_params.first()
+                        {
+                            let field_ty = self.resolve_member_type(self_ty, field, e.span);
+                            let resolved_ret = if predicate.is_some() {
+                                Type::Bool
+                            } else {
+                                field_ty
+                            };
+                            let resolved = Type::Function {
+                                params: fn_params.clone(),
+                                return_type: Box::new(resolved_ret),
+                            };
+                            self.expr_types.insert(e.id, resolved.clone());
+                            arg_types[i + param_offset] = resolved;
+                        }
+                    }
+
                     // Normal call: check all argument types
                     for (i, (arg_ty, param_ty)) in arg_types.iter().zip(params.iter()).enumerate() {
                         if !self.types_compatible(param_ty, arg_ty) {
