@@ -47,6 +47,7 @@ export default defineConfig({
             { label: "Installation", slug: "guide/installation" },
             { label: "Your First Project", slug: "guide/first-program" },
             { label: "Language Tour", slug: "guide/tour" },
+            { label: "Using Floe with LLMs", slug: "guide/llm-setup" },
             {
               label: "Migrating from TypeScript",
               slug: "guide/from-typescript",

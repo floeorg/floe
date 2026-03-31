@@ -56,24 +56,6 @@ floe lsp
 
 Any editor with LSP support can connect to it.
 
-## LLM Setup
-
-LLMs don't know Floe yet. Give them the language reference so they can write Floe code for you:
-
-**Claude Code / Cursor / Copilot** — add this to your project's AI context:
-
-```
-https://floeorg.github.io/floe/llms.txt
-```
-
-**Claude Code** — you can also fetch it directly in a conversation:
-
-```
-@url https://floeorg.github.io/floe/llms.txt
-```
-
-**Other tools** — download `llms.txt` and paste it into your system prompt or context window.
-
 ## Next Steps
 
 - [Write your first program](/guide/first-program)
