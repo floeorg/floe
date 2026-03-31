@@ -651,6 +651,7 @@ impl Checker {
                 children,
                 ..
             } => {
+                let component_name = name.clone();
                 if name.starts_with(|c: char| c.is_uppercase()) {
                     self.unused.used_names.insert(name.clone());
                     if self.env.lookup(name).is_none() {
@@ -672,6 +673,20 @@ impl Checker {
                                     self.ctx.event_handler_context = true;
                                     self.check_expr(value);
                                     self.ctx.event_handler_context = prev;
+                                } else if matches!(value.kind, ExprKind::Arrow { .. }) {
+                                    // For callback props on imported components, use
+                                    // the resolved callback parameter type from tsgo
+                                    // probes as a lambda parameter hint.
+                                    let hint_key = (component_name.clone(), name.clone());
+                                    let hint = self.jsx_callback_hints.get(&hint_key).cloned();
+                                    if let Some(hint_ty) = hint {
+                                        let prev = self.ctx.lambda_param_hint.take();
+                                        self.ctx.lambda_param_hint = Some(hint_ty);
+                                        self.check_expr(value);
+                                        self.ctx.lambda_param_hint = prev;
+                                    } else {
+                                        self.check_expr(value);
+                                    }
                                 } else {
                                     self.check_expr(value);
                                 }

@@ -209,6 +209,17 @@ pub(super) fn build_specifier_map(
                 .or_default()
                 .push(export.clone());
         }
+        // JSX callback parameter probes (__jsx_NavLink_className, etc.)
+        // tsgo resolved the callback parameter type from the component's
+        // props type. Add to any specifier so the checker can find them.
+        if export.name.starts_with("__jsx_")
+            && let Some(first_specifier) = result.keys().next().cloned()
+        {
+            result
+                .entry(first_specifier)
+                .or_default()
+                .push(export.clone());
+        }
     }
 
     result

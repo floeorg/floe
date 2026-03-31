@@ -4205,3 +4205,75 @@ fn convertAll(rows: Array<AccentRow>) -> Array<Accent> {
         errors.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── JSX callback parameter inference from tsgo probes ──────
+
+#[test]
+fn jsx_callback_param_inferred_from_probe() {
+    use crate::interop::{DtsExport, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    // Source: NavLink with a callback className prop
+    let program = crate::parser::Parser::new(
+        r#"
+import { NavLink } from "react-router-dom"
+
+fn page() {
+    <NavLink className={(state) => "active"} />
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Simulate tsgo probe result: __jsx_NavLink_className resolves to
+    // { isActive: boolean, isPending: boolean }
+    let jsx_probe = DtsExport {
+        name: "__jsx_NavLink_className".to_string(),
+        ts_type: TsType::Object(vec![
+            ObjectField {
+                name: "isActive".to_string(),
+                ty: TsType::Primitive("boolean".to_string()),
+                optional: false,
+            },
+            ObjectField {
+                name: "isPending".to_string(),
+                ty: TsType::Primitive("boolean".to_string()),
+                optional: false,
+            },
+        ]),
+    };
+
+    // NavLink itself is a Foreign type (typical for npm components)
+    let nav_link_export = DtsExport {
+        name: "NavLink".to_string(),
+        ts_type: TsType::Named("NavLink".to_string()),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "react-router-dom".to_string(),
+        vec![nav_link_export, jsx_probe],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, name_types, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "jsx callback should not error, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+
+    // The `state` parameter should be inferred as a record type (not unknown)
+    if let Some(state_type) = name_types.get("state") {
+        assert!(
+            state_type.contains("isActive") || state_type == "Record",
+            "state param should be inferred from probe, got: {state_type}"
+        );
+    }
+}
