@@ -4845,3 +4845,43 @@ const _r = find(users, .name == "a")
     );
     assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
 }
+
+// ── Bug #804: Suggest try await instead of await try ────────
+
+#[test]
+fn await_try_suggests_try_await() {
+    let diags = check(
+        r#"
+async fn fetchData() -> Promise<string> {
+    "hello"
+}
+async fn handler() {
+    const _result = await try fetchData()
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "await try"),
+        "should warn about await try order, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn try_await_no_error() {
+    let diags = check(
+        r#"
+async fn fetchData() -> Promise<string> {
+    "hello"
+}
+async fn handler() {
+    const _result = try await fetchData()
+}
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "await try"),
+        "try await should not produce the hint, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
