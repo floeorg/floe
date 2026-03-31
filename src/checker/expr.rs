@@ -716,6 +716,11 @@ impl Checker {
             callee_ty
         };
 
+        // Always resolve type args for validation (catches unknown type names)
+        for t in type_args {
+            self.resolve_type(t);
+        }
+
         match callee_ty {
             Type::Function {
                 params,
