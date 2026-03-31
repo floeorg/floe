@@ -119,6 +119,38 @@ impl TsgoResolver {
             let mut result = build_specifier_map(program, &exports, &ts_imports);
             resolve_typeof_types(&mut result, &self.project_dir, program);
 
+            // Parse .ts files directly to resolve type/interface definitions
+            // that the probe doesn't fully resolve (e.g. `interface IssueDto { ... }`)
+            for (specifier, ts_path) in &ts_imports {
+                let ts_content = match std::fs::read_to_string(ts_path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("[floe] tsgo: failed to read {}: {e}", ts_path.display());
+                        continue;
+                    }
+                };
+                let ts_exports = match parse_dts_exports_from_str(&ts_content) {
+                    Ok(exports) => exports,
+                    Err(e) => {
+                        eprintln!("[floe] tsgo: failed to parse {}: {e}", ts_path.display());
+                        continue;
+                    }
+                };
+                let entry = result.entry(specifier.clone()).or_default();
+                for ts_export in ts_exports {
+                    // Replace probe exports that resolved to Any with the richer .ts definition
+                    if let Some(existing) = entry.iter_mut().find(|e| e.name == ts_export.name) {
+                        if matches!(existing.ts_type, TsType::Any)
+                            && !matches!(ts_export.ts_type, TsType::Any | TsType::Unknown)
+                        {
+                            existing.ts_type = ts_export.ts_type;
+                        }
+                    } else {
+                        entry.push(ts_export);
+                    }
+                }
+            }
+
             result
         }
     }
