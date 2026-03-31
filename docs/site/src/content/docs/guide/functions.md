@@ -141,8 +141,8 @@ The `use` keyword flattens nested callbacks. The rest of the block becomes the c
 
 ```floe
 // Without use — deeply nested
-File.open(path, fn(file)
-    File.readAll(file, fn(contents)
+File.open(path, (file) =>
+    File.readAll(file, (contents) =>
         contents |> String.toUpper
     )
 )
@@ -170,7 +170,7 @@ Console.log("done")
 - **No `class`** - use functions and records
 - **No `this`** - functions are pure by default
 - **No `function*` generators** - use arrays and pipes
-- **No `=>` in expressions** - use `fn(x)` for closures; `->` is used for function types like `(T) -> U`
+- **No `=>` at the statement level** - `(x) => expr` is only for inline anonymous functions; `->` is used for function types like `(T) -> U`
 - **No `function` keyword** - use `fn` for named functions
 
-These are removed intentionally. See the [comparison](/guide/comparison) for the reasoning.
+These are removed intentionally. See the [introduction](/guide/introduction) for the reasoning.

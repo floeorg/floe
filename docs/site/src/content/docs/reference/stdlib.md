@@ -23,7 +23,7 @@ All array functions return new arrays. They never mutate the original.
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `Array.sort` | `Array<number> -> Array<number>` | Sort numerically (returns new array) |
-| `Array.sortBy` | `Array<T>, (T) -> number -> Array<T>` | Sort by key function |
+| `Array.sortBy` | `Array<T>, (T) -> number -> Array<T>` | Sort by numeric key function |
 | `Array.map` | `Array<T>, (T) -> U -> Array<U>` | Transform each element |
 | `Array.filter` | `Array<T>, (T) -> boolean -> Array<T>` | Keep elements matching predicate |
 | `Array.find` | `Array<T>, (T) -> boolean -> Option<T>` | First element matching predicate |
@@ -36,7 +36,7 @@ All array functions return new arrays. They never mutate the original.
 | `Array.take` | `Array<T>, number -> Array<T>` | First n elements |
 | `Array.drop` | `Array<T>, number -> Array<T>` | All except first n elements |
 | `Array.reverse` | `Array<T> -> Array<T>` | Reverse order (returns new array) |
-| `Array.reduce` | `Array<T>, U, (U, T) -> U -> U` | Fold into a single value |
+| `Array.reduce` | `Array<T>, (U, T) -> U, U -> U` | Fold with reducer and initial value |
 | `Array.length` | `Array<T> -> number` | Number of elements |
 | `Array.any` | `Array<T>, (T) -> boolean -> boolean` | True if any element matches predicate |
 | `Array.all` | `Array<T>, (T) -> boolean -> boolean` | True if all elements match predicate |
@@ -46,7 +46,11 @@ All array functions return new arrays. They never mutate the original.
 | `Array.chunk` | `Array<T>, number -> Array<Array<T>>` | Split into chunks of given size |
 | `Array.unique` | `Array<T> -> Array<T>` | Remove duplicate elements |
 | `Array.groupBy` | `Array<T>, (T) -> string -> Record` | Group elements by key function |
-| `Array.zip` | `Array<T>, Array<U> -> Array<[T, U]>` | Pair elements from two arrays |
+| `Array.zip` | `Array<T>, Array<U> -> Array<(T, U)>` | Pair elements by index from two arrays |
+| `Array.concat` | `Array<T>, Array<T> -> Array<T>` | Concatenate two arrays |
+| `Array.append` | `Array<T>, T -> Array<T>` | Append an element to the end |
+| `Array.prepend` | `Array<T>, T -> Array<T>` | Prepend an element to the start |
+| `Array.from` | `T, (T, number) -> U -> Array<U>` | Create array from iterable with mapping |
 | `Array.mapResult` | `Array<T>, (T) -> Result<U, E> -> Result<Array<U>, E>` | Map fallible function, short-circuit on first Err |
 
 ### Examples
@@ -235,6 +239,7 @@ Pipe-friendly string operations.
 | `String.padStart` | `string, number, string -> string` | Pad from the start |
 | `String.padEnd` | `string, number, string -> string` | Pad from the end |
 | `String.repeat` | `string, number -> string` | Repeat n times |
+| `String.localeCompare` | `string, string -> number` | Locale-aware string comparison |
 
 ### Examples
 
@@ -383,14 +388,14 @@ Immutable key-value map operations. All functions return new maps -- they never 
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `Map.empty` | `() -> Map<K, V>` | Create an empty map |
-| `Map.fromArray` | `Array<[K, V]> -> Map<K, V>` | Create a map from key-value pairs |
+| `Map.fromArray` | `Array<(K, V)> -> Map<K, V>` | Create a map from key-value pairs |
 | `Map.get` | `Map<K, V>, K -> Option<V>` | Look up a value by key |
 | `Map.set` | `Map<K, V>, K, V -> Map<K, V>` | Add or update a key-value pair |
 | `Map.remove` | `Map<K, V>, K -> Map<K, V>` | Remove a key-value pair |
 | `Map.has` | `Map<K, V>, K -> boolean` | Check if a key exists |
 | `Map.keys` | `Map<K, V> -> Array<K>` | Get all keys |
 | `Map.values` | `Map<K, V> -> Array<V>` | Get all values |
-| `Map.entries` | `Map<K, V> -> Array<[K, V]>` | Get all key-value pairs |
+| `Map.entries` | `Map<K, V> -> Array<(K, V)>` | Get all key-value pairs |
 | `Map.size` | `Map<K, V> -> number` | Number of entries |
 | `Map.isEmpty` | `Map<K, V> -> boolean` | True if map has no entries |
 | `Map.merge` | `Map<K, V>, Map<K, V> -> Map<K, V>` | Merge two maps (second wins on conflict) |

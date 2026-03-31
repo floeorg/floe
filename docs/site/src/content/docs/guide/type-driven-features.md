@@ -4,11 +4,11 @@ title: Type-Driven Features
 
 Floe's compiler knows the full structure of your types at compile time. This powers features that would normally require runtime libraries in TypeScript -- validation, test data generation, and more. Everything is generated as plain code with zero runtime dependencies.
 
-## The idea
+## Why This Exists
 
-In TypeScript, your types are erased at compile time. If you want to validate incoming JSON, you reach for Zod. If you want test fixtures, you reach for faker.js or write factories by hand. Every time you change a type, you update the schema and the factory too.
+In TypeScript, types are erased at compile time. Validating incoming JSON requires Zod or io-ts. Test fixtures require faker.js or hand-written factories. Every time you change a type, you update the schema and the factory too.
 
-In Floe, the compiler already has the type information. It can generate validators and test data directly -- and they're always in sync because they come from the same source.
+Floe's compiler already has the type information. It generates validators and test data directly -- always in sync because they come from the same source.
 
 ## `parse<T>` -- Runtime validation
 
@@ -69,7 +69,7 @@ No runtime dependency. No schema definition to maintain. Change the type, the va
 
 ```floe
 // API response validation
-fn fetchUsers() -> async Result<Array<User>, Error> {
+async fn fetchUsers() -> Promise<Result<Array<User>, Error>> {
   const response = await Http.get("/api/users")?
   const data = await Http.json(response)?
   data |> parse<Array<User>>
@@ -184,9 +184,7 @@ const testOrder = mock<Order>
 
 ---
 
-## Why this matters
-
-In TypeScript, types and runtime behavior are separate worlds:
+## Comparison with TypeScript
 
 | Task | TypeScript | Floe |
 |------|-----------|------|
@@ -195,4 +193,75 @@ In TypeScript, types and runtime behavior are separate worlds:
 | Keep in sync | Manual -- update schema when type changes | Automatic -- same source |
 | Runtime cost | Schema library bundled in production | Zero -- compiled away |
 
-Floe's approach eliminates an entire category of boilerplate and bugs. The type definition is the single source of truth, and the compiler does the rest.
+---
+
+## Testing
+
+Floe supports inline test blocks that live alongside the code they test. Tests are type-checked with the rest of your code but stripped from production output.
+
+### Writing Tests
+
+Use the `test` keyword followed by a name and a block of `assert` statements:
+
+```floe
+fn add(a: number, b: number) -> number { a + b }
+
+test "addition" {
+  assert add(1, 2) == 3
+  assert add(-1, 1) == 0
+  assert add(0, 0) == 0
+}
+```
+
+`assert` takes any expression that evaluates to `boolean`. The compiler enforces this at compile time.
+
+### Co-located Tests
+
+Tests live in the same file as the code they test:
+
+```floe
+type Validation {
+  | Valid { string }
+  | Empty
+  | TooShort
+  | TooLong
+}
+
+fn validate(input: string) -> Validation {
+  const len = input |> String.length
+  match len {
+    0 -> Empty,
+    1 -> TooShort,
+    _ -> match len > 100 {
+      true -> TooLong,
+      false -> Valid(input),
+    },
+  }
+}
+
+test "validation" {
+  assert validate("") == Empty
+  assert validate("a") == TooShort
+  assert validate("hello") == Valid("hello")
+}
+```
+
+### Running Tests
+
+```bash
+floe test src/          # all tests in a directory
+floe test src/math.fl   # tests in a specific file
+```
+
+| Command | Test blocks |
+|---------|-------------|
+| `floe test` | Compiled and executed |
+| `floe check` | Type-checked, not executed |
+| `floe build` | Stripped from output |
+
+### Test Rules
+
+- `test` is a contextual keyword -- it only starts a test block when followed by a string literal
+- `assert` is only valid inside test blocks
+- Test blocks cannot be exported
+- Multiple test blocks per file are allowed

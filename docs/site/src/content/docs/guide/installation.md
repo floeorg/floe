@@ -44,18 +44,7 @@ floe watch src/
 
 ### VS Code
 
-Install the **Floe** extension from the VS Code marketplace, or build from source:
-
-```bash
-cd editors/vscode
-npm install
-npm run build
-```
-
-The extension provides:
-- Syntax highlighting for `.fl` files
-- LSP integration (diagnostics, hover)
-- Code snippets
+Install the **Floe** extension from the [VS Code marketplace](https://marketplace.visualstudio.com/) or [Open VSX](https://open-vsx.org/extension/floeorg/floe) -- search for "Floe". This gives you syntax highlighting, LSP diagnostics, hover types, completions, and code snippets.
 
 ### Other Editors
 
@@ -70,4 +59,4 @@ Any editor with LSP support can connect to it.
 ## Next Steps
 
 - [Write your first program](/guide/first-program)
-- [Set up Vite integration](/tooling/vite)
+- [Set up Vite integration](/reference/vite)

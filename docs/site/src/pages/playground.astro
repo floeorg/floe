@@ -1,0 +1,49 @@
+---
+// Playground page — serves the standalone playground at /playground/
+// The WASM playground lives in /playground/ at the repo root.
+// This page embeds it in an iframe to keep the WASM build separate from the Astro build.
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Floe Playground</title>
+    <meta name="description" content="Try Floe in your browser. Write Floe code and see the compiled TypeScript output in real time." />
+    <link rel="icon" type="image/svg+xml" href="/floe/logo.svg" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; background: #1e1e2e; }
+      .banner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        flex-direction: column;
+        gap: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        color: #cdd6f4;
+      }
+      .banner h1 { font-size: 24px; font-weight: 600; }
+      .banner p { color: #a6adc8; font-size: 15px; }
+      .banner a {
+        margin-top: 8px;
+        padding: 10px 20px;
+        background: #89b4fa;
+        color: #1e1e2e;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .banner a:hover { filter: brightness(1.1); }
+    </style>
+  </head>
+  <body>
+    <div class="banner">
+      <h1>Floe Playground</h1>
+      <p>The browser playground requires a WASM build. Coming soon.</p>
+      <a href="/floe/guide/installation/">Install Floe locally</a>
+    </div>
+  </body>
+</html>

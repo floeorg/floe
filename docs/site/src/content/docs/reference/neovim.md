@@ -48,10 +48,30 @@ lspconfig.floe.setup({})
 
 ## Syntax Highlighting
 
-Copy the included Vim syntax file:
+Neovim uses tree-sitter for highlighting. Since the Floe parser is not yet in the nvim-treesitter registry, register it manually:
+
+```lua
+local parser_config = require("nvim-treesitter.parsers").get_parser_configs()
+
+parser_config.floe = {
+  install_info = {
+    url = "https://github.com/floeorg/floe",
+    location = "editors/tree-sitter-floe",
+    files = { "src/parser.c" },
+    branch = "main",
+  },
+  filetype = "floe",
+}
+```
+
+Install the parser and copy the highlight queries:
 
 ```bash
-cp editors/neovim/syntax/floe.vim ~/.config/nvim/syntax/
+# In Neovim:
+:TSInstall floe
+
+# From the repo root:
+cp -r editors/neovim/queries/floe ~/.config/nvim/queries/floe
 ```
 
 ## Features
@@ -68,5 +88,6 @@ All LSP features work out of the box:
 
 ## Requirements
 
-- `floe` in your `$PATH` (`cargo install --path .` from the repo)
+- `floe` in your `$PATH` (`cargo install floe` or build from source)
 - Neovim 0.8+
+- [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) (for syntax highlighting)

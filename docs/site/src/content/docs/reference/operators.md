@@ -14,7 +14,7 @@ title: Operators Reference
 
 ## Comparison
 
-All comparisons compile to strict equality (`===`, `!==`).
+Equality operators compile to strict equality (`===`, `!==`). Structural equality is used for `==` between same types.
 
 | Operator | Description | Compiles to |
 |----------|-------------|-------------|
@@ -55,6 +55,23 @@ x |> match { ... }  // match x { ... }
 | `?` | Unwrap Result/Option | `expr?` |
 
 The `?` operator unwraps `Ok(value)` or `Some(value)`, and returns early with `Err(e)` or `None` on failure. Only valid inside functions that return `Result` or `Option`.
+
+## Try
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `try` | Wrap unsafe npm call in `Result` | `try parseYaml(input)` |
+
+The `try` operator wraps a potentially throwing npm function call in a `Result<T, Error>`. Required for non-`trusted` npm imports.
+
+## Spread and Range
+
+| Operator | Context | Example |
+|----------|---------|---------|
+| `..` | Record spread in constructors | `User(..existing, name: "New")` |
+| `..` | Array rest in match patterns | `[first, ..rest]` |
+| `...` | Type spread in record definitions | `type B { ...A, extra: string }` |
+| `1..10` | Range pattern in match | `match n { 1..10 -> "small" }` |
 
 ## Arrow and Closure Operators
 
