@@ -82,7 +82,6 @@ This project uses **conventional commits** + **release-please** for automated ve
 ### Pre-1.0 strategy
 
 While pre-1.0, breaking changes bump minor (0.1 -> 0.2) not major. Go to 1.0.0 when the language syntax is stable and people are using it in real projects.
-
 <!-- glb-agent-instructions -->
 ## Task Tracking with glb
 
