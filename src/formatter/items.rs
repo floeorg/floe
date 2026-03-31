@@ -334,20 +334,20 @@ impl Formatter<'_> {
             .collect();
 
         // Newtype case: no VARIANT children, just VARIANT_FIELD directly
+        // Emit paren syntax: `type UserId(string)`
         if variants.is_empty() {
-            self.write(" {");
-            self.indent += 1;
-            self.newline();
-            self.write_indent();
-            for child in node.children() {
-                if child.kind() == SyntaxKind::VARIANT_FIELD {
-                    self.fmt_variant_field(&child);
+            self.write("(");
+            let fields: Vec<_> = node
+                .children()
+                .filter(|c| c.kind() == SyntaxKind::VARIANT_FIELD)
+                .collect();
+            for (i, child) in fields.iter().enumerate() {
+                if i > 0 {
+                    self.write(", ");
                 }
+                self.fmt_variant_field(child);
             }
-            self.indent -= 1;
-            self.newline();
-            self.write_indent();
-            self.write("}");
+            self.write(")");
             return;
         }
 
@@ -382,14 +382,27 @@ impl Formatter<'_> {
             .collect();
 
         if !fields.is_empty() {
-            self.write(" { ");
-            for (i, field) in fields.iter().enumerate() {
-                if i > 0 {
-                    self.write(", ");
+            // Use parens for positional fields, braces for named fields
+            let all_positional = fields.iter().all(|f| !self.has_token(f, SyntaxKind::COLON));
+            if all_positional {
+                self.write("(");
+                for (i, field) in fields.iter().enumerate() {
+                    if i > 0 {
+                        self.write(", ");
+                    }
+                    self.fmt_variant_field(field);
                 }
-                self.fmt_variant_field(field);
+                self.write(")");
+            } else {
+                self.write(" { ");
+                for (i, field) in fields.iter().enumerate() {
+                    if i > 0 {
+                        self.write(", ");
+                    }
+                    self.fmt_variant_field(field);
+                }
+                self.write(" }");
             }
-            self.write(" }");
         }
     }
 

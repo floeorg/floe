@@ -2015,6 +2015,30 @@ fn newtype_parses_as_single_variant_union() {
 }
 
 #[test]
+fn newtype_paren_syntax() {
+    let item = first_item("type UserId(string)");
+    match item {
+        ItemKind::TypeDecl(decl) => {
+            assert_eq!(decl.name, "UserId");
+            match &decl.def {
+                TypeDef::Union(variants) => {
+                    assert_eq!(variants.len(), 1);
+                    assert_eq!(variants[0].name, "UserId");
+                    assert_eq!(variants[0].fields.len(), 1);
+                    assert!(variants[0].fields[0].name.is_none());
+                    match &variants[0].fields[0].type_ann.kind {
+                        TypeExprKind::Named { name, .. } => assert_eq!(name, "string"),
+                        other => panic!("expected Named type, got {other:?}"),
+                    }
+                }
+                other => panic!("expected Union, got {other:?}"),
+            }
+        }
+        other => panic!("expected TypeDecl, got {other:?}"),
+    }
+}
+
+#[test]
 fn newtype_with_named_field_is_record() {
     // With new syntax, `{ value: number }` is a record, not a newtype
     let item = first_item("type UserId { value: number }");

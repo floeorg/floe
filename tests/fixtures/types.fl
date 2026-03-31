@@ -11,4 +11,4 @@ type Status {
     | Error(number, string)
 }
 
-type UserId { string }
+type UserId(string)
