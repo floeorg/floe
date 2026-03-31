@@ -27,9 +27,11 @@ impl Checker {
             } => {
                 let param_types: Vec<_> = params.iter().map(|p| self.resolve_type(p)).collect();
                 let ret = self.resolve_type(return_type);
+                let required_params = param_types.len();
                 Type::Function {
                     params: param_types,
                     return_type: Box::new(ret),
+                    required_params,
                 }
             }
             TypeExprKind::Array(inner) => Type::Array(Box::new(self.resolve_type(inner))),

@@ -206,6 +206,7 @@ fn wrap_function_wraps_params_and_return() {
         Type::Function {
             params: vec![Type::option_of(Type::String)],
             return_type: Box::new(Type::Unknown),
+            required_params: 1,
         }
     );
 }
@@ -232,6 +233,7 @@ fn wrap_function_optional_params_become_option() {
         Type::Function {
             params: vec![Type::String, Type::option_of(Type::Number)],
             return_type: Box::new(Type::Unit),
+            required_params: 1,
         }
     );
 }
@@ -389,6 +391,7 @@ fn parse_function_nullable_return_wraps_to_option() {
         Type::Function {
             params: vec![Type::String],
             return_type: Box::new(Type::option_of(Type::Foreign("Element".to_string()))),
+            required_params: 1,
         }
     );
 }
@@ -402,6 +405,7 @@ fn parse_function_any_param_wraps_to_unknown() {
         Type::Function {
             params: vec![Type::Unknown],
             return_type: Box::new(Type::Unit),
+            required_params: 1,
         }
     );
 }

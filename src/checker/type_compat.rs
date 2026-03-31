@@ -258,10 +258,12 @@ impl Checker {
                 Type::Function {
                     params: p1,
                     return_type: r1,
+                    ..
                 },
                 Type::Function {
                     params: p2,
                     return_type: r2,
+                    ..
                 },
             ) => {
                 p1.len() == p2.len()
