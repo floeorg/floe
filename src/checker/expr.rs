@@ -898,7 +898,37 @@ impl Checker {
                     return_type
                 }
             }
-            _ => Type::Unknown,
+            Type::Unknown => {
+                self.check_args_unchecked(args);
+                let callee_name = match &callee.kind {
+                    ExprKind::Identifier(name) => name.as_str(),
+                    ExprKind::Member { field, .. } => field.as_str(),
+                    _ => "<expression>",
+                };
+                self.emit_warning_with_help(
+                    format!("`{callee_name}` has unknown type - arguments are not type-checked"),
+                    span,
+                    "W004",
+                    "Type could not be resolved",
+                    "Check that the import source has type declarations",
+                );
+                Type::Unknown
+            }
+            _ => {
+                self.check_args_unchecked(args);
+                Type::Unknown
+            }
+        }
+    }
+
+    /// Check argument expressions without validating types against parameters.
+    fn check_args_unchecked(&mut self, args: &[Arg]) {
+        for arg in args {
+            match arg {
+                Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                    self.check_expr(e);
+                }
+            }
         }
     }
 

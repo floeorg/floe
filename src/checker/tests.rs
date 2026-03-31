@@ -4783,6 +4783,39 @@ fn page() {
     }
 }
 
+// ── Rule: unknown type checking (#734) ─────────────────────
+
+#[test]
+fn unknown_arg_rejected_for_concrete_param() {
+    let diags = check(
+        r#"
+fn takesString(s: string) -> string { s }
+fn returnsUnknown() -> unknown { "hello" }
+const x = returnsUnknown()
+const _result = takesString(x)
+"#,
+    );
+    assert!(
+        has_error(&diags, "E001"),
+        "should reject unknown arg for string param, got: {diags:?}"
+    );
+}
+
+#[test]
+fn unknown_callee_emits_warning() {
+    let diags = check(
+        r#"
+fn returnsUnknown() -> unknown { "hello" }
+const f = returnsUnknown()
+const _result = f(42)
+"#,
+    );
+    assert!(
+        has_warning_containing(&diags, "unknown type"),
+        "should warn when calling unknown-typed value, got: {diags:?}"
+    );
+}
+
 // ── Dot shorthand in function arguments ──────────────────────
 
 #[test]

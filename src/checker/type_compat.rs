@@ -103,9 +103,10 @@ impl Checker {
         if matches!(actual, Type::Var(_)) {
             return true;
         }
-        // Unknown as ACTUAL with concrete expected: NOT compatible.
-        // Must narrow unknown before assigning to a concrete type.
-        // (This is the key strictness rule — same as TypeScript's unknown.)
+        // Unknown as actual with concrete expected: not compatible (same as TypeScript's unknown)
+        if matches!(actual, Type::Unknown) {
+            return false;
+        }
 
         // `never` is compatible with any type (it means "this code never returns")
         if matches!(actual, Type::Never) || matches!(expected, Type::Never) {
