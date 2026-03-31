@@ -1177,6 +1177,20 @@ impl Checker {
             None
         };
 
+        // Build ordered field types for variant constructors (positional arg checking)
+        let variant_field_types: Option<Vec<Type>> =
+            self.env.lookup(type_name).cloned().and_then(|ty| {
+                if let Type::Union { variants, .. } = ty {
+                    variants
+                        .into_iter()
+                        .find(|(n, _)| n == type_name)
+                        .map(|(_, types)| types)
+                } else {
+                    None
+                }
+            });
+
+        let mut positional_index = 0;
         for arg in args {
             match arg {
                 Arg::Named {
@@ -1212,8 +1226,59 @@ impl Checker {
                     }
                 }
                 Arg::Positional(e) => {
-                    self.check_expr(e);
+                    let arg_ty = self.check_expr(e);
+                    // Type-check positional args against variant field types
+                    if let Some(ref field_types) = variant_field_types
+                        && let Some(expected_ty) = field_types.get(positional_index)
+                        && !self.types_compatible(expected_ty, &arg_ty)
+                        && !matches!(arg_ty, Type::Unknown | Type::Var(_))
+                    {
+                        self.emit_error(
+                            format!(
+                                "argument {}: expected `{}`, found `{}`",
+                                positional_index + 1,
+                                expected_ty.display_name(),
+                                arg_ty.display_name()
+                            ),
+                            span,
+                            "E001",
+                            format!("expected `{}`", expected_ty.display_name()),
+                        );
+                    }
+                    positional_index += 1;
                 }
+            }
+        }
+
+        // Check arg count for positional-only variant constructors
+        if let Some(ref field_types) = variant_field_types
+            && spread.is_none()
+        {
+            let positional_count = args
+                .iter()
+                .filter(|a| matches!(a, Arg::Positional(_)))
+                .count();
+            let named_count = args
+                .iter()
+                .filter(|a| matches!(a, Arg::Named { .. }))
+                .count();
+            // Only check when all args are positional (no named args mixing)
+            if named_count == 0 && positional_count != field_types.len() {
+                self.emit_error(
+                    format!(
+                        "`{type_name}` expects {} argument{}, found {}",
+                        field_types.len(),
+                        if field_types.len() == 1 { "" } else { "s" },
+                        positional_count
+                    ),
+                    span,
+                    "E016",
+                    format!(
+                        "expected {} argument{}",
+                        field_types.len(),
+                        if field_types.len() == 1 { "" } else { "s" }
+                    ),
+                );
             }
         }
 

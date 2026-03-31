@@ -3188,6 +3188,76 @@ const _result = apply(Validation)
     assert!(has_error(&diags, "E001"));
 }
 
+// ── Positional variant fields ────────────────────────────────
+
+#[test]
+fn positional_variant_construction_no_error() {
+    let diags = check(
+        r#"
+type Shape {
+    | Circle(number)
+    | Rect(number, number)
+    | Point
+}
+
+const _c = Circle(5)
+const _r = Rect(10, 20)
+const _p = Point
+"#,
+    );
+    assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
+}
+
+#[test]
+fn positional_variant_type_mismatch() {
+    let diags = check(
+        r#"
+type Shape {
+    | Circle(number)
+}
+
+const _c = Circle("hello")
+"#,
+    );
+    assert!(has_error(&diags, "E001"));
+}
+
+#[test]
+fn positional_variant_wrong_arg_count() {
+    let diags = check(
+        r#"
+type Shape {
+    | Rect(number, number)
+}
+
+const _r = Rect(10)
+"#,
+    );
+    assert!(has_error(&diags, "E016"));
+}
+
+#[test]
+fn positional_variant_pattern_matching() {
+    let diags = check(
+        r#"
+type Shape {
+    | Circle(number)
+    | Point
+}
+
+fn describe(s: Shape) -> string {
+    match s {
+        Circle(r) -> `r=${r}`,
+        Point -> "point",
+    }
+}
+
+const _d = describe(Circle(5))
+"#,
+    );
+    assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
+}
+
 // ── Generic functions ───────────────────────────────────────
 
 #[test]
