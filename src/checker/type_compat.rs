@@ -116,7 +116,7 @@ impl Checker {
         }
 
         // Foreign types: nominal for Foreign-vs-Foreign, reject primitives,
-        // permissive with complex types until cross-file resolution is fixed (#789).
+        // permissive with complex types for genuinely opaque npm types.
         match (expected, actual) {
             (Type::Foreign(a), Type::Foreign(b)) => return a == b,
             (Type::Foreign(_), _) if actual.is_primitive() => return false,

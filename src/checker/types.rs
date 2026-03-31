@@ -304,61 +304,65 @@ impl TypeEnv {
         resolve_type_fn: &dyn Fn(&crate::parser::ast::TypeExpr) -> Type,
     ) -> Type {
         match ty {
-            Type::Named(name) => {
+            Type::Named(name) | Type::Foreign(name) => {
                 if let Some(info) = self.lookup_type(name) {
-                    match &info.def {
-                        crate::parser::ast::TypeDef::Record(entries) => {
-                            let field_types: Vec<_> = entries
-                                .iter()
-                                .filter_map(|e| e.as_field())
-                                .map(|f| (f.name.clone(), resolve_type_fn(&f.type_ann)))
-                                .collect();
-                            Type::Record(field_types)
-                        }
-                        crate::parser::ast::TypeDef::Union(variants) => {
-                            let var_types: Vec<_> = variants
-                                .iter()
-                                .map(|v| {
-                                    let field_types: Vec<_> = v
-                                        .fields
-                                        .iter()
-                                        .map(|f| resolve_type_fn(&f.type_ann))
-                                        .collect();
-                                    (v.name.clone(), field_types)
-                                })
-                                .collect();
-                            Type::Union {
-                                name: name.clone(),
-                                variants: var_types,
-                            }
-                        }
-                        crate::parser::ast::TypeDef::StringLiteralUnion(variants) => {
-                            Type::StringLiteralUnion {
-                                name: name.clone(),
-                                variants: variants.clone(),
-                            }
-                        }
-                        crate::parser::ast::TypeDef::Alias(type_expr) => {
-                            // For typeof aliases, use the pre-resolved env binding
-                            // (simple_resolve_type_expr can't resolve typeof without env context)
-                            if matches!(type_expr.kind, crate::parser::ast::TypeExprKind::TypeOf(_))
-                                && let Some(resolved) = self.lookup(name)
-                            {
-                                // Continue resolving in case typeof gives us another Named type
-                                return self
-                                    .resolve_to_concrete(&resolved.clone(), resolve_type_fn);
-                            }
-                            let resolved = resolve_type_fn(type_expr);
-                            // Follow alias chains
-                            self.resolve_to_concrete(&resolved, resolve_type_fn)
-                        }
-                    }
+                    self.resolve_type_def(name, info, resolve_type_fn)
                 } else {
                     ty.clone()
                 }
             }
-            Type::Foreign(_) | Type::Promise(_) => ty.clone(),
+            Type::Promise(_) => ty.clone(),
             _ => ty.clone(),
+        }
+    }
+
+    fn resolve_type_def(
+        &self,
+        name: &str,
+        info: &TypeInfo,
+        resolve_type_fn: &dyn Fn(&crate::parser::ast::TypeExpr) -> Type,
+    ) -> Type {
+        match &info.def {
+            crate::parser::ast::TypeDef::Record(entries) => {
+                let field_types: Vec<_> = entries
+                    .iter()
+                    .filter_map(|e| e.as_field())
+                    .map(|f| (f.name.clone(), resolve_type_fn(&f.type_ann)))
+                    .collect();
+                Type::Record(field_types)
+            }
+            crate::parser::ast::TypeDef::Union(variants) => {
+                let var_types: Vec<_> = variants
+                    .iter()
+                    .map(|v| {
+                        let field_types: Vec<_> = v
+                            .fields
+                            .iter()
+                            .map(|f| resolve_type_fn(&f.type_ann))
+                            .collect();
+                        (v.name.clone(), field_types)
+                    })
+                    .collect();
+                Type::Union {
+                    name: name.to_string(),
+                    variants: var_types,
+                }
+            }
+            crate::parser::ast::TypeDef::StringLiteralUnion(variants) => Type::StringLiteralUnion {
+                name: name.to_string(),
+                variants: variants.clone(),
+            },
+            crate::parser::ast::TypeDef::Alias(type_expr) => {
+                // For typeof aliases, use the pre-resolved env binding
+                // (simple_resolve_type_expr can't resolve typeof without env context)
+                if matches!(type_expr.kind, crate::parser::ast::TypeExprKind::TypeOf(_))
+                    && let Some(resolved) = self.lookup(name)
+                {
+                    return self.resolve_to_concrete(&resolved.clone(), resolve_type_fn);
+                }
+                let resolved = resolve_type_fn(type_expr);
+                self.resolve_to_concrete(&resolved, resolve_type_fn)
+            }
         }
     }
 }
