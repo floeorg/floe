@@ -5,6 +5,15 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.34](https://github.com/floeorg/floe/compare/v0.1.33...v0.1.34) (2026-03-31)
+
+
+### Bug Fixes
+
+* [[#804](https://github.com/floeorg/floe/issues/804)] Suggest try await instead of await try when Result wraps Promise ([#813](https://github.com/floeorg/floe/issues/813)) ([e377ed6](https://github.com/floeorg/floe/commit/e377ed605539ac0168eb72181eb0eadd563a42ae))
+* [[#806](https://github.com/floeorg/floe/issues/806)] Object literals with variant values inferred as unknown ([#808](https://github.com/floeorg/floe/issues/808)) ([b8c3b50](https://github.com/floeorg/floe/commit/b8c3b503de0d9db0f6da7b231892b59a33c45ddc))
+* [[#811](https://github.com/floeorg/floe/issues/811)] Reject non-type values in type annotations ([#814](https://github.com/floeorg/floe/issues/814)) ([1ecfeec](https://github.com/floeorg/floe/commit/1ecfeece1352ac8173041d42ce0e09703c92831d))
+
 ## [0.1.33](https://github.com/floeorg/floe/compare/v0.1.32...v0.1.33) (2026-03-31)
 
 
