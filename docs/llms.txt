@@ -412,6 +412,14 @@ const port = Map.get(config, "port")     // Option<string>
 const keys = config |> Map.keys          // Array<string>
 const merged = Map.merge(defaults, config)
 
+// Record<K, V> — plain-object maps (from TS Record<string, T> interop)
+// Use Record.* instead of Map.* for imported TS lookup tables and dictionaries
+const icon = Record.get(ICONS, key)       // Option<string>  → compiles to ICONS[key]
+const keys = ICONS |> Record.keys         // Array<string>   → Object.keys(ICONS)
+const vals = ICONS |> Record.values       // Array<string>   → Object.values(ICONS)
+const has = Record.has(ICONS, key)        // boolean         → (key in ICONS)
+const n = ICONS |> Record.size            // number          → Object.keys(ICONS).length
+
 // Http — pipe-friendly fetch with Result (no try needed)
 const data = await Http.get("https://api.example.com/users")? |> Http.json?
 const result = await Http.post(url, { name: "Alice" })?
@@ -680,7 +688,7 @@ match key {
 3. **match is exhaustive** — all variants must be handled
 4. **`?` only works** inside functions returning `Result` or `Option`
 5. **`==` is structural equality** — only between same types
-6. **No bracket indexing** — use `Map.get(map, key)` for maps (returns `Option<T>`), `Array.get(arr, i)` for arrays (returns `Option<T>`). `obj[key]` is not valid Floe syntax
+6. **No bracket indexing** — use `Map.get(map, key)` for maps, `Record.get(obj, key)` for plain-object records, `Array.get(arr, i)` for arrays (all return `Option<T>`). `obj[key]` is not valid Floe syntax
 7. **npm imports are unsafe by default** — use `try` or mark `trusted`
 8. **`self` is explicit** in for blocks — no implicit `this`
 9. **No mutation** of function parameters

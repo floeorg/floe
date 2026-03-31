@@ -91,6 +91,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | tap | `x \|> tap(Console.log)` | IIFE: calls fn, returns value unchanged |
 | Immutable sort | `Array.sort` returns new array | sorted copy, no mutation |
 | Immutable maps | `Map.set`, `Map.remove` return new maps | `new Map([...old, [k, v]])` |
+| Record access | `Record.get`, `Record.keys`, etc. for TS `Record<K, V>` | `obj[key]`, `Object.keys(obj)` |
 | Immutable sets | `Set.add`, `Set.remove` return new sets | `new Set([...old, val])` |
 | Date construction | `Date.now()`, `Date.from("...")` | `new Date()`, `new Date("...")` |
 | Strict parse | `Number.parse("123")` returns `Result` | no silent `NaN` or partial parse |
