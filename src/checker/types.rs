@@ -230,7 +230,26 @@ impl Type {
                 params,
                 return_type,
             } => {
-                let p: Vec<_> = params.iter().map(|t| t.display_name()).collect();
+                // Find the first trailing Option<T> param — all trailing Options
+                // are displayed with `= None` to indicate they're optional.
+                let first_trailing_option = {
+                    let mut idx = params.len();
+                    while idx > 0 && params[idx - 1].is_option() {
+                        idx -= 1;
+                    }
+                    idx
+                };
+                let p: Vec<_> = params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, t)| {
+                        if i >= first_trailing_option {
+                            format!("{} = None", t.display_name())
+                        } else {
+                            t.display_name()
+                        }
+                    })
+                    .collect();
                 format!("({}) -> {}", p.join(", "), return_type.display_name())
             }
             Type::Array(inner) => format!("Array<{}>", inner.display_name()),
