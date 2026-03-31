@@ -613,11 +613,106 @@ pub(super) fn generate_probe(
         }
     }
 
-    if probe_index == 0 && member_accesses.is_empty() && !has_type_probes {
+    // Emit JSX callback parameter probes: extract callback param types from
+    // component props using TS conditional types (e.g. NavLink's className).
+    let jsx_callback_probes = collect_jsx_callback_probes(program, &imported_names);
+    if !jsx_callback_probes.is_empty() {
+        lines.push(
+            "type _JCB<T> = T extends (arg: infer P, ...rest: any[]) => any ? P : never;"
+                .to_string(),
+        );
+        for probe in &jsx_callback_probes {
+            lines.push(format!(
+                "export declare const __jsx_{}_{}:\
+                 _JCB<NonNullable<Parameters<typeof {}>[0][\"{}\"]>>;",
+                probe.component, probe.prop, probe.component, probe.prop,
+            ));
+        }
+    }
+
+    let has_jsx_probes = !jsx_callback_probes.is_empty();
+
+    if probe_index == 0 && member_accesses.is_empty() && !has_type_probes && !has_jsx_probes {
         return String::new();
     }
 
     lines.join("\n") + "\n"
+}
+
+struct JsxCallbackProbe {
+    component: String,
+    prop: String,
+}
+
+/// Walk the AST to find JSX callback props on imported components.
+/// Uses `walk_program` for expression traversal; only inspects JSX elements directly.
+fn collect_jsx_callback_probes(
+    program: &Program,
+    imported_names: &HashMap<String, String>,
+) -> Vec<JsxCallbackProbe> {
+    let mut probes = Vec::new();
+    let mut seen = HashSet::new();
+    crate::walk::walk_program(program, &mut |expr| {
+        if let ExprKind::Jsx(jsx) = &expr.kind {
+            inspect_jsx_for_callback_probes(jsx, imported_names, &mut probes, &mut seen);
+        }
+    });
+    probes
+}
+
+/// Inspect a JSX element tree for callback props on imported components.
+/// Only recurses into nested `JsxChild::Element` nodes; expression traversal
+/// is handled by the caller (`walk_program`).
+fn inspect_jsx_for_callback_probes(
+    jsx: &JsxElement,
+    imported_names: &HashMap<String, String>,
+    probes: &mut Vec<JsxCallbackProbe>,
+    seen: &mut HashSet<(String, String)>,
+) {
+    if let JsxElementKind::Element {
+        name,
+        props,
+        children,
+        ..
+    } = &jsx.kind
+    {
+        if name.starts_with(|c: char| c.is_uppercase()) && imported_names.contains_key(name) {
+            for prop in props {
+                if let JsxProp::Named {
+                    name: prop_name,
+                    value: Some(value),
+                    ..
+                } = prop
+                {
+                    // Skip event handlers (handled by event_handler_context)
+                    if prop_name.starts_with("on") && prop_name.len() > 2 {
+                        continue;
+                    }
+                    if matches!(value.kind, ExprKind::Arrow { .. }) {
+                        let key = (name.clone(), prop_name.clone());
+                        if seen.insert(key) {
+                            probes.push(JsxCallbackProbe {
+                                component: name.clone(),
+                                prop: prop_name.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        for child in children {
+            if let JsxChild::Element(el) = child {
+                inspect_jsx_for_callback_probes(el, imported_names, probes, seen);
+            }
+        }
+    }
+    if let JsxElementKind::Fragment { children } = &jsx.kind {
+        for child in children {
+            if let JsxChild::Element(el) = child {
+                inspect_jsx_for_callback_probes(el, imported_names, probes, seen);
+            }
+        }
+    }
 }
 
 /// Collect names used in `typeof <name>` expressions within a type expression.

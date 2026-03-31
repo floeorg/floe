@@ -528,4 +528,64 @@ type MyNum = number"#;
             "local-only type alias should not be probed: {probe}"
         );
     }
+
+    #[test]
+    fn generate_probe_jsx_callback_prop() {
+        let source = r#"import { NavLink } from "react-router-dom"
+
+fn page() {
+    <NavLink className={(state) => "active"} to="/home" />
+}"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        // Should contain the JSX callback helper type
+        assert!(
+            probe.contains("type _JCB<T>"),
+            "probe should contain _JCB helper type, got:\n{probe}"
+        );
+        // Should contain the JSX callback probe for NavLink's className
+        assert!(
+            probe.contains("__jsx_NavLink_className"),
+            "probe should contain jsx callback probe, got:\n{probe}"
+        );
+        assert!(
+            probe.contains("Parameters<typeof NavLink>[0][\"className\"]"),
+            "probe should extract callback param type from component props, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_jsx_no_probe_for_event_handlers() {
+        let source = r#"import { Button } from "some-lib"
+
+fn page() {
+    <Button onClick={(e) => handle(e)} />
+}"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        // Should NOT probe event handler props (already handled by event_handler_context)
+        assert!(
+            !probe.contains("__jsx_Button_onClick"),
+            "probe should not contain jsx callback probe for event handlers, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_jsx_no_probe_for_non_arrow_props() {
+        let source = r#"import { NavLink } from "react-router-dom"
+
+fn page() {
+    <NavLink className="static" to="/home" />
+}"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        // Should NOT probe string props (no arrow function)
+        assert!(
+            !probe.contains("__jsx_NavLink_className"),
+            "probe should not probe non-arrow props, got:\n{probe}"
+        );
+    }
 }

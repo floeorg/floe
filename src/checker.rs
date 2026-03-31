@@ -141,6 +141,9 @@ pub struct Checker {
     /// Used to resolve the correct overload when multiple for-blocks define the same function name,
     /// and to detect redefinition conflicts (same name on same type).
     for_block_overloads: HashMap<String, Vec<(String, Type)>>,
+    /// Maps component_name -> prop_name -> resolved callback parameter type.
+    /// Populated from tsgo probe results for JSX props with arrow function values.
+    jsx_callback_hints: HashMap<String, HashMap<String, Type>>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -312,6 +315,7 @@ impl Checker {
             fn_required_params: HashMap::new(),
             fn_param_names: HashMap::new(),
             for_block_overloads: HashMap::new(),
+            jsx_callback_hints: HashMap::new(),
         }
     }
 
@@ -473,6 +477,25 @@ impl Checker {
             }
         }
         self.registering_types = false;
+
+        // Build JSX callback hints from tsgo probe results (__jsx_Component_prop entries)
+        for exports in self.dts_imports.values() {
+            for export in exports {
+                if let Some(rest) = export.name.strip_prefix("__jsx_")
+                    && let Some(sep) = rest.find('_')
+                {
+                    let component = &rest[..sep];
+                    let prop = &rest[sep + 1..];
+                    let ty = interop::wrap_boundary_type(&export.ts_type);
+                    if !matches!(ty, Type::Unknown | Type::Never) {
+                        self.jsx_callback_hints
+                            .entry(component.to_string())
+                            .or_default()
+                            .insert(prop.to_string(), ty);
+                    }
+                }
+            }
+        }
 
         // Second pass: check all items
         for item in &program.items {
