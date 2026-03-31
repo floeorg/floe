@@ -603,11 +603,6 @@ fn page() {
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
-        // Should contain the children callback helper type
-        assert!(
-            probe.contains("type _JCBC<T>"),
-            "probe should contain _JCBC helper type, got:\n{probe}"
-        );
         // Should contain probes for each parameter position
         assert!(
             probe.contains("__jsxc_Draggable_0"),

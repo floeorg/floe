@@ -488,7 +488,6 @@ impl Checker {
         for exports in self.dts_imports.values() {
             for export in exports {
                 if let Some(rest) = export.name.strip_prefix("__jsxc_") {
-                    // Children render prop probe: __jsxc_Component_N
                     if let Some(sep) = rest.rfind('_') {
                         let component = &rest[..sep];
                         let index: usize = match rest[sep + 1..].parse() {
