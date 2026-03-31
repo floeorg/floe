@@ -115,13 +115,14 @@ impl Checker {
             return true;
         }
 
-        // Foreign types (from npm imports) are assumed compatible since we can't
-        // fully resolve type aliases across the npm boundary.
-        if matches!(expected, Type::Foreign(_)) && !matches!(actual, Type::Unknown) {
-            return true;
-        }
-        if matches!(actual, Type::Foreign(_)) && !matches!(expected, Type::Unknown) {
-            return true;
+        // Foreign types: nominal for Foreign-vs-Foreign, reject primitives,
+        // permissive with complex types until cross-file resolution is fixed (#789).
+        match (expected, actual) {
+            (Type::Foreign(a), Type::Foreign(b)) => return a == b,
+            (Type::Foreign(_), _) if actual.is_primitive() => return false,
+            (_, Type::Foreign(_)) if expected.is_primitive() => return false,
+            (Type::Foreign(_), _) | (_, Type::Foreign(_)) => return true,
+            _ => {}
         }
 
         // Opaque type: within the defining module, the underlying type

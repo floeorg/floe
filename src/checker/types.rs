@@ -148,6 +148,13 @@ impl Type {
         matches!(self, Type::Bool)
     }
 
+    pub(crate) fn is_primitive(&self) -> bool {
+        matches!(
+            self,
+            Type::Number | Type::String | Type::Bool | Type::Unit | Type::Undefined
+        )
+    }
+
     pub(crate) fn display_name(&self) -> String {
         match self {
             Type::Number => "number".to_string(),
