@@ -257,7 +257,7 @@ const [count, setCount] = useState(0)"#;
 
     #[test]
     fn type_decl_to_ts_record() {
-        let source = "type Todo { text: string, done: bool }";
+        let source = "type Todo { text: string, done: boolean }";
         let program = Parser::new(source).parse_program().unwrap();
         if let ItemKind::TypeDecl(decl) = &program.items[0].kind {
             let ts = type_decl_to_ts(decl);
