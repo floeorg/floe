@@ -61,14 +61,16 @@ fn ProductDetailContent(
                     alt={product.title}
                     className="w-full rounded-xl object-cover"
                  />
-                <div className="mt-3 flex gap-2 overflow-x-auto">{product.images |> Array.map(
-                    (img) => <img
-                        key={img}
-                        src={img}
-                        alt={product.title}
-                        className="h-20 w-20 shrink-0 rounded-lg object-cover border border-zinc-800"
-                     />,
-                )}</div>
+                <div className="mt-3 flex gap-2 overflow-x-auto">
+                    {product.images |> Array.map((img) =>
+                        <img
+                            key={img}
+                            src={img}
+                            alt={product.title}
+                            className="h-20 w-20 shrink-0 rounded-lg object-cover border border-zinc-800"
+                         />
+                    )}
+                </div>
             </div>
             <div className="w-1/2">
                 <span
@@ -87,13 +89,13 @@ fn ProductDetailContent(
                     <span className="text-sm text-zinc-600">{`(${reviews |> Array.length} reviews)`}</span>
                 </div>
                 <div className="mb-4 flex items-baseline gap-3">
-                    <span className="text-3xl font-bold text-indigo-400">{product
-                        |> effectivePrice
-                        |> formatPrice}</span>
+                    <span className="text-3xl font-bold text-indigo-400">
+                        {product |> effectivePrice |> formatPrice}
+                    </span>
                     {match hasDiscount {
-                        true -> <span className="text-lg text-zinc-500 line-through">{formatPrice(
-                            product.price,
-                        )}</span>,
+                        true -> <span className="text-lg text-zinc-500 line-through">
+                            {formatPrice(product.price)}
+                        </span>,
                         false -> <span />,
                     }}
                     {match hasDiscount {
@@ -118,12 +120,16 @@ fn ProductDetailContent(
                         {product |> stockLabel}
                     </span>
                 </div>
-                <div className="mb-6 flex flex-wrap gap-2">{product.tags |> Array.map((tag) => <span
-                    key={tag}
-                    className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-400"
-                >
-                    {tag}
-                </span>)}</div>
+                <div className="mb-6 flex flex-wrap gap-2">
+                    {product.tags |> Array.map((tag) =>
+                        <span
+                            key={tag}
+                            className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-400"
+                        >
+                            {tag}
+                        </span>
+                    )}
+                </div>
                 <button
                     onClick={() => props.onAddToCart(product)}
                     disabled={!(product |> inStock)}
@@ -141,12 +147,16 @@ fn ProductDetailContent(
         </div>
         <div>
             <h2 className="mb-4 text-xl font-semibold">Reviews</h2>
-            <div className="space-y-3">{reviews |> match {
-                [] -> <p className="text-zinc-500">No reviews yet.</p>,
-                revs -> <div className="space-y-3">{revs |> Array.map(
-                    (review) => <ReviewCard key={review.reviewerName} review={review} />,
-                )}</div>,
-            }}</div>
+            <div className="space-y-3">
+                {reviews |> match {
+                    [] -> <p className="text-zinc-500">No reviews yet.</p>,
+                    revs -> <div className="space-y-3">
+                        {revs |> Array.map(
+                            (review) => <ReviewCard key={review.reviewerName} review={review} />,
+                        )}
+                    </div>,
+                }}
+            </div>
         </div>
     </div>
 }
@@ -187,23 +197,27 @@ export fn ProductDetailPage(
         >
             {"<- Back to catalog"}
         </Link>
-        <QueryErrorResetBoundary>{({ reset }) => <ErrorBoundary
-            onReset={reset}
-            fallbackRender={({ resetErrorBoundary, error }) => <div
-                className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
-            >
-                <p className="mb-3 text-red-400">{`Failed to load product: ${error.message}`}</p>
-                <button
-                    onClick={resetErrorBoundary}
-                    className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500"
+        <QueryErrorResetBoundary>
+            {({ reset }) =>
+                <ErrorBoundary
+                    onReset={reset}
+                    fallbackRender={({ resetErrorBoundary, error }) =>
+                        <div
+                            className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
+                        >
+                            <p className="mb-3 text-red-400">{`Failed to load product: ${error.message}`}</p>
+                            <button
+                                onClick={resetErrorBoundary}
+                                className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500"
+                            >
+                                Retry
+                            </button>
+                        </div>}
                 >
-                    Retry
-                </button>
-            </div>}
-        >
-            <Suspense fallback={<DetailSkeleton />}>
-                <ProductDetailContent productId={props.productId} onAddToCart={props.onAddToCart} />
-            </Suspense>
-        </ErrorBoundary>}</QueryErrorResetBoundary>
+                    <Suspense fallback={<DetailSkeleton />}>
+                        <ProductDetailContent productId={props.productId} onAddToCart={props.onAddToCart} />
+                    </Suspense>
+                </ErrorBoundary>}
+        </QueryErrorResetBoundary>
     </div>
 }

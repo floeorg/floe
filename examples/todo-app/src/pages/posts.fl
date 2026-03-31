@@ -80,76 +80,90 @@ fn PostList() -> JSX.Element {
             >
                 All
             </button>
-            {userIds |> Array.map((id) => <button
-                key={id}
-                onClick={() => setSelectedUserId(Some(id))}
-                className={match selectedUserId {
-                    Some(selected) when selected == id -> "rounded px-3 py-1 text-sm bg-indigo-600 text-white transition-colors",
-                    _ -> "rounded px-3 py-1 text-sm bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors",
-                }}
-            >
-                {`User ${id}`}
-            </button>)}
+            {userIds |> Array.map((id) =>
+                <button
+                    key={id}
+                    onClick={() => setSelectedUserId(Some(id))}
+                    className={match selectedUserId {
+                        Some(selected) when selected == id -> "rounded px-3 py-1 text-sm bg-indigo-600 text-white transition-colors",
+                        _ -> "rounded px-3 py-1 text-sm bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors",
+                    }}
+                >
+                    {`User ${id}`}
+                </button>
+            )}
         </div>
-        <div className="space-y-4">{posts |> Array.map((post) => <article
-            key={post.id}
-            className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
-        >
-            <h3
-                className="mb-1 text-lg font-semibold capitalize text-zinc-100"
-            >
-                {post.title}
-            </h3>
-            <Suspense
-                fallback={<span className="text-sm text-zinc-600">Loading author...</span>}
-            >
-                <p className="mb-3 text-sm">
-                    {"by "}
-                    <PostAuthor userId={post.userId} />
-                </p>
-            </Suspense>
-            <p className="text-sm leading-relaxed text-zinc-400">{post.body}</p>
-        </article>)}</div>
+        <div className="space-y-4">
+            {posts |> Array.map((post) =>
+                <article
+                    key={post.id}
+                    className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
+                >
+                    <h3
+                        className="mb-1 text-lg font-semibold capitalize text-zinc-100"
+                    >
+                        {post.title}
+                    </h3>
+                    <Suspense
+                        fallback={<span className="text-sm text-zinc-600">Loading author...</span>}
+                    >
+                        <p className="mb-3 text-sm">
+                            {"by "}
+                            <PostAuthor userId={post.userId} />
+                        </p>
+                    </Suspense>
+                    <p className="text-sm leading-relaxed text-zinc-400">{post.body}</p>
+                </article>
+            )}
+        </div>
     </div>
 }
 
 fn LoadingSkeleton() -> JSX.Element {
     const skeletons = [1, 2, 3]
 
-    <div className="space-y-4">{skeletons |> Array.map((i) => <div
-        key={i}
-        className="animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
-    >
-        <div className="mb-2 h-5 w-3/4 rounded bg-zinc-800" />
-        <div className="mb-3 h-4 w-1/4 rounded bg-zinc-800" />
-        <div className="space-y-2">
-            <div className="h-3 w-full rounded bg-zinc-800" />
-            <div className="h-3 w-5/6 rounded bg-zinc-800" />
-        </div>
-    </div>)}</div>
+    <div className="space-y-4">
+        {skeletons |> Array.map((i) =>
+            <div
+                key={i}
+                className="animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
+            >
+                <div className="mb-2 h-5 w-3/4 rounded bg-zinc-800" />
+                <div className="mb-3 h-4 w-1/4 rounded bg-zinc-800" />
+                <div className="space-y-2">
+                    <div className="h-3 w-full rounded bg-zinc-800" />
+                    <div className="h-3 w-5/6 rounded bg-zinc-800" />
+                </div>
+            </div>
+        )}
+    </div>
 }
 
 export fn PostsPage() -> JSX.Element {
     <QueryClientProvider client={queryClient}>
         <h1 className="mb-2 text-3xl font-bold">Posts</h1>
         <p className="mb-6 text-zinc-400">TanStack Query + Suspense demo using JSONPlaceholder API.</p>
-        <QueryErrorResetBoundary>{({ reset }) => <ErrorBoundary
-            onReset={reset}
-            fallbackRender={({ resetErrorBoundary, error }) => <div
-                className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
-            >
-                <p className="mb-3 text-red-400">{`Failed to load posts: ${error.message}`}</p>
-                <button
-                    onClick={resetErrorBoundary}
-                    className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500"
+        <QueryErrorResetBoundary>
+            {({ reset }) =>
+                <ErrorBoundary
+                    onReset={reset}
+                    fallbackRender={({ resetErrorBoundary, error }) =>
+                        <div
+                            className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
+                        >
+                            <p className="mb-3 text-red-400">{`Failed to load posts: ${error.message}`}</p>
+                            <button
+                                onClick={resetErrorBoundary}
+                                className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500"
+                            >
+                                Retry
+                            </button>
+                        </div>}
                 >
-                    Retry
-                </button>
-            </div>}
-        >
-            <Suspense fallback={<LoadingSkeleton />}>
-                <PostList />
-            </Suspense>
-        </ErrorBoundary>}</QueryErrorResetBoundary>
+                    <Suspense fallback={<LoadingSkeleton />}>
+                        <PostList />
+                    </Suspense>
+                </ErrorBoundary>}
+        </QueryErrorResetBoundary>
     </QueryClientProvider>
 }

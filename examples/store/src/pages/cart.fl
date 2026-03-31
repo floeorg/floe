@@ -22,9 +22,9 @@ fn CartItemRow(
         <div className="flex-1">
             <h3 className="font-medium text-zinc-100">{product.title}</h3>
             <p className="text-sm text-zinc-500">{product.category}</p>
-            <p className="text-sm text-indigo-400">{formatPrice(
-                product.price * (1 - product.discountPercentage / 100),
-            )}</p>
+            <p className="text-sm text-indigo-400">
+                {formatPrice(product.price * (1 - product.discountPercentage / 100))}
+            </p>
         </div>
         <div className="flex items-center gap-2">
             <button
@@ -127,12 +127,16 @@ export fn CartPage(
                     <p className="mt-2 text-sm text-zinc-600">Browse the store to add some products!</p>
                 </div>,
             items -> <div className="flex gap-8">
-                <div className="flex-1 space-y-3">{items |> Array.map((item) => <CartItemRow
-                    key={item.product.id}
-                    item={item}
-                    onUpdateQty={props.onUpdateQty}
-                    onRemove={props.onRemove}
-                 />)}</div>
+                <div className="flex-1 space-y-3">
+                    {items |> Array.map((item) =>
+                        <CartItemRow
+                            key={item.product.id}
+                            item={item}
+                            onUpdateQty={props.onUpdateQty}
+                            onRemove={props.onRemove}
+                         />
+                    )}
+                </div>
                 <div className="w-80 shrink-0">
                     <OrderSummary
                         cart={props.cart}
