@@ -726,6 +726,11 @@ impl Checker {
             callee_ty
         };
 
+        // Resolve type args eagerly for validation (catches unknown type names
+        // even when the callee type is unknown/unresolved)
+        let resolved_type_args: Vec<Type> =
+            type_args.iter().map(|t| self.resolve_type(t)).collect();
+
         match callee_ty {
             Type::Function {
                 params,
@@ -798,10 +803,11 @@ impl Checker {
                 // Resolve generics
                 let generic_params = Self::collect_generic_params(&params, &return_type);
                 let return_type = if !generic_params.is_empty() {
-                    let substitutions = if !type_args.is_empty() {
-                        let resolved: Vec<Type> =
-                            type_args.iter().map(|t| self.resolve_type(t)).collect();
-                        generic_params.into_iter().zip(resolved).collect()
+                    let substitutions = if !resolved_type_args.is_empty() {
+                        generic_params
+                            .into_iter()
+                            .zip(resolved_type_args.iter().cloned())
+                            .collect()
                     } else {
                         Self::infer_generic_params(&generic_params, &params, &arg_types)
                     };
