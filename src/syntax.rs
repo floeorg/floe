@@ -196,7 +196,7 @@ impl SyntaxKind {
     }
 
     /// Whether this token kind can appear as a member name after `.` in a
-    /// member expression (e.g. `Date.from`, `Array.any`, `pair.0`).
+    /// member expression (e.g. `Date.from`, `Number.parse`, `pair.0`).
     /// Must stay in sync with the parser's member-expression handling in
     /// `cst/exprs.rs`.
     pub fn is_member_name(self) -> bool {

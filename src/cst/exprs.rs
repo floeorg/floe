@@ -155,8 +155,8 @@ impl<'src> CstParser<'src> {
                         .start_node_at(checkpoint, SyntaxKind::MEMBER_EXPR.into());
                     self.bump();
                     self.eat_trivia();
-                    // Accept identifiers, numbers (tuple .0, .1), banned keywords, and other keywords after `.`
-                    // (e.g., `Array.any(...)`, `Number.parse(...)`, `pair.0`)
+                    // Accept identifiers, keywords, and numbers after `.`
+                    // (must match SyntaxKind::is_member_name)
                     if self.is_ident()
                         || matches!(
                             self.current_kind(),
