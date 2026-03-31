@@ -960,17 +960,11 @@ impl Formatter<'_> {
     }
 
     pub(crate) fn fmt_array(&mut self, node: &SyntaxNode) {
-        // Collect elements: either child nodes or literal tokens
-        enum ArrayElem {
-            Node(SyntaxNode),
-            Token(String),
-        }
-
         let mut elems = Vec::new();
         for child_or_tok in node.children_with_tokens() {
             match child_or_tok {
                 rowan::NodeOrToken::Node(child) => {
-                    elems.push(ArrayElem::Node(child));
+                    elems.push(PipeSegment::Node(child));
                 }
                 rowan::NodeOrToken::Token(tok) => match tok.kind() {
                     SyntaxKind::NUMBER
@@ -979,41 +973,36 @@ impl Formatter<'_> {
                     | SyntaxKind::IDENT
                     | SyntaxKind::UNDERSCORE
                     | SyntaxKind::KW_NONE => {
-                        elems.push(ArrayElem::Token(tok.text().to_string()));
+                        elems.push(PipeSegment::Token(tok.text().to_string()));
                     }
                     _ => {}
                 },
             }
         }
 
-        // Try inline first
         let inline = self.try_inline(|f| {
             f.write("[");
             for (i, elem) in elems.iter().enumerate() {
                 if i > 0 {
                     f.write(", ");
                 }
-                match elem {
-                    ArrayElem::Node(child) => f.fmt_node(child),
-                    ArrayElem::Token(text) => f.write(text),
-                }
+                f.fmt_pipe_segment(elem);
             }
             f.write("]");
         });
 
+        // Unlike fmt_call/fmt_construct, arrays need the contains('\n') guard
+        // because a nested element (e.g. a constructor) may break internally
+        // while the first line stays short enough to pass fits_inline.
         if !inline.contains('\n') && self.fits_inline(&inline) {
             self.write(&inline);
         } else {
-            // Multi-line: each element on its own line
             self.write("[");
             self.indent += 1;
             for elem in &elems {
                 self.newline();
                 self.write_indent();
-                match elem {
-                    ArrayElem::Node(child) => self.fmt_node(child),
-                    ArrayElem::Token(text) => self.write(text),
-                }
+                self.fmt_pipe_segment(elem);
                 self.write(",");
             }
             self.indent -= 1;
