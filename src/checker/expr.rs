@@ -865,7 +865,46 @@ impl Checker {
                     return_type
                 }
             }
-            _ => Type::Unknown,
+            Type::Unknown => {
+                // Function type couldn't be resolved (e.g. unresolved npm import).
+                // Still check argument expressions, but warn that type checking is skipped.
+                let callee_name = match &callee.kind {
+                    ExprKind::Identifier(name) => name.as_str(),
+                    ExprKind::Member { field, .. } => field.as_str(),
+                    _ => "<expression>",
+                };
+                for arg in args {
+                    match arg {
+                        Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                            self.check_expr(e);
+                        }
+                    }
+                }
+                self.diagnostics.push(
+                    Diagnostic::warning(
+                        format!(
+                            "`{callee_name}` has unknown type — arguments are not type-checked"
+                        ),
+                        span,
+                    )
+                    .with_help(
+                        "the function type could not be resolved. check that the import source has type declarations.",
+                    )
+                    .with_code("W003"),
+                );
+                Type::Unknown
+            }
+            _ => {
+                // Non-callable type (e.g. calling a number)
+                for arg in args {
+                    match arg {
+                        Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                            self.check_expr(e);
+                        }
+                    }
+                }
+                Type::Unknown
+            }
         }
     }
 
