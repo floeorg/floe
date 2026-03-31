@@ -356,9 +356,18 @@ impl<'src> CstParser<'src> {
         }
 
         // New syntax: `type Name { ... }` for records/unions/newtypes
+        //            `type Name(Type)` for newtypes with paren syntax
         // Old syntax: `type Name = ...` for aliases and string literal unions
         if self.at(TokenKind::LeftBrace) {
             self.parse_type_body_in_braces();
+        } else if self.at(TokenKind::LeftParen) {
+            // Newtype with paren syntax: `type UserId(string)`
+            self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
+            self.bump(); // (
+            self.eat_trivia();
+            self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightParen);
+            self.expect(TokenKind::RightParen);
+            self.builder.finish_node();
         } else {
             self.expect(TokenKind::Equal);
             self.eat_trivia();
@@ -498,12 +507,18 @@ impl<'src> CstParser<'src> {
             self.expect_ident();
             self.eat_trivia();
 
-            // Variant fields now use { } instead of ( )
+            // Variant fields: { named } or (positional)
             if self.at(TokenKind::LeftBrace) {
                 self.bump(); // {
                 self.eat_trivia();
                 self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightBrace);
                 self.expect(TokenKind::RightBrace);
+                self.eat_trivia();
+            } else if self.at(TokenKind::LeftParen) {
+                self.bump(); // (
+                self.eat_trivia();
+                self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightParen);
+                self.expect(TokenKind::RightParen);
                 self.eat_trivia();
             }
 

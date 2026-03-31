@@ -904,6 +904,43 @@ fn type_union() {
 }
 
 #[test]
+fn type_union_positional_fields() {
+    let input = r#"type Route { | Home | Profile(string) | Error(number, string) | Settings { tab: string } }"#;
+    match first_item(input) {
+        ItemKind::TypeDecl(decl) => {
+            assert_eq!(decl.name, "Route");
+            match decl.def {
+                TypeDef::Union(variants) => {
+                    assert_eq!(variants.len(), 4);
+
+                    // Home — unit variant
+                    assert_eq!(variants[0].name, "Home");
+                    assert!(variants[0].fields.is_empty());
+
+                    // Profile(string) — single positional field
+                    assert_eq!(variants[1].name, "Profile");
+                    assert_eq!(variants[1].fields.len(), 1);
+                    assert!(variants[1].fields[0].name.is_none());
+
+                    // Error(number, string) — multiple positional fields
+                    assert_eq!(variants[2].name, "Error");
+                    assert_eq!(variants[2].fields.len(), 2);
+                    assert!(variants[2].fields[0].name.is_none());
+                    assert!(variants[2].fields[1].name.is_none());
+
+                    // Settings { tab: string } — named field (existing syntax)
+                    assert_eq!(variants[3].name, "Settings");
+                    assert_eq!(variants[3].fields.len(), 1);
+                    assert_eq!(variants[3].fields[0].name.as_deref(), Some("tab"));
+                }
+                other => panic!("expected union, got {other:?}"),
+            }
+        }
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
 fn opaque_type() {
     match first_item("opaque type HashedPassword = string") {
         ItemKind::TypeDecl(decl) => {
@@ -1967,6 +2004,30 @@ fn newtype_parses_as_single_variant_union() {
                     assert!(variants[0].fields[0].name.is_none());
                     match &variants[0].fields[0].type_ann.kind {
                         TypeExprKind::Named { name, .. } => assert_eq!(name, "number"),
+                        other => panic!("expected Named type, got {other:?}"),
+                    }
+                }
+                other => panic!("expected Union, got {other:?}"),
+            }
+        }
+        other => panic!("expected TypeDecl, got {other:?}"),
+    }
+}
+
+#[test]
+fn newtype_paren_syntax() {
+    let item = first_item("type UserId(string)");
+    match item {
+        ItemKind::TypeDecl(decl) => {
+            assert_eq!(decl.name, "UserId");
+            match &decl.def {
+                TypeDef::Union(variants) => {
+                    assert_eq!(variants.len(), 1);
+                    assert_eq!(variants[0].name, "UserId");
+                    assert_eq!(variants[0].fields.len(), 1);
+                    assert!(variants[0].fields[0].name.is_none());
+                    match &variants[0].fields[0].type_ann.kind {
+                        TypeExprKind::Named { name, .. } => assert_eq!(name, "string"),
                         other => panic!("expected Named type, got {other:?}"),
                     }
                 }

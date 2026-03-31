@@ -656,12 +656,15 @@ impl Codegen {
             } else {
                 // Variant with fields: `{ tag: "Profile"; id: string }`
                 self.push(&format!("{{ {TAG_FIELD}: \"{}\"", variant.name));
-                for field in &variant.fields {
+                for (fi, field) in variant.fields.iter().enumerate() {
                     self.push("; ");
                     if let Some(name) = &field.name {
                         self.push(name);
                     } else {
-                        self.push(VALUE_FIELD);
+                        self.push(&type_layout::positional_field_name(
+                            fi,
+                            variant.fields.len(),
+                        ));
                     }
                     self.push(": ");
                     self.emit_type_expr(&field.type_ann);

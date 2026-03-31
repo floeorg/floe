@@ -66,6 +66,12 @@ fn snapshot_types() {
 }
 
 #[test]
+fn snapshot_positional_variants() {
+    let output = compile_fixture("positional_variants");
+    insta::assert_snapshot!(output);
+}
+
+#[test]
 fn snapshot_jsx_component() {
     let output = compile_fixture("jsx_component");
     insta::assert_snapshot!(output);

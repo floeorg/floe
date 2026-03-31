@@ -1,13 +1,9 @@
 // ── Newtype wrappers ───────────────────────────────────
 // Single-variant unions as newtypes (Gleam/Rust style).
 
-export type ProductId {
-    number
-}
+export type ProductId(number)
 
-export type OrderId {
-    number
-}
+export type OrderId(number)
 
 // ── Shared field groups ────────────────────────────────
 
@@ -57,7 +53,7 @@ export type NetworkError {
 }
 
 export type ApiError {
-    | Network { NetworkError }
+    | Network(NetworkError)
     | NotFound { id: ProductId }
     | BadResponse { status: number, body: string }
     | ParseError { message: string }
