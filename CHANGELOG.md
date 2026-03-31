@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.28](https://github.com/milkyskies/floe/compare/v0.1.27...v0.1.28) (2026-03-31)
+
+
+### Bug Fixes
+
+* transform JSX to JS in vite plugin before import analysis ([#726](https://github.com/milkyskies/floe/issues/726)) ([12533dc](https://github.com/milkyskies/floe/commit/12533dca6866a9f39e8dbaba78c5e5bce05826e3))
+
 ## [0.1.27](https://github.com/milkyskies/floe/compare/v0.1.26...v0.1.27) (2026-03-30)
 
 
