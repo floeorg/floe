@@ -342,70 +342,7 @@ impl Checker {
 
             // For destructured params, define the individual field names in scope
             if let Some(ref destructure) = param.destructure {
-                let concrete_ty = self.resolve_type_to_concrete(ty);
-                match destructure {
-                    ParamDestructure::Object(fields) => {
-                        if let Type::Record(ref rec_fields) = concrete_ty {
-                            for f in fields {
-                                let field_ty = rec_fields
-                                    .iter()
-                                    .find(|(n, _)| n == &f.field)
-                                    .map(|(_, t)| t.clone())
-                                    .unwrap_or_else(|| {
-                                        self.emit_error(
-                                            format!(
-                                                "field `{}` does not exist on type `{}`",
-                                                f.field,
-                                                ty.display_name()
-                                            ),
-                                            param.span,
-                                            "E001",
-                                            format!(
-                                                "`{}` has no field `{}`",
-                                                ty.display_name(),
-                                                f.field
-                                            ),
-                                        );
-                                        Type::Unknown
-                                    });
-                                self.env.define(f.bound_name(), field_ty);
-                            }
-                        } else {
-                            self.emit_error(
-                                format!(
-                                    "cannot destructure parameter of type `{}`",
-                                    ty.display_name()
-                                ),
-                                param.span,
-                                "E001",
-                                "destructuring requires a record type".to_string(),
-                            );
-                            for f in fields {
-                                self.env.define(f.bound_name(), Type::Unknown);
-                            }
-                        }
-                    }
-                    ParamDestructure::Array(fields) => {
-                        if let Type::Array(inner) = &concrete_ty {
-                            for field in fields {
-                                self.env.define(field, *inner.clone());
-                            }
-                        } else {
-                            self.emit_error(
-                                format!(
-                                    "cannot array-destructure parameter of type `{}`",
-                                    ty.display_name()
-                                ),
-                                param.span,
-                                "E001",
-                                "array destructuring requires an array type".to_string(),
-                            );
-                            for field in fields {
-                                self.env.define(field, Type::Unknown);
-                            }
-                        }
-                    }
-                }
+                self.define_destructured_bindings(destructure, ty, param.span);
             }
         }
 
