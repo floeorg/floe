@@ -175,7 +175,11 @@ module.exports = grammar({
       seq("deriving", "(", commaSep1($.type_identifier), ")"),
 
     _type_definition: ($) =>
-      choice($.union_type_definition, $.record_type, $._type_expression),
+      choice($.union_type_definition, $.newtype_definition, $.record_type, $._type_expression),
+
+    // Newtype with paren syntax: type UserId(string)
+    newtype_definition: ($) =>
+      seq("(", commaSep1($._type_expression), ")"),
 
     union_type_definition: ($) =>
       prec.right(seq("|", $.variant, repeat(seq("|", $.variant)))),
@@ -183,7 +187,10 @@ module.exports = grammar({
     variant: ($) =>
       prec.right(1, seq(
         field("name", $.type_identifier),
-        optional(seq("{", commaSep1($.variant_field), "}")),
+        optional(choice(
+          seq("{", commaSep1($.variant_field), "}"),
+          seq("(", commaSep1($._type_expression), ")"),
+        )),
       )),
 
     variant_field: ($) =>
@@ -305,7 +312,6 @@ module.exports = grammar({
         $.array_literal,
         $.parenthesized_expression,
         $.unit_value,
-        $.none,
         $.clear,
         $.unchanged,
         $.todo,
@@ -352,7 +358,7 @@ module.exports = grammar({
 
     unit_value: ($) => prec(2, seq("(", ")")),
 
-    none: ($) => "None",
+    // None is now a regular identifier, not a keyword
 
     clear: ($) => "Clear",
 
@@ -537,10 +543,7 @@ module.exports = grammar({
           ".",
           field("variant", $.type_identifier),
         )),
-        // Built-in constructors
-        seq("Ok", "(", field("value", $._expression), ")"),
-        seq("Err", "(", field("value", $._expression), ")"),
-        seq("Some", "(", field("value", $._expression), ")"),
+        // Built-in constructor (Settable)
         seq("Value", "(", field("value", $._expression), ")"),
       ),
 

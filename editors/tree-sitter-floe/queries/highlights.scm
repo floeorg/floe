@@ -24,11 +24,7 @@
 (self) @variable.builtin
 
 ; ── Built-in constructors ────────────────────────────────
-"Ok" @constructor
-"Err" @constructor
-"Some" @constructor
 "Value" @constructor
-(none) @constant.builtin
 (clear) @constant.builtin
 (unchanged) @constant.builtin
 (todo) @keyword
