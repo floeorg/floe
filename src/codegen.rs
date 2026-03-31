@@ -172,11 +172,7 @@ impl Codegen {
                     .enumerate()
                     .map(|(i, f)| {
                         f.name.clone().unwrap_or_else(|| {
-                            if variant.fields.len() == 1 {
-                                "value".to_string()
-                            } else {
-                                format!("_{i}")
-                            }
+                            type_layout::positional_field_name(i, variant.fields.len())
                         })
                     })
                     .collect();

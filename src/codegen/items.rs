@@ -660,10 +660,11 @@ impl Codegen {
                     self.push("; ");
                     if let Some(name) = &field.name {
                         self.push(name);
-                    } else if variant.fields.len() == 1 {
-                        self.push(VALUE_FIELD);
                     } else {
-                        self.push(&format!("_{fi}"));
+                        self.push(&type_layout::positional_field_name(
+                            fi,
+                            variant.fields.len(),
+                        ));
                     }
                     self.push(": ");
                     self.emit_type_expr(&field.type_ann);

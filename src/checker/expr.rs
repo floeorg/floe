@@ -1227,7 +1227,6 @@ impl Checker {
                 }
                 Arg::Positional(e) => {
                     let arg_ty = self.check_expr(e);
-                    // Type-check positional args against variant field types
                     if let Some(ref field_types) = variant_field_types
                         && let Some(expected_ty) = field_types.get(positional_index)
                         && !self.types_compatible(expected_ty, &arg_ty)
@@ -1250,36 +1249,27 @@ impl Checker {
             }
         }
 
-        // Check arg count for positional-only variant constructors
+        // Only check arg count when all args are positional (no named args mixing)
         if let Some(ref field_types) = variant_field_types
             && spread.is_none()
+            && positional_index == args.len()
+            && positional_index != field_types.len()
         {
-            let positional_count = args
-                .iter()
-                .filter(|a| matches!(a, Arg::Positional(_)))
-                .count();
-            let named_count = args
-                .iter()
-                .filter(|a| matches!(a, Arg::Named { .. }))
-                .count();
-            // Only check when all args are positional (no named args mixing)
-            if named_count == 0 && positional_count != field_types.len() {
-                self.emit_error(
-                    format!(
-                        "`{type_name}` expects {} argument{}, found {}",
-                        field_types.len(),
-                        if field_types.len() == 1 { "" } else { "s" },
-                        positional_count
-                    ),
-                    span,
-                    "E016",
-                    format!(
-                        "expected {} argument{}",
-                        field_types.len(),
-                        if field_types.len() == 1 { "" } else { "s" }
-                    ),
-                );
-            }
+            self.emit_error(
+                format!(
+                    "`{type_name}` expects {} argument{}, found {}",
+                    field_types.len(),
+                    if field_types.len() == 1 { "" } else { "s" },
+                    positional_index
+                ),
+                span,
+                "E016",
+                format!(
+                    "expected {} argument{}",
+                    field_types.len(),
+                    if field_types.len() == 1 { "" } else { "s" }
+                ),
+            );
         }
 
         // Return parent union type for variant constructors

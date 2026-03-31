@@ -161,6 +161,18 @@ pub fn variant_field_accessor(
     }
 }
 
+// ── Positional field naming ─────────────────────────────────
+
+/// Generate the runtime field name for an unnamed (positional) variant field.
+/// Single-field variants use `"value"`, multi-field use `"_0"`, `"_1"`, etc.
+pub fn positional_field_name(index: usize, total_fields: usize) -> String {
+    if total_fields == 1 {
+        VALUE_FIELD.to_string()
+    } else {
+        format!("_{index}")
+    }
+}
+
 // ── Type → stdlib module mapping ─────────────────────────────
 
 /// Map a checker `Type` to the corresponding stdlib module name.

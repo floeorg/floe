@@ -382,27 +382,20 @@ impl Formatter<'_> {
             .collect();
 
         if !fields.is_empty() {
-            // Use parens for positional fields, braces for named fields
             let all_positional = fields.iter().all(|f| !self.has_token(f, SyntaxKind::COLON));
-            if all_positional {
-                self.write("(");
-                for (i, field) in fields.iter().enumerate() {
-                    if i > 0 {
-                        self.write(", ");
-                    }
-                    self.fmt_variant_field(field);
-                }
-                self.write(")");
+            let (open, close) = if all_positional {
+                ("(", ")")
             } else {
-                self.write(" { ");
-                for (i, field) in fields.iter().enumerate() {
-                    if i > 0 {
-                        self.write(", ");
-                    }
-                    self.fmt_variant_field(field);
+                (" { ", " }")
+            };
+            self.write(open);
+            for (i, field) in fields.iter().enumerate() {
+                if i > 0 {
+                    self.write(", ");
                 }
-                self.write(" }");
+                self.fmt_variant_field(field);
             }
+            self.write(close);
         }
     }
 
