@@ -613,13 +613,10 @@ pub(super) fn generate_probe(
         }
     }
 
-    // Emit JSX callback parameter probes.
-    // For each JSX prop with an arrow function value on an imported component,
-    // generate a probe that extracts the callback parameter type from the
-    // component's props type using TypeScript conditional types.
+    // Emit JSX callback parameter probes: extract callback param types from
+    // component props using TS conditional types (e.g. NavLink's className).
     let jsx_callback_probes = collect_jsx_callback_probes(program, &imported_names);
     if !jsx_callback_probes.is_empty() {
-        // Helper type: extracts the first parameter type from a function type
         lines.push(
             "type _JCB<T> = T extends (arg: infer P, ...rest: any[]) => any ? P : never;"
                 .to_string(),
@@ -642,208 +639,77 @@ pub(super) fn generate_probe(
     lines.join("\n") + "\n"
 }
 
-/// Information about a JSX prop that has a callback value on an imported component.
 struct JsxCallbackProbe {
-    /// The component name (e.g. "NavLink")
     component: String,
-    /// The prop name (e.g. "className")
     prop: String,
 }
 
-/// Walk the AST to find JSX elements where an imported component has a prop
-/// with an arrow function value (excluding event handler props like onClick).
+/// Walk the AST to find JSX callback props on imported components.
+/// Uses `walk_program` for expression traversal; only inspects JSX elements directly.
 fn collect_jsx_callback_probes(
     program: &Program,
     imported_names: &HashMap<String, String>,
 ) -> Vec<JsxCallbackProbe> {
     let mut probes = Vec::new();
     let mut seen = HashSet::new();
-    for item in &program.items {
-        match &item.kind {
-            ItemKind::Function(func) => {
-                collect_jsx_cb_from_expr(&func.body, imported_names, &mut probes, &mut seen);
-            }
-            ItemKind::Const(decl) => {
-                collect_jsx_cb_from_expr(&decl.value, imported_names, &mut probes, &mut seen);
-            }
-            ItemKind::Expr(expr) => {
-                collect_jsx_cb_from_expr(expr, imported_names, &mut probes, &mut seen);
-            }
-            ItemKind::ForBlock(block) => {
-                for func in &block.functions {
-                    collect_jsx_cb_from_expr(&func.body, imported_names, &mut probes, &mut seen);
-                }
-            }
-            _ => {}
+    crate::walk::walk_program(program, &mut |expr| {
+        if let ExprKind::Jsx(jsx) = &expr.kind {
+            inspect_jsx_for_callback_probes(jsx, imported_names, &mut probes, &mut seen);
         }
-    }
+    });
     probes
 }
 
-fn collect_jsx_cb_from_expr(
-    expr: &Expr,
-    imported_names: &HashMap<String, String>,
-    probes: &mut Vec<JsxCallbackProbe>,
-    seen: &mut HashSet<(String, String)>,
-) {
-    match &expr.kind {
-        ExprKind::Jsx(jsx) => collect_jsx_cb_from_jsx(jsx, imported_names, probes, seen),
-        ExprKind::Block(items) | ExprKind::Collect(items) => {
-            for item in items {
-                match &item.kind {
-                    ItemKind::Function(func) => {
-                        collect_jsx_cb_from_expr(&func.body, imported_names, probes, seen);
-                    }
-                    ItemKind::Const(decl) => {
-                        collect_jsx_cb_from_expr(&decl.value, imported_names, probes, seen);
-                    }
-                    ItemKind::Expr(e) => {
-                        collect_jsx_cb_from_expr(e, imported_names, probes, seen);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        ExprKind::Arrow { body, .. } => {
-            collect_jsx_cb_from_expr(body, imported_names, probes, seen);
-        }
-        ExprKind::Match { subject, arms } => {
-            collect_jsx_cb_from_expr(subject, imported_names, probes, seen);
-            for arm in arms {
-                collect_jsx_cb_from_expr(&arm.body, imported_names, probes, seen);
-            }
-        }
-        ExprKind::Binary { left, right, .. } | ExprKind::Pipe { left, right } => {
-            collect_jsx_cb_from_expr(left, imported_names, probes, seen);
-            collect_jsx_cb_from_expr(right, imported_names, probes, seen);
-        }
-        ExprKind::Call { callee, args, .. } => {
-            collect_jsx_cb_from_expr(callee, imported_names, probes, seen);
-            for arg in args {
-                match arg {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                        collect_jsx_cb_from_expr(e, imported_names, probes, seen);
-                    }
-                }
-            }
-        }
-        ExprKind::Grouped(inner)
-        | ExprKind::Unary { operand: inner, .. }
-        | ExprKind::Unwrap(inner)
-        | ExprKind::Await(inner)
-        | ExprKind::Try(inner)
-        | ExprKind::Ok(inner)
-        | ExprKind::Err(inner)
-        | ExprKind::Some(inner)
-        | ExprKind::Spread(inner) => {
-            collect_jsx_cb_from_expr(inner, imported_names, probes, seen);
-        }
-        ExprKind::Array(elems) => {
-            for e in elems {
-                collect_jsx_cb_from_expr(e, imported_names, probes, seen);
-            }
-        }
-        ExprKind::Tuple(elems) => {
-            for e in elems {
-                collect_jsx_cb_from_expr(e, imported_names, probes, seen);
-            }
-        }
-        ExprKind::Object(fields) => {
-            for (_, v) in fields {
-                collect_jsx_cb_from_expr(v, imported_names, probes, seen);
-            }
-        }
-        ExprKind::TemplateLiteral(parts) => {
-            for part in parts {
-                if let TemplatePart::Expr(e) = part {
-                    collect_jsx_cb_from_expr(e, imported_names, probes, seen);
-                }
-            }
-        }
-        ExprKind::Index { object, index } => {
-            collect_jsx_cb_from_expr(object, imported_names, probes, seen);
-            collect_jsx_cb_from_expr(index, imported_names, probes, seen);
-        }
-        ExprKind::Member { object, .. } => {
-            collect_jsx_cb_from_expr(object, imported_names, probes, seen);
-        }
-        _ => {}
-    }
-}
-
-fn collect_jsx_cb_from_jsx(
+/// Inspect a JSX element tree for callback props on imported components.
+/// Only recurses into nested `JsxChild::Element` nodes; expression traversal
+/// is handled by the caller (`walk_program`).
+fn inspect_jsx_for_callback_probes(
     jsx: &JsxElement,
     imported_names: &HashMap<String, String>,
     probes: &mut Vec<JsxCallbackProbe>,
     seen: &mut HashSet<(String, String)>,
 ) {
-    match &jsx.kind {
-        JsxElementKind::Element {
-            name,
-            props,
-            children,
-            ..
-        } => {
-            // Only probe imported components (uppercase names in imported_names)
-            if name.starts_with(|c: char| c.is_uppercase()) && imported_names.contains_key(name) {
-                for prop in props {
-                    if let JsxProp::Named {
-                        name: prop_name,
-                        value: Some(value),
-                        ..
-                    } = prop
-                    {
-                        // Skip event handlers (already handled by event_handler_context)
-                        if prop_name.starts_with("on") && prop_name.len() > 2 {
-                            continue;
-                        }
-                        // Only probe if the value is an arrow function
-                        if matches!(value.kind, ExprKind::Arrow { .. }) {
-                            let key = (name.clone(), prop_name.clone());
-                            if seen.insert(key) {
-                                probes.push(JsxCallbackProbe {
-                                    component: name.clone(),
-                                    prop: prop_name.clone(),
-                                });
-                            }
-                        }
-                        // Also recurse into the value expression
-                        collect_jsx_cb_from_expr(value, imported_names, probes, seen);
+    if let JsxElementKind::Element {
+        name,
+        props,
+        children,
+        ..
+    } = &jsx.kind
+    {
+        if name.starts_with(|c: char| c.is_uppercase()) && imported_names.contains_key(name) {
+            for prop in props {
+                if let JsxProp::Named {
+                    name: prop_name,
+                    value: Some(value),
+                    ..
+                } = prop
+                {
+                    // Skip event handlers (handled by event_handler_context)
+                    if prop_name.starts_with("on") && prop_name.len() > 2 {
+                        continue;
                     }
-                }
-            } else {
-                // Still recurse into prop values for non-imported components
-                for prop in props {
-                    match prop {
-                        JsxProp::Named {
-                            value: Some(value), ..
-                        } => collect_jsx_cb_from_expr(value, imported_names, probes, seen),
-                        JsxProp::Spread { expr, .. } => {
-                            collect_jsx_cb_from_expr(expr, imported_names, probes, seen)
+                    if matches!(value.kind, ExprKind::Arrow { .. }) {
+                        let key = (name.clone(), prop_name.clone());
+                        if seen.insert(key) {
+                            probes.push(JsxCallbackProbe {
+                                component: name.clone(),
+                                prop: prop_name.clone(),
+                            });
                         }
-                        _ => {}
                     }
-                }
-            }
-            for child in children {
-                match child {
-                    JsxChild::Expr(e) => collect_jsx_cb_from_expr(e, imported_names, probes, seen),
-                    JsxChild::Element(el) => {
-                        collect_jsx_cb_from_jsx(el, imported_names, probes, seen)
-                    }
-                    _ => {}
                 }
             }
         }
-        JsxElementKind::Fragment { children } => {
-            for child in children {
-                match child {
-                    JsxChild::Expr(e) => collect_jsx_cb_from_expr(e, imported_names, probes, seen),
-                    JsxChild::Element(el) => {
-                        collect_jsx_cb_from_jsx(el, imported_names, probes, seen)
-                    }
-                    _ => {}
-                }
+        for child in children {
+            if let JsxChild::Element(el) = child {
+                inspect_jsx_for_callback_probes(el, imported_names, probes, seen);
+            }
+        }
+    }
+    if let JsxElementKind::Fragment { children } = &jsx.kind {
+        for child in children {
+            if let JsxChild::Element(el) = child {
+                inspect_jsx_for_callback_probes(el, imported_names, probes, seen);
             }
         }
     }

@@ -651,7 +651,6 @@ impl Checker {
                 children,
                 ..
             } => {
-                let component_name = name.clone();
                 if name.starts_with(|c: char| c.is_uppercase()) {
                     self.unused.used_names.insert(name.clone());
                     if self.env.lookup(name).is_none() {
@@ -665,28 +664,30 @@ impl Checker {
                 }
                 for prop in props {
                     match prop {
-                        JsxProp::Named { name, value, .. } => {
+                        JsxProp::Named {
+                            name: prop_name,
+                            value,
+                            ..
+                        } => {
                             if let Some(value) = value {
-                                // For event handler props, set context so lambda params get event type
-                                if name.starts_with("on") && name.len() > 2 {
+                                if prop_name.starts_with("on") && prop_name.len() > 2 {
                                     let prev = self.ctx.event_handler_context;
                                     self.ctx.event_handler_context = true;
                                     self.check_expr(value);
                                     self.ctx.event_handler_context = prev;
                                 } else if matches!(value.kind, ExprKind::Arrow { .. }) {
-                                    // For callback props on imported components, use
-                                    // the resolved callback parameter type from tsgo
-                                    // probes as a lambda parameter hint.
-                                    let hint_key = (component_name.clone(), name.clone());
-                                    let hint = self.jsx_callback_hints.get(&hint_key).cloned();
-                                    if let Some(hint_ty) = hint {
-                                        let prev = self.ctx.lambda_param_hint.take();
+                                    // Set callback param hint from tsgo probe if available
+                                    let prev = self.ctx.lambda_param_hint.take();
+                                    if let Some(hint_ty) = self
+                                        .jsx_callback_hints
+                                        .get(name)
+                                        .and_then(|m| m.get(prop_name))
+                                        .cloned()
+                                    {
                                         self.ctx.lambda_param_hint = Some(hint_ty);
-                                        self.check_expr(value);
-                                        self.ctx.lambda_param_hint = prev;
-                                    } else {
-                                        self.check_expr(value);
                                     }
+                                    self.check_expr(value);
+                                    self.ctx.lambda_param_hint = prev;
                                 } else {
                                     self.check_expr(value);
                                 }

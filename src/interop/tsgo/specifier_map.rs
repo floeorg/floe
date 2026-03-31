@@ -185,34 +185,22 @@ pub(super) fn build_specifier_map(
                 }
             }
         }
-        // Type alias probes (__tprobe_SpinnerProps, etc.)
-        // tsgo resolved the complex types (conditional, mapped) for us.
-        // Add to any specifier so the checker can find them.
-        if export.name.starts_with("__tprobe_")
-            && let Some(first_specifier) = result.keys().next().cloned()
-        {
-            result
-                .entry(first_specifier)
-                .or_default()
-                .push(export.clone());
+        // Route type/JSX probes to any specifier so the checker can find them
+        for prefix in ["__tprobe_", "__jsx_"] {
+            if export.name.starts_with(prefix)
+                && let Some(first_specifier) = result.keys().next().cloned()
+            {
+                result
+                    .entry(first_specifier)
+                    .or_default()
+                    .push(export.clone());
+            }
         }
-        // Inlined const call probes (__probe_user_5, __probe_posts_7, etc.)
-        // These are generated for calls like UserSchema.parse(json) where
-        // UserSchema is a local const assigned from an import call.
-        // Add to any available specifier so the checker can find them.
+        // Inlined const call probes (__probe_user_5, etc.) — same routing
+        // but with dedup guard since __probe_ entries can also come from the
+        // index-based mapping above.
         if export.name.starts_with("__probe_")
             && !result.values().flatten().any(|e| e.name == export.name)
-            && let Some(first_specifier) = result.keys().next().cloned()
-        {
-            result
-                .entry(first_specifier)
-                .or_default()
-                .push(export.clone());
-        }
-        // JSX callback parameter probes (__jsx_NavLink_className, etc.)
-        // tsgo resolved the callback parameter type from the component's
-        // props type. Add to any specifier so the checker can find them.
-        if export.name.starts_with("__jsx_")
             && let Some(first_specifier) = result.keys().next().cloned()
         {
             result
