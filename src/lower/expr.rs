@@ -416,16 +416,6 @@ impl<'src> Lowerer<'src> {
                 ))
             }
 
-            SyntaxKind::OK_EXPR => {
-                let inner = self.lower_first_expr_in(node)?;
-                Some(self.expr(ExprKind::Ok(Box::new(inner)), span))
-            }
-
-            SyntaxKind::ERR_EXPR => {
-                let inner = self.lower_first_expr_in(node)?;
-                Some(self.expr(ExprKind::Err(Box::new(inner)), span))
-            }
-
             SyntaxKind::VALUE_EXPR => {
                 let inner = self.lower_first_expr_in(node)?;
                 Some(self.expr(ExprKind::Value(Box::new(inner)), span))

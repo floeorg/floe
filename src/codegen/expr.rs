@@ -118,6 +118,24 @@ impl Codegen {
                 spread,
                 args,
             } => {
+                // Ok(value) → { ok: true as const, value: value }
+                if type_name == "Ok" && args.len() == 1 && spread.is_none() {
+                    self.push(&format!("{{ {OK_FIELD}: true as const, {VALUE_FIELD}: "));
+                    match &args[0] {
+                        Arg::Positional(e) | Arg::Named { value: e, .. } => self.emit_expr(e),
+                    }
+                    self.push(" }");
+                    return;
+                }
+                // Err(error) → { ok: false as const, error: error }
+                if type_name == "Err" && args.len() == 1 && spread.is_none() {
+                    self.push(&format!("{{ {OK_FIELD}: false as const, {ERROR_FIELD}: "));
+                    match &args[0] {
+                        Arg::Positional(e) | Arg::Named { value: e, .. } => self.emit_expr(e),
+                    }
+                    self.push(" }");
+                    return;
+                }
                 // Qualified non-unit variant with no args → function value
                 // `SaveError.Validation` → `(value) => ({ tag: "Validation", value })`
                 if args.is_empty()
@@ -297,21 +315,7 @@ impl Codegen {
                 self.emit_mock(type_arg, overrides, &mut 0);
             }
 
-            // Ok(value) → { ok: true, value: value }
-            ExprKind::Ok(inner) => {
-                self.push(&format!("{{ {OK_FIELD}: true as const, {VALUE_FIELD}: "));
-                self.emit_expr(inner);
-                self.push(" }");
-            }
-
-            // Err(error) → { ok: false, error: error }
-            ExprKind::Err(inner) => {
-                self.push(&format!("{{ {OK_FIELD}: false as const, {ERROR_FIELD}: "));
-                self.emit_expr(inner);
-                self.push(" }");
-            }
-
-            // Some/None are desugared before codegen (Some → identity, None → undefined)
+            // Ok/Err/Some/None are desugared before codegen or handled in Construct
 
             // Value(x) → x (after desugar, shouldn't reach here normally)
             ExprKind::Value(inner) => {

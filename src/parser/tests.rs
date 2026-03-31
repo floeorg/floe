@@ -313,13 +313,13 @@ fn constructor_with_spread() {
 #[test]
 fn ok_constructor() {
     let expr = first_expr("Ok(42)");
-    assert!(matches!(expr, ExprKind::Ok(_)));
+    assert!(matches!(expr, ExprKind::Construct { .. }));
 }
 
 #[test]
 fn err_constructor() {
     let expr = first_expr(r#"Err("not found")"#);
-    assert!(matches!(expr, ExprKind::Err(_)));
+    assert!(matches!(expr, ExprKind::Construct { .. }));
 }
 
 #[test]

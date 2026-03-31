@@ -239,6 +239,11 @@ impl Checker {
         env.define(type_layout::VARIANT_SOME, option_unknown.clone());
         env.define(type_layout::VARIANT_NONE, option_unknown);
 
+        // Register Result variant names so Ok/Err resolve as variants
+        let result_unknown = Type::result_of(Type::Unknown, Type::Unknown);
+        env.define(type_layout::VARIANT_OK, result_unknown.clone());
+        env.define(type_layout::VARIANT_ERR, result_unknown);
+
         // ── Browser/runtime globals ─────────────────────────────────
 
         let browser_globals: &[(&str, Type)] = &[

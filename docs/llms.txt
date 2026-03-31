@@ -81,16 +81,17 @@ type UpdateUser {
 // UpdateUser(name: Value("Ryan"))                → { name: "Ryan" }
 
 // Union type (discriminated)
+// Positional fields use ( ), named fields use { }
 type Route {
     | Home
-    | Profile { id: string }
+    | Profile(string)
     | Settings { tab: string }
     | NotFound
 }
 
 // Union types can carry data
 type Validation {
-    | Valid { text: string }
+    | Valid(string)
     | TooShort
     | TooLong
     | Empty
@@ -98,18 +99,18 @@ type Validation {
 
 // Nested unions
 type NetworkError {
-    | Timeout { ms: number }
-    | DnsFailure { host: string }
+    | Timeout(number)
+    | DnsFailure(string)
 }
 
 type ApiError {
-    | Network { NetworkError }
+    | Network(NetworkError)
     | NotFound
     | ServerError { status: number }
 }
 
-// Newtype (single-value wrapper)
-type OrderId { number }
+// Newtype (single-value wrapper) — parens mirror construction syntax
+type OrderId(number)
 
 // Record type composition with spread
 type BaseProps {
@@ -130,8 +131,8 @@ type B { y: string }
 type C { ...A, ...B, z: boolean }
 
 // Newtypes (single-variant wrappers)
-type UserId { string }
-type Email { string }
+type UserId(string)
+type Email(string)
 
 // ── Floe types use { }, TS interop types use = ──────
 
@@ -245,9 +246,14 @@ match route {
 }
 
 // Match with guards
-match user {
-    User(age) when age > 18 -> "adult",
-    User(age) -> "minor",
+type AgeGroup {
+    | Adult(number)
+    | Child(number)
+}
+match group {
+    Adult(age) when age >= 65 -> "senior",
+    Adult(age) -> "adult",
+    Child(age) -> "child",
 }
 
 // Match on booleans (replaces if/else and ternary)

@@ -99,7 +99,7 @@ Rules:
 
 ## Union Types
 
-Discriminated unions with variants:
+Discriminated unions with variants. Positional fields use `( )`, named fields use `{ }`:
 
 ```floe
 type Color {
@@ -107,6 +107,12 @@ type Color {
   | Green
   | Blue
   | Custom { r: number, g: number, b: number }
+}
+
+type Shape {
+  | Circle(number)
+  | Rect(number, number)
+  | Point
 }
 ```
 
@@ -172,6 +178,13 @@ Unit variants (no fields) are values, not functions.
 
 ## Result and Option
 
+`Result` and `Option` are built-in union types with positional variants:
+
+```floe
+// Equivalent to:  type Option<T> { | Some(T) | None }
+// Equivalent to:  type Result<T, E> { | Ok(T) | Err(E) }
+```
+
 ### Result
 
 For operations that can fail:
@@ -222,8 +235,8 @@ fn getUsername(id: string) -> Result<string, Error> {
 Single-variant wrappers that are distinct at compile time but erase at runtime:
 
 ```floe
-type UserId { string }
-type PostId { string }
+type UserId(string)
+type PostId(string)
 
 // Both strings at runtime, but can't be mixed up at compile time
 ```

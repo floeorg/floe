@@ -26,8 +26,13 @@ impl Checker {
             return true;
         }
         match (a, b) {
-            (Type::Result { ok: o1, err: e1 }, Type::Result { ok: o2, err: e2 }) => {
-                self.types_unifiable(o1, o2) && self.types_unifiable(e1, e2)
+            (a, b) if a.is_result() && b.is_result() => {
+                match (a.result_ok(), a.result_err(), b.result_ok(), b.result_err()) {
+                    (Some(o1), Some(e1), Some(o2), Some(e2)) => {
+                        self.types_unifiable(o1, o2) && self.types_unifiable(e1, e2)
+                    }
+                    _ => true,
+                }
             }
             (a, b) if a.is_option() && b.is_option() => {
                 match (a.option_inner(), b.option_inner()) {
@@ -54,10 +59,17 @@ impl Checker {
         match (a, b) {
             (Type::Unknown, _) => b.clone(),
             (_, Type::Unknown) => a.clone(),
-            (Type::Result { ok: o1, err: e1 }, Type::Result { ok: o2, err: e2 }) => Type::Result {
-                ok: Box::new(Self::merge_types(o1, o2)),
-                err: Box::new(Self::merge_types(e1, e2)),
-            },
+            (a, b) if a.is_result() && b.is_result() => {
+                let ok = Self::merge_types(
+                    a.result_ok().unwrap_or(&Type::Unknown),
+                    b.result_ok().unwrap_or(&Type::Unknown),
+                );
+                let err = Self::merge_types(
+                    a.result_err().unwrap_or(&Type::Unknown),
+                    b.result_err().unwrap_or(&Type::Unknown),
+                );
+                Type::result_of(ok, err)
+            }
             (a, b) if a.is_option() && b.is_option() => {
                 let a_inner = a.option_inner().cloned().unwrap_or(Type::Unknown);
                 let b_inner = b.option_inner().cloned().unwrap_or(Type::Unknown);
@@ -189,10 +201,18 @@ impl Checker {
             (Type::Named(a), Type::Named(b)) => a == b,
             (Type::Named(a), Type::Union { name: b, .. })
             | (Type::Union { name: a, .. }, Type::Named(b)) => a == b,
-            (Type::Union { name: a, .. }, Type::Union { name: b, .. }) => a == b,
-            (Type::Result { ok: o1, err: e1 }, Type::Result { ok: o2, err: e2 }) => {
-                self.types_compatible(o1, o2) && self.types_compatible(e1, e2)
+            (expected, actual) if expected.is_result() && actual.is_result() => {
+                let ok_compat = match (expected.result_ok(), actual.result_ok()) {
+                    (Some(e), Some(a)) => self.types_compatible(e, a),
+                    _ => true,
+                };
+                let err_compat = match (expected.result_err(), actual.result_err()) {
+                    (Some(e), Some(a)) => self.types_compatible(e, a),
+                    _ => true,
+                };
+                ok_compat && err_compat
             }
+            (Type::Union { name: a, .. }, Type::Union { name: b, .. }) => a == b,
             (expected, actual) if expected.is_option() && actual.is_option() => {
                 // None (Option<Unknown>) is compatible with any Option<T>
                 if matches!(actual.option_inner(), Some(Type::Unknown)) {

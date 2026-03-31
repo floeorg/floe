@@ -273,10 +273,7 @@ fn try_parse_result_union(parts: &[&TsType]) -> Option<Type> {
     }
 
     if let (Some(ok), Some(err)) = (ok_type, err_type) {
-        Some(Type::Result {
-            ok: Box::new(ok),
-            err: Box::new(err),
-        })
+        Some(Type::result_of(ok, err))
     } else {
         None
     }

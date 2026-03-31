@@ -109,20 +109,14 @@ impl Checker {
             ExprKind::Try(inner) => {
                 let inner_ty =
                     self.with_context(|ctx| ctx.inside_try = true, |this| this.check_expr(inner));
-                Type::Result {
-                    ok: Box::new(inner_ty),
-                    err: Box::new(Type::Named(type_layout::TYPE_ERROR.to_string())),
-                }
+                Type::result_of(inner_ty, Type::Named(type_layout::TYPE_ERROR.to_string()))
             }
             ExprKind::Parse { type_arg, value } => {
                 let t = self.resolve_type(type_arg);
                 if !matches!(value.kind, ExprKind::Placeholder) {
                     self.check_expr(value);
                 }
-                Type::Result {
-                    ok: Box::new(t),
-                    err: Box::new(Type::Named(type_layout::TYPE_ERROR.to_string())),
-                }
+                Type::result_of(t, Type::Named(type_layout::TYPE_ERROR.to_string()))
             }
             ExprKind::Mock {
                 type_arg,
@@ -141,29 +135,7 @@ impl Checker {
                 }
                 t
             }
-            ExprKind::Ok(inner) => {
-                let inner_ty = self.check_expr(inner);
-                let err_ty = match &self.ctx.current_return_type {
-                    Some(Type::Result { err, .. }) => (**err).clone(),
-                    _ => Type::Unknown,
-                };
-                Type::Result {
-                    ok: Box::new(inner_ty),
-                    err: Box::new(err_ty),
-                }
-            }
-            ExprKind::Err(inner) => {
-                let err_ty = self.check_expr(inner);
-                let ok_ty = match &self.ctx.current_return_type {
-                    Some(Type::Result { ok, .. }) => (**ok).clone(),
-                    _ => Type::Unknown,
-                };
-                Type::Result {
-                    ok: Box::new(ok_ty),
-                    err: Box::new(err_ty),
-                }
-            }
-            // Some/None are handled by check_construct as variant constructors
+            // Ok/Err/Some/None are handled by check_construct as variant constructors
             ExprKind::Value(inner) => {
                 let inner_ty = self.check_expr(inner);
                 Type::Settable(Box::new(inner_ty))
@@ -326,13 +298,15 @@ impl Checker {
             }
         }
         // Unwrap the inner type
-        match ty {
-            Type::Result { ok, err } => {
-                if self.ctx.inside_collect {
-                    self.ctx.collect_err_type = Some(*err);
-                }
-                *ok
+        if ty.is_result() {
+            let ok = ty.result_ok().cloned().unwrap_or(Type::Unknown);
+            let err = ty.result_err().cloned().unwrap_or(Type::Unknown);
+            if self.ctx.inside_collect {
+                self.ctx.collect_err_type = Some(err);
             }
+            return ok;
+        }
+        match ty {
             _ if ty.is_option() => ty.unwrap_option(),
             _ => {
                 self.emit_error(
@@ -581,10 +555,7 @@ impl Checker {
         self.env.pop_scope();
 
         let e = err_type.unwrap_or(Type::Unknown);
-        Type::Result {
-            ok: Box::new(last_type),
-            err: Box::new(Type::Array(Box::new(e))),
-        }
+        Type::result_of(last_type, Type::Array(Box::new(e)))
     }
 
     fn check_array(&mut self, elements: &[Expr]) -> Type {
@@ -1284,6 +1255,42 @@ impl Checker {
             return Type::option_of(inner);
         }
 
+        // Result<T, E>: infer T/E from the Ok/Err argument + return type context
+        if type_name == crate::type_layout::VARIANT_OK {
+            let ok_ty = args
+                .iter()
+                .find_map(|a| {
+                    if let Arg::Positional(e) = a {
+                        Some(self.expr_types.get(&e.id).cloned().unwrap_or(Type::Unknown))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(Type::Unknown);
+            let err_ty = match &self.ctx.current_return_type {
+                Some(rt) if rt.is_result() => rt.result_err().cloned().unwrap_or(Type::Unknown),
+                _ => Type::Unknown,
+            };
+            return Type::result_of(ok_ty, err_ty);
+        }
+        if type_name == crate::type_layout::VARIANT_ERR {
+            let err_ty = args
+                .iter()
+                .find_map(|a| {
+                    if let Arg::Positional(e) = a {
+                        Some(self.expr_types.get(&e.id).cloned().unwrap_or(Type::Unknown))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(Type::Unknown);
+            let ok_ty = match &self.ctx.current_return_type {
+                Some(rt) if rt.is_result() => rt.result_ok().cloned().unwrap_or(Type::Unknown),
+                _ => Type::Unknown,
+            };
+            return Type::result_of(ok_ty, err_ty);
+        }
+
         // Return parent union type for variant constructors
         if let Some(ty) = self.env.lookup(type_name).cloned()
             && let Type::Union { .. } = &ty
@@ -1556,10 +1563,6 @@ impl Checker {
                 }
                 Self::collect_generic_params_from_type(return_type, names, seen);
             }
-            Type::Result { ok, err } => {
-                Self::collect_generic_params_from_type(ok, names, seen);
-                Self::collect_generic_params_from_type(err, names, seen);
-            }
             Type::Map { key, value } | Type::RecordMap { key, value } => {
                 Self::collect_generic_params_from_type(key, names, seen);
                 Self::collect_generic_params_from_type(value, names, seen);
@@ -1633,9 +1636,21 @@ impl Checker {
                     Self::unify_for_inference(pi, ai, generics, subs);
                 }
             }
-            (Type::Result { ok: po, err: pe }, Type::Result { ok: ao, err: ae }) => {
-                Self::unify_for_inference(po, ao, generics, subs);
-                Self::unify_for_inference(pe, ae, generics, subs);
+            (
+                Type::Union {
+                    name: pn,
+                    variants: pv,
+                },
+                Type::Union {
+                    name: an,
+                    variants: av,
+                },
+            ) if pn == an => {
+                for (pvar, avar) in pv.iter().zip(av.iter()) {
+                    for (pt, at) in pvar.1.iter().zip(avar.1.iter()) {
+                        Self::unify_for_inference(pt, at, generics, subs);
+                    }
+                }
             }
             // Foreign types with matching base names: extract and unify generic args
             // e.g., Foreign("Context<T>") with Foreign("Context<AuthContextValue>")
@@ -1702,9 +1717,20 @@ impl Checker {
                     .collect(),
                 return_type: Box::new(Self::substitute_generics(return_type, subs)),
             },
-            Type::Result { ok, err } => Type::Result {
-                ok: Box::new(Self::substitute_generics(ok, subs)),
-                err: Box::new(Self::substitute_generics(err, subs)),
+            Type::Union { name, variants } => Type::Union {
+                name: name.clone(),
+                variants: variants
+                    .iter()
+                    .map(|(vname, fields)| {
+                        (
+                            vname.clone(),
+                            fields
+                                .iter()
+                                .map(|f| Self::substitute_generics(f, subs))
+                                .collect(),
+                        )
+                    })
+                    .collect(),
             },
             other => other.clone(),
         }
@@ -1754,7 +1780,7 @@ impl Checker {
     /// Resolve the type of a member access (`obj_ty.field`), producing diagnostics for errors.
     fn resolve_member_type(&mut self, obj_ty: &Type, field: &str, span: Span) -> Type {
         // Rule 6: No property access on unnarrowed unions
-        if let Type::Result { .. } = obj_ty {
+        if obj_ty.is_result() {
             self.emit_error_with_help(
                 format!("cannot access `.{field}` on `Result` - use `match` or `?` first"),
                 span,
@@ -2074,10 +2100,7 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
                     .get(1)
                     .map(simple_resolve_type_expr)
                     .unwrap_or(Type::Unknown);
-                Type::Result {
-                    ok: Box::new(ok),
-                    err: Box::new(err),
-                }
+                Type::result_of(ok, err)
             }
             _ => Type::Named(name.to_string()),
         },

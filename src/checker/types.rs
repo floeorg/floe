@@ -25,11 +25,8 @@ pub enum Type {
         name: String,
         base: Box<Type>,
     },
-    /// Result<T, E>
-    Result {
-        ok: Box<Type>,
-        err: Box<Type>,
-    },
+    // Result<T, E> is now represented as Type::Union { name: "Result", variants: [("Ok", [T]), ("Err", [E])] }
+    // Use Type::result_of(ok, err) to construct, ty.is_result() / ty.result_ok() / ty.result_err() to inspect.
     // Option<T> is now represented as Type::Union { name: "Option", variants: [("Some", [T]), ("None", [])] }
     // Use Type::option_of(inner) to construct, ty.is_option() / ty.option_inner() to inspect.
     /// Settable<T> = Set(T) | Clear | Unchanged
@@ -95,8 +92,50 @@ impl Type {
         }
     }
 
+    /// Construct a Result<T, E> as a Union type.
+    pub fn result_of(ok: Type, err: Type) -> Type {
+        Type::Union {
+            name: crate::type_layout::TYPE_RESULT.to_string(),
+            variants: vec![
+                (crate::type_layout::VARIANT_OK.to_string(), vec![ok]),
+                (crate::type_layout::VARIANT_ERR.to_string(), vec![err]),
+            ],
+        }
+    }
+
     pub(crate) fn is_result(&self) -> bool {
-        matches!(self, Type::Result { .. })
+        matches!(
+            self,
+            Type::Union { name, .. } if name == crate::type_layout::TYPE_RESULT
+        )
+    }
+
+    /// Extract T from Result<T, E> (the Union representation). Returns None if not a Result.
+    pub fn result_ok(&self) -> Option<&Type> {
+        if let Type::Union { name, variants } = self
+            && name == crate::type_layout::TYPE_RESULT
+        {
+            variants
+                .iter()
+                .find(|(n, _)| n == crate::type_layout::VARIANT_OK)
+                .and_then(|(_, fields)| fields.first())
+        } else {
+            None
+        }
+    }
+
+    /// Extract E from Result<T, E> (the Union representation). Returns None if not a Result.
+    pub fn result_err(&self) -> Option<&Type> {
+        if let Type::Union { name, variants } = self
+            && name == crate::type_layout::TYPE_RESULT
+        {
+            variants
+                .iter()
+                .find(|(n, _)| n == crate::type_layout::VARIANT_ERR)
+                .and_then(|(_, fields)| fields.first())
+        } else {
+            None
+        }
     }
 
     pub(crate) fn is_option(&self) -> bool {
@@ -157,9 +196,6 @@ impl Type {
             Type::Named(n) | Type::Foreign(n) => n.clone(),
             Type::Promise(inner) => format!("Promise<{}>", inner.display_name()),
             Type::Opaque { name, .. } => name.clone(),
-            Type::Result { ok, err } => {
-                format!("Result<{}, {}>", ok.display_name(), err.display_name())
-            }
             Type::Settable(inner) => format!("Settable<{}>", inner.display_name()),
             Type::Function {
                 params,
@@ -189,6 +225,17 @@ impl Type {
                     && let Some(inner) = self.option_inner()
                 {
                     return format!("Option<{}>", inner.display_name());
+                }
+                if name == crate::type_layout::TYPE_RESULT {
+                    let ok = self
+                        .result_ok()
+                        .map(|t| t.display_name())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    let err = self
+                        .result_err()
+                        .map(|t| t.display_name())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    return format!("Result<{ok}, {err}>");
                 }
                 name.clone()
             }

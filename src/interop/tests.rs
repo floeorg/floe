@@ -641,9 +641,5 @@ fn result_union_round_trip_via_oxc() {
     let exports = parse_dts_exports_from_str(dts).unwrap();
     assert_eq!(exports.len(), 1);
     let wrapped = crate::interop::wrap_boundary_type(&exports[0].ts_type);
-    assert!(
-        matches!(wrapped, crate::checker::Type::Result { .. }),
-        "expected Result, got {:?}",
-        wrapped
-    );
+    assert!(wrapped.is_result(), "expected Result, got {:?}", wrapped);
 }

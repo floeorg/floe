@@ -353,20 +353,6 @@ impl Formatter<'_> {
                         }
                         return;
                     }
-                    SyntaxKind::KW_OK | SyntaxKind::KW_ERR => {
-                        self.write(tok.text());
-                        if !sub_patterns.is_empty() {
-                            self.write("(");
-                            for (i, p) in sub_patterns.iter().enumerate() {
-                                if i > 0 {
-                                    self.write(", ");
-                                }
-                                self.fmt_pattern(p);
-                            }
-                            self.write(")");
-                        }
-                        return;
-                    }
                     SyntaxKind::IDENT => {
                         let name = tok.text();
                         if name.starts_with(char::is_uppercase) {
@@ -1091,8 +1077,6 @@ impl Formatter<'_> {
 
     pub(crate) fn fmt_wrapper_expr(&mut self, node: &SyntaxNode) {
         let keyword = match node.kind() {
-            SyntaxKind::OK_EXPR => "Ok",
-            SyntaxKind::ERR_EXPR => "Err",
             SyntaxKind::VALUE_EXPR => "Value",
             _ => unreachable!(),
         };

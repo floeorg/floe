@@ -115,10 +115,7 @@ impl Checker {
                     .get(1)
                     .map(|t| self.resolve_type(t))
                     .unwrap_or(Type::Unknown);
-                Type::Result {
-                    ok: Box::new(ok),
-                    err: Box::new(err),
-                }
+                Type::result_of(ok, err)
             }
             type_layout::TYPE_OPTION => {
                 let inner = type_args

@@ -118,12 +118,12 @@ type CardProps = VariantProps<typeof cardVariants> & { className: string };
 
 ### Union Types
 
-Tagged discriminated unions:
+Tagged discriminated unions. Positional fields use `( )`, named fields use `{ }`:
 
 ```floe
 type Shape {
-  | Circle { radius: number }
-  | Rectangle { width: number, height: number }
+  | Circle(number)                          // positional
+  | Rectangle { width: number, height: number }  // named
   | Point
 }
 ```
@@ -132,18 +132,20 @@ Compiles to TypeScript discriminated union:
 
 ```typescript
 type Shape =
-  | { _tag: "Circle"; radius: number }
-  | { _tag: "Rectangle"; width: number; height: number }
-  | { _tag: "Point" };
+  | { tag: "Circle"; value: number }
+  | { tag: "Rectangle"; width: number; height: number }
+  | { tag: "Point" };
 ```
+
+Positional: single field uses `value`, multiple use `_0`, `_1`. Named fields keep their names.
 
 ### Newtypes
 
 Single-variant wrappers that are distinct at compile time but erase to their base type at runtime:
 
 ```floe
-type UserId { string }
-type PostId { string }
+type UserId(string)
+type PostId(string)
 ```
 
 `UserId` and `PostId` are both `string` at runtime, but the compiler prevents mixing them up.

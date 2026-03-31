@@ -131,20 +131,6 @@ impl Checker {
             }
         }
 
-        // Result: check Ok and Err covered
-        if subject_ty.is_result() {
-            check_required_variants(
-                self,
-                crate::type_layout::TYPE_RESULT,
-                &[
-                    crate::type_layout::VARIANT_OK,
-                    crate::type_layout::VARIANT_ERR,
-                ],
-                arms,
-                span,
-            );
-        }
-
         // Option: check Some and None covered
         if subject_ty.is_option() {
             check_required_variants(
@@ -422,23 +408,6 @@ impl Checker {
                         self.check_pattern(pat, ty);
                     }
                     handled = true;
-                }
-                if let Type::Result { ok, err } = subject_ty {
-                    match name.as_str() {
-                        crate::type_layout::VARIANT_OK => {
-                            if let Some(pat) = fields.first() {
-                                self.check_pattern(pat, ok);
-                            }
-                            handled = true;
-                        }
-                        crate::type_layout::VARIANT_ERR => {
-                            if let Some(pat) = fields.first() {
-                                self.check_pattern(pat, err);
-                            }
-                            handled = true;
-                        }
-                        _ => {}
-                    }
                 }
                 if subject_ty.is_option()
                     && name == crate::type_layout::VARIANT_SOME

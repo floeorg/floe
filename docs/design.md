@@ -65,11 +65,11 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `todo` | placeholder, type `never` | `(() => { throw new Error("not implemented"); })()` |
 | `unreachable` | assert unreachable, type `never` | `(() => { throw new Error("unreachable"); })()` |
 | `?` operator | `fetchUser(id)?` | early return on Err/None |
-| Newtypes | `type UserId { string }` | `string` at runtime (single-variant wrapper) |
-| Opaque types | `opaque type HashedPw { string }` | `string`, but only the defining module can create/read |
-| Tagged unions | `type Route { \| Home \| Profile { id: string } }` | discriminated union |
+| Newtypes | `type UserId(string)` | `string` at runtime (single-variant wrapper) |
+| Opaque types | `opaque type HashedPw(string)` | `string`, but only the defining module can create/read |
+| Tagged unions | `type Route { \| Home \| Profile(string) }` | discriminated union (positional or named fields) |
 | String literal unions | `type Method = "GET" \| "POST" \| "PUT"` | `"GET" \| "POST" \| "PUT"` (pass-through for npm interop) |
-| Nested unions | `type ApiError { \| Network { NetworkError } \| NotFound }` | nested discriminated union (compiler generates tags) |
+| Nested unions | `type ApiError { \| Network(NetworkError) \| NotFound }` | nested discriminated union (compiler generates tags) |
 | Multi-depth match | `Network(Timeout(ms)) -> ...` | nested if/else with tag checks |
 | Type constructors | `User(name: "Ryan", email: e)` | `{ name: "Ryan", email: e }` (compiler adds tags for unions) |
 | Record spread | `User(..user, name: "New")` | `{ ...user, name: "New" }` |
@@ -559,36 +559,36 @@ type AuthError {
 
 // Parent union containing sub-unions
 type ApiError {
-  | Network { NetworkError }
-  | Validation { ValidationError }
-  | Auth { AuthError }
+  | Network(NetworkError)
+  | Validation(ValidationError)
+  | Auth(AuthError)
   | NotFound
   | ServerError { status: number, body: string }
 }
 
 // Go deeper — a full app error hierarchy
 type HttpError {
-  | Network { NetworkError }
+  | Network(NetworkError)
   | Status { code: number, body: string }
-  | Decode { JsonError }
+  | Decode(JsonError)
 }
 
 type UserError {
-  | Http { HttpError }
+  | Http(HttpError)
   | NotFound { id: UserId }
   | Banned { reason: string }
 }
 
 type PaymentError {
-  | Http { HttpError }
+  | Http(HttpError)
   | InsufficientFunds { needed: number, available: number }
   | CardDeclined { reason: string }
 }
 
 type AppError {
-  | User { UserError }
-  | Payment { PaymentError }
-  | Auth { AuthError }
+  | User(UserError)
+  | Payment(PaymentError)
+  | Auth(AuthError)
 }
 ```
 
@@ -658,8 +658,8 @@ The compiler generates discrimination tags in the emitted TypeScript — you nev
 ### Newtypes (Single-Variant Wrappers)
 
 ```floe
-type UserId { string }
-type Email  { string }
+type UserId(string)
+type Email(string)
 
 const id = UserId("abc123")
 sendEmail(id, "hello")  // COMPILE ERROR: UserId is not Email
@@ -669,7 +669,7 @@ sendEmail(id, "hello")  // COMPILE ERROR: UserId is not Email
 
 ```floe
 // auth/password.fl
-opaque type HashedPassword { string }
+opaque type HashedPassword(string)
 
 export fn hash(raw: string): HashedPassword {
   bcrypt(raw)  // only this module can create one
@@ -1592,8 +1592,8 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `Array.unique(arr)` | `[...new Set(arr)]` |
 | `Array.groupBy(arr, fn)` | `Object.groupBy(arr, fn)` |
 | `Number.parse("123")` | strict parse returning `Result` |
-| `type UserId { string }` | `string` (newtype erased) |
-| `opaque type X { T }` | `T` (erased, access controlled at compile time) |
+| `type UserId(string)` | `string` (newtype erased) |
+| `opaque type X(T)` | `T` (erased, access controlled at compile time) |
 | `for User { fn display(self) -> string { ... } }` | `function display(self: User): string { ... }` |
 | `trait Display { fn display(self) -> string }` | *(erased — no output)* |
 | `for User: Display { fn display(self) -> string { ... } }` | `function display(self: User): string { ... }` (same as plain for block) |
