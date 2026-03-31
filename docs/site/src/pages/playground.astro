@@ -1,6 +1,5 @@
 ---
-// Playground page — Astro routes this under the base path (/floe/playground/)
-// WASM files are in public/playground/pkg/ and served at /playground/pkg/
+// Playground page — uses CodeMirror for editing, WASM compiler for live output
 ---
 
 <html lang="en">
@@ -42,21 +41,10 @@
       border-bottom: 1px solid var(--border);
     }
 
-    header h1 {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--accent);
-    }
+    header h1 { font-size: 18px; font-weight: 600; color: var(--accent); }
+    header h1 span { color: var(--subtext); font-weight: 400; }
 
-    header h1 span {
-      color: var(--subtext);
-      font-weight: 400;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 8px;
-    }
+    .header-actions { display: flex; gap: 8px; }
 
     .header-actions button {
       padding: 6px 14px;
@@ -68,9 +56,7 @@
       font-size: 13px;
     }
 
-    .header-actions button:hover {
-      background: var(--overlay);
-    }
+    .header-actions button:hover { background: var(--overlay); }
 
     .editor-container {
       display: flex;
@@ -85,9 +71,7 @@
       overflow: hidden;
     }
 
-    .pane + .pane {
-      border-left: 1px solid var(--border);
-    }
+    .pane + .pane { border-left: 1px solid var(--border); }
 
     .pane-header {
       padding: 8px 16px;
@@ -110,32 +94,76 @@
       background: var(--green);
     }
 
-    .pane-header .status.error {
-      background: var(--red);
-    }
+    .pane-header .status.error { background: var(--red); }
 
-    textarea {
+    /* CodeMirror input pane */
+    #editor-wrapper {
       flex: 1;
-      padding: 16px;
-      background: var(--bg);
-      color: var(--text);
-      border: none;
-      resize: none;
-      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', monospace;
-      font-size: 14px;
-      line-height: 1.6;
-      tab-size: 2;
-      outline: none;
-    }
-
-    .output-area {
-      flex: 1;
-      padding: 16px;
       overflow: auto;
-      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', monospace;
+    }
+
+    /* CodeMirror theme overrides */
+    #editor-wrapper .cm-editor {
+      height: 100%;
+      background: var(--bg);
+    }
+
+    #editor-wrapper .cm-editor .cm-scroller {
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
       font-size: 14px;
       line-height: 1.6;
-      white-space: pre;
+    }
+
+    #editor-wrapper .cm-editor .cm-gutters {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      color: var(--overlay);
+    }
+
+    #editor-wrapper .cm-editor .cm-activeLineGutter {
+      background: var(--overlay);
+      color: var(--subtext);
+    }
+
+    #editor-wrapper .cm-editor .cm-activeLine {
+      background: rgba(49, 50, 68, 0.3);
+    }
+
+    #editor-wrapper .cm-editor .cm-cursor {
+      border-left-color: var(--accent);
+    }
+
+    #editor-wrapper .cm-editor .cm-selectionBackground,
+    #editor-wrapper .cm-editor .cm-content ::selection {
+      background: rgba(137, 180, 250, 0.2) !important;
+    }
+
+    #editor-wrapper .cm-editor .cm-matchingBracket {
+      background: rgba(137, 180, 250, 0.3);
+      outline: 1px solid var(--accent);
+    }
+
+    /* Output pane */
+    #output-wrapper {
+      flex: 1;
+      overflow: auto;
+    }
+
+    #output-wrapper .cm-editor {
+      height: 100%;
+      background: var(--bg);
+    }
+
+    #output-wrapper .cm-editor .cm-scroller {
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    #output-wrapper .cm-editor .cm-gutters {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      color: var(--overlay);
     }
 
     .diagnostics {
@@ -148,22 +176,14 @@
       font-size: 12px;
     }
 
-    .diagnostic-item {
-      padding: 4px 0;
-      display: flex;
-      gap: 8px;
-    }
-
+    .diagnostic-item { padding: 4px 0; display: flex; gap: 8px; }
     .diagnostic-item .severity { font-weight: 600; }
     .diagnostic-item .severity.error { color: var(--red); }
     .diagnostic-item .severity.warning { color: var(--yellow); }
     .diagnostic-item .location { color: var(--subtext); }
     .diagnostic-item .message { color: var(--text); }
 
-    .no-diagnostics {
-      color: var(--subtext);
-      font-style: italic;
-    }
+    .no-diagnostics { color: var(--subtext); font-style: italic; }
 
     .loading {
       display: flex;
@@ -180,16 +200,127 @@
     <h1>Floe <span>Playground</span></h1>
     <div class="header-actions">
       <button id="share-btn">Share</button>
-      <button id="format-btn">Format</button>
     </div>
   </header>
 
   <div class="editor-container">
     <div class="pane">
-      <div class="pane-header">
-        <span>input.fl</span>
+      <div class="pane-header"><span>input.fl</span></div>
+      <div id="editor-wrapper">
+        <div class="loading" id="loading-editor">Loading editor...</div>
       </div>
-      <textarea id="input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">{`fn greet(name: string) -> string {
+    </div>
+    <div class="pane">
+      <div class="pane-header">
+        <div class="status" id="status-dot"></div>
+        <span>output.ts</span>
+      </div>
+      <div id="output-wrapper">
+        <div class="loading" id="loading-compiler">Loading compiler...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="diagnostics" id="diagnostics">
+    <span class="no-diagnostics">No diagnostics</span>
+  </div>
+
+  <script is:inline type="module">
+    // Load CodeMirror from CDN
+    const CM_BASE = 'https://esm.sh';
+    const [
+      { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine },
+      { EditorState },
+      { defaultKeymap, indentWithTab },
+      { syntaxHighlighting, HighlightStyle, StreamLanguage },
+      { tags },
+      { javascript },
+      { bracketMatching },
+      { closeBrackets },
+    ] = await Promise.all([
+      import(`${CM_BASE}/@codemirror/view@6`),
+      import(`${CM_BASE}/@codemirror/state@6`),
+      import(`${CM_BASE}/@codemirror/commands@6`),
+      import(`${CM_BASE}/@codemirror/language@6`),
+      import(`${CM_BASE}/@lezer/highlight@1`),
+      import(`${CM_BASE}/@codemirror/lang-javascript@6`),
+      import(`${CM_BASE}/@codemirror/autocomplete@6`).then(m => ({ bracketMatching: null })).catch(() => ({ bracketMatching: null })),
+      import(`${CM_BASE}/@codemirror/autocomplete@6`).then(m => ({ closeBrackets: null })).catch(() => ({ closeBrackets: null })),
+    ].map(p => p.catch(() => ({}))));
+
+    // Load bracket matching separately (it's in @codemirror/language)
+    const langMod = await import(`${CM_BASE}/@codemirror/language@6`);
+    const { bracketMatching: bracketMatch } = langMod;
+
+    // Floe language definition for CodeMirror (simple stream parser)
+    const floeLang = StreamLanguage.define({
+      startState() { return { inString: false, inTemplate: false, inComment: false }; },
+      token(stream, state) {
+        // Line comments
+        if (stream.match('//')) { stream.skipToEnd(); return 'comment'; }
+
+        // Strings
+        if (stream.match('"')) {
+          while (!stream.eol()) {
+            if (stream.next() === '"') break;
+          }
+          return 'string';
+        }
+
+        // Template literals
+        if (stream.match('`')) {
+          while (!stream.eol()) {
+            const ch = stream.next();
+            if (ch === '`') break;
+          }
+          return 'string';
+        }
+
+        // Numbers
+        if (stream.match(/^-?\d[\d_]*(\.\d[\d_]*)?/)) return 'number';
+
+        // Operators
+        if (stream.match('|>') || stream.match('->') || stream.match('=>') || stream.match('==') || stream.match('!=') || stream.match('..')) return 'operator';
+        if (stream.match(/^[+\-*\/%<>=!&|?]/)) return 'operator';
+
+        // Identifiers & keywords
+        if (stream.match(/^[a-zA-Z_]\w*/)) {
+          const word = stream.current();
+          const keywords = ['fn', 'const', 'type', 'match', 'import', 'export', 'from', 'if', 'else', 'return', 'async', 'await', 'use', 'for', 'trait', 'opaque', 'trusted', 'test', 'assert', 'pub', 'try'];
+          if (keywords.includes(word)) return 'keyword';
+
+          const builtins = ['Ok', 'Err', 'Some', 'None', 'Result', 'Option', 'Array', 'Map', 'Set', 'Console', 'string', 'number', 'boolean', 'true', 'false'];
+          if (builtins.includes(word)) return 'typeName';
+
+          // PascalCase = type name
+          if (word[0] === word[0].toUpperCase() && word[0] !== '_') return 'typeName';
+
+          return 'variableName';
+        }
+
+        stream.next();
+        return null;
+      },
+    });
+
+    // Dark theme matching the playground colors
+    const theme = EditorView.theme({
+      '&': { color: '#cdd6f4' },
+      '.cm-content': { caretColor: '#89b4fa' },
+      '.cm-cursor': { borderLeftColor: '#89b4fa' },
+    }, { dark: true });
+
+    const highlighting = syntaxHighlighting(HighlightStyle.define([
+      { tag: tags.keyword, color: '#cba6f7' },
+      { tag: tags.comment, color: '#6c7086', fontStyle: 'italic' },
+      { tag: tags.string, color: '#a6e3a1' },
+      { tag: tags.number, color: '#fab387' },
+      { tag: tags.typeName, color: '#89b4fa' },
+      { tag: tags.variableName, color: '#cdd6f4' },
+      { tag: tags.operator, color: '#89dceb' },
+    ]));
+
+    const defaultCode = `fn greet(name: string) -> string {
   \`Hello, \${name}!\`
 }
 
@@ -215,101 +346,114 @@ fn safeDivide(a: number, b: number) -> Result<number, string> {
     0 -> Err("division by zero"),
     _ -> Ok(a / b),
   }
-}`}</textarea>
-    </div>
+}`;
 
-    <div class="pane">
-      <div class="pane-header">
-        <div class="status" id="status-dot"></div>
-        <span>output.tsx</span>
-      </div>
-      <div class="output-area" id="output">
-        <div class="loading" id="loading">Loading compiler...</div>
-      </div>
-    </div>
-  </div>
+    // Load source from URL hash if present
+    let initialCode = defaultCode;
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      try { initialCode = decodeURIComponent(atob(hash)); } catch {}
+    }
 
-  <div class="diagnostics" id="diagnostics">
-    <span class="no-diagnostics">No diagnostics</span>
-  </div>
+    // Remove loading indicators
+    document.getElementById('loading-editor')?.remove();
 
-  <script is:inline>
-    const wasmPath = '/floe/playground/pkg/floe_wasm.js';
+    // Create input editor
+    const inputEditor = new EditorView({
+      doc: initialCode,
+      extensions: [
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightActiveLine(),
+        bracketMatch ? bracketMatch() : [],
+        keymap.of([...defaultKeymap, indentWithTab]),
+        floeLang,
+        theme,
+        highlighting,
+        EditorView.updateListener.of(update => {
+          if (update.docChanged) {
+            clearTimeout(compileTimeout);
+            compileTimeout = setTimeout(doCompile, 150);
+          }
+        }),
+      ].flat(),
+      parent: document.getElementById('editor-wrapper'),
+    });
 
-    import(wasmPath).then(async (mod) => {
-      const { default: init, compile } = mod;
-      await init();
+    // Create output editor (read-only, TypeScript highlighting)
+    const outputEditor = new EditorView({
+      doc: '// Loading compiler...',
+      extensions: [
+        lineNumbers(),
+        javascript({ typescript: true }),
+        EditorState.readOnly.of(true),
+        theme,
+        highlighting,
+      ],
+      parent: document.getElementById('output-wrapper'),
+    });
 
-      const input = document.getElementById('input');
-      const output = document.getElementById('output');
+    document.getElementById('loading-compiler')?.remove();
+
+    // Compiler state
+    let compileTimeout = null;
+    let compilerReady = false;
+    let compileFn = null;
+
+    function doCompile() {
+      if (!compilerReady) return;
+      const source = inputEditor.state.doc.toString();
+      const result = compileFn(source);
+
+      // Update output
+      outputEditor.dispatch({
+        changes: { from: 0, to: outputEditor.state.doc.length, insert: result.output || '// No output' },
+      });
+
+      // Update diagnostics
       const diagnosticsEl = document.getElementById('diagnostics');
       const statusDot = document.getElementById('status-dot');
-      const loading = document.getElementById('loading');
-      const shareBtn = document.getElementById('share-btn');
 
-      loading.remove();
-
-      // Load source from URL hash
-      const hash = window.location.hash.slice(1);
-      if (hash) {
-        try { input.value = decodeURIComponent(atob(hash)); } catch {}
+      if (result.diagnostics && result.diagnostics.length > 0) {
+        statusDot.className = 'status error';
+        diagnosticsEl.innerHTML = result.diagnostics.map(d => {
+          const sev = d.severity.toLowerCase();
+          const cls = sev.includes('error') ? 'error' : 'warning';
+          return `<div class="diagnostic-item">
+            <span class="severity ${cls}">${escapeHtml(sev)}</span>
+            <span class="location">${d.line}:${d.column}</span>
+            <span class="message">${escapeHtml(d.message)}</span>
+          </div>`;
+        }).join('');
+      } else {
+        statusDot.className = 'status';
+        diagnosticsEl.innerHTML = '<span class="no-diagnostics">No diagnostics</span>';
       }
+    }
 
-      let compileTimeout = null;
-
-      function doCompile() {
-        const source = input.value;
-        const result = compile(source);
-
-        output.textContent = result.output || '// No output';
-
-        if (result.diagnostics && result.diagnostics.length > 0) {
-          statusDot.className = 'status error';
-          diagnosticsEl.innerHTML = result.diagnostics.map(d => {
-            const sev = d.severity.toLowerCase();
-            const cls = sev.includes('error') ? 'error' : 'warning';
-            return `<div class="diagnostic-item">
-              <span class="severity ${cls}">${sev}</span>
-              <span class="location">${d.line}:${d.column}</span>
-              <span class="message">${escapeHtml(d.message)}</span>
-            </div>`;
-          }).join('');
-        } else {
-          statusDot.className = 'status';
-          diagnosticsEl.innerHTML = '<span class="no-diagnostics">No diagnostics</span>';
-        }
-      }
-
-      input.addEventListener('input', () => {
-        clearTimeout(compileTimeout);
-        compileTimeout = setTimeout(doCompile, 150);
-      });
-
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Tab') {
-          e.preventDefault();
-          const start = input.selectionStart;
-          const end = input.selectionEnd;
-          input.value = input.value.substring(0, start) + '  ' + input.value.substring(end);
-          input.selectionStart = input.selectionEnd = start + 2;
-          clearTimeout(compileTimeout);
-          compileTimeout = setTimeout(doCompile, 150);
-        }
-      });
-
-      shareBtn.addEventListener('click', () => {
-        const encoded = btoa(encodeURIComponent(input.value));
-        window.location.hash = encoded;
-        navigator.clipboard.writeText(window.location.href).then(() => {
-          shareBtn.textContent = 'Copied!';
-          setTimeout(() => { shareBtn.textContent = 'Share'; }, 1500);
-        });
-      });
-
+    // Load WASM compiler
+    try {
+      const wasmMod = await import('/floe/playground/pkg/floe_wasm.js');
+      await wasmMod.default();
+      compileFn = wasmMod.compile;
+      compilerReady = true;
       doCompile();
-    }).catch(err => {
-      document.getElementById('loading').textContent = 'Failed to load compiler. Build WASM with: wasm-pack build crates/floe-wasm --target web --out-dir ../../docs/site/public/playground/pkg';
+    } catch (err) {
+      outputEditor.dispatch({
+        changes: { from: 0, to: outputEditor.state.doc.length, insert: '// Failed to load compiler\n// Build WASM: wasm-pack build crates/floe-wasm --target web --out-dir ../../docs/site/public/playground/pkg' },
+      });
       console.error(err);
+    }
+
+    // Share button
+    document.getElementById('share-btn').addEventListener('click', () => {
+      const encoded = btoa(encodeURIComponent(inputEditor.state.doc.toString()));
+      window.location.hash = encoded;
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        const btn = document.getElementById('share-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Share'; }, 1500);
+      });
     });
 
     function escapeHtml(str) {
