@@ -5,6 +5,23 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.32](https://github.com/floeorg/floe/compare/v0.1.31...v0.1.32) (2026-03-31)
+
+
+### Features
+
+* [[#767](https://github.com/floeorg/floe/issues/767)] Add positional union variant fields and newtype paren syntax ([#777](https://github.com/floeorg/floe/issues/777)) ([62f5d67](https://github.com/floeorg/floe/commit/62f5d67e23b740a915799697223077743a2be407))
+* [[#771](https://github.com/floeorg/floe/issues/771)] Refactor Option from compiler intrinsic to regular union type ([#786](https://github.com/floeorg/floe/issues/786)) ([c74e699](https://github.com/floeorg/floe/commit/c74e6990768bb2ef07120b80c8f3410cc390ec0a))
+* [[#772](https://github.com/floeorg/floe/issues/772)] Refactor Result from compiler intrinsic to regular union type ([#788](https://github.com/floeorg/floe/issues/788)) ([973e591](https://github.com/floeorg/floe/commit/973e5918dae081c3a73b39c7d7d8d3f0723693a4))
+
+
+### Bug Fixes
+
+* [[#778](https://github.com/floeorg/floe/issues/778)] Formatter drops keyword member names after dot ([#782](https://github.com/floeorg/floe/issues/782)) ([052c86a](https://github.com/floeorg/floe/commit/052c86abb973bb63d73cf8a017c5ea23d51a90b7))
+* [[#779](https://github.com/floeorg/floe/issues/779)] Imported TS functions with optional params incorrectly require all arguments ([#783](https://github.com/floeorg/floe/issues/783)) ([92e7f95](https://github.com/floeorg/floe/commit/92e7f95ea1a100cfff60b13c4081444a3fbc3521))
+* [[#781](https://github.com/floeorg/floe/issues/781)] Imported TS union types resolve to unknown instead of strict union ([#787](https://github.com/floeorg/floe/issues/787)) ([dbb94e3](https://github.com/floeorg/floe/commit/dbb94e39588be9312750c26204f330e0e90130d9))
+* use pnpm install in docs deploy workflow ([9664f5d](https://github.com/floeorg/floe/commit/9664f5d1e23e5a234ee84f266b7098f982e9ed8d))
+
 ## [0.1.31](https://github.com/floeorg/floe/compare/v0.1.30...v0.1.31) (2026-03-31)
 
 
