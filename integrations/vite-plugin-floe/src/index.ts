@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import * as vite from "vite";
 
 export interface FloeOptions {
   /** Path to the floe binary. Defaults to "floe". */
@@ -21,7 +22,7 @@ export interface FloeOptions {
  * })
  * ```
  */
-export default function floe(options: FloeOptions = {}) {
+export default function floe(options: FloeOptions = {}): import("vite").Plugin {
   const compiler = options.compiler ?? "floe";
 
   return {
@@ -40,18 +41,19 @@ export default function floe(options: FloeOptions = {}) {
       };
     },
 
-    transform(this: { error(msg: string): never }, code: string, id: string) {
+    async transform(this: { error(msg: string): never }, code: string, id: string) {
       // Strip query params for extension check (Vite adds ?import, ?t=xxx, etc.)
       const cleanId = id.split("?")[0];
       if (!cleanId.endsWith(".fl")) return null;
 
       try {
-        const result = compileFloe(compiler, code, id);
-        return {
-          code: result.code,
-          map: result.map,
-          moduleType: "tsx",
-        };
+        const compiled = compileFloe(compiler, code, id);
+
+        // The Floe compiler outputs TSX. Transform it to plain JS so
+        // Vite's import analysis (es-module-lexer) can parse it.
+        // Without this, .fl files keep their original extension in the
+        // pipeline and the react plugin skips them (.tsx/.jsx only).
+        return transformTsx(compiled.code, cleanId);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : String(error);
@@ -68,6 +70,31 @@ export default function floe(options: FloeOptions = {}) {
       }
     },
   };
+}
+
+// Vite 6+ has transformWithOxc, Vite 5 has transformWithEsbuild.
+// Use whichever is available for cross-version compatibility.
+function transformTsx(code: string, id: string) {
+  const filename = id + ".tsx";
+
+  if ("transformWithOxc" in vite) {
+    return (vite as any).transformWithOxc(code, filename, {
+      lang: "tsx",
+      jsx: { runtime: "automatic" },
+    });
+  }
+
+  if ("transformWithEsbuild" in vite) {
+    return (vite as any).transformWithEsbuild(code, filename, {
+      jsx: "automatic",
+      loader: "tsx",
+    });
+  }
+
+  throw new Error(
+    "Floe vite plugin: neither transformWithOxc nor transformWithEsbuild found. " +
+    "Please use Vite 5 or later.",
+  );
 }
 
 interface CompileResult {
