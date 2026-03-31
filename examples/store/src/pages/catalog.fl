@@ -90,14 +90,21 @@ fn ProductCard(props: { product: Product, onAddToCart: (Product) -> () }) -> JSX
 fn FilterSidebar(
     props: { categories: Array<CategoryResponse>, selectedCategory: string, onCategoryChange: (string) -> (), priceRange: PriceRange, onPriceRangeChange: (PriceRange) -> (), sortOrder: SortOrder, onSortChange: (SortOrder) -> () },
 ) -> JSX.Element {
-    const priceRanges: Array<(string, PriceRange)> = [("All Prices", Any), ("Under $25", Under(25)), ("$25 - $50", Between(
-        25,
-        50,
-    )), ("$50 - $100", Between(50, 100)), ("$100 - $500", Between(100, 500)), ("Over $500", Over(
-        500,
-    ))]
+    const priceRanges: Array<(string, PriceRange)> = [
+        ("All Prices", Any),
+        ("Under $25", Under(25)),
+        ("$25 - $50", Between(25, 50)),
+        ("$50 - $100", Between(50, 100)),
+        ("$100 - $500", Between(100, 500)),
+        ("Over $500", Over(500)),
+    ]
 
-    const sortOptions: Array<(string, SortOrder)> = [("Price: Low to High", PriceLow), ("Price: High to Low", PriceHigh), ("Top Rated", Rating), ("Name", Name)]
+    const sortOptions: Array<(string, SortOrder)> = [
+        ("Price: Low to High", PriceLow),
+        ("Price: High to Low", PriceHigh),
+        ("Top Rated", Rating),
+        ("Name", Name),
+    ]
 
     <aside
         className="w-64 shrink-0 space-y-6 sticky top-0 self-start max-h-screen overflow-y-auto"

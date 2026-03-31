@@ -960,16 +960,17 @@ impl Formatter<'_> {
     }
 
     pub(crate) fn fmt_array(&mut self, node: &SyntaxNode) {
-        self.write("[");
-        let mut first = true;
+        // Collect elements: either child nodes or literal tokens
+        enum ArrayElem {
+            Node(SyntaxNode),
+            Token(String),
+        }
+
+        let mut elems = Vec::new();
         for child_or_tok in node.children_with_tokens() {
             match child_or_tok {
                 rowan::NodeOrToken::Node(child) => {
-                    if !first {
-                        self.write(", ");
-                    }
-                    self.fmt_node(&child);
-                    first = false;
+                    elems.push(ArrayElem::Node(child));
                 }
                 rowan::NodeOrToken::Token(tok) => match tok.kind() {
                     SyntaxKind::NUMBER
@@ -978,17 +979,48 @@ impl Formatter<'_> {
                     | SyntaxKind::IDENT
                     | SyntaxKind::UNDERSCORE
                     | SyntaxKind::KW_NONE => {
-                        if !first {
-                            self.write(", ");
-                        }
-                        self.write(tok.text());
-                        first = false;
+                        elems.push(ArrayElem::Token(tok.text().to_string()));
                     }
                     _ => {}
                 },
             }
         }
-        self.write("]");
+
+        // Try inline first
+        let inline = self.try_inline(|f| {
+            f.write("[");
+            for (i, elem) in elems.iter().enumerate() {
+                if i > 0 {
+                    f.write(", ");
+                }
+                match elem {
+                    ArrayElem::Node(child) => f.fmt_node(child),
+                    ArrayElem::Token(text) => f.write(text),
+                }
+            }
+            f.write("]");
+        });
+
+        if !inline.contains('\n') && self.fits_inline(&inline) {
+            self.write(&inline);
+        } else {
+            // Multi-line: each element on its own line
+            self.write("[");
+            self.indent += 1;
+            for elem in &elems {
+                self.newline();
+                self.write_indent();
+                match elem {
+                    ArrayElem::Node(child) => self.fmt_node(child),
+                    ArrayElem::Token(text) => self.write(text),
+                }
+                self.write(",");
+            }
+            self.indent -= 1;
+            self.newline();
+            self.write_indent();
+            self.write("]");
+        }
     }
 
     pub(crate) fn fmt_parse_expr(&mut self, node: &SyntaxNode) {
