@@ -59,14 +59,15 @@ type User {
   email: string,
 }
 
-// Union
+// Union — positional ( ) or named { } fields
 type Shape {
-  | Circle { radius: number }
-  | Rectangle { width: number, height: number }
+  | Circle(number)
+  | Rectangle(number, number)
+  | Named { width: number, height: number }
 }
 
 // Newtype (single-value wrapper)
-type OrderId { number }
+type OrderId(number)
 
 // String literal union (for npm interop)
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
@@ -75,10 +76,10 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 type Name = string
 
 // Newtype
-type UserId { string }
+type UserId(string)
 
 // Opaque
-opaque type Email { string }
+opaque type Email(string)
 
 // Deriving traits
 type Point {
