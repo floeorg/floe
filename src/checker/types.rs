@@ -31,9 +31,11 @@ pub enum Type {
     // Use Type::option_of(inner) to construct, ty.is_option() / ty.option_inner() to inspect.
     /// Settable<T> = Set(T) | Clear | Unchanged
     Settable(Box<Type>),
-    /// Function type
+    /// Function type. `required_params` is how many leading params the caller
+    /// must provide; trailing params beyond that index have defaults and can be omitted.
     Function {
         params: Vec<Type>,
+        required_params: usize,
         return_type: Box<Type>,
     },
     /// Array type
@@ -228,9 +230,20 @@ impl Type {
             Type::Settable(inner) => format!("Settable<{}>", inner.display_name()),
             Type::Function {
                 params,
+                required_params,
                 return_type,
             } => {
-                let p: Vec<_> = params.iter().map(|t| t.display_name()).collect();
+                let p: Vec<_> = params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, t)| {
+                        if i >= *required_params && *required_params < params.len() {
+                            format!("{} = None", t.display_name())
+                        } else {
+                            t.display_name()
+                        }
+                    })
+                    .collect();
                 format!("({}) -> {}", p.join(", "), return_type.display_name())
             }
             Type::Array(inner) => format!("Array<{}>", inner.display_name()),

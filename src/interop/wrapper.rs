@@ -55,6 +55,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                     Type::Function {
                         params: vec![wrap_boundary_type(inner)],
                         return_type: Box::new(Type::Unit),
+                        required_params: 1,
                     }
                 }
                 _ => {
@@ -74,6 +75,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
             params,
             return_type,
         } => {
+            let required_params = params.iter().filter(|p| !p.optional).count();
             let wrapped_params: Vec<Type> = params
                 .iter()
                 .map(|p| {
@@ -85,6 +87,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
             Type::Function {
                 params: wrapped_params,
                 return_type: Box::new(wrapped_return),
+                required_params,
             }
         }
 

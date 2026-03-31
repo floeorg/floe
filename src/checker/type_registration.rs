@@ -425,6 +425,7 @@ impl Checker {
                     let fn_type = Type::Function {
                         params: vec![self_type],
                         return_type: Box::new(Type::String),
+                        required_params: 1,
                     };
                     self.env.define(&fn_name, fn_type);
                     self.unused

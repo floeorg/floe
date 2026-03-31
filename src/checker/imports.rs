@@ -167,9 +167,11 @@ impl Checker {
                 })
                 .collect();
 
+            let required_params = param_types.len();
             let fn_type = Type::Function {
                 params: param_types,
                 return_type: Box::new(return_type),
+                required_params,
             };
             self.env.define(&func.name, fn_type.clone());
             self.unused.defined_sources.insert(

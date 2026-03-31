@@ -226,9 +226,11 @@ impl Checker {
                 && let Some((_, field_types)) = variants.iter().find(|(v, _)| v == name)
                 && !field_types.is_empty()
             {
+                let required_params = field_types.len();
                 return Type::Function {
                     params: field_types.clone(),
                     return_type: Box::new(ty),
+                    required_params,
                 };
             }
             ty
@@ -475,9 +477,11 @@ impl Checker {
         let return_type = self.check_expr(body);
         self.env.pop_scope();
         self.ctx.inside_async = prev_inside_async;
+        let required_params = param_types.len();
         Type::Function {
             params: param_types,
             return_type: Box::new(return_type),
+            required_params,
         }
     }
 
@@ -715,6 +719,7 @@ impl Checker {
             Type::Function {
                 params,
                 return_type,
+                ..
             } => {
                 let callee_name = match &callee.kind {
                     ExprKind::Identifier(name) => name.as_str(),
@@ -841,9 +846,11 @@ impl Checker {
                         })
                         .collect();
 
+                    let required_params = placeholder_param_types.len();
                     Type::Function {
                         params: placeholder_param_types,
                         return_type: Box::new(return_type),
+                        required_params,
                     }
                 } else {
                     // Resolve dot shorthand args against expected function params.
@@ -873,6 +880,7 @@ impl Checker {
                             let resolved = Type::Function {
                                 params: fn_params.clone(),
                                 return_type: Box::new(resolved_ret),
+                                required_params: fn_params.len(),
                             };
                             self.expr_types.insert(e.id, resolved.clone());
                             arg_types[i + param_offset] = resolved;
@@ -1042,9 +1050,11 @@ impl Checker {
             && let Some((_, field_types)) = variants.iter().find(|(v, _)| v == type_name)
             && !field_types.is_empty()
         {
+            let required_params = field_types.len();
             return Type::Function {
                 params: field_types.clone(),
                 return_type: Box::new(ty),
+                required_params,
             };
         }
 
@@ -1472,6 +1482,7 @@ impl Checker {
                 Type::Function {
                     params,
                     return_type,
+                    ..
                 } => {
                     // Validate the piped value as the first (and only) argument
                     if let Some(first_param) = params.first()
@@ -1620,6 +1631,7 @@ impl Checker {
             Type::Function {
                 params,
                 return_type,
+                ..
             } => {
                 for p in params {
                     Self::collect_generic_params_from_type(p, names, seen);
@@ -1773,12 +1785,14 @@ impl Checker {
             Type::Function {
                 params,
                 return_type,
+                required_params,
             } => Type::Function {
                 params: params
                     .iter()
                     .map(|t| Self::substitute_generics(t, subs))
                     .collect(),
                 return_type: Box::new(Self::substitute_generics(return_type, subs)),
+                required_params: *required_params,
             },
             Type::Union { name, variants } => Type::Union {
                 name: name.clone(),
@@ -1829,11 +1843,15 @@ impl Checker {
         if let Type::Function {
             params,
             return_type,
+            required_params,
         } = fn_type
         {
+            let new_params: Vec<_> = params.iter().skip(1).cloned().collect();
+            let new_required = required_params.saturating_sub(1);
             Some(Type::Function {
-                params: params.iter().skip(1).cloned().collect(),
+                params: new_params,
                 return_type: return_type.clone(),
+                required_params: new_required,
             })
         } else {
             Some(fn_type.clone())
@@ -2181,9 +2199,11 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
         } => {
             let param_types: Vec<_> = params.iter().map(simple_resolve_type_expr).collect();
             let ret = simple_resolve_type_expr(return_type);
+            let required_params = param_types.len();
             Type::Function {
                 params: param_types,
                 return_type: Box::new(ret),
+                required_params,
             }
         }
         TypeExprKind::Tuple(types) => {

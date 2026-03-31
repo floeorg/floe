@@ -64,6 +64,7 @@ pub(super) fn format_type(ty: &crate::checker::Type) -> String {
         Type::Function {
             params,
             return_type,
+            ..
         } => {
             let p: Vec<_> = params.iter().map(format_type).collect();
             format!("({}) -> {}", p.join(", "), format_type(return_type))

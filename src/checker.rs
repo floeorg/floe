@@ -180,6 +180,7 @@ impl Checker {
                 Type::Function {
                     params: vec![],
                     return_type: Box::new(Type::Unknown),
+                    required_params: 0,
                 },
             ),
             (
@@ -187,6 +188,7 @@ impl Checker {
                 Type::Function {
                     params: vec![],
                     return_type: Box::new(Type::String),
+                    required_params: 0,
                 },
             ),
             ("ok".to_string(), Type::Bool),
@@ -217,6 +219,7 @@ impl Checker {
                 Type::Function {
                     params: vec![],
                     return_type: Box::new(Type::Unit),
+                    required_params: 0,
                 },
             ),
             (
@@ -224,6 +227,7 @@ impl Checker {
                 Type::Function {
                     params: vec![],
                     return_type: Box::new(Type::Unit),
+                    required_params: 0,
                 },
             ),
         ]);
@@ -254,6 +258,7 @@ impl Checker {
                     return_type: Box::new(Type::Promise(Box::new(Type::Named(
                         "Response".to_string(),
                     )))),
+                    required_params: 1,
                 },
             ),
             ("window", Type::Unknown),
@@ -265,10 +270,12 @@ impl Checker {
                         Type::Function {
                             params: vec![],
                             return_type: Box::new(Type::Unit),
+                            required_params: 0,
                         },
                         Type::Number,
                     ],
                     return_type: Box::new(Type::Number),
+                    required_params: 2,
                 },
             ),
             (
@@ -278,10 +285,12 @@ impl Checker {
                         Type::Function {
                             params: vec![],
                             return_type: Box::new(Type::Unit),
+                            required_params: 0,
                         },
                         Type::Number,
                     ],
                     return_type: Box::new(Type::Number),
+                    required_params: 2,
                 },
             ),
             (
@@ -289,6 +298,7 @@ impl Checker {
                 Type::Function {
                     params: vec![Type::Number],
                     return_type: Box::new(Type::Unit),
+                    required_params: 1,
                 },
             ),
             (
@@ -296,6 +306,7 @@ impl Checker {
                 Type::Function {
                     params: vec![Type::Number],
                     return_type: Box::new(Type::Unit),
+                    required_params: 1,
                 },
             ),
             ("Promise", Type::Unknown),
@@ -454,17 +465,17 @@ impl Checker {
                             .unwrap_or(Type::Unknown)
                     })
                     .collect();
+                // Track required (non-default) parameter count
+                let required_params = func.params.iter().filter(|p| p.default.is_none()).count();
                 let fn_type = Type::Function {
                     params: param_types,
                     return_type: Box::new(return_type),
+                    required_params,
                 };
                 self.env.define(&func.name, fn_type);
                 self.unused
                     .defined_sources
                     .insert(func.name.clone(), format!("function from \"{}\"", source));
-
-                // Track required (non-default) parameter count
-                let required_params = func.params.iter().filter(|p| p.default.is_none()).count();
                 if required_params < func.params.len() {
                     self.fn_required_params
                         .insert(func.name.clone(), required_params);
@@ -667,6 +678,7 @@ impl Checker {
                 Type::Function {
                     params: vec![option_type],
                     return_type: Box::new(Type::Unit),
+                    required_params: 1,
                 },
             ]));
         }

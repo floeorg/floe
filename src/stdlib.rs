@@ -111,9 +111,11 @@ fn promise_of(t: Type) -> Type {
     Type::Promise(Box::new(t))
 }
 fn fun(params: Vec<Type>, ret: Type) -> Type {
+    let required_params = params.len();
     Type::Function {
         params,
         return_type: Box::new(ret),
+        required_params,
     }
 }
 

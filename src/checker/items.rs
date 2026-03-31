@@ -298,18 +298,18 @@ impl Checker {
             })
             .collect();
 
+        // Track required (non-default) parameter count
+        let required_params = decl.params.iter().filter(|p| p.default.is_none()).count();
         let fn_type = Type::Function {
             params: param_types.clone(),
             return_type: Box::new(return_type.clone()),
+            required_params,
         };
         self.check_no_redefinition(&decl.name, span);
         self.env.define(&decl.name, fn_type);
         self.unused
             .defined_sources
             .insert(decl.name.clone(), "function".to_string());
-
-        // Track required (non-default) parameter count
-        let required_params = decl.params.iter().filter(|p| p.default.is_none()).count();
         if required_params < decl.params.len() {
             self.fn_required_params
                 .insert(decl.name.clone(), required_params);
@@ -375,6 +375,7 @@ impl Checker {
             let fn_type = Type::Function {
                 params: param_types.clone(),
                 return_type: Box::new(body_type.clone()),
+                required_params,
             };
             // Update in the name_types map for hover display
             self.name_types
@@ -469,9 +470,11 @@ impl Checker {
                 })
                 .collect();
 
+            let required_params = param_types.len();
             let fn_type = Type::Function {
                 params: param_types.clone(),
                 return_type: Box::new(return_type.clone()),
+                required_params,
             };
             // Allow for-block functions with the same name on different types
             // (e.g. Entry.fromRow and Accent.fromRow are not in conflict)
