@@ -611,3 +611,25 @@ fn idempotent_match_arm_jsx_multiline_props() {
         r#"match menuOpen { true -> <div className="absolute left-0 top-20 z-50 w-full border-b border-[var(--line)] bg-[var(--bg)] px-4 pb-4 sm:hidden"><ul>items</ul></div>, false -> <></> }"#,
     );
 }
+
+// ── Array line breaking ──────────────────────────────────
+
+#[test]
+fn format_short_array_stays_inline() {
+    assert_fmt("const x = [1, 2, 3]", "const x = [1, 2, 3]");
+}
+
+#[test]
+fn format_long_array_goes_multiline() {
+    assert_fmt(
+        r#"const navItems: Array<NavItem> = [NavItem(to: "/", label: "Dashboard", icon: Grid), NavItem(to: "/board", label: "Board", icon: Columns), NavItem(to: "/backlog", label: "Backlog", icon: List)]"#,
+        "const navItems: Array<NavItem> = [\n    NavItem(to: \"/\", label: \"Dashboard\", icon: Grid),\n    NavItem(to: \"/board\", label: \"Board\", icon: Columns),\n    NavItem(to: \"/backlog\", label: \"Backlog\", icon: List),\n]",
+    );
+}
+
+#[test]
+fn idempotent_long_array_with_constructors() {
+    assert_idempotent(
+        r#"const navItems: Array<NavItem> = [NavItem(to: "/", label: "Dashboard", icon: Grid), NavItem(to: "/board", label: "Board", icon: Columns), NavItem(to: "/backlog", label: "Backlog", icon: List)]"#,
+    );
+}

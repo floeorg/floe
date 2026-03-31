@@ -1,5 +1,12 @@
 export fn AboutPage() -> JSX.Element {
-    const features = ["Pipe operator (|>) for data transformation", "Exhaustive match expressions", "Tagged unions with pattern matching", "Result and Option types (no null!)", "Compiles to clean TypeScript", "Full React and JSX support"]
+    const features = [
+        "Pipe operator (|>) for data transformation",
+        "Exhaustive match expressions",
+        "Tagged unions with pattern matching",
+        "Result and Option types (no null!)",
+        "Compiles to clean TypeScript",
+        "Full React and JSX support",
+    ]
 
     <div>
         <h1 className="text-3xl font-bold mb-6">About Floe</h1>

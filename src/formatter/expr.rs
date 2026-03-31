@@ -960,16 +960,11 @@ impl Formatter<'_> {
     }
 
     pub(crate) fn fmt_array(&mut self, node: &SyntaxNode) {
-        self.write("[");
-        let mut first = true;
+        let mut elems = Vec::new();
         for child_or_tok in node.children_with_tokens() {
             match child_or_tok {
                 rowan::NodeOrToken::Node(child) => {
-                    if !first {
-                        self.write(", ");
-                    }
-                    self.fmt_node(&child);
-                    first = false;
+                    elems.push(PipeSegment::Node(child));
                 }
                 rowan::NodeOrToken::Token(tok) => match tok.kind() {
                     SyntaxKind::NUMBER
@@ -978,17 +973,43 @@ impl Formatter<'_> {
                     | SyntaxKind::IDENT
                     | SyntaxKind::UNDERSCORE
                     | SyntaxKind::KW_NONE => {
-                        if !first {
-                            self.write(", ");
-                        }
-                        self.write(tok.text());
-                        first = false;
+                        elems.push(PipeSegment::Token(tok.text().to_string()));
                     }
                     _ => {}
                 },
             }
         }
-        self.write("]");
+
+        let inline = self.try_inline(|f| {
+            f.write("[");
+            for (i, elem) in elems.iter().enumerate() {
+                if i > 0 {
+                    f.write(", ");
+                }
+                f.fmt_pipe_segment(elem);
+            }
+            f.write("]");
+        });
+
+        // Unlike fmt_call/fmt_construct, arrays need the contains('\n') guard
+        // because a nested element (e.g. a constructor) may break internally
+        // while the first line stays short enough to pass fits_inline.
+        if !inline.contains('\n') && self.fits_inline(&inline) {
+            self.write(&inline);
+        } else {
+            self.write("[");
+            self.indent += 1;
+            for elem in &elems {
+                self.newline();
+                self.write_indent();
+                self.fmt_pipe_segment(elem);
+                self.write(",");
+            }
+            self.indent -= 1;
+            self.newline();
+            self.write_indent();
+            self.write("]");
+        }
     }
 
     pub(crate) fn fmt_parse_expr(&mut self, node: &SyntaxNode) {
