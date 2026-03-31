@@ -854,9 +854,7 @@ impl Formatter<'_> {
             if let Some(tok) = t.as_token() {
                 if tok.kind() == SyntaxKind::DOT {
                     found_dot = true;
-                } else if found_dot
-                    && (tok.kind() == SyntaxKind::NUMBER || tok.kind() == SyntaxKind::IDENT)
-                {
+                } else if found_dot && tok.kind().is_member_name() {
                     self.write(tok.text());
                     return;
                 }

@@ -670,3 +670,30 @@ fn format_jsx_arrow_simple_jsx_stays_inline() {
         r#"<div>{items |> map((x) => <span>{x}</span>)}</div>"#,
     );
 }
+
+// ── Member expressions with keyword names ──────────────────
+
+#[test]
+fn format_member_keyword_from() {
+    assert_fmt("Date.from(x)", "Date.from(x)");
+}
+
+#[test]
+fn format_member_keyword_parse() {
+    assert_fmt("Number.parse(x)", "Number.parse(x)");
+}
+
+#[test]
+fn format_member_keyword_match() {
+    assert_fmt("Router.match(path)", "Router.match(path)");
+}
+
+#[test]
+fn format_member_keyword_for() {
+    assert_fmt("Array.for(items)", "Array.for(items)");
+}
+
+#[test]
+fn format_member_keyword_type() {
+    assert_fmt("Schema.type(x)", "Schema.type(x)");
+}
