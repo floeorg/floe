@@ -5,6 +5,18 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.29](https://github.com/floeorg/floe/compare/v0.1.28...v0.1.29) (2026-03-31)
+
+
+### Features
+
+* [[#728](https://github.com/floeorg/floe/issues/728)] Infer callback parameter types from npm union prop types ([#731](https://github.com/floeorg/floe/issues/731)) ([f9bd450](https://github.com/floeorg/floe/commit/f9bd450cefe04fad54b628b04a9689f9118dba34))
+
+
+### Bug Fixes
+
+* [[#729](https://github.com/floeorg/floe/issues/729)] Formatter inconsistently breaks array elements with constructor calls ([#730](https://github.com/floeorg/floe/issues/730)) ([9999106](https://github.com/floeorg/floe/commit/9999106f937fe4809e581dc705442e2e280588d7))
+
 ## [0.1.28](https://github.com/floeorg/floe/compare/v0.1.27...v0.1.28) (2026-03-31)
 
 
