@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.95.2",
-    "@tanstack/react-router": "^1.120.0",
+    "@tanstack/react-router": "^1.168.10",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-error-boundary": "^6.1.1",
