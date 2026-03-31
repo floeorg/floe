@@ -1,5 +1,5 @@
 ---
-// Playground page — uses CodeMirror for editing, WASM compiler for live output
+// Floe Playground — CodeMirror 6 + WASM compiler
 ---
 
 <html lang="en">
@@ -7,60 +7,125 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Floe Playground</title>
+  <link rel="icon" type="image/svg+xml" href="/floe/logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg: #1e1e2e;
-      --surface: #181825;
-      --overlay: #313244;
-      --text: #cdd6f4;
-      --subtext: #a6adc8;
-      --accent: #89b4fa;
-      --green: #a6e3a1;
-      --red: #f38ba8;
-      --yellow: #f9e2af;
-      --border: #45475a;
+      --depth-0: #080c15;
+      --depth-1: #0b1120;
+      --depth-2: #0f1628;
+      --depth-3: #141d32;
+      --border: #1a2540;
+      --border-active: #2a3a5a;
+      --text: #d0dbed;
+      --text-dim: #6a7d98;
+      --text-faint: #3d4f68;
+      --accent: #4d8fd6;
+      --accent-glow: rgba(77, 143, 214, 0.15);
+      --success: #5dba8a;
+      --error: #d06878;
+      --warning: #c8a050;
+      --radius: 0px;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      background: var(--bg);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: var(--depth-0);
       color: var(--text);
       height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
 
-    header {
+    /* ===== Top bar ===== */
+    .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 20px;
-      background: var(--surface);
+      padding: 0 20px;
+      height: 48px;
+      background: var(--depth-1);
       border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
 
-    header h1 { font-size: 18px; font-weight: 600; color: var(--accent); }
-    header h1 span { color: var(--subtext); font-weight: 400; }
-
-    .header-actions { display: flex; gap: 8px; }
-
-    .header-actions button {
-      padding: 6px 14px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--surface);
-      color: var(--text);
-      cursor: pointer;
-      font-size: 13px;
-    }
-
-    .header-actions button:hover { background: var(--overlay); }
-
-    .editor-container {
+    .topbar-left {
       display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .topbar-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .topbar-logo img { width: 18px; height: 18px; opacity: 0.7; }
+
+    .topbar-logo span {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .topbar-sep {
+      width: 1px;
+      height: 16px;
+      background: var(--border);
+    }
+
+    .topbar-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-dim);
+      letter-spacing: 0.03em;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-sm:hover {
+      color: var(--text);
+      border-color: var(--border-active);
+      background: var(--depth-2);
+    }
+
+    .btn-sm.copied {
+      color: var(--success);
+      border-color: rgba(93, 186, 138, 0.3);
+    }
+
+    /* ===== Editor layout ===== */
+    .workspace {
       flex: 1;
+      display: flex;
       overflow: hidden;
     }
 
@@ -68,258 +133,323 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      min-width: 0;
     }
 
-    .pane + .pane { border-left: 1px solid var(--border); }
+    .divider {
+      width: 1px;
+      background: var(--border);
+      position: relative;
+      flex-shrink: 0;
+    }
 
-    .pane-header {
-      padding: 8px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--subtext);
+    .divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: -3px;
+      width: 7px;
+      height: 40px;
+      transform: translateY(-50%);
+      cursor: col-resize;
+      border-radius: 4px;
+    }
+
+    .divider:hover::after {
+      background: var(--accent-glow);
+    }
+
+    .pane-tab {
       display: flex;
       align-items: center;
       gap: 8px;
+      padding: 0 16px;
+      height: 34px;
+      background: var(--depth-1);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
 
-    .pane-header .status {
-      width: 8px;
-      height: 8px;
+    .pane-tab .dot {
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
-      background: var(--green);
+      flex-shrink: 0;
+      transition: background 0.3s;
     }
 
-    .pane-header .status.error { background: var(--red); }
+    .pane-tab .dot.fl { background: var(--accent); opacity: 0.5; }
+    .pane-tab .dot.ts { background: #3178c6; opacity: 0.5; }
+    .pane-tab .dot.ok { background: var(--success); opacity: 0.7; }
+    .pane-tab .dot.err { background: var(--error); opacity: 0.8; }
 
-    /* CodeMirror input pane */
-    #editor-wrapper {
+    .pane-tab .filename {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      letter-spacing: 0.02em;
+    }
+
+    .editor-mount {
       flex: 1;
-      overflow: auto;
+      overflow: hidden;
     }
 
-    /* CodeMirror theme overrides */
-    #editor-wrapper .cm-editor {
+    /* ===== CodeMirror theme ===== */
+    .editor-mount .cm-editor {
       height: 100%;
-      background: var(--bg);
+      background: var(--depth-0);
     }
 
-    #editor-wrapper .cm-editor .cm-scroller {
-      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-      font-size: 14px;
-      line-height: 1.6;
+    .editor-mount .cm-scroller {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.65;
+      padding-top: 8px;
     }
 
-    #editor-wrapper .cm-editor .cm-gutters {
-      background: var(--surface);
+    .editor-mount .cm-gutters {
+      background: var(--depth-0);
       border-right: 1px solid var(--border);
-      color: var(--overlay);
+      padding-right: 2px;
     }
 
-    #editor-wrapper .cm-editor .cm-activeLineGutter {
-      background: var(--overlay);
-      color: var(--subtext);
+    .editor-mount .cm-lineNumbers .cm-gutterElement {
+      color: var(--text-faint);
+      font-size: 11px;
+      padding: 0 12px 0 8px;
+      min-width: 36px;
+      text-align: right;
     }
 
-    #editor-wrapper .cm-editor .cm-activeLine {
-      background: rgba(49, 50, 68, 0.3);
+    .editor-mount .cm-activeLineGutter .cm-gutterElement,
+    .editor-mount .cm-activeLineGutter {
+      background: transparent;
     }
 
-    #editor-wrapper .cm-editor .cm-cursor {
-      border-left-color: var(--accent);
+    .editor-mount .cm-activeLineGutter .cm-gutterElement {
+      color: var(--text-dim);
     }
 
-    #editor-wrapper .cm-editor .cm-selectionBackground,
-    #editor-wrapper .cm-editor .cm-content ::selection {
-      background: rgba(137, 180, 250, 0.2) !important;
+    .editor-mount .cm-activeLine {
+      background: rgba(20, 29, 50, 0.5);
     }
 
-    #editor-wrapper .cm-editor .cm-matchingBracket {
-      background: rgba(137, 180, 250, 0.3);
-      outline: 1px solid var(--accent);
+    .editor-mount .cm-cursor {
+      border-left: 1.5px solid var(--accent);
     }
 
-    /* Output pane */
-    #output-wrapper {
-      flex: 1;
-      overflow: auto;
+    .editor-mount .cm-selectionBackground {
+      background: rgba(77, 143, 214, 0.15) !important;
     }
 
-    #output-wrapper .cm-editor {
-      height: 100%;
-      background: var(--bg);
+    .editor-mount .cm-matchingBracket {
+      background: rgba(77, 143, 214, 0.2);
+      outline: 1px solid rgba(77, 143, 214, 0.4);
+      border-radius: 1px;
     }
 
-    #output-wrapper .cm-editor .cm-scroller {
-      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-      font-size: 14px;
-      line-height: 1.6;
-    }
+    .editor-mount .cm-focused { outline: none; }
 
-    #output-wrapper .cm-editor .cm-gutters {
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      color: var(--overlay);
-    }
-
+    /* ===== Diagnostics ===== */
     .diagnostics {
-      padding: 8px 16px;
-      background: var(--surface);
+      flex-shrink: 0;
       border-top: 1px solid var(--border);
-      max-height: 150px;
+      background: var(--depth-1);
+      max-height: 140px;
       overflow-y: auto;
-      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-      font-size: 12px;
     }
 
-    .diagnostic-item { padding: 4px 0; display: flex; gap: 8px; }
-    .diagnostic-item .severity { font-weight: 600; }
-    .diagnostic-item .severity.error { color: var(--red); }
-    .diagnostic-item .severity.warning { color: var(--yellow); }
-    .diagnostic-item .location { color: var(--subtext); }
-    .diagnostic-item .message { color: var(--text); }
+    .diagnostics-empty {
+      padding: 8px 16px;
+      font-size: 11px;
+      color: var(--text-faint);
+      font-family: 'JetBrains Mono', monospace;
+    }
 
-    .no-diagnostics { color: var(--subtext); font-style: italic; }
+    .diag {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 5px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+    }
 
-    .loading {
+    .diag:hover {
+      background: var(--depth-2);
+    }
+
+    .diag-sev {
+      font-weight: 600;
+      flex-shrink: 0;
+      text-transform: lowercase;
+    }
+
+    .diag-sev.error { color: var(--error); }
+    .diag-sev.warning { color: var(--warning); }
+
+    .diag-loc {
+      color: var(--text-faint);
+      flex-shrink: 0;
+    }
+
+    .diag-msg {
+      color: var(--text-dim);
+    }
+
+    /* ===== Loading ===== */
+    .loading-overlay {
       display: flex;
       align-items: center;
       justify-content: center;
       flex: 1;
-      color: var(--subtext);
-      font-size: 16px;
+      color: var(--text-faint);
+      font-size: 13px;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.02em;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    .loading-overlay span {
+      animation: pulse 1.5s ease-in-out infinite;
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Floe <span>Playground</span></h1>
-    <div class="header-actions">
-      <button id="share-btn">Share</button>
+  <div class="topbar">
+    <div class="topbar-left">
+      <a href="/floe/" class="topbar-logo">
+        <img src="/floe/logo.svg" alt="Floe" />
+        <span>Floe</span>
+      </a>
+      <div class="topbar-sep"></div>
+      <div class="topbar-label">Playground</div>
     </div>
-  </header>
+    <div class="topbar-right">
+      <a href="/floe/guide/introduction/" class="btn-sm">Docs</a>
+      <button class="btn-sm" id="share-btn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
+        Share
+      </button>
+    </div>
+  </div>
 
-  <div class="editor-container">
+  <div class="workspace">
     <div class="pane">
-      <div class="pane-header"><span>input.fl</span></div>
-      <div id="editor-wrapper">
-        <div class="loading" id="loading-editor">Loading editor...</div>
+      <div class="pane-tab">
+        <span class="dot fl"></span>
+        <span class="filename">main.fl</span>
+      </div>
+      <div class="editor-mount" id="editor-input">
+        <div class="loading-overlay"><span>loading editor</span></div>
       </div>
     </div>
+    <div class="divider"></div>
     <div class="pane">
-      <div class="pane-header">
-        <div class="status" id="status-dot"></div>
-        <span>output.ts</span>
+      <div class="pane-tab">
+        <span class="dot ts" id="status-dot"></span>
+        <span class="filename">main.ts</span>
       </div>
-      <div id="output-wrapper">
-        <div class="loading" id="loading-compiler">Loading compiler...</div>
+      <div class="editor-mount" id="editor-output">
+        <div class="loading-overlay"><span>loading compiler</span></div>
       </div>
     </div>
   </div>
 
   <div class="diagnostics" id="diagnostics">
-    <span class="no-diagnostics">No diagnostics</span>
+    <div class="diagnostics-empty">no diagnostics</div>
   </div>
 
   <script is:inline type="module">
-    // Load CodeMirror from CDN
-    const CM_BASE = 'https://esm.sh';
-    const [
-      { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine },
-      { EditorState },
-      { defaultKeymap, indentWithTab },
-      { syntaxHighlighting, HighlightStyle, StreamLanguage },
-      { tags },
-      { javascript },
-      { bracketMatching },
-      { closeBrackets },
-    ] = await Promise.all([
-      import(`${CM_BASE}/@codemirror/view@6`),
-      import(`${CM_BASE}/@codemirror/state@6`),
-      import(`${CM_BASE}/@codemirror/commands@6`),
-      import(`${CM_BASE}/@codemirror/language@6`),
-      import(`${CM_BASE}/@lezer/highlight@1`),
-      import(`${CM_BASE}/@codemirror/lang-javascript@6`),
-      import(`${CM_BASE}/@codemirror/autocomplete@6`).then(m => ({ bracketMatching: null })).catch(() => ({ bracketMatching: null })),
-      import(`${CM_BASE}/@codemirror/autocomplete@6`).then(m => ({ closeBrackets: null })).catch(() => ({ closeBrackets: null })),
-    ].map(p => p.catch(() => ({}))));
+    const CDN = 'https://esm.sh';
 
-    // Load bracket matching separately (it's in @codemirror/language)
-    const langMod = await import(`${CM_BASE}/@codemirror/language@6`);
-    const { bracketMatching: bracketMatch } = langMod;
+    // Load CodeMirror modules in parallel
+    const [view, state, cmds, lang, highlight, jsLang] = await Promise.all([
+      import(`${CDN}/@codemirror/view@6`),
+      import(`${CDN}/@codemirror/state@6`),
+      import(`${CDN}/@codemirror/commands@6`),
+      import(`${CDN}/@codemirror/language@6`),
+      import(`${CDN}/@lezer/highlight@1`),
+      import(`${CDN}/@codemirror/lang-javascript@6`),
+    ]);
 
-    // Floe language definition for CodeMirror (simple stream parser)
+    const { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine } = view;
+    const { EditorState } = state;
+    const { defaultKeymap, indentWithTab } = cmds;
+    const { syntaxHighlighting, HighlightStyle, StreamLanguage, bracketMatching } = lang;
+    const { tags } = highlight;
+    const { javascript } = jsLang;
+
+    // ===== Floe language definition =====
     const floeLang = StreamLanguage.define({
-      startState() { return { inString: false, inTemplate: false, inComment: false }; },
-      token(stream, state) {
-        // Line comments
+      startState: () => ({}),
+      token(stream) {
         if (stream.match('//')) { stream.skipToEnd(); return 'comment'; }
 
-        // Strings
-        if (stream.match('"')) {
-          while (!stream.eol()) {
-            if (stream.next() === '"') break;
-          }
-          return 'string';
-        }
-
-        // Template literals
         if (stream.match('`')) {
           while (!stream.eol()) {
+            if (stream.match('${')) {
+              // Skip interpolation — just color the delimiters
+              return 'string';
+            }
             const ch = stream.next();
             if (ch === '`') break;
           }
           return 'string';
         }
 
-        // Numbers
+        if (stream.match('"')) {
+          while (!stream.eol()) { if (stream.next() === '"') break; }
+          return 'string';
+        }
+
         if (stream.match(/^-?\d[\d_]*(\.\d[\d_]*)?/)) return 'number';
 
-        // Operators
         if (stream.match('|>') || stream.match('->') || stream.match('=>') || stream.match('==') || stream.match('!=') || stream.match('..')) return 'operator';
-        if (stream.match(/^[+\-*\/%<>=!&|?]/)) return 'operator';
+        if (stream.match(/^[+\-*\/%<>=!&|?:]/)) return 'operator';
 
-        // Identifiers & keywords
         if (stream.match(/^[a-zA-Z_]\w*/)) {
-          const word = stream.current();
-          const keywords = ['fn', 'const', 'type', 'match', 'import', 'export', 'from', 'if', 'else', 'return', 'async', 'await', 'use', 'for', 'trait', 'opaque', 'trusted', 'test', 'assert', 'pub', 'try'];
-          if (keywords.includes(word)) return 'keyword';
-
-          const builtins = ['Ok', 'Err', 'Some', 'None', 'Result', 'Option', 'Array', 'Map', 'Set', 'Console', 'string', 'number', 'boolean', 'true', 'false'];
-          if (builtins.includes(word)) return 'typeName';
-
-          // PascalCase = type name
-          if (word[0] === word[0].toUpperCase() && word[0] !== '_') return 'typeName';
-
+          const w = stream.current();
+          if (['fn','const','type','match','import','export','from','if','else','return','async','await','use','for','trait','opaque','trusted','test','assert','pub','try','when'].includes(w)) return 'keyword';
+          if (['true','false'].includes(w)) return 'atom';
+          if (['Ok','Err','Some','None','Result','Option','Array','Map','Set','string','number','boolean','JSX'].includes(w)) return 'typeName';
+          if (w[0] >= 'A' && w[0] <= 'Z') return 'typeName';
           return 'variableName';
         }
+
+        if (stream.match('|')) return 'punctuation';
 
         stream.next();
         return null;
       },
     });
 
-    // Dark theme matching the playground colors
-    const theme = EditorView.theme({
-      '&': { color: '#cdd6f4' },
-      '.cm-content': { caretColor: '#89b4fa' },
-      '.cm-cursor': { borderLeftColor: '#89b4fa' },
+    // ===== Glacial color theme =====
+    const glacialTheme = EditorView.theme({
+      '&': { backgroundColor: 'transparent' },
+      '.cm-content': { caretColor: '#4d8fd6', padding: '0 12px' },
     }, { dark: true });
 
-    const highlighting = syntaxHighlighting(HighlightStyle.define([
-      { tag: tags.keyword, color: '#cba6f7' },
-      { tag: tags.comment, color: '#6c7086', fontStyle: 'italic' },
-      { tag: tags.string, color: '#a6e3a1' },
-      { tag: tags.number, color: '#fab387' },
-      { tag: tags.typeName, color: '#89b4fa' },
-      { tag: tags.variableName, color: '#cdd6f4' },
-      { tag: tags.operator, color: '#89dceb' },
+    const glacialHighlight = syntaxHighlighting(HighlightStyle.define([
+      { tag: tags.keyword,      color: '#7eb8f0', fontWeight: '500' },
+      { tag: tags.comment,      color: '#3d5570', fontStyle: 'italic' },
+      { tag: tags.string,       color: '#7dc4a0' },
+      { tag: tags.number,       color: '#d4a468' },
+      { tag: tags.typeName,     color: '#90b8e0' },
+      { tag: tags.variableName, color: '#c0d0e4' },
+      { tag: tags.operator,     color: '#68a8c0' },
+      { tag: tags.atom,         color: '#d4a468' },
+      { tag: tags.punctuation,  color: '#506880' },
     ]));
 
+    // ===== Default code =====
     const defaultCode = `fn greet(name: string) -> string {
   \`Hello, \${name}!\`
 }
@@ -348,116 +478,112 @@ fn safeDivide(a: number, b: number) -> Result<number, string> {
   }
 }`;
 
-    // Load source from URL hash if present
+    // Load from URL hash if present
     let initialCode = defaultCode;
     const hash = window.location.hash.slice(1);
-    if (hash) {
-      try { initialCode = decodeURIComponent(atob(hash)); } catch {}
-    }
+    if (hash) { try { initialCode = decodeURIComponent(atob(hash)); } catch {} }
 
-    // Remove loading indicators
-    document.getElementById('loading-editor')?.remove();
+    // ===== Mount input editor =====
+    document.querySelector('#editor-input .loading-overlay')?.remove();
 
-    // Create input editor
+    let compileTimeout = null;
+
     const inputEditor = new EditorView({
       doc: initialCode,
       extensions: [
         lineNumbers(),
         highlightActiveLineGutter(),
         highlightActiveLine(),
-        bracketMatch ? bracketMatch() : [],
+        bracketMatching(),
         keymap.of([...defaultKeymap, indentWithTab]),
         floeLang,
-        theme,
-        highlighting,
+        glacialTheme,
+        glacialHighlight,
         EditorView.updateListener.of(update => {
           if (update.docChanged) {
             clearTimeout(compileTimeout);
-            compileTimeout = setTimeout(doCompile, 150);
+            compileTimeout = setTimeout(doCompile, 120);
           }
         }),
-      ].flat(),
-      parent: document.getElementById('editor-wrapper'),
+      ],
+      parent: document.getElementById('editor-input'),
     });
 
-    // Create output editor (read-only, TypeScript highlighting)
+    // ===== Mount output editor (read-only) =====
+    document.querySelector('#editor-output .loading-overlay')?.remove();
+
     const outputEditor = new EditorView({
-      doc: '// Loading compiler...',
+      doc: '// compiling...',
       extensions: [
         lineNumbers(),
         javascript({ typescript: true }),
         EditorState.readOnly.of(true),
-        theme,
-        highlighting,
+        glacialTheme,
+        glacialHighlight,
       ],
-      parent: document.getElementById('output-wrapper'),
+      parent: document.getElementById('editor-output'),
     });
 
-    document.getElementById('loading-compiler')?.remove();
-
-    // Compiler state
-    let compileTimeout = null;
-    let compilerReady = false;
+    // ===== Compiler =====
     let compileFn = null;
 
     function doCompile() {
-      if (!compilerReady) return;
+      if (!compileFn) return;
       const source = inputEditor.state.doc.toString();
       const result = compileFn(source);
+      const dot = document.getElementById('status-dot');
+      const diagEl = document.getElementById('diagnostics');
 
-      // Update output
       outputEditor.dispatch({
-        changes: { from: 0, to: outputEditor.state.doc.length, insert: result.output || '// No output' },
+        changes: { from: 0, to: outputEditor.state.doc.length, insert: result.output || '// no output' },
       });
 
-      // Update diagnostics
-      const diagnosticsEl = document.getElementById('diagnostics');
-      const statusDot = document.getElementById('status-dot');
-
-      if (result.diagnostics && result.diagnostics.length > 0) {
-        statusDot.className = 'status error';
-        diagnosticsEl.innerHTML = result.diagnostics.map(d => {
+      if (result.diagnostics?.length > 0) {
+        const hasErrors = result.diagnostics.some(d => d.severity.toLowerCase().includes('error'));
+        dot.className = hasErrors ? 'dot err' : 'dot ts';
+        diagEl.innerHTML = result.diagnostics.map(d => {
           const sev = d.severity.toLowerCase();
           const cls = sev.includes('error') ? 'error' : 'warning';
-          return `<div class="diagnostic-item">
-            <span class="severity ${cls}">${escapeHtml(sev)}</span>
-            <span class="location">${d.line}:${d.column}</span>
-            <span class="message">${escapeHtml(d.message)}</span>
-          </div>`;
+          return `<div class="diag"><span class="diag-sev ${cls}">${esc(sev)}</span><span class="diag-loc">${d.line}:${d.column}</span><span class="diag-msg">${esc(d.message)}</span></div>`;
         }).join('');
       } else {
-        statusDot.className = 'status';
-        diagnosticsEl.innerHTML = '<span class="no-diagnostics">No diagnostics</span>';
+        dot.className = 'dot ok';
+        diagEl.innerHTML = '<div class="diagnostics-empty">no diagnostics</div>';
       }
     }
 
-    // Load WASM compiler
+    // Load WASM
     try {
-      const wasmMod = await import('/floe/playground/pkg/floe_wasm.js');
-      await wasmMod.default();
-      compileFn = wasmMod.compile;
-      compilerReady = true;
+      const wasm = await import('/floe/playground/pkg/floe_wasm.js');
+      await wasm.default();
+      compileFn = wasm.compile;
       doCompile();
-    } catch (err) {
+    } catch (e) {
       outputEditor.dispatch({
-        changes: { from: 0, to: outputEditor.state.doc.length, insert: '// Failed to load compiler\n// Build WASM: wasm-pack build crates/floe-wasm --target web --out-dir ../../docs/site/public/playground/pkg' },
+        changes: { from: 0, to: outputEditor.state.doc.length, insert: '// compiler not loaded\n// run: wasm-pack build crates/floe-wasm --target web --out-dir ../../docs/site/public/playground/pkg' },
       });
-      console.error(err);
     }
 
-    // Share button
+    // ===== Share =====
     document.getElementById('share-btn').addEventListener('click', () => {
       const encoded = btoa(encodeURIComponent(inputEditor.state.doc.toString()));
       window.location.hash = encoded;
       navigator.clipboard.writeText(window.location.href).then(() => {
         const btn = document.getElementById('share-btn');
-        btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = 'Share'; }, 1500);
+        btn.classList.add('copied');
+        btn.querySelector('span') || (btn.lastChild.textContent = 'Copied');
+        const textNode = [...btn.childNodes].find(n => n.nodeType === 3);
+        const orig = textNode?.textContent;
+        if (textNode) textNode.textContent = ' Copied';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          if (textNode) textNode.textContent = orig;
+        }, 1500);
       });
     });
 
-    function escapeHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    function esc(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
   </script>
 </body>
