@@ -655,15 +655,11 @@ impl Formatter<'_> {
     }
 
     /// Check if an ARG node contains an arrow expression whose body is a multiline JSX element.
+    /// Only checks direct children of the arg, not deeply nested arrows.
     fn arg_has_jsx_arrow_body(&self, arg: &SyntaxNode) -> bool {
-        arg.descendants().any(|d| {
-            d.kind() == SyntaxKind::ARROW_EXPR
-                && d.children().any(|c| {
-                    c.kind() == SyntaxKind::JSX_ELEMENT && {
-                        let inline = self.try_inline(|f| f.fmt_jsx(&c));
-                        inline.contains('\n')
-                    }
-                })
+        arg.children().any(|c| {
+            c.kind() == SyntaxKind::ARROW_EXPR
+                && c.children().any(|body| self.is_multiline_jsx(&body))
         })
     }
 
@@ -920,11 +916,7 @@ impl Formatter<'_> {
         if let Some(body) = body {
             // Only break after => for JSX elements that format as multiline.
             // Blocks and match expressions should stay on the same line as =>.
-            let should_break = body.kind() == SyntaxKind::JSX_ELEMENT && {
-                let body_inline = self.try_inline(|f| f.fmt_node(&body));
-                body_inline.contains('\n')
-            };
-            if should_break {
+            if self.is_multiline_jsx(&body) {
                 self.write(" =>");
                 self.indent += 1;
                 self.newline();
