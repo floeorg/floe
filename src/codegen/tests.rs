@@ -1865,3 +1865,51 @@ fn _test(props: Props) -> JSX.Element {
         "should emit JSX spread prop, got: {result}"
     );
 }
+
+// ── For-block function call namespacing ────────────────────
+
+#[test]
+fn for_block_bare_pipe_uses_mangled_name() {
+    let result = emit(
+        r#"
+type Icon { | Grid | Columns }
+
+for Icon {
+    fn toChar(self) -> string {
+        match self { Grid -> "G", Columns -> "C" }
+    }
+}
+
+const _x = Grid |> toChar
+"#,
+    );
+    assert!(
+        result.contains("Icon__toChar("),
+        "bare pipe call should use mangled name, got: {result}"
+    );
+    assert!(
+        !result.replace("Icon__toChar(", "").contains("toChar("),
+        "should not emit bare toChar call, got: {result}"
+    );
+}
+
+#[test]
+fn for_block_bare_identifier_uses_mangled_name() {
+    let result = emit(
+        r#"
+type Icon { | Grid | Columns }
+
+for Icon {
+    fn toChar(self) -> string {
+        match self { Grid -> "G", Columns -> "C" }
+    }
+}
+
+const _f = toChar
+"#,
+    );
+    assert!(
+        result.contains("Icon__toChar"),
+        "bare identifier should use mangled name, got: {result}"
+    );
+}

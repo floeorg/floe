@@ -165,6 +165,20 @@ impl Codegen {
                 {
                     return;
                 }
+                // Bare for-block: `x |> toChar(args)` → `Icon__toChar(x, args)`
+                if let ExprKind::Identifier(name) = &callee.kind
+                    && let Some(mangled) = self.lookup_for_block_fn_by_name(name)
+                {
+                    self.push(&mangled);
+                    self.push("(");
+                    self.emit_expr(left);
+                    if !args.is_empty() {
+                        self.push(", ");
+                        self.emit_args(args);
+                    }
+                    self.push(")");
+                    return;
+                }
                 // Fall through to normal call handling below
                 let callee_alias = if let ExprKind::Identifier(name) = &callee.kind {
                     self.import_aliases.get(name.as_str()).cloned()
@@ -243,6 +257,14 @@ impl Codegen {
             ExprKind::Identifier(name) => {
                 if let Some(output) = self.try_emit_bare_stdlib_pipe(left, right, &[]) {
                     self.push(&output);
+                    return;
+                }
+                // For-block function: `item.icon |> toChar` → `Icon__toChar(item.icon)`
+                if let Some(mangled) = self.lookup_for_block_fn_by_name(name) {
+                    self.push(&mangled);
+                    self.push("(");
+                    self.emit_expr(left);
+                    self.push(")");
                     return;
                 }
                 // Use aliased import name if available (avoids TDZ conflicts)

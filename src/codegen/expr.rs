@@ -41,6 +41,8 @@ impl Codegen {
                     // Non-unit variant as function value:
                     // `Validation` → `(value) => ({ tag: "Validation", value })`
                     self.emit_variant_constructor_fn(name, &field_names);
+                } else if let Some(mangled) = self.lookup_for_block_fn_by_name(name) {
+                    self.push(&mangled);
                 } else {
                     self.push(name);
                 }
