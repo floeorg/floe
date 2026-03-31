@@ -85,7 +85,7 @@
     "watch": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^25.5.0",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.27.4",
     "typescript": "^6.0.2"
