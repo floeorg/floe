@@ -9,6 +9,10 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
+    groups:
+      oxc:
+        patterns:
+          - "oxc_*"
 
   - package-ecosystem: "npm"
     directory: "/"
