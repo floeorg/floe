@@ -100,7 +100,7 @@
         },
         {
           "name": "variable.language.floe",
-          "match": "\\b(Ok|Err|Some|None|Value|Clear|Unchanged|self)\\b"
+          "match": "\\b(Value|Clear|Unchanged|self)\\b"
         },
         {
           "name": "constant.language.boolean.floe",

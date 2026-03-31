@@ -110,14 +110,14 @@
   "Newtype": {
     "prefix": "newtype",
     "body": [
-      "type ${1:Name} { ${2:string} }"
+      "type ${1:Name}(${2:string})"
     ],
     "description": "Newtype wrapper"
   },
   "Opaque Type": {
     "prefix": "opaque",
     "body": [
-      "opaque type ${1:Name} = ${2:BaseType}"
+      "opaque type ${1:Name}(${2:string})"
     ],
     "description": "Opaque type"
   },
