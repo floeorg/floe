@@ -5,6 +5,16 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.31](https://github.com/floeorg/floe/compare/v0.1.30...v0.1.31) (2026-03-31)
+
+
+### Bug Fixes
+
+* [[#755](https://github.com/floeorg/floe/issues/755)] [[#756](https://github.com/floeorg/floe/issues/756)] Support destructured parameters with type annotations and error on unsupported syntax ([#759](https://github.com/floeorg/floe/issues/759)) ([548b139](https://github.com/floeorg/floe/commit/548b13986c72d4bc6cc7dc8d2aeefd84eee477dd))
+* [[#757](https://github.com/floeorg/floe/issues/757)] break multiline JSX arrow bodies onto indented lines ([#764](https://github.com/floeorg/floe/issues/764)) ([6de16f8](https://github.com/floeorg/floe/commit/6de16f83692bc529747e5a3a593fbedafa59070a))
+* [[#760](https://github.com/floeorg/floe/issues/760)] Render prop callback parameters inferred as function type instead of individual params ([#766](https://github.com/floeorg/floe/issues/766)) ([87c2aa8](https://github.com/floeorg/floe/commit/87c2aa894b24a91d055ef9048ed062f6c96bad92))
+* [[#762](https://github.com/floeorg/floe/issues/762)] Extract shared destructure resolution helper and fix silent Unknown in arrow params ([#765](https://github.com/floeorg/floe/issues/765)) ([8e7ed73](https://github.com/floeorg/floe/commit/8e7ed73892af4fcea43ddcc8f2e36ac1332b743e))
+
 ## [0.1.30](https://github.com/floeorg/floe/compare/v0.1.29...v0.1.30) (2026-03-31)
 
 
