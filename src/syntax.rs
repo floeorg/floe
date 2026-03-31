@@ -194,6 +194,35 @@ impl SyntaxKind {
     pub fn is_trivia(self) -> bool {
         matches!(self, Self::WHITESPACE | Self::COMMENT | Self::BLOCK_COMMENT)
     }
+
+    /// Whether this token kind can appear as a member name after `.` in a
+    /// member expression (e.g. `Date.from`, `Number.parse`, `pair.0`).
+    /// Must stay in sync with the parser's member-expression handling in
+    /// `cst/exprs.rs`.
+    pub fn is_member_name(self) -> bool {
+        matches!(
+            self,
+            Self::IDENT
+                | Self::NUMBER
+                | Self::BANNED
+                | Self::KW_PARSE
+                | Self::KW_MATCH
+                | Self::KW_FOR
+                | Self::KW_FROM
+                | Self::KW_TYPE
+                | Self::KW_EXPORT
+                | Self::KW_IMPORT
+                | Self::KW_CONST
+                | Self::KW_FN
+                | Self::KW_ASYNC
+                | Self::KW_AWAIT
+                | Self::KW_TRAIT
+                | Self::KW_COLLECT
+                | Self::KW_DERIVING
+                | Self::KW_WHEN
+                | Self::KW_SELF
+        )
+    }
 }
 
 impl From<SyntaxKind> for rowan::SyntaxKind {
