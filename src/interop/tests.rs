@@ -113,7 +113,10 @@ fn parse_function_type() {
     assert_eq!(
         ty,
         TsType::Function {
-            params: vec![TsType::Primitive("string".to_string())],
+            params: vec![FunctionParam {
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            }],
             return_type: Box::new(TsType::Primitive("void".to_string())),
         }
     );
@@ -191,10 +194,10 @@ fn wrap_plain_union_stays_non_option() {
 fn wrap_function_wraps_params_and_return() {
     // (x: string | null) => any
     let ts = TsType::Function {
-        params: vec![TsType::Union(vec![
-            TsType::Primitive("string".to_string()),
-            TsType::Null,
-        ])],
+        params: vec![FunctionParam {
+            ty: TsType::Union(vec![TsType::Primitive("string".to_string()), TsType::Null]),
+            optional: false,
+        }],
         return_type: Box::new(TsType::Any),
     };
     let wrapped = wrap_boundary_type(&ts);
@@ -203,6 +206,32 @@ fn wrap_function_wraps_params_and_return() {
         Type::Function {
             params: vec![Type::Option(Box::new(Type::String))],
             return_type: Box::new(Type::Unknown),
+        }
+    );
+}
+
+#[test]
+fn wrap_function_optional_params_become_option() {
+    // (x: string, y?: number) => void
+    let ts = TsType::Function {
+        params: vec![
+            FunctionParam {
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            },
+            FunctionParam {
+                ty: TsType::Primitive("number".to_string()),
+                optional: true,
+            },
+        ],
+        return_type: Box::new(TsType::Primitive("void".to_string())),
+    };
+    let wrapped = wrap_boundary_type(&ts);
+    assert_eq!(
+        wrapped,
+        Type::Function {
+            params: vec![Type::String, Type::Option(Box::new(Type::Number))],
+            return_type: Box::new(Type::Unit),
         }
     );
 }
@@ -309,7 +338,10 @@ fn parse_dts_function_export() {
     assert_eq!(
         export.ts_type,
         TsType::Function {
-            params: vec![TsType::Primitive("string".to_string())],
+            params: vec![FunctionParam {
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            }],
             return_type: Box::new(TsType::Union(vec![
                 TsType::Named("Element".to_string()),
                 TsType::Null,

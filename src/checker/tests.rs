@@ -391,7 +391,7 @@ const _x = greet(User(name: "Ryan"), "Hello")
 
 #[test]
 fn call_site_type_args_infer_return() {
-    use crate::interop::{DtsExport, TsType};
+    use crate::interop::{DtsExport, FunctionParam, TsType};
     use std::collections::HashMap;
 
     let program = crate::parser::Parser::new(
@@ -409,11 +409,17 @@ const _x = todos
     let use_state_export = DtsExport {
         name: "useState".to_string(),
         ts_type: TsType::Function {
-            params: vec![TsType::Named("S".to_string())],
+            params: vec![FunctionParam {
+                ty: TsType::Named("S".to_string()),
+                optional: false,
+            }],
             return_type: Box::new(TsType::Tuple(vec![
                 TsType::Named("S".to_string()),
                 TsType::Function {
-                    params: vec![TsType::Named("S".to_string())],
+                    params: vec![FunctionParam {
+                        ty: TsType::Named("S".to_string()),
+                        optional: false,
+                    }],
                     return_type: Box::new(TsType::Primitive("void".to_string())),
                 },
             ])),
@@ -1370,7 +1376,7 @@ fn handler() {
 #[test]
 fn dispatch_generic_converts_to_function() {
     // The REAL tsgo output: Dispatch<SetStateAction<Todo[]>> should become a function type
-    use crate::interop::{DtsExport, TsType};
+    use crate::interop::{DtsExport, FunctionParam, TsType};
 
     let program = crate::parser::Parser::new(
         r#"
@@ -1402,7 +1408,10 @@ fn handler() {
     let use_state_export = DtsExport {
         name: "useState".to_string(),
         ts_type: TsType::Function {
-            params: vec![TsType::Named("S".to_string())],
+            params: vec![FunctionParam {
+                ty: TsType::Named("S".to_string()),
+                optional: false,
+            }],
             return_type: Box::new(TsType::Tuple(vec![
                 TsType::Named("S".to_string()),
                 TsType::Named("S".to_string()),
@@ -1442,8 +1451,7 @@ fn calling_dispatch_type_is_callable() {
     // The REAL problem: setTodos has type Named("Dispatch<SetStateAction<...>>")
     // which is NOT Type::Function. Calling it returns Unknown.
     // This test demonstrates the gap.
-    use crate::interop::DtsExport;
-    use crate::interop::TsType;
+    use crate::interop::{DtsExport, FunctionParam, TsType};
 
     let program = crate::parser::Parser::new(
         r#"
@@ -1464,7 +1472,10 @@ fn handler() {
         ts_type: TsType::Tuple(vec![
             TsType::Array(Box::new(TsType::Named("Todo".to_string()))),
             TsType::Function {
-                params: vec![TsType::Named("Todo[]".to_string())],
+                params: vec![FunctionParam {
+                    ty: TsType::Named("Todo[]".to_string()),
+                    optional: false,
+                }],
                 return_type: Box::new(TsType::Primitive("void".to_string())),
             },
         ]),
@@ -1472,11 +1483,17 @@ fn handler() {
     let use_state_export = DtsExport {
         name: "useState".to_string(),
         ts_type: TsType::Function {
-            params: vec![TsType::Named("S".to_string())],
+            params: vec![FunctionParam {
+                ty: TsType::Named("S".to_string()),
+                optional: false,
+            }],
             return_type: Box::new(TsType::Tuple(vec![
                 TsType::Named("S".to_string()),
                 TsType::Function {
-                    params: vec![TsType::Named("S".to_string())],
+                    params: vec![FunctionParam {
+                        ty: TsType::Named("S".to_string()),
+                        optional: false,
+                    }],
                     return_type: Box::new(TsType::Primitive("void".to_string())),
                 },
             ])),
@@ -2964,6 +2981,90 @@ const x = greet("Ryan")
     assert!(
         !has_error_containing(&diags, "expects"),
         "should not produce argument count error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+// ── Bug #779: Imported TS functions with optional params ──
+
+#[test]
+fn imported_optional_params_allow_omission() {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    // useQueryClient(queryClient?: QueryClient): QueryClient
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { useQueryClient } from "@tanstack/react-query"
+const _client = useQueryClient()
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let export = DtsExport {
+        name: "useQueryClient".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Named("QueryClient".to_string()),
+                optional: true,
+            }],
+            return_type: Box::new(TsType::Named("QueryClient".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("@tanstack/react-query".to_string(), vec![export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        !has_error_containing(&diags, "expects"),
+        "calling with 0 args should be allowed when param is optional, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn imported_optional_params_still_validates_max_args() {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    // fn(a: string, b?: number): void — max 2 args
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { doStuff } from "some-lib"
+const _x = doStuff("hi", 1, true)
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let export = DtsExport {
+        name: "doStuff".to_string(),
+        ts_type: TsType::Function {
+            params: vec![
+                FunctionParam {
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: TsType::Primitive("number".to_string()),
+                    optional: true,
+                },
+            ],
+            return_type: Box::new(TsType::Primitive("void".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        has_error_containing(&diags, "expects"),
+        "calling with 3 args should error when max is 2, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
