@@ -846,6 +846,35 @@ impl Checker {
                         return_type: Box::new(return_type),
                     }
                 } else {
+                    // Resolve dot shorthand args against expected function params.
+                    // `.field` becomes `(x) => x.field` when the expected param is a function.
+                    for (i, arg) in args.iter().enumerate() {
+                        let e = match arg {
+                            Arg::Positional(e) | Arg::Named { value: e, .. } => e,
+                        };
+                        if let ExprKind::DotShorthand { field, predicate } = &e.kind
+                            && let Some(Type::Function {
+                                params: fn_params, ..
+                            }) = params.get(i)
+                            && let Some(self_ty) = fn_params.first()
+                        {
+                            // Resolve the field type from the self param
+                            let field_ty = self.resolve_member_type(self_ty, field, e.span);
+                            let resolved_ret = if predicate.is_some() {
+                                Type::Bool
+                            } else {
+                                field_ty
+                            };
+                            let resolved = Type::Function {
+                                params: fn_params.clone(),
+                                return_type: Box::new(resolved_ret),
+                            };
+                            arg_types[i] = resolved;
+                            // Also store the resolved type for hover/LSP
+                            self.expr_types.insert(e.id, arg_types[i].clone());
+                        }
+                    }
+
                     // Normal call: check all argument types
                     for (i, (arg_ty, param_ty)) in arg_types.iter().zip(params.iter()).enumerate() {
                         if !self.types_compatible(param_ty, arg_ty) {

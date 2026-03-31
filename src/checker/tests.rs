@@ -4782,3 +4782,33 @@ fn page() {
         panic!("snapshot param type not found in name_types");
     }
 }
+
+// ── Dot shorthand in function arguments ──────────────────────
+
+#[test]
+fn dot_shorthand_as_function_argument() {
+    let diags = check(
+        r#"
+type Store { sidebarOpen: boolean, name: string }
+fn select(store: Store, f: (Store) -> boolean) -> boolean { f(store) }
+const store = Store(sidebarOpen: true, name: "test")
+const _r = select(store, .sidebarOpen)
+"#,
+    );
+    assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
+}
+
+#[test]
+fn dot_shorthand_predicate_as_function_argument() {
+    let diags = check(
+        r#"
+type User { name: string, active: boolean }
+fn find(users: Array<User>, f: (User) -> boolean) -> Array<User> {
+    users |> filter(f)
+}
+const users = [User(name: "a", active: true)]
+const _r = find(users, .name == "a")
+"#,
+    );
+    assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
+}
