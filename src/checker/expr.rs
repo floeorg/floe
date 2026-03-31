@@ -6,6 +6,16 @@ fn is_generic_param(s: &str) -> bool {
     s.len() == 1 && s.chars().next().is_some_and(|c| c.is_ascii_uppercase())
 }
 
+/// When a destructured param's type is unresolved, use heuristics for known field names.
+/// The "error" field maps to Error because Floe's error-handling callbacks (use blocks,
+/// fallbackRender) destructure `{ error }`.
+fn unresolved_field_heuristic_type(name: &str) -> Type {
+    match name {
+        type_layout::ERROR_FIELD => Type::Named(type_layout::TYPE_ERROR.to_string()),
+        _ => Type::Unknown,
+    }
+}
+
 /// Parse a Foreign type string like "Context<AuthContextValue>" into
 /// ("Context", ["AuthContextValue"]). Returns None if no generics.
 fn parse_foreign_generics(s: &str) -> Option<(String, Vec<String>)> {
@@ -485,63 +495,7 @@ impl Checker {
                 self.name_types.insert(p.name.clone(), ty.display_name());
                 // For destructured params, also define the field names
                 if let Some(ref destructure) = p.destructure {
-                    let concrete_ty = self.resolve_type_to_concrete(&ty);
-                    match destructure {
-                        ParamDestructure::Object(fields) => {
-                            if let Type::Record(ref rec_fields) = concrete_ty {
-                                for f in fields {
-                                    let name = f.bound_name();
-                                    let field_ty = rec_fields
-                                        .iter()
-                                        .find(|(n, _)| n == &f.field)
-                                        .map(|(_, t)| t.clone())
-                                        .unwrap_or_else(|| {
-                                            self.emit_error(
-                                                format!(
-                                                    "field `{}` does not exist on type `{}`",
-                                                    f.field,
-                                                    ty.display_name()
-                                                ),
-                                                p.span,
-                                                "E001",
-                                                format!(
-                                                    "`{}` has no field `{}`",
-                                                    ty.display_name(),
-                                                    f.field
-                                                ),
-                                            );
-                                            Type::Unknown
-                                        });
-                                    self.env.define(name, field_ty);
-                                }
-                            } else {
-                                // No type annotation resolved to a record — try special cases
-                                for f in fields {
-                                    let name = f.bound_name();
-                                    let field_ty = match f.field.as_str() {
-                                        "error" => Type::Named(type_layout::TYPE_ERROR.to_string()),
-                                        _ => Type::Unknown,
-                                    };
-                                    self.env.define(name, field_ty);
-                                }
-                            }
-                        }
-                        ParamDestructure::Array(fields) => {
-                            if let Type::Array(inner) = &concrete_ty {
-                                for field in fields {
-                                    self.env.define(field, *inner.clone());
-                                }
-                            } else {
-                                for field in fields {
-                                    let field_ty = match field.as_str() {
-                                        "error" => Type::Named(type_layout::TYPE_ERROR.to_string()),
-                                        _ => Type::Unknown,
-                                    };
-                                    self.env.define(field, field_ty);
-                                }
-                            }
-                        }
-                    }
+                    self.define_destructured_bindings(destructure, &ty, p.span);
                 }
                 ty
             })
@@ -1881,6 +1835,98 @@ impl Checker {
             "this type does not support member access",
         );
         Type::Unknown
+    }
+
+    /// Define bindings for a destructured parameter in the current scope.
+    ///
+    /// Resolves the parameter type to its concrete form and extracts field/element
+    /// types. Emits errors when destructuring is applied to an incompatible concrete
+    /// type. When the type is unresolved (TypeVar, Unknown), fields fall back to
+    /// Unknown silently — arrow params may have their types inferred later.
+    pub(crate) fn define_destructured_bindings(
+        &mut self,
+        destructure: &ParamDestructure,
+        ty: &Type,
+        span: Span,
+    ) {
+        let concrete_ty = self.resolve_type_to_concrete(ty);
+        let type_is_unresolved = matches!(
+            concrete_ty,
+            Type::Unknown | Type::Var(_) | Type::Named(_) | Type::Foreign(_)
+        );
+
+        match destructure {
+            ParamDestructure::Object(fields) => {
+                if let Type::Record(ref rec_fields) = concrete_ty {
+                    for f in fields {
+                        let field_ty = rec_fields
+                            .iter()
+                            .find(|(n, _)| n == &f.field)
+                            .map(|(_, t)| t.clone())
+                            .unwrap_or_else(|| {
+                                self.emit_error(
+                                    format!(
+                                        "field `{}` does not exist on type `{}`",
+                                        f.field,
+                                        ty.display_name()
+                                    ),
+                                    span,
+                                    "E001",
+                                    format!("`{}` has no field `{}`", ty.display_name(), f.field),
+                                );
+                                Type::Unknown
+                            });
+                        self.env.define(f.bound_name(), field_ty);
+                    }
+                } else if type_is_unresolved {
+                    // Type not yet resolved (e.g. untyped arrow param, foreign type).
+                    // Infer Error for the "error" field since Floe's error-handling
+                    // callbacks (use blocks, fallbackRender) destructure { error }.
+                    for f in fields {
+                        let field_ty = unresolved_field_heuristic_type(f.field.as_str());
+                        self.env.define(f.bound_name(), field_ty);
+                    }
+                } else {
+                    self.emit_error(
+                        format!(
+                            "cannot destructure parameter of type `{}`",
+                            ty.display_name()
+                        ),
+                        span,
+                        "E001",
+                        "destructuring requires a record type".to_string(),
+                    );
+                    for f in fields {
+                        self.env.define(f.bound_name(), Type::Unknown);
+                    }
+                }
+            }
+            ParamDestructure::Array(fields) => {
+                if let Type::Array(inner) = &concrete_ty {
+                    for field in fields {
+                        self.env.define(field, inner.as_ref().clone());
+                    }
+                } else if type_is_unresolved {
+                    for field in fields {
+                        let field_ty = unresolved_field_heuristic_type(field);
+                        self.env.define(field, field_ty);
+                    }
+                } else {
+                    self.emit_error(
+                        format!(
+                            "cannot array-destructure parameter of type `{}`",
+                            ty.display_name()
+                        ),
+                        span,
+                        "E001",
+                        "array destructuring requires an array type".to_string(),
+                    );
+                    for field in fields {
+                        self.env.define(field, Type::Unknown);
+                    }
+                }
+            }
+        }
     }
 
     /// Resolve a type to its concrete definition, following Named type lookups.
