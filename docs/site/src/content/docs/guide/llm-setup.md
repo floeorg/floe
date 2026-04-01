@@ -9,7 +9,7 @@ LLMs don't know Floe yet. You need to give them the language reference so they c
 Paste this URL into your AI tool's context:
 
 ```
-https://floeorg.github.io/floe/llms.txt
+https://floe-lang.dev/llms.txt
 ```
 
 This is a condensed reference covering all Floe syntax, types, compilation rules, and stdlib functions.
@@ -19,7 +19,7 @@ This is a condensed reference covering all Floe syntax, types, compilation rules
 Fetch it directly in a conversation:
 
 ```
-@url https://floeorg.github.io/floe/llms.txt
+@url https://floe-lang.dev/llms.txt
 ```
 
 Or add it to your project's `CLAUDE.md` so every conversation has it:
@@ -28,7 +28,7 @@ Or add it to your project's `CLAUDE.md` so every conversation has it:
 ## Floe Reference
 
 When writing .fl files, fetch the language reference first:
-https://floeorg.github.io/floe/llms.txt
+https://floe-lang.dev/llms.txt
 ```
 
 ## Cursor
@@ -41,7 +41,7 @@ Add to `.github/copilot-instructions.md` in your project:
 
 ```markdown
 When writing Floe (.fl) files, refer to the language reference at:
-https://floeorg.github.io/floe/llms.txt
+https://floe-lang.dev/llms.txt
 
 Floe compiles to TypeScript. Key differences from TypeScript:
 - Use `fn` instead of `function`
@@ -56,7 +56,7 @@ Floe compiles to TypeScript. Key differences from TypeScript:
 Download the reference and include it in your system prompt or context window:
 
 ```bash
-curl -o llms.txt https://floeorg.github.io/floe/llms.txt
+curl -o llms.txt https://floe-lang.dev/llms.txt
 ```
 
 ## What the reference covers

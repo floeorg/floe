@@ -65,8 +65,8 @@ Write `.fl` files next to your `.ts` files. Import in either direction.
 
 ## Links
 
-- [Documentation](https://floeorg.github.io/floe)
-- [Language Tour](https://floeorg.github.io/floe/guide/tour/)
-- [Your First Project](https://floeorg.github.io/floe/guide/first-program/)
-- [CLI Reference](https://floeorg.github.io/floe/reference/cli/)
+- [Documentation](https://floe-lang.dev)
+- [Language Tour](https://floe-lang.dev/guide/tour/)
+- [Your First Project](https://floe-lang.dev/guide/first-program/)
+- [CLI Reference](https://floe-lang.dev/reference/cli/)
 - [Changelog](CHANGELOG.md)

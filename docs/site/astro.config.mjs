@@ -9,8 +9,7 @@ const floeLang = {
 };
 
 export default defineConfig({
-  site: "https://floeorg.github.io",
-  base: "/floe",
+  site: "https://floe-lang.dev",
   markdown: {
     shikiConfig: {
       langs: [floeLang],
