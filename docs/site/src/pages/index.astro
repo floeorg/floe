@@ -570,18 +570,15 @@ const activeNames = users
   |> sortBy(.lastLogin)
   |> map(.displayName)
 
-// Placeholder _ controls argument position
-const discounted = items
-  |> map(.price)
-  |> filter(less_than(_, 100))
-  |> reduce(add, 0, _)
+// Placeholder _ for non-first argument position
+5 |> add(3, _)            // add(3, 5)
+42 |> wrap("[", _, "]")   // wrap("[", 42, "]")
 
 // Tap for side effects without breaking the chain
-const result = data
-  |> validate
+users
+  |> filter(.active)
   |> tap(Console.log)
-  |> transform
-  |> save`}
+  |> map(.name)`}
           lang={floeLang}
           theme="github-dark-default"
         />
