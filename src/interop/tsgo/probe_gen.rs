@@ -50,6 +50,9 @@ pub(super) fn collect_all_consts(program: &Program) -> Vec<&ConstDecl> {
 }
 
 /// Recursively collect const declarations from an expression (function body, block, etc.)
+///
+/// Also follows `use <-` desugaring: `use x <- f(arg)` becomes `f(arg, |x| { rest })`,
+/// so we recurse into Arrow callback arguments of statement-level Calls.
 fn collect_consts_from_expr<'a>(expr: &'a Expr, consts: &mut Vec<&'a ConstDecl>) {
     let items = match &expr.kind {
         ExprKind::Block(stmts) | ExprKind::Collect(stmts) => stmts,
@@ -59,6 +62,20 @@ fn collect_consts_from_expr<'a>(expr: &'a Expr, consts: &mut Vec<&'a ConstDecl>)
         match &stmt.kind {
             ItemKind::Const(decl) => consts.push(decl),
             ItemKind::Function(func) => collect_consts_from_expr(&func.body, consts),
+            ItemKind::Expr(inner) => {
+                // Follow `use <-` desugaring: the remaining body is wrapped in
+                // an Arrow callback passed as an argument to the guard function.
+                // Only recurse into Arrow args of Calls to avoid picking up
+                // consts from map callbacks, event handlers, etc.
+                if let ExprKind::Call { args, .. } = &inner.kind {
+                    for arg in args {
+                        let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
+                        if let ExprKind::Arrow { body, .. } = &e.kind {
+                            collect_consts_from_expr(body, consts);
+                        }
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -509,7 +526,9 @@ pub(super) fn generate_probe(
 
         for reexport in &probe_reexports {
             if called_names.contains(reexport.name.as_str()) {
-                // Already has call probes — keep plain re-export
+                // Already has call probes — keep plain re-export so tsgo
+                // resolves the type naturally (typeof annotation causes tsgo
+                // to emit `typeof X` literally which the DTS parser can't resolve)
                 lines.push(format!(
                     "export const _r{} = {};",
                     reexport.index, reexport.name,
