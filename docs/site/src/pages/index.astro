@@ -462,16 +462,16 @@ import floeLang from "../../../../editors/vscode/syntaxes/floe.tmLanguage.json";
           <Code
             code={`import trusted { useState } from "react"
 
-type Status {
-  | Loading
-  | Failed(string)
-  | Ready(Array<User>)
-}
-
 type User {
   name: string,
   role: string,
   active: boolean,
+}
+
+type Status {
+  | Loading
+  | Failed(string)
+  | Ready(Array<User>)
 }
 
 export fn Dashboard() -> JSX.Element {
@@ -506,16 +506,16 @@ export fn Dashboard() -> JSX.Element {
           <Code
             code={`import { useState } from "react";
 
-type Status =
-  | { tag: "Loading" }
-  | { tag: "Failed"; message: string }
-  | { tag: "Ready"; users: User[] };
-
 type User = {
   name: string;
   role: string;
   active: boolean;
 };
+
+type Status =
+  | { tag: "Loading" }
+  | { tag: "Failed"; message: string }
+  | { tag: "Ready"; users: User[] };
 
 export function Dashboard(): JSX.Element {
   const [status, setStatus] = useState<Status>(
