@@ -79,6 +79,50 @@ pub(super) fn resolve_typeof_types(
             entry.ts_type = found.ts_type.clone();
         }
     }
+
+    // Parse npm packages for type-only imports (Any/Foreign) so the checker
+    // can resolve their fields (e.g. DropResult.droppableId from @hello-pangea/dnd).
+    // Also parse packages that have Named type references in the probe output.
+    for (name, source) in &import_sources {
+        // Only parse npm packages (not relative imports — those are handled separately)
+        if source.starts_with("./") || source.starts_with("../") {
+            continue;
+        }
+        // Check if this import has an Any export (type-only) that needs resolution
+        let needs_parsing = result.get(source.as_str()).is_some_and(|exports| {
+            exports
+                .iter()
+                .any(|e| e.name == *name && matches!(e.ts_type, TsType::Any))
+        });
+        if needs_parsing {
+            module_cache.entry(source.clone()).or_insert_with(|| {
+                if let Some(dts_path) = find_package_dts(project_dir, source)
+                    && let Ok(exports) = super::super::dts::parse_dts_exports(&dts_path)
+                {
+                    return exports;
+                }
+                Vec::new()
+            });
+        }
+    }
+
+    // Register type/interface definitions from ALL parsed npm packages so the
+    // checker can resolve Foreign type member access (e.g. DropResult.droppableId).
+    for (module_source, module_exports) in &module_cache {
+        let specifier = import_sources
+            .iter()
+            .find(|(_, src)| *src == module_source)
+            .map(|(_, src)| src.clone())
+            .unwrap_or_else(|| module_source.clone());
+        let entry = result.entry(specifier).or_default();
+        for export in module_exports {
+            if matches!(export.ts_type, TsType::Object(_))
+                && !entry.iter().any(|e| e.name == export.name)
+            {
+                entry.push(export.clone());
+            }
+        }
+    }
 }
 
 /// Find the main .d.ts file for an npm package by reading its package.json.

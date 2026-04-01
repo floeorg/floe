@@ -154,7 +154,16 @@ impl Checker {
         span: Span,
     ) -> Type {
         if let Some(tsgo_ty) = tsgo_type {
-            tsgo_ty.clone()
+            if matches!(tsgo_ty, Type::Unknown)
+                && !matches!(value_type, Type::Unknown | Type::Var(_))
+            {
+                // Probe resolved to Unknown (e.g. useMemo callback with free
+                // variables) but the checker inferred a concrete type via
+                // generic inference — prefer the checker's type.
+                value_type
+            } else {
+                tsgo_ty.clone()
+            }
         } else if let Some(ref declared) = declared_type {
             if matches!(value_type, Type::Unknown) && !matches!(declared, Type::Unknown) {
                 self.emit_error_with_help(
