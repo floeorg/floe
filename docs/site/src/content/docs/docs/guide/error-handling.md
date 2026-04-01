@@ -51,7 +51,7 @@ Using `?` outside a function that returns `Result` is a compile error.
 
 ## The `collect` Block
 
-Sometimes you want to validate multiple things and collect **all** errors, not just the first one. The `collect` block changes `?` from short-circuiting to accumulating:
+Normally, `?` short-circuits on the first error. But sometimes you want **all** errors at once -- form validation, batch processing, config parsing. The `collect` block changes `?` from short-circuiting to accumulating:
 
 ```floe
 fn validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> {
@@ -65,14 +65,48 @@ fn validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> {
 }
 ```
 
+If the user submits `name: ""`, `email: "bad"`, `age: -1`, all three validators run and the caller gets `Err([NameEmpty, InvalidEmail, AgeTooLow])` -- not just the first failure.
+
+### How it works
+
 Inside `collect {}`:
-- Each `?` that hits `Err` records the error and continues
+- Each `?` that hits `Err` **records** the error and continues (instead of returning early)
+- Variables from failed `?` get a zero value so subsequent lines can still run
 - If any failed, the block returns `Err(Array<E>)` with all collected errors
 - If all succeeded, returns `Ok(last_expression)`
 
-The return type of a `collect` block is always `Result<T, Array<E>>`.
+The return type is always `Result<T, Array<E>>`.
 
-This is useful for form validation, batch processing, and anywhere you want to report all errors at once instead of stopping at the first one.
+### `collect` vs regular `?`
+
+| | Regular `?` | `collect` |
+|---|---|---|
+| On first error | Returns immediately | Records error, continues |
+| Return type | `Result<T, E>` | `Result<T, Array<E>>` |
+| Best for | Sequential operations where later steps depend on earlier ones | Independent validations where you want all errors |
+
+Use regular `?` when operations are dependent (step 2 needs step 1's result). Use `collect` when validations are independent and the user benefits from seeing everything wrong at once.
+
+### Real-world example: API config
+
+```floe
+type ApiConfig {
+    baseUrl: string,
+    apiKey: string,
+    timeout: number,
+}
+
+fn loadConfig(env: Env) -> Result<ApiConfig, Array<ConfigError>> {
+    collect {
+        const baseUrl = env |> requireEnv("API_BASE_URL")?
+        const apiKey = env |> requireEnv("API_KEY")?
+        const timeout = env |> requireEnv("TIMEOUT")? |> Number.parse?
+
+        ApiConfig(baseUrl, apiKey, timeout)
+    }
+}
+// Err([Missing("API_KEY"), ParseError("TIMEOUT: not a number")])
+```
 
 ## Mapping Error Types
 

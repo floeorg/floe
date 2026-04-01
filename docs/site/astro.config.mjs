@@ -66,7 +66,8 @@ export default defineConfig({
               slug: "docs/guide/use",
             },
             { label: "TypeScript Interop", slug: "docs/guide/typescript-interop" },
-            { label: "For Blocks & Traits", slug: "docs/guide/for-blocks" },
+            { label: "For Blocks", slug: "docs/guide/for-blocks" },
+            { label: "Traits", slug: "docs/guide/traits" },
             { label: "JSX & React", slug: "docs/guide/jsx" },
             {
               label: "Type-Driven Features",
