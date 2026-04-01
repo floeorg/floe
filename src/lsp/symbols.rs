@@ -513,9 +513,27 @@ impl SymbolIndex {
         }
     }
 
-    /// Walk match patterns to index binding names for hover.
+    /// Walk match patterns to index binding names and literals for hover.
     fn collect_pattern_bindings(pattern: &crate::parser::ast::Pattern, symbols: &mut Vec<Symbol>) {
         match &pattern.kind {
+            PatternKind::Literal(lit) => {
+                let (name, ty) = match lit {
+                    LiteralPattern::Bool(b) => (b.to_string(), "boolean"),
+                    LiteralPattern::Number(n) => (n.clone(), "number"),
+                    LiteralPattern::String(s) => (format!("\"{s}\""), "string"),
+                };
+                symbols.push(Symbol {
+                    name,
+                    kind: SymbolKind::CONSTANT,
+                    start: pattern.span.start,
+                    end: pattern.span.end,
+                    import_source: None,
+                    detail: format!("(pattern) {ty}"),
+                    first_param_type: None,
+                    return_type_str: None,
+                    owner_type: None,
+                });
+            }
             PatternKind::Binding(name) if name != "_" => {
                 symbols.push(Symbol {
                     name: name.clone(),
