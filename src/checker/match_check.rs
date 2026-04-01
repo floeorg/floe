@@ -408,7 +408,24 @@ impl Checker {
                 if let Type::Union { variants, .. } = subject_ty
                     && let Some((_, field_types)) = variants.iter().find(|(n, _)| n == name)
                 {
-                    for (pat, ty) in fields.iter().zip(field_types.iter()) {
+                    if fields.len() != field_types.len() {
+                        self.emit_error_with_help(
+                            format!(
+                                "variant `{name}` pattern has {} field(s), but the variant has {}",
+                                fields.len(),
+                                field_types.len()
+                            ),
+                            pattern.span,
+                            ErrorCode::VariantPatternArity,
+                            "wrong number of fields",
+                            format!(
+                                "adjust the pattern to match all {} field(s) of `{name}`",
+                                field_types.len()
+                            ),
+                        );
+                    }
+                    for (i, pat) in fields.iter().enumerate() {
+                        let ty = field_types.get(i).unwrap_or(&Type::Unknown);
                         self.check_pattern(pat, ty);
                     }
                     handled = true;
