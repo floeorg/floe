@@ -391,6 +391,8 @@ result |> Result.orElse((e) => tryFallback(e))   // lazy fallback chain
 items |> Array.filterMap((x) => if_valid(x))     // map + filter in one pass (fn returns Option)
 items |> Array.partition(.active)                 // (active, inactive) — split by predicate
 nested |> Array.flatten                           // Array<Array<T>> -> Array<T>
+users |> Array.uniqueBy(.email)                   // deduplicate by key function (keeps first)
+["a", "b", "c"] |> Array.indexOf("b")            // Some(1) — Option<number>, None if not found
 items |> Array.findLast(.done)                    // find from end
 items |> Array.takeWhile(.active)                 // take while predicate holds
 items |> Array.dropWhile(.done)                   // drop while predicate holds
