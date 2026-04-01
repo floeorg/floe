@@ -1,5 +1,6 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import sitemap from "@astrojs/sitemap";
 import starlightLlmsTxt from "starlight-llms-txt";
 import floeGrammar from "../../editors/vscode/syntaxes/floe.tmLanguage.json";
 
@@ -21,6 +22,7 @@ export default defineConfig({
     },
   },
   integrations: [
+    sitemap(),
     starlight({
       title: "Floe",
       logo: {
