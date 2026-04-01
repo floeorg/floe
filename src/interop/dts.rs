@@ -208,6 +208,56 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
         }
     }
 
+    // Third pass: resolve interface `extends` by collecting all interface
+    // definitions and merging parent fields into children.
+    let mut interface_bodies: HashMap<String, Vec<ObjectField>> = HashMap::new();
+    let mut interface_extends: HashMap<String, Vec<String>> = HashMap::new();
+
+    // Collect interfaces from all sources (exports, namespace exports)
+    for stmt in &ret.program.body {
+        collect_interface_info(stmt, &mut interface_bodies, &mut interface_extends);
+    }
+
+    // Resolve extends chains: merge parent fields into each interface
+    let resolved_names: Vec<String> = interface_extends.keys().cloned().collect();
+    for name in &resolved_names {
+        let fields = resolve_interface_fields(name, &interface_bodies, &interface_extends);
+        interface_bodies.insert(name.clone(), fields);
+    }
+
+    // Update exports that have interface types with resolved fields
+    for export in &mut exports {
+        if let TsType::Object(ref fields) = export.ts_type
+            && let Some(resolved_fields) = interface_bodies.get(&export.name)
+            && resolved_fields.len() > fields.len()
+        {
+            export.ts_type = TsType::Object(resolved_fields.clone());
+        }
+    }
+
+    // Add interfaces referenced by `export { type X }` specifiers that
+    // aren't already in exports (e.g. non-exported interfaces re-exported
+    // via `export { type DropResult }`)
+    for stmt in &ret.program.body {
+        if let Statement::ExportNamedDeclaration(export_decl) = stmt
+            && export_decl.declaration.is_none()
+        {
+            for spec in &export_decl.specifiers {
+                let name = spec.exported.name().to_string();
+                if !name.is_empty()
+                    && !seen_names.contains(&name)
+                    && let Some(fields) = interface_bodies.get(&name)
+                {
+                    seen_names.insert(name.clone());
+                    exports.push(DtsExport {
+                        name,
+                        ts_type: TsType::Object(fields.clone()),
+                    });
+                }
+            }
+        }
+    }
+
     Ok(ParseResult {
         exports,
         reexport_sources,
@@ -801,4 +851,106 @@ pub(super) fn parse_interface_export(
         name,
         ts_type: TsType::Object(fields),
     })
+}
+
+// ── Interface extends resolution ───────────────────────────────
+
+/// Collect interface body fields and extends names from a statement.
+fn collect_interface_info(
+    stmt: &Statement<'_>,
+    bodies: &mut HashMap<String, Vec<ObjectField>>,
+    extends: &mut HashMap<String, Vec<String>>,
+) {
+    let collect_from_iface =
+        |iface: &oxc_ast::ast::TSInterfaceDeclaration<'_>,
+         bodies: &mut HashMap<String, Vec<ObjectField>>,
+         extends: &mut HashMap<String, Vec<String>>| {
+            let name = iface.id.name.to_string();
+            if let TsType::Object(fields) = convert_interface_body(&iface.body.body) {
+                bodies.entry(name.clone()).or_insert(fields);
+            }
+
+            if !iface.extends.is_empty() {
+                let parent_names: Vec<String> = iface
+                    .extends
+                    .iter()
+                    .filter_map(|heritage| {
+                        if let oxc_ast::ast::Expression::Identifier(ident) = &heritage.expression {
+                            Some(ident.name.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                extends.insert(name, parent_names);
+            }
+        };
+
+    match stmt {
+        Statement::TSInterfaceDeclaration(iface) => {
+            collect_from_iface(iface, bodies, extends);
+        }
+        Statement::ExportNamedDeclaration(export_decl) => {
+            if let Some(ref decl) = export_decl.declaration
+                && let Declaration::TSInterfaceDeclaration(iface) = decl
+            {
+                collect_from_iface(iface, bodies, extends);
+            }
+        }
+        Statement::TSModuleDeclaration(ns_decl) => {
+            if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
+                for inner_stmt in &block.body {
+                    collect_interface_info(inner_stmt, bodies, extends);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Recursively resolve all fields for an interface, including inherited ones.
+fn resolve_interface_fields(
+    name: &str,
+    bodies: &HashMap<String, Vec<ObjectField>>,
+    extends: &HashMap<String, Vec<String>>,
+) -> Vec<ObjectField> {
+    let mut visited = HashSet::new();
+    resolve_interface_fields_inner(name, bodies, extends, &mut visited)
+}
+
+fn resolve_interface_fields_inner(
+    name: &str,
+    bodies: &HashMap<String, Vec<ObjectField>>,
+    extends: &HashMap<String, Vec<String>>,
+    visited: &mut HashSet<String>,
+) -> Vec<ObjectField> {
+    if !visited.insert(name.to_string()) {
+        return Vec::new(); // cycle detected
+    }
+
+    let mut all_fields = Vec::new();
+    let mut seen_names: HashSet<String> = HashSet::new();
+
+    // First add parent fields (so child fields override)
+    if let Some(parents) = extends.get(name) {
+        for parent in parents {
+            let parent_fields = resolve_interface_fields_inner(parent, bodies, extends, visited);
+            for field in parent_fields {
+                if seen_names.insert(field.name.clone()) {
+                    all_fields.push(field);
+                }
+            }
+        }
+    }
+
+    // Then add own fields (override parents with same name)
+    if let Some(own_fields) = bodies.get(name) {
+        for field in own_fields {
+            if seen_names.insert(field.name.clone()) {
+                all_fields.push(field.clone());
+            }
+        }
+    }
+
+    all_fields
 }

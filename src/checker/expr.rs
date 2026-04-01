@@ -2066,7 +2066,6 @@ impl Checker {
 
         // Resolve Named types to their concrete definition
         let concrete = self.resolve_type_to_concrete(obj_ty);
-
         if let Type::Record(fields) = &concrete {
             if let Some((_, ty)) = fields.iter().find(|(n, _)| n == field) {
                 return ty.clone();
@@ -2281,9 +2280,11 @@ impl Checker {
                 return val_ty;
             }
             // Check DTS imports for type/interface definitions (e.g. non-exported
-            // interfaces like IssueFilters that are referenced in probe output)
+            // interfaces like IssueFilters that are referenced in probe output).
+            // Strip generic args for lookup: "DraggableLocation<TId>" → "DraggableLocation"
+            let base_name = name.split('<').next().unwrap_or(name);
             for exports in self.dts_imports.values() {
-                if let Some(export) = exports.iter().find(|e| e.name == name) {
+                if let Some(export) = exports.iter().find(|e| e.name == base_name) {
                     let ty = crate::interop::wrap_boundary_type(&export.ts_type);
                     if matches!(ty, Type::Record(_)) {
                         return ty;
