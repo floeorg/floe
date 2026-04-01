@@ -1,9 +1,9 @@
 //! tsgo-based type resolution for npm imports.
 //!
-//! Instead of manually converting TsType -> checker Type, we generate a
-//! TypeScript "probe" file that re-exports imported symbols with concrete
-//! type arguments, run tsgo (TypeScript's Go-based compiler) to emit a
-//! `.d.ts`, and parse the fully-resolved types from the output.
+//! Resolves import types by:
+//! 1. Running a probe file through tsgo for call-site type resolution
+//! 2. Parsing .d.ts / .ts files directly for type definitions
+//! 3. Querying tsgo LSP (hover) for richer type resolution
 
 mod probe_gen;
 #[cfg(feature = "cli")]
@@ -25,10 +25,8 @@ use probe_gen::generate_probe;
 #[cfg(feature = "cli")]
 use probe_run::{create_probe_dir, run_tsgo};
 use specifier_map::build_specifier_map;
-use typeof_resolve::resolve_typeof_types;
 
-/// Resolves npm import types by running tsgo on a generated probe file,
-/// with an optional LSP client for richer type resolution.
+/// Resolves npm import types using probes, DTS parsing, and tsgo LSP.
 pub struct TsgoResolver {
     project_dir: PathBuf,
     cache: HashMap<u64, Vec<DtsExport>>,
@@ -86,82 +84,89 @@ impl TsgoResolver {
 
         #[cfg(feature = "cli")]
         {
-            // Find imports that resolved to .ts/.tsx (not .fl)
             let ts_imports =
                 find_relative_ts_imports(program, resolved_imports, source_dir, tsconfig_paths);
 
-            let probe = generate_probe(program, resolved_imports, &ts_imports);
-            if probe.is_empty() {
+            // Probe-based resolution for call-site types, enhanced with
+            // DTS parsing, typeof resolution, and LSP hover for unresolved types.
+            let mut result = self.run_probe(program, resolved_imports, &ts_imports);
+            self.enhance_import_types(&mut result, program, &ts_imports);
+            result
+        }
+    }
+
+    /// Run the probe system for call-site type resolution.
+    #[cfg(feature = "cli")]
+    fn run_probe(
+        &mut self,
+        program: &Program,
+        resolved_imports: &HashMap<String, crate::resolve::ResolvedImports>,
+        ts_imports: &HashMap<String, PathBuf>,
+    ) -> HashMap<String, Vec<DtsExport>> {
+        let probe = generate_probe(program, resolved_imports, ts_imports);
+        if probe.is_empty() {
+            return HashMap::new();
+        }
+
+        let hash = {
+            let mut hasher = DefaultHasher::new();
+            probe.hash(&mut hasher);
+            hasher.finish()
+        };
+        if let Some(cached) = self.cache.get(&hash) {
+            return build_specifier_map(program, cached, ts_imports);
+        }
+
+        let tmp = match create_probe_dir(&self.project_dir, &probe, ts_imports) {
+            Ok(dir) => dir,
+            Err(e) => {
+                eprintln!("[floe] tsgo: failed to create probe dir: {e}");
                 return HashMap::new();
             }
+        };
 
-            // Check cache by content hash
-            let hash = {
-                let mut hasher = DefaultHasher::new();
-                probe.hash(&mut hasher);
-                hasher.finish()
-            };
-            if let Some(cached) = self.cache.get(&hash) {
-                return build_specifier_map(program, cached, &ts_imports);
+        let dts_content = match run_tsgo(tmp.path()) {
+            Ok(content) => content,
+            Err(e) => {
+                eprintln!("[floe] tsgo: {e}");
+                return HashMap::new();
             }
+        };
 
-            // Create temp directory with probe file, tsconfig, and symlinked local TS files
-            let tmp = match create_probe_dir(&self.project_dir, &probe, &ts_imports) {
-                Ok(dir) => dir,
-                Err(e) => {
-                    eprintln!("[floe] tsgo: failed to create probe dir: {e}");
-                    return HashMap::new();
-                }
-            };
+        if std::env::var("FLOE_DEBUG_PROBE").is_ok() {
+            eprintln!("[floe] DTS OUTPUT:\n{dts_content}");
+        }
 
-            let probe_dir = tmp.path();
-
-            // Run tsgo
-            let dts_content = match run_tsgo(probe_dir) {
-                Ok(content) => content,
-                Err(e) => {
-                    eprintln!("[floe] tsgo: {e}");
-                    return HashMap::new();
-                }
-            };
-
-            if std::env::var("FLOE_DEBUG_PROBE").is_ok() {
-                eprintln!("[floe] DTS OUTPUT:\n{dts_content}");
+        let exports = match parse_dts_exports_from_str(&dts_content) {
+            Ok(exports) => exports,
+            Err(e) => {
+                eprintln!("[floe] tsgo: failed to parse output: {e}");
+                return HashMap::new();
             }
+        };
 
-            let exports = match parse_dts_exports_from_str(&dts_content) {
-                Ok(exports) => exports,
-                Err(e) => {
-                    eprintln!("[floe] tsgo: failed to parse output: {e}");
-                    return HashMap::new();
-                }
+        self.cache.insert(hash, exports.clone());
+        build_specifier_map(program, &exports, ts_imports)
+    }
+
+    /// Enhance probe results with LSP/DTS parsing for better import types.
+    #[cfg(feature = "cli")]
+    fn enhance_import_types(
+        &mut self,
+        result: &mut HashMap<String, Vec<DtsExport>>,
+        program: &Program,
+        ts_imports: &HashMap<String, PathBuf>,
+    ) {
+        // Parse .ts files for exported + non-exported type definitions
+        for (specifier, ts_path) in ts_imports {
+            let ts_content = match std::fs::read_to_string(ts_path) {
+                Ok(c) => c,
+                Err(_) => continue,
             };
-
-            self.cache.insert(hash, exports.clone());
-
-            let mut result = build_specifier_map(program, &exports, &ts_imports);
-            resolve_typeof_types(&mut result, &self.project_dir, program);
-
-            // Parse .ts files directly to resolve type/interface definitions
-            // that the probe doesn't fully resolve (e.g. `interface IssueDto { ... }`)
-            for (specifier, ts_path) in &ts_imports {
-                let ts_content = match std::fs::read_to_string(ts_path) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        eprintln!("[floe] tsgo: failed to read {}: {e}", ts_path.display());
-                        continue;
-                    }
-                };
-                let ts_exports = match parse_dts_exports_from_str(&ts_content) {
-                    Ok(exports) => exports,
-                    Err(e) => {
-                        eprintln!("[floe] tsgo: failed to parse {}: {e}", ts_path.display());
-                        continue;
-                    }
-                };
+            // Exported declarations
+            if let Ok(ts_exports) = parse_dts_exports_from_str(&ts_content) {
                 let entry = result.entry(specifier.clone()).or_default();
                 for ts_export in ts_exports {
-                    // Replace probe exports that resolved to Any with the richer .ts definition
                     if let Some(existing) = entry.iter_mut().find(|e| e.name == ts_export.name) {
                         if matches!(existing.ts_type, TsType::Any)
                             && !matches!(ts_export.ts_type, TsType::Any | TsType::Unknown)
@@ -172,14 +177,9 @@ impl TsgoResolver {
                         entry.push(ts_export);
                     }
                 }
-
-                // Also parse non-exported types referenced in probe output.
-                // E.g. `IssueFilters` is used as a type in the probe but not
-                // exported from jira-store.ts.
-                let all_types = match super::dts::parse_all_types_from_str(&ts_content) {
-                    Ok(types) => types,
-                    Err(_) => continue,
-                };
+            }
+            // Non-exported types (interfaces used internally)
+            if let Ok(all_types) = super::dts::parse_all_types_from_str(&ts_content) {
                 let entry = result.entry(specifier.clone()).or_default();
                 for type_def in all_types {
                     if !entry.iter().any(|e| e.name == type_def.name) {
@@ -187,19 +187,15 @@ impl TsgoResolver {
                     }
                 }
             }
-
-            // LSP enhancement pass: for exports still typed as Any/Unknown,
-            // query the tsgo LSP for the actual type via hover. This resolves
-            // types that the probe can't handle (complex generics, type-only
-            // exports, wrapper function return types).
-            #[cfg(feature = "cli")]
-            self.enhance_with_lsp(&mut result, program, &ts_imports);
-
-            result
         }
+
+        // Resolve typeof references and register npm type definitions
+        typeof_resolve::resolve_typeof_types(result, &self.project_dir, program);
+
+        // LSP enhancement for remaining unresolved types
+        self.enhance_with_lsp(result, program, ts_imports);
     }
 
-    /// Use the tsgo LSP client to resolve Any/Unknown exports by querying
     /// hover at the symbol's declaration site in the source file.
     #[cfg(feature = "cli")]
     fn enhance_with_lsp(
