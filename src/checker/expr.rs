@@ -604,16 +604,46 @@ impl Checker {
             let ret = stdlib_fn.return_type.clone();
             let expected_param_count = stdlib_fn.params.len();
             let variadic = stdlib_fn.is_variadic();
+            let stdlib_params = stdlib_fn.params.clone();
             let display = format!("{module}.{field}");
             self.unused.used_names.insert(module.clone());
 
+            // Two-pass argument checking: first check non-arrow args to resolve
+            // type variables, then check arrow args with lambda_param_hints set.
+            // This allows `use x <- Option.guard(opt, default)` to infer the
+            // callback parameter type from the option's inner type.
+            let mut type_var_bindings: HashMap<usize, Type> = HashMap::new();
             let mut arg_count = 0;
-            for arg in args {
-                match arg {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                        self.check_expr(e);
-                        arg_count += 1;
+
+            // Pass 1: check non-arrow args and unify with stdlib param types
+            for (i, arg) in args.iter().enumerate() {
+                let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
+                if !matches!(e.kind, ExprKind::Arrow { .. }) {
+                    let actual_ty = self.check_expr(e);
+                    if let Some(param_ty) = stdlib_params.get(i) {
+                        Self::collect_type_var_bindings(
+                            param_ty,
+                            &actual_ty,
+                            &mut type_var_bindings,
+                        );
                     }
+                    arg_count += 1;
+                }
+            }
+
+            // Pass 2: check arrow args with resolved lambda_param_hints
+            for (i, arg) in args.iter().enumerate() {
+                let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
+                if matches!(e.kind, ExprKind::Arrow { .. }) {
+                    if let Some(Type::Function { params, .. }) = stdlib_params.get(i) {
+                        self.ctx.lambda_param_hints = params
+                            .iter()
+                            .map(|p| Self::substitute_type_vars(p, &type_var_bindings))
+                            .collect();
+                    }
+                    self.check_expr(e);
+                    self.ctx.lambda_param_hints.clear();
+                    arg_count += 1;
                 }
             }
 
@@ -1594,6 +1624,122 @@ impl Checker {
             }
         }
         lambda_return
+    }
+
+    /// Unify a stdlib parameter type against an actual argument type to resolve
+    /// `Type::Var(n)` bindings. E.g. `Option<Var(0)>` unified with `Option<IssueDto>`
+    /// binds `Var(0) → IssueDto`.
+    fn collect_type_var_bindings(
+        param_ty: &Type,
+        actual_ty: &Type,
+        bindings: &mut HashMap<usize, Type>,
+    ) {
+        match (param_ty, actual_ty) {
+            (Type::Var(n), _) if !matches!(actual_ty, Type::Unknown | Type::Var(_)) => {
+                bindings.insert(*n, actual_ty.clone());
+            }
+            (Type::Array(p), Type::Array(a))
+            | (Type::Promise(p), Type::Promise(a))
+            | (Type::Settable(p), Type::Settable(a))
+            | (Type::Set { element: p }, Type::Set { element: a }) => {
+                Self::collect_type_var_bindings(p, a, bindings);
+            }
+            (Type::Map { key: pk, value: pv }, Type::Map { key: ak, value: av })
+            | (Type::RecordMap { key: pk, value: pv }, Type::RecordMap { key: ak, value: av }) => {
+                Self::collect_type_var_bindings(pk, ak, bindings);
+                Self::collect_type_var_bindings(pv, av, bindings);
+            }
+            (Type::Tuple(ps), Type::Tuple(as_)) if ps.len() == as_.len() => {
+                for (p, a) in ps.iter().zip(as_.iter()) {
+                    Self::collect_type_var_bindings(p, a, bindings);
+                }
+            }
+            (Type::Union { variants: pv, .. }, Type::Union { variants: av, .. }) => {
+                for (pvar, avar) in pv.iter().zip(av.iter()) {
+                    for (p, a) in pvar.1.iter().zip(avar.1.iter()) {
+                        Self::collect_type_var_bindings(p, a, bindings);
+                    }
+                }
+            }
+            (
+                Type::Function {
+                    params: pp,
+                    return_type: pr,
+                    ..
+                },
+                Type::Function {
+                    params: ap,
+                    return_type: ar,
+                    ..
+                },
+            ) => {
+                for (p, a) in pp.iter().zip(ap.iter()) {
+                    Self::collect_type_var_bindings(p, a, bindings);
+                }
+                Self::collect_type_var_bindings(pr, ar, bindings);
+            }
+            _ => {}
+        }
+    }
+
+    /// Substitute `Type::Var(n)` with resolved types from the bindings map.
+    fn substitute_type_vars(ty: &Type, bindings: &HashMap<usize, Type>) -> Type {
+        match ty {
+            Type::Var(n) => bindings.get(n).cloned().unwrap_or(Type::Unknown),
+            Type::Array(inner) => {
+                Type::Array(Box::new(Self::substitute_type_vars(inner, bindings)))
+            }
+            Type::Promise(inner) => {
+                Type::Promise(Box::new(Self::substitute_type_vars(inner, bindings)))
+            }
+            Type::Settable(inner) => {
+                Type::Settable(Box::new(Self::substitute_type_vars(inner, bindings)))
+            }
+            Type::Set { element } => Type::Set {
+                element: Box::new(Self::substitute_type_vars(element, bindings)),
+            },
+            Type::Map { key, value } => Type::Map {
+                key: Box::new(Self::substitute_type_vars(key, bindings)),
+                value: Box::new(Self::substitute_type_vars(value, bindings)),
+            },
+            Type::RecordMap { key, value } => Type::RecordMap {
+                key: Box::new(Self::substitute_type_vars(key, bindings)),
+                value: Box::new(Self::substitute_type_vars(value, bindings)),
+            },
+            Type::Tuple(types) => Type::Tuple(
+                types
+                    .iter()
+                    .map(|t| Self::substitute_type_vars(t, bindings))
+                    .collect(),
+            ),
+            Type::Union { name, variants } => Type::Union {
+                name: name.clone(),
+                variants: variants
+                    .iter()
+                    .map(|(n, ts)| {
+                        (
+                            n.clone(),
+                            ts.iter()
+                                .map(|t| Self::substitute_type_vars(t, bindings))
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            },
+            Type::Function {
+                params,
+                return_type,
+                required_params,
+            } => Type::Function {
+                params: params
+                    .iter()
+                    .map(|t| Self::substitute_type_vars(t, bindings))
+                    .collect(),
+                return_type: Box::new(Self::substitute_type_vars(return_type, bindings)),
+                required_params: *required_params,
+            },
+            other => other.clone(),
+        }
     }
 
     /// Collect single-letter type param names used in a function signature.
