@@ -880,7 +880,7 @@ impl<'src> Lowerer<'src> {
 
         let lambda = self.expr(
             ExprKind::Arrow {
-                async_fn: false,
+                async_fn: self.inside_async_fn,
                 params,
                 body: Box::new(body),
             },

@@ -15,6 +15,7 @@ pub fn lower_program(root: &SyntaxNode, source: &str) -> Result<Program, Vec<Par
         source,
         errors: Vec::new(),
         id_gen: ExprIdGen::new(),
+        inside_async_fn: false,
     };
     let program = lowerer.lower_root(root);
     if lowerer.errors.is_empty() {
@@ -32,6 +33,7 @@ pub fn lower_program_lossy(root: &SyntaxNode, source: &str) -> (Program, Vec<Par
         source,
         errors: Vec::new(),
         id_gen: ExprIdGen::new(),
+        inside_async_fn: false,
     };
     let program = lowerer.lower_root(root);
     (program, lowerer.errors)
@@ -41,6 +43,9 @@ struct Lowerer<'src> {
     source: &'src str,
     errors: Vec<ParseError>,
     id_gen: ExprIdGen,
+    /// Whether we're inside an async function body — used by `use <-`
+    /// desugaring so the callback inherits the enclosing async context.
+    inside_async_fn: bool,
 }
 
 impl<'src> Lowerer<'src> {
@@ -239,6 +244,7 @@ impl<'src> Lowerer<'src> {
             source,
             errors: Vec::new(),
             id_gen: ExprIdGen::new(),
+            inside_async_fn: false,
         };
         let program = lowerer.lower_root(&root);
 
