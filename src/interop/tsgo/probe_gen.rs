@@ -648,13 +648,28 @@ pub(super) fn generate_probe(
         }
     }
     // Emit children render prop probes: extract each parameter type individually.
+    // Use a helper function + intermediate declares so tsgo fully resolves the types
+    // (tsgo doesn't resolve Parameters<T> in standalone type declarations).
+    if !collector.children_probes.is_empty() {
+        lines.push(
+            "declare function _extract<T extends (...args: any[]) => any>(fn: T): Parameters<T>;"
+                .to_string(),
+        );
+    }
     for probe in &collector.children_probes {
+        let comp = &probe.component;
+        lines.push(format!(
+            "declare const _jcProps_{comp}: Parameters<typeof {comp}>[0];"
+        ));
+        lines.push(format!(
+            "declare const _jcChild_{comp}: NonNullable<typeof _jcProps_{comp}.children>;"
+        ));
+        lines.push(format!(
+            "const _jcParams_{comp} = _extract(_jcChild_{comp});"
+        ));
         for i in 0..probe.param_count {
             lines.push(format!(
-                "export declare const __jsxc_{comp}_{i}:\
-                 Parameters<NonNullable<Parameters<typeof {comp}>[0][\"children\"]>>[{i}];",
-                comp = probe.component,
-                i = i,
+                "export const __jsxc_{comp}_{i} = _jcParams_{comp}[{i}];",
             ));
         }
     }
