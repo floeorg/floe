@@ -67,15 +67,17 @@ This works, but it's all imperative control flow with early returns.
 ### The Floe way
 
 ```floe
-export fn AdminPage(
+type AdminPageProps {
     auth: Auth,
     maybeUser: Option<User>,
     data: Result<Data, AppError>,
-) -> JSX.Element {
-    use <- Bool.guard(auth.isAdmin, <Forbidden />)
-    use <- Bool.guard(auth.isVerified, <VerifyPrompt />)
-    use user <- Option.guard(maybeUser, <LoginPage />)
-    use data <- Result.guard(data, (e) => <ErrorPage error={e} />)
+}
+
+export fn AdminPage(props: AdminPageProps) -> JSX.Element {
+    use <- Bool.guard(props.auth.isAdmin, <Forbidden />)
+    use <- Bool.guard(props.auth.isVerified, <VerifyPrompt />)
+    use user <- Option.guard(props.maybeUser, <LoginPage />)
+    use data <- Result.guard(props.data, (e) => <ErrorPage error={e} />)
 
     // by here: admin, verified, user unwrapped, data unwrapped
     <Dashboard user={user} data={data} />
@@ -97,8 +99,10 @@ use <- Bool.guard(condition, fallbackValue)
 ```
 
 ```floe
-export fn PremiumContent(isPaid: boolean) -> JSX.Element {
-    use <- Bool.guard(isPaid, <UpgradePage />)
+type PremiumContentProps { isPaid: boolean }
+
+export fn PremiumContent(props: PremiumContentProps) -> JSX.Element {
+    use <- Bool.guard(props.isPaid, <UpgradePage />)
 
     <PremiumDashboard />
 }
@@ -114,8 +118,10 @@ use value <- Option.guard(optionValue, fallbackValue)
 ```
 
 ```floe
-export fn Profile(maybeUser: Option<User>) -> JSX.Element {
-    use user <- Option.guard(maybeUser, <LoginPrompt />)
+type ProfileProps { maybeUser: Option<User> }
+
+export fn Profile(props: ProfileProps) -> JSX.Element {
+    use user <- Option.guard(props.maybeUser, <LoginPrompt />)
 
     <ProfileCard name={user.name} />
 }
@@ -131,8 +137,10 @@ use value <- Result.guard(resultValue, (err) => fallbackValue)
 ```
 
 ```floe
-export fn DataPage(result: Result<Data, ApiError>) -> JSX.Element {
-    use data <- Result.guard(result, (e) => <ErrorBanner error={e} />)
+type DataPageProps { result: Result<Data, ApiError> }
+
+export fn DataPage(props: DataPageProps) -> JSX.Element {
+    use data <- Result.guard(props.result, (e) => <ErrorBanner error={e} />)
 
     <DataTable rows={data.rows} />
 }
@@ -143,14 +151,16 @@ export fn DataPage(result: Result<Data, ApiError>) -> JSX.Element {
 Guards compose naturally. Each one narrows the type for everything below it:
 
 ```floe
-export fn OrderPage(
+type OrderPageProps {
     auth: Auth,
     maybeOrder: Option<Order>,
     paymentResult: Result<Payment, PaymentError>,
-) -> JSX.Element {
-    use <- Bool.guard(auth.isLoggedIn, <LoginPage />)
-    use order <- Option.guard(maybeOrder, <p>Order not found</p>)
-    use payment <- Result.guard(paymentResult, (e) =>
+}
+
+export fn OrderPage(props: OrderPageProps) -> JSX.Element {
+    use <- Bool.guard(props.auth.isLoggedIn, <LoginPage />)
+    use order <- Option.guard(props.maybeOrder, <p>Order not found</p>)
+    use payment <- Result.guard(props.paymentResult, (e) =>
         <PaymentError message={e.message} />
     )
 
