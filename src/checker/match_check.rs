@@ -462,6 +462,18 @@ impl Checker {
             }
             PatternKind::Tuple(patterns) => {
                 if let Type::Tuple(types) = subject_ty {
+                    if patterns.len() != types.len() {
+                        self.emit_error(
+                            format!(
+                                "tuple pattern has {} element(s), but the matched tuple has {}",
+                                patterns.len(),
+                                types.len()
+                            ),
+                            pattern.span,
+                            "E035",
+                            "wrong number of elements",
+                        );
+                    }
                     for (pat, ty) in patterns.iter().zip(types.iter()) {
                         self.check_pattern(pat, ty);
                     }
