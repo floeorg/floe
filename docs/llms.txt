@@ -358,6 +358,7 @@ user.nickname |> Option.inspect((n) => Console.log(n))
 Option.zip(firstName, lastName)        // Option<(string, string)>
 Option.all([Some(1), Some(2), None])   // None
 Option.any([None, Some(1), None])      // Some(1)
+maybeUser |> Option.orElse(() => fetchDefaultUser())  // lazy fallback
 
 // Option.toErr — for { data, error } patterns (Supabase, TanStack Query, etc.)
 const { data, error } = await supabase.rpc("get_entries", { query })
@@ -384,6 +385,16 @@ Result.zip(fetchUser(id), fetchProfile(id))   // Result<(User, Profile), Error>
 Result.all([Ok(1), Ok(2), Err("fail")])        // Err("fail")
 Result.any([Err("a"), Ok(1), Err("b")])        // Ok(1)
 users |> Array.mapResult(validateUser)          // Result<Array<ValidUser>, Error>
+result |> Result.orElse((e) => tryFallback(e))   // lazy fallback chain
+
+// Array helpers
+items |> Array.filterMap((x) => if_valid(x))     // map + filter in one pass (fn returns Option)
+items |> Array.partition(.active)                 // (active, inactive) — split by predicate
+nested |> Array.flatten                           // Array<Array<T>> -> Array<T>
+items |> Array.findLast(.done)                    // find from end
+items |> Array.takeWhile(.active)                 // take while predicate holds
+items |> Array.dropWhile(.done)                   // drop while predicate holds
+["a", "b", "c"] |> Array.intersperse(", ")       // ["a", ", ", "b", ", ", "c"]
 
 // Promise helpers
 const users = await Promise.all([fetchUser(1), fetchUser(2)])
@@ -484,6 +495,25 @@ Console.log("done")
 ```
 
 `use` works with ANY function whose last parameter is a callback. Complementary to `?` (which only works on Result/Option).
+
+### Guard Pattern (Early Return via `use`)
+
+```floe
+// Bool.guard — bail if condition is false, continue if true
+use <- Bool.guard(isAdmin, <Forbidden />)
+use <- Bool.guard(isVerified, <VerifyPrompt />)
+<AdminPanel />
+
+// Option.guard — bail if None, continue with unwrapped value
+use user <- Option.guard(maybeUser, <LoginPage />)
+<ProfilePage user={user} />
+
+// Result.guard — bail if Err, continue with Ok value
+use data <- Result.guard(fetchResult, (e) => <ErrorPage error={e} />)
+<Dashboard data={data} />
+```
+
+`guard` functions are just stdlib functions — no new syntax. They combine with `use` to give linear early-return flow without nesting. Inspired by Gleam's `bool.guard`.
 
 ## For Blocks (Extension Methods)
 

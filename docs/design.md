@@ -98,6 +98,13 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Http module | `Http.get(url)`, `Http.post(url, body)` | async IIFE wrapping `fetch` in `Result` |
 | Promise module | `Promise.all`, `Promise.allSettled` | `allSettled` returns `Array<Result<T, Error>>` |
 | Array.mapResult | `Array.mapResult(arr, fn)` | map fallible fn, short-circuit on Err |
+| Array.filterMap | `Array.filterMap(arr, fn)` | map + filter in one pass (fn returns Option) |
+| Array.partition | `Array.partition(arr, fn)` | split array into (matching, non-matching) |
+| Array.flatten | `Array.flatten(arr)` | flatten nested arrays |
+| Array.intersperse | `Array.intersperse(arr, sep)` | insert separator between elements |
+| Bool.guard | `use <- Bool.guard(cond, fallback)` | linear early-return via `use` (Gleam-style) |
+| Option.guard | `use val <- Option.guard(opt, fallback)` | unwrap-or-bail via `use` |
+| Result.guard | `use val <- Result.guard(res, onErr)` | unwrap-or-bail via `use` |
 | Number separators | `1_000_000`, `3.141_592`, `0xFF_FF` | underscores stripped in output |
 | Mock data | `mock<User>`, `mock<User>(name: "Alice")` | object literal with generated test data |
 
@@ -410,6 +417,8 @@ The return type of `collect { ... }` is `Result<T, Array<E>>` where:
 | `toOption` | `Result<T, E> -> Option<T>` | Drop error |
 | `all` | `Array<Result<T, E>> -> Result<Array<T>, E>` | Collect, fail on first Err |
 | `any` | `Array<Result<T, E>> -> Result<T, Array<E>>` | First Ok, or all Errs |
+| `guard` | `Result<T, E>, (E) -> U, (T) -> U -> U` | Bail with fallback on Err, continue with Ok (for `use`) |
+| `orElse` | `Result<T, E>, (E) -> Result<T, F> -> Result<T, F>` | Lazy fallback chain |
 
 ### Option<T> - No Null, No Undefined
 
@@ -469,6 +478,8 @@ const rows = data |> Option.unwrapOr([])
 | `toErr` | `Option<E> -> Result<(), E>` | Convert to Err (for `{ data, error }`) |
 | `all` | `Array<Option<T>> -> Option<Array<T>>` | Collect, None if any missing |
 | `any` | `Array<Option<T>> -> Option<T>` | First Some |
+| `guard` | `Option<T>, U, (T) -> U -> U` | Bail with fallback on None, continue with Some (for `use`) |
+| `orElse` | `Option<T>, () -> Option<T> -> Option<T>` | Lazy fallback chain |
 
 ### Settable<T> - Three-State Fields for Partial Updates
 
@@ -717,6 +728,38 @@ Console.log("done")
 ```
 
 **Codegen:** Pure syntactic sugar. `use x <- f(a)` compiles to `f(a, (x) => { ... })`. No runtime cost.
+
+#### Guard Pattern (Early Return via `use`)
+
+The `guard` stdlib functions combine with `use` to give linear, non-nested early-return flow without `if` or `return`:
+
+```floe
+// Bool.guard — bail if condition is false
+export fn AdminPage(state: AuthState) -> JSX.Element {
+    use <- Bool.guard(state.isAdmin, <Forbidden />)
+    use <- Bool.guard(state.isVerified, <VerifyPrompt />)
+
+    <AdminPanel />
+}
+
+// Option.guard — bail if None, continue with unwrapped value
+use user <- Option.guard(maybeUser, <LoginPage />)
+<ProfilePage user={user} />
+
+// Result.guard — bail if Err, continue with Ok value
+use data <- Result.guard(fetchResult, (e) => <ErrorPage error={e} />)
+<Dashboard data={data} />
+```
+
+Under the hood these are just functions — no new syntax:
+
+| Function | Type | Description |
+|---|---|---|
+| `Bool.guard` | `boolean, T, () -> T -> T` | Continue if true, bail with fallback if false |
+| `Option.guard` | `Option<T>, U, (T) -> U -> U` | Continue with unwrapped T if Some, bail if None |
+| `Result.guard` | `Result<T, E>, (E) -> U, (T) -> U -> U` | Continue with T if Ok, bail with onErr if Err |
+
+Inspired by Gleam's `bool.guard`. The key insight: `use` isn't just for callbacks — it's the language's early return mechanism.
 
 ### Tuples
 
