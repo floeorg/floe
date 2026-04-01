@@ -61,6 +61,10 @@ export default defineConfig({
             { label: "Pipes", slug: "docs/guide/pipes" },
             { label: "Pattern Matching", slug: "docs/guide/pattern-matching" },
             { label: "Error Handling", slug: "docs/guide/error-handling" },
+            {
+              label: "Callback Flattening & Guards",
+              slug: "docs/guide/use",
+            },
             { label: "TypeScript Interop", slug: "docs/guide/typescript-interop" },
             { label: "For Blocks & Traits", slug: "docs/guide/for-blocks" },
             { label: "JSX & React", slug: "docs/guide/jsx" },
@@ -72,7 +76,20 @@ export default defineConfig({
         },
         {
           label: "Reference",
-          autogenerate: { directory: "docs/reference" },
+          items: [
+            { label: "CLI", slug: "docs/reference/cli" },
+            { label: "Configuration", slug: "docs/reference/configuration" },
+            { label: "Operators", slug: "docs/reference/operators" },
+            { label: "Syntax", slug: "docs/reference/syntax" },
+            { label: "Types", slug: "docs/reference/types" },
+            {
+              label: "Standard Library",
+              autogenerate: { directory: "docs/reference/stdlib" },
+            },
+            { label: "Vite", slug: "docs/reference/vite" },
+            { label: "VS Code", slug: "docs/reference/vscode" },
+            { label: "Neovim", slug: "docs/reference/neovim" },
+          ],
         },
       ],
     }),
