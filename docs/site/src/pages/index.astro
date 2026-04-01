@@ -450,8 +450,8 @@ import floeLang from "../../../../editors/vscode/syntaxes/floe.tmLanguage.json";
     <section class="section wrap">
       <h2>Familiar syntax, stronger guarantees</h2>
       <p class="desc">
-        If you know TypeScript, you can read Floe. Pipes and pattern matching
-        replace the patterns you already use, with exhaustive checking built in.
+        If you know TypeScript, you can read Floe. Union types, pattern matching,
+        and pipes replace the boilerplate you already write — with exhaustive checking built in.
       </p>
       <div class="compare">
         <div class="cb">
@@ -462,37 +462,37 @@ import floeLang from "../../../../editors/vscode/syntaxes/floe.tmLanguage.json";
           <Code
             code={`import trusted { useState } from "react"
 
-type Todo {
-  id: string,
-  text: string,
-  done: boolean,
+type Status {
+  | Loading
+  | Failed(string)
+  | Ready(Array<User>)
 }
 
-export fn App() -> JSX.Element {
-  const [todos, setTodos] = useState<Array<Todo>>([])
+type User {
+  name: string,
+  role: string,
+  active: boolean,
+}
 
-  const completed = todos
-    |> filter(.done)
-    |> length
+export fn Dashboard() -> JSX.Element {
+  const [status, setStatus] = useState<Status>(Loading)
 
-  fn toggle(id: string) -> () {
-    setTodos(todos |> map((todo) =>
-      match todo.id == id {
-        true -> Todo(..todo, done: !todo.done),
-        false -> todo,
-      }
-    ))
+  status |> match {
+    Loading -> <Spinner />,
+    Failed(msg) -> <Alert message={msg} />,
+    Ready(users) -> {
+      const active = users
+        |> filter(.active)
+        |> sort_by(.name)
+
+      <div>
+        <h2>{active |> length} active</h2>
+        {active |> map((u) =>
+          <Card key={u.name} title={u.name} badge={u.role} />
+        )}
+      </div>
+    },
   }
-
-
-  <div>
-    <h1>Todos ({completed} done)</h1>
-    {todos |> map((todo) =>
-      <p key={todo.id} onClick={() => toggle(todo.id)}>
-        {todo.text}
-      </p>
-    )}
-  </div>
 }`}
             lang={floeLang}
             theme="github-dark-default"
@@ -506,35 +506,40 @@ export fn App() -> JSX.Element {
           <Code
             code={`import { useState } from "react";
 
-type Todo = {
-  id: string;
-  text: string;
-  done: boolean;
+type Status =
+  | { tag: "Loading" }
+  | { tag: "Failed"; message: string }
+  | { tag: "Ready"; users: User[] };
+
+type User = {
+  name: string;
+  role: string;
+  active: boolean;
 };
 
-export function App(): JSX.Element {
-  const [todos, setTodos] = useState<Todo[]>([]);
+export function Dashboard(): JSX.Element {
+  const [status, setStatus] = useState<Status>(
+    { tag: "Loading" }
+  );
 
-  const completed = todos
-    .filter((todo) => todo.done)
-    .length;
-
-  function toggle(id: string): void {
-    setTodos(todos.map((todo) =>
-      todo.id === id
-        ? { ...todo, done: !todo.done }
-        : todo
-    ));
+  if (status.tag === "Loading") {
+    return <Spinner />;
   }
+
+  if (status.tag === "Failed") {
+    return <Alert message={status.message} />;
+  }
+
+  const active = status.users
+    .filter((u) => u.active)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div>
-      <h1>Todos ({completed} done)</h1>
-      {todos.map((todo) =>
-        <p key={todo.id} onClick={() => toggle(todo.id)}>
-          {todo.text}
-        </p>
-      )}
+      <h2>{active.length} active</h2>
+      {active.map((u) => (
+        <Card key={u.name} title={u.name} badge={u.role} />
+      ))}
     </div>
   );
 }`}
