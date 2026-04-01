@@ -109,6 +109,8 @@ pub enum ErrorCode {
     SpreadFieldOverwritten,
     /// Callee has unknown type - arguments are not type-checked.
     UncheckedArguments,
+    /// Binding pattern on a finite type (boolean, union) - likely a typo.
+    SuspiciousBinding,
 }
 
 impl ErrorCode {
@@ -158,6 +160,7 @@ impl ErrorCode {
             Self::TodoPlaceholder => "W002",
             Self::SpreadFieldOverwritten => "W003",
             Self::UncheckedArguments => "W004",
+            Self::SuspiciousBinding => "W005",
         }
     }
 }

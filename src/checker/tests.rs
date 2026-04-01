@@ -2119,6 +2119,70 @@ fn string_literal_on_string_type_ok() {
     );
 }
 
+// ── Suspicious binding patterns ──────────────────────────────
+
+#[test]
+fn binding_on_boolean_warns() {
+    let source = r#"
+        const _b = true
+        match _b {
+            stinkypoopy -> "yes",
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_warning_containing(&diags, "binds the entire value"),
+        "binding on boolean should warn W005, got: {diags:?}"
+    );
+}
+
+#[test]
+fn binding_on_union_warns() {
+    let source = r#"
+        type Shape { | Circle(number) | Square(number) }
+        const _s: Shape = Circle(5)
+        match _s {
+            x -> 0,
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_warning_containing(&diags, "binds the entire value"),
+        "binding on union should warn W005, got: {diags:?}"
+    );
+}
+
+#[test]
+fn wildcard_on_boolean_no_warning() {
+    let source = r#"
+        const _b = true
+        match _b {
+            true -> "yes",
+            _ -> "no",
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        !has_warning_containing(&diags, "binds the entire value"),
+        "wildcard on boolean should not warn: {diags:?}"
+    );
+}
+
+#[test]
+fn binding_on_string_no_warning() {
+    let source = r#"
+        const _s = "hello"
+        match _s {
+            greeting -> greeting,
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        !has_warning_containing(&diags, "binds the entire value"),
+        "binding on string should not warn (infinite type): {diags:?}"
+    );
+}
+
 // ── Pipe: tap ───────────────────────────────────────────────
 
 #[test]
