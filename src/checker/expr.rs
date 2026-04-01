@@ -1883,6 +1883,24 @@ impl Checker {
                     }
                 }
             }
+            // Function types: unify return types and parameter types
+            (
+                Type::Function {
+                    params: pp,
+                    return_type: pr,
+                    ..
+                },
+                Type::Function {
+                    params: ap,
+                    return_type: ar,
+                    ..
+                },
+            ) => {
+                for (p, a) in pp.iter().zip(ap.iter()) {
+                    Self::unify_for_inference(p, a, generics, subs);
+                }
+                Self::unify_for_inference(pr, ar, generics, subs);
+            }
             // Foreign types with matching base names: extract and unify generic args
             // e.g., Foreign("Context<T>") with Foreign("Context<AuthContextValue>")
             (Type::Foreign(p_str), Type::Foreign(a_str)) => {

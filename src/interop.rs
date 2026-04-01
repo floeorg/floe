@@ -13,6 +13,8 @@
 mod dts;
 mod ts_types;
 pub mod tsgo;
+#[cfg(feature = "cli")]
+pub mod tsgo_lsp;
 mod wrapper;
 
 #[cfg(test)]

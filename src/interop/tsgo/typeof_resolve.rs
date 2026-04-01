@@ -132,7 +132,7 @@ pub(super) fn resolve_typeof_types(
 
 /// Find the main .d.ts file for an npm package by reading its package.json.
 /// Checks both `node_modules/<pkg>` and `node_modules/@types/<pkg>`.
-fn find_package_dts(project_dir: &Path, module_name: &str) -> Option<PathBuf> {
+pub(super) fn find_package_dts(project_dir: &Path, module_name: &str) -> Option<PathBuf> {
     // Try the package itself first, then @types
     let candidates = [
         project_dir.join("node_modules").join(module_name),

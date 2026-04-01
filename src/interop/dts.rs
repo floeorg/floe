@@ -208,8 +208,14 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
         }
     }
 
-    // Third pass: resolve interface `extends` by collecting all interface
-    // definitions and merging parent fields into children.
+    // Third pass: collect type aliases and resolve interface extends.
+    // Type aliases like `type DraggableId<T = string> = T` are resolved
+    // to their default type parameter value (e.g. `string`).
+    let mut type_aliases: HashMap<String, TsType> = HashMap::new();
+    for stmt in &ret.program.body {
+        collect_type_alias_defaults(stmt, &mut type_aliases);
+    }
+
     let mut interface_bodies: HashMap<String, Vec<ObjectField>> = HashMap::new();
     let mut interface_extends: HashMap<String, Vec<String>> = HashMap::new();
 
@@ -223,6 +229,16 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
     for name in &resolved_names {
         let fields = resolve_interface_fields(name, &interface_bodies, &interface_extends);
         interface_bodies.insert(name.clone(), fields);
+    }
+
+    // Resolve type aliases in interface field types
+    // (e.g. DraggableId<TId> → string when DraggableId<T = string> = T)
+    if !type_aliases.is_empty() {
+        for fields in interface_bodies.values_mut() {
+            for field in fields.iter_mut() {
+                resolve_field_type_aliases(&mut field.ty, &type_aliases);
+            }
+        }
     }
 
     // Update exports that have interface types with resolved fields
@@ -953,4 +969,106 @@ fn resolve_interface_fields_inner(
     }
 
     all_fields
+}
+
+/// Collect type alias default values from statements.
+/// For `type DraggableId<TId extends string = string> = TId`, records
+/// DraggableId → Primitive("string") (the default type parameter value).
+fn collect_type_alias_defaults(stmt: &Statement<'_>, aliases: &mut HashMap<String, TsType>) {
+    match stmt {
+        Statement::TSTypeAliasDeclaration(type_decl) => {
+            process_type_alias(type_decl, aliases);
+        }
+        Statement::ExportNamedDeclaration(export_decl) => {
+            if let Some(ref decl) = export_decl.declaration
+                && let Declaration::TSTypeAliasDeclaration(type_decl) = decl
+            {
+                process_type_alias(type_decl, aliases);
+            }
+        }
+        Statement::TSModuleDeclaration(ns_decl) => {
+            if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
+                for inner_stmt in &block.body {
+                    collect_type_alias_defaults(inner_stmt, aliases);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Process a single type alias declaration, resolving identity and chained aliases.
+fn process_type_alias(
+    type_decl: &oxc_ast::ast::TSTypeAliasDeclaration<'_>,
+    aliases: &mut HashMap<String, TsType>,
+) {
+    let name = type_decl.id.name.to_string();
+    if let OxcTSType::TSTypeReference(ref_type) = &type_decl.type_annotation
+        && let TSTypeName::IdentifierReference(ident) = &ref_type.type_name
+    {
+        let ref_name = ident.name.to_string();
+
+        // Direct type parameter reference (identity alias: `type X<T> = T`)
+        if let Some(ref type_params) = type_decl.type_parameters {
+            for param in &type_params.params {
+                if param.name.to_string() == ref_name {
+                    if let Some(ref default) = param.default {
+                        aliases.insert(name, convert_oxc_type(default));
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Chained alias (`type DraggableId<T> = Id<T>` where Id is already resolved)
+        if let Some(resolved) = aliases.get(&ref_name).cloned() {
+            aliases.insert(name, resolved);
+        }
+    }
+}
+
+/// Resolve type aliases in a TsType field. Replaces Named("DraggableId<TId>")
+/// and Generic { name: "DraggableId", .. } with the alias's default type.
+fn resolve_field_type_aliases(ty: &mut TsType, aliases: &HashMap<String, TsType>) {
+    match ty {
+        TsType::Named(name) => {
+            let base_name = name.split('<').next().unwrap_or(name);
+            if let Some(resolved) = aliases.get(base_name) {
+                *ty = resolved.clone();
+            }
+        }
+        TsType::Generic { name, .. } => {
+            if let Some(resolved) = aliases.get(name.as_str()) {
+                *ty = resolved.clone();
+            }
+        }
+        TsType::Union(members) => {
+            for member in members {
+                resolve_field_type_aliases(member, aliases);
+            }
+        }
+        TsType::Array(inner) => {
+            resolve_field_type_aliases(inner, aliases);
+        }
+        TsType::Object(fields) => {
+            for field in fields {
+                resolve_field_type_aliases(&mut field.ty, aliases);
+            }
+        }
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            for param in params {
+                resolve_field_type_aliases(&mut param.ty, aliases);
+            }
+            resolve_field_type_aliases(return_type, aliases);
+        }
+        TsType::Tuple(types) => {
+            for t in types {
+                resolve_field_type_aliases(t, aliases);
+            }
+        }
+        _ => {}
+    }
 }
