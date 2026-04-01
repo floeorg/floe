@@ -139,10 +139,10 @@ impl Checker {
         )
     }
 
-    /// Search for a per-field inlined probe (e.g. `__probe_data_inlined_N` for field `data`).
+    /// Search for a per-field probe (e.g. `__probe_data_4` or `__probe_data_inlined_N`).
     fn find_per_field_probe(&mut self, field_name: &str) -> Option<Type> {
-        let prefix = format!("__probe_{field_name}_inlined_");
-        self.consume_probe(|name| name.starts_with(&prefix), false)
+        let prefix = format!("__probe_{field_name}_");
+        self.consume_probe(|name| name.starts_with(&prefix), true)
     }
 
     /// Determine the final type for a const binding given value type, declared type, and tsgo probe.

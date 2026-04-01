@@ -82,27 +82,35 @@ pub(super) fn resolve_typeof_types(
 }
 
 /// Find the main .d.ts file for an npm package by reading its package.json.
+/// Checks both `node_modules/<pkg>` and `node_modules/@types/<pkg>`.
 fn find_package_dts(project_dir: &Path, module_name: &str) -> Option<PathBuf> {
-    let pkg_dir = project_dir.join("node_modules").join(module_name);
-    let pkg_json_path = pkg_dir.join("package.json");
+    // Try the package itself first, then @types
+    let candidates = [
+        project_dir.join("node_modules").join(module_name),
+        project_dir.join("node_modules/@types").join(module_name),
+    ];
 
-    if let Ok(content) = std::fs::read_to_string(&pkg_json_path)
-        && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
-    {
-        for field in &["types", "typings"] {
-            if let Some(types_path) = json[field].as_str() {
-                let full_path = pkg_dir.join(types_path);
-                if full_path.exists() {
-                    return Some(full_path);
+    for pkg_dir in &candidates {
+        let pkg_json_path = pkg_dir.join("package.json");
+
+        if let Ok(content) = std::fs::read_to_string(&pkg_json_path)
+            && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+        {
+            for field in &["types", "typings"] {
+                if let Some(types_path) = json[field].as_str() {
+                    let full_path = pkg_dir.join(types_path);
+                    if full_path.exists() {
+                        return Some(full_path);
+                    }
                 }
             }
         }
-    }
 
-    // Fallback: try index.d.ts
-    let index_dts = pkg_dir.join("index.d.ts");
-    if index_dts.exists() {
-        return Some(index_dts);
+        // Fallback: try index.d.ts
+        let index_dts = pkg_dir.join("index.d.ts");
+        if index_dts.exists() {
+            return Some(index_dts);
+        }
     }
 
     None
