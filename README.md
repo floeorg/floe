@@ -13,60 +13,48 @@
 <!-- A spacer -->
 <div>&nbsp;</div>
 
-Floe is a functional language that compiles to TypeScript. Pipes, pattern matching, Result/Option types, and full npm interop. The compiler is written in Rust.
+A functional language that compiles to TypeScript. Pipes, pattern matching, Result/Option types, and full npm interop.
 
 ```floe
 import trusted { useState } from "react"
 
-type Todo {
-  id: string,
-  text: string,
-  done: boolean,
+type User {
+  name: string,
+  role: string,
+  active: boolean,
 }
 
-export fn App() -> JSX.Element {
-  const [todos, setTodos] = useState<Array<Todo>>([])
+type Status {
+  | Loading
+  | Failed(string)
+  | Ready(Array<User>)
+}
 
-  const completed = todos
-    |> filter(.done)
-    |> length
+export fn Dashboard() -> JSX.Element {
+  const [status, setStatus] = useState<Status>(Loading)
 
-  <div>
-    <h1>Todos ({completed} done)</h1>
-    {todos |> map((todo) => <p key={todo.id}>{todo.text}</p>)}
-  </div>
+  status |> match {
+    Loading -> <Spinner />,
+    Failed(msg) -> <Alert message={msg} />,
+    Ready(users) -> {
+      const active = users
+        |> filter(.active)
+        |> sort_by(.name)
+
+      <div>
+        <h2>{active |> length} active</h2>
+        {active |> map((u) =>
+          <Card key={u.name} title={u.name} badge={u.role} />
+        )}
+      </div>
+    },
+  }
 }
 ```
-
-## Install
-
-```bash
-cargo install floe
-```
-
-## Add to a Vite project
-
-```bash
-npm install -D @floeorg/vite-plugin
-```
-
-```ts
-// vite.config.ts
-import floe from "@floeorg/vite-plugin"
-import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
-
-export default defineConfig({
-  plugins: [floe(), react()],
-})
-```
-
-Write `.fl` files next to your `.ts` files. Import in either direction.
 
 ## Links
 
+- [Website](https://floe-lang.dev)
 - [Documentation](https://floe-lang.dev/docs/)
-- [Language Tour](https://floe-lang.dev/docs/guide/tour/)
-- [Your First Project](https://floe-lang.dev/docs/guide/first-program/)
-- [CLI Reference](https://floe-lang.dev/docs/reference/cli/)
+- [Playground](https://floe-lang.dev/playground/)
 - [Changelog](CHANGELOG.md)
