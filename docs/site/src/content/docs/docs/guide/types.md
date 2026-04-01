@@ -205,19 +205,62 @@ const missing = None
 
 ### Settable
 
-For fields that can be set, cleared, or left unchanged (PATCH-style APIs):
+`Settable<T>` is a three-state type for partial updates. This is the problem it solves: in a PATCH API, you need to distinguish between "set this field to a value", "clear this field to null", and "don't touch this field". TypeScript's `Partial<T>` can't tell the difference between "set to undefined" and "not provided".
+
+```floe
+type Settable<T> {
+  | Value(T)
+  | Clear
+  | Unchanged
+}
+```
+
+Use it with default field values so callers only specify what they're changing:
 
 ```floe
 type UpdateUser {
   name: Settable<string> = Unchanged,
   email: Settable<string> = Unchanged,
+  avatar: Settable<string> = Unchanged,
 }
 
-UpdateUser(name: Value("Ryan"), email: Clear)
-// → { name: "Ryan", email: null }
+// Set name, clear avatar, leave email alone
+const patch = UpdateUser(name: Value("Ryan"), avatar: Clear)
 ```
 
-Three variants: `Value(x)` sets the field, `Clear` sets it to `null`, `Unchanged` omits it entirely (default).
+#### What it compiles to
+
+`Settable` fields have special codegen. `Unchanged` fields are **omitted entirely** from the output object:
+
+| Floe | TypeScript output |
+|------|-------------------|
+| `Value("Ryan")` | `"Ryan"` |
+| `Clear` | `null` |
+| `Unchanged` | *(key omitted)* |
+
+So `UpdateUser(name: Value("Ryan"), avatar: Clear)` compiles to `{ name: "Ryan", avatar: null }` -- no `email` key at all.
+
+#### Real-world example: PATCH endpoint
+
+```floe
+fn updateProfile(id: string, patch: UpdateUser) -> Result<User, ApiError> {
+    const response = await Http.put("/api/users/{id}", patch)?
+    response |> Http.json? |> parse<User>
+}
+
+// Only update what changed
+updateProfile("123", UpdateUser(
+    name: Value("New Name"),
+))
+// Sends: { name: "New Name" } — email and avatar untouched
+```
+
+#### Comparison with TypeScript
+
+| Approach | "set to value" | "clear to null" | "don't change" |
+|----------|---------------|-----------------|-----------------|
+| TS `Partial<T>` | `{ name: "x" }` | `{ name: null }` | `{ }` or `{ name: undefined }` (ambiguous!) |
+| Floe `Settable<T>` | `Value("x")` | `Clear` | `Unchanged` (omitted from output) |
 
 ### The `?` Operator
 
