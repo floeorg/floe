@@ -194,6 +194,169 @@ impl TsgoResolver {
 
         // LSP enhancement for remaining unresolved types
         self.enhance_with_lsp(result, program, ts_imports);
+
+        // Enhance per-field probes from object destructuring that resolved to `any`.
+        // When tsgo can't resolve a complex generic return type, fall back to
+        // resolving the function's return type via LSP and extracting fields.
+        self.enhance_object_destructure_probes(result, program, ts_imports);
+    }
+
+    /// For object destructuring probes that resolved to `any`, resolve the
+    /// function's return type via LSP hover and extract per-field types.
+    #[cfg(feature = "cli")]
+    fn enhance_object_destructure_probes(
+        &mut self,
+        result: &mut HashMap<String, Vec<DtsExport>>,
+        program: &Program,
+        ts_imports: &HashMap<String, PathBuf>,
+    ) {
+        use crate::parser::ast::*;
+
+        // Build import name → source path mapping
+        let mut import_paths: HashMap<String, PathBuf> = HashMap::new();
+        for item in &program.items {
+            if let ItemKind::Import(decl) = &item.kind
+                && let Some(ts_path) = ts_imports.get(&decl.source)
+            {
+                for spec in &decl.specifiers {
+                    let name = spec.alias.as_deref().unwrap_or(&spec.name);
+                    import_paths.insert(name.to_string(), ts_path.clone());
+                }
+            }
+        }
+
+        // Collect object destructuring calls with unresolved per-field probes
+        let mut imported_names: HashMap<String, String> = HashMap::new();
+        for item in &program.items {
+            if let ItemKind::Import(decl) = &item.kind {
+                let is_relative = decl.source.starts_with("./") || decl.source.starts_with("../");
+                if !is_relative || ts_imports.contains_key(&decl.source) {
+                    for spec in &decl.specifiers {
+                        let name = spec.alias.as_deref().unwrap_or(&spec.name);
+                        imported_names.insert(name.to_string(), decl.source.clone());
+                    }
+                }
+            }
+        }
+
+        struct FieldEnhancement {
+            fn_name: String,
+            specifier: String,
+            field_probes: Vec<(String, String)>,
+        }
+        let all_consts = probe_gen::collect_all_consts(program);
+        let mut to_enhance: Vec<FieldEnhancement> = Vec::new();
+
+        for decl in &all_consts {
+            if let ConstBinding::Object(fields) = &decl.binding {
+                let inner = probe_gen::unwrap_try_await_expr(&decl.value);
+                if let ExprKind::Call { callee, .. } = &inner.kind {
+                    let callee_name = probe_gen::expr_to_callee_name(callee);
+                    if let Some(fn_name) = callee_name {
+                        let root = fn_name.split('.').next().unwrap_or("");
+                        if !imported_names.contains_key(&fn_name)
+                            && !imported_names.contains_key(root)
+                        {
+                            continue;
+                        }
+                        let specifier = imported_names
+                            .get(&fn_name)
+                            .or_else(|| imported_names.get(root));
+                        let Some(specifier) = specifier else {
+                            continue;
+                        };
+
+                        // Check if any per-field probes are `any`
+                        let exports = result.get(specifier);
+                        let has_any_field = fields.iter().any(|f| {
+                            let probe_prefix = format!("__probe_{}_", f.field);
+                            exports.is_some_and(|exps| {
+                                exps.iter().any(|e| {
+                                    e.name.starts_with(&probe_prefix)
+                                        && matches!(e.ts_type, TsType::Any)
+                                })
+                            })
+                        });
+
+                        if has_any_field {
+                            let field_probes: Vec<(String, String)> = fields
+                                .iter()
+                                .map(|f| (f.field.clone(), format!("__probe_{}_", f.field)))
+                                .collect();
+                            to_enhance.push(FieldEnhancement {
+                                fn_name,
+                                specifier: specifier.clone(),
+                                field_probes,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        if to_enhance.is_empty() {
+            return;
+        }
+
+        let Some(client) = self.lsp_client() else {
+            return;
+        };
+
+        for FieldEnhancement {
+            fn_name,
+            specifier,
+            field_probes,
+        } in to_enhance
+        {
+            let root = fn_name.split('.').next().unwrap_or(&fn_name);
+            let Some(source_path) = import_paths.get(root) else {
+                continue;
+            };
+
+            // Query LSP for the function's type
+            let Some(hover) = client.query_symbol_type(source_path, root) else {
+                continue;
+            };
+
+            // Parse hover to extract return type fields
+            // Hover format: "function useQuery(...): { data: T, isLoading: boolean, ... }"
+            let Some(ret_start) = hover.rfind("): ").or_else(|| hover.rfind(") => ")) else {
+                continue;
+            };
+            let ret_str = if hover[ret_start..].starts_with("): ") {
+                &hover[ret_start + 3..]
+            } else {
+                &hover[ret_start + 4..]
+            };
+
+            // Try to parse the return type as a TS object
+            let snippet = format!("export declare const _q: {ret_str};");
+            let Ok(ret_exports) = super::dts::parse_dts_exports_from_str(&snippet) else {
+                continue;
+            };
+            let Some(ret_export) = ret_exports.first() else {
+                continue;
+            };
+
+            // Extract field types from the return type object
+            let field_types: HashMap<&str, &TsType> = match &ret_export.ts_type {
+                TsType::Object(fields) => fields.iter().map(|f| (f.name.as_str(), &f.ty)).collect(),
+                _ => continue,
+            };
+
+            // Update per-field probes with resolved types
+            if let Some(exports) = result.get_mut(&specifier) {
+                for (field_name, probe_prefix) in &field_probes {
+                    if let Some(field_ty) = field_types.get(field_name.as_str())
+                        && let Some(probe) = exports.iter_mut().find(|e| {
+                            e.name.starts_with(probe_prefix) && matches!(e.ts_type, TsType::Any)
+                        })
+                    {
+                        probe.ts_type = (*field_ty).clone();
+                    }
+                }
+            }
+        }
     }
 
     /// hover at the symbol's declaration site in the source file.
@@ -677,6 +840,77 @@ const year = newDate()"#;
         assert!(
             probe.contains("= newDate;"),
             "probe should re-export newDate, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_object_destructure_from_ts_import() {
+        let source = r#"import trusted { useQuery } from "../hooks/use-query"
+const { data, isLoading } = useQuery("key")"#;
+        let program = Parser::new(source).parse_program().unwrap();
+
+        let mut ts_imports = HashMap::new();
+        ts_imports.insert(
+            "../hooks/use-query".to_string(),
+            PathBuf::from("/project/src/hooks/use-query.ts"),
+        );
+
+        let probe = generate_probe(&program, &HashMap::new(), &ts_imports);
+
+        // Should use property access instead of destructuring
+        assert!(
+            probe.contains("_tmp0")
+                && probe.contains("_r0_0 = _tmp0.data")
+                && probe.contains("_r0_1 = _tmp0.isLoading"),
+            "probe should generate per-field property access, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn specifier_map_object_destructure_creates_per_field_probes() {
+        let source = r#"import trusted { useQuery } from "../hooks/use-query"
+const { data, isLoading } = useQuery("key")"#;
+        let program = Parser::new(source).parse_program().unwrap();
+
+        let mut ts_imports = HashMap::new();
+        ts_imports.insert(
+            "../hooks/use-query".to_string(),
+            PathBuf::from("/project/src/hooks/use-query.ts"),
+        );
+
+        // Simulate tsgo probe exports: _r0_0 = data type, _r0_1 = isLoading type
+        // Plus the re-export: _r1 = useQuery itself
+        let probe_exports = vec![
+            DtsExport {
+                name: "_r0_0".to_string(),
+                ts_type: TsType::Primitive("string".to_string()),
+            },
+            DtsExport {
+                name: "_r0_1".to_string(),
+                ts_type: TsType::Primitive("boolean".to_string()),
+            },
+            DtsExport {
+                name: "_r1".to_string(),
+                ts_type: TsType::Function {
+                    params: vec![],
+                    return_type: Box::new(TsType::Unknown),
+                },
+            },
+        ];
+
+        let result = build_specifier_map(&program, &probe_exports, &ts_imports);
+        let exports = result
+            .get("../hooks/use-query")
+            .expect("should have specifier");
+        let names: Vec<&str> = exports.iter().map(|e| e.name.as_str()).collect();
+
+        assert!(
+            names.contains(&"__probe_data_0"),
+            "should have per-field probe for data, got: {names:?}"
+        );
+        assert!(
+            names.contains(&"__probe_isLoading_0"),
+            "should have per-field probe for isLoading, got: {names:?}"
         );
     }
 
