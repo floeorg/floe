@@ -837,6 +837,25 @@ fn _test(x: Option<User>) -> string {
 }
 """
 
+LAMBDA_PARAM = """\
+const items = [1, 2, 3]
+const _result = items |> map((item) => item + 1)
+"""
+
+JSX_RENDER_PROP_PARAM = """\
+import trusted { Draggable } from "@hello-pangea/dnd"
+
+type Props { id: string }
+
+export fn Card(props: Props) -> JSX.Element {
+    <Draggable draggableId={props.id} index={0}>
+        {(provided, snapshot) =>
+            <div />
+        }
+    </Draggable>
+}
+"""
+
 MATCH_PATTERN_LITERAL = """\
 fn _test(x: boolean) -> string {
     match x {

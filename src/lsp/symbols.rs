@@ -509,6 +509,9 @@ impl SymbolIndex {
             ExprKind::Collect(items) => {
                 Self::collect_items(items, symbols);
             }
+            ExprKind::Jsx(element) => {
+                Self::collect_jsx(element, symbols);
+            }
             _ => {}
         }
     }
@@ -648,6 +651,31 @@ impl SymbolIndex {
                 Arg::Positional(e) | Arg::Named { value: e, .. } => {
                     Self::collect_expr(e, symbols);
                 }
+            }
+        }
+    }
+
+    fn collect_jsx(element: &JsxElement, symbols: &mut Vec<Symbol>) {
+        if let JsxElementKind::Element { props, .. } = &element.kind {
+            for prop in props {
+                match prop {
+                    JsxProp::Named { value: Some(e), .. } | JsxProp::Spread { expr: e, .. } => {
+                        Self::collect_expr(e, symbols);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let children = match &element.kind {
+            JsxElementKind::Element { children, .. } | JsxElementKind::Fragment { children } => {
+                children
+            }
+        };
+        for child in children {
+            match child {
+                JsxChild::Expr(e) => Self::collect_expr(e, symbols),
+                JsxChild::Element(el) => Self::collect_jsx(el, symbols),
+                JsxChild::Text(_) => {}
             }
         }
     }

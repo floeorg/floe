@@ -349,6 +349,20 @@ class TestHoverRecordSpread:
         assert h is not None, f"Expected hover for pattern binding u, got None"
         assert "User" in h, f"Expected User type for pattern binding, got: {h}"
 
+    def test_lambda_param_shows_type(self, lsp):
+        open_doc(lsp, URI, F.LAMBDA_PARAM)
+        # Hover on 'item' in lambda param (line 1, col 30)
+        h = hover_text(lsp.hover(URI, 1, 30))
+        assert h is not None, f"Expected hover for lambda param item, got None"
+        assert "number" in h, f"Expected number type for lambda param, got: {h}"
+
+    def test_jsx_render_prop_param_shows_type(self, lsp):
+        open_doc(lsp, URI, F.JSX_RENDER_PROP_PARAM)
+        # Hover on 'provided' (line 6, col 10)
+        h = hover_text(lsp.hover(URI, 6, 10))
+        assert h is not None, f"Expected hover for render prop param provided, got None"
+        assert "?T" not in h, f"Render prop param should not show type var, got: {h}"
+
     def test_match_pattern_literal_shows_boolean(self, lsp):
         open_doc(lsp, URI, F.MATCH_PATTERN_LITERAL)
         # Hover on 'true' in match pattern (line 2, col 8)
