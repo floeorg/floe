@@ -349,6 +349,13 @@ class TestHoverRecordSpread:
         assert h is not None, f"Expected hover for pattern binding u, got None"
         assert "User" in h, f"Expected User type for pattern binding, got: {h}"
 
+    def test_match_pattern_literal_shows_boolean(self, lsp):
+        open_doc(lsp, URI, F.MATCH_PATTERN_LITERAL)
+        # Hover on 'true' in match pattern (line 2, col 8)
+        h = hover_text(lsp.hover(URI, 2, 8))
+        assert h is not None, f"Expected hover for true literal pattern, got None"
+        assert "boolean" in h, f"Expected boolean type for true pattern, got: {h}"
+
     def test_pipe_into_match_fn(self, lsp):
         open_doc(lsp, URI,F.PIPE_INTO_MATCH)
         h = hover_text(lsp.hover(URI, 0, 3))

@@ -836,3 +836,12 @@ fn _test(x: Option<User>) -> string {
     }
 }
 """
+
+MATCH_PATTERN_LITERAL = """\
+fn _test(x: boolean) -> string {
+    match x {
+        true -> "yes",
+        false -> "no",
+    }
+}
+"""
