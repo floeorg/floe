@@ -5,6 +5,22 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.36](https://github.com/floeorg/floe/compare/v0.1.35...v0.1.36) (2026-04-01)
+
+
+### Bug Fixes
+
+* [[#834](https://github.com/floeorg/floe/issues/834)] Checker does not validate tuple pattern arity in match ([#836](https://github.com/floeorg/floe/issues/836)) ([80af889](https://github.com/floeorg/floe/commit/80af8899c0b292788eadf5c1a0e7ad26a9a7c384))
+* [[#842](https://github.com/floeorg/floe/issues/842)] Checker does not validate variant pattern field count in match ([#856](https://github.com/floeorg/floe/issues/856)) ([6a1daaa](https://github.com/floeorg/floe/commit/6a1daaace483b666efe9ec11f29ba88969da7fcd))
+* [[#849](https://github.com/floeorg/floe/issues/849)] Probe generator misses consts inside use &lt;- callbacks ([#851](https://github.com/floeorg/floe/issues/851)) ([cc08f15](https://github.com/floeorg/floe/commit/cc08f15a12b505106a72da240065ea9ea81cf732))
+* [[#852](https://github.com/floeorg/floe/issues/852)] Infer callback parameter types for stdlib calls ([#855](https://github.com/floeorg/floe/issues/855)) ([78faf7e](https://github.com/floeorg/floe/commit/78faf7eb215179734fcb96498ac0e398c90226a5))
+* [[#853](https://github.com/floeorg/floe/issues/853)] Propagate async context through use &lt;- desugaring ([#857](https://github.com/floeorg/floe/issues/857)) ([d783e1c](https://github.com/floeorg/floe/commit/d783e1c6213eedaa8057bc0b59b17a23f9630fb8))
+* [[#867](https://github.com/floeorg/floe/issues/867)] Wrap tsgo probe type in Result when expression has try ([#868](https://github.com/floeorg/floe/issues/868)) ([1dafae1](https://github.com/floeorg/floe/commit/1dafae12906785903def55c389e67e906a132cb6))
+* rename Cloudflare Pages project to floe-site ([69176e0](https://github.com/floeorg/floe/commit/69176e04aa81b70ef03da098783670733d6d085e))
+* use npm as packageManager for wrangler-action ([00fbd68](https://github.com/floeorg/floe/commit/00fbd687514d81c037eb9f9a9ace7d23722c74b6))
+* use npx for wrangler install to avoid pnpm lockfile conflict ([b0c35cc](https://github.com/floeorg/floe/commit/b0c35cc8ae56ba7e962c763b68a58fd5d5fad08a))
+* use npx wrangler directly instead of wrangler-action ([30d6e7f](https://github.com/floeorg/floe/commit/30d6e7f9e856b09aba8fab8e87422064a118cebf))
+
 ## [0.1.35](https://github.com/floeorg/floe/compare/v0.1.34...v0.1.35) (2026-04-01)
 
 
