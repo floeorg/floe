@@ -1840,6 +1840,86 @@ const _y = age
     }
 }
 
+// ── Object destructuring from trusted imports ───────────────
+
+#[test]
+fn object_destructure_from_trusted_import_gets_field_types() {
+    use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { useQuery } from "react-query"
+const { data, isLoading } = useQuery("key")
+const _x = data
+const _y = isLoading
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Mock: useQuery returns an object with data: string, isLoading: boolean
+    let use_query_export = DtsExport {
+        name: "useQuery".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Object(vec![
+                ObjectField {
+                    name: "data".to_string(),
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                },
+                ObjectField {
+                    name: "isLoading".to_string(),
+                    ty: TsType::Primitive("boolean".to_string()),
+                    optional: false,
+                },
+            ])),
+        },
+    };
+    // Per-field probes that specifier_map would generate
+    let data_probe = DtsExport {
+        name: "__probe_data_0".to_string(),
+        ts_type: TsType::Primitive("string".to_string()),
+    };
+    let is_loading_probe = DtsExport {
+        name: "__probe_isLoading_0".to_string(),
+        ts_type: TsType::Primitive("boolean".to_string()),
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "react-query".to_string(),
+        vec![use_query_export, data_probe, is_loading_probe],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, types, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "object destructure from trusted import should not error, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+
+    // data should be string, isLoading should be boolean (not unknown)
+    if let Some(data_ty) = types.get("data") {
+        assert_eq!(data_ty, "string", "data should be string, got: {data_ty}");
+    }
+    if let Some(loading_ty) = types.get("isLoading") {
+        assert_eq!(
+            loading_ty, "boolean",
+            "isLoading should be boolean, got: {loading_ty}"
+        );
+    }
+}
+
 // ── Tuple Types ─────────────────────────────────────────────
 
 #[test]

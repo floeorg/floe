@@ -480,20 +480,19 @@ pub(super) fn generate_probe(
             ));
         } else if let ConstBinding::Object(fields) = &call.binding {
             // For object destructuring: const { data } = useSuspenseQuery(...)
+            // Use property access instead of destructuring so tsgo can resolve
+            // complex generic return types field-by-field.
             let tmp = format!("_tmp{}", call.index);
             lines.push(format!(
                 "const {tmp} = {}{type_args_str}({args_str});",
                 call.callee,
             ));
-            lines.push(format!(
-                "export const {{ {} }} = {tmp};",
-                fields
-                    .iter()
-                    .enumerate()
-                    .map(|(i, f)| format!("{}: _r{}_{i}", f.field, call.index))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            ));
+            for (i, f) in fields.iter().enumerate() {
+                lines.push(format!(
+                    "export const _r{}_{i} = {tmp}.{};",
+                    call.index, f.field,
+                ));
+            }
         } else {
             lines.push(format!(
                 "export const _r{} = {}{type_args_str}({args_str});",
