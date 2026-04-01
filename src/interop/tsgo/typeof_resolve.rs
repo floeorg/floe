@@ -116,10 +116,15 @@ pub(super) fn resolve_typeof_types(
             .unwrap_or_else(|| module_source.clone());
         let entry = result.entry(specifier).or_default();
         for export in module_exports {
-            if matches!(export.ts_type, TsType::Object(_))
-                && !entry.iter().any(|e| e.name == export.name)
-            {
-                entry.push(export.clone());
+            if matches!(export.ts_type, TsType::Object(_)) {
+                // Replace Any entries with richer Object definitions
+                if let Some(existing) = entry.iter_mut().find(|e| e.name == export.name) {
+                    if matches!(existing.ts_type, TsType::Any) {
+                        existing.ts_type = export.ts_type.clone();
+                    }
+                } else {
+                    entry.push(export.clone());
+                }
             }
         }
     }
