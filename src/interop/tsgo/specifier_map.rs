@@ -186,7 +186,7 @@ pub(super) fn build_specifier_map(
             }
         }
         // Route type/JSX probes to any specifier so the checker can find them
-        for prefix in ["__tprobe_", "__jsx_"] {
+        for prefix in ["__tprobe_", "__jsx_", "__jsxc_"] {
             if export.name.starts_with(prefix)
                 && let Some(first_specifier) = result.keys().next().cloned()
             {

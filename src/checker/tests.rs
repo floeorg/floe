@@ -5480,6 +5480,61 @@ fn page() {
     }
 }
 
+#[test]
+fn jsx_children_render_prop_named_type_shows_in_name_types() {
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { Draggable } from "@hello-pangea/dnd"
+
+fn page() {
+    <Draggable draggableId="id" index={0}>
+        {(provided, snapshot) =>
+            <div />
+        }
+    </Draggable>
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Real tsgo output: Named types (import paths stripped by DTS parser)
+    let probe_0 = DtsExport {
+        name: "__jsxc_Draggable_0".to_string(),
+        ts_type: TsType::Named("DraggableProvided".to_string()),
+    };
+    let probe_1 = DtsExport {
+        name: "__jsxc_Draggable_1".to_string(),
+        ts_type: TsType::Named("DraggableStateSnapshot".to_string()),
+    };
+    let draggable_export = DtsExport {
+        name: "Draggable".to_string(),
+        ts_type: TsType::Named("Draggable".to_string()),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "@hello-pangea/dnd".to_string(),
+        vec![draggable_export, probe_0, probe_1],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (_, name_types, _) = checker.check_with_types(&program);
+
+    // provided should be DraggableProvided (Foreign type), not a type var
+    if let Some(provided_type) = name_types.get("provided") {
+        assert!(
+            provided_type.contains("DraggableProvided"),
+            "provided should be DraggableProvided, got: {provided_type}"
+        );
+    } else {
+        panic!("provided param type not found in name_types");
+    }
+}
+
 // ── Rule: unknown type checking (#734) ─────────────────────
 
 #[test]
