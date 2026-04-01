@@ -5,6 +5,21 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.35](https://github.com/floeorg/floe/compare/v0.1.34...v0.1.35) (2026-04-01)
+
+
+### Features
+
+* [[#822](https://github.com/floeorg/floe/issues/822)] Add Bool.guard, Option.guard, Result.guard and stdlib additions ([#823](https://github.com/floeorg/floe/issues/823)) ([559f98a](https://github.com/floeorg/floe/commit/559f98a52a1fe1355f848b82d72fcf3c9651da1a))
+
+
+### Bug Fixes
+
+* [[#812](https://github.com/floeorg/floe/issues/812)] Duplicate import names should error ([#833](https://github.com/floeorg/floe/issues/833)) ([2e3d97e](https://github.com/floeorg/floe/commit/2e3d97e7cb9e6e3a7da2da3ec7b9e38def649e2d))
+* [[#819](https://github.com/floeorg/floe/issues/819)] Use explicit type args for unresolved generic DTS functions ([#820](https://github.com/floeorg/floe/issues/820)) ([60028ec](https://github.com/floeorg/floe/commit/60028ecac4a94fa5a6e928128f032301f10df95c))
+* reorder type definitions so User is defined before Status ([e7c24ae](https://github.com/floeorg/floe/commit/e7c24ae8cd60d9aeceb0e47dd23e1db7143d1f4e))
+* use single props object for React component examples in docs ([e8a8f86](https://github.com/floeorg/floe/commit/e8a8f86a776e7bfa0c068d40a9aed113c80583f3))
+
 ## [0.1.34](https://github.com/floeorg/floe/compare/v0.1.33...v0.1.34) (2026-03-31)
 
 
