@@ -1,9 +1,5 @@
 use super::*;
 
-const DEEP_EQUAL_FN: &str = "__floeEq";
-const THROW_NOT_IMPLEMENTED: &str = "(() => { throw new Error(\"not implemented\"); })()";
-const THROW_UNREACHABLE: &str = "(() => { throw new Error(\"unreachable\"); })()";
-
 impl Codegen {
     // ── Expressions ──────────────────────────────────────────────
 
