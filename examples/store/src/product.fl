@@ -48,8 +48,8 @@ for Array<CartItem> {
         const existing = self |> Array.findIndex((item) => item.product.id == product.id)
 
         existing |> match {
-            -1 -> self |> Array.append(CartItem(product: product, quantity: qty)),
-            _ -> self |> Array.map((item) =>
+            None -> self |> Array.append(CartItem(product: product, quantity: qty)),
+            Some(_) -> self |> Array.map((item) =>
                 match item.product.id == product.id {
                     true -> CartItem(..item, quantity: item.quantity + qty),
                     false -> item,

@@ -2029,6 +2029,96 @@ fn variant_pattern_correct_arity() {
     );
 }
 
+// ── Literal pattern type checking ────────────────────────────
+
+#[test]
+fn bool_literal_on_string_type_errors() {
+    let source = r#"
+        const _s = "hello"
+        match _s {
+            true -> "yes",
+            false -> "no",
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::LiteralPatternMismatch),
+        "boolean literal on string type should produce E040, got: {diags:?}"
+    );
+}
+
+#[test]
+fn number_literal_on_string_type_errors() {
+    let source = r#"
+        const _s = "hello"
+        match _s {
+            42 -> "the answer",
+            _ -> "something else",
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::LiteralPatternMismatch),
+        "number literal on string type should produce E040, got: {diags:?}"
+    );
+}
+
+#[test]
+fn string_literal_on_bool_type_errors() {
+    let source = r#"
+        const _b = true
+        match _b {
+            "yes" -> 1,
+            _ -> 0,
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::LiteralPatternMismatch),
+        "string literal on bool type should produce E040, got: {diags:?}"
+    );
+}
+
+#[test]
+fn bool_literal_on_bool_type_ok() {
+    let source = r#"
+        const _b = true
+        match _b {
+            true -> "yes",
+            false -> "no",
+        }
+    "#;
+    let diags = check(source);
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "boolean literal on boolean type should not error: {errors:?}"
+    );
+}
+
+#[test]
+fn string_literal_on_string_type_ok() {
+    let source = r#"
+        const _s = "hello"
+        match _s {
+            "hello" -> "greeting",
+            _ -> "other",
+        }
+    "#;
+    let diags = check(source);
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "string literal on string type should not error: {errors:?}"
+    );
+}
+
 // ── Pipe: tap ───────────────────────────────────────────────
 
 #[test]
