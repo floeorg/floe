@@ -5,6 +5,25 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.38](https://github.com/floeorg/floe/compare/v0.1.37...v0.1.38) (2026-04-01)
+
+
+### Features
+
+* [[#884](https://github.com/floeorg/floe/issues/884)] Add Array.uniqueBy and Array.indexOf to stdlib ([#886](https://github.com/floeorg/floe/issues/886)) ([d7b5b1c](https://github.com/floeorg/floe/commit/d7b5b1cc621669ad72d7806c292fe903a0713cf0))
+
+
+### Bug Fixes
+
+* [[#870](https://github.com/floeorg/floe/issues/870)] LSP hover shows wrong type for literal patterns in match ([#882](https://github.com/floeorg/floe/issues/882)) ([32d2406](https://github.com/floeorg/floe/commit/32d2406e31b4b56b0e5ea97d3f9d00bb81087a7c))
+* [[#871](https://github.com/floeorg/floe/issues/871)] Warn on binding patterns for finite exhaustive types in match ([#885](https://github.com/floeorg/floe/issues/885)) ([d08c293](https://github.com/floeorg/floe/commit/d08c293ac2a3e58c9cc9c30237d6e06669432607))
+* [[#887](https://github.com/floeorg/floe/issues/887)] Treat type-only TS exports as Foreign instead of Unknown ([#890](https://github.com/floeorg/floe/issues/890)) ([0c36ed1](https://github.com/floeorg/floe/commit/0c36ed16f6c1584bcf80edd8cd9bfd01636d0aba))
+* [[#888](https://github.com/floeorg/floe/issues/888)] Resolve non-exported TS interfaces referenced in probe output ([#892](https://github.com/floeorg/floe/issues/892)) ([0bf8bb6](https://github.com/floeorg/floe/commit/0bf8bb66d172f25b8f57a4e7bac20b3c2104308e))
+* [[#889](https://github.com/floeorg/floe/issues/889)] Fix typeof resolution, per-field probes, and pipe type var substitution ([#891](https://github.com/floeorg/floe/issues/891)) ([aaaceb3](https://github.com/floeorg/floe/commit/aaaceb3efc4a1ddf64fa456ce95c909fc3104385))
+* [[#893](https://github.com/floeorg/floe/issues/893)] Prefer checker inference over Unknown probes and register npm type defs ([#894](https://github.com/floeorg/floe/issues/894)) ([babd601](https://github.com/floeorg/floe/commit/babd601f169a9f21bc564be9264ae59a68793048))
+* [[#898](https://github.com/floeorg/floe/issues/898)] Use resolve_type_to_concrete for object destructured bindings ([#899](https://github.com/floeorg/floe/issues/899)) ([f2a2aff](https://github.com/floeorg/floe/commit/f2a2affe38495fc4f54097a88c434d358b15ab6b))
+* Replace sort_by with sortBy in homepage and README ([fc08ee7](https://github.com/floeorg/floe/commit/fc08ee77acc9a17b589a30c85ade1de9a00dc94a))
+
 ## [0.1.37](https://github.com/floeorg/floe/compare/v0.1.36...v0.1.37) (2026-04-01)
 
 
