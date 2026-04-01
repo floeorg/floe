@@ -2002,7 +2002,9 @@ impl Checker {
             return ty;
         }
 
-        // Foreign types: allow member access, return Foreign for chained access
+        // Foreign types: allow member access, return Foreign for chained access.
+        // (Foreign types with known Record definitions are resolved above via
+        // resolve_type_to_concrete, so this only fires for truly opaque types.)
         if let Type::Foreign(name) = obj_ty {
             return Type::Foreign(format!("{name}.{field}"));
         }
@@ -2142,9 +2144,13 @@ impl Checker {
     /// Resolve a type to its concrete definition, following Named type lookups.
     pub(crate) fn resolve_type_to_concrete(&mut self, ty: &Type) -> Type {
         let resolved = self.env.resolve_to_concrete(ty, &simple_resolve_type_expr);
-        // If still Named after type_defs resolution, check if it's a known
-        // value (e.g. built-in Response, Error) that has a concrete type
-        if let Type::Named(name) = &resolved
+        // If still Named or Foreign after type_defs resolution, check if it's a known
+        // value (e.g. built-in Response, Error, or TS interface imported via DTS)
+        let name = match &resolved {
+            Type::Named(n) | Type::Foreign(n) => Some(n.as_str()),
+            _ => None,
+        };
+        if let Some(name) = name
             && let Some(val_ty) = self.env.lookup(name).cloned()
             && matches!(val_ty, Type::Record(_))
         {
