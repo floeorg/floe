@@ -27,10 +27,13 @@ use probe_run::{create_probe_dir, run_tsgo};
 use specifier_map::build_specifier_map;
 use typeof_resolve::resolve_typeof_types;
 
-/// Resolves npm import types by running tsgo on a generated probe file.
+/// Resolves npm import types by running tsgo on a generated probe file,
+/// with an optional LSP client for richer type resolution.
 pub struct TsgoResolver {
     project_dir: PathBuf,
     cache: HashMap<u64, Vec<DtsExport>>,
+    #[cfg(feature = "cli")]
+    lsp_client: Option<super::tsgo_lsp::TsgoLspClient>,
 }
 
 impl TsgoResolver {
@@ -38,7 +41,24 @@ impl TsgoResolver {
         Self {
             project_dir: project_dir.to_path_buf(),
             cache: HashMap::new(),
+            #[cfg(feature = "cli")]
+            lsp_client: None,
         }
+    }
+
+    /// Get or initialize the LSP client lazily.
+    #[cfg(feature = "cli")]
+    fn lsp_client(&mut self) -> Option<&mut super::tsgo_lsp::TsgoLspClient> {
+        if self.lsp_client.is_none() {
+            match super::tsgo_lsp::TsgoLspClient::new(&self.project_dir) {
+                Ok(client) => self.lsp_client = Some(client),
+                Err(e) => {
+                    eprintln!("[floe] tsgo LSP: {e}");
+                    return None;
+                }
+            }
+        }
+        self.lsp_client.as_mut()
     }
 
     /// Resolve npm and local TypeScript imports in a program by generating a
@@ -165,9 +185,123 @@ impl TsgoResolver {
                 }
             }
 
+            // LSP enhancement pass: for exports still typed as Any/Unknown,
+            // query the tsgo LSP for the actual type via hover. This resolves
+            // types that the probe can't handle (complex generics, type-only
+            // exports, wrapper function return types).
+            #[cfg(feature = "cli")]
+            self.enhance_with_lsp(&mut result, program, &ts_imports);
+
             result
         }
     }
+
+    /// Use the tsgo LSP client to resolve Any/Unknown exports by querying
+    /// hover at the symbol's declaration site in the source file.
+    #[cfg(feature = "cli")]
+    fn enhance_with_lsp(
+        &mut self,
+        result: &mut HashMap<String, Vec<DtsExport>>,
+        program: &Program,
+        ts_imports: &HashMap<String, PathBuf>,
+    ) {
+        // Collect (specifier, export_index, symbol_name, source_path) for unresolved exports
+        let mut to_resolve: Vec<(String, usize, String, PathBuf)> = Vec::new();
+
+        // Build import name → source path mapping
+        let mut import_paths: HashMap<String, PathBuf> = HashMap::new();
+        for item in &program.items {
+            if let ItemKind::Import(decl) = &item.kind
+                && let Some(ts_path) = ts_imports.get(&decl.source)
+            {
+                for spec in &decl.specifiers {
+                    let name = spec.alias.as_deref().unwrap_or(&spec.name);
+                    import_paths.insert(name.to_string(), ts_path.clone());
+                }
+            }
+        }
+
+        for (specifier, exports) in result.iter() {
+            for (i, export) in exports.iter().enumerate() {
+                // Only enhance exports that are still Any (unresolved)
+                if !matches!(export.ts_type, TsType::Any) {
+                    continue;
+                }
+                // Find the source file for this symbol
+                if let Some(path) = import_paths.get(&export.name) {
+                    to_resolve.push((specifier.clone(), i, export.name.clone(), path.clone()));
+                }
+            }
+        }
+
+        if to_resolve.is_empty() {
+            return;
+        }
+
+        let Some(client) = self.lsp_client() else {
+            return;
+        };
+
+        for (specifier, idx, symbol_name, source_path) in to_resolve {
+            if let Some(hover_text) = client.query_symbol_type(&source_path, &symbol_name)
+                && let Some(ts_type) = parse_hover_to_tstype(&hover_text)
+                && let Some(exports) = result.get_mut(&specifier)
+                && let Some(export) = exports.get_mut(idx)
+            {
+                export.ts_type = ts_type;
+            }
+        }
+    }
+}
+
+/// Parse a hover text string from the LSP into a TsType.
+/// Handles patterns like:
+/// - `function useMemo<T>(factory: () => T, deps: DependencyList): T`
+/// - `type Todo = { id: string; text: string; done: boolean; }`
+/// - `interface DropResult { ... }`
+/// - `const x: SomeType`
+#[cfg(feature = "cli")]
+fn parse_hover_to_tstype(hover: &str) -> Option<TsType> {
+    let hover = hover.trim();
+
+    // "type X = { ... }" or "interface X { ... }"
+    if let Some(rest) = hover
+        .strip_prefix("type ")
+        .and_then(|s| s.split_once('='))
+        .map(|(_, rhs)| rhs.trim())
+    {
+        // Try to parse as a .d.ts snippet
+        let snippet = format!("export declare const _q: {rest};");
+        if let Ok(exports) = super::dts::parse_dts_exports_from_str(&snippet)
+            && let Some(export) = exports.first()
+        {
+            return Some(export.ts_type.clone());
+        }
+    }
+
+    // "function name<T>(params): RetType" → parse as function
+    if hover.starts_with("function ") {
+        let snippet = format!("export declare {hover};");
+        if let Ok(exports) = super::dts::parse_dts_exports_from_str(&snippet)
+            && let Some(export) = exports.first()
+        {
+            return Some(export.ts_type.clone());
+        }
+    }
+
+    // "const x: Type" → extract the type
+    if let Some(rest) = hover.strip_prefix("const ")
+        && let Some((_, ty_str)) = rest.split_once(':')
+    {
+        let snippet = format!("export declare const _q: {};", ty_str.trim());
+        if let Ok(exports) = super::dts::parse_dts_exports_from_str(&snippet)
+            && let Some(export) = exports.first()
+        {
+            return Some(export.ts_type.clone());
+        }
+    }
+
+    None
 }
 
 /// Find imports that don't resolve to `.fl` files but do resolve to
