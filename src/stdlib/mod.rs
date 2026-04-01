@@ -4,6 +4,23 @@
 //! checking, and the codegen inlines them as vanilla TypeScript. No runtime
 //! dependency is emitted.
 
+mod array;
+mod bool;
+mod console;
+mod date;
+mod http;
+mod json;
+mod map;
+mod math;
+mod number;
+mod option;
+mod pipe;
+mod promise;
+mod record;
+mod result;
+mod set;
+mod string;
+
 use crate::checker::Type;
 
 /// A standard library function definition.
@@ -142,207 +159,29 @@ macro_rules! stdlib_fn {
     };
 }
 
-/// Build the full stdlib registry.
-#[rustfmt::skip]
-fn build_stdlib() -> Vec<StdlibFn> {
-    let t = tv(0); // T
-    let u = tv(1); // U
+// Make the macro available to submodules.
+use stdlib_fn;
 
-    vec![
-        // ── Array ───────────────────────────────────────────────
-        stdlib_fn!("Array", "sort", [array_of(t.clone())], array_of(t.clone()), "[...$0].sort((a, b) => a - b)"),
-        stdlib_fn!("Array", "sortBy", [array_of(t.clone()), fun(vec![t.clone()], Type::Number)], array_of(t.clone()), "[...$0].sort((a, b) => ($1)(a) - ($1)(b))"),
-        stdlib_fn!("Array", "map", [array_of(t.clone()), fun(vec![t.clone()], u.clone())], array_of(u.clone()), "$0.map($1)"),
-        stdlib_fn!("Array", "filter", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], array_of(t.clone()), "$0.filter($1)"),
-        stdlib_fn!("Array", "find", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], option_of(t.clone()), "$0.find($1)"),
-        stdlib_fn!("Array", "findIndex", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], option_of(Type::Number), "(() => { const _i = $0.findIndex($1); return _i === -1 ? undefined : _i; })()"),
-        stdlib_fn!("Array", "flatMap", [array_of(t.clone()), fun(vec![t.clone()], array_of(u.clone()))], array_of(u.clone()), "$0.flatMap($1)"),
-        stdlib_fn!("Array", "at", [array_of(t.clone()), Type::Number], option_of(t.clone()), "$0[$1]"),
-        stdlib_fn!("Array", "contains", [array_of(t.clone()), t.clone()], Type::Bool, "$0.some((_item) => __floeEq(_item, $1))"),
-        stdlib_fn!("Array", "head", [array_of(t.clone())], option_of(t.clone()), "$0[0]"),
-        stdlib_fn!("Array", "last", [array_of(t.clone())], option_of(t.clone()), "$0[$0.length - 1]"),
-        stdlib_fn!("Array", "take", [array_of(t.clone()), Type::Number], array_of(t.clone()), "$0.slice(0, $1)"),
-        stdlib_fn!("Array", "drop", [array_of(t.clone()), Type::Number], array_of(t.clone()), "$0.slice($1)"),
-        stdlib_fn!("Array", "reverse", [array_of(t.clone())], array_of(t.clone()), "[...$0].reverse()"),
-        stdlib_fn!("Array", "reduce", [array_of(t.clone()), fun(vec![u.clone(), t.clone()], u.clone()), u.clone()], u.clone(), "$0.reduce($1, $2)"),
-        stdlib_fn!("Array", "length", [array_of(t.clone())], Type::Number, "$0.length"),
-        stdlib_fn!("Array", "concat", [array_of(t.clone()), array_of(t.clone())], array_of(t.clone()), "[...$0, ...$1]"),
-        stdlib_fn!("Array", "append", [array_of(t.clone()), t.clone()], array_of(t.clone()), "[...$0, $1]"),
-        stdlib_fn!("Array", "prepend", [array_of(t.clone()), t.clone()], array_of(t.clone()), "[$1, ...$0]"),
-        stdlib_fn!("Array", "any", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], Type::Bool, "$0.some($1)"),
-        stdlib_fn!("Array", "all", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], Type::Bool, "$0.every($1)"),
-        stdlib_fn!("Array", "sum", [array_of(Type::Number)], Type::Number, "$0.reduce((a, b) => a + b, 0)"),
-        stdlib_fn!("Array", "join", [array_of(Type::String), Type::String], Type::String, "$0.join($1)"),
-        stdlib_fn!("Array", "isEmpty", [array_of(t.clone())], Type::Bool, "$0.length === 0"),
-        stdlib_fn!("Array", "chunk", [array_of(t.clone()), Type::Number], array_of(array_of(t.clone())), "(() => { const _a = $0; const _n = $1; const _r = []; for (let _i = 0; _i < _a.length; _i += _n) _r.push(_a.slice(_i, _i + _n)); return _r; })()"),
-        stdlib_fn!("Array", "unique", [array_of(t.clone())], array_of(t.clone()), "[...new Set($0)]"),
-        stdlib_fn!("Array", "groupBy", [array_of(t.clone()), fun(vec![t.clone()], Type::String)], record_of(Type::String, array_of(t.clone())), "Object.groupBy($0, $1)"),
-        stdlib_fn!("Array", "zip", [array_of(t.clone()), array_of(u.clone())], array_of(Type::Tuple(vec![t.clone(), u.clone()])), "$0.map((_v, _i) => [_v, $1[_i]] as const)"),
-        stdlib_fn!("Array", "from", [t.clone(), fun(vec![t.clone(), Type::Number], u.clone())], array_of(u.clone()), "Array.from($0, $1)"),
-        stdlib_fn!("Array", "mapResult", [array_of(t.clone()), fun(vec![t.clone()], result_of(u.clone(), tv(2)))], result_of(array_of(u.clone()), tv(2)), "(() => { const _a = $0; const _f = $1; const _r = []; for (const _v of _a) { const _res = _f(_v); if (!_res.ok) return _res; _r.push(_res.value); } return { ok: true as const, value: _r }; })()"),
-        stdlib_fn!("Array", "filterMap", [array_of(t.clone()), fun(vec![t.clone()], option_of(u.clone()))], array_of(u.clone()), "(() => { const _a = $0; const _f = $1; const _r = []; for (const _v of _a) { const _m = _f(_v); if (_m !== undefined) _r.push(_m); } return _r; })()"),
-        stdlib_fn!("Array", "partition", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], Type::Tuple(vec![array_of(t.clone()), array_of(t.clone())]), "(() => { const _a = $0; const _f = $1; const _t = []; const _u = []; for (const _v of _a) { (_f(_v) ? _t : _u).push(_v); } return [_t, _u] as const; })()"),
-        stdlib_fn!("Array", "flatten", [array_of(array_of(t.clone()))], array_of(t.clone()), "$0.flat()"),
-        stdlib_fn!("Array", "findLast", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], option_of(t.clone()), "$0.findLast($1)"),
-        stdlib_fn!("Array", "takeWhile", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], array_of(t.clone()), "(() => { const _a = $0; const _f = $1; const _r = []; for (const _v of _a) { if (!_f(_v)) break; _r.push(_v); } return _r; })()"),
-        stdlib_fn!("Array", "dropWhile", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], array_of(t.clone()), "(() => { const _a = $0; const _f = $1; let _i = 0; while (_i < _a.length && _f(_a[_i])) _i++; return _a.slice(_i); })()"),
-        stdlib_fn!("Array", "intersperse", [array_of(t.clone()), t.clone()], array_of(t.clone()), "(() => { const _a = $0; const _s = $1; const _r = []; for (let _i = 0; _i < _a.length; _i++) { if (_i > 0) _r.push(_s); _r.push(_a[_i]); } return _r; })()"),
-        // ── Option ──────────────────────────────────────────────
-        stdlib_fn!("Option", "map", [option_of(t.clone()), fun(vec![t.clone()], u.clone())], option_of(u.clone()), "$0 !== undefined ? ($1)($0) : undefined"),
-        stdlib_fn!("Option", "flatMap", [option_of(t.clone()), fun(vec![t.clone()], option_of(u.clone()))], option_of(u.clone()), "$0 !== undefined ? ($1)($0) : undefined"),
-        stdlib_fn!("Option", "unwrapOr", [option_of(t.clone()), t.clone()], t.clone(), "$0 !== undefined ? $0 : $1"),
-        stdlib_fn!("Option", "isSome", [option_of(t.clone())], Type::Bool, "$0 !== undefined"),
-        stdlib_fn!("Option", "isNone", [option_of(t.clone())], Type::Bool, "$0 === undefined"),
-        stdlib_fn!("Option", "toResult", [option_of(t.clone()), u.clone()], result_of(t.clone(), u.clone()), "$0 !== undefined ? { ok: true as const, value: $0 } : { ok: false as const, error: $1 }"),
-        stdlib_fn!("Option", "filter", [option_of(t.clone()), fun(vec![t.clone()], Type::Bool)], option_of(t.clone()), "$0 !== undefined && ($1)($0) ? $0 : undefined"),
-        stdlib_fn!("Option", "or", [option_of(t.clone()), option_of(t.clone())], option_of(t.clone()), "$0 !== undefined ? $0 : $1"),
-        stdlib_fn!("Option", "mapOr", [option_of(t.clone()), u.clone(), fun(vec![t.clone()], u.clone())], u.clone(), "$0 !== undefined ? ($2)($0) : $1"),
-        stdlib_fn!("Option", "flatten", [option_of(option_of(t.clone()))], option_of(t.clone()), "$0"),
-        stdlib_fn!("Option", "zip", [option_of(t.clone()), option_of(u.clone())], option_of(Type::Tuple(vec![t.clone(), u.clone()])), "$0 !== undefined && $1 !== undefined ? [$0, $1] as const : undefined"),
-        stdlib_fn!("Option", "inspect", [option_of(t.clone()), fun(vec![t.clone()], Type::Unit)], option_of(t.clone()), "(() => { const _v = $0; if (_v !== undefined) ($1)(_v); return _v; })()"),
-        stdlib_fn!("Option", "toErr", [option_of(t.clone())], result_of(Type::Unit, t.clone()), "$0 !== undefined ? { ok: false as const, error: $0 } : { ok: true as const, value: undefined }"),
-        stdlib_fn!("Option", "all", [array_of(option_of(t.clone()))], option_of(array_of(t.clone())), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (_v === undefined) return undefined; _r.push(_v); } return _r; })()"),
-        stdlib_fn!("Option", "any", [array_of(option_of(t.clone()))], option_of(t.clone()), "$0.find(_v => _v !== undefined)"),
-        stdlib_fn!("Option", "values", [array_of(option_of(t.clone()))], array_of(t.clone()), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (_v !== undefined) _r.push(_v); } return _r; })()"),
-        stdlib_fn!("Option", "guard", [option_of(t.clone()), u.clone(), fun(vec![t.clone()], u.clone())], u.clone(), "$0 !== undefined ? ($2)($0) : $1"),
-        stdlib_fn!("Option", "orElse", [option_of(t.clone()), fun(vec![], option_of(t.clone()))], option_of(t.clone()), "$0 !== undefined ? $0 : ($1)()"),
-        // ── Result ──────────────────────────────────────────────
-        stdlib_fn!("Result", "map", [result_of(t.clone(), u.clone()), fun(vec![t.clone()], tv(2))], result_of(tv(2), u.clone()), "$0.ok ? { ok: true as const, value: ($1)($0.value) } : $0"),
-        stdlib_fn!("Result", "mapErr", [result_of(t.clone(), u.clone()), fun(vec![u.clone()], tv(2))], result_of(t.clone(), tv(2)), "$0.ok ? $0 : { ok: false as const, error: ($1)($0.error) }"),
-        stdlib_fn!("Result", "flatMap", [result_of(t.clone(), u.clone()), fun(vec![t.clone()], result_of(tv(2), u.clone()))], result_of(tv(2), u.clone()), "$0.ok ? ($1)($0.value) : $0"),
-        stdlib_fn!("Result", "unwrapOr", [result_of(t.clone(), u.clone()), t.clone()], t.clone(), "$0.ok ? $0.value : $1"),
-        stdlib_fn!("Result", "isOk", [result_of(t.clone(), u.clone())], Type::Bool, "$0.ok"),
-        stdlib_fn!("Result", "isErr", [result_of(t.clone(), u.clone())], Type::Bool, "!$0.ok"),
-        stdlib_fn!("Result", "toOption", [result_of(t.clone(), u.clone())], option_of(t.clone()), "$0.ok ? $0.value : undefined"),
-        stdlib_fn!("Result", "filter", [result_of(t.clone(), u.clone()), fun(vec![t.clone()], Type::Bool), u.clone()], result_of(t.clone(), u.clone()), "$0.ok && ($1)($0.value) ? $0 : $0.ok ? { ok: false as const, error: $2 } : $0"),
-        stdlib_fn!("Result", "or", [result_of(t.clone(), u.clone()), result_of(t.clone(), u.clone())], result_of(t.clone(), u.clone()), "$0.ok ? $0 : $1"),
-        stdlib_fn!("Result", "mapOr", [result_of(t.clone(), u.clone()), tv(2), fun(vec![t.clone()], tv(2))], tv(2), "$0.ok ? ($2)($0.value) : $1"),
-        stdlib_fn!("Result", "flatten", [result_of(result_of(t.clone(), u.clone()), u.clone())], result_of(t.clone(), u.clone()), "$0.ok ? $0.value : $0"),
-        stdlib_fn!("Result", "zip", [result_of(t.clone(), u.clone()), result_of(tv(2), u.clone())], result_of(Type::Tuple(vec![t.clone(), tv(2)]), u.clone()), "$0.ok && $1.ok ? { ok: true as const, value: [$0.value, $1.value] as const } : !$0.ok ? $0 : $1"),
-        stdlib_fn!("Result", "inspect", [result_of(t.clone(), u.clone()), fun(vec![t.clone()], Type::Unit)], result_of(t.clone(), u.clone()), "(() => { const _v = $0; if (_v.ok) ($1)(_v.value); return _v; })()"),
-        stdlib_fn!("Result", "inspectErr", [result_of(t.clone(), u.clone()), fun(vec![u.clone()], Type::Unit)], result_of(t.clone(), u.clone()), "(() => { const _v = $0; if (!_v.ok) ($1)(_v.error); return _v; })()"),
-        stdlib_fn!("Result", "all", [array_of(result_of(t.clone(), u.clone()))], result_of(array_of(t.clone()), u.clone()), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (!_v.ok) return _v; _r.push(_v.value); } return { ok: true as const, value: _r }; })()"),
-        stdlib_fn!("Result", "any", [array_of(result_of(t.clone(), u.clone()))], result_of(t.clone(), array_of(u.clone())), "(() => { const _a = $0; const _e = []; for (const _v of _a) { if (_v.ok) return _v; _e.push(_v.error); } return { ok: false as const, error: _e }; })()"),
-        stdlib_fn!("Result", "values", [array_of(result_of(t.clone(), u.clone()))], array_of(t.clone()), "(() => { const _a = $0; const _r = []; for (const _v of _a) { if (_v.ok) _r.push(_v.value); } return _r; })()"),
-        stdlib_fn!("Result", "partition", [array_of(result_of(t.clone(), u.clone()))], Type::Tuple(vec![array_of(t.clone()), array_of(u.clone())]), "(() => { const _a = $0; const _ok = []; const _err = []; for (const _v of _a) { if (_v.ok) _ok.push(_v.value); else _err.push(_v.error); } return [_ok, _err] as const; })()"),
-        stdlib_fn!("Result", "guard", [result_of(t.clone(), u.clone()), fun(vec![u.clone()], tv(2)), fun(vec![t.clone()], tv(2))], tv(2), "$0.ok ? ($2)($0.value) : ($1)($0.error)"),
-        stdlib_fn!("Result", "orElse", [result_of(t.clone(), u.clone()), fun(vec![u.clone()], result_of(t.clone(), tv(2)))], result_of(t.clone(), tv(2)), "$0.ok ? $0 : ($1)($0.error)"),
-        // ── String ──────────────────────────────────────────────
-        stdlib_fn!("String", "trim", [Type::String], Type::String, "$0.trim()"),
-        stdlib_fn!("String", "trimStart", [Type::String], Type::String, "$0.trimStart()"),
-        stdlib_fn!("String", "trimEnd", [Type::String], Type::String, "$0.trimEnd()"),
-        stdlib_fn!("String", "split", [Type::String, Type::String], array_of(Type::String), "$0.split($1)"),
-        stdlib_fn!("String", "replace", [Type::String, Type::String, Type::String], Type::String, "$0.replace($1, $2)"),
-        stdlib_fn!("String", "startsWith", [Type::String, Type::String], Type::Bool, "$0.startsWith($1)"),
-        stdlib_fn!("String", "endsWith", [Type::String, Type::String], Type::Bool, "$0.endsWith($1)"),
-        stdlib_fn!("String", "contains", [Type::String, Type::String], Type::Bool, "$0.includes($1)"),
-        stdlib_fn!("String", "toUpperCase", [Type::String], Type::String, "$0.toUpperCase()"),
-        stdlib_fn!("String", "toLowerCase", [Type::String], Type::String, "$0.toLowerCase()"),
-        stdlib_fn!("String", "length", [Type::String], Type::Number, "$0.length"),
-        stdlib_fn!("String", "slice", [Type::String, Type::Number, Type::Number], Type::String, "$0.slice($1, $2)"),
-        stdlib_fn!("String", "padStart", [Type::String, Type::Number, Type::String], Type::String, "$0.padStart($1, $2)"),
-        stdlib_fn!("String", "padEnd", [Type::String, Type::Number, Type::String], Type::String, "$0.padEnd($1, $2)"),
-        stdlib_fn!("String", "repeat", [Type::String, Type::Number], Type::String, "$0.repeat($1)"),
-        stdlib_fn!("String", "localeCompare", [Type::String, Type::String], Type::Number, "$0.localeCompare($1)"),
-        // ── Number ──────────────────────────────────────────────
-        stdlib_fn!("Number", "parse", [Type::String], result_of(Type::Number, Type::Named("ParseError".to_string())), "(() => { const _n = Number($0); return Number.isNaN(_n) || $0.trim() === \"\" ? { ok: false as const, error: { message: `Failed to parse \"${$0}\" as number` } } : { ok: true as const, value: _n }; })()"),
-        stdlib_fn!("Number", "clamp", [Type::Number, Type::Number, Type::Number], Type::Number, "Math.min(Math.max($0, $1), $2)"),
-        stdlib_fn!("Number", "isFinite", [Type::Number], Type::Bool, "Number.isFinite($0)"),
-        stdlib_fn!("Number", "isInteger", [Type::Number], Type::Bool, "Number.isInteger($0)"),
-        stdlib_fn!("Number", "toFixed", [Type::Number, Type::Number], Type::String, "$0.toFixed($1)"),
-        stdlib_fn!("Number", "toString", [Type::Number], Type::String, "String($0)"),
-        // ── Console ────────────────────────────────────────────
-        stdlib_fn!("Console", "log", Type::Unit, "console.log($..)"),
-        stdlib_fn!("Console", "warn", Type::Unit, "console.warn($..)"),
-        stdlib_fn!("Console", "error", Type::Unit, "console.error($..)"),
-        stdlib_fn!("Console", "info", Type::Unit, "console.info($..)"),
-        stdlib_fn!("Console", "debug", Type::Unit, "console.debug($..)"),
-        stdlib_fn!("Console", "time", [Type::String], Type::Unit, "console.time($0)"),
-        stdlib_fn!("Console", "timeEnd", [Type::String], Type::Unit, "console.timeEnd($0)"),
-        // ── Math ───────────────────────────────────────────────
-        stdlib_fn!("Math", "floor", [Type::Number], Type::Number, "Math.floor($0)"),
-        stdlib_fn!("Math", "ceil", [Type::Number], Type::Number, "Math.ceil($0)"),
-        stdlib_fn!("Math", "round", [Type::Number], Type::Number, "Math.round($0)"),
-        stdlib_fn!("Math", "abs", [Type::Number], Type::Number, "Math.abs($0)"),
-        stdlib_fn!("Math", "min", [Type::Number, Type::Number], Type::Number, "Math.min($0, $1)"),
-        stdlib_fn!("Math", "max", [Type::Number, Type::Number], Type::Number, "Math.max($0, $1)"),
-        stdlib_fn!("Math", "pow", [Type::Number, Type::Number], Type::Number, "Math.pow($0, $1)"),
-        stdlib_fn!("Math", "sqrt", [Type::Number], Type::Number, "Math.sqrt($0)"),
-        stdlib_fn!("Math", "sign", [Type::Number], Type::Number, "Math.sign($0)"),
-        stdlib_fn!("Math", "trunc", [Type::Number], Type::Number, "Math.trunc($0)"),
-        stdlib_fn!("Math", "log", [Type::Number], Type::Number, "Math.log($0)"),
-        stdlib_fn!("Math", "sin", [Type::Number], Type::Number, "Math.sin($0)"),
-        stdlib_fn!("Math", "cos", [Type::Number], Type::Number, "Math.cos($0)"),
-        stdlib_fn!("Math", "tan", [Type::Number], Type::Number, "Math.tan($0)"),
-        stdlib_fn!("Math", "random", [], Type::Number, "Math.random()"),
-        // ── Map ────────────────────────────────────────────────────
-        stdlib_fn!("Map", "empty", [], map_of(t.clone(), u.clone()), "new Map()"),
-        stdlib_fn!("Map", "fromArray", [array_of(Type::Tuple(vec![t.clone(), u.clone()]))], map_of(t.clone(), u.clone()), "new Map($0)"),
-        stdlib_fn!("Map", "get", [map_of(t.clone(), u.clone()), t.clone()], option_of(u.clone()), "$0.has($1) ? $0.get($1) : undefined"),
-        stdlib_fn!("Map", "set", [map_of(t.clone(), u.clone()), t.clone(), u.clone()], map_of(t.clone(), u.clone()), "new Map([...$0, [$1, $2]])"),
-        stdlib_fn!("Map", "remove", [map_of(t.clone(), u.clone()), t.clone()], map_of(t.clone(), u.clone()), "new Map([...$0].filter(([k]) => k !== $1))"),
-        stdlib_fn!("Map", "has", [map_of(t.clone(), u.clone()), t.clone()], Type::Bool, "$0.has($1)"),
-        stdlib_fn!("Map", "keys", [map_of(t.clone(), u.clone())], array_of(t.clone()), "[...$0.keys()]"),
-        stdlib_fn!("Map", "values", [map_of(t.clone(), u.clone())], array_of(u.clone()), "[...$0.values()]"),
-        stdlib_fn!("Map", "entries", [map_of(t.clone(), u.clone())], array_of(Type::Tuple(vec![t.clone(), u.clone()])), "[...$0.entries()]"),
-        stdlib_fn!("Map", "size", [map_of(t.clone(), u.clone())], Type::Number, "$0.size"),
-        stdlib_fn!("Map", "isEmpty", [map_of(t.clone(), u.clone())], Type::Bool, "$0.size === 0"),
-        stdlib_fn!("Map", "merge", [map_of(t.clone(), u.clone()), map_of(t.clone(), u.clone())], map_of(t.clone(), u.clone()), "new Map([...$0, ...$1])"),
-        // ── Record (plain-object maps from TS Record<K, V>) ───────
-        stdlib_fn!("Record", "get", [record_of(t.clone(), u.clone()), t.clone()], option_of(u.clone()), "$0[$1]"),
-        stdlib_fn!("Record", "has", [record_of(t.clone(), u.clone()), t.clone()], Type::Bool, "($1 in $0)"),
-        stdlib_fn!("Record", "keys", [record_of(t.clone(), u.clone())], array_of(t.clone()), "Object.keys($0)"),
-        stdlib_fn!("Record", "values", [record_of(t.clone(), u.clone())], array_of(u.clone()), "Object.values($0)"),
-        stdlib_fn!("Record", "entries", [record_of(t.clone(), u.clone())], array_of(Type::Tuple(vec![t.clone(), u.clone()])), "Object.entries($0)"),
-        stdlib_fn!("Record", "size", [record_of(t.clone(), u.clone())], Type::Number, "Object.keys($0).length"),
-        stdlib_fn!("Record", "isEmpty", [record_of(t.clone(), u.clone())], Type::Bool, "Object.keys($0).length === 0"),
-        // ── Set ────────────────────────────────────────────────────
-        stdlib_fn!("Set", "empty", [], set_of(t.clone()), "new Set()"),
-        stdlib_fn!("Set", "fromArray", [array_of(t.clone())], set_of(t.clone()), "new Set($0)"),
-        stdlib_fn!("Set", "toArray", [set_of(t.clone())], array_of(t.clone()), "[...$0]"),
-        stdlib_fn!("Set", "add", [set_of(t.clone()), t.clone()], set_of(t.clone()), "new Set([...$0, $1])"),
-        stdlib_fn!("Set", "remove", [set_of(t.clone()), t.clone()], set_of(t.clone()), "new Set([...$0].filter(x => x !== $1))"),
-        stdlib_fn!("Set", "has", [set_of(t.clone()), t.clone()], Type::Bool, "$0.has($1)"),
-        stdlib_fn!("Set", "size", [set_of(t.clone())], Type::Number, "$0.size"),
-        stdlib_fn!("Set", "isEmpty", [set_of(t.clone())], Type::Bool, "$0.size === 0"),
-        stdlib_fn!("Set", "union", [set_of(t.clone()), set_of(t.clone())], set_of(t.clone()), "new Set([...$0, ...$1])"),
-        stdlib_fn!("Set", "intersect", [set_of(t.clone()), set_of(t.clone())], set_of(t.clone()), "new Set([...$0].filter(x => $1.has(x)))"),
-        stdlib_fn!("Set", "diff", [set_of(t.clone()), set_of(t.clone())], set_of(t.clone()), "new Set([...$0].filter(x => !$1.has(x)))"),
-        // ── Date ───────────────────────────────────────────────────
-        stdlib_fn!("Date", "now", [], Type::Named("Date".to_string()), "new Date()"),
-        stdlib_fn!("Date", "from", [Type::String], Type::Named("Date".to_string()), "new Date($0)"),
-        stdlib_fn!("Date", "fromMillis", [Type::Number], Type::Named("Date".to_string()), "new Date($0)"),
-        stdlib_fn!("Date", "year", [Type::Named("Date".to_string())], Type::Number, "$0.getFullYear()"),
-        stdlib_fn!("Date", "month", [Type::Named("Date".to_string())], Type::Number, "($0.getMonth() + 1)"),
-        stdlib_fn!("Date", "day", [Type::Named("Date".to_string())], Type::Number, "$0.getDate()"),
-        stdlib_fn!("Date", "hour", [Type::Named("Date".to_string())], Type::Number, "$0.getHours()"),
-        stdlib_fn!("Date", "minute", [Type::Named("Date".to_string())], Type::Number, "$0.getMinutes()"),
-        stdlib_fn!("Date", "second", [Type::Named("Date".to_string())], Type::Number, "$0.getSeconds()"),
-        stdlib_fn!("Date", "millis", [Type::Named("Date".to_string())], Type::Number, "$0.getTime()"),
-        stdlib_fn!("Date", "toIso", [Type::Named("Date".to_string())], Type::String, "$0.toISOString()"),
-        // ── Http ──────────────────────────────────────────────────
-        stdlib_fn!("Http", "get", [Type::String], result_of(Type::Named("Response".to_string()), Type::Named("Error".to_string())), "(async () => { try { const _r = await fetch($0); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
-        stdlib_fn!("Http", "post", [Type::String, Type::Unknown], result_of(Type::Named("Response".to_string()), Type::Named("Error".to_string())), "(async () => { try { const _r = await fetch($0, { method: \"POST\", body: JSON.stringify($1), headers: { \"Content-Type\": \"application/json\" } }); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
-        stdlib_fn!("Http", "put", [Type::String, Type::Unknown], result_of(Type::Named("Response".to_string()), Type::Named("Error".to_string())), "(async () => { try { const _r = await fetch($0, { method: \"PUT\", body: JSON.stringify($1), headers: { \"Content-Type\": \"application/json\" } }); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
-        stdlib_fn!("Http", "delete", [Type::String], result_of(Type::Named("Response".to_string()), Type::Named("Error".to_string())), "(async () => { try { const _r = await fetch($0, { method: \"DELETE\" }); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
-        stdlib_fn!("Http", "json", [Type::Named("Response".to_string())], result_of(Type::Unknown, Type::Named("Error".to_string())), "(async () => { try { const _r = await $0.json(); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
-        stdlib_fn!("Http", "text", [Type::Named("Response".to_string())], result_of(Type::String, Type::Named("Error".to_string())), "(async () => { try { const _r = await $0.text(); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
-        // ── Promise ────────────────────────────────────────────────
-        stdlib_fn!("Promise", "all", [array_of(promise_of(t.clone()))], promise_of(array_of(t.clone())), "Promise.all($0)"),
-        stdlib_fn!("Promise", "race", [array_of(promise_of(t.clone()))], promise_of(t.clone()), "Promise.race($0)"),
-        stdlib_fn!("Promise", "any", [array_of(promise_of(t.clone()))], promise_of(t.clone()), "Promise.any($0)"),
-        stdlib_fn!("Promise", "allSettled", [array_of(promise_of(t.clone()))], promise_of(array_of(result_of(t.clone(), Type::Named("Error".to_string())))), "Promise.allSettled($0).then(_a => _a.map(_v => _v.status === \"fulfilled\" ? { ok: true as const, value: _v.value } : { ok: false as const, error: _v.reason instanceof Error ? _v.reason : new Error(String(_v.reason)) }))"),
-        stdlib_fn!("Promise", "resolve", [t.clone()], promise_of(t.clone()), "Promise.resolve($0)"),
-        stdlib_fn!("Promise", "reject", [u.clone()], promise_of(t.clone()), "Promise.reject($0)"),
-        stdlib_fn!("Promise", "delay", [Type::Number], promise_of(Type::Unit), "new Promise(_r => setTimeout(_r, $0))"),
-        // ── Bool ───────────────────────────────────────────────────
-        stdlib_fn!("Bool", "guard", [Type::Bool, t.clone(), fun(vec![], t.clone())], t.clone(), "$0 ? ($2)() : $1"),
-        // ── Pipe Utilities ────────────────────────────────────────
-        stdlib_fn!("Pipe", "tap", [t.clone(), fun(vec![t.clone()], Type::Unit)], t.clone(), "(() => { const _v = $0; ($1)(_v); return _v; })()"),
-        // ── JSON ───────────────────────────────────────────────
-        stdlib_fn!("JSON", "stringify", [t.clone()], Type::String, "JSON.stringify($0)"),
-        stdlib_fn!("JSON", "parse", [Type::String], result_of(t.clone(), Type::Named("ParseError".to_string())), "(() => { try { return { ok: true as const, value: JSON.parse($0) }; } catch (e) { return { ok: false as const, error: { message: String(e) } }; } })()"),
-    ]
+/// Build the full stdlib registry.
+fn build_stdlib() -> Vec<StdlibFn> {
+    let mut fns = Vec::new();
+    array::register(&mut fns);
+    option::register(&mut fns);
+    result::register(&mut fns);
+    string::register(&mut fns);
+    number::register(&mut fns);
+    console::register(&mut fns);
+    math::register(&mut fns);
+    map::register(&mut fns);
+    record::register(&mut fns);
+    set::register(&mut fns);
+    date::register(&mut fns);
+    http::register(&mut fns);
+    promise::register(&mut fns);
+    bool::register(&mut fns);
+    pipe::register(&mut fns);
+    json::register(&mut fns);
+    fns
 }
 
 #[cfg(test)]
