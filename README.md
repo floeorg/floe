@@ -39,7 +39,7 @@ export fn Dashboard() -> JSX.Element {
     Ready(users) -> {
       const active = users
         |> filter(.active)
-        |> sort_by(.name)
+        |> sortBy(.name)
 
       <div>
         <h2>{active |> length} active</h2>

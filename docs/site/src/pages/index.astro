@@ -484,7 +484,7 @@ export fn Dashboard() -> JSX.Element {
     Ready(users) -> {
       const active = users
         |> filter(.active)
-        |> sort_by(.name)
+        |> sortBy(.name)
 
       <div>
         <h2>{active |> length} active</h2>
@@ -567,7 +567,7 @@ export function Dashboard(): JSX.Element {
           code={`// Dot shorthand — .field becomes an accessor function
 const activeNames = users
   |> filter(.isActive)
-  |> sort_by(.lastLogin)
+  |> sortBy(.lastLogin)
   |> map(.displayName)
 
 // Placeholder _ controls argument position
