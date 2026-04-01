@@ -462,7 +462,24 @@ impl Checker {
             }
             PatternKind::Tuple(patterns) => {
                 if let Type::Tuple(types) = subject_ty {
-                    for (pat, ty) in patterns.iter().zip(types.iter()) {
+                    if patterns.len() != types.len() {
+                        self.emit_error_with_help(
+                            format!(
+                                "tuple pattern has {} element(s), but the matched tuple has {}",
+                                patterns.len(),
+                                types.len()
+                            ),
+                            pattern.span,
+                            "E035",
+                            "wrong number of elements",
+                            format!(
+                                "adjust the pattern to match all {} elements of the tuple",
+                                types.len()
+                            ),
+                        );
+                    }
+                    for (i, pat) in patterns.iter().enumerate() {
+                        let ty = types.get(i).unwrap_or(&Type::Unknown);
                         self.check_pattern(pat, ty);
                     }
                 } else {

@@ -1916,6 +1916,57 @@ fn tuple_return_from_block_inline() {
     );
 }
 
+// ── Tuple pattern arity ─────────────────────────────────────
+
+#[test]
+fn tuple_pattern_too_few_elements() {
+    let source = r#"
+        const _pair = (1, 2)
+        match _pair {
+            (x) -> x
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, "E035"),
+        "tuple pattern with too few elements should produce E035, got: {diags:?}"
+    );
+}
+
+#[test]
+fn tuple_pattern_too_many_elements() {
+    let source = r#"
+        const _pair = (1, 2)
+        match _pair {
+            (x, y, z) -> x
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, "E035"),
+        "tuple pattern with too many elements should produce E035, got: {diags:?}"
+    );
+}
+
+#[test]
+fn tuple_pattern_correct_arity() {
+    let source = r#"
+        const _pair = (1, 2)
+        match _pair {
+            (x, y) -> x + y
+        }
+    "#;
+    let diags = check(source);
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "tuple pattern with correct arity should not produce errors: {errors:?}"
+    );
+}
+
 // ── Pipe: tap ───────────────────────────────────────────────
 
 #[test]
