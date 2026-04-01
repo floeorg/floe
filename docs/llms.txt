@@ -711,6 +711,21 @@ match key {
 | `(1, 2)` | `[1, 2] as const` |
 | `()` (unit) | `undefined` |
 
+## CLI Commands
+
+```bash
+floe build src/              # compile .fl files to TypeScript
+floe build src/ --out-dir dist/  # specify output directory
+floe check src/              # type-check without generating output
+floe fmt src/                # format .fl files in place
+floe fmt --check src/        # check formatting without modifying (CI)
+floe test src/               # run inline test blocks
+floe watch src/              # watch and recompile on change
+floe init                    # scaffold a new project in current directory
+floe init my-app             # scaffold in a new directory
+floe lsp                     # start language server (used by editors)
+```
+
 ## Key Rules
 
 1. **No semicolons** in Floe source
