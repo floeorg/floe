@@ -31,6 +31,22 @@ impl Checker {
                 Type::Foreign(spec.name.clone())
             };
 
+            // Check for duplicate import names (#812). We check imported_names
+            // rather than the full scope because resolved imports pre-register
+            // types before import statements are processed.
+            if self
+                .unused
+                .imported_names
+                .iter()
+                .any(|(name, _)| name == effective_name)
+            {
+                self.emit_error(
+                    format!("`{effective_name}` is already defined in this scope"),
+                    spec.span,
+                    "E016",
+                    "already defined",
+                );
+            }
             self.env.define(effective_name, ty);
             self.unused.defined_sources.insert(
                 effective_name.to_string(),
