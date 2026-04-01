@@ -1050,9 +1050,9 @@ fn page() {
             probe.contains("__jsxc_Draggable_1"),
             "probe should contain children probe for param 1, got:\n{probe}"
         );
-        // Should reference the children prop
+        // Should reference the children prop via helper pattern
         assert!(
-            probe.contains("[\"children\"]"),
+            probe.contains(".children"),
             "probe should extract from children prop, got:\n{probe}"
         );
     }
