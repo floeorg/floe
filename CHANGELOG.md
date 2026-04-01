@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.40](https://github.com/floeorg/floe/compare/v0.1.39...v0.1.40) (2026-04-01)
+
+
+### Bug Fixes
+
+* [[#911](https://github.com/floeorg/floe/issues/911)] Object destructuring from trusted TS imports resolves fields as unknown ([#912](https://github.com/floeorg/floe/issues/912)) ([ffbf347](https://github.com/floeorg/floe/commit/ffbf3475faa2dc46f34a0758e2165f15184d66f1))
+
 ## [0.1.39](https://github.com/floeorg/floe/compare/v0.1.38...v0.1.39) (2026-04-01)
 
 
