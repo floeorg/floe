@@ -1113,6 +1113,172 @@ const _y = Bar
     );
 }
 
+#[test]
+fn duplicate_import_dts_same_name_from_different_modules_errors() {
+    // Two .d.ts imports bringing the same type name into scope should error.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { Transition } from "framer-motion"
+import { Transition } from "react-transition-group"
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "framer-motion".to_string(),
+        vec![DtsExport {
+            name: "Transition".to_string(),
+            ts_type: TsType::Named("Transition".to_string()),
+        }],
+    );
+    dts_imports.insert(
+        "react-transition-group".to_string(),
+        vec![DtsExport {
+            name: "Transition".to_string(),
+            ts_type: TsType::Named("Transition".to_string()),
+        }],
+    );
+
+    let diags = Checker::with_all_imports(HashMap::new(), dts_imports).check(&program);
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "duplicate dts import name should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn duplicate_import_dts_and_floe_same_name_errors() {
+    // A .d.ts import and a .fl import with the same name should error.
+    use crate::interop::{DtsExport, TsType};
+    use crate::resolve::ResolvedImports;
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { Transition } from "framer-motion"
+import { Transition } from "./local"
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "framer-motion".to_string(),
+        vec![DtsExport {
+            name: "Transition".to_string(),
+            ts_type: TsType::Named("Transition".to_string()),
+        }],
+    );
+
+    let mut fl_imports = HashMap::new();
+    fl_imports.insert("./local".to_string(), ResolvedImports::default());
+
+    let diags = Checker::with_all_imports(fl_imports, dts_imports).check(&program);
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "dts + floe import with same name should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn duplicate_import_dts_and_unresolved_same_name_errors() {
+    // A .d.ts import and an unresolved npm import with the same name should error.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { Component } from "react"
+import { Component } from "some-other-lib"
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "react".to_string(),
+        vec![DtsExport {
+            name: "Component".to_string(),
+            ts_type: TsType::Named("Component".to_string()),
+        }],
+    );
+    // "some-other-lib" is not in dts_imports, so it's unresolved/foreign
+
+    let diags = Checker::with_all_imports(HashMap::new(), dts_imports).check(&program);
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "dts + unresolved import with same name should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn duplicate_import_floe_resolved_same_name_errors() {
+    // Two resolved .fl imports with the same type name should error.
+    use crate::lexer::span::Span;
+    use crate::parser::ast::*;
+    use crate::resolve::ResolvedImports;
+    use std::collections::HashMap;
+
+    let dummy_span = Span::new(0, 0, 0, 0);
+
+    let make_type_decl = |name: &str| TypeDecl {
+        exported: true,
+        opaque: false,
+        name: name.to_string(),
+        type_params: vec![],
+        def: TypeDef::Record(vec![RecordEntry::Field(Box::new(RecordField {
+            name: "id".to_string(),
+            type_ann: TypeExpr {
+                kind: TypeExprKind::Named {
+                    name: "number".to_string(),
+                    type_args: vec![],
+                    bounds: vec![],
+                },
+                span: dummy_span,
+            },
+            default: None,
+            span: dummy_span,
+        }))]),
+        deriving: vec![],
+    };
+
+    let mut fl_imports = HashMap::new();
+
+    let mut resolved_a = ResolvedImports::default();
+    resolved_a.type_decls.push(make_type_decl("Item"));
+    fl_imports.insert("./a".to_string(), resolved_a);
+
+    let mut resolved_b = ResolvedImports::default();
+    resolved_b.type_decls.push(make_type_decl("Item"));
+    fl_imports.insert("./b".to_string(), resolved_b);
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { Item } from "./a"
+import { Item } from "./b"
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let diags = Checker::with_imports(fl_imports).check(&program);
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "two resolved .fl imports with same type name should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Bug #192: Pipe into non-function ────────────────────────
 
 #[test]
