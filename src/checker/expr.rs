@@ -1593,16 +1593,28 @@ impl Checker {
                 }
                 _ => false,
             };
-        match (&stdlib_fn.return_type, left_ty) {
-            (Type::Array(_), _) if infer_from_lambda => {
-                Type::Array(Box::new(lambda_return.unwrap()))
+        // Resolve return type by substituting type variables from the piped input.
+        let mut var_bindings: HashMap<usize, Type> = HashMap::new();
+        if let Some(first_param) = stdlib_fn.params.first() {
+            Self::collect_type_var_bindings(first_param, left_ty, &mut var_bindings);
+        }
+        // If the return type uses a different type var (e.g. map: Array<T> -> Array<U>),
+        // infer it from the lambda's actual return type.
+        if infer_from_lambda {
+            match &stdlib_fn.return_type {
+                Type::Array(_) => Type::Array(Box::new(lambda_return.unwrap())),
+                ret if ret.is_option() => Type::option_of(lambda_return.unwrap()),
+                _ => Self::substitute_type_vars(&stdlib_fn.return_type, &var_bindings),
             }
-            (Type::Array(_), Type::Array(elem)) => Type::Array(elem.clone()),
-            (ret, _) if ret.is_option() && infer_from_lambda => {
-                Type::option_of(lambda_return.unwrap())
+        } else if !var_bindings.is_empty() {
+            Self::substitute_type_vars(&stdlib_fn.return_type, &var_bindings)
+        } else {
+            // No type var bindings resolved — match concrete types directly
+            match (&stdlib_fn.return_type, left_ty) {
+                (Type::Array(_), Type::Array(elem)) => Type::Array(elem.clone()),
+                (ret, actual) if ret.is_option() && actual.is_option() => actual.clone(),
+                _ => stdlib_fn.return_type.clone(),
             }
-            (ret, actual) if ret.is_option() && actual.is_option() => actual.clone(),
-            _ => stdlib_fn.return_type.clone(),
         }
     }
 
@@ -1685,7 +1697,7 @@ impl Checker {
     /// Substitute `Type::Var(n)` with resolved types from the bindings map.
     fn substitute_type_vars(ty: &Type, bindings: &HashMap<usize, Type>) -> Type {
         match ty {
-            Type::Var(n) => bindings.get(n).cloned().unwrap_or(Type::Unknown),
+            Type::Var(n) => bindings.get(n).cloned().unwrap_or_else(|| ty.clone()),
             Type::Array(inner) => {
                 Type::Array(Box::new(Self::substitute_type_vars(inner, bindings)))
             }
