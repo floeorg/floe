@@ -1972,6 +1972,63 @@ fn tuple_pattern_correct_arity() {
     );
 }
 
+// ── Variant pattern arity ────────────────────────────────────
+
+#[test]
+fn variant_pattern_too_few_fields() {
+    let source = r#"
+        type Pair { | Both(number, string) | Neither }
+        const _p: Pair = Both(1, "a")
+        match _p {
+            Both(x) -> x
+            Neither -> 0
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::VariantPatternArity),
+        "variant pattern with too few fields should produce E039, got: {diags:?}"
+    );
+}
+
+#[test]
+fn variant_pattern_too_many_fields() {
+    let source = r#"
+        type Shape { | Circle(number) | Square(number) }
+        const _s: Shape = Circle(5)
+        match _s {
+            Circle(r, extra) -> r
+            Square(s) -> s
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::VariantPatternArity),
+        "variant pattern with too many fields should produce E039, got: {diags:?}"
+    );
+}
+
+#[test]
+fn variant_pattern_correct_arity() {
+    let source = r#"
+        type Shape { | Circle(number) | Square(number) }
+        const _s: Shape = Circle(5)
+        match _s {
+            Circle(r) -> r
+            Square(s) -> s
+        }
+    "#;
+    let diags = check(source);
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "variant pattern with correct arity should not produce errors: {errors:?}"
+    );
+}
+
 // ── Pipe: tap ───────────────────────────────────────────────
 
 #[test]

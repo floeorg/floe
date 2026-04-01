@@ -97,6 +97,8 @@ pub enum ErrorCode {
     StringPatternOnNonString,
     /// Tuple pattern arity mismatch in match.
     TuplePatternArity,
+    /// Variant pattern field count mismatch in match.
+    VariantPatternArity,
 
     // ── Warnings ─────────────────────────────────────────────────────
     /// `todo` placeholder will panic at runtime.
@@ -149,6 +151,7 @@ impl ErrorCode {
             Self::AwaitTryOrder => "E036",
             Self::StringPatternOnNonString => "E037",
             Self::TuplePatternArity => "E038",
+            Self::VariantPatternArity => "E039",
             Self::TodoPlaceholder => "W002",
             Self::SpreadFieldOverwritten => "W003",
             Self::UncheckedArguments => "W004",
