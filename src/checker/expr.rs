@@ -2155,10 +2155,34 @@ impl Checker {
             return ty;
         }
 
-        // Foreign types: allow member access, return Foreign for chained access.
-        // (Foreign types with known Record definitions are resolved above via
-        // resolve_type_to_concrete, so this only fires for truly opaque types.)
+        // Foreign types: try to resolve to Record via DTS before allowing blind access
         if let Type::Foreign(name) = obj_ty {
+            // Try resolving the foreign type to a concrete Record
+            let concrete = self.resolve_type_to_concrete(obj_ty);
+            if let Type::Record(fields) = &concrete {
+                if let Some((_, ty)) = fields.iter().find(|(n, _)| n == field) {
+                    return ty.clone();
+                }
+                if let Some(ty) = self.resolve_for_block_method(field, obj_ty) {
+                    return ty;
+                }
+                self.emit_error_with_help(
+                    format!("type `{name}` has no field `{field}`"),
+                    span,
+                    ErrorCode::InvalidFieldAccess,
+                    "unknown field",
+                    format!(
+                        "available fields: {}",
+                        fields
+                            .iter()
+                            .map(|(n, _)| format!("`{n}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                );
+                return Type::Unknown;
+            }
+            // Truly opaque: allow member access for chained foreign access
             return Type::Foreign(format!("{name}.{field}"));
         }
 

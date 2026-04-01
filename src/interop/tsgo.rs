@@ -199,6 +199,94 @@ impl TsgoResolver {
         // When tsgo can't resolve a complex generic return type, fall back to
         // resolving the function's return type via LSP and extracting fields.
         self.enhance_object_destructure_probes(result, program, ts_imports);
+
+        // Resolve Foreign types referenced in probes — when a probe returns a
+        // Named type like DraggableProvided, fetch the type's definition via LSP
+        // so the checker can validate field access.
+        self.resolve_foreign_type_definitions(result, program, ts_imports);
+    }
+
+    /// For Named types referenced in probe results, resolve their definitions
+    /// via LSP hover so the checker can validate field access.
+    #[cfg(feature = "cli")]
+    fn resolve_foreign_type_definitions(
+        &mut self,
+        result: &mut HashMap<String, Vec<DtsExport>>,
+        program: &Program,
+        ts_imports: &HashMap<String, PathBuf>,
+    ) {
+        // Collect Named types from probe results that don't have definitions yet
+        let mut types_to_resolve: Vec<(String, String)> = Vec::new(); // (type_name, specifier)
+
+        // Build import name → source path mapping for LSP queries
+        let mut import_paths: HashMap<String, PathBuf> = HashMap::new();
+        for item in &program.items {
+            if let crate::parser::ast::ItemKind::Import(decl) = &item.kind {
+                let is_relative = decl.source.starts_with("./") || decl.source.starts_with("../");
+                if !is_relative
+                    && let Some(dts_path) =
+                        typeof_resolve::find_package_dts(&self.project_dir, &decl.source)
+                {
+                    import_paths.entry(decl.source.clone()).or_insert(dts_path);
+                }
+                if let Some(ts_path) = ts_imports.get(&decl.source) {
+                    import_paths
+                        .entry(decl.source.clone())
+                        .or_insert_with(|| ts_path.clone());
+                }
+            }
+        }
+
+        for (specifier, exports) in result.iter() {
+            for export in exports {
+                let type_name = match &export.ts_type {
+                    TsType::Named(name) => Some(name.clone()),
+                    _ => None,
+                };
+                if let Some(name) = type_name {
+                    // Skip if already defined (as a Record or other concrete type)
+                    let already_defined = result
+                        .values()
+                        .flatten()
+                        .any(|e| e.name == name && matches!(e.ts_type, TsType::Object(_)));
+                    if !already_defined && !types_to_resolve.iter().any(|(n, _)| n == &name) {
+                        types_to_resolve.push((name, specifier.clone()));
+                    }
+                }
+            }
+        }
+
+        if types_to_resolve.is_empty() {
+            return;
+        }
+
+        // Parse .d.ts files to find type/interface definitions
+        let mut dts_types: HashMap<String, TsType> = HashMap::new();
+        for source_path in import_paths.values() {
+            let content = match std::fs::read_to_string(source_path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            if let Ok(all_types) = super::dts::parse_all_types_from_str(&content) {
+                for t in all_types {
+                    if matches!(t.ts_type, TsType::Object(_)) {
+                        dts_types.entry(t.name).or_insert(t.ts_type);
+                    }
+                }
+            }
+        }
+
+        for (type_name, specifier) in types_to_resolve {
+            if let Some(ts_type) = dts_types.get(&type_name)
+                && let Some(exports) = result.get_mut(&specifier)
+                && !exports.iter().any(|e| e.name == type_name)
+            {
+                exports.push(DtsExport {
+                    name: type_name,
+                    ts_type: ts_type.clone(),
+                });
+            }
+        }
     }
 
     /// For object destructuring probes that resolved to `any`, resolve the
