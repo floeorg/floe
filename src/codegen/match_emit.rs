@@ -306,7 +306,12 @@ impl Codegen {
         );
         let needs_iife = !bindings.is_empty() || matches!(body.kind, ExprKind::Block(_));
         if needs_iife {
-            self.push("(() => { ");
+            let has_await = super::expr::expr_contains_await(body);
+            if has_await {
+                self.push("await (async () => { ");
+            } else {
+                self.push("(() => { ");
+            }
             for (name, access) in &bindings {
                 self.push(&format!("const {name} = {access}; "));
             }
