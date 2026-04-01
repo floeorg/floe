@@ -1,6 +1,7 @@
 //! Boundary type wrapping: converts TypeScript types to Floe types at the import boundary.
 
 use super::*;
+use crate::type_layout;
 
 /// Converts a TypeScript type to a Floe type, applying boundary wrapping:
 /// - `T | null` -> `Option<T>`
@@ -263,9 +264,9 @@ fn try_parse_result_union(parts: &[&TsType]) -> Option<Type> {
 
     for part in parts {
         if let TsType::Object(fields) = part {
-            let ok_field = fields.iter().find(|f| f.name == "ok");
-            let value_field = fields.iter().find(|f| f.name == "value");
-            let error_field = fields.iter().find(|f| f.name == "error");
+            let ok_field = fields.iter().find(|f| f.name == type_layout::OK_FIELD);
+            let value_field = fields.iter().find(|f| f.name == type_layout::VALUE_FIELD);
+            let error_field = fields.iter().find(|f| f.name == type_layout::ERROR_FIELD);
 
             if value_field.is_some() && ok_field.is_some() {
                 ok_type = value_field.map(|f| wrap_boundary_type(&f.ty));
