@@ -3941,6 +3941,74 @@ const _name = row.name
 }
 
 #[test]
+fn explicit_type_args_used_as_return_type_for_unknown_callee() {
+    // When a DTS function returns unknown but explicit type args are provided,
+    // the first type arg should be used as the return type.
+    use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { useState } from "react"
+import { Transition } from "api"
+
+fn test(id: string) -> () { () }
+
+fn App() -> JSX.Element {
+    const [transitions, _setTransitions] = useState<Array<Transition>>([])
+    const _r = transitions |> map((t) => test(t.id))
+
+    <div />
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let use_state_export = DtsExport {
+        name: "useState".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Any,
+                optional: true,
+            }],
+            return_type: Box::new(TsType::Any),
+        },
+    };
+    let transition_export = DtsExport {
+        name: "Transition".to_string(),
+        ts_type: TsType::Object(vec![
+            ObjectField {
+                name: "id".to_string(),
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            },
+            ObjectField {
+                name: "name".to_string(),
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            },
+        ]),
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("react".to_string(), vec![use_state_export]);
+    dts_imports.insert("api".to_string(), vec![transition_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "explicit type args should resolve return type, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn member_access_on_unresolved_named_type_errors() {
     // When a Named type can't be resolved to a concrete definition,
     // field access should error rather than silently returning Unknown.
