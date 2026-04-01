@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::parser::ast::TypeDef;
 
@@ -218,82 +219,182 @@ impl Type {
         None
     }
 
-    pub(crate) fn display_name(&self) -> String {
-        match self {
-            Type::Number => "number".to_string(),
-            Type::String => "string".to_string(),
-            Type::Bool => "boolean".to_string(),
-            Type::Undefined => "undefined".to_string(),
-            Type::Named(n) | Type::Foreign(n) => n.clone(),
-            Type::Promise(inner) => format!("Promise<{}>", inner.display_name()),
-            Type::Opaque { name, .. } => name.clone(),
-            Type::Settable(inner) => format!("Settable<{}>", inner.display_name()),
-            Type::Function {
-                params,
-                required_params,
-                return_type,
-            } => {
-                let p: Vec<_> = params
-                    .iter()
-                    .enumerate()
-                    .map(|(i, t)| {
-                        if i >= *required_params && *required_params < params.len() {
-                            format!("{} = None", t.display_name())
-                        } else {
-                            t.display_name()
-                        }
-                    })
-                    .collect();
-                format!("({}) -> {}", p.join(", "), return_type.display_name())
-            }
-            Type::Array(inner) => format!("Array<{}>", inner.display_name()),
-            Type::Map { key, value } => {
-                format!("Map<{}, {}>", key.display_name(), value.display_name())
-            }
-            Type::RecordMap { key, value } => {
-                format!("Record<{}, {}>", key.display_name(), value.display_name())
-            }
-            Type::Set { element } => format!("Set<{}>", element.display_name()),
-            Type::Tuple(types) => {
-                let t: Vec<_> = types.iter().map(|t| t.display_name()).collect();
-                format!("({})", t.join(", "))
-            }
-            Type::Record(fields) => {
-                let f: Vec<_> = fields
-                    .iter()
-                    .map(|(n, t)| format!("{n}: {}", t.display_name()))
-                    .collect();
-                format!("{{ {} }}", f.join(", "))
-            }
-            Type::Union { name, .. } => {
-                if name == crate::type_layout::TYPE_OPTION
-                    && let Some(inner) = self.option_inner()
-                {
-                    return format!("Option<{}>", inner.display_name());
-                }
-                if name == crate::type_layout::TYPE_RESULT {
-                    let ok = self
-                        .result_ok()
-                        .map(|t| t.display_name())
-                        .unwrap_or_else(|| "unknown".to_string());
-                    let err = self
-                        .result_err()
-                        .map(|t| t.display_name())
-                        .unwrap_or_else(|| "unknown".to_string());
-                    return format!("Result<{ok}, {err}>");
-                }
-                name.clone()
-            }
-            Type::TsUnion(members) => {
-                let m: Vec<_> = members.iter().map(|t| t.display_name()).collect();
-                m.join(" | ")
-            }
-            Type::StringLiteral(s) => format!("\"{s}\""),
-            Type::Var(id) => format!("?T{id}"),
-            Type::Unknown => "unknown".to_string(),
-            Type::Unit => "()".to_string(),
-            Type::Never => "never".to_string(),
+    /// Return a display wrapper that formats type variables as readable letters
+    /// (T, U, V, ...) instead of internal IDs. Used for stdlib hover/completion display.
+    pub fn display_for_stdlib(&self) -> TypeDisplay<'_> {
+        TypeDisplay {
+            ty: self,
+            style: TypeDisplayStyle::Stdlib,
         }
+    }
+}
+
+// ── Type Display ────────────────────────────────────────────────
+
+/// Controls how types are formatted as strings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TypeDisplayStyle {
+    /// Default style used in error messages and LSP hover.
+    /// Type vars shown as `?T0`, tuples as `(a, b)`, optional params shown with `= None`.
+    Default,
+    /// Stdlib style used in stdlib hover/completion display.
+    /// Type vars shown as letter names (`T`, `U`, `V`), tuples as `[a, b]`.
+    Stdlib,
+}
+
+/// A wrapper for displaying a `Type` with a specific style.
+pub struct TypeDisplay<'a> {
+    ty: &'a Type,
+    style: TypeDisplayStyle,
+}
+
+/// Pretty-print a type variable index as a letter (0 -> T, 1 -> U, 2 -> V, ...).
+fn type_var_letter(index: usize) -> &'static str {
+    match index {
+        0 => "T",
+        1 => "U",
+        2 => "V",
+        3 => "W",
+        _ => "T",
+    }
+}
+
+/// Core type formatting logic shared by all display styles.
+fn fmt_type(ty: &Type, style: TypeDisplayStyle, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match ty {
+        Type::Number => f.write_str("number"),
+        Type::String => f.write_str("string"),
+        Type::Bool => f.write_str("boolean"),
+        Type::Undefined => f.write_str("undefined"),
+        Type::Named(n) | Type::Foreign(n) => f.write_str(n),
+        Type::Promise(inner) => {
+            write!(f, "Promise<{}>", TypeDisplay { ty: inner, style })
+        }
+        Type::Opaque { name, .. } => f.write_str(name),
+        Type::Settable(inner) => {
+            write!(f, "Settable<{}>", TypeDisplay { ty: inner, style })
+        }
+        Type::Function {
+            params,
+            required_params,
+            return_type,
+        } => {
+            f.write_str("(")?;
+            for (i, t) in params.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?;
+                }
+                write!(f, "{}", TypeDisplay { ty: t, style })?;
+                if style == TypeDisplayStyle::Default
+                    && i >= *required_params
+                    && *required_params < params.len()
+                {
+                    f.write_str(" = None")?;
+                }
+            }
+            write!(
+                f,
+                ") -> {}",
+                TypeDisplay {
+                    ty: return_type,
+                    style
+                }
+            )
+        }
+        Type::Array(inner) => {
+            write!(f, "Array<{}>", TypeDisplay { ty: inner, style })
+        }
+        Type::Map { key, value } => {
+            write!(
+                f,
+                "Map<{}, {}>",
+                TypeDisplay { ty: key, style },
+                TypeDisplay { ty: value, style }
+            )
+        }
+        Type::RecordMap { key, value } => {
+            write!(
+                f,
+                "Record<{}, {}>",
+                TypeDisplay { ty: key, style },
+                TypeDisplay { ty: value, style }
+            )
+        }
+        Type::Set { element } => {
+            write!(f, "Set<{}>", TypeDisplay { ty: element, style })
+        }
+        Type::Tuple(types) => {
+            let (open, close) = match style {
+                TypeDisplayStyle::Stdlib => ("[", "]"),
+                TypeDisplayStyle::Default => ("(", ")"),
+            };
+            f.write_str(open)?;
+            for (i, t) in types.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?;
+                }
+                write!(f, "{}", TypeDisplay { ty: t, style })?;
+            }
+            f.write_str(close)
+        }
+        Type::Record(fields) => {
+            f.write_str("{ ")?;
+            for (i, (n, t)) in fields.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?;
+                }
+                write!(f, "{n}: {}", TypeDisplay { ty: t, style })?;
+            }
+            f.write_str(" }")
+        }
+        Type::Union { name, .. } => {
+            if name == crate::type_layout::TYPE_OPTION
+                && let Some(inner) = ty.option_inner()
+            {
+                return write!(f, "Option<{}>", TypeDisplay { ty: inner, style });
+            }
+            if name == crate::type_layout::TYPE_RESULT {
+                let ok_display = ty
+                    .result_ok()
+                    .map(|t| format!("{}", TypeDisplay { ty: t, style }))
+                    .unwrap_or_else(|| "unknown".to_string());
+                let err_display = ty
+                    .result_err()
+                    .map(|t| format!("{}", TypeDisplay { ty: t, style }))
+                    .unwrap_or_else(|| "unknown".to_string());
+                return write!(f, "Result<{ok_display}, {err_display}>");
+            }
+            f.write_str(name)
+        }
+        Type::TsUnion(members) => {
+            for (i, t) in members.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(" | ")?;
+                }
+                write!(f, "{}", TypeDisplay { ty: t, style })?;
+            }
+            Ok(())
+        }
+        Type::StringLiteral(s) => write!(f, "\"{s}\""),
+        Type::Var(id) => match style {
+            TypeDisplayStyle::Stdlib => f.write_str(type_var_letter(*id)),
+            TypeDisplayStyle::Default => write!(f, "?T{id}"),
+        },
+        Type::Unknown => f.write_str("unknown"),
+        Type::Unit => f.write_str("()"),
+        Type::Never => f.write_str("never"),
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_type(self, TypeDisplayStyle::Default, f)
+    }
+}
+
+impl fmt::Display for TypeDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_type(self.ty, self.style, f)
     }
 }
 

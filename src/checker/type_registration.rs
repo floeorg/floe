@@ -90,7 +90,7 @@ impl Checker {
                         let field_ty = self.resolve_type(&field.type_ann);
                         self.name_types.insert(
                             format!("__field_{}_{}", decl.name, field.name),
-                            field_ty.display_name(),
+                            field_ty.to_string(),
                         );
                     }
                 }
@@ -336,13 +336,11 @@ impl Checker {
                                 self.emit_error(
                                     format!(
                                         "default value for `{}`: expected `{}`, found `{}`",
-                                        field.name,
-                                        field_ty.display_name(),
-                                        default_ty.display_name()
+                                        field.name, field_ty, default_ty
                                     ),
                                     field.span,
                                     "E001",
-                                    format!("expected `{}`", field_ty.display_name()),
+                                    format!("expected `{}`", field_ty),
                                 );
                             }
                         } else if seen_default {

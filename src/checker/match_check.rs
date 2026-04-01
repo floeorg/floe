@@ -116,7 +116,7 @@ impl Checker {
             }
             let missing: Vec<_> = variant_set.difference(&covered).collect();
             if !missing.is_empty() {
-                let type_name = subject_ty.display_name();
+                let type_name = subject_ty.to_string();
                 let missing_str = missing
                     .iter()
                     .map(|s| format!("`\"{s}\"`"))
@@ -438,10 +438,7 @@ impl Checker {
                 // String patterns require the subject to be a string type
                 if !matches!(subject_ty, Type::String | Type::Unknown) {
                     self.emit_error(
-                        format!(
-                            "string pattern used on non-string type `{}`",
-                            subject_ty.display_name()
-                        ),
+                        format!("string pattern used on non-string type `{}`", subject_ty),
                         pattern.span,
                         "E005",
                         "expected string type",
@@ -457,8 +454,7 @@ impl Checker {
             }
             PatternKind::Binding(name) => {
                 self.env.define(name, subject_ty.clone());
-                self.name_types
-                    .insert(name.clone(), subject_ty.display_name());
+                self.name_types.insert(name.clone(), subject_ty.to_string());
             }
             PatternKind::Tuple(patterns) => {
                 if let Type::Tuple(types) = subject_ty {
@@ -511,7 +507,7 @@ impl Checker {
                         Type::Array(Box::new(Type::Unknown))
                     };
                     self.env.define(name, rest_ty.clone());
-                    self.name_types.insert(name.clone(), rest_ty.display_name());
+                    self.name_types.insert(name.clone(), rest_ty.to_string());
                 }
             }
         }

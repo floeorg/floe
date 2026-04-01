@@ -10,7 +10,7 @@ mod type_registration;
 mod type_resolve;
 mod types;
 
-pub use types::Type;
+pub use types::{Type, TypeDisplay};
 
 use std::collections::{HashMap, HashSet};
 
@@ -577,7 +577,7 @@ impl Checker {
             for (name, ty) in scope {
                 self.name_types
                     .entry(name.clone())
-                    .or_insert_with(|| ty.display_name());
+                    .or_insert_with(|| ty.to_string());
             }
         }
 

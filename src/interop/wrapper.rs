@@ -62,7 +62,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                     // Preserve generic args in the display name
                     let args_str: Vec<String> = args
                         .iter()
-                        .map(|a| wrap_boundary_type(a).display_name())
+                        .map(|a| wrap_boundary_type(a).to_string())
                         .collect();
                     Type::Foreign(format!("{}<{}>", name, args_str.join(", ")))
                 }

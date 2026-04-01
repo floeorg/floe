@@ -152,7 +152,7 @@ impl Checker {
                 self.emit_error_with_help(
                     format!(
                         "cannot narrow `unknown` to `{}` — use runtime validation instead",
-                        declared.display_name()
+                        declared
                     ),
                     span,
                     "E019",
@@ -161,14 +161,10 @@ impl Checker {
                 );
             } else if !self.types_compatible(declared, &value_type) {
                 self.emit_error(
-                    format!(
-                        "expected `{}`, found `{}`",
-                        declared.display_name(),
-                        value_type.display_name()
-                    ),
+                    format!("expected `{}`, found `{}`", declared, value_type),
                     span,
                     "E001",
-                    format!("expected `{}`", declared.display_name()),
+                    format!("expected `{}`", declared),
                 );
             }
             declared.clone()
@@ -204,7 +200,7 @@ impl Checker {
     /// Define a single const binding (handles no-redefinition check, name_types, env, etc.)
     fn define_const_binding(&mut self, name: &str, ty: Type, exported: bool, span: Span) {
         self.check_no_redefinition(name, span);
-        self.name_types.insert(name.to_string(), ty.display_name());
+        self.name_types.insert(name.to_string(), ty.to_string());
         self.env.define(name, ty);
         self.unused
             .defined_sources
@@ -355,13 +351,11 @@ impl Checker {
                     self.emit_error(
                         format!(
                             "default value for `{}`: expected `{}`, found `{}`",
-                            param.name,
-                            ty.display_name(),
-                            default_ty.display_name()
+                            param.name, ty, default_ty
                         ),
                         param.span,
                         "E001",
-                        format!("expected `{}`", ty.display_name()),
+                        format!("expected `{}`", ty),
                     );
                 }
             }
@@ -379,7 +373,7 @@ impl Checker {
             };
             // Update in the name_types map for hover display
             self.name_types
-                .insert(decl.name.clone(), fn_type.display_name());
+                .insert(decl.name.clone(), fn_type.to_string());
             // Mark for updating in outer scope after pop
             self.env.define_in_parent_scope(&decl.name, fn_type);
         }
@@ -399,13 +393,11 @@ impl Checker {
                 self.emit_error(
                     format!(
                         "function `{}`: expected return type `{}`, found `{}`",
-                        decl.name,
-                        resolved.display_name(),
-                        body_type.display_name()
+                        decl.name, resolved, body_type
                     ),
                     span,
                     "E001",
-                    format!("expected `{}`", resolved.display_name()),
+                    format!("expected `{}`", resolved),
                 );
             }
 
@@ -417,8 +409,7 @@ impl Checker {
                 self.emit_error_with_help(
                     format!(
                         "function `{}` must return a value of type `{}`",
-                        decl.name,
-                        resolved.display_name()
+                        decl.name, resolved
                     ),
                     span,
                     "E013",
@@ -443,7 +434,7 @@ impl Checker {
         // If this is a trait impl block, validate the trait contract
         if let Some(ref trait_name) = block.trait_name {
             self.unused.used_names.insert(trait_name.clone());
-            let type_display = for_type.display_name();
+            let type_display = for_type.to_string();
             self.check_trait_impl(&type_display, trait_name, &block.functions, block.span);
         }
 
@@ -533,13 +524,11 @@ impl Checker {
                         self.emit_error(
                             format!(
                                 "default value for `{}`: expected `{}`, found `{}`",
-                                param.name,
-                                ty.display_name(),
-                                default_ty.display_name()
+                                param.name, ty, default_ty
                             ),
                             param.span,
                             "E001",
-                            format!("expected `{}`", ty.display_name()),
+                            format!("expected `{}`", ty),
                         );
                     }
                 }
@@ -555,13 +544,11 @@ impl Checker {
                     self.emit_error(
                         format!(
                             "function `{}`: expected return type `{}`, found `{}`",
-                            func.name,
-                            resolved.display_name(),
-                            body_type.display_name()
+                            func.name, resolved, body_type
                         ),
                         block.span,
                         "E001",
-                        format!("expected `{}`", resolved.display_name()),
+                        format!("expected `{}`", resolved),
                     );
                 }
             }
@@ -582,10 +569,7 @@ impl Checker {
                     // Ensure assert expression evaluates to boolean
                     if !matches!(ty, Type::Bool | Type::Unknown | Type::Var(_)) {
                         self.emit_error(
-                            format!(
-                                "assert expression must be boolean, found `{}`",
-                                ty.display_name()
-                            ),
+                            format!("assert expression must be boolean, found `{}`", ty),
                             *span,
                             "E017",
                             "expected boolean expression",
