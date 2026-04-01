@@ -351,7 +351,7 @@ impl Checker {
                     .map(|(name, _)| TupleSlotValue::Variant(name.clone()))
                     .collect(),
             ),
-            _ if ty.as_string_literal_variants().is_some() => {
+            _ if ty.is_string_literal_union() => {
                 let variants = ty.as_string_literal_variants().unwrap();
                 Some(
                     variants
@@ -499,11 +499,14 @@ impl Checker {
                 if name != "_" && !matches!(subject_ty, Type::Unknown) {
                     let hint = match subject_ty {
                         Type::Bool => Some("use `true`, `false`, or `_` to match booleans"),
-                        Type::Union { .. } => Some("use variant names or `_` to match union types"),
                         _ if subject_ty.is_option() => {
                             Some("use `Some(...)`, `None`, or `_` to match options")
                         }
-                        _ if subject_ty.as_string_literal_variants().is_some() => {
+                        Type::Settable(_) => Some(
+                            "use `Value(...)`, `Clear`, `Unchanged`, or `_` to match settable types",
+                        ),
+                        Type::Union { .. } => Some("use variant names or `_` to match union types"),
+                        _ if subject_ty.is_string_literal_union() => {
                             Some("use string literals or `_` to match string unions")
                         }
                         _ => None,
