@@ -42,14 +42,22 @@ impl Checker {
             self.expr_types.insert(decl.value.id, declared.clone());
         }
         let tsgo_type = self.find_and_consume_tsgo_probe(&decl.binding).map(|ty| {
-            // The tsgo probe generates the raw call expression without `await`,
-            // so if the Floe code has `await`, unwrap Promise from the probe type.
-            if Self::expr_has_await(&decl.value)
+            // The tsgo probe generates the raw call expression without `try`/`await`,
+            // so adjust the probe type to match the Floe expression:
+            // - `await`: unwrap Promise<T> → T
+            // - `try`: wrap T → Result<T, Error>
+            let ty = if Self::expr_has_await(&decl.value)
                 && let Type::Promise(inner) = ty
             {
-                return *inner;
+                *inner
+            } else {
+                ty
+            };
+            if expr_has_try(&decl.value) {
+                Type::result_of(ty, Type::Named(crate::type_layout::TYPE_ERROR.to_string()))
+            } else {
+                ty
             }
-            ty
         });
         let final_type = self.resolve_const_type(value_type, declared_type, &tsgo_type, span);
 

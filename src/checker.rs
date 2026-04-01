@@ -99,6 +99,15 @@ pub fn expr_has_await(expr: &Expr) -> bool {
     }
 }
 
+/// Check if an expression is wrapped in `try` (possibly through `await`).
+pub fn expr_has_try(expr: &Expr) -> bool {
+    match &expr.kind {
+        ExprKind::Try(_) => true,
+        ExprKind::Await(inner) => expr_has_try(inner),
+        _ => false,
+    }
+}
+
 // ── Checker ──────────────────────────────────────────────────────
 
 /// The Floe type checker.
