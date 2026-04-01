@@ -199,6 +199,15 @@ impl Type {
         )
     }
 
+    /// Check if this is a TsUnion of all StringLiterals (non-allocating).
+    pub(crate) fn is_string_literal_union(&self) -> bool {
+        if let Type::TsUnion(members) = self {
+            !members.is_empty() && members.iter().all(|m| matches!(m, Type::StringLiteral(_)))
+        } else {
+            false
+        }
+    }
+
     /// If this is a TsUnion of all StringLiterals, return the string values.
     pub(crate) fn as_string_literal_variants(&self) -> Option<Vec<&str>> {
         if let Type::TsUnion(members) = self {

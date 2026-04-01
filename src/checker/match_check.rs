@@ -351,7 +351,7 @@ impl Checker {
                     .map(|(name, _)| TupleSlotValue::Variant(name.clone()))
                     .collect(),
             ),
-            _ if ty.as_string_literal_variants().is_some() => {
+            _ if ty.is_string_literal_union() => {
                 let variants = ty.as_string_literal_variants().unwrap();
                 Some(
                     variants
@@ -496,6 +496,33 @@ impl Checker {
                 }
             }
             PatternKind::Binding(name) => {
+                if name != "_" && !matches!(subject_ty, Type::Unknown) {
+                    let hint = match subject_ty {
+                        Type::Bool => Some("use `true`, `false`, or `_` to match booleans"),
+                        _ if subject_ty.is_option() => {
+                            Some("use `Some(...)`, `None`, or `_` to match options")
+                        }
+                        Type::Settable(_) => Some(
+                            "use `Value(...)`, `Clear`, `Unchanged`, or `_` to match settable types",
+                        ),
+                        Type::Union { .. } => Some("use variant names or `_` to match union types"),
+                        _ if subject_ty.is_string_literal_union() => {
+                            Some("use string literals or `_` to match string unions")
+                        }
+                        _ => None,
+                    };
+                    if let Some(help) = hint {
+                        self.emit_warning_with_help(
+                            format!(
+                                "`{name}` binds the entire value as a catch-all on type `{subject_ty}`",
+                            ),
+                            pattern.span,
+                            ErrorCode::SuspiciousBinding,
+                            "this name captures the matched value, it doesn't check it",
+                            help,
+                        );
+                    }
+                }
                 self.env.define(name, subject_ty.clone());
                 self.name_types.insert(name.clone(), subject_ty.to_string());
             }
