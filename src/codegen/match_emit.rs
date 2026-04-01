@@ -4,9 +4,7 @@ use crate::parser::ast::*;
 
 use crate::type_layout;
 
-use super::Codegen;
-
-const THROW_NON_EXHAUSTIVE: &str = "(() => { throw new Error(\"non-exhaustive match\"); })()";
+use super::{Codegen, THROW_NON_EXHAUSTIVE};
 
 impl Codegen {
     // ── Match Lowering ───────────────────────────────────────────

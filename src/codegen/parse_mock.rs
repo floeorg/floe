@@ -263,7 +263,7 @@ impl Codegen {
             TypeExprKind::Function { .. }
             | TypeExprKind::TypeOf(_)
             | TypeExprKind::Intersection(_) => {
-                self.push("(() => { throw new Error(\"mock function\"); })");
+                self.push(THROW_MOCK_FUNCTION);
             }
         }
     }

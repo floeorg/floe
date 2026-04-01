@@ -17,6 +17,23 @@ use crate::stdlib::StdlibRegistry;
 use crate::type_layout;
 use crate::type_layout::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
 
+// ── Runtime codegen constants ───────────────────────────────────
+
+/// Runtime deep-equality helper function name.
+const DEEP_EQUAL_FN: &str = "__floeEq";
+
+/// `todo` expression — throws "not implemented" at runtime.
+const THROW_NOT_IMPLEMENTED: &str = "(() => { throw new Error(\"not implemented\"); })()";
+
+/// `unreachable` expression — throws "unreachable" at runtime.
+const THROW_UNREACHABLE: &str = "(() => { throw new Error(\"unreachable\"); })()";
+
+/// Fallback for non-exhaustive match — throws at runtime.
+const THROW_NON_EXHAUSTIVE: &str = "(() => { throw new Error(\"non-exhaustive match\"); })()";
+
+/// Mock placeholder for function types — throws when called.
+const THROW_MOCK_FUNCTION: &str = "(() => { throw new Error(\"mock function\"); })";
+
 /// Produce a mangled name for a for-block function: `TypeName__funcName`.
 /// Generic types are flattened: `Array<User>` → `Array_User`, `Map<string, number>` → `Map_string_number`.
 pub fn for_block_fn_name(type_expr: &TypeExpr, fn_name: &str) -> String {
