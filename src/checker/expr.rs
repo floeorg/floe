@@ -1594,32 +1594,27 @@ impl Checker {
                 _ => false,
             };
         // Resolve return type by substituting type variables from the piped input.
-        // Build a binding map: Var(n) → concrete type from left_ty vs first param.
         let mut var_bindings: HashMap<usize, Type> = HashMap::new();
         if let Some(first_param) = stdlib_fn.params.first() {
             Self::collect_type_var_bindings(first_param, left_ty, &mut var_bindings);
         }
         // If the return type uses a different type var (e.g. map: Array<T> -> Array<U>),
         // infer it from the lambda's actual return type.
-        let ret = if infer_from_lambda {
+        if infer_from_lambda {
             match &stdlib_fn.return_type {
                 Type::Array(_) => Type::Array(Box::new(lambda_return.unwrap())),
                 ret if ret.is_option() => Type::option_of(lambda_return.unwrap()),
                 _ => Self::substitute_type_vars(&stdlib_fn.return_type, &var_bindings),
             }
-        } else {
+        } else if !var_bindings.is_empty() {
             Self::substitute_type_vars(&stdlib_fn.return_type, &var_bindings)
-        };
-        // Fall back to raw return type if no substitutions were made
-        if ret == stdlib_fn.return_type {
-            // Try matching concrete types directly (legacy path)
+        } else {
+            // No type var bindings resolved — match concrete types directly
             match (&stdlib_fn.return_type, left_ty) {
                 (Type::Array(_), Type::Array(elem)) => Type::Array(elem.clone()),
                 (ret, actual) if ret.is_option() && actual.is_option() => actual.clone(),
                 _ => stdlib_fn.return_type.clone(),
             }
-        } else {
-            ret
         }
     }
 
