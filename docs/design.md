@@ -1636,6 +1636,8 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `Array.isEmpty(arr)` | `arr.length === 0` |
 | `Array.chunk(arr, n)` | slice loop |
 | `Array.unique(arr)` | `[...new Set(arr)]` |
+| `Array.uniqueBy(arr, fn)` | filter with Set on key |
+| `Array.indexOf(arr, val)` | `arr.indexOf(val)` → `Option<number>` |
 | `Array.groupBy(arr, fn)` | `Object.groupBy(arr, fn)` |
 | `Number.parse("123")` | strict parse returning `Result` |
 | `type UserId(string)` | `string` (newtype erased) |

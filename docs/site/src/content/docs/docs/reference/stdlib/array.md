@@ -48,6 +48,8 @@ All stdlib functions are **pipe-friendly**: the first argument is the data, so t
 | `Array.isEmpty` | `Array<T> -> boolean` | True if array has no elements |
 | `Array.chunk` | `Array<T>, number -> Array<Array<T>>` | Split into chunks of given size |
 | `Array.unique` | `Array<T> -> Array<T>` | Remove duplicate elements |
+| `Array.uniqueBy` | `Array<T>, (T) -> U -> Array<T>` | Deduplicate by key function (keeps first) |
+| `Array.indexOf` | `Array<T>, T -> Option<number>` | Find index of element (None if not found) |
 | `Array.groupBy` | `Array<T>, (T) -> string -> Record` | Group elements by key function |
 | `Array.zip` | `Array<T>, Array<U> -> Array<(T, U)>` | Pair elements by index from two arrays |
 | `Array.concat` | `Array<T>, Array<T> -> Array<T>` | Concatenate two arrays |
@@ -104,5 +106,7 @@ const items = ["Home", "About", "Contact"]
 const empty = Array.isEmpty([])          // true
 const chunks = [1, 2, 3, 4, 5] |> Array.chunk(2)   // [[1, 2], [3, 4], [5]]
 const deduped = [1, 2, 2, 3] |> Array.unique        // [1, 2, 3]
+const dedupedBy = users |> Array.uniqueBy(.email)   // keeps first per unique email
+const idx = ["a", "b", "c"] |> Array.indexOf("b")  // Some(1)
 const grouped = users |> Array.groupBy(.role)        // { admin: [...], user: [...] }
 ```
