@@ -1638,8 +1638,16 @@ impl Checker {
             (Type::Var(n), _) if !matches!(actual_ty, Type::Unknown | Type::Var(_)) => {
                 bindings.insert(*n, actual_ty.clone());
             }
-            (Type::Array(p), Type::Array(a)) => {
+            (Type::Array(p), Type::Array(a))
+            | (Type::Promise(p), Type::Promise(a))
+            | (Type::Settable(p), Type::Settable(a))
+            | (Type::Set { element: p }, Type::Set { element: a }) => {
                 Self::collect_type_var_bindings(p, a, bindings);
+            }
+            (Type::Map { key: pk, value: pv }, Type::Map { key: ak, value: av })
+            | (Type::RecordMap { key: pk, value: pv }, Type::RecordMap { key: ak, value: av }) => {
+                Self::collect_type_var_bindings(pk, ak, bindings);
+                Self::collect_type_var_bindings(pv, av, bindings);
             }
             (Type::Tuple(ps), Type::Tuple(as_)) if ps.len() == as_.len() => {
                 for (p, a) in ps.iter().zip(as_.iter()) {
@@ -1653,6 +1661,23 @@ impl Checker {
                     }
                 }
             }
+            (
+                Type::Function {
+                    params: pp,
+                    return_type: pr,
+                    ..
+                },
+                Type::Function {
+                    params: ap,
+                    return_type: ar,
+                    ..
+                },
+            ) => {
+                for (p, a) in pp.iter().zip(ap.iter()) {
+                    Self::collect_type_var_bindings(p, a, bindings);
+                }
+                Self::collect_type_var_bindings(pr, ar, bindings);
+            }
             _ => {}
         }
     }
@@ -1664,12 +1689,55 @@ impl Checker {
             Type::Array(inner) => {
                 Type::Array(Box::new(Self::substitute_type_vars(inner, bindings)))
             }
+            Type::Promise(inner) => {
+                Type::Promise(Box::new(Self::substitute_type_vars(inner, bindings)))
+            }
+            Type::Settable(inner) => {
+                Type::Settable(Box::new(Self::substitute_type_vars(inner, bindings)))
+            }
+            Type::Set { element } => Type::Set {
+                element: Box::new(Self::substitute_type_vars(element, bindings)),
+            },
+            Type::Map { key, value } => Type::Map {
+                key: Box::new(Self::substitute_type_vars(key, bindings)),
+                value: Box::new(Self::substitute_type_vars(value, bindings)),
+            },
+            Type::RecordMap { key, value } => Type::RecordMap {
+                key: Box::new(Self::substitute_type_vars(key, bindings)),
+                value: Box::new(Self::substitute_type_vars(value, bindings)),
+            },
             Type::Tuple(types) => Type::Tuple(
                 types
                     .iter()
                     .map(|t| Self::substitute_type_vars(t, bindings))
                     .collect(),
             ),
+            Type::Union { name, variants } => Type::Union {
+                name: name.clone(),
+                variants: variants
+                    .iter()
+                    .map(|(n, ts)| {
+                        (
+                            n.clone(),
+                            ts.iter()
+                                .map(|t| Self::substitute_type_vars(t, bindings))
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            },
+            Type::Function {
+                params,
+                return_type,
+                required_params,
+            } => Type::Function {
+                params: params
+                    .iter()
+                    .map(|t| Self::substitute_type_vars(t, bindings))
+                    .collect(),
+                return_type: Box::new(Self::substitute_type_vars(return_type, bindings)),
+                required_params: *required_params,
+            },
             other => other.clone(),
         }
     }
