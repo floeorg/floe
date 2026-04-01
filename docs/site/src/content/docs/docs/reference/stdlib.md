@@ -658,4 +658,4 @@ const admin = mock<User>(name: "Alice")
 
 `mock<T>` returns `T` directly. Override specific fields with named arguments.
 
-See [Type-Driven Features](/guide/type-driven-features/) for the full guide on both `parse<T>` and `mock<T>`, including supported types, generated output, and common patterns.
+See [Type-Driven Features](/docs/guide/type-driven-features/) for the full guide on both `parse<T>` and `mock<T>`, including supported types, generated output, and common patterns.

@@ -168,7 +168,7 @@ At runtime, `unreachable` throws `Error("unreachable")`.
 - **`todo`** = "I haven't written this yet" (development aid)
 - **`unreachable`** = "This should never happen" (safety assertion)
 
-For runtime type validation with `parse<T>`, see [Type-Driven Features](/guide/type-driven-features/).
+For runtime type validation with `parse<T>`, see [Type-Driven Features](/docs/guide/type-driven-features/).
 
 ## Comparison with TypeScript
 

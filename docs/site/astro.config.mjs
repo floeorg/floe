@@ -9,8 +9,7 @@ const floeLang = {
 };
 
 export default defineConfig({
-  site: "https://floeorg.github.io",
-  base: "/floe",
+  site: "https://floe-lang.dev",
   markdown: {
     shikiConfig: {
       langs: [floeLang],
@@ -43,37 +42,37 @@ export default defineConfig({
         {
           label: "Getting Started",
           items: [
-            { label: "Introduction", slug: "guide/introduction" },
-            { label: "Installation", slug: "guide/installation" },
-            { label: "Your First Project", slug: "guide/first-program" },
-            { label: "Language Tour", slug: "guide/tour" },
-            { label: "Using Floe with LLMs", slug: "guide/llm-setup" },
+            { label: "Introduction", slug: "docs/guide/introduction" },
+            { label: "Installation", slug: "docs/guide/installation" },
+            { label: "Your First Project", slug: "docs/guide/first-program" },
+            { label: "Language Tour", slug: "docs/guide/tour" },
+            { label: "Using Floe with LLMs", slug: "docs/guide/llm-setup" },
             {
               label: "Migrating from TypeScript",
-              slug: "guide/from-typescript",
+              slug: "docs/guide/from-typescript",
             },
           ],
         },
         {
           label: "Language Guide",
           items: [
-            { label: "Functions & Const", slug: "guide/functions" },
-            { label: "Types", slug: "guide/types" },
-            { label: "Pipes", slug: "guide/pipes" },
-            { label: "Pattern Matching", slug: "guide/pattern-matching" },
-            { label: "Error Handling", slug: "guide/error-handling" },
-            { label: "TypeScript Interop", slug: "guide/typescript-interop" },
-            { label: "For Blocks & Traits", slug: "guide/for-blocks" },
-            { label: "JSX & React", slug: "guide/jsx" },
+            { label: "Functions & Const", slug: "docs/guide/functions" },
+            { label: "Types", slug: "docs/guide/types" },
+            { label: "Pipes", slug: "docs/guide/pipes" },
+            { label: "Pattern Matching", slug: "docs/guide/pattern-matching" },
+            { label: "Error Handling", slug: "docs/guide/error-handling" },
+            { label: "TypeScript Interop", slug: "docs/guide/typescript-interop" },
+            { label: "For Blocks & Traits", slug: "docs/guide/for-blocks" },
+            { label: "JSX & React", slug: "docs/guide/jsx" },
             {
               label: "Type-Driven Features",
-              slug: "guide/type-driven-features",
+              slug: "docs/guide/type-driven-features",
             },
           ],
         },
         {
           label: "Reference",
-          autogenerate: { directory: "reference" },
+          autogenerate: { directory: "docs/reference" },
         },
       ],
     }),

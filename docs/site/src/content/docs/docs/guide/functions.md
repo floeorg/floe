@@ -173,4 +173,4 @@ Console.log("done")
 - **No `=>` at the statement level** - `(x) => expr` is only for inline anonymous functions; `->` is used for function types like `(T) -> U`
 - **No `function` keyword** - use `fn` for named functions
 
-These are removed intentionally. See the [introduction](/guide/introduction) for the reasoning.
+These are removed intentionally. See the [introduction](/docs/guide/introduction) for the reasoning.

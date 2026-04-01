@@ -7,7 +7,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Floe Playground</title>
-  <link rel="icon" type="image/svg+xml" href="/floe/logo.svg" />
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -325,15 +325,15 @@
 <body>
   <div class="topbar">
     <div class="topbar-left">
-      <a href="/floe/" class="topbar-logo">
-        <img src="/floe/logo.svg" alt="Floe" />
+      <a href="/" class="topbar-logo">
+        <img src="/logo.svg" alt="Floe" />
         <span>Floe</span>
       </a>
       <div class="topbar-sep"></div>
       <div class="topbar-label">Playground</div>
     </div>
     <div class="topbar-right">
-      <a href="/floe/guide/introduction/" class="btn-sm">Docs</a>
+      <a href="/docs/guide/introduction/" class="btn-sm">Docs</a>
       <button class="btn-sm" id="share-btn">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
         Share
@@ -554,7 +554,7 @@ fn safeDivide(a: number, b: number) -> Result<number, string> {
 
     // Load WASM
     try {
-      const wasm = await import('/floe/playground/pkg/floe_wasm.js');
+      const wasm = await import('/playground/pkg/floe_wasm.js');
       await wasm.default();
       compileFn = wasm.compile;
       doCompile();
