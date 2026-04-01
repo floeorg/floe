@@ -39,7 +39,7 @@ fn check_required_variants(
         checker.emit_error_with_help(
             format!("non-exhaustive match on `{type_name}`: missing {missing_str}"),
             span,
-            "E004",
+            ErrorCode::NonExhaustiveMatch,
             "not all cases covered",
             "add match arms for the missing cases",
         );
@@ -96,7 +96,7 @@ impl Checker {
                 self.emit_error_with_help(
                     format!("non-exhaustive match on `{name}`: missing {missing_str}"),
                     span,
-                    "E004",
+                    ErrorCode::NonExhaustiveMatch,
                     "not all variants covered",
                     "add match arms for the missing variants, or add a `_ ->` catch-all",
                 );
@@ -125,7 +125,7 @@ impl Checker {
                 self.emit_error_with_help(
                     format!("non-exhaustive match on `{type_name}`: missing {missing_str}"),
                     span,
-                    "E004",
+                    ErrorCode::NonExhaustiveMatch,
                     "not all variants covered",
                     "add match arms for the missing variants, or add a `_ ->` catch-all",
                 );
@@ -187,7 +187,7 @@ impl Checker {
                 self.emit_error_with_help(
                     format!("non-exhaustive match on array: missing {missing}"),
                     span,
-                    "E004",
+                    ErrorCode::NonExhaustiveMatch,
                     "not all cases covered",
                     "add match arms for both `[]` and `[_, ..rest]`, or add a `_ ->` catch-all",
                 );
@@ -213,7 +213,7 @@ impl Checker {
                 self.emit_error_with_help(
                     "non-exhaustive match on `boolean`: missing a case",
                     span,
-                    "E004",
+                    ErrorCode::NonExhaustiveMatch,
                     "not all cases covered",
                     "add match arms for both `true` and `false`",
                 );
@@ -225,7 +225,7 @@ impl Checker {
             self.emit_error_with_help(
                 "non-exhaustive match on `number`: cannot cover all values without a catch-all",
                 span,
-                "E004",
+                ErrorCode::NonExhaustiveMatch,
                 "number type has infinite values",
                 "add a `_ ->` catch-all arm",
             );
@@ -234,7 +234,7 @@ impl Checker {
             self.emit_error_with_help(
                 "non-exhaustive match on `string`: cannot cover all values without a catch-all",
                 span,
-                "E004",
+                ErrorCode::NonExhaustiveMatch,
                 "string type has infinite values",
                 "add a `_ ->` catch-all arm",
             );
@@ -247,7 +247,7 @@ impl Checker {
             self.emit_error_with_help(
                 "non-exhaustive match on tuple: not all combinations are covered",
                 span,
-                "E004",
+                ErrorCode::NonExhaustiveMatch,
                 "not all cases covered",
                 "add match arms for the missing combinations, or add a `_ ->` catch-all",
             );
@@ -440,7 +440,7 @@ impl Checker {
                     self.emit_error(
                         format!("string pattern used on non-string type `{}`", subject_ty),
                         pattern.span,
-                        "E005",
+                        ErrorCode::StringPatternOnNonString,
                         "expected string type",
                     );
                 }
@@ -466,7 +466,7 @@ impl Checker {
                                 types.len()
                             ),
                             pattern.span,
-                            "E035",
+                            ErrorCode::TuplePatternArity,
                             "wrong number of elements",
                             format!(
                                 "adjust the pattern to match all {} elements of the tuple",

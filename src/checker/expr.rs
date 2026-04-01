@@ -95,7 +95,7 @@ impl Checker {
                     self.emit_error_with_help(
                         "`await` can only be used inside an `async` function",
                         expr.span,
-                        "E033",
+                        ErrorCode::AwaitOutsideAsync,
                         "not inside an `async` function",
                         "add `async` to the enclosing function declaration",
                     );
@@ -107,7 +107,7 @@ impl Checker {
                         self.emit_error_with_help(
                             "`await try` wraps the Promise in a Result before awaiting",
                             expr.span,
-                            "E034",
+                            ErrorCode::AwaitTryOrder,
                             "wrong order",
                             "use `try await` instead — await the Promise first, then wrap in Result",
                         );
@@ -156,7 +156,7 @@ impl Checker {
                 self.emit_warning_with_help(
                     "`todo` is a placeholder that will panic at runtime",
                     expr.span,
-                    "W002",
+                    ErrorCode::TodoPlaceholder,
                     "not yet implemented",
                     "replace with actual implementation before shipping",
                 );
@@ -228,7 +228,7 @@ impl Checker {
                         .collect::<Vec<_>>()
                         .join(" or ")
                 ))
-                .with_code("E017"),
+                .with_error_code(ErrorCode::AmbiguousVariant),
             );
         }
         if let Some(ty) = self.env.lookup(name).cloned() {
@@ -252,7 +252,7 @@ impl Checker {
             self.emit_error(
                 format!("`{name}` is not defined"),
                 span,
-                "E002",
+                ErrorCode::UndefinedName,
                 "not found in scope",
             );
             Type::Unknown
@@ -267,7 +267,7 @@ impl Checker {
                     self.emit_error(
                         format!("cannot negate type `{}`, expected `number`", ty),
                         span,
-                        "E001",
+                        ErrorCode::TypeMismatch,
                         "expected `number`",
                     );
                 }
@@ -292,7 +292,7 @@ impl Checker {
                     self.emit_error_with_help(
                         "`?` operator requires function to return `Result` or `Option`",
                         span,
-                        "E005",
+                        ErrorCode::InvalidTryOperator,
                         "enclosing function does not return `Result` or `Option`",
                         "change the function's return type to `Result` or `Option`",
                     );
@@ -301,7 +301,7 @@ impl Checker {
                     self.emit_error(
                         "`?` operator can only be used inside a function",
                         span,
-                        "E005",
+                        ErrorCode::InvalidTryOperator,
                         "not inside a function",
                     );
                 }
@@ -325,7 +325,7 @@ impl Checker {
                         ty
                     ),
                     span,
-                    "E005",
+                    ErrorCode::InvalidTryOperator,
                     "not a `Result` or `Option`",
                 );
                 Type::Unknown
@@ -374,7 +374,7 @@ impl Checker {
                     self.emit_error(
                         format!("array index must be `number`, found `{}`", idx_ty),
                         index.span,
-                        "E017",
+                        ErrorCode::InvalidArrayIndex,
                         "expected `number`",
                     );
                 }
@@ -396,7 +396,7 @@ impl Checker {
                                     ),
                                     index.span,
                                 )
-                                .with_code("E017"),
+                                .with_error_code(ErrorCode::InvalidTupleIndex),
                             );
                             Type::Unknown
                         }
@@ -406,7 +406,7 @@ impl Checker {
                                 format!("tuple index must be a non-negative integer, found `{n}`"),
                                 index.span,
                             )
-                            .with_code("E017"),
+                            .with_error_code(ErrorCode::InvalidTupleIndex),
                         );
                         Type::Unknown
                     }
@@ -414,7 +414,7 @@ impl Checker {
                     self.emit_error(
                         "tuple index must be a numeric literal",
                         index.span,
-                        "E017",
+                        ErrorCode::InvalidTupleIndex,
                         "dynamic indexing is not allowed on tuples",
                     );
                     Type::Unknown
@@ -431,7 +431,7 @@ impl Checker {
                 self.emit_error(
                     format!("cannot use bracket access on type `{}`", obj_ty),
                     span,
-                    "E017",
+                    ErrorCode::InvalidBracketAccess,
                     "not an array or tuple type",
                 );
                 Type::Unknown
@@ -514,7 +514,7 @@ impl Checker {
                             arm_type
                         ),
                         arm.body.span,
-                        "E001",
+                        ErrorCode::TypeMismatch,
                         format!("expected `{}`", first_type),
                     );
                 }
@@ -626,7 +626,7 @@ impl Checker {
                         arg_count
                     ),
                     span,
-                    "E001",
+                    ErrorCode::TypeMismatch,
                     "wrong number of arguments",
                 );
             }
@@ -642,7 +642,7 @@ impl Checker {
             self.emit_error_with_help(
                 format!("calling untrusted import `{name}` requires `try`"),
                 span,
-                "E014",
+                ErrorCode::UntrustedImport,
                 "untrusted import",
                 format!("use `try {name}(...)` or mark the import as `trusted`"),
             );
@@ -674,7 +674,7 @@ impl Checker {
             self.emit_error(
                 "only one `_` placeholder allowed per call - use `(x, y) => f(x, y)` for multiple parameters",
                 span,
-                "E023",
+                ErrorCode::MultiplePlaceholders,
                 "multiple `_` placeholders",
             );
         }
@@ -757,7 +757,7 @@ impl Checker {
                                         .collect::<Vec<_>>()
                                         .join(", ")
                                 ))
-                                .with_code("E015"),
+                                .with_error_code(ErrorCode::UnknownField),
                             );
                         }
                     }
@@ -786,7 +786,7 @@ impl Checker {
                             arg_types.len()
                         ),
                         span,
-                        "E001",
+                        ErrorCode::TypeMismatch,
                         "wrong number of arguments",
                     );
                 }
@@ -831,7 +831,7 @@ impl Checker {
                                     arg_ty
                                 ),
                                 span,
-                                "E001",
+                                ErrorCode::TypeMismatch,
                                 format!("expected `{}`", param_ty),
                             );
                         }
@@ -906,7 +906,7 @@ impl Checker {
                                     arg_ty
                                 ),
                                 span,
-                                "E001",
+                                ErrorCode::TypeMismatch,
                                 format!("expected `{}`", param_ty),
                             );
                         }
@@ -924,7 +924,7 @@ impl Checker {
                 self.emit_warning_with_help(
                     format!("`{callee_name}` has unknown type - arguments are not type-checked"),
                     span,
-                    "W004",
+                    ErrorCode::UncheckedArguments,
                     "Type could not be resolved",
                     "Check that the import source has type declarations",
                 );
@@ -955,7 +955,7 @@ impl Checker {
             self.emit_error_with_help(
                 format!("expected boolean operand for `{op}`, found `{}`", ty),
                 span,
-                "E001",
+                ErrorCode::TypeMismatch,
                 "expected `boolean`",
                 "use `match` for non-boolean conditional logic",
             );
@@ -978,7 +978,7 @@ impl Checker {
                     self.emit_error_with_help(
                         format!("cannot compare `{}` with `{}`", left_ty, right_ty),
                         span,
-                        "E008",
+                        ErrorCode::InvalidComparison,
                         "mismatched types",
                         "both sides of `==` must have the same type",
                     );
@@ -1000,7 +1000,7 @@ impl Checker {
                     self.emit_warning_with_help(
                         "use template literal instead of `+` for string concatenation",
                         span,
-                        "W002",
+                        ErrorCode::TodoPlaceholder,
                         "prefer template literal",
                         "use `\"${a}${b}\"` instead",
                     );
@@ -1037,7 +1037,7 @@ impl Checker {
                 self.emit_error(
                     format!("unknown type `{type_name}`"),
                     span,
-                    "E002",
+                    ErrorCode::UndefinedName,
                     "not defined",
                 );
             }
@@ -1066,7 +1066,7 @@ impl Checker {
             self.emit_error_with_help(
                 format!("cannot construct opaque type `{type_name}` outside its defining module"),
                 span,
-                "E003",
+                ErrorCode::OpaqueConstruction,
                 "opaque type cannot be constructed directly",
                 "use the module's exported constructor function instead",
             );
@@ -1125,7 +1125,7 @@ impl Checker {
                     self.emit_error_with_help(
                         format!("unknown field `{label}` on type `{type_name}`"),
                         span,
-                        "E015",
+                        ErrorCode::UnknownField,
                         format!("`{label}` is not a field of `{type_name}`"),
                         format!(
                             "available fields: {}",
@@ -1172,7 +1172,7 @@ impl Checker {
                                 "missing required field `{field}` in `{type_name}` constructor"
                             ),
                             span,
-                            "E016",
+                            ErrorCode::DuplicateDefinition,
                             format!("field `{field}` is required"),
                         );
                     }
@@ -1193,7 +1193,7 @@ impl Checker {
                         self.emit_warning_with_help(
                             format!("field `{label}` from spread is overwritten by explicit field"),
                             span,
-                            "W003",
+                            ErrorCode::SpreadFieldOverwritten,
                             format!("`{label}` exists in the spread source"),
                             "the spread value will be replaced by the explicit field",
                         );
@@ -1261,7 +1261,7 @@ impl Checker {
                                 expected_ty, arg_ty
                             ),
                             span,
-                            "E001",
+                            ErrorCode::TypeMismatch,
                             format!("expected `{}`", expected_ty),
                         );
                     }
@@ -1281,7 +1281,7 @@ impl Checker {
                                 arg_ty
                             ),
                             span,
-                            "E001",
+                            ErrorCode::TypeMismatch,
                             format!("expected `{}`", expected_ty),
                         );
                     }
@@ -1304,7 +1304,7 @@ impl Checker {
                     positional_index
                 ),
                 span,
-                "E016",
+                ErrorCode::DuplicateDefinition,
                 format!(
                     "expected {} argument{}",
                     field_types.len(),
@@ -1494,7 +1494,7 @@ impl Checker {
                                 first_param, left_ty
                             ),
                             right.span,
-                            "E001",
+                            ErrorCode::TypeMismatch,
                             format!("expected `{}`", first_param),
                         );
                     }
@@ -1510,7 +1510,7 @@ impl Checker {
                             right_ty
                         ),
                         right.span,
-                        "E001",
+                        ErrorCode::TypeMismatch,
                         "not a function",
                     );
                 }
@@ -1538,7 +1538,7 @@ impl Checker {
                     first_param, left_ty
                 ),
                 right.span,
-                "E001",
+                ErrorCode::TypeMismatch,
                 format!("expected `{}`", first_param),
             );
         }
@@ -1863,7 +1863,7 @@ impl Checker {
             self.emit_error_with_help(
                 format!("cannot access `.{field}` on `Result` - use `match` or `?` first"),
                 span,
-                "E006",
+                ErrorCode::FieldAccessOnResult,
                 "`Result` must be narrowed first",
                 "use `match result { Ok(v) -> ..., Err(e) -> ... }`",
             );
@@ -1873,7 +1873,7 @@ impl Checker {
             self.emit_error_with_help(
                 format!("cannot access `.{field}` on union `{name}` - use `match` first"),
                 span,
-                "E006",
+                ErrorCode::FieldAccessOnResult,
                 "union must be narrowed first",
                 "use `match` to narrow the union first",
             );
@@ -1888,7 +1888,7 @@ impl Checker {
                     obj_ty
                 ),
                 span,
-                "E021",
+                ErrorCode::AccessOnPromise,
                 "must `await` the Promise before accessing members",
             );
             return Type::Unknown;
@@ -1899,7 +1899,7 @@ impl Checker {
             self.emit_error_with_help(
                 format!("cannot access `.{field}` on `unknown`"),
                 span,
-                "E020",
+                ErrorCode::AccessOnUnknown,
                 "`unknown` must be narrowed before member access",
                 "use `match`, type validation (e.g. Zod), or pattern matching",
             );
@@ -1926,7 +1926,7 @@ impl Checker {
             self.emit_error_with_help(
                 format!("type {type_name} has no field `{field}`"),
                 span,
-                "E017",
+                ErrorCode::InvalidFieldAccess,
                 "unknown field",
                 format!(
                     "available fields: {}",
@@ -1955,7 +1955,7 @@ impl Checker {
                     ),
                     span,
                 )
-                .with_code("E017"),
+                .with_error_code(ErrorCode::InvalidTupleIndex),
             );
             return Type::Unknown;
         }
@@ -1966,7 +1966,7 @@ impl Checker {
                 self.emit_error(
                     format!("cannot access `.{field}` on type `{}`", obj_ty),
                     span,
-                    "E017",
+                    ErrorCode::InvalidFieldAccess,
                     "not a record type",
                 );
                 return Type::Unknown;
@@ -1997,7 +1997,7 @@ impl Checker {
             self.emit_error_with_help(
                 format!("cannot access `.{field}` on unresolved type `{name}`"),
                 span,
-                "E020",
+                ErrorCode::AccessOnUnknown,
                 "type definition not found",
                 "ensure the type's source module has a .d.ts file or is a .fl file",
             );
@@ -2018,7 +2018,7 @@ impl Checker {
         self.emit_error(
             format!("cannot access `.{field}` on type `{}`", obj_ty),
             span,
-            "E017",
+            ErrorCode::InvalidFieldAccess,
             "this type does not support member access",
         );
         Type::Unknown
@@ -2054,7 +2054,7 @@ impl Checker {
                                 self.emit_error(
                                     format!("field `{}` does not exist on type `{}`", f.field, ty),
                                     span,
-                                    "E001",
+                                    ErrorCode::TypeMismatch,
                                     format!("`{}` has no field `{}`", ty, f.field),
                                 );
                                 Type::Unknown
@@ -2073,7 +2073,7 @@ impl Checker {
                     self.emit_error(
                         format!("cannot destructure parameter of type `{}`", ty),
                         span,
-                        "E001",
+                        ErrorCode::TypeMismatch,
                         "destructuring requires a record type".to_string(),
                     );
                     for f in fields {
@@ -2095,7 +2095,7 @@ impl Checker {
                     self.emit_error(
                         format!("cannot array-destructure parameter of type `{}`", ty),
                         span,
-                        "E001",
+                        ErrorCode::TypeMismatch,
                         "array destructuring requires an array type".to_string(),
                     );
                     for field in fields {

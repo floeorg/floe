@@ -19,7 +19,7 @@ impl Checker {
                     self.emit_error_with_help(
                         "unhandled `Result` value",
                         expr.span,
-                        "E005",
+                        ErrorCode::UnhandledResult,
                         "this `Result` is not used",
                         "use `?`, `match`, or assign to `_`",
                     );
@@ -155,7 +155,7 @@ impl Checker {
                         declared
                     ),
                     span,
-                    "E019",
+                    ErrorCode::UnsafeNarrowing,
                     "unsafe narrowing from `unknown`",
                     "use a validation library like Zod, or match on the value",
                 );
@@ -163,7 +163,7 @@ impl Checker {
                 self.emit_error(
                     format!("expected `{}`, found `{}`", declared, value_type),
                     span,
-                    "E001",
+                    ErrorCode::TypeMismatch,
                     format!("expected `{}`", declared),
                 );
             }
@@ -265,7 +265,7 @@ impl Checker {
                     decl.name
                 ),
                 span,
-                "E010",
+                ErrorCode::MissingReturnType,
                 "missing return type",
                 "add `-> ReturnType` after the parameter list",
             );
@@ -354,7 +354,7 @@ impl Checker {
                             param.name, ty, default_ty
                         ),
                         param.span,
-                        "E001",
+                        ErrorCode::TypeMismatch,
                         format!("expected `{}`", ty),
                     );
                 }
@@ -396,7 +396,7 @@ impl Checker {
                         decl.name, resolved, body_type
                     ),
                     span,
-                    "E001",
+                    ErrorCode::TypeMismatch,
                     format!("expected `{}`", resolved),
                 );
             }
@@ -412,7 +412,7 @@ impl Checker {
                         decl.name, resolved
                     ),
                     span,
-                    "E013",
+                    ErrorCode::MissingReturnValue,
                     "missing return value",
                     "add a return expression or change return type to `()`",
                 );
@@ -527,7 +527,7 @@ impl Checker {
                                 param.name, ty, default_ty
                             ),
                             param.span,
-                            "E001",
+                            ErrorCode::TypeMismatch,
                             format!("expected `{}`", ty),
                         );
                     }
@@ -547,7 +547,7 @@ impl Checker {
                             func.name, resolved, body_type
                         ),
                         block.span,
-                        "E001",
+                        ErrorCode::TypeMismatch,
                         format!("expected `{}`", resolved),
                     );
                 }
@@ -571,7 +571,7 @@ impl Checker {
                         self.emit_error(
                             format!("assert expression must be boolean, found `{}`", ty),
                             *span,
-                            "E017",
+                            ErrorCode::AssertNotBoolean,
                             "expected boolean expression",
                         );
                     }
@@ -626,7 +626,7 @@ impl Checker {
                         self.emit_error(
                             format!("component `{name}` is not defined"),
                             element.span,
-                            "E002",
+                            ErrorCode::UndefinedName,
                             "not found in scope",
                         );
                     }
