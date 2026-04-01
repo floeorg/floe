@@ -211,26 +211,47 @@ impl TsgoResolver {
         // Collect (specifier, export_index, symbol_name, source_path) for unresolved exports
         let mut to_resolve: Vec<(String, usize, String, PathBuf)> = Vec::new();
 
-        // Build import name → source path mapping
+        // Build import name → (source specifier, source path) mapping
+        // Covers both local .ts imports and npm packages
         let mut import_paths: HashMap<String, PathBuf> = HashMap::new();
         for item in &program.items {
-            if let ItemKind::Import(decl) = &item.kind
-                && let Some(ts_path) = ts_imports.get(&decl.source)
-            {
-                for spec in &decl.specifiers {
-                    let name = spec.alias.as_deref().unwrap_or(&spec.name);
-                    import_paths.insert(name.to_string(), ts_path.clone());
+            if let ItemKind::Import(decl) = &item.kind {
+                // Local .ts import
+                if let Some(ts_path) = ts_imports.get(&decl.source) {
+                    for spec in &decl.specifiers {
+                        let name = spec.alias.as_deref().unwrap_or(&spec.name);
+                        import_paths.insert(name.to_string(), ts_path.clone());
+                    }
+                }
+                // npm import — find the package .d.ts
+                let is_relative = decl.source.starts_with("./") || decl.source.starts_with("../");
+                if !is_relative
+                    && let Some(dts_path) =
+                        typeof_resolve::find_package_dts(&self.project_dir, &decl.source)
+                {
+                    for spec in &decl.specifiers {
+                        let name = spec.alias.as_deref().unwrap_or(&spec.name);
+                        import_paths
+                            .entry(name.to_string())
+                            .or_insert(dts_path.clone());
+                    }
                 }
             }
         }
 
         for (specifier, exports) in result.iter() {
             for (i, export) in exports.iter().enumerate() {
-                // Only enhance exports that are still Any (unresolved)
+                // Enhance exports that are Any (type-only, unresolved) or
+                // typeof references that weren't resolved by the typeof pass
                 if !matches!(export.ts_type, TsType::Any) {
-                    continue;
+                    if let TsType::Named(ref s) = export.ts_type {
+                        if !s.starts_with("typeof ") {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
                 }
-                // Find the source file for this symbol
                 if let Some(path) = import_paths.get(&export.name) {
                     to_resolve.push((specifier.clone(), i, export.name.clone(), path.clone()));
                 }
