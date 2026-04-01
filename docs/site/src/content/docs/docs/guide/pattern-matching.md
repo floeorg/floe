@@ -215,7 +215,7 @@ const label = product
     }
 ```
 
-`x |> match { ... }` is pure syntax sugar and compiles identically to `match x { ... }`. See [Pipes](/guide/pipes/#pipe-into-match) for more details.
+`x |> match { ... }` is pure syntax sugar and compiles identically to `match x { ... }`. See [Pipes](/docs/guide/pipes/#pipe-into-match) for more details.
 
 ## Exhaustiveness
 

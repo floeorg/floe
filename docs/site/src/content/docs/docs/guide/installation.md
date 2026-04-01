@@ -58,5 +58,5 @@ Any editor with LSP support can connect to it.
 
 ## Next Steps
 
-- [Write your first program](/guide/first-program)
-- [Set up Vite integration](/reference/vite)
+- [Write your first program](/docs/guide/first-program)
+- [Set up Vite integration](/docs/reference/vite)

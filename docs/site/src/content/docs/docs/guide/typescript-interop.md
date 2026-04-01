@@ -53,7 +53,7 @@ const data = try fetchData()    // not trusted, try required
 
 ## Bridge types (`=` syntax)
 
-When you need to reference TypeScript types, Floe uses the `=` syntax. This is distinct from `{ }` which creates new Floe types. See [Types](/guide/types/#two-kinds-of-type-declarations) for the full mental model.
+When you need to reference TypeScript types, Floe uses the `=` syntax. This is distinct from `{ }` which creates new Floe types. See [Types](/docs/guide/types/#two-kinds-of-type-declarations) for the full mental model.
 
 ### String literal unions
 
