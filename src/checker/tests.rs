@@ -1034,6 +1034,85 @@ const remaining = 5
     );
 }
 
+// ── Duplicate import names (#812) ───────────────────────────
+
+#[test]
+fn duplicate_import_same_name_from_different_modules_errors() {
+    let diags = check(
+        r#"
+import { Foo } from "./a"
+import { Foo } from "./b"
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "duplicate import name should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn duplicate_import_same_module_errors() {
+    let diags = check(
+        r#"
+import { Foo } from "./a"
+import { Foo } from "./a"
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "duplicate import from same module should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn duplicate_import_alias_conflicts_errors() {
+    let diags = check(
+        r#"
+import { Foo } from "./a"
+import { Bar as Foo } from "./b"
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "aliased import conflicting with existing name should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn import_then_const_same_name_errors() {
+    let diags = check(
+        r#"
+import { foo } from "./a"
+const foo = 5
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "already defined"),
+        "const redefining imported name should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn distinct_imports_ok() {
+    let diags = check(
+        r#"
+import { Foo } from "./a"
+import { Bar } from "./b"
+const _x = Foo
+const _y = Bar
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "already defined"),
+        "distinct imports should not conflict, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Bug #192: Pipe into non-function ────────────────────────
 
 #[test]
