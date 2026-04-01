@@ -2135,9 +2135,9 @@ impl Checker {
             return Type::Unknown;
         }
 
-        // Error on member access on primitive types
+        // Error on member access on primitive and function types
         match obj_ty {
-            Type::Number | Type::String | Type::Bool | Type::Unit => {
+            Type::Number | Type::String | Type::Bool | Type::Unit | Type::Function { .. } => {
                 self.emit_error(
                     format!("cannot access `.{field}` on type `{}`", obj_ty),
                     span,
