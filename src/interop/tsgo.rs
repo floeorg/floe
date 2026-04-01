@@ -32,8 +32,9 @@ use typeof_resolve::resolve_typeof_types;
 pub struct TsgoResolver {
     project_dir: PathBuf,
     cache: HashMap<u64, Vec<DtsExport>>,
+    /// None = not attempted, Some(None) = failed, Some(Some(_)) = ready
     #[cfg(feature = "cli")]
-    lsp_client: Option<super::tsgo_lsp::TsgoLspClient>,
+    lsp_client: Option<Option<super::tsgo_lsp::TsgoLspClient>>,
 }
 
 impl TsgoResolver {
@@ -46,19 +47,21 @@ impl TsgoResolver {
         }
     }
 
-    /// Get or initialize the LSP client lazily.
+    /// Get or initialize the LSP client lazily. Returns None if tsgo is
+    /// unavailable (only attempts initialization once).
     #[cfg(feature = "cli")]
     fn lsp_client(&mut self) -> Option<&mut super::tsgo_lsp::TsgoLspClient> {
         if self.lsp_client.is_none() {
-            match super::tsgo_lsp::TsgoLspClient::new(&self.project_dir) {
-                Ok(client) => self.lsp_client = Some(client),
+            let result = match super::tsgo_lsp::TsgoLspClient::new(&self.project_dir) {
+                Ok(client) => Some(client),
                 Err(e) => {
                     eprintln!("[floe] tsgo LSP: {e}");
-                    return None;
+                    None
                 }
-            }
+            };
+            self.lsp_client = Some(result);
         }
-        self.lsp_client.as_mut()
+        self.lsp_client.as_mut().and_then(|opt| opt.as_mut())
     }
 
     /// Resolve npm and local TypeScript imports in a program by generating a

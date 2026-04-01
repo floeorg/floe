@@ -144,6 +144,30 @@ impl TsgoLspClient {
         )
     }
 
+    /// Open a document from content already read (avoids double file read).
+    fn open_document_with_content(
+        &mut self,
+        file_path: &Path,
+        content: &str,
+    ) -> Result<(), String> {
+        let uri = path_to_uri(file_path);
+        self.send_notification(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": if file_path.extension().is_some_and(|e| e == "tsx") {
+                        "typescriptreact"
+                    } else {
+                        "typescript"
+                    },
+                    "version": 1,
+                    "text": content,
+                }
+            }),
+        )
+    }
+
     /// Query the hover type for a symbol name at its declaration in a source file.
     /// Uses a cache to avoid repeated queries for the same symbol.
     pub fn query_symbol_type(&mut self, file_path: &Path, symbol_name: &str) -> Option<String> {
@@ -152,12 +176,12 @@ impl TsgoLspClient {
             return cached.clone();
         }
 
-        // Find the symbol position by searching the file content
+        // Read file once — used for both symbol search and didOpen
         let content = std::fs::read_to_string(file_path).ok()?;
         let pos = find_symbol_position(&content, symbol_name)?;
 
         // Ensure the document is open
-        self.open_document(file_path).ok()?;
+        self.open_document_with_content(file_path, &content).ok()?;
 
         let result = self.hover(file_path, pos.0, pos.1);
         self.cache.insert(cache_key, result.clone());
