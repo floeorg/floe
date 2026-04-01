@@ -625,6 +625,9 @@ impl Codegen {
                 self.push("; ");
             }
             self.push(&field.name);
+            if field.default.is_some() {
+                self.push("?");
+            }
             self.push(": ");
             self.emit_type_expr(&field.type_ann);
         }
@@ -638,6 +641,9 @@ impl Codegen {
                 self.push("; ");
             }
             self.push(&field.name);
+            if field.default.is_some() {
+                self.push("?");
+            }
             self.push(": ");
             self.emit_type_expr(&field.type_ann);
         }
