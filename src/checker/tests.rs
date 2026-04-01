@@ -3965,6 +3965,8 @@ fn App() -> JSX.Element {
     .parse_program()
     .expect("should parse");
 
+    // Simulate what tsgo ACTUALLY returns: useState resolves to (any) => any,
+    // but the probe captures concrete types for the destructured elements.
     let use_state_export = DtsExport {
         name: "useState".to_string(),
         ts_type: TsType::Function {
@@ -3974,6 +3976,20 @@ fn App() -> JSX.Element {
             }],
             return_type: Box::new(TsType::Any),
         },
+    };
+    // Probe result: tsgo resolves the concrete call useState<Array<Transition>>([])
+    let probe_export = DtsExport {
+        name: "__probe_transitions__setTransitions".to_string(),
+        ts_type: TsType::Tuple(vec![
+            TsType::Array(Box::new(TsType::Named("Transition".to_string()))),
+            TsType::Function {
+                params: vec![FunctionParam {
+                    ty: TsType::Array(Box::new(TsType::Named("Transition".to_string()))),
+                    optional: false,
+                }],
+                return_type: Box::new(TsType::Primitive("void".to_string())),
+            },
+        ]),
     };
     let transition_export = DtsExport {
         name: "Transition".to_string(),
@@ -3991,7 +4007,7 @@ fn App() -> JSX.Element {
         ]),
     };
     let mut dts_imports = HashMap::new();
-    dts_imports.insert("react".to_string(), vec![use_state_export]);
+    dts_imports.insert("react".to_string(), vec![use_state_export, probe_export]);
     dts_imports.insert("api".to_string(), vec![transition_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);

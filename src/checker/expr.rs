@@ -816,10 +816,6 @@ impl Checker {
                     } else {
                         Self::substitute_generics(&return_type, &substitutions)
                     }
-                } else if matches!(*return_type, Type::Unknown) && !resolved_type_args.is_empty() {
-                    // DTS functions where tsgo can't preserve generic signatures
-                    // return Unknown. Use explicit type args as return type.
-                    resolved_type_args[0].clone()
                 } else {
                     *return_type
                 };
@@ -929,10 +925,6 @@ impl Checker {
             }
             Type::Unknown => {
                 self.check_args_unchecked(args);
-                // Use explicit type args as return type when callee is unknown
-                if let Some(first) = resolved_type_args.first() {
-                    return first.clone();
-                }
                 let callee_name = match &callee.kind {
                     ExprKind::Identifier(name) => name.as_str(),
                     ExprKind::Member { field, .. } => field.as_str(),
@@ -2010,8 +2002,17 @@ impl Checker {
             return ty;
         }
 
-        // Foreign types: allow member access, return Foreign for chained access
+        // Foreign types: try to resolve as a known imported type first,
+        // then fall back to opaque chained access.
         if let Type::Foreign(name) = obj_ty {
+            // Check if this foreign type has a concrete Record definition
+            // (e.g. TS interface imported via DTS that was also used in a generic context)
+            if let Some(val_ty) = self.env.lookup(name).cloned()
+                && let Type::Record(fields) = &val_ty
+                && let Some((_, ty)) = fields.iter().find(|(n, _)| n == field)
+            {
+                return ty.clone();
+            }
             return Type::Foreign(format!("{name}.{field}"));
         }
 
