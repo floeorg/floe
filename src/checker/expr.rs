@@ -2273,11 +2273,23 @@ impl Checker {
             Type::Named(n) | Type::Foreign(n) => Some(n.as_str()),
             _ => None,
         };
-        if let Some(name) = name
-            && let Some(val_ty) = self.env.lookup(name).cloned()
-            && matches!(val_ty, Type::Record(_))
-        {
-            return val_ty;
+        if let Some(name) = name {
+            // Check env first (built-in types, previous imports)
+            if let Some(val_ty) = self.env.lookup(name).cloned()
+                && matches!(val_ty, Type::Record(_))
+            {
+                return val_ty;
+            }
+            // Check DTS imports for type/interface definitions (e.g. non-exported
+            // interfaces like IssueFilters that are referenced in probe output)
+            for exports in self.dts_imports.values() {
+                if let Some(export) = exports.iter().find(|e| e.name == name) {
+                    let ty = crate::interop::wrap_boundary_type(&export.ts_type);
+                    if matches!(ty, Type::Record(_)) {
+                        return ty;
+                    }
+                }
+            }
         }
         resolved
     }

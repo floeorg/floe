@@ -219,6 +219,62 @@ pub(super) fn parse_dts_exports_from_str(content: &str) -> Result<Vec<DtsExport>
     parse_dts_content(content).map(|r| r.exports)
 }
 
+/// Parse ALL type/interface declarations from a source file, including non-exported ones.
+/// Used to resolve type references like `IssueFilters` that appear in probe output
+/// but aren't exported from the source module.
+pub(super) fn parse_all_types_from_str(content: &str) -> Result<Vec<DtsExport>, String> {
+    let allocator = Allocator::default();
+    let source_type = SourceType::tsx();
+    let ret = Parser::new(&allocator, content, source_type).parse();
+
+    if ret.panicked {
+        return Err("failed to parse file".to_string());
+    }
+
+    let mut types = Vec::new();
+    let mut seen_names: HashSet<String> = HashSet::new();
+
+    for stmt in &ret.program.body {
+        // Interface declarations (exported or not)
+        if let Statement::TSInterfaceDeclaration(iface) = stmt {
+            let name = iface.id.name.to_string();
+            if seen_names.insert(name.clone()) {
+                let ts_type = convert_interface_body(&iface.body.body);
+                types.push(DtsExport { name, ts_type });
+            }
+        }
+        // Type alias declarations (exported or not)
+        if let Statement::TSTypeAliasDeclaration(type_decl) = stmt {
+            let name = type_decl.id.name.to_string();
+            if seen_names.insert(name.clone()) {
+                let ts_type = convert_oxc_type(&type_decl.type_annotation);
+                types.push(DtsExport { name, ts_type });
+            }
+        }
+        // Also check inside export declarations
+        if let Statement::ExportNamedDeclaration(export_decl) = stmt
+            && let Some(ref decl) = export_decl.declaration
+        {
+            if let Declaration::TSInterfaceDeclaration(iface) = decl {
+                let name = iface.id.name.to_string();
+                if seen_names.insert(name.clone()) {
+                    let ts_type = convert_interface_body(&iface.body.body);
+                    types.push(DtsExport { name, ts_type });
+                }
+            }
+            if let Declaration::TSTypeAliasDeclaration(type_decl) = decl {
+                let name = type_decl.id.name.to_string();
+                if seen_names.insert(name.clone()) {
+                    let ts_type = convert_oxc_type(&type_decl.type_annotation);
+                    types.push(DtsExport { name, ts_type });
+                }
+            }
+        }
+    }
+
+    Ok(types)
+}
+
 /// Extract exports from an `export` declaration (export function/const/type/interface).
 fn extract_from_export_named(
     export_decl: &ExportNamedDeclaration<'_>,

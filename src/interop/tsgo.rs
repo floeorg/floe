@@ -149,6 +149,20 @@ impl TsgoResolver {
                         entry.push(ts_export);
                     }
                 }
+
+                // Also parse non-exported types referenced in probe output.
+                // E.g. `IssueFilters` is used as a type in the probe but not
+                // exported from jira-store.ts.
+                let all_types = match super::dts::parse_all_types_from_str(&ts_content) {
+                    Ok(types) => types,
+                    Err(_) => continue,
+                };
+                let entry = result.entry(specifier.clone()).or_default();
+                for type_def in all_types {
+                    if !entry.iter().any(|e| e.name == type_def.name) {
+                        entry.push(type_def);
+                    }
+                }
             }
 
             result
