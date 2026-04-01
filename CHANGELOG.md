@@ -5,6 +5,14 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.41](https://github.com/floeorg/floe/compare/v0.1.40...v0.1.41) (2026-04-01)
+
+
+### Bug Fixes
+
+* [[#914](https://github.com/floeorg/floe/issues/914)] Render prop callback params get wrong types from tsgo ([#918](https://github.com/floeorg/floe/issues/918)) ([5cc53b0](https://github.com/floeorg/floe/commit/5cc53b04867c1104bdb36b865ce9a900d8ff1677))
+* [[#915](https://github.com/floeorg/floe/issues/915)] No error on property access of function type ([#916](https://github.com/floeorg/floe/issues/916)) ([fd1408e](https://github.com/floeorg/floe/commit/fd1408e12446ca1af4e2b428788f2ad9962cac65))
+
 ## [0.1.40](https://github.com/floeorg/floe/compare/v0.1.39...v0.1.40) (2026-04-01)
 
 
