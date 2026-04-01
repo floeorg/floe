@@ -866,16 +866,9 @@ fn collect_interface_info(
          bodies: &mut HashMap<String, Vec<ObjectField>>,
          extends: &mut HashMap<String, Vec<String>>| {
             let name = iface.id.name.to_string();
-            let fields = iface
-                .body
-                .body
-                .iter()
-                .filter_map(|sig| match sig {
-                    TSSignature::TSPropertySignature(prop) => convert_property_signature(prop),
-                    _ => None,
-                })
-                .collect();
-            bodies.entry(name.clone()).or_insert(fields);
+            if let TsType::Object(fields) = convert_interface_body(&iface.body.body) {
+                bodies.entry(name.clone()).or_insert(fields);
+            }
 
             if !iface.extends.is_empty() {
                 let parent_names: Vec<String> = iface
@@ -921,13 +914,27 @@ fn resolve_interface_fields(
     bodies: &HashMap<String, Vec<ObjectField>>,
     extends: &HashMap<String, Vec<String>>,
 ) -> Vec<ObjectField> {
+    let mut visited = HashSet::new();
+    resolve_interface_fields_inner(name, bodies, extends, &mut visited)
+}
+
+fn resolve_interface_fields_inner(
+    name: &str,
+    bodies: &HashMap<String, Vec<ObjectField>>,
+    extends: &HashMap<String, Vec<String>>,
+    visited: &mut HashSet<String>,
+) -> Vec<ObjectField> {
+    if !visited.insert(name.to_string()) {
+        return Vec::new(); // cycle detected
+    }
+
     let mut all_fields = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
 
     // First add parent fields (so child fields override)
     if let Some(parents) = extends.get(name) {
         for parent in parents {
-            let parent_fields = resolve_interface_fields(parent, bodies, extends);
+            let parent_fields = resolve_interface_fields_inner(parent, bodies, extends, visited);
             for field in parent_fields {
                 if seen_names.insert(field.name.clone()) {
                     all_fields.push(field);
