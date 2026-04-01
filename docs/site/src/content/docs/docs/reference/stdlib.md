@@ -52,6 +52,13 @@ All array functions return new arrays. They never mutate the original.
 | `Array.prepend` | `Array<T>, T -> Array<T>` | Prepend an element to the start |
 | `Array.from` | `T, (T, number) -> U -> Array<U>` | Create array from iterable with mapping |
 | `Array.mapResult` | `Array<T>, (T) -> Result<U, E> -> Result<Array<U>, E>` | Map fallible function, short-circuit on first Err |
+| `Array.filterMap` | `Array<T>, (T) -> Option<U> -> Array<U>` | Map + filter in one pass (keeps Some values) |
+| `Array.partition` | `Array<T>, (T) -> boolean -> (Array<T>, Array<T>)` | Split into (matching, non-matching) |
+| `Array.flatten` | `Array<Array<T>> -> Array<T>` | Flatten one level of nesting |
+| `Array.findLast` | `Array<T>, (T) -> boolean -> Option<T>` | Last element matching predicate |
+| `Array.takeWhile` | `Array<T>, (T) -> boolean -> Array<T>` | Take elements while predicate holds |
+| `Array.dropWhile` | `Array<T>, (T) -> boolean -> Array<T>` | Drop elements while predicate holds |
+| `Array.intersperse` | `Array<T>, T -> Array<T>` | Insert element between every pair |
 
 ### Examples
 
@@ -115,6 +122,8 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 | `Option.toErr` | `Option<E> -> Result<(), E>` | Convert to Err if present (for `{ data, error }` patterns) |
 | `Option.all` | `Array<Option<T>> -> Option<Array<T>>` | Collect all Some values, None if any missing |
 | `Option.any` | `Array<Option<T>> -> Option<T>` | Return first Some, or None |
+| `Option.guard` | `Option<T>, U, (T) -> U -> U` | Bail with fallback on None, continue with unwrapped value (for `use`) |
+| `Option.orElse` | `Option<T>, () -> Option<T> -> Option<T>` | Lazy fallback chain |
 
 ### Examples
 
@@ -180,6 +189,8 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 | `Result.inspectErr` | `Result<T, E>, (E) -> () -> Result<T, E>` | Side-effect on Err value |
 | `Result.all` | `Array<Result<T, E>> -> Result<Array<T>, E>` | Collect all Ok values, fail on first Err |
 | `Result.any` | `Array<Result<T, E>> -> Result<T, Array<E>>` | First Ok, or all Errs |
+| `Result.guard` | `Result<T, E>, (E) -> U, (T) -> U -> U` | Bail with onErr on Err, continue with Ok value (for `use`) |
+| `Result.orElse` | `Result<T, E>, (E) -> Result<T, F> -> Result<T, F>` | Lazy fallback chain |
 
 ### Examples
 
@@ -555,6 +566,40 @@ match await Http.get(url) {
 ```
 
 All Http functions are async and return `Result`. Use `await` and `?` for ergonomic error handling in pipelines.
+
+---
+
+## Bool
+
+Functions for working with `boolean` values.
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `Bool.guard` | `boolean, T, () -> T -> T` | Continue if true, bail with fallback if false (for `use`) |
+
+### Guard Pattern (Early Return via `use`)
+
+The `guard` functions across `Bool`, `Option`, and `Result` combine with `use` to give linear early-return flow without nesting:
+
+```floe
+// Bool.guard — bail if condition is false
+export fn AdminPage(state: AuthState) -> JSX.Element {
+    use <- Bool.guard(state.isAdmin, <Forbidden />)
+    use <- Bool.guard(state.isVerified, <VerifyPrompt />)
+
+    <AdminPanel />
+}
+
+// Option.guard — bail if None, continue with unwrapped value
+use user <- Option.guard(maybeUser, <LoginPage />)
+<ProfilePage user={user} />
+
+// Result.guard — bail if Err, continue with Ok value
+use data <- Result.guard(fetchResult, (e) => <ErrorPage error={e} />)
+<Dashboard data={data} />
+```
+
+These are just stdlib functions -- no new syntax. Inspired by Gleam's `bool.guard`.
 
 ---
 
