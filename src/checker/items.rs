@@ -236,9 +236,7 @@ impl Checker {
         has_tsgo: bool,
         span: Span,
     ) {
-        let concrete = self
-            .env
-            .resolve_to_concrete(final_type, &expr::simple_resolve_type_expr);
+        let concrete = self.resolve_type_to_concrete(final_type);
 
         let field_map: Option<std::collections::HashMap<&str, &Type>> = match &concrete {
             Type::Record(rec_fields) => {
