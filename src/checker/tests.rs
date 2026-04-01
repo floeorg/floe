@@ -3941,9 +3941,9 @@ const _name = row.name
 }
 
 #[test]
-fn explicit_type_args_used_as_return_type_for_unknown_callee() {
-    // When a DTS function returns unknown but explicit type args are provided,
-    // the first type arg should be used as the return type.
+fn foreign_type_member_access_resolves_via_record_definition() {
+    // When a TS interface is imported via DTS, wrap_boundary_type produces
+    // Type::Foreign. Member access should resolve fields from the env's Record.
     use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
     use std::collections::HashMap;
 
