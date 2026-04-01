@@ -625,6 +625,9 @@ impl Codegen {
                 self.push("; ");
             }
             self.push(&field.name);
+            if field.default.is_some() {
+                self.push("?");
+            }
             self.push(": ");
             self.emit_type_expr(&field.type_ann);
         }
@@ -632,16 +635,8 @@ impl Codegen {
     }
 
     pub(super) fn emit_record_type(&mut self, fields: &[RecordField]) {
-        self.push("{ ");
-        for (i, field) in fields.iter().enumerate() {
-            if i > 0 {
-                self.push("; ");
-            }
-            self.push(&field.name);
-            self.push(": ");
-            self.emit_type_expr(&field.type_ann);
-        }
-        self.push(" }");
+        let refs: Vec<&RecordField> = fields.iter().collect();
+        self.emit_record_type_fields(&refs);
     }
 
     pub(super) fn emit_union_type(&mut self, variants: &[Variant]) {

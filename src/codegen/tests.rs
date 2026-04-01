@@ -328,6 +328,28 @@ fn constructor_all_defaults() {
     assert!(result.contains("timeout: 5000, retries: 3"));
 }
 
+// ── Default field optionality in type definitions ───────────
+
+#[test]
+fn record_type_default_fields_are_optional() {
+    let result = emit(
+        r#"
+        type Config { baseUrl: string, timeout: number = 5000, retries: number = 3 }
+        const c = Config(baseUrl: "https://api.com")
+        "#,
+    );
+    // Fields with defaults should be optional in the type definition
+    assert!(
+        result.contains("timeout?:") && result.contains("retries?:"),
+        "default fields should be optional in type, got: {result}"
+    );
+    // Fields without defaults should remain required
+    assert!(
+        !result.contains("baseUrl?:"),
+        "required field should not be optional, got: {result}"
+    );
+}
+
 // ── Settable ────────────────────────────────────────────────
 
 #[test]
