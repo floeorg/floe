@@ -22,7 +22,18 @@ impl Checker {
                                 .insert(effective_name.to_string(), required);
                         }
                     }
-                    interop::wrap_boundary_type(&dts_export.ts_type)
+                    let ty = interop::wrap_boundary_type(&dts_export.ts_type);
+                    // Type-only TS exports (interfaces, type aliases) resolve
+                    // to Any/Unknown through the probe since they have no runtime
+                    // value. Treat them as Foreign so they're usable as type
+                    // annotations (e.g. `fn f(x: DropResult)`).
+                    if matches!(ty, Type::Unknown)
+                        && matches!(dts_export.ts_type, interop::TsType::Any)
+                    {
+                        Type::Foreign(spec.name.clone())
+                    } else {
+                        ty
+                    }
                 } else {
                     Type::Foreign(spec.name.clone())
                 }
