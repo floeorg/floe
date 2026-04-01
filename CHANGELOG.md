@@ -5,6 +5,14 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.37](https://github.com/floeorg/floe/compare/v0.1.36...v0.1.37) (2026-04-01)
+
+
+### Bug Fixes
+
+* [[#869](https://github.com/floeorg/floe/issues/869)] Checker does not type-check literal patterns in match ([#874](https://github.com/floeorg/floe/issues/874)) ([fae7c90](https://github.com/floeorg/floe/commit/fae7c90f24d8deea720deddbde9763bbfc775842))
+* [[#877](https://github.com/floeorg/floe/issues/877)] Emit async IIFEs for match arms containing await ([#879](https://github.com/floeorg/floe/issues/879)) ([ace8d28](https://github.com/floeorg/floe/commit/ace8d28571dba2e73d9e9e7ba186c8a3ff47ca9e))
+
 ## [0.1.36](https://github.com/floeorg/floe/compare/v0.1.35...v0.1.36) (2026-04-01)
 
 
