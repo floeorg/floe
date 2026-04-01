@@ -5,6 +5,14 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.39](https://github.com/floeorg/floe/compare/v0.1.38...v0.1.39) (2026-04-01)
+
+
+### Bug Fixes
+
+* [[#909](https://github.com/floeorg/floe/issues/909)] Record fields with defaults should be optional in generated TypeScript types ([#910](https://github.com/floeorg/floe/issues/910)) ([0c30c31](https://github.com/floeorg/floe/commit/0c30c3107757edc7098e3905b8e5712eb0d1070e))
+* Replace fictional stdlib calls in pipes example with real syntax ([3738fe0](https://github.com/floeorg/floe/commit/3738fe0b2d80263645b224317d34345531cbe3ab))
+
 ## [0.1.38](https://github.com/floeorg/floe/compare/v0.1.37...v0.1.38) (2026-04-01)
 
 
