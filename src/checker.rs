@@ -1,3 +1,4 @@
+pub mod error_codes;
 mod expr;
 mod imports;
 mod items;
@@ -10,6 +11,7 @@ mod type_registration;
 mod type_resolve;
 mod types;
 
+pub use error_codes::ErrorCode;
 pub use types::{Type, TypeDisplay};
 
 use std::collections::{HashMap, HashSet};
@@ -555,7 +557,7 @@ impl Checker {
                     Diagnostic::error(format!("unused import `{name}`"), *span)
                         .with_label("imported but never used")
                         .with_help("remove this import or use it in the code")
-                        .with_code("E009"),
+                        .with_error_code(ErrorCode::UnusedImport),
                 );
             }
         }
@@ -590,13 +592,13 @@ impl Checker {
         &mut self,
         msg: impl Into<String>,
         span: Span,
-        code: &str,
+        code: ErrorCode,
         label: impl Into<String>,
     ) {
         self.diagnostics.push(
             Diagnostic::error(msg, span)
                 .with_label(label)
-                .with_code(code),
+                .with_error_code(code),
         );
     }
 
@@ -604,7 +606,7 @@ impl Checker {
         &mut self,
         msg: impl Into<String>,
         span: Span,
-        code: &str,
+        code: ErrorCode,
         label: impl Into<String>,
         help: impl Into<String>,
     ) {
@@ -612,7 +614,7 @@ impl Checker {
             Diagnostic::error(msg, span)
                 .with_label(label)
                 .with_help(help)
-                .with_code(code),
+                .with_error_code(code),
         );
     }
 
@@ -620,7 +622,7 @@ impl Checker {
         &mut self,
         msg: impl Into<String>,
         span: Span,
-        code: &str,
+        code: ErrorCode,
         label: impl Into<String>,
         help: impl Into<String>,
     ) {
@@ -628,7 +630,7 @@ impl Checker {
             Diagnostic::warning(msg, span)
                 .with_label(label)
                 .with_help(help)
-                .with_code(code),
+                .with_error_code(code),
         );
     }
 
@@ -691,7 +693,7 @@ impl Checker {
         // duplicate definitions within the same scope.
         if self.env.is_defined_in_current_scope(name) {
             let msg = format!("`{name}` is already defined in this scope");
-            self.emit_error(msg, span, "E016", "already defined");
+            self.emit_error(msg, span, ErrorCode::DuplicateDefinition, "already defined");
         }
     }
 }

@@ -59,6 +59,11 @@ impl Diagnostic {
         self.code = Some(code.into());
         self
     }
+
+    pub fn with_error_code(mut self, code: crate::checker::error_codes::ErrorCode) -> Self {
+        self.code = Some(code.code().to_string());
+        self
+    }
 }
 
 impl std::fmt::Display for Diagnostic {

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use crate::checker::ErrorCode;
 use crate::diagnostic::{self as floe_diag};
 use crate::interop;
 use crate::parser::ast::*;
@@ -105,7 +106,7 @@ pub(super) fn enrich_from_imports(
                     )
                     .with_label("module not found")
                     .with_help("check the file path and extension")
-                    .with_code("E012"),
+                    .with_error_code(ErrorCode::ModuleNotFound),
                 );
             }
             continue;
@@ -121,7 +122,7 @@ pub(super) fn enrich_from_imports(
                     )
                     .with_label("path alias resolved but file not found")
                     .with_help("check the file path matches a tsconfig paths alias")
-                    .with_code("E012"),
+                    .with_error_code(ErrorCode::ModuleNotFound),
                 );
             }
             // Path aliases are resolved as local files, not npm packages
@@ -144,7 +145,7 @@ pub(super) fn enrich_from_imports(
                 )
                 .with_label("package not found")
                 .with_help("check that the package is installed (`npm install`)")
-                .with_code("E013"),
+                .with_error_code(ErrorCode::PackageNotFound),
             );
             continue;
         };

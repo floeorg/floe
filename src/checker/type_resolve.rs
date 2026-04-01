@@ -80,7 +80,7 @@ impl Checker {
                     self.emit_error_with_help(
                         format!("cannot use `typeof` on undefined binding `{name}`"),
                         type_expr.span,
-                        "E002",
+                        ErrorCode::UndefinedName,
                         "not defined",
                         "typeof can only be used with value bindings (const, fn)",
                     );
@@ -168,7 +168,7 @@ impl Checker {
                         self.emit_error_with_help(
                             format!("`{name}` is a value, not a type"),
                             span,
-                            "E002",
+                            ErrorCode::UndefinedName,
                             "cannot use a value as a type",
                             "check the spelling or import/define this type",
                         );
@@ -178,7 +178,7 @@ impl Checker {
                     self.emit_error_with_help(
                         format!("unknown type `{name}`"),
                         span,
-                        "E002",
+                        ErrorCode::UndefinedName,
                         "not defined",
                         "check the spelling or import/define this type",
                     );

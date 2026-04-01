@@ -9,8 +9,10 @@ fn check(source: &str) -> Vec<Diagnostic> {
     Checker::new().check(&program)
 }
 
-fn has_error(diagnostics: &[Diagnostic], code: &str) -> bool {
-    diagnostics.iter().any(|d| d.code.as_deref() == Some(code))
+fn has_error(diagnostics: &[Diagnostic], code: ErrorCode) -> bool {
+    diagnostics
+        .iter()
+        .any(|d| d.code.as_deref() == Some(code.code()))
 }
 
 fn has_error_containing(diagnostics: &[Diagnostic], text: &str) -> bool {
@@ -30,13 +32,13 @@ fn has_warning_containing(diagnostics: &[Diagnostic], text: &str) -> bool {
 #[test]
 fn basic_const_number() {
     let diags = check("const x = 42");
-    assert!(!has_error(&diags, "E001"));
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 #[test]
 fn basic_const_string() {
     let diags = check("const x = \"hello\"");
-    assert!(!has_error(&diags, "E001"));
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 #[test]
@@ -73,7 +75,7 @@ const x = match 42 {
 }
 "#,
     );
-    assert!(!has_error(&diags, "E004"));
+    assert!(!has_error(&diags, ErrorCode::NonExhaustiveMatch));
 }
 
 #[test]
@@ -104,7 +106,10 @@ fn tryFetch(url: string) -> Result<string, string> {
     );
     let unwrap_errors: Vec<_> = diags
         .iter()
-        .filter(|d| d.code.as_deref() == Some("E005") && d.message.contains("operator requires"))
+        .filter(|d| {
+            d.code.as_deref() == Some(ErrorCode::InvalidTryOperator.code())
+                && d.message.contains("operator requires")
+        })
         .collect();
     assert!(unwrap_errors.is_empty());
 }
@@ -147,7 +152,7 @@ const x = result.value
 #[test]
 fn equality_same_types() {
     let diags = check("const x = 1 == 1");
-    assert!(!has_error(&diags, "E008"));
+    assert!(!has_error(&diags, ErrorCode::InvalidComparison));
 }
 
 #[test]
@@ -202,7 +207,7 @@ fn exported_function_needs_return_type() {
 #[test]
 fn exported_function_with_return_type_ok() {
     let diags = check("export fn add(a: number, b: number) -> number { a }");
-    assert!(!has_error(&diags, "E010"));
+    assert!(!has_error(&diags, ErrorCode::MissingReturnType));
 }
 
 // ── Return type mismatch ─────────────────────────────────────
@@ -239,7 +244,7 @@ fn non_exported_function_return_type_not_required() {
 fn helper(x: number) { x * 2 }
 "#,
     );
-    assert!(!has_error(&diags, "E010"));
+    assert!(!has_error(&diags, ErrorCode::MissingReturnType));
 }
 
 // ── Rule 12: String concat warning ──────────────────────────
@@ -255,13 +260,13 @@ fn string_concat_warning() {
 #[test]
 fn ok_creates_result() {
     let diags = check("const _x = Ok(42)");
-    assert!(!has_error(&diags, "E001"));
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 #[test]
 fn none_creates_option() {
     let diags = check("const _x = None");
-    assert!(!has_error(&diags, "E001"));
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 // ── Array type checking ─────────────────────────────────────
@@ -269,14 +274,14 @@ fn none_creates_option() {
 #[test]
 fn homogeneous_array() {
     let diags = check("const _x = [1, 2, 3]");
-    assert!(!has_error(&diags, "E004"));
+    assert!(!has_error(&diags, ErrorCode::NonExhaustiveMatch));
 }
 
 #[test]
 fn mixed_array_inferred_as_unknown() {
     // Mixed-type arrays should be allowed and inferred as Array<unknown>
     let diags = check(r#"const _x = [1, "two", 3]"#);
-    assert!(!has_error(&diags, "E004"));
+    assert!(!has_error(&diags, ErrorCode::NonExhaustiveMatch));
     assert!(!has_error_containing(&diags, "mixed types"));
 }
 
@@ -284,7 +289,7 @@ fn mixed_array_inferred_as_unknown() {
 fn mixed_array_string_and_number() {
     // e.g. TanStack Query's queryKey: ["user", props.userId]
     let diags = check(r#"const _x = ["user", 42]"#);
-    assert!(!has_error(&diags, "E004"));
+    assert!(!has_error(&diags, ErrorCode::NonExhaustiveMatch));
 }
 
 // ── Opaque type enforcement ─────────────────────────────────
@@ -476,7 +481,7 @@ import { fetchUser } from "some-lib"
 const _x = fetchUser("id")
 "#,
     );
-    assert!(has_error(&diags, "E014"));
+    assert!(has_error(&diags, ErrorCode::UntrustedImport));
     assert!(has_error_containing(&diags, "untrusted import"));
 }
 
@@ -488,7 +493,7 @@ import { fetchUser } from "some-lib"
 const _x = try fetchUser("id")
 "#,
     );
-    assert!(!has_error(&diags, "E014"));
+    assert!(!has_error(&diags, ErrorCode::UntrustedImport));
 }
 
 #[test]
@@ -499,7 +504,7 @@ import { trusted capitalize } from "some-lib"
 const _x = capitalize("hello")
 "#,
     );
-    assert!(!has_error(&diags, "E014"));
+    assert!(!has_error(&diags, ErrorCode::UntrustedImport));
 }
 
 #[test]
@@ -511,7 +516,7 @@ const _x = capitalize("hello")
 const _y = slugify("hello world")
 "#,
     );
-    assert!(!has_error(&diags, "E014"));
+    assert!(!has_error(&diags, ErrorCode::UntrustedImport));
 }
 
 #[test]
@@ -543,7 +548,7 @@ type Todo {
 const _t = Todo(id: "1", textt: "hello", done: false)
 "#,
     );
-    assert!(has_error(&diags, "E015"));
+    assert!(has_error(&diags, ErrorCode::UnknownField));
     assert!(has_error_containing(&diags, "unknown field `textt`"));
 }
 
@@ -559,8 +564,8 @@ type Todo {
 const _t = Todo(id: "1", text: "hello", done: false)
 "#,
     );
-    assert!(!has_error(&diags, "E015"));
-    assert!(!has_error(&diags, "E016"));
+    assert!(!has_error(&diags, ErrorCode::UnknownField));
+    assert!(!has_error(&diags, ErrorCode::DuplicateDefinition));
 }
 
 #[test]
@@ -575,7 +580,7 @@ type Todo {
 const _t = Todo(id: "1", text: "hello")
 "#,
     );
-    assert!(has_error(&diags, "E016"));
+    assert!(has_error(&diags, ErrorCode::DuplicateDefinition));
     assert!(has_error_containing(
         &diags,
         "missing required field `done`"
@@ -593,7 +598,7 @@ type Config {
 const _c = Config(host: "localhost")
 "#,
     );
-    assert!(!has_error(&diags, "E016"));
+    assert!(!has_error(&diags, ErrorCode::DuplicateDefinition));
 }
 
 #[test]
@@ -609,7 +614,7 @@ const original = Todo(id: "1", text: "hello", done: false)
 const _t = Todo(..original, text: "updated")
 "#,
     );
-    assert!(!has_error(&diags, "E016"));
+    assert!(!has_error(&diags, ErrorCode::DuplicateDefinition));
 }
 
 #[test]
@@ -625,7 +630,7 @@ type Validation {
 const _v = Valid(texxt: "hello")
 "#,
     );
-    assert!(has_error(&diags, "E015"));
+    assert!(has_error(&diags, ErrorCode::UnknownField));
     assert!(has_error_containing(&diags, "unknown field `texxt`"));
 }
 
@@ -642,7 +647,7 @@ type Validation {
 const _v = Valid(text: "hello")
 "#,
     );
-    assert!(!has_error(&diags, "E015"));
+    assert!(!has_error(&diags, ErrorCode::UnknownField));
 }
 
 // ── Unknown type errors ────────────────────────────────────
@@ -741,7 +746,7 @@ fn add(a: number, b: number) -> number { a + b }
 const _r = add(1, 2)
 "#,
     );
-    assert!(!has_error(&diags, "E001"));
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 #[test]
@@ -774,7 +779,7 @@ fn double(x: number) -> number { x + x }
 const _r = 5 |> double
 "#,
     );
-    assert!(!has_error(&diags, "E001"));
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 #[test]
@@ -785,7 +790,7 @@ fn add(a: number, b: number) -> number { a + b }
 const _r = 5 |> add(3)
 "#,
     );
-    assert!(!has_error(&diags, "E001"));
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 #[test]
@@ -837,7 +842,7 @@ fn pipe_stdlib_correct_type() {
 const _r = "hello" |> trim
 "#,
     );
-    assert!(!has_error(&diags, "E001"));
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 #[test]
@@ -848,7 +853,7 @@ fn pipe_stdlib_correct_array_type() {
 const _r = [1, 2, 3] |> sort
 "#,
     );
-    assert!(!has_error(&diags, "E001"));
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 // ── Variable shadowing tests (#189) ─────────────────────────
@@ -1859,7 +1864,7 @@ fn tuple_with_type_annotation() {
 fn tuple_type_mismatch() {
     let diags = check(r#"const _p: (number, number) = ("a", "b")"#);
     assert!(
-        has_error(&diags, "E001"),
+        has_error(&diags, ErrorCode::TypeMismatch),
         "tuple type mismatch should produce E001, got: {diags:?}"
     );
 }
@@ -1928,7 +1933,7 @@ fn tuple_pattern_too_few_elements() {
     "#;
     let diags = check(source);
     assert!(
-        has_error(&diags, "E035"),
+        has_error(&diags, ErrorCode::TuplePatternArity),
         "tuple pattern with too few elements should produce E035, got: {diags:?}"
     );
 }
@@ -1943,7 +1948,7 @@ fn tuple_pattern_too_many_elements() {
     "#;
     let diags = check(source);
     assert!(
-        has_error(&diags, "E035"),
+        has_error(&diags, ErrorCode::TuplePatternArity),
         "tuple pattern with too many elements should produce E035, got: {diags:?}"
     );
 }
@@ -2063,7 +2068,7 @@ for User: Display {
 "#,
     );
     assert!(
-        has_error(&diags, "E018"),
+        has_error(&diags, ErrorCode::MissingTraitMethod),
         "should error on missing required method"
     );
     assert!(has_error_containing(&diags, "requires method `display`"));
@@ -2081,7 +2086,10 @@ for User: NonExistent {
 }
 "#,
     );
-    assert!(has_error(&diags, "E017"), "should error on unknown trait");
+    assert!(
+        has_error(&diags, ErrorCode::UnknownTrait),
+        "should error on unknown trait"
+    );
     assert!(has_error_containing(&diags, "unknown trait"));
 }
 
@@ -2269,7 +2277,7 @@ for User: Printable {
 "#,
     );
     assert!(
-        has_error(&diags, "E018"),
+        has_error(&diags, ErrorCode::MissingTraitMethod),
         "should error on missing prettyPrint"
     );
     assert!(has_error_containing(&diags, "prettyPrint"));
@@ -2455,7 +2463,7 @@ const x: number = data
 "#,
     );
     assert!(
-        has_error(&diags, "E019"),
+        has_error(&diags, ErrorCode::UnsafeNarrowing),
         "narrowing unknown to a concrete type should be an error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -2471,7 +2479,7 @@ const x: unknown = data
 "#,
     );
     assert!(
-        !has_error(&diags, "E019"),
+        !has_error(&diags, ErrorCode::UnsafeNarrowing),
         "annotating unknown as unknown should be fine"
     );
 }
@@ -2482,7 +2490,7 @@ const x: unknown = data
 fn fetch_requires_try() {
     let diags = check(r#"const res = fetch("https://example.com")"#);
     assert!(
-        has_error(&diags, "E014"),
+        has_error(&diags, ErrorCode::UntrustedImport),
         "calling fetch without try should error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -2492,7 +2500,7 @@ fn fetch_requires_try() {
 fn fetch_with_try_is_ok() {
     let diags = check(r#"const res = try fetch("https://example.com")"#);
     assert!(
-        !has_error(&diags, "E014"),
+        !has_error(&diags, ErrorCode::UntrustedImport),
         "calling fetch with try should be fine"
     );
 }
@@ -2562,7 +2570,7 @@ const x = data.name
 "#,
     );
     assert!(
-        has_error(&diags, "E020"),
+        has_error(&diags, ErrorCode::AccessOnUnknown),
         "member access on unknown should error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -2578,7 +2586,7 @@ const x = data.toJSON()
 "#,
     );
     assert!(
-        has_error(&diags, "E020"),
+        has_error(&diags, ErrorCode::AccessOnUnknown),
         "method call on unknown should error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -2588,7 +2596,7 @@ const x = data.toJSON()
 fn stdlib_member_access_still_works() {
     let diags = check(r#"const x = "hello" |> String.length"#);
     assert!(
-        !has_error(&diags, "E020"),
+        !has_error(&diags, ErrorCode::AccessOnUnknown),
         "stdlib member access should not error"
     );
 }
@@ -2634,7 +2642,7 @@ fn test() -> Result<string, Error> {
 "#,
     );
     assert!(
-        !has_error(&diags, "E020"),
+        !has_error(&diags, ErrorCode::AccessOnUnknown),
         "await should unwrap Promise, allowing .json() access, got: {:?}",
         diags
             .iter()
@@ -2689,7 +2697,7 @@ fn _describe(method: HttpMethod) -> string {
 "#,
     );
     assert!(
-        !has_error(&diags, "E004"),
+        !has_error(&diags, ErrorCode::NonExhaustiveMatch),
         "exhaustive match should not produce error, got: {:?}",
         diags
     );
@@ -2710,7 +2718,7 @@ fn _describe(method: HttpMethod) -> string {
 "#,
     );
     assert!(
-        has_error(&diags, "E004"),
+        has_error(&diags, ErrorCode::NonExhaustiveMatch),
         "missing variants should produce exhaustiveness error, got: {:?}",
         diags
     );
@@ -2731,7 +2739,7 @@ fn _handle(s: Status) -> number {
 "#,
     );
     assert!(
-        !has_error(&diags, "E004"),
+        !has_error(&diags, ErrorCode::NonExhaustiveMatch),
         "wildcard should satisfy exhaustiveness, got: {:?}",
         diags
     );
@@ -2807,7 +2815,7 @@ type B {
 "#,
     );
     assert!(
-        has_error(&diags, "E030"),
+        has_error(&diags, ErrorCode::DuplicateField),
         "expected duplicate field error E030, got: {:?}",
         diags
     );
@@ -2826,7 +2834,7 @@ type Bad {
 "#,
     );
     assert!(
-        has_error(&diags, "E032"),
+        has_error(&diags, ErrorCode::InvalidSpreadType),
         "expected spread-of-non-record error E032, got: {:?}",
         diags
     );
@@ -2879,7 +2887,7 @@ type C {
 "#,
     );
     assert!(
-        has_error(&diags, "E031"),
+        has_error(&diags, ErrorCode::SpreadFieldConflict),
         "expected conflict error E031 between spreads, got: {:?}",
         diags
     );
@@ -3000,7 +3008,7 @@ fn f() -> Result<number, Array<string>> {
 "#,
     );
     assert!(
-        has_error(&diags, "E005"),
+        has_error(&diags, ErrorCode::InvalidTryOperator),
         "expected E005 for ? on non-Result, got: {diags:?}"
     );
 }
@@ -3671,7 +3679,7 @@ const _addTen = add(10, _)
 "#,
     );
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "partial application should not produce errors, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -3689,7 +3697,7 @@ const _result = addTen(5)
 "#,
     );
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "calling partial application result should work, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -3718,7 +3726,7 @@ const _result = 5 |> add(3, _)
 "#,
     );
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "pipe with placeholder should not produce errors, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -3763,7 +3771,7 @@ const _addBang = concat(_, "!")
 "#,
     );
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "partial application in first position should work, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -3822,7 +3830,7 @@ fn apply(f: (number) -> MyError) -> MyError {
 const _result = apply(Validation)
 "#,
     );
-    assert!(has_error(&diags, "E001"));
+    assert!(has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 // ── Positional variant fields ────────────────────────────────
@@ -3856,7 +3864,7 @@ type Shape {
 const _c = Circle("hello")
 "#,
     );
-    assert!(has_error(&diags, "E001"));
+    assert!(has_error(&diags, ErrorCode::TypeMismatch));
 }
 
 #[test]
@@ -3870,7 +3878,7 @@ type Shape {
 const _r = Rect(10)
 "#,
     );
-    assert!(has_error(&diags, "E016"));
+    assert!(has_error(&diags, ErrorCode::DuplicateDefinition));
 }
 
 #[test]
@@ -3907,7 +3915,7 @@ const _s = identity("hello")
 "#,
     );
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "generic function should not produce errors, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -3922,7 +3930,7 @@ const _p = pair(1, "hello")
 "#,
     );
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "generic pair should not produce errors, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -3938,7 +3946,7 @@ const _r = apply(5, double)
 "#,
     );
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "generic apply should not produce errors, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -3948,7 +3956,7 @@ const _r = apply(5, double)
 #[test]
 fn lowercase_type_name_error() {
     let diags = check("type color { | Red | Green }");
-    assert!(has_error(&diags, "E024"));
+    assert!(has_error(&diags, ErrorCode::TypeNameCase));
     assert!(has_error_containing(
         &diags,
         "type name `color` must start with an uppercase letter"
@@ -3958,13 +3966,13 @@ fn lowercase_type_name_error() {
 #[test]
 fn uppercase_type_name_ok() {
     let diags = check("type Color { | Red | Green }");
-    assert!(!has_error(&diags, "E024"));
+    assert!(!has_error(&diags, ErrorCode::TypeNameCase));
 }
 
 #[test]
 fn lowercase_variant_name_error() {
     let diags = check("type Color { | red | Green }");
-    assert!(has_error(&diags, "E024"));
+    assert!(has_error(&diags, ErrorCode::TypeNameCase));
     assert!(has_error_containing(
         &diags,
         "variant name `red` must start with an uppercase letter"
@@ -3974,7 +3982,7 @@ fn lowercase_variant_name_error() {
 #[test]
 fn uppercase_variant_name_ok() {
     let diags = check("type Color { | Red | Green }");
-    assert!(!has_error(&diags, "E024"));
+    assert!(!has_error(&diags, ErrorCode::TypeNameCase));
 }
 
 // Note: uppercase field names are already rejected by the parser
@@ -4087,7 +4095,7 @@ for Entry {
         .expect("parse should succeed");
     let diags = Checker::with_imports(imports).check(&program);
     assert!(
-        !has_error(&diags, "E016"),
+        !has_error(&diags, ErrorCode::DuplicateDefinition),
         "for-block functions with the same name on different types should not conflict, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -4108,7 +4116,7 @@ for Todo {
 "#,
     );
     assert!(
-        has_error(&diags, "E016"),
+        has_error(&diags, ErrorCode::DuplicateDefinition),
         "duplicate for-block function on same type should error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -4379,7 +4387,7 @@ for AccentRow {
     assert!(
         !errors
             .iter()
-            .any(|e| e.contains("E020") && e.contains("AccentRow")),
+            .any(|e| e.contains(ErrorCode::AccessOnUnknown.code()) && e.contains("AccentRow")),
         "foreign type member access should not error, got: {:?}",
         errors
     );
@@ -4443,7 +4451,7 @@ fn stdlib_call_too_many_args_errors() {
 fn stdlib_call_correct_arity_ok() {
     let diags = check("const _x = Date.now()");
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "stdlib call with correct arity should not error, got: {:?}",
         diags
             .iter()
@@ -4594,7 +4602,7 @@ fn value_assignable_to_option() {
     // A concrete value should be assignable to Option<T> (implicit Some wrapping)
     let diags = check("const x: Option<number> = 42");
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "concrete value should be assignable to Option<T>, got: {:?}",
         diags
             .iter()
@@ -4609,7 +4617,7 @@ fn array_assignable_to_option_array() {
     // An array should be assignable to Option<Array<T>>
     let diags = check("const x: Option<Array<number>> = [1, 2, 3]");
     assert!(
-        !has_error(&diags, "E001"),
+        !has_error(&diags, ErrorCode::TypeMismatch),
         "array should be assignable to Option<Array<T>>, got: {:?}",
         diags
             .iter()
@@ -4714,7 +4722,7 @@ type Props {
 "#,
     );
     assert!(
-        has_error(&diags, "E025"),
+        has_error(&diags, ErrorCode::InvalidEnumSpread),
         "& in {{ }} type definition should be an error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -4728,7 +4736,7 @@ type Props = string & { extra: number }
 "#,
     );
     assert!(
-        !has_error(&diags, "E025"),
+        !has_error(&diags, ErrorCode::InvalidEnumSpread),
         "& in = type alias should be allowed, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
@@ -4813,7 +4821,7 @@ const items: Array<string> = ["a", "b"]
 const x = items[0]
 "#,
     );
-    assert!(!has_error(&diags, "E017"));
+    assert!(!has_error(&diags, ErrorCode::InvalidArrayIndex));
 }
 
 #[test]
@@ -4879,7 +4887,7 @@ const x = pair[0]
 const y = pair[1]
 "#,
     );
-    assert!(!has_error(&diags, "E017"));
+    assert!(!has_error(&diags, ErrorCode::InvalidTupleIndex));
 }
 
 #[test]
@@ -4931,10 +4939,13 @@ const _result: Out = input |> In.convert
 "#,
     );
     assert!(
-        !has_error(&diags, "E017"),
+        !has_error(&diags, ErrorCode::InvalidFieldAccess),
         "should not error on qualified for-block pipe"
     );
-    assert!(!has_error(&diags, "E001"), "return type should match Out");
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "return type should match Out"
+    );
 }
 
 // ── For-block member access ─────────────────────────────────
@@ -5176,7 +5187,7 @@ const _result = takesString(x)
 "#,
     );
     assert!(
-        has_error(&diags, "E001"),
+        has_error(&diags, ErrorCode::TypeMismatch),
         "should reject unknown arg for string param, got: {diags:?}"
     );
 }

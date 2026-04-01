@@ -48,7 +48,7 @@ impl Checker {
                 self.emit_error_with_help(
                     format!("unknown trait `{trait_name}`"),
                     span,
-                    "E017",
+                    ErrorCode::UnknownTrait,
                     "not defined",
                     "check the spelling or define this trait",
                 );
@@ -67,7 +67,7 @@ impl Checker {
                             method.name
                         ),
                     span,
-                    "E018",
+                    ErrorCode::MissingTraitMethod,
                     format!("missing method `{}`", method.name),
                     format!(
                         "add `fn {}(self, ...) {{ ... }}` to the for block",

@@ -12,7 +12,7 @@ impl Checker {
                         decl.name
                     ),
                     span,
-                    "E024",
+                    ErrorCode::TypeNameCase,
                     "must be uppercase",
                     format!(
                         "rename to `{}{}`",
@@ -38,7 +38,7 @@ impl Checker {
                                     variant.name[..1].to_uppercase(),
                                     &variant.name[1..]
                                 ))
-                                .with_code("E024"),
+                                .with_error_code(ErrorCode::TypeNameCase),
                             );
                         }
                     }
@@ -204,7 +204,7 @@ impl Checker {
                     span,
                 )
                 .with_help("use `...Spread` for record composition, or `=` for TS interop types")
-                .with_code("E025"),
+                .with_error_code(ErrorCode::InvalidEnumSpread),
             );
         }
     }
@@ -238,7 +238,7 @@ impl Checker {
                                 field.name, type_name
                             ),
                             field.span,
-                            "E030",
+                            ErrorCode::DuplicateField,
                             "duplicate field",
                             "field was already defined elsewhere in this record type",
                         );
@@ -267,7 +267,7 @@ impl Checker {
                                                     field.name, spread.type_name, type_name
                                                 ),
                                             spread.span,
-                                            "E031",
+                                            ErrorCode::SpreadFieldConflict,
                                             format!("field `{}` already defined", field.name),
                                             "field was already defined elsewhere in this record type",
                                         );
@@ -284,7 +284,7 @@ impl Checker {
                                         spread.type_name, type_name
                                     ),
                                     spread.span,
-                                    "E032",
+                                    ErrorCode::InvalidSpreadType,
                                     "spread target must be a record type",
                                 );
                             }
@@ -302,7 +302,7 @@ impl Checker {
                         self.emit_error(
                             format!("unknown type `{}` in spread", spread.type_name),
                             spread.span,
-                            "E002",
+                            ErrorCode::UndefinedName,
                             "type not found",
                         );
                     }
@@ -339,7 +339,7 @@ impl Checker {
                                         field.name, field_ty, default_ty
                                     ),
                                     field.span,
-                                    "E001",
+                                    ErrorCode::TypeMismatch,
                                     format!("expected `{}`", field_ty),
                                 );
                             }
@@ -350,7 +350,7 @@ impl Checker {
                                     field.name
                                 ),
                                 field.span,
-                                "E001",
+                                ErrorCode::TypeMismatch,
                                 "move this field before defaulted fields",
                             );
                         }
@@ -396,7 +396,7 @@ impl Checker {
                     decl.name
                 ),
                 span,
-                "E019",
+                ErrorCode::InvalidDerive,
                 "not a record type",
                 "remove the `deriving` clause or change this to a record type",
             );
@@ -411,7 +411,7 @@ impl Checker {
                     self.emit_error_with_help(
                         "`Eq` cannot be derived — structural equality is built-in for all types via `==`".to_string(),
                         span,
-                        "E019",
+                        ErrorCode::InvalidDerive,
                         "not needed",
                         "remove `Eq` from the deriving clause — use `==` for equality comparison",
                     );
@@ -438,7 +438,7 @@ impl Checker {
                     self.emit_error_with_help(
                         format!("trait `{trait_name}` cannot be derived"),
                         span,
-                        "E019",
+                        ErrorCode::InvalidDerive,
                         "not a derivable trait",
                         "only `Display` can be derived",
                     );

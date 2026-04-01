@@ -43,7 +43,7 @@ impl Checker {
                 self.emit_error(
                     format!("`{effective_name}` is already defined in this scope"),
                     spec.span,
-                    "E016",
+                    ErrorCode::DuplicateDefinition,
                     "already defined",
                 );
             }
