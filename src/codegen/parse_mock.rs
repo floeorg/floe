@@ -346,7 +346,10 @@ impl Codegen {
                     } else {
                         self.push(&format!("{{ {TAG_FIELD}: \"{}\" as const", variant.name));
                         for field in &variant.fields {
-                            let fname = field.name.clone().unwrap_or_else(|| "value".to_string());
+                            let fname = field
+                                .name
+                                .clone()
+                                .unwrap_or_else(|| VALUE_FIELD.to_string());
                             self.push(&format!(", {fname}: "));
                             self.emit_mock_for_type(&field.type_ann, &[], counter, &fname);
                         }
