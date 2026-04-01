@@ -1394,6 +1394,21 @@ const _n = x.name
     );
 }
 
+#[test]
+fn member_access_on_function_type_errors() {
+    let diags = check(
+        r#"
+fn myFunc(x: number) -> string { "hi" }
+const _n = myFunc.name
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "cannot access"),
+        "should error on member access on function type, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── 3. Constructor field type validation ───────────────────
 
 #[test]
