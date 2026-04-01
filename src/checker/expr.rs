@@ -265,10 +265,7 @@ impl Checker {
             UnaryOp::Neg => {
                 if !ty.is_numeric() && !matches!(ty, Type::Unknown | Type::Var(_)) {
                     self.emit_error(
-                        format!(
-                            "cannot negate type `{}`, expected `number`",
-                            ty.display_name()
-                        ),
+                        format!("cannot negate type `{}`, expected `number`", ty),
                         span,
                         "E001",
                         "expected `number`",
@@ -325,7 +322,7 @@ impl Checker {
                 self.emit_error(
                     format!(
                         "`?` can only be used on `Result` or `Option`, found `{}`",
-                        ty.display_name()
+                        ty
                     ),
                     span,
                     "E005",
@@ -345,7 +342,7 @@ impl Checker {
             for exports in self.dts_imports.values() {
                 if let Some(export) = exports.iter().find(|e| e.name == member_key) {
                     let ty = crate::interop::wrap_boundary_type(&export.ts_type);
-                    self.name_types.insert(member_key, ty.display_name());
+                    self.name_types.insert(member_key, ty.to_string());
                     return ty;
                 }
             }
@@ -375,10 +372,7 @@ impl Checker {
                 // Index must be a number
                 if !matches!(idx_ty, Type::Number | Type::Unknown) {
                     self.emit_error(
-                        format!(
-                            "array index must be `number`, found `{}`",
-                            idx_ty.display_name()
-                        ),
+                        format!("array index must be `number`, found `{}`", idx_ty),
                         index.span,
                         "E017",
                         "expected `number`",
@@ -435,10 +429,7 @@ impl Checker {
                     return Type::Unknown;
                 }
                 self.emit_error(
-                    format!(
-                        "cannot use bracket access on type `{}`",
-                        obj_ty.display_name()
-                    ),
+                    format!("cannot use bracket access on type `{}`", obj_ty),
                     span,
                     "E017",
                     "not an array or tuple type",
@@ -477,7 +468,7 @@ impl Checker {
                 // Persist lambda param type for LSP hover (scope is
                 // popped after the arrow body is checked, so the param
                 // would be lost from the final name_types merge)
-                self.name_types.insert(p.name.clone(), ty.display_name());
+                self.name_types.insert(p.name.clone(), ty.to_string());
                 // For destructured params, also define the field names
                 if let Some(ref destructure) = p.destructure {
                     self.define_destructured_bindings(destructure, &ty, p.span);
@@ -519,12 +510,12 @@ impl Checker {
                     self.emit_error(
                         format!(
                             "match arms have incompatible types: first arm returns `{}`, this arm returns `{}`",
-                            first_type.display_name(),
-                            arm_type.display_name()
+                            first_type,
+                            arm_type
                         ),
                         arm.body.span,
                         "E001",
-                        format!("expected `{}`", first_type.display_name()),
+                        format!("expected `{}`", first_type),
                     );
                 }
                 result_type = Some(Self::merge_types(first_type, &arm_type));
@@ -836,12 +827,12 @@ impl Checker {
                                 format!(
                                     "argument {} to `{callee_name}`: expected `{}`, found `{}`",
                                     i + 1,
-                                    param_ty.display_name(),
-                                    arg_ty.display_name()
+                                    param_ty,
+                                    arg_ty
                                 ),
                                 span,
                                 "E001",
-                                format!("expected `{}`", param_ty.display_name()),
+                                format!("expected `{}`", param_ty),
                             );
                         }
                     }
@@ -911,12 +902,12 @@ impl Checker {
                                 format!(
                                     "argument {} to `{callee_name}`: expected `{}`, found `{}`",
                                     i + 1,
-                                    param_ty.display_name(),
-                                    arg_ty.display_name()
+                                    param_ty,
+                                    arg_ty
                                 ),
                                 span,
                                 "E001",
-                                format!("expected `{}`", param_ty.display_name()),
+                                format!("expected `{}`", param_ty),
                             );
                         }
                     }
@@ -962,10 +953,7 @@ impl Checker {
             && !matches!(concrete, Type::Unknown | Type::Var(_) | Type::Foreign(_))
         {
             self.emit_error_with_help(
-                format!(
-                    "expected boolean operand for `{op}`, found `{}`",
-                    ty.display_name()
-                ),
+                format!("expected boolean operand for `{op}`, found `{}`", ty),
                 span,
                 "E001",
                 "expected `boolean`",
@@ -988,11 +976,7 @@ impl Checker {
                     && !matches!(right_ty, Type::Unknown | Type::Var(_))
                 {
                     self.emit_error_with_help(
-                        format!(
-                            "cannot compare `{}` with `{}`",
-                            left_ty.display_name(),
-                            right_ty.display_name()
-                        ),
+                        format!("cannot compare `{}` with `{}`", left_ty, right_ty),
                         span,
                         "E008",
                         "mismatched types",
@@ -1274,12 +1258,11 @@ impl Checker {
                         self.emit_error(
                             format!(
                                 "field `{label}`: expected `{}`, found `{}`",
-                                expected_ty.display_name(),
-                                arg_ty.display_name()
+                                expected_ty, arg_ty
                             ),
                             span,
                             "E001",
-                            format!("expected `{}`", expected_ty.display_name()),
+                            format!("expected `{}`", expected_ty),
                         );
                     }
                 }
@@ -1294,12 +1277,12 @@ impl Checker {
                             format!(
                                 "argument {}: expected `{}`, found `{}`",
                                 positional_index + 1,
-                                expected_ty.display_name(),
-                                arg_ty.display_name()
+                                expected_ty,
+                                arg_ty
                             ),
                             span,
                             "E001",
-                            format!("expected `{}`", expected_ty.display_name()),
+                            format!("expected `{}`", expected_ty),
                         );
                     }
                     positional_index += 1;
@@ -1508,12 +1491,11 @@ impl Checker {
                         self.emit_error(
                             format!(
                                 "argument 1 to `{name}`: expected `{}`, found `{}`",
-                                first_param.display_name(),
-                                left_ty.display_name()
+                                first_param, left_ty
                             ),
                             right.span,
                             "E001",
-                            format!("expected `{}`", first_param.display_name()),
+                            format!("expected `{}`", first_param),
                         );
                     }
                     return *return_type;
@@ -1525,7 +1507,7 @@ impl Checker {
                     self.emit_error(
                         format!(
                             "cannot pipe into `{name}`: expected a function, found `{}`",
-                            right_ty.display_name()
+                            right_ty
                         ),
                         right.span,
                         "E001",
@@ -1553,12 +1535,11 @@ impl Checker {
             self.emit_error(
                 format!(
                     "argument 1 to `{display_name}`: expected `{}`, found `{}`",
-                    first_param.display_name(),
-                    left_ty.display_name()
+                    first_param, left_ty
                 ),
                 right.span,
                 "E001",
-                format!("expected `{}`", first_param.display_name()),
+                format!("expected `{}`", first_param),
             );
         }
         if let Type::Array(elem) = left_ty {
@@ -1840,7 +1821,7 @@ impl Checker {
         }
         let dispatch_name = match dispatch_ty {
             Type::Named(n) | Type::Foreign(n) => n.as_str(),
-            _ => &dispatch_ty.display_name(),
+            _ => &dispatch_ty.to_string(),
         };
         let (_, fn_type) = overloads
             .iter()
@@ -1904,7 +1885,7 @@ impl Checker {
             self.emit_error(
                 format!(
                     "cannot access `.{field}` on `{}` — use `await` first",
-                    obj_ty.display_name()
+                    obj_ty
                 ),
                 span,
                 "E021",
@@ -1940,7 +1921,7 @@ impl Checker {
             let type_name = if let Type::Named(name) = obj_ty {
                 format!("`{name}`")
             } else {
-                format!("`{}`", obj_ty.display_name())
+                format!("`{}`", obj_ty)
             };
             self.emit_error_with_help(
                 format!("type {type_name} has no field `{field}`"),
@@ -1983,10 +1964,7 @@ impl Checker {
         match obj_ty {
             Type::Number | Type::String | Type::Bool | Type::Unit => {
                 self.emit_error(
-                    format!(
-                        "cannot access `.{field}` on type `{}`",
-                        obj_ty.display_name()
-                    ),
+                    format!("cannot access `.{field}` on type `{}`", obj_ty),
                     span,
                     "E017",
                     "not a record type",
@@ -2038,10 +2016,7 @@ impl Checker {
 
         // Fallback: type doesn't support member access
         self.emit_error(
-            format!(
-                "cannot access `.{field}` on type `{}`",
-                obj_ty.display_name()
-            ),
+            format!("cannot access `.{field}` on type `{}`", obj_ty),
             span,
             "E017",
             "this type does not support member access",
@@ -2077,14 +2052,10 @@ impl Checker {
                             .map(|(_, t)| t.clone())
                             .unwrap_or_else(|| {
                                 self.emit_error(
-                                    format!(
-                                        "field `{}` does not exist on type `{}`",
-                                        f.field,
-                                        ty.display_name()
-                                    ),
+                                    format!("field `{}` does not exist on type `{}`", f.field, ty),
                                     span,
                                     "E001",
-                                    format!("`{}` has no field `{}`", ty.display_name(), f.field),
+                                    format!("`{}` has no field `{}`", ty, f.field),
                                 );
                                 Type::Unknown
                             });
@@ -2100,10 +2071,7 @@ impl Checker {
                     }
                 } else {
                     self.emit_error(
-                        format!(
-                            "cannot destructure parameter of type `{}`",
-                            ty.display_name()
-                        ),
+                        format!("cannot destructure parameter of type `{}`", ty),
                         span,
                         "E001",
                         "destructuring requires a record type".to_string(),
@@ -2125,10 +2093,7 @@ impl Checker {
                     }
                 } else {
                     self.emit_error(
-                        format!(
-                            "cannot array-destructure parameter of type `{}`",
-                            ty.display_name()
-                        ),
+                        format!("cannot array-destructure parameter of type `{}`", ty),
                         span,
                         "E001",
                         "array destructuring requires an array type".to_string(),

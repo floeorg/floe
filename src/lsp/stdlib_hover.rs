@@ -6,85 +6,10 @@
 
 use crate::stdlib::StdlibRegistry;
 
-/// Pretty-print a type variable index as a letter (0 -> T, 1 -> U, 2 -> V, ...).
-fn type_var_name(index: usize) -> &'static str {
-    match index {
-        0 => "T",
-        1 => "U",
-        2 => "V",
-        3 => "W",
-        _ => "T",
-    }
-}
-
-/// Format a checker Type for hover display, using readable type variable names.
+/// Format a checker Type for stdlib hover/completion display, using readable
+/// type variable names (T, U, V) instead of internal IDs.
 pub(super) fn format_type(ty: &crate::checker::Type) -> String {
-    use crate::checker::Type;
-    match ty {
-        Type::Number => "number".to_string(),
-        Type::String => "string".to_string(),
-        Type::Bool => "boolean".to_string(),
-        Type::Undefined => "undefined".to_string(),
-        Type::Unit => "()".to_string(),
-        Type::Unknown => "unknown".to_string(),
-        Type::Named(n) | Type::Foreign(n) => n.clone(),
-        Type::Promise(inner) => format!("Promise<{}>", format_type(inner)),
-        Type::Var(id) => type_var_name(*id).to_string(),
-        Type::Array(inner) => format!("Array<{}>", format_type(inner)),
-        Type::Map { key, value } => {
-            format!("Map<{}, {}>", format_type(key), format_type(value))
-        }
-        Type::RecordMap { key, value } => {
-            format!("Record<{}, {}>", format_type(key), format_type(value))
-        }
-        Type::Set { element } => format!("Set<{}>", format_type(element)),
-        _ if ty.is_option() => {
-            if let Some(inner) = ty.option_inner() {
-                format!("Option<{}>", format_type(inner))
-            } else {
-                "Option<unknown>".to_string()
-            }
-        }
-        _ if ty.is_result() => {
-            let ok = ty
-                .result_ok()
-                .map(format_type)
-                .unwrap_or_else(|| "unknown".to_string());
-            let err = ty
-                .result_err()
-                .map(format_type)
-                .unwrap_or_else(|| "unknown".to_string());
-            format!("Result<{ok}, {err}>")
-        }
-        Type::Settable(inner) => format!("Settable<{}>", format_type(inner)),
-        Type::Tuple(types) => {
-            let t: Vec<_> = types.iter().map(format_type).collect();
-            format!("[{}]", t.join(", "))
-        }
-        Type::Function {
-            params,
-            return_type,
-            ..
-        } => {
-            let p: Vec<_> = params.iter().map(format_type).collect();
-            format!("({}) -> {}", p.join(", "), format_type(return_type))
-        }
-        Type::Record(fields) => {
-            let f: Vec<_> = fields
-                .iter()
-                .map(|(n, t)| format!("{n}: {}", format_type(t)))
-                .collect();
-            format!("{{ {} }}", f.join(", "))
-        }
-        Type::Opaque { name, .. } => name.clone(),
-        Type::Union { name, .. } => name.clone(),
-        Type::TsUnion(members) => {
-            let m: Vec<_> = members.iter().map(format_type).collect();
-            m.join(" | ")
-        }
-        Type::StringLiteral(s) => format!("\"{s}\""),
-        Type::Never => "never".to_string(),
-    }
+    ty.display_for_stdlib().to_string()
 }
 
 /// Format a stdlib function's parameter list for display.

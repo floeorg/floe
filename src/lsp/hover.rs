@@ -65,7 +65,7 @@ impl FloeLsp {
                 return Ok(Some(Hover {
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
-                        value: format!("```floe\n{word}: {}\n```", ty.display_name()),
+                        value: format!("```floe\n{word}: {}\n```", ty),
                     }),
                     range: None,
                 }));
@@ -134,10 +134,7 @@ impl FloeLsp {
                     return Ok(Some(Hover {
                         contents: HoverContents::Markup(MarkupContent {
                             kind: MarkupKind::Markdown,
-                            value: format!(
-                                "```floe\n(property) {word}: {}\n```",
-                                ty.display_name()
-                            ),
+                            value: format!("```floe\n(property) {word}: {}\n```", ty),
                         }),
                         range: None,
                     }));
@@ -187,7 +184,7 @@ impl FloeLsp {
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,
-                    value: format!("```floe\n{word}: {}\n```", ty.display_name()),
+                    value: format!("```floe\n{word}: {}\n```", ty),
                 }),
                 range: None,
             }));
