@@ -402,7 +402,33 @@ impl Checker {
         };
 
         match &pattern.kind {
-            PatternKind::Literal(_) | PatternKind::Range { .. } | PatternKind::Wildcard => {}
+            PatternKind::Wildcard | PatternKind::Range { .. } => {}
+            PatternKind::Literal(lit) => {
+                if !matches!(subject_ty, Type::Unknown) {
+                    let compatible = match lit {
+                        LiteralPattern::Bool(_) => matches!(subject_ty, Type::Bool),
+                        LiteralPattern::Number(_) => matches!(subject_ty, Type::Number),
+                        LiteralPattern::String(_) => {
+                            matches!(subject_ty, Type::String | Type::StringLiteral(_))
+                                || subject_ty.as_string_literal_variants().is_some()
+                        }
+                    };
+                    if !compatible {
+                        let lit_desc = match lit {
+                            LiteralPattern::Bool(_) => "boolean",
+                            LiteralPattern::Number(_) => "number",
+                            LiteralPattern::String(_) => "string",
+                        };
+                        self.emit_error_with_help(
+                            format!("{lit_desc} literal pattern used on type `{subject_ty}`",),
+                            pattern.span,
+                            ErrorCode::LiteralPatternMismatch,
+                            format!("expected `{subject_ty}`, found {lit_desc}"),
+                            format!("use a `{subject_ty}` pattern or a `_` catch-all"),
+                        );
+                    }
+                }
+            }
             PatternKind::Variant { name, fields } => {
                 let mut handled = false;
                 if let Type::Union { variants, .. } = subject_ty
