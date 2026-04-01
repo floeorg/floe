@@ -975,46 +975,15 @@ fn resolve_interface_fields_inner(
 /// For `type DraggableId<TId extends string = string> = TId`, records
 /// DraggableId → Primitive("string") (the default type parameter value).
 fn collect_type_alias_defaults(stmt: &Statement<'_>, aliases: &mut HashMap<String, TsType>) {
-    let process_alias = |type_decl: &oxc_ast::ast::TSTypeAliasDeclaration<'_>,
-                         aliases: &mut HashMap<String, TsType>| {
-        let name = type_decl.id.name.to_string();
-        // Check if the alias body is a type parameter reference or another alias.
-        // Identity alias: `type X<T> = T`
-        // Chained alias: `type X<T> = Y<T>` where Y is also a simple alias
-        if let OxcTSType::TSTypeReference(ref_type) = &type_decl.type_annotation
-            && let TSTypeName::IdentifierReference(ident) = &ref_type.type_name
-        {
-            let ref_name = ident.name.to_string();
-
-            // Direct type parameter reference (identity alias)
-            if let Some(ref type_params) = type_decl.type_parameters {
-                for param in &type_params.params {
-                    if param.name.to_string() == ref_name {
-                        if let Some(ref default) = param.default {
-                            let resolved = convert_oxc_type(default);
-                            aliases.insert(name, resolved);
-                        }
-                        return;
-                    }
-                }
-            }
-
-            // Reference to another type alias (chained alias like DraggableId<T> = Id<T>)
-            if let Some(resolved) = aliases.get(&ref_name).cloned() {
-                aliases.insert(name, resolved);
-            }
-        }
-    };
-
     match stmt {
         Statement::TSTypeAliasDeclaration(type_decl) => {
-            process_alias(type_decl, aliases);
+            process_type_alias(type_decl, aliases);
         }
         Statement::ExportNamedDeclaration(export_decl) => {
             if let Some(ref decl) = export_decl.declaration
                 && let Declaration::TSTypeAliasDeclaration(type_decl) = decl
             {
-                process_alias(type_decl, aliases);
+                process_type_alias(type_decl, aliases);
             }
         }
         Statement::TSModuleDeclaration(ns_decl) => {
@@ -1025,6 +994,36 @@ fn collect_type_alias_defaults(stmt: &Statement<'_>, aliases: &mut HashMap<Strin
             }
         }
         _ => {}
+    }
+}
+
+/// Process a single type alias declaration, resolving identity and chained aliases.
+fn process_type_alias(
+    type_decl: &oxc_ast::ast::TSTypeAliasDeclaration<'_>,
+    aliases: &mut HashMap<String, TsType>,
+) {
+    let name = type_decl.id.name.to_string();
+    if let OxcTSType::TSTypeReference(ref_type) = &type_decl.type_annotation
+        && let TSTypeName::IdentifierReference(ident) = &ref_type.type_name
+    {
+        let ref_name = ident.name.to_string();
+
+        // Direct type parameter reference (identity alias: `type X<T> = T`)
+        if let Some(ref type_params) = type_decl.type_parameters {
+            for param in &type_params.params {
+                if param.name.to_string() == ref_name {
+                    if let Some(ref default) = param.default {
+                        aliases.insert(name, convert_oxc_type(default));
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Chained alias (`type DraggableId<T> = Id<T>` where Id is already resolved)
+        if let Some(resolved) = aliases.get(&ref_name).cloned() {
+            aliases.insert(name, resolved);
+        }
     }
 }
 

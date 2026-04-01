@@ -275,11 +275,8 @@ impl TsgoResolver {
 }
 
 /// Parse a hover text string from the LSP into a TsType.
-/// Handles patterns like:
-/// - `function useMemo<T>(factory: () => T, deps: DependencyList): T`
-/// - `type Todo = { id: string; text: string; done: boolean; }`
-/// - `interface DropResult { ... }`
-/// - `const x: SomeType`
+/// Best-effort — hover format may vary across tsgo versions.
+/// Currently handles: `function ...`, `type X = ...`, `const x: Type`.
 #[cfg(feature = "cli")]
 fn parse_hover_to_tstype(hover: &str) -> Option<TsType> {
     let hover = hover.trim();
