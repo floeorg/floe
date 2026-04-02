@@ -93,6 +93,24 @@ impl Checker {
             ExprKind::Try(inner) => {
                 let inner_ty =
                     self.with_context(|ctx| ctx.inside_try = true, |this| this.check_expr(inner));
+
+                // Warn when try wraps a Floe function call (Floe functions never throw)
+                if let Some(callee_name) = Self::extract_callee_name(inner) {
+                    if !self.npm_imports.contains(callee_name)
+                        && !self.stdlib.is_module(callee_name)
+                    {
+                        self.emit_warning_with_help(
+                            format!(
+                                "`try` is unnecessary — Floe function `{callee_name}` never throws"
+                            ),
+                            expr.span,
+                            ErrorCode::TryOnFloeFunction,
+                            "Floe functions use `Result` for errors, not exceptions",
+                            "remove `try` and use `?` to unwrap the Result instead",
+                        );
+                    }
+                }
+
                 // Smart try: if the expression is Promise<T>, unwrap to T
                 // (try auto-awaits Promises and catches both sync throws and async rejections)
                 let effective_ty = match &inner_ty {
@@ -261,6 +279,18 @@ impl Checker {
                 self.check_boolean_operand(&ty, &concrete, span, "!");
                 Type::Bool
             }
+        }
+    }
+
+    /// Extract the callee function name from a call expression (possibly inside pipes).
+    fn extract_callee_name(expr: &Expr) -> Option<&str> {
+        match &expr.kind {
+            ExprKind::Call { callee, .. } => match &callee.kind {
+                ExprKind::Identifier(name) => Some(name),
+                _ => None,
+            },
+            ExprKind::Pipe { right, .. } => Self::extract_callee_name(right),
+            _ => None,
         }
     }
 

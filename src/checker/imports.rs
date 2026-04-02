@@ -67,10 +67,13 @@ impl Checker {
                 .imported_names
                 .push((effective_name.to_string(), spec.span));
 
-            // Track untrusted imports (not trusted at module or specifier level).
-            // Floe-to-Floe imports (resolved.is_some()) are always trusted.
-            if !decl.trusted && !spec.trusted && resolved.is_none() {
-                self.untrusted_imports.insert(effective_name.to_string());
+            // Track npm imports (resolved.is_none() means not a .fl file).
+            if resolved.is_none() {
+                self.npm_imports.insert(effective_name.to_string());
+                // Track untrusted imports (not trusted at module or specifier level).
+                if !decl.trusted && !spec.trusted {
+                    self.untrusted_imports.insert(effective_name.to_string());
+                }
             }
         }
 

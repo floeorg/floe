@@ -185,6 +185,8 @@ pub struct Checker {
     pub(crate) traits: TraitRegistry,
     /// Names of untrusted (external TS) imports that require `try`.
     untrusted_imports: HashSet<String>,
+    /// Names from npm imports (both trusted and untrusted) — `try` is valid on these.
+    npm_imports: HashSet<String>,
     /// Whether we are in the type registration pass (suppress unknown type errors).
     registering_types: bool,
     /// Pre-resolved imports from other .fl files, keyed by import source string.
@@ -399,6 +401,7 @@ impl Checker {
             unused: UnusedTracker::default(),
             traits: TraitRegistry::default(),
             untrusted_imports: untrusted_globals,
+            npm_imports: HashSet::new(),
             registering_types: false,
             resolved_imports: HashMap::new(),
             dts_imports: HashMap::new(),

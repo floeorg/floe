@@ -109,6 +109,8 @@ pub enum ErrorCode {
     SuspiciousBinding,
     /// Binding resolved to `unknown` type.
     UnknownBinding,
+    /// `try` used on a Floe function (which never throws).
+    TryOnFloeFunction,
 }
 
 impl ErrorCode {
@@ -158,6 +160,7 @@ impl ErrorCode {
             Self::UncheckedArguments => "W004",
             Self::SuspiciousBinding => "W005",
             Self::UnknownBinding => "W006",
+            Self::TryOnFloeFunction => "W007",
         }
     }
 }
