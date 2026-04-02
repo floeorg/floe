@@ -5535,6 +5535,53 @@ fn page() {
     }
 }
 
+// ── JSX prop type checking ───────────────────────────────────
+
+#[test]
+fn jsx_prop_type_mismatch_errors() {
+    let diags = check(
+        r#"
+type Props { name: string, count: number }
+fn Card(props: Props) -> JSX.Element { <div /> }
+fn page() -> JSX.Element {
+    <Card name={42} count={"hello"} />
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "prop `name`: expected `string`, found `number`"),
+        "should error on string prop receiving number, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        has_error_containing(&diags, "prop `count`: expected `number`, found `string`"),
+        "should error on number prop receiving string, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn jsx_prop_correct_types_no_error() {
+    let diags = check(
+        r#"
+type Props { name: string, count: number }
+fn Card(props: Props) -> JSX.Element { <div /> }
+fn page() -> JSX.Element {
+    <Card name={"hello"} count={42} />
+}
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "correct prop types should not error: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Rule: unknown type checking (#734) ─────────────────────
 
 #[test]

@@ -635,30 +635,39 @@ impl Checker {
                 children,
                 ..
             } => {
-                if name.starts_with(|c: char| c.is_uppercase()) {
-                    self.unused.used_names.insert(name.clone());
-                    if self.env.lookup(name).is_none() {
-                        self.emit_error(
-                            format!("component `{name}` is not defined"),
-                            element.span,
-                            ErrorCode::UndefinedName,
-                            "not found in scope",
-                        );
-                    }
-                }
+                // Resolve the component's props type for prop validation
+                let props_map: Option<std::collections::HashMap<String, Type>> =
+                    if name.starts_with(|c: char| c.is_uppercase()) {
+                        self.unused.used_names.insert(name.clone());
+                        if let Some(comp_ty) = self.env.lookup(name).cloned() {
+                            self.resolve_jsx_props_fields(&comp_ty)
+                        } else {
+                            self.emit_error(
+                                format!("component `{name}` is not defined"),
+                                element.span,
+                                ErrorCode::UndefinedName,
+                                "not found in scope",
+                            );
+                            None
+                        }
+                    } else {
+                        None
+                    };
                 for prop in props {
                     match prop {
                         JsxProp::Named {
                             name: prop_name,
                             value,
-                            ..
+                            span: prop_span,
                         } => {
                             if let Some(value) = value {
-                                if prop_name.starts_with("on") && prop_name.len() > 2 {
+                                let value_ty = if prop_name.starts_with("on") && prop_name.len() > 2
+                                {
                                     let prev = self.ctx.event_handler_context;
                                     self.ctx.event_handler_context = true;
-                                    self.check_expr(value);
+                                    let ty = self.check_expr(value);
                                     self.ctx.event_handler_context = prev;
+                                    ty
                                 } else if matches!(value.kind, ExprKind::Arrow { .. }) {
                                     // Set callback param hint from tsgo probe if available
                                     let prev = std::mem::take(&mut self.ctx.lambda_param_hints);
@@ -670,10 +679,31 @@ impl Checker {
                                     {
                                         self.ctx.lambda_param_hints = vec![hint_ty];
                                     }
-                                    self.check_expr(value);
+                                    let ty = self.check_expr(value);
                                     self.ctx.lambda_param_hints = prev;
+                                    ty
                                 } else {
-                                    self.check_expr(value);
+                                    self.check_expr(value)
+                                };
+
+                                // Validate prop value type against expected prop type.
+                                // Skip when either side is unresolvable (Foreign, Named,
+                                // Unknown, Var) since we can't validate npm type
+                                // compatibility (e.g. JSX.Element vs ReactNode).
+                                if let Some(ref map) = props_map
+                                    && let Some(expected_ty) = map.get(prop_name.as_str())
+                                    && self.is_jsx_prop_type_checkable(expected_ty)
+                                    && self.is_jsx_prop_type_checkable(&value_ty)
+                                    && !self.types_compatible(expected_ty, &value_ty)
+                                {
+                                    self.emit_error(
+                                        format!(
+                                            "prop `{prop_name}`: expected `{expected_ty}`, found `{value_ty}`"
+                                        ),
+                                        *prop_span,
+                                        ErrorCode::TypeMismatch,
+                                        format!("expected `{expected_ty}`"),
+                                    );
                                 }
                             }
                         }
@@ -687,6 +717,37 @@ impl Checker {
             JsxElementKind::Fragment { children } => {
                 self.check_jsx_children(children, None);
             }
+        }
+    }
+
+    /// Check if a type is concrete enough for JSX prop validation.
+    /// Skip Foreign, Named (npm types), Unknown, Var, and Option-wrapped versions.
+    fn is_jsx_prop_type_checkable(&self, ty: &Type) -> bool {
+        match ty {
+            Type::Unknown | Type::Foreign(_) | Type::Named(_) | Type::Var(_) => false,
+            _ if ty.is_option() => {
+                // Option<T> — check if T is checkable
+                ty.option_inner()
+                    .is_some_and(|inner| self.is_jsx_prop_type_checkable(inner))
+            }
+            _ => true,
+        }
+    }
+
+    /// Resolve a component's function type to its props as a HashMap for O(1) lookup.
+    /// Returns None if the type can't be resolved to known fields.
+    fn resolve_jsx_props_fields(
+        &mut self,
+        comp_ty: &Type,
+    ) -> Option<std::collections::HashMap<String, Type>> {
+        let props_ty = match comp_ty {
+            Type::Function { params, .. } if !params.is_empty() => &params[0],
+            _ => return None,
+        };
+        let concrete = self.resolve_type_to_concrete(props_ty);
+        match concrete {
+            Type::Record(fields) => Some(fields.into_iter().collect()),
+            _ => None,
         }
     }
 
