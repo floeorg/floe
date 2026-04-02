@@ -63,7 +63,7 @@ const pair = Option.zip(firstName, lastName)
 // Some(("Alice", "Smith")) or None
 
 // Handle { data, error } pattern (TanStack Query, Supabase, etc.)
-const { data, error } = await supabase.rpc("get_entries", { query })
+const { data, error } = supabase.rpc("get_entries", { query }) |> Promise.await
 error |> Option.toErr?              // bail if error exists
 const rows = data |> Option.unwrapOr([])
 

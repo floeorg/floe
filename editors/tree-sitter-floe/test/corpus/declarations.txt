@@ -95,27 +95,6 @@ fn HomePage() -> JSX.Element {
             (unit_value)))))))
 
 ===
-Async function
-===
-
-async fn fetchData() -> string {
-    "hello"
-}
-
----
-
-(source_file
-  (function_declaration
-    name: (identifier)
-    parameters: (parameter_list)
-    return_type: (primitive_type)
-    body: (block
-      (expression_statement
-        (primary_expression
-          (string
-            (string_content)))))))
-
-===
 Generic function declaration
 ===
 

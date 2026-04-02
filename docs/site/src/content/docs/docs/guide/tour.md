@@ -114,9 +114,9 @@ const result = try parseYaml(input)         // wraps in Result
 import trusted { useState } from "react"    // skip try for safe libs
 import { for Array } from "./helpers"       // import for-block extensions
 
-async fn fetchUser(id: string) -> Result<User, Error> {
-    const response = await Http.get(`/api/users/${id}`)?
-    const user = await response |> Http.json?
+fn fetchUser(id: string) -> Promise<Result<User, Error>> {
+    const response = Http.get(`/api/users/${id}`) |> Promise.await?
+    const user = response |> Http.json |> Promise.await?
 
     Ok(user)
 }
