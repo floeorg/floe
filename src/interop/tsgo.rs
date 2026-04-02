@@ -696,7 +696,7 @@ const [count, setCount] = useState(0)"#;
         }
 
         let source = r#"
-import trusted { useState } from "react"
+import { useState } from "react"
 type Todo { text: string, done: bool }
 const [todos, setTodos] = useState<Array<Todo>>([])
 const [input, setInput] = useState("")
@@ -746,7 +746,7 @@ const [input, setInput] = useState("")
         }
 
         let source = r#"
-import trusted { useState } from "react"
+import { useState } from "react"
 type Filter { | All | Active | Completed }
 const [filter, setFilter] = useState<Filter>(Filter.All)
 "#;
@@ -803,7 +803,7 @@ const [filter, setFilter] = useState<Filter>(Filter.All)
         let s = Span::new(0, 0, 0, 0);
 
         let source = r#"import { fetchProducts } from "./api"
-import trusted { useSuspenseQuery } from "@tanstack/react-query"
+import { useSuspenseQuery } from "@tanstack/react-query"
 
 fn test() {
     const { data } = useSuspenseQuery({
@@ -914,7 +914,7 @@ fn test() {
 
     #[test]
     fn generate_probe_includes_relative_ts_imports() {
-        let source = r#"import trusted { newDate } from "../utils/date"
+        let source = r#"import { newDate } from "../utils/date"
 const year = newDate()"#;
         let program = Parser::new(source).parse_program().unwrap();
 
@@ -941,7 +941,7 @@ const year = newDate()"#;
 
     #[test]
     fn generate_probe_object_destructure_from_ts_import() {
-        let source = r#"import trusted { useQuery } from "../hooks/use-query"
+        let source = r#"import { useQuery } from "../hooks/use-query"
 const { data, isLoading } = useQuery("key")"#;
         let program = Parser::new(source).parse_program().unwrap();
 
@@ -964,7 +964,7 @@ const { data, isLoading } = useQuery("key")"#;
 
     #[test]
     fn specifier_map_object_destructure_creates_per_field_probes() {
-        let source = r#"import trusted { useQuery } from "../hooks/use-query"
+        let source = r#"import { useQuery } from "../hooks/use-query"
 const { data, isLoading } = useQuery("key")"#;
         let program = Parser::new(source).parse_program().unwrap();
 
@@ -1022,7 +1022,7 @@ const x = 42"#;
 
     #[test]
     fn generate_probe_includes_type_alias_probe() {
-        let source = r#"import trusted { tv, VariantProps } from "tailwind-variants"
+        let source = r#"import { tv, VariantProps } from "tailwind-variants"
 const spinnerVariants = tv({})
 type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
         let program = Parser::new(source).parse_program().unwrap();
@@ -1039,7 +1039,7 @@ type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
 
     #[test]
     fn generate_probe_emits_typeof_const_for_type_probe() {
-        let source = r#"import trusted { tv, VariantProps } from "tailwind-variants"
+        let source = r#"import { tv, VariantProps } from "tailwind-variants"
 const spinnerVariants = tv({})
 type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
         let program = Parser::new(source).parse_program().unwrap();
@@ -1053,7 +1053,7 @@ type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
 
     #[test]
     fn type_probe_not_emitted_for_local_only_alias() {
-        let source = r#"import trusted { useState } from "react"
+        let source = r#"import { useState } from "react"
 type MyNum = number"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
@@ -1155,7 +1155,7 @@ fn page() {
 
     #[test]
     fn generate_probe_inlined_member_call_preserves_type_args() {
-        let source = r#"import trusted { useQueryClient } from "@tanstack/react-query"
+        let source = r#"import { useQueryClient } from "@tanstack/react-query"
 type IssueDto { key: string, summary: string }
 
 fn Component() {

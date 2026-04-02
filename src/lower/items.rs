@@ -125,15 +125,11 @@ impl<'src> Lowerer<'src> {
         let span = self.node_span(node);
         let idents = self.collect_idents(node);
 
-        // Check for per-specifier `throws` — appears as first IDENT "throws"
-        let per_throws = idents.first().is_some_and(|name| name == "throws") && idents.len() >= 2;
+        // Check for per-specifier `throws` — appears as KW_THROWS token before the ident
+        let per_throws = self.has_keyword(node, SyntaxKind::KW_THROWS);
 
-        let (name, alias) = if per_throws {
-            // "throws", "name" [, "alias"]
-            (idents[1].clone(), idents.get(2).cloned())
-        } else {
-            (idents.first()?.clone(), idents.get(1).cloned())
-        };
+        let name = idents.first()?.clone();
+        let alias = idents.get(1).cloned();
 
         Some(ImportSpecifier {
             name,

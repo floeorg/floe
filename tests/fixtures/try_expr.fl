@@ -1,3 +1,3 @@
-const result = try fetchData("hello")
+const result = fetchData("hello")
 
-const parsed = try JSON.parse(input)
+const parsed = JSON.parse(input)

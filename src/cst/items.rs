@@ -93,8 +93,8 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // `import throws { ... }` — module-level throws
-        if self.at_identifier("throws") {
-            self.bump(); // throws (emitted as IDENT token)
+        if self.at(TokenKind::Throws) {
+            self.bump(); // throws
             self.eat_trivia();
         }
 
@@ -134,7 +134,7 @@ impl<'src> CstParser<'src> {
     fn parse_import_specifier(&mut self) {
         self.builder.start_node(SyntaxKind::IMPORT_SPECIFIER.into());
         // `throws foo` — per-specifier throws
-        if self.at_identifier("throws") && self.peek_is_ident() {
+        if self.at(TokenKind::Throws) && self.peek_is_ident() {
             self.bump(); // throws
             self.eat_trivia();
         }
