@@ -5,6 +5,16 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.42](https://github.com/floeorg/floe/compare/v0.1.41...v0.1.42) (2026-04-02)
+
+
+### Bug Fixes
+
+* [[#919](https://github.com/floeorg/floe/issues/919)] LSP hover shows type var instead of resolved type for render prop params ([#921](https://github.com/floeorg/floe/issues/921)) ([32469e5](https://github.com/floeorg/floe/commit/32469e5ff148c443f883720023d7cf447f0f2455))
+* [[#919](https://github.com/floeorg/floe/issues/919)] Route __jsxc_ children probes through specifier map ([#923](https://github.com/floeorg/floe/issues/923)) ([355c3f5](https://github.com/floeorg/floe/commit/355c3f5d1187defb3fa47dd6b4637540c1ebb2c3))
+* [[#926](https://github.com/floeorg/floe/issues/926)] JSX props are not type-checked against component prop types ([#929](https://github.com/floeorg/floe/issues/929)) ([46852d8](https://github.com/floeorg/floe/commit/46852d831f83f86a013704482b703c5460cc4000))
+* [[#927](https://github.com/floeorg/floe/issues/927)] LSP completions missing for resolved Foreign types ([#928](https://github.com/floeorg/floe/issues/928)) ([6b45426](https://github.com/floeorg/floe/commit/6b45426073fd46e45081cfa9ff68527322facd89))
+
 ## [0.1.41](https://github.com/floeorg/floe/compare/v0.1.40...v0.1.41) (2026-04-01)
 
 
