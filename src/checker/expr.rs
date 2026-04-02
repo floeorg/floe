@@ -95,7 +95,7 @@ impl Checker {
                     self.with_context(|ctx| ctx.inside_try = true, |this| this.check_expr(inner));
                 if matches!(inner_ty, Type::Promise(_)) {
                     self.emit_warning_with_help(
-                        "`try` on a `Promise` only catches synchronous errors",
+                        "`try` on a `Promise` only catches synchronous errors — use `|> Promise.tryAwait` instead",
                         expr.span,
                         ErrorCode::TryOnPromise,
                         "async rejections will not be caught",
