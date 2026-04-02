@@ -110,20 +110,23 @@ Get the issue title from `glb show <num>`. The PR body must start with `closes #
 
 ## Step 5: CI loop
 
-Poll CI with `gh pr checks <pr-number>`. Keep output minimal — just report pass/fail status, not full logs.
+Each poll iteration, check **both**:
+1. CI status: `gh pr checks <pr-number>`
+2. Merge conflicts: `gh pr view <pr-number> --json mergeable --jq '.mergeable'`
 
-Track consecutive failures. **Cap at 3 — after 3 consecutive CI failures, stop and ask the user.**
+Keep output minimal — just report pass/fail status, not full logs.
+
+Track consecutive failures. **Cap at 3 — after 3 consecutive failures, stop and ask the user.**
 
 ### On CI failure or merge conflict:
 
-1. Identify what failed: `gh pr checks <pr-number>` for CI, `gh pr view <pr-number> --json mergeable` for conflicts
-2. **Merge conflicts**: rebase onto the base branch and resolve conflicts
-3. **CI failures**: read failure logs and fix the issue
-4. Re-run quality gates (step 2) on affected areas
-5. If the fix involved new logic or structural changes (not just mechanical fixes like missing imports or type annotations), re-run `/simplify` and `/rulify`
-6. Commit, push, poll again
+1. **Merge conflicts** (`mergeable` is `CONFLICTING`): rebase onto the base branch and resolve conflicts
+2. **CI failures**: read failure logs and fix the issue
+3. Re-run quality gates (step 2) on affected areas
+4. If the fix involved new logic or structural changes (not just mechanical fixes like missing imports or type annotations), re-run `/simplify` and `/rulify`
+5. Commit, push, poll again
 
-### On CI pass:
+### On CI pass AND no conflicts:
 
 Proceed to step 6.
 
