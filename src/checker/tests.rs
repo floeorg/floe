@@ -2935,6 +2935,42 @@ fn test() -> Result<string, Error> {
     );
 }
 
+// ── try on Floe function warns ──────────────────────────────
+
+#[test]
+fn try_on_floe_function_warns() {
+    let diags = check(
+        r#"
+fn fetchUser(id: string) -> Result<string, Error> { Ok("alice") }
+fn test() {
+    const _r = try fetchUser("1")
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TryOnFloeFunction),
+        "try on Floe function should warn, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn try_on_trusted_import_no_warning() {
+    let diags = check(
+        r#"
+import trusted { parseYaml } from "yaml-lib"
+fn test() {
+    const _r = try parseYaml("input")
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TryOnFloeFunction),
+        "try on trusted import should not warn, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Smart try: auto-awaits Promises ─────────────────────────
 
 #[test]
