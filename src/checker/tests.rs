@@ -4767,6 +4767,196 @@ fn stdlib_call_correct_arity_ok() {
     );
 }
 
+// ── Stdlib argument type validation ────────────────────
+
+#[test]
+fn stdlib_option_map_rejects_non_option_direct_call() {
+    let diags = check(r#"const _x = Option.map("hello", (s) => s)"#);
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "Option.map with string first arg should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_option_map_rejects_non_option_pipe() {
+    let diags = check(r#"const _x = "hello" |> Option.map((s) => s)"#);
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "piping string into Option.map should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_option_unwrap_or_rejects_non_option_pipe() {
+    let diags = check(r#"const _x = "hello" |> Option.unwrapOr("")"#);
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "piping string into Option.unwrapOr should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_option_is_some_rejects_non_option() {
+    let diags = check("const _x = Option.isSome(42)");
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "Option.isSome with number should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_result_map_rejects_non_result() {
+    let diags = check(r#"const _x = Result.map("hello", (s) => s)"#);
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "Result.map with string first arg should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_result_is_ok_rejects_non_result() {
+    let diags = check("const _x = Result.isOk(42)");
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "Result.isOk with number should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_array_sort_rejects_non_array() {
+    let diags = check("const _x = Array.sort(42)");
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "Array.sort with number should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_array_map_rejects_non_array_pipe() {
+    let diags = check("const _x = 42 |> Array.map((n) => n)");
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "piping number into Array.map should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_option_map_accepts_valid_option() {
+    let diags = check("const _x = Option.map(Some(1), (n) => n * 2)");
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "Option.map with Some value should not error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_option_map_accepts_valid_option_pipe() {
+    let diags = check("const _x = Some(1) |> Option.map((n) => n * 2)");
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "piping Some into Option.map should not error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_array_map_accepts_valid_array() {
+    let diags = check("const _x = Array.map([1, 2, 3], (n) => n * 2)");
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "Array.map with array should not error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_implicit_some_wrapping_still_works_for_concrete_option_params() {
+    // Functions that take Option<concrete_type> should still accept bare values
+    let diags = check(
+        r#"
+        fn foo(x: Option<number>) -> Option<number> { x }
+        const _x = foo(42)
+    "#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "implicit Some wrapping for concrete Option params should still work, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_string_split_rejects_wrong_type() {
+    let diags = check("const _x = String.split(42, \",\")");
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "String.split with number should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
 // ── For-block method resolution with multiple overloads ──
 
 #[test]
