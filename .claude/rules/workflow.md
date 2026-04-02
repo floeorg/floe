@@ -187,7 +187,11 @@ python3 -m pytest tests/lsp/ --floe-bin=./target/debug/floe
 
 All tests must pass (0 failures).
 
-### 5. PR (do NOT merge)
+### 5. Simplify
+
+Run `/simplify` to review changed code for reuse, quality, and efficiency. Fix any issues it finds before proceeding.
+
+### 6. PR (do NOT merge)
 
 Create the PR and **stop**. Do NOT merge - ask the user to review and merge.
 
@@ -219,7 +223,9 @@ The PR body **must start with `closes #<num>`** on the first line - this links t
 
 After creating the PR, tell the user the PR URL and ask them to review and merge it. **Never run `gh pr merge` yourself.**
 
-### 6. Close
+### 7. Close (only after user review)
+
+Do NOT close the issue or remove the worktree until the user has reviewed and merged the PR. After the user confirms the PR is merged:
 
 ```bash
 glb close <num>
