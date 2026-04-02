@@ -93,16 +93,16 @@ impl Checker {
             ExprKind::Try(inner) => {
                 let inner_ty =
                     self.with_context(|ctx| ctx.inside_try = true, |this| this.check_expr(inner));
-                if matches!(inner_ty, Type::Promise(_)) {
-                    self.emit_warning_with_help(
-                        "`try` on a `Promise` only catches synchronous errors — use `|> Promise.tryAwait` instead",
-                        expr.span,
-                        ErrorCode::TryOnPromise,
-                        "async rejections will not be caught",
-                        "use `|> Promise.tryAwait` to catch both sync and async errors",
-                    );
-                }
-                Type::result_of(inner_ty, Type::Named(type_layout::TYPE_ERROR.to_string()))
+                // Smart try: if the expression is Promise<T>, unwrap to T
+                // (try auto-awaits Promises and catches both sync throws and async rejections)
+                let effective_ty = match &inner_ty {
+                    Type::Promise(inner) => *inner.clone(),
+                    _ => inner_ty,
+                };
+                Type::result_of(
+                    effective_ty,
+                    Type::Named(type_layout::TYPE_ERROR.to_string()),
+                )
             }
             ExprKind::Parse { type_arg, value } => {
                 let t = self.resolve_type(type_arg);

@@ -11,7 +11,6 @@ Functions for working with `Promise<T>` values.
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `Promise.await` | `Promise<T> -> T` | Unwrap a Promise (compiles to `await`) |
-| `Promise.tryAwait` | `Promise<T> -> Result<T, Error>` | Await + catch rejections in one step |
 | `Promise.all` | `Array<Promise<T>> -> Promise<Array<T>>` | Wait for all, fail on first rejection |
 | `Promise.race` | `Array<Promise<T>> -> Promise<T>` | First to settle (resolve or reject) |
 | `Promise.any` | `Array<Promise<T>> -> Promise<T>` | First to resolve, fail if all reject |
@@ -34,13 +33,14 @@ fn fetchUser(id: string) -> Promise<User> {
 
 The return type must explicitly use `Promise<T>`, making async behavior visible to callers.
 
-## `Promise.tryAwait`
+## Smart `try` with Promises
 
-`Promise.tryAwait` awaits a Promise and catches any rejection, returning a `Result<T, Error>`. Use it for npm/Tauri interop where async functions might reject:
+When `try` is applied to a `Promise<T>` expression, it auto-awaits the Promise and catches both sync throws and async rejections:
 
 ```floe
-// npm function that returns Promise<void> and might reject
-const result = jiraApi.transitionIssue(id, tid) |> Promise.tryAwait
+// npm async function that might reject
+const result = try jiraApi.transitionIssue(id, tid)
+// Result<(), Error> — auto-awaited, rejections caught
 
 match result {
     Ok(_) -> Console.log("Moved!"),
@@ -48,10 +48,10 @@ match result {
 }
 ```
 
-| Pattern | Use case |
-|---|---|
-| `\|> Promise.await?` | Floe functions returning `Promise<Result<T, E>>` |
-| `\|> Promise.tryAwait` | npm/external calls returning `Promise<T>` that might reject |
+| Tool | For | Does |
+|---|---|---|
+| `Promise.await` | Floe async functions | Unwrap `Promise<Result<T, E>>`, use `?` for errors |
+| `try` | npm/trusted functions | Catch errors (auto-awaits if Promise), returns `Result<T, Error>` |
 
 ## Examples
 

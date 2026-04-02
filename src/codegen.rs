@@ -11,6 +11,7 @@ mod types;
 
 use std::collections::{HashMap, HashSet};
 
+use crate::checker::Type;
 use crate::parser::ast::*;
 use crate::resolve::ResolvedImports;
 use crate::stdlib::StdlibRegistry;
