@@ -681,3 +681,29 @@ fn format_member_keyword_names() {
     assert_fmt("Array.for(items)", "Array.for(items)");
     assert_fmt("Schema.type(x)", "Schema.type(x)");
 }
+
+// ── Object destructuring ────────────────────────────────────
+
+#[test]
+fn format_object_destructure_preserves_rename() {
+    assert_fmt(
+        "const { data: issues, isLoading: loading } = hook()",
+        "const { data: issues, isLoading: loading } = hook()",
+    );
+}
+
+#[test]
+fn format_object_destructure_without_rename() {
+    assert_fmt(
+        "const {  data ,  columns  } = hook()",
+        "const { data, columns } = hook()",
+    );
+}
+
+#[test]
+fn format_object_destructure_mixed() {
+    assert_fmt(
+        "const { data: items, isLoading } = hook()",
+        "const { data: items, isLoading } = hook()",
+    );
+}
