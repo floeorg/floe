@@ -258,12 +258,7 @@ pub(super) fn generate_probe(
                     let method_chain = &name[obj_name.len() + 1..]; // preserves full chain e.g. "auth.signInWithPassword"
                     if let Some(obj_expr) = local_const_exprs.get(obj_name) {
                         let ts_args: Vec<String> = args.iter().map(arg_to_ts_approx).collect();
-                        let ts_type_args_str = if type_args.is_empty() {
-                            String::new()
-                        } else {
-                            let ta: Vec<String> = type_args.iter().map(type_expr_to_ts).collect();
-                            format!("<{}>", ta.join(", "))
-                        };
+                        let ts_type_args_str = format_type_args_ts(type_args);
                         let inlined_id = format!("inlined_{}", lines.len());
                         let call_expr = format!(
                             "{obj_expr}.{method_chain}{ts_type_args_str}({})",
@@ -1189,6 +1184,17 @@ pub(super) fn type_expr_to_ts(ty: &TypeExpr) -> String {
     }
 }
 
+/// Format type arguments as a TypeScript generic suffix (e.g. `<Array<Foo>, string>`).
+/// Returns an empty string when there are no type arguments.
+fn format_type_args_ts(type_args: &[TypeExpr]) -> String {
+    if type_args.is_empty() {
+        String::new()
+    } else {
+        let ta: Vec<String> = type_args.iter().map(type_expr_to_ts).collect();
+        format!("<{}>", ta.join(", "))
+    }
+}
+
 /// Check if an expression tree contains a reference to an imported name.
 /// Walks through Member and Call nodes to find if any Identifier is an import.
 fn expr_contains_import(expr: &Expr, imported_names: &HashMap<String, String>) -> bool {
@@ -1253,12 +1259,7 @@ fn expr_to_ts_approx(expr: &Expr) -> String {
             args,
         } => {
             let callee_str = expr_to_ts_approx(callee);
-            let type_args_str = if type_args.is_empty() {
-                String::new()
-            } else {
-                let ta: Vec<String> = type_args.iter().map(type_expr_to_ts).collect();
-                format!("<{}>", ta.join(", "))
-            };
+            let type_args_str = format_type_args_ts(type_args);
             let args_str: Vec<String> = args.iter().map(arg_to_ts_approx).collect();
             format!("{callee_str}{type_args_str}({})", args_str.join(", "))
         }
