@@ -1152,4 +1152,22 @@ fn page() {
             "probe should extract from children prop, got:\n{probe}"
         );
     }
+
+    #[test]
+    fn generate_probe_inlined_member_call_preserves_type_args() {
+        let source = r#"import trusted { useQueryClient } from "@tanstack/react-query"
+type IssueDto { key: string, summary: string }
+
+fn Component() {
+    const queryClient = useQueryClient()
+    const data = queryClient.getQueryData<Array<IssueDto>>(["issues"])
+}"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains(".getQueryData<Array<IssueDto>>("),
+            "inlined probe should preserve type arguments, got:\n{probe}"
+        );
+    }
 }

@@ -258,9 +258,17 @@ pub(super) fn generate_probe(
                     let method_chain = &name[obj_name.len() + 1..]; // preserves full chain e.g. "auth.signInWithPassword"
                     if let Some(obj_expr) = local_const_exprs.get(obj_name) {
                         let ts_args: Vec<String> = args.iter().map(arg_to_ts_approx).collect();
+                        let ts_type_args_str = if type_args.is_empty() {
+                            String::new()
+                        } else {
+                            let ta: Vec<String> = type_args.iter().map(type_expr_to_ts).collect();
+                            format!("<{}>", ta.join(", "))
+                        };
                         let inlined_id = format!("inlined_{}", lines.len());
-                        let call_expr =
-                            format!("{obj_expr}.{method_chain}({})", ts_args.join(", "),);
+                        let call_expr = format!(
+                            "{obj_expr}.{method_chain}{ts_type_args_str}({})",
+                            ts_args.join(", "),
+                        );
                         // For object destructuring, generate per-field exports so tsgo
                         // expands opaque named types through member access
                         if let ConstBinding::Object(fields) = &decl.binding {
