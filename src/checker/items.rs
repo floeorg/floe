@@ -262,6 +262,21 @@ impl Checker {
     /// Define a single const binding (handles no-redefinition check, name_types, env, etc.)
     fn define_const_binding(&mut self, name: &str, ty: Type, exported: bool, span: Span) {
         self.check_no_redefinition(name, span);
+        // Warn when a binding resolves to unknown (e.g. unresolved tsgo probes,
+        // missing .d.ts types, untyped npm imports). Skip underscore-prefixed
+        // names and suppress when we already emitted an error for this span.
+        if matches!(ty, Type::Unknown)
+            && !name.starts_with('_')
+            && !self.has_error_within_span(span)
+        {
+            self.emit_warning_with_help(
+                format!("binding `{name}` has type `unknown`"),
+                span,
+                ErrorCode::UnknownBinding,
+                "type could not be resolved",
+                "add a type annotation or check that the import has type definitions",
+            );
+        }
         self.name_types.insert(name.to_string(), ty.to_string());
         self.env.define(name, ty);
         self.unused
