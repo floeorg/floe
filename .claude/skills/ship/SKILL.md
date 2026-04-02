@@ -1,16 +1,17 @@
 ---
 name: ship
 description: >
-  Run quality gates, /simplify, /rulify, create a draft PR, poll CI until it passes, then mark the PR ready.
-  TRIGGER when: (1) the user says "ship it", "ship", or asks to create a PR, OR (2) you have finished implementing a task and are ready to submit it -- invoke this automatically as part of the workflow (see .claude/rules/workflow.md steps 4-6).
+  Run quality gates, /simplify, /rulify, create or update a PR, poll CI, poll for merge, then /land.
+  TRIGGER when: (1) the user says "ship it", "ship", or asks to create a PR, OR (2) you have finished implementing a task and are ready to submit it -- invoke this automatically as part of the workflow (see .claude/rules/workflow.md step 4).
   DO NOT TRIGGER when: the user just wants to run tests or quality gates without creating a PR.
 argument-hint: "[issue number (optional, inferred from branch if omitted)]"
-disable-model-invocation: false
 ---
 
 # Ship
 
-Run the full pre-PR pipeline: quality gates, code review, draft PR, CI loop, and mark ready.
+Full pipeline: quality gates, code review, PR, CI loop, merge wait, and land.
+
+On **re-runs** (PR already exists), skip PR creation — just run quality gates, code review, push, and resume the CI + merge loop.
 
 ## Inputs
 
@@ -24,6 +25,7 @@ Run the full pre-PR pipeline: quality gates, code review, draft PR, CI loop, and
    - `git diff --name-only $(git merge-base HEAD origin/main)...HEAD` (or the epic branch if this is a sub-issue)
    - Note whether Rust source (`src/**/*.rs`), Floe examples (`examples/**/*.fl`), or LSP code was changed
 4. Check if this is a sub-issue (branch matches `feature/#<epic>/#<sub>.*`) — if so, the PR base is the epic branch, not main
+5. Check if a PR already exists for this branch: `gh pr view --json number,state 2>/dev/null`
 
 ## Step 2: Quality gates
 
@@ -62,13 +64,16 @@ If either made changes:
 - Re-run quality gates (step 2) on affected areas
 - Commit fixes
 
-## Step 4: Create draft PR
+## Step 4: PR
 
-Push the branch and create a draft PR.
-
+Push the branch:
 ```bash
 git push -u origin $(git branch --show-current)
 ```
+
+**If a PR already exists**, skip to step 5.
+
+**If no PR exists**, create a draft:
 
 **PR titles use conventional commit prefixes** (`feat:`, `fix:`, `chore:`, `test:`). Append `!` for breaking changes.
 
@@ -105,43 +110,46 @@ Get the issue title from `glb show <num>`. The PR body must start with `closes #
 
 ## Step 5: CI loop
 
-Poll CI status using `gh pr checks <pr-number> --watch` or periodic `gh pr checks <pr-number>`.
+Poll CI with `gh pr checks <pr-number>`. Keep output minimal — just report pass/fail status, not full logs.
 
 Track consecutive failures. **Cap at 3 — after 3 consecutive CI failures, stop and ask the user.**
 
-### On CI failure:
+### On CI failure or merge conflict:
 
-1. Read failure logs: `gh pr checks <pr-number>` to identify which check failed, then fetch logs
-2. Fix the issue
-3. Re-run quality gates (step 2) on affected areas
-4. If the fix involved new logic or structural changes (not just mechanical fixes like missing imports or type annotations), re-run `/simplify` and `/rulify`
-5. Commit, push, poll again
+1. Identify what failed: `gh pr checks <pr-number>` for CI, `gh pr view <pr-number> --json mergeable` for conflicts
+2. **Merge conflicts**: rebase onto the base branch and resolve conflicts
+3. **CI failures**: read failure logs and fix the issue
+4. Re-run quality gates (step 2) on affected areas
+5. If the fix involved new logic or structural changes (not just mechanical fixes like missing imports or type annotations), re-run `/simplify` and `/rulify`
+6. Commit, push, poll again
 
 ### On CI pass:
 
 Proceed to step 6.
 
-## Step 6: Mark ready
+## Step 6: Mark ready + report
 
 ```bash
 gh pr ready <pr-number>
 ```
 
-## Step 7: Report
-
 Tell the user:
 
 1. **PR URL** — link to the PR
-2. Ask the user to review and merge. **Never run `gh pr merge`.**
+2. Tell the user you are now waiting for merge.
 
-## Step 8: Wait for merge and land
+**Never run `gh pr merge`.**
 
-After reporting, poll the PR merge status periodically:
+## Step 7: Wait for merge
+
+Poll the PR state every 2 minutes. Keep output minimal — just a single short line each check, no verbose output.
 
 ```bash
 gh pr view <pr-number> --json state --jq '.state'
 ```
 
-Check every 2 minutes. When the state is `MERGED`, automatically run `/land` to clean up (close issue, remove worktree, sync main).
+- **MERGED**: run `/land` (close issue, remove worktree, sync main). Done.
+- **CLOSED** (without merge): report to user and stop.
+- **OPEN**: continue polling.
 
-If the user closes the session before the PR is merged, that's fine — `/land` can be run manually in a future session.
+If the user interrupts to request changes, stop polling. After making the changes, `/ship` will be re-triggered automatically and will resume from step 2 (quality gates onward, skipping PR creation).

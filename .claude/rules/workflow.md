@@ -239,13 +239,14 @@ The PR body **must start with `closes #<num>`** on the first line - this links t
 
 #### 4d. CI loop
 
-Poll CI status. If CI fails:
-1. Read the failure logs and fix the issue
-2. Re-run quality gates on affected areas
-3. Commit, push, and poll CI again
+Poll CI status. Also check for merge conflicts. If CI fails or there are conflicts:
+1. **Merge conflicts**: rebase onto the base branch and resolve
+2. **CI failures**: read failure logs and fix the issue
+3. Re-run quality gates on affected areas
 4. If the fix involved new logic or structural changes (not just mechanical fixes like imports or type annotations), re-run `/simplify` and `/rulify` before pushing
+5. Commit, push, and poll CI again
 
-**Cap: after 3 consecutive CI failures, stop and ask the user.** Some failures need human judgment (flaky tests, infrastructure issues, permissions).
+**Cap: after 3 consecutive failures, stop and ask the user.** Some failures need human judgment (flaky tests, infrastructure issues, permissions).
 
 #### 4e. Mark ready + report
 
@@ -254,11 +255,11 @@ When CI passes:
 gh pr ready <pr-number>
 ```
 
-Tell the user the PR URL and ask them to review and merge it. **Never run `gh pr merge` yourself.**
+Tell the user the PR URL. Tell the user you are now waiting for merge. **Never run `gh pr merge`.**
 
 #### 4f. Wait for merge and land
 
-Poll the PR merge status. When merged, automatically run `/land` to clean up (close issue, remove worktree, sync main).
+Poll the PR merge status every 2 minutes. When merged, run `/land` to clean up (close issue, remove worktree, sync main). If the user interrupts to request changes, stop polling — `/ship` will re-trigger after the changes are made.
 
 </details>
 
