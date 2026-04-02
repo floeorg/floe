@@ -2085,34 +2085,7 @@ impl Checker {
         // Resolve Named types to their concrete definition
         let concrete = self.resolve_type_to_concrete(obj_ty);
         if let Type::Record(fields) = &concrete {
-            if let Some((_, ty)) = fields.iter().find(|(n, _)| n == field) {
-                return ty.clone();
-            }
-            // Check for-block methods before reporting missing field —
-            // `row.toModel()` should resolve to the for-block method.
-            if let Some(ty) = self.resolve_for_block_method(field, obj_ty) {
-                return ty;
-            }
-            let type_name = if let Type::Named(name) = obj_ty {
-                format!("`{name}`")
-            } else {
-                format!("`{}`", obj_ty)
-            };
-            self.emit_error_with_help(
-                format!("type {type_name} has no field `{field}`"),
-                span,
-                ErrorCode::InvalidFieldAccess,
-                "unknown field",
-                format!(
-                    "available fields: {}",
-                    fields
-                        .iter()
-                        .map(|(n, _)| format!("`{n}`"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
-            );
-            return Type::Unknown;
+            return self.check_record_field_access(fields, field, obj_ty, span);
         }
 
         // Tuple index access: pair.0, pair.1
@@ -2157,30 +2130,9 @@ impl Checker {
 
         // Foreign types: try to resolve to Record via DTS before allowing blind access
         if let Type::Foreign(name) = obj_ty {
-            // Try resolving the foreign type to a concrete Record
             let concrete = self.resolve_type_to_concrete(obj_ty);
             if let Type::Record(fields) = &concrete {
-                if let Some((_, ty)) = fields.iter().find(|(n, _)| n == field) {
-                    return ty.clone();
-                }
-                if let Some(ty) = self.resolve_for_block_method(field, obj_ty) {
-                    return ty;
-                }
-                self.emit_error_with_help(
-                    format!("type `{name}` has no field `{field}`"),
-                    span,
-                    ErrorCode::InvalidFieldAccess,
-                    "unknown field",
-                    format!(
-                        "available fields: {}",
-                        fields
-                            .iter()
-                            .map(|(n, _)| format!("`{n}`"))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                );
-                return Type::Unknown;
+                return self.check_record_field_access(fields, field, obj_ty, span);
             }
             // Truly opaque: allow member access for chained foreign access
             return Type::Foreign(format!("{name}.{field}"));
@@ -2219,6 +2171,38 @@ impl Checker {
             span,
             ErrorCode::InvalidFieldAccess,
             "this type does not support member access",
+        );
+        Type::Unknown
+    }
+
+    /// Validate field access on a resolved Record type, returning the field type
+    /// or emitting an error with available fields.
+    fn check_record_field_access(
+        &mut self,
+        fields: &[(String, Type)],
+        field: &str,
+        obj_ty: &Type,
+        span: Span,
+    ) -> Type {
+        if let Some((_, ty)) = fields.iter().find(|(n, _)| n == field) {
+            return ty.clone();
+        }
+        if let Some(ty) = self.resolve_for_block_method(field, obj_ty) {
+            return ty;
+        }
+        self.emit_error_with_help(
+            format!("type `{}` has no field `{field}`", obj_ty),
+            span,
+            ErrorCode::InvalidFieldAccess,
+            "unknown field",
+            format!(
+                "available fields: {}",
+                fields
+                    .iter()
+                    .map(|(n, _)| format!("`{n}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         );
         Type::Unknown
     }

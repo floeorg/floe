@@ -11,7 +11,7 @@ mod probe_run;
 mod specifier_map;
 mod typeof_resolve;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 
@@ -237,21 +237,22 @@ impl TsgoResolver {
             }
         }
 
+        // Pre-collect names that already have Object definitions
+        let defined_names: HashSet<&str> = result
+            .values()
+            .flatten()
+            .filter(|e| matches!(e.ts_type, TsType::Object(_)))
+            .map(|e| e.name.as_str())
+            .collect();
+        let mut seen: HashSet<String> = HashSet::new();
+
         for (specifier, exports) in result.iter() {
             for export in exports {
-                let type_name = match &export.ts_type {
-                    TsType::Named(name) => Some(name.clone()),
-                    _ => None,
-                };
-                if let Some(name) = type_name {
-                    // Skip if already defined (as a Record or other concrete type)
-                    let already_defined = result
-                        .values()
-                        .flatten()
-                        .any(|e| e.name == name && matches!(e.ts_type, TsType::Object(_)));
-                    if !already_defined && !types_to_resolve.iter().any(|(n, _)| n == &name) {
-                        types_to_resolve.push((name, specifier.clone()));
-                    }
+                if let TsType::Named(name) = &export.ts_type
+                    && !defined_names.contains(name.as_str())
+                    && seen.insert(name.clone())
+                {
+                    types_to_resolve.push((name.clone(), specifier.clone()));
                 }
             }
         }
