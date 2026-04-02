@@ -111,6 +111,8 @@ pub enum ErrorCode {
     UncheckedArguments,
     /// Binding pattern on a finite type (boolean, union) - likely a typo.
     SuspiciousBinding,
+    /// Binding resolved to `unknown` type.
+    UnknownBinding,
 }
 
 impl ErrorCode {
@@ -161,6 +163,7 @@ impl ErrorCode {
             Self::SpreadFieldOverwritten => "W003",
             Self::UncheckedArguments => "W004",
             Self::SuspiciousBinding => "W005",
+            Self::UnknownBinding => "W006",
         }
     }
 }

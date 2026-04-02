@@ -29,4 +29,9 @@ impl Span {
     pub fn is_empty(&self) -> bool {
         self.start == self.end
     }
+
+    /// Returns true if `inner` is fully contained within this span.
+    pub fn contains_span(&self, inner: Span) -> bool {
+        inner.start >= self.start && inner.end <= self.end
+    }
 }

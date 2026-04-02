@@ -100,7 +100,7 @@ fn body_has_promise_await(expr: &Expr) -> bool {
     walk(expr)
 }
 
-use crate::diagnostic::Diagnostic;
+use crate::diagnostic::{Diagnostic, Severity};
 use crate::interop::{self, DtsExport};
 use crate::lexer::span::Span;
 use crate::parser::ast::*;
@@ -712,6 +712,13 @@ impl Checker {
                 .with_help(help)
                 .with_error_code(code),
         );
+    }
+
+    /// Returns true if an error diagnostic has already been emitted within the given span.
+    fn has_error_within_span(&self, span: Span) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error && span.contains_span(d.span))
     }
 
     // ── Type helpers ────────────────────────────────────────────────
