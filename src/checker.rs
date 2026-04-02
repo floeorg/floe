@@ -554,6 +554,22 @@ impl Checker {
             }
         }
 
+        // Generate __field_ entries for DTS Object types (npm interfaces/types)
+        // so dot-completions work for Foreign types like DraggableProvided.
+        for exports in self.dts_imports.values() {
+            for export in exports {
+                if let interop::TsType::Object(fields) = &export.ts_type {
+                    for field in fields {
+                        let field_ty = interop::wrap_boundary_type(&field.ty);
+                        self.name_types.insert(
+                            format!("__field_{}_{}", export.name, field.name),
+                            field_ty.to_string(),
+                        );
+                    }
+                }
+            }
+        }
+
         // Second pass: check all items
         for item in &program.items {
             self.check_item(item);
