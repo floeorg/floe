@@ -1,7 +1,7 @@
 ---
 name: ship
 description: >
-  Run quality gates, /simplify, /rulify, /alignify, create or update a PR, poll CI, then mark ready.
+  Run quality gates, /simplify, /rulify, create or update a PR, poll CI, then mark ready.
   TRIGGER when: (1) the user says "ship it", "ship", or asks to create a PR, OR (2) you have finished implementing a task and are ready to submit it -- invoke this automatically as part of the workflow (see .claude/rules/workflow.md step 4).
   DO NOT TRIGGER when: the user just wants to run tests or quality gates without creating a PR.
 argument-hint: "[issue number (optional, inferred from branch if omitted)]"
@@ -59,7 +59,6 @@ Run self-checks in order:
 
 1. **`/simplify`** — review changed code for reuse, quality, and efficiency
 2. **`/rulify`** — cross-check changes against `.claude/rules/`
-3. **`/alignify`** — check consistency with sibling files in each layer
 
 If any made changes:
 - Re-run quality gates (step 2) on affected areas
