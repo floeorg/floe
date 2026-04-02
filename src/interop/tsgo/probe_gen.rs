@@ -264,7 +264,7 @@ pub(super) fn generate_probe(
                         // For object destructuring, generate per-field exports so tsgo
                         // expands opaque named types through member access
                         if let ConstBinding::Object(fields) = &decl.binding {
-                            let has_await = crate::checker::expr_has_await(&decl.value);
+                            let has_await = expr_has_promise_await(&decl.value);
                             let await_prefix = if has_await { "await " } else { "" };
                             lines.push(format!(
                                 "const _tmp_{inlined_id} = {await_prefix}{call_expr};"
@@ -296,7 +296,7 @@ pub(super) fn generate_probe(
                 let call_ts = expr_to_ts_approx(inner_value);
                 let inlined_id = format!("inlined_{}", lines.len());
                 if let ConstBinding::Object(fields) = &decl.binding {
-                    let has_await = crate::checker::expr_has_await(&decl.value);
+                    let has_await = expr_has_promise_await(&decl.value);
                     let await_prefix = if has_await { "await " } else { "" };
                     lines.push(format!(
                         "const _tmp_{inlined_id} = {await_prefix}{call_ts};"
@@ -959,7 +959,6 @@ fn collect_member_accesses_expr(
         ExprKind::Grouped(inner)
         | ExprKind::Unary { operand: inner, .. }
         | ExprKind::Unwrap(inner)
-        | ExprKind::Await(inner)
         | ExprKind::Try(inner)
         | ExprKind::Spread(inner) => {
             collect_member_accesses_expr(inner, imported_names, accesses);
@@ -1348,13 +1347,27 @@ fn collect_free_vars_from_ts(ts: &str, declared: &HashSet<String>, free: &mut Ha
     }
 }
 
-/// Unwrap Try, Unwrap, and Await wrappers to find the inner expression.
-/// e.g. `try await fetch(url)?` → `fetch(url)`
+/// Check if an expression contains a `Promise.await` pipe call.
+fn expr_has_promise_await(expr: &Expr) -> bool {
+    match &expr.kind {
+        ExprKind::Pipe { left, right } => {
+            is_promise_await_member(right) || expr_has_promise_await(left)
+        }
+        ExprKind::Try(inner) | ExprKind::Unwrap(inner) => expr_has_promise_await(inner),
+        _ => false,
+    }
+}
+
+/// Check if an expression is `Promise.await` member access.
+fn is_promise_await_member(expr: &Expr) -> bool {
+    matches!(&expr.kind, ExprKind::Member { object, field }
+        if field == "await" && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise"))
+}
+
+/// Unwrap Try and Unwrap wrappers to find the inner expression.
 pub(super) fn unwrap_try_await_expr(expr: &Expr) -> &Expr {
     match &expr.kind {
-        ExprKind::Try(inner) | ExprKind::Unwrap(inner) | ExprKind::Await(inner) => {
-            unwrap_try_await_expr(inner)
-        }
+        ExprKind::Try(inner) | ExprKind::Unwrap(inner) => unwrap_try_await_expr(inner),
         _ => expr,
     }
 }

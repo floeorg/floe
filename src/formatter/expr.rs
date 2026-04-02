@@ -511,10 +511,6 @@ impl Formatter<'_> {
                         self.write("-");
                         break;
                     }
-                    SyntaxKind::KW_AWAIT => {
-                        self.write("await ");
-                        break;
-                    }
                     _ => {}
                 }
             }
@@ -874,12 +870,6 @@ impl Formatter<'_> {
             .children()
             .filter(|c| c.kind() == SyntaxKind::PARAM)
             .collect();
-
-        // Check if this is an async lambda
-        let is_async = self.has_token(node, SyntaxKind::KW_ASYNC);
-        if is_async {
-            self.write("async ");
-        }
 
         self.write("(");
         for (i, param) in params.iter().enumerate() {

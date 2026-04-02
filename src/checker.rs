@@ -30,6 +30,76 @@ pub fn annotate_types(program: &mut Program, types: &ExprTypeMap) {
     });
 }
 
+/// Walk the AST and set `async_fn = true` on functions/arrows whose bodies
+/// contain `Promise.await` calls. Must run after lowering (no `async` keyword).
+pub fn mark_async_functions(program: &mut Program) {
+    for item in &mut program.items {
+        match &mut item.kind {
+            ItemKind::Function(decl) => {
+                decl.async_fn = body_has_promise_await(&decl.body);
+            }
+            ItemKind::ForBlock(block) => {
+                for func in &mut block.functions {
+                    func.async_fn = body_has_promise_await(&func.body);
+                }
+            }
+            _ => {}
+        }
+    }
+    // Also mark arrows inside all expressions
+    crate::walk::walk_program_mut(program, &mut |expr| {
+        if let ExprKind::Arrow { async_fn, body, .. } = &mut expr.kind {
+            *async_fn = body_has_promise_await(body);
+        }
+    });
+}
+
+/// Check if an expression body contains a `Promise.await` member access
+/// at any depth (including inside pipes, calls, blocks, etc.)
+fn body_has_promise_await(expr: &Expr) -> bool {
+    fn walk(expr: &Expr) -> bool {
+        match &expr.kind {
+            ExprKind::Member { object, field }
+                if field == "await"
+                    && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise") =>
+            {
+                true
+            }
+            ExprKind::Call { callee, args, .. } => {
+                walk(callee)
+                    || args.iter().any(|a| match a {
+                        Arg::Positional(e) | Arg::Named { value: e, .. } => walk(e),
+                    })
+            }
+            ExprKind::Pipe { left, right } => walk(left) || walk(right),
+            ExprKind::Binary { left, right, .. } => walk(left) || walk(right),
+            ExprKind::Member { object, .. } => walk(object),
+            ExprKind::Unary { operand, .. }
+            | ExprKind::Grouped(operand)
+            | ExprKind::Unwrap(operand)
+            | ExprKind::Try(operand)
+            | ExprKind::Spread(operand)
+            | ExprKind::Value(operand) => walk(operand),
+            ExprKind::Block(items) | ExprKind::Collect(items) => items.iter().any(|item| {
+                match &item.kind {
+                    ItemKind::Expr(e) => walk(e),
+                    ItemKind::Const(c) => walk(&c.value),
+                    ItemKind::Function(_) => false, // don't descend into nested functions
+                    _ => false,
+                }
+            }),
+            ExprKind::Match { subject, arms } => {
+                walk(subject) || arms.iter().any(|a| walk(&a.body))
+            }
+            ExprKind::Array(items) | ExprKind::Tuple(items) => items.iter().any(walk),
+            // Don't recurse into nested arrows — they're separate async contexts
+            ExprKind::Arrow { .. } => false,
+            _ => false,
+        }
+    }
+    walk(expr)
+}
+
 use crate::diagnostic::Diagnostic;
 use crate::interop::{self, DtsExport};
 use crate::lexer::span::Span;
@@ -55,8 +125,6 @@ pub(crate) struct CheckContext {
     pub collect_err_type: Option<Type>,
     /// Whether we are checking an event handler prop value (onChange, onClick, etc.)
     pub event_handler_context: bool,
-    /// Whether we are currently inside an `async` function.
-    pub inside_async: bool,
     /// Hints for lambda parameter type inference from calling context.
     /// Each element corresponds to a parameter position (index 0 = first param, etc.).
     pub lambda_param_hints: Vec<Type>,
@@ -90,22 +158,9 @@ pub(crate) struct TraitRegistry {
     pub trait_impls: HashSet<(String, String)>,
 }
 
-/// Check if an expression is wrapped in `await` (possibly through `try`).
-pub fn expr_has_await(expr: &Expr) -> bool {
-    match &expr.kind {
-        ExprKind::Await(_) => true,
-        ExprKind::Try(inner) => expr_has_await(inner),
-        _ => false,
-    }
-}
-
-/// Check if an expression is wrapped in `try` (possibly through `await`).
+/// Check if an expression is wrapped in `try`.
 pub fn expr_has_try(expr: &Expr) -> bool {
-    match &expr.kind {
-        ExprKind::Try(_) => true,
-        ExprKind::Await(inner) => expr_has_try(inner),
-        _ => false,
-    }
+    matches!(&expr.kind, ExprKind::Try(_))
 }
 
 // ── Checker ──────────────────────────────────────────────────────

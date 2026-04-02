@@ -27,8 +27,6 @@ pub enum SyntaxKind {
     KW_MATCH,
     KW_TYPE,
     KW_OPAQUE,
-    KW_ASYNC,
-    KW_AWAIT,
     KW_FOR,
     KW_SELF,
     KW_TRY,
@@ -147,7 +145,6 @@ pub enum SyntaxKind {
     PATTERN,
     BLOCK_EXPR,
     RETURN_EXPR,
-    AWAIT_EXPR,
     UNWRAP_EXPR,
     TRY_EXPR,
     GROUPED_EXPR,
@@ -207,8 +204,6 @@ impl SyntaxKind {
                 | Self::KW_IMPORT
                 | Self::KW_CONST
                 | Self::KW_FN
-                | Self::KW_ASYNC
-                | Self::KW_AWAIT
                 | Self::KW_TRAIT
                 | Self::KW_COLLECT
                 | Self::KW_DERIVING
@@ -262,8 +257,6 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::Match => SyntaxKind::KW_MATCH,
         TokenKind::Type => SyntaxKind::KW_TYPE,
         TokenKind::Opaque => SyntaxKind::KW_OPAQUE,
-        TokenKind::Async => SyntaxKind::KW_ASYNC,
-        TokenKind::Await => SyntaxKind::KW_AWAIT,
         TokenKind::For => SyntaxKind::KW_FOR,
         TokenKind::SelfKw => SyntaxKind::KW_SELF,
         TokenKind::Try => SyntaxKind::KW_TRY,

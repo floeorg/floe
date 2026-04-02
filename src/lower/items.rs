@@ -197,7 +197,6 @@ impl<'src> Lowerer<'src> {
         item_node: &SyntaxNode,
     ) -> Option<FunctionDecl> {
         let exported = self.has_keyword(item_node, SyntaxKind::KW_EXPORT);
-        let async_fn = self.has_keyword(node, SyntaxKind::KW_ASYNC);
 
         let idents = self.collect_idents_direct(node);
         let name = idents.first()?.clone();
@@ -225,10 +224,7 @@ impl<'src> Lowerer<'src> {
                     }
                 }
                 SyntaxKind::BLOCK_EXPR if !is_binding => {
-                    let prev_async = self.inside_async_fn;
-                    self.inside_async_fn = async_fn;
                     body = self.lower_expr_node(&child);
-                    self.inside_async_fn = prev_async;
                 }
                 _ if is_binding && body.is_none() => {
                     // For `fn name = expr`, the body is the expression after `=`
@@ -245,7 +241,7 @@ impl<'src> Lowerer<'src> {
 
         Some(FunctionDecl {
             exported,
-            async_fn,
+            async_fn: false,
             name,
             type_params,
             params,
@@ -454,8 +450,6 @@ impl<'src> Lowerer<'src> {
     }
 
     fn lower_for_block_function(&mut self, node: &SyntaxNode) -> Option<FunctionDecl> {
-        let async_fn = self.has_keyword(node, SyntaxKind::KW_ASYNC);
-
         let idents = self.collect_idents_direct(node);
         let name = idents.first()?.clone();
 
@@ -476,10 +470,7 @@ impl<'src> Lowerer<'src> {
                     }
                 }
                 SyntaxKind::BLOCK_EXPR => {
-                    let prev_async = self.inside_async_fn;
-                    self.inside_async_fn = async_fn;
                     body = self.lower_expr_node(&child);
-                    self.inside_async_fn = prev_async;
                 }
                 _ => {}
             }
@@ -487,7 +478,7 @@ impl<'src> Lowerer<'src> {
 
         Some(FunctionDecl {
             exported: false,
-            async_fn,
+            async_fn: false,
             name,
             type_params: self.collect_type_params(node),
             params,

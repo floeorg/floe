@@ -127,11 +127,6 @@ impl<'src> Lowerer<'src> {
                 Some(self.expr(ExprKind::Try(Box::new(operand)), span))
             }
 
-            SyntaxKind::AWAIT_EXPR => {
-                let operand = self.lower_child_exprs(node).into_iter().next()?;
-                Some(self.expr(ExprKind::Await(Box::new(operand)), span))
-            }
-
             SyntaxKind::UNWRAP_EXPR => {
                 let operand = self.lower_child_exprs(node).into_iter().next()?;
                 Some(self.expr(ExprKind::Unwrap(Box::new(operand)), span))
@@ -266,7 +261,6 @@ impl<'src> Lowerer<'src> {
             SyntaxKind::ARROW_EXPR => {
                 let mut params = Vec::new();
                 let mut body = None;
-                let async_fn = self.has_keyword(node, SyntaxKind::KW_ASYNC);
 
                 for child in node.children() {
                     match child.kind() {
@@ -290,7 +284,7 @@ impl<'src> Lowerer<'src> {
 
                 Some(self.expr(
                     ExprKind::Arrow {
-                        async_fn,
+                        async_fn: false,
                         params,
                         body: Box::new(body?),
                     },
@@ -880,7 +874,7 @@ impl<'src> Lowerer<'src> {
 
         let lambda = self.expr(
             ExprKind::Arrow {
-                async_fn: self.inside_async_fn,
+                async_fn: false,
                 params,
                 body: Box::new(body),
             },

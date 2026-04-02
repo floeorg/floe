@@ -466,8 +466,6 @@ pub enum ExprKind {
         subject: Box<Expr>,
         arms: Vec<MatchArm>,
     },
-    /// Await: `await expr`
-    Await(Box<Expr>),
     /// Try: `try expr` — wraps a throwing expression in Result
     Try(Box<Expr>),
 

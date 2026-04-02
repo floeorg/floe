@@ -393,6 +393,7 @@ impl FloeLsp {
                 // Annotate the AST with resolved types for hover
                 let mut typed_program = program;
                 crate::checker::annotate_types(&mut typed_program, &expr_types);
+                crate::checker::mark_async_functions(&mut typed_program);
 
                 (
                     self.convert_diagnostics(source, &check_diags),

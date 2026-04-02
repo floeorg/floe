@@ -289,7 +289,6 @@ impl Codegen {
     fn expr_has_unwrap(expr: &Expr) -> bool {
         match &expr.kind {
             ExprKind::Unwrap(_) => true,
-            ExprKind::Await(inner) => Self::expr_has_unwrap(inner),
             ExprKind::Pipe { left, right } => {
                 Self::expr_has_unwrap(left) || Self::expr_has_unwrap(right)
             }
@@ -319,26 +318,6 @@ impl Codegen {
                         is_pipe: true,
                     });
                 }
-                ExprKind::Await(await_inner) => match &await_inner.kind {
-                    ExprKind::Pipe { left, right } => {
-                        Self::collect_pipe_steps(left, steps);
-                        steps.push(PipeStep {
-                            expr: (**right).clone(),
-                            unwrap: true,
-                            is_await: true,
-                            is_pipe: true,
-                        });
-                    }
-                    _ => {
-                        // await expr? → base step
-                        steps.push(PipeStep {
-                            expr: (**await_inner).clone(),
-                            unwrap: true,
-                            is_await: true,
-                            is_pipe: false,
-                        });
-                    }
-                },
                 _ => {
                     // Simple unwrap without pipe
                     steps.push(PipeStep {
@@ -349,30 +328,6 @@ impl Codegen {
                     });
                 }
             },
-            // Await(Unwrap(...)) → unwrap the inner with await flag
-            ExprKind::Await(inner) if matches!(inner.kind, ExprKind::Unwrap(_)) => {
-                if let ExprKind::Unwrap(unwrap_inner) = &inner.kind {
-                    match &unwrap_inner.kind {
-                        ExprKind::Pipe { left, right } => {
-                            Self::collect_pipe_steps(left, steps);
-                            steps.push(PipeStep {
-                                expr: (**right).clone(),
-                                unwrap: true,
-                                is_await: true,
-                                is_pipe: true,
-                            });
-                        }
-                        _ => {
-                            steps.push(PipeStep {
-                                expr: (**unwrap_inner).clone(),
-                                unwrap: true,
-                                is_await: true,
-                                is_pipe: false,
-                            });
-                        }
-                    }
-                }
-            }
             // Pipe without unwrap at this level
             ExprKind::Pipe { left, right } => {
                 Self::collect_pipe_steps(left, steps);
@@ -566,7 +521,6 @@ fn collect_constructors_from_expr(expr: &Expr, names: &mut HashSet<String>) {
         }
         ExprKind::Try(e)
         | ExprKind::Unwrap(e)
-        | ExprKind::Await(e)
         | ExprKind::Value(e)
         | ExprKind::Unary { operand: e, .. } => {
             collect_constructors_from_expr(e, names);
@@ -684,7 +638,7 @@ fn collect_value_names_from_expr(expr: &Expr, names: &mut HashSet<String>) {
             collect_value_names_from_expr(right, names);
         }
         ExprKind::Unary { operand, .. } => collect_value_names_from_expr(operand, names),
-        ExprKind::Try(e) | ExprKind::Unwrap(e) | ExprKind::Await(e) => {
+        ExprKind::Try(e) | ExprKind::Unwrap(e) => {
             collect_value_names_from_expr(e, names);
         }
         ExprKind::Value(e) => {

@@ -170,10 +170,6 @@ impl Formatter<'_> {
     // ── Function ────────────────────────────────────────────────
 
     pub(crate) fn fmt_function(&mut self, node: &SyntaxNode) {
-        let has_async = self.has_token(node, SyntaxKind::KW_ASYNC);
-        if has_async {
-            self.write("async ");
-        }
         self.write("fn ");
 
         if let Some(name) = self.first_ident(node) {

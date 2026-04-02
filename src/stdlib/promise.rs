@@ -6,6 +6,7 @@ pub fn register(fns: &mut Vec<StdlibFn>) {
     let u = tv(1);
 
     fns.extend([
+        stdlib_fn!("Promise", "await", [promise_of(t.clone())], t.clone(), "await $0"),
         stdlib_fn!("Promise", "all", [array_of(promise_of(t.clone()))], promise_of(array_of(t.clone())), "Promise.all($0)"),
         stdlib_fn!("Promise", "race", [array_of(promise_of(t.clone()))], promise_of(t.clone()), "Promise.race($0)"),
         stdlib_fn!("Promise", "any", [array_of(promise_of(t.clone()))], promise_of(t.clone()), "Promise.any($0)"),
