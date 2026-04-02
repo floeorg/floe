@@ -135,7 +135,7 @@ gh pr ready <pr-number>
 
 Tell the user:
 
-1. **PR URL** — link to the PR
+1. **PR URL** — always link the PR. On re-runs, link it again so the user can review the latest changes.
 2. Tell the user you are now waiting for merge.
 
 **Never run `gh pr merge`.**
