@@ -148,9 +148,18 @@ fix: [#384] Checker resolves pipe expressions to unknown type
 chore: [#257] Remove Brand type in favor of newtypes
 ```
 
-### 4. Quality Gate
+### 4. Ship
 
-Run before closing any task, scoped to what you changed.
+**When implementation is done, run `/ship`.** It automates the entire pipeline: quality gates, `/simplify`, `/rulify`, draft PR, CI loop, mark ready, and wait for merge.
+
+If `/ship` is unavailable, follow the manual steps below.
+
+<details>
+<summary>Manual steps (what /ship does)</summary>
+
+#### 4a. Quality Gate
+
+Run before creating a PR, scoped to what you changed.
 
 **Rust quality gate** (if you changed `src/**/*.rs`):
 
@@ -187,18 +196,25 @@ python3 -m pytest tests/lsp/ --floe-bin=./target/debug/floe
 
 All tests must pass (0 failures).
 
-### 5. Simplify
+#### 4b. Code Review (self-check)
 
-Run `/simplify` to review changed code for reuse, quality, and efficiency. Fix any issues it finds before proceeding.
+After quality gates pass, run these self-checks **in order**:
 
-### 6. PR (do NOT merge)
+1. **`/simplify`** — review changed code for reuse, quality, and efficiency. Fix any issues found.
+2. **`/rulify`** — cross-check changes against `.claude/rules/`. Auto-fixes clear violations.
 
-Create the PR and **stop**. Do NOT merge - ask the user to review and merge.
+If either skill made changes, re-run quality gates on the affected areas before proceeding. Commit fixes.
+
+#### 4c. Draft PR + CI loop
+
+Create a **draft PR**, wait for CI, and only mark ready when CI passes.
+
+**PR titles use conventional commit prefixes** (`feat:`, `fix:`, `chore:`, `test:`). Append `!` for breaking changes.
 
 **Standalone issue** (not part of an epic) - PR targets main:
 
 ```bash
-gh pr create --title "[#<num>] <full issue title>" --body "closes #<num>
+gh pr create --draft --title "feat: [#<num>] <full issue title>" --body "closes #<num>
 
 ..."
 ```
@@ -206,8 +222,8 @@ gh pr create --title "[#<num>] <full issue title>" --body "closes #<num>
 **Sub-issue of an epic** - PR targets the epic branch:
 
 ```bash
-gh pr create --base feature/#<epic-num>.<summary> \
-  --title "[#<epic-num>/#<num>] <full issue title>" \
+gh pr create --draft --base feature/#<epic-num>.<summary> \
+  --title "feat: [#<epic-num>/#<num>] <full issue title>" \
   --body "closes #<num>
 
 ..."
@@ -221,39 +237,41 @@ gh pr ready <epic-pr-number>
 
 The PR body **must start with `closes #<num>`** on the first line - this links the PR to the issue and auto-closes it on merge.
 
-After creating the PR, tell the user the PR URL and ask them to review and merge it. **Never run `gh pr merge` yourself.**
+#### 4d. CI loop
 
-### 7. Close (only after user review)
+Poll CI status. If CI fails:
+1. Read the failure logs and fix the issue
+2. Re-run quality gates on affected areas
+3. Commit, push, and poll CI again
+4. If the fix involved new logic or structural changes (not just mechanical fixes like imports or type annotations), re-run `/simplify` and `/rulify` before pushing
 
-Do NOT close the issue or remove the worktree until the user has reviewed and merged the PR. After the user confirms the PR is merged:
+**Cap: after 3 consecutive CI failures, stop and ask the user.** Some failures need human judgment (flaky tests, infrastructure issues, permissions).
 
+#### 4e. Mark ready + report
+
+When CI passes:
 ```bash
-glb close <num>
-
-# Back in the main repo directory:
-git worktree remove ../floe-worktrees/<num>
-git pull
+gh pr ready <pr-number>
 ```
 
-## Session Completion - MANDATORY
+Tell the user the PR URL and ask them to review and merge it. **Never run `gh pr merge` yourself.**
 
-Work is **not done** until `git push` succeeds.
+#### 4f. Wait for merge and land
 
-1. **File issues** for remaining work - `glb create`
-2. **Run quality gates** (if code changed) - fmt, clippy, test
-3. **Update issue status** - close finished work, update in-progress items
-4. **Push code to remote**:
+Poll the PR merge status. When merged, automatically run `/land` to clean up (close issue, remove worktree, sync main).
 
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
+</details>
 
-5. **Verify** - all code changes committed AND pushed
+### 5. Land (automatic after merge)
 
-**Rules:**
+`/ship` handles this automatically by polling for merge. If the session ended before the merge, run `/land` manually in a new session.
 
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
+- Close the issue: `glb close <num>`
+- Remove the worktree: `git worktree remove ../floe-worktrees/<num>`
+- Sync main: `git checkout main && git pull`
+
+## Session Completion
+
+- **NEVER stop before pushing** — that leaves work stranded locally. YOU must push; never say "ready to push when you are."
+- **File issues** for any remaining work — `glb create`
 - If push fails, resolve and retry until it succeeds
