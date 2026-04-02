@@ -58,9 +58,10 @@ Commit any fixes from this step.
 Run self-checks in order:
 
 1. **`/simplify`** — review changed code for reuse, quality, and efficiency
-2. **`/rulify`** — cross-check changes against `.claude/rules/`
+2. **`/alignify`** — check consistency with sibling files in each layer
+3. **`/rulify`** — cross-check changes against `.claude/rules/`
 
-If either made changes:
+If any made changes:
 - Re-run quality gates (step 2) on affected areas
 - Commit fixes
 
