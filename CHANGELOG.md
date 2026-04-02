@@ -5,6 +5,22 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1](https://github.com/floeorg/floe/compare/v0.2.0...v0.2.1) (2026-04-02)
+
+
+### Features
+
+* [[#949](https://github.com/floeorg/floe/issues/949)] [[#950](https://github.com/floeorg/floe/issues/950)] Add Promise.tryAwait and warn on try-on-Promise ([#951](https://github.com/floeorg/floe/issues/951)) ([3c7e0ab](https://github.com/floeorg/floe/commit/3c7e0abcb1e75457299df5018aeaab9ff1e3260a))
+* [[#955](https://github.com/floeorg/floe/issues/955)] Trusted propagation through member access ([#962](https://github.com/floeorg/floe/issues/962)) ([4af489e](https://github.com/floeorg/floe/commit/4af489e2bf497b15c6860f248004942b391df35a))
+* [[#958](https://github.com/floeorg/floe/issues/958)] Smart try - auto-await Promises, remove Promise.tryAwait ([#959](https://github.com/floeorg/floe/issues/959)) ([a237da3](https://github.com/floeorg/floe/commit/a237da3ba130e1172263589edaa53d161decf1be))
+
+
+### Bug Fixes
+
+* [[#953](https://github.com/floeorg/floe/issues/953)] Warn when try wraps a Floe function call ([#961](https://github.com/floeorg/floe/issues/961)) ([c6034ca](https://github.com/floeorg/floe/commit/c6034ca58d3774fc12e04b54d6958197e55d84cd))
+* [[#957](https://github.com/floeorg/floe/issues/957)] Preserve type args in inlined probe for local-const member calls ([#960](https://github.com/floeorg/floe/issues/960)) ([84a98d7](https://github.com/floeorg/floe/commit/84a98d78efc0dc4b8400bf5296bae780eae9271c))
+* include suggestion in TryOnPromise warning message ([c92d158](https://github.com/floeorg/floe/commit/c92d15877590212a9ddeea9f860a2b316a7e741b))
+
 ## [0.2.0](https://github.com/floeorg/floe/compare/v0.1.43...v0.2.0) (2026-04-02)
 
 
