@@ -122,11 +122,6 @@ impl<'src> Lowerer<'src> {
                 ))
             }
 
-            SyntaxKind::TRY_EXPR => {
-                let operand = self.lower_child_exprs(node).into_iter().next()?;
-                Some(self.expr(ExprKind::Try(Box::new(operand)), span))
-            }
-
             SyntaxKind::UNWRAP_EXPR => {
                 let operand = self.lower_child_exprs(node).into_iter().next()?;
                 Some(self.expr(ExprKind::Unwrap(Box::new(operand)), span))

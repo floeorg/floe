@@ -471,133 +471,20 @@ const _x = _user |> display
 
 // (Inline for-declaration tests removed — only block form is supported)
 
-// ── Untrusted Import Enforcement ─────────────────────────────
+// ── npm imports (no enforcement needed, throws are auto-wrapped) ──
 
 #[test]
-fn untrusted_import_requires_try() {
+fn npm_import_callable_without_throws() {
+    // Regular npm imports can be called freely (no try needed)
     let diags = check(
         r#"
-import { fetchUser } from "some-lib"
-const _x = fetchUser("id")
-"#,
-    );
-    assert!(has_error(&diags, ErrorCode::UntrustedImport));
-    assert!(has_error_containing(&diags, "untrusted import"));
-}
-
-#[test]
-fn untrusted_import_ok_with_try() {
-    let diags = check(
-        r#"
-import { fetchUser } from "some-lib"
-const _x = try fetchUser("id")
-"#,
-    );
-    assert!(!has_error(&diags, ErrorCode::UntrustedImport));
-}
-
-#[test]
-fn trusted_specifier_no_error() {
-    let diags = check(
-        r#"
-import { trusted capitalize } from "some-lib"
+import { capitalize } from "some-lib"
 const _x = capitalize("hello")
 "#,
     );
-    assert!(!has_error(&diags, ErrorCode::UntrustedImport));
-}
-
-#[test]
-fn trusted_module_no_error() {
-    let diags = check(
-        r#"
-import trusted { capitalize, slugify } from "string-utils"
-const _x = capitalize("hello")
-const _y = slugify("hello world")
-"#,
-    );
-    assert!(!has_error(&diags, ErrorCode::UntrustedImport));
-}
-
-#[test]
-fn mixed_trusted_untrusted() {
-    let diags = check(
-        r#"
-import { trusted capitalize, fetchUser } from "some-lib"
-const _x = capitalize("hello")
-const _y = fetchUser("id")
-"#,
-    );
-    // capitalize is trusted — no error
-    assert!(!has_error_containing(&diags, "capitalize"));
-    // fetchUser is untrusted — error
-    assert!(has_error_containing(&diags, "fetchUser"));
-}
-
-// ── Trusted propagation through member access ──────────────
-
-#[test]
-fn untrusted_member_call_requires_try() {
-    let diags = check(
-        r#"
-import { jiraCommands } from "jira-lib"
-const _r = jiraCommands.getTransitions("id")
-"#,
-    );
     assert!(
-        has_error(&diags, ErrorCode::UntrustedImport),
-        "member call on untrusted import should require try, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn untrusted_member_call_ok_with_try() {
-    let diags = check(
-        r#"
-import { jiraCommands } from "jira-lib"
-fn test() -> Result<string, Error> {
-    const _r = try jiraCommands.getTransitions("id")
-    Ok("done")
-}
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::UntrustedImport),
-        "try on untrusted member call should be allowed, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn trusted_member_call_no_error() {
-    let diags = check(
-        r#"
-import trusted { jiraCommands } from "jira-lib"
-const _r = jiraCommands.getTransitions("id")
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::UntrustedImport),
-        "member call on trusted import should not error, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn try_on_trusted_member_call_no_floe_warning() {
-    let diags = check(
-        r#"
-import trusted { jiraCommands } from "jira-lib"
-fn test() -> Result<string, Error> {
-    const _r = try jiraCommands.getTransitions("id")
-    Ok("done")
-}
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::TryOnFloeFunction),
-        "try on trusted member call should not warn about Floe function, got: {:?}",
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "npm import should be callable without throws, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -1713,7 +1600,7 @@ fn dispatch_generic_converts_to_function() {
 
     let program = crate::parser::Parser::new(
         r#"
-import trusted { useState } from "react"
+import { useState } from "react"
 type Todo { text: string }
 const [todos, setTodos] = useState<Array<Todo>>([])
 fn handler() {
@@ -1788,7 +1675,7 @@ fn calling_dispatch_type_is_callable() {
 
     let program = crate::parser::Parser::new(
         r#"
-import trusted { useState } from "react"
+import { useState } from "react"
 type Todo { text: string }
 const [todos, setTodos] = useState<Array<Todo>>([])
 fn handler() {
@@ -1923,7 +1810,7 @@ const _y = age
     }
 }
 
-// ── Object destructuring from trusted imports ───────────────
+// ── Object destructuring from npm imports ───────────────
 
 #[test]
 fn object_destructure_from_trusted_import_gets_field_types() {
@@ -1932,7 +1819,7 @@ fn object_destructure_from_trusted_import_gets_field_types() {
 
     let program = crate::parser::Parser::new(
         r#"
-import trusted { useQuery } from "react-query"
+import { useQuery } from "react-query"
 const { data, isLoading } = useQuery("key")
 const _x = data
 const _y = isLoading
@@ -1987,7 +1874,7 @@ const _y = isLoading
         .collect();
     assert!(
         errors.is_empty(),
-        "object destructure from trusted import should not error, got: {:?}",
+        "object destructure from npm import should not error, got: {:?}",
         errors.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 
@@ -2767,7 +2654,7 @@ const doubled = len + 1
 fn npm_import_used_as_constructor_no_error() {
     let diags = check(
         r#"
-import trusted { QueryClient } from "@tanstack/react-query"
+import { QueryClient } from "@tanstack/react-query"
 const _qc = QueryClient(defaultOptions: {})
 "#,
     );
@@ -2831,7 +2718,7 @@ fn timer_globals_are_recognized() {
 fn narrowing_unknown_to_concrete_type_is_error() {
     let diags = check(
         r#"
-import trusted { getData } from "some-lib"
+import { getData } from "some-lib"
 const data = getData()
 const x: number = data
 "#,
@@ -2847,7 +2734,7 @@ const x: number = data
 fn unknown_to_unknown_annotation_is_ok() {
     let diags = check(
         r#"
-import trusted { getData } from "some-lib"
+import { getData } from "some-lib"
 const data = getData()
 const x: unknown = data
 "#,
@@ -2855,27 +2742,6 @@ const x: unknown = data
     assert!(
         !has_error(&diags, ErrorCode::UnsafeNarrowing),
         "annotating unknown as unknown should be fine"
-    );
-}
-
-// ── fetch requires try ──────────────────────────────────────
-
-#[test]
-fn fetch_requires_try() {
-    let diags = check(r#"const res = fetch("https://example.com")"#);
-    assert!(
-        has_error(&diags, ErrorCode::UntrustedImport),
-        "calling fetch without try should error, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn fetch_with_try_is_ok() {
-    let diags = check(r#"const res = try fetch("https://example.com")"#);
-    assert!(
-        !has_error(&diags, ErrorCode::UntrustedImport),
-        "calling fetch with try should be fine"
     );
 }
 
@@ -2938,7 +2804,7 @@ export fn bad() -> Promise<string> {
 fn member_access_on_unknown_is_error() {
     let diags = check(
         r#"
-import trusted { getData } from "some-lib"
+import { getData } from "some-lib"
 const data = getData()
 const x = data.name
 "#,
@@ -2954,7 +2820,7 @@ const x = data.name
 fn method_call_on_unknown_is_error() {
     let diags = check(
         r#"
-import trusted { getData } from "some-lib"
+import { getData } from "some-lib"
 const data = getData()
 const x = data.toJSON()
 "#,
@@ -2977,97 +2843,32 @@ fn stdlib_member_access_still_works() {
 
 // ── Promise / Promise.await ─────────────────────────────────
 
-#[test]
-fn fetch_returns_promise_response() {
-    // fetch returns Promise<Response>, not Response directly
-    // So without Promise.await, you can't access .json()
-    let diags = check(
-        r#"
-fn test() -> Result<string, Error> {
-    const res = try fetch("url")?
-    const j = res.json()
-    Ok("done")
-}
-"#,
-    );
-    // res should be Promise<Response>, so .json() should error
-    // (need Promise.await to unwrap Promise first)
-    assert!(
-        has_error_containing(&diags, "Promise"),
-        "fetch without Promise.await should give Promise<Response>, accessing .json() should error about Promise, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
-    );
-}
-
-// ── try on Floe function warns ──────────────────────────────
+// ── Promise / Promise.await ─────────────────────────────────
 
 #[test]
-fn try_on_floe_function_warns() {
+fn promise_return_type_unwrap() {
+    // Promise<T> return type should accept T as body type
     let diags = check(
         r#"
-fn fetchUser(id: string) -> Result<string, Error> { Ok("alice") }
-fn test() {
-    const _r = try fetchUser("1")
-}
-"#,
-    );
-    assert!(
-        has_error(&diags, ErrorCode::TryOnFloeFunction),
-        "try on Floe function should warn, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn try_on_trusted_import_no_warning() {
-    let diags = check(
-        r#"
-import trusted { parseYaml } from "yaml-lib"
-fn test() {
-    const _r = try parseYaml("input")
-}
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::TryOnFloeFunction),
-        "try on trusted import should not warn, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-// ── Smart try: auto-awaits Promises ─────────────────────────
-
-#[test]
-fn try_on_promise_unwraps_to_result_of_inner() {
-    // try on Promise<string> should give Result<string, Error>, not Result<Promise<string>, Error>
-    let diags = check(
-        r#"
-fn asyncOp() -> Promise<string> { "hello" }
-export fn test() -> Result<string, Error> {
-    try asyncOp()
-}
+export fn asyncOp() -> Promise<string> { "hello" }
 "#,
     );
     assert!(
         !has_error_containing(&diags, "expected return type"),
-        "try on Promise<string> should produce Result<string, Error>, got: {:?}",
+        "Promise<string> should accept string body, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn try_without_unwrap_gives_result() {
-    // try fetch() without ? should give Result<Promise<Response>, Error>
+fn result_match_works() {
     let diags = check(
         r#"
+fn getData() -> Result<string, Error> { Ok("hello") }
 fn test() -> Result<string, Error> {
-    const res = try fetch("url")
+    const res = getData()
     const val = match res {
-        Ok(promise) -> "got promise",
+        Ok(data) -> data,
         Err(e) -> e.message,
     }
     Ok(val)
@@ -3076,7 +2877,7 @@ fn test() -> Result<string, Error> {
     );
     assert!(
         !has_error_containing(&diags, "not defined"),
-        "try without ? should give Result, matching on it should work, got: {:?}",
+        "Result match should work, got: {:?}",
         diags
             .iter()
             .filter(|d| d.severity == Severity::Error)
@@ -3706,7 +3507,7 @@ fn imported_optional_params_allow_omission() {
     // useQueryClient(queryClient?: QueryClient): QueryClient
     let program = crate::parser::Parser::new(
         r#"
-import trusted { useQueryClient } from "@tanstack/react-query"
+import { useQueryClient } from "@tanstack/react-query"
 const _client = useQueryClient()
 "#,
     )
@@ -3744,7 +3545,7 @@ fn imported_optional_params_still_validates_max_args() {
     // fn(a: string, b?: number): void — max 2 args
     let program = crate::parser::Parser::new(
         r#"
-import trusted { doStuff } from "some-lib"
+import { doStuff } from "some-lib"
 const _x = doStuff("hi", 1, true)
 "#,
     )
@@ -3790,7 +3591,7 @@ fn ts_union_accepts_compatible_member() {
     // format(date: Date | number | string, fmt: string): string
     let program = crate::parser::Parser::new(
         r#"
-import trusted { format } from "date-fns"
+import { format } from "date-fns"
 const _x = format("2024-01-01", "PPpp")
 "#,
     )
@@ -3838,7 +3639,7 @@ fn ts_union_rejects_incompatible_type() {
     // doStuff(x: number | string): void
     let program = crate::parser::Parser::new(
         r#"
-import trusted { doStuff } from "some-lib"
+import { doStuff } from "some-lib"
 const _x = doStuff(true)
 "#,
     )
@@ -3880,7 +3681,7 @@ fn ts_union_compatible_with_itself() {
     // calling with return value of same type should work
     let program = crate::parser::Parser::new(
         r#"
-import trusted { identity, consume } from "some-lib"
+import { identity, consume } from "some-lib"
 const x = identity()
 const _y = consume(x)
 "#,
@@ -3944,7 +3745,7 @@ fn foreign_rejects_primitive_string() {
     // takesClient(c: QueryClient): void — should reject a string
     let program = crate::parser::Parser::new(
         r#"
-import trusted { takesClient } from "some-lib"
+import { takesClient } from "some-lib"
 const _x = takesClient("hello")
 "#,
     )
@@ -3982,7 +3783,7 @@ fn foreign_accepts_same_foreign() {
     // getClient(): QueryClient, takesClient(c: QueryClient): void
     let program = crate::parser::Parser::new(
         r#"
-import trusted { getClient, takesClient } from "some-lib"
+import { getClient, takesClient } from "some-lib"
 const client = getClient()
 const _x = takesClient(client)
 "#,
@@ -4660,7 +4461,7 @@ fn foreign_type_member_access_resolves_via_record_definition() {
 
     let program = crate::parser::Parser::new(
         r#"
-import trusted { useState } from "react"
+import { useState } from "react"
 import { Transition } from "api"
 
 fn test(id: string) -> () { () }

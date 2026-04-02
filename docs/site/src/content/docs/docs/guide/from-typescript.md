@@ -23,7 +23,7 @@ Floe is designed to be familiar to TypeScript developers.
 | `let` / `const` | `const` only | No mutation |
 | `===` | `==` | `==` compiles to `===` |
 | `switch` | `match` | Exhaustive, no fall-through |
-| `try/catch` | `try` expression | `const result = try parseYaml(input)` |
+| `try/catch` | `throws` imports | `import throws { parseYaml } from "yaml-lib"` |
 | `{x && <Comp />}` | `Option.map` | `{x \|> Option.map((v) => <Comp v={v} />)}` |
 | `T \| null` | `Option<T>` | `Some(value)` / `None` |
 | `throw` | `Result<T, E>` | `Ok(value)` / `Err(error)` |

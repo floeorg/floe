@@ -1,6 +1,21 @@
 use super::*;
 
 impl Codegen {
+    /// Check if a callee targets a `throws` import.
+    fn is_throwing_call(&self, callee: &Expr) -> bool {
+        match &callee.kind {
+            ExprKind::Identifier(name) => self.throwing_imports.contains(name.as_str()),
+            ExprKind::Member { object, .. } => {
+                if let ExprKind::Identifier(obj_name) = &object.kind {
+                    self.throwing_imports.contains(obj_name.as_str())
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
     // ── Expressions ──────────────────────────────────────────────
 
     pub(super) fn emit_expr(&mut self, expr: &Expr) {
@@ -92,8 +107,20 @@ impl Codegen {
             }
 
             ExprKind::Call { callee, args, .. } => {
-                // Check for stdlib call: Array.sort(arr), Option.map(opt, fn), etc.
-                if let Some(output) = self.try_emit_stdlib_call(callee, args) {
+                // Auto-wrap throws import calls in try/catch IIFE
+                if self.is_throwing_call(callee) {
+                    self.push(&format!(
+                        "await (async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: await "
+                    ));
+                    self.emit_expr(callee);
+                    self.push("(");
+                    self.emit_args(args);
+                    self.push(")");
+                    self.push(&format!(
+                        " }}; }} catch (_e) {{ return {{ {OK_FIELD}: false as const, {ERROR_FIELD}: _e instanceof Error ? _e : new Error(String(_e)) }}; }} }})()"
+                    ));
+                } else if let Some(output) = self.try_emit_stdlib_call(callee, args) {
+                    // Check for stdlib call: Array.sort(arr), Option.map(opt, fn), etc.
                     self.push(&output);
                 } else if has_placeholder_arg(args) {
                     // Check if this is a partial application (has placeholder args)
@@ -276,25 +303,6 @@ impl Codegen {
             // Match: `match x { A -> ..., B -> ... }` → ternary chain
             ExprKind::Match { subject, arms } => {
                 self.emit_match(subject, arms);
-            }
-
-            // Try: `try expr` → IIFE with try/catch wrapping in Result
-            // Non-Error throws are coerced to Error for consistent typing
-            // Smart try: if expr is Promise<T>, auto-await inside the IIFE
-            ExprKind::Try(inner) => {
-                let has_await = expr_contains_await(inner);
-                let is_promise = matches!(inner.ty, Type::Promise(_));
-                if has_await || is_promise {
-                    self.push(&format!("await (async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: await "));
-                    self.emit_expr(inner);
-                    self.push(&format!(" }}; }} catch (_e) {{ return {{ {OK_FIELD}: false as const, {ERROR_FIELD}: _e instanceof Error ? _e : new Error(String(_e)) }}; }} }})()"));
-                } else {
-                    self.push(&format!(
-                        "(() => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: "
-                    ));
-                    self.emit_expr(inner);
-                    self.push(&format!(" }}; }} catch (_e) {{ return {{ {OK_FIELD}: false as const, {ERROR_FIELD}: _e instanceof Error ? _e : new Error(String(_e)) }}; }} }})()"));
-                }
             }
 
             // parse<T>(value) → validation IIFE
@@ -824,7 +832,6 @@ pub(super) fn expr_contains_await(expr: &Expr) -> bool {
         ExprKind::Unary { operand, .. }
         | ExprKind::Grouped(operand)
         | ExprKind::Unwrap(operand)
-        | ExprKind::Try(operand)
         | ExprKind::Spread(operand) => expr_contains_await(operand),
         ExprKind::Collect(items) | ExprKind::Block(items) => items.iter().any(|item| {
             if let ItemKind::Expr(e) = &item.kind {

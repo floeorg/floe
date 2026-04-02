@@ -962,7 +962,6 @@ fn collect_member_accesses_expr(
         ExprKind::Grouped(inner)
         | ExprKind::Unary { operand: inner, .. }
         | ExprKind::Unwrap(inner)
-        | ExprKind::Try(inner)
         | ExprKind::Spread(inner) => {
             collect_member_accesses_expr(inner, imported_names, accesses);
         }
@@ -1360,7 +1359,7 @@ fn expr_has_promise_await(expr: &Expr) -> bool {
         ExprKind::Pipe { left, right } => {
             is_promise_await_member(right) || expr_has_promise_await(left)
         }
-        ExprKind::Try(inner) | ExprKind::Unwrap(inner) => expr_has_promise_await(inner),
+        ExprKind::Unwrap(inner) => expr_has_promise_await(inner),
         _ => false,
     }
 }
@@ -1371,10 +1370,10 @@ fn is_promise_await_member(expr: &Expr) -> bool {
         if field == "await" && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise"))
 }
 
-/// Unwrap Try and Unwrap wrappers to find the inner expression.
+/// Unwrap wrappers to find the inner expression.
 pub(super) fn unwrap_try_await_expr(expr: &Expr) -> &Expr {
     match &expr.kind {
-        ExprKind::Try(inner) | ExprKind::Unwrap(inner) => unwrap_try_await_expr(inner),
+        ExprKind::Unwrap(inner) => unwrap_try_await_expr(inner),
         _ => expr,
     }
 }

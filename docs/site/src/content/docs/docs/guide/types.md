@@ -82,7 +82,7 @@ type C { ...A, ...B, z: boolean }
 Spreads work with generic types and `typeof`, including npm imports:
 
 ```floe
-import trusted { tv, VariantProps } from "tailwind-variants"
+import { tv, VariantProps } from "tailwind-variants"
 
 const cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
 

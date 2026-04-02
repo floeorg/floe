@@ -25,6 +25,7 @@ module.exports = grammar({
     [$.assert_statement, $.member_expression],
     [$.assert_statement, $.binary_expression],
     [$.assert_statement, $.index_expression],
+    [$.primary_expression, $.lambda_parameter],
   ],
 
   precedences: ($) => [
@@ -66,7 +67,7 @@ module.exports = grammar({
     import_declaration: ($) =>
       seq(
         "import",
-        optional("trusted"),
+        optional("throws"),
         "{",
         commaSep1(choice($.import_specifier, $.import_for_specifier)),
         "}",
@@ -75,7 +76,7 @@ module.exports = grammar({
       ),
 
     import_specifier: ($) =>
-      seq(optional("trusted"), $.identifier, optional(seq("as", $.identifier))),
+      seq(optional("throws"), $.identifier, optional(seq("as", $.identifier))),
 
     import_for_specifier: ($) =>
       seq("for", field("type", choice($.type_identifier, $.identifier))),
@@ -294,7 +295,6 @@ module.exports = grammar({
         $.jsx_fragment,
         $.block,
         $.assignment_expression,
-        $.try_expression,
         $.collect_expression,
         $.return_statement,
       ),
@@ -367,13 +367,13 @@ module.exports = grammar({
     unreachable: ($) => "unreachable",
 
     mock_expression: ($) =>
-      seq(
+      prec.right(seq(
         "mock",
         "<",
         $._type_expression,
         ">",
         optional(seq("(", commaSep($.argument), ")")),
-      ),
+      )),
 
     underscore: ($) => "_",
 
@@ -631,9 +631,6 @@ module.exports = grammar({
 
     assignment_expression: ($) =>
       prec.right("assign", seq(field("left", $._expression), "=", field("right", $._expression))),
-
-    try_expression: ($) =>
-      prec.right(seq("try", $._expression)),
 
     collect_expression: ($) =>
       seq("collect", $.block),

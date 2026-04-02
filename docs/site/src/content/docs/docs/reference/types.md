@@ -100,7 +100,7 @@ Multiple spreads are allowed. Field name conflicts are compile errors.
 Spreads work with generic types, `typeof`, and npm imports:
 
 ```floe
-import trusted { tv, VariantProps } from "tailwind-variants"
+import { tv, VariantProps } from "tailwind-variants"
 
 const cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
 

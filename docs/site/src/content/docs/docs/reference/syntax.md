@@ -302,15 +302,16 @@ import { name } from "module"
 import { name as alias } from "module"
 import { a, b, c } from "module"
 
-// npm imports are unsafe by default
-import { parseYaml } from "yaml-lib"
-const result = try parseYaml(input)   // wraps in Result<T, Error>
+// npm imports work directly
+import { useState } from "react"
+const [count, setCount] = useState(0)
 
-// trusted imports skip the try requirement
-import trusted { useState } from "react"
+// throws imports — for npm functions that may throw
+import throws { parseYaml } from "yaml-lib"
+const result = parseYaml(input)   // auto-wrapped in Result<T, Error>
 
-// Per-function trust
-import { trusted capitalize, fetchData } from "some-lib"
+// Per-function throws
+import { capitalize, throws fetchData } from "some-lib"
 
 // Import for-block functions by type
 import { for User } from "./helpers"

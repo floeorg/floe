@@ -14,41 +14,36 @@ import { z } from "zod"
 import { clsx } from "clsx"
 ```
 
-The compiler reads `.d.ts` type definitions to understand the types of imported values.
+The compiler reads `.d.ts` type definitions to understand the types of imported values. These imports are callable directly -- no special syntax needed.
 
-## `trusted` imports
+## `throws` imports
 
-By default, Floe treats npm imports as potentially throwing. The compiler requires you to wrap calls in `try`, which returns a `Result<T, Error>`:
+Some npm functions can throw exceptions at runtime (JSON parsers, API clients, file I/O). Mark these imports with `throws` so the compiler auto-wraps calls in `Result<T, Error>`:
 
 ```floe
-import { parseYaml } from "yaml-lib"
+import throws { parseYaml } from "yaml-lib"
 
-// parseYaml might throw, so you must use try
-const result = try parseYaml(input)
+// parseYaml is auto-wrapped — returns Result<T, Error>
+const result = parseYaml(input)
 match result {
   Ok(data) -> process(data),
   Err(e) -> Console.error(e),
 }
 ```
 
-For libraries you know won't throw, mark the import as `trusted` to skip the `try` requirement:
+Use `?` to unwrap the result concisely:
 
 ```floe
-import trusted { useState, useEffect } from "react"
-import trusted { clsx } from "clsx"
-
-// No try needed - these are trusted
-const [count, setCount] = useState(0)
-const classes = clsx("btn", active)
+const data = parseYaml(input)?  // unwraps or returns Err early
 ```
 
-You can also trust individual functions from a module:
+You can mark individual functions as throwing from a module:
 
 ```floe
-import { trusted capitalize, fetchData } from "some-lib"
+import { capitalize, throws fetchData } from "some-lib"
 
-capitalize("hello")             // trusted, no try needed
-const data = try fetchData()    // not trusted, try required
+capitalize("hello")             // direct call, no wrapping
+const data = fetchData()        // Result<T, Error> — auto-wrapped
 ```
 
 ## Bridge types (`=` syntax)
@@ -89,8 +84,8 @@ The match is exhaustive -- if you miss a variant, the compiler tells you. The ty
 Alias TypeScript types or combine them with `&`:
 
 ```floe
-import trusted { ComponentProps } from "react"
-import trusted { tv, VariantProps } from "tailwind-variants"
+import { ComponentProps } from "react"
+import { tv, VariantProps } from "tailwind-variants"
 
 type DivProps = ComponentProps<"div">
 
@@ -116,7 +111,7 @@ Floe has no `null` or `undefined`. When importing from TypeScript, the compiler 
 Optional parameters (`?`) become `Option<T>` with a default of `None`, so you can omit them when calling:
 
 ```floe
-import trusted { getElementById } from "some-dom-lib"
+import { getElementById } from "some-dom-lib"
 // .d.ts says: getElementById(id: string): Element | null
 // Floe sees: getElementById(id: string) -> Option<Element>
 
@@ -128,10 +123,10 @@ match getElementById("app") {
 
 ## Using React hooks
 
-React hooks work directly. Use `trusted` since hooks don't throw:
+React hooks work directly:
 
 ```floe
-import trusted { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 
 export fn Counter() -> JSX.Element {
   const [count, setCount] = useState(0)
@@ -151,7 +146,7 @@ export fn Counter() -> JSX.Element {
 Third-party React components work as regular JSX:
 
 ```floe
-import trusted { Button, Dialog } from "@radix-ui/react"
+import { Button, Dialog } from "@radix-ui/react"
 
 export fn MyPage() -> JSX.Element {
   const [open, setOpen] = useState(false)

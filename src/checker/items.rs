@@ -42,19 +42,13 @@ impl Checker {
             self.expr_types.insert(decl.value.id, declared.clone());
         }
         let tsgo_type = self.find_and_consume_tsgo_probe(&decl.binding).map(|ty| {
-            // The tsgo probe generates the raw call expression without `try`/`await`,
+            // The tsgo probe generates the raw call expression without `await`,
             // so adjust the probe type to match the Floe expression:
             // - `await`: unwrap Promise<T> → T
-            // - `try`: wrap T → Result<T, Error>
-            let ty = if Self::expr_has_promise_await(&decl.value)
+            if Self::expr_has_promise_await(&decl.value)
                 && let Type::Promise(inner) = ty
             {
                 *inner
-            } else {
-                ty
-            };
-            if expr_has_try(&decl.value) {
-                Type::result_of(ty, Type::Named(crate::type_layout::TYPE_ERROR.to_string()))
             } else {
                 ty
             }
@@ -217,12 +211,7 @@ impl Checker {
     /// Find the first arrow function argument in a call expression.
     /// For `useCallback((item) => {...}, [])`, returns the `(item) => {...}` expr.
     fn find_arrow_arg(expr: &Expr) -> Option<&Expr> {
-        // Unwrap try wrapper
-        let mut inner = expr;
-        while let ExprKind::Try(e) = &inner.kind {
-            inner = e.as_ref();
-        }
-        if let ExprKind::Call { args, .. } = &inner.kind {
+        if let ExprKind::Call { args, .. } = &expr.kind {
             for arg in args {
                 let arg_expr = match arg {
                     Arg::Positional(e) | Arg::Named { value: e, .. } => e,
@@ -243,7 +232,7 @@ impl Checker {
                     || Self::expr_has_promise_await(left)
                     || Self::expr_has_promise_await(right)
             }
-            ExprKind::Try(inner) | ExprKind::Unwrap(inner) => Self::expr_has_promise_await(inner),
+            ExprKind::Unwrap(inner) => Self::expr_has_promise_await(inner),
             _ => false,
         }
     }

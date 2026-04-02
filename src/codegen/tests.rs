@@ -645,16 +645,6 @@ fn promise_await_pipe() {
     assert!(result.contains("await fetchData()"));
 }
 
-#[test]
-fn smart_try_on_promise_emits_async_iife() {
-    let result =
-        emit_with_types("fn asyncOp() -> Promise<string> { \"hi\" }\nconst _x = try asyncOp()");
-    assert!(
-        result.contains("async") && result.contains("await") && result.contains("ok:"),
-        "try on Promise should emit async IIFE with await, got: {result}"
-    );
-}
-
 // ── Implicit Return ──────────────────────────────────────────
 
 #[test]

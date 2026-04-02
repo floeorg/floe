@@ -52,7 +52,7 @@ class TestCompletionMatch:
 
 class TestCompletionJsx:
     def test_jsx_attributes(self, lsp):
-        source = 'import trusted { useState } from "react"\nexport fn App() -> JSX.Element {\n    <button on\n}'
+        source = 'import { useState } from "react"\nexport fn App() -> JSX.Element {\n    <button on\n}'
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 2, 15))
         assert any("on" in l.lower() for l in labels), f"Labels: {labels[:10]}"

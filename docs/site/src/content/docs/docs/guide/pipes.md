@@ -69,7 +69,7 @@ todos |> Array.map((t) => Todo(..t, done: !t.done))
 Pipes work with any function, including methods accessed via imports:
 
 ```floe
-import trusted { map, filter, reduce } from "ramda"
+import { map, filter, reduce } from "ramda"
 
 const total = orders
   |> filter(.status == "complete")

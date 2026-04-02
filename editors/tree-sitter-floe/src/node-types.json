@@ -18,11 +18,11 @@
         "required": false,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -35,6 +35,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -74,19 +78,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -109,11 +105,11 @@
       "required": false,
       "types": [
         {
-          "type": "assignment_expression",
+          "type": "arrow_closure",
           "named": true
         },
         {
-          "type": "await_expression",
+          "type": "assignment_expression",
           "named": true
         },
         {
@@ -126,6 +122,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "collect_expression",
           "named": true
         },
         {
@@ -165,19 +165,11 @@
           "named": true
         },
         {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
           "type": "primary_expression",
           "named": true
         },
         {
           "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
           "named": true
         },
         {
@@ -219,11 +211,11 @@
       "required": false,
       "types": [
         {
-          "type": "assignment_expression",
+          "type": "arrow_closure",
           "named": true
         },
         {
-          "type": "await_expression",
+          "type": "assignment_expression",
           "named": true
         },
         {
@@ -236,6 +228,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "collect_expression",
           "named": true
         },
         {
@@ -275,19 +271,11 @@
           "named": true
         },
         {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
           "type": "primary_expression",
           "named": true
         },
         {
           "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
           "named": true
         },
         {
@@ -364,19 +352,19 @@
     }
   },
   {
-    "type": "assert_statement",
+    "type": "arrow_closure",
     "named": true,
     "fields": {
-      "expression": {
+      "body": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -389,6 +377,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -428,10 +420,6 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
@@ -440,7 +428,105 @@
             "named": true
           },
           {
-            "type": "try_expression",
+            "type": "unary_expression",
+            "named": true
+          },
+          {
+            "type": "unwrap_expression",
+            "named": true
+          },
+          {
+            "type": "variant_expression",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "lambda_parameter",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "assert_statement",
+    "named": true,
+    "fields": {
+      "expression": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "arrow_closure",
+            "named": true
+          },
+          {
+            "type": "assignment_expression",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "block",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
+            "named": true
+          },
+          {
+            "type": "construct_expression",
+            "named": true
+          },
+          {
+            "type": "dot_shorthand",
+            "named": true
+          },
+          {
+            "type": "index_expression",
+            "named": true
+          },
+          {
+            "type": "jsx_element",
+            "named": true
+          },
+          {
+            "type": "jsx_fragment",
+            "named": true
+          },
+          {
+            "type": "jsx_self_closing",
+            "named": true
+          },
+          {
+            "type": "match_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "primary_expression",
+            "named": true
+          },
+          {
+            "type": "return_statement",
             "named": true
           },
           {
@@ -468,11 +554,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -485,6 +571,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -524,19 +614,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -558,11 +640,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -575,6 +657,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -614,19 +700,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -646,101 +724,6 @@
     }
   },
   {
-    "type": "await_expression",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "assignment_expression",
-          "named": true
-        },
-        {
-          "type": "await_expression",
-          "named": true
-        },
-        {
-          "type": "binary_expression",
-          "named": true
-        },
-        {
-          "type": "block",
-          "named": true
-        },
-        {
-          "type": "call_expression",
-          "named": true
-        },
-        {
-          "type": "construct_expression",
-          "named": true
-        },
-        {
-          "type": "dot_shorthand",
-          "named": true
-        },
-        {
-          "type": "index_expression",
-          "named": true
-        },
-        {
-          "type": "jsx_element",
-          "named": true
-        },
-        {
-          "type": "jsx_fragment",
-          "named": true
-        },
-        {
-          "type": "jsx_self_closing",
-          "named": true
-        },
-        {
-          "type": "match_expression",
-          "named": true
-        },
-        {
-          "type": "member_expression",
-          "named": true
-        },
-        {
-          "type": "pipe_expression",
-          "named": true
-        },
-        {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
-          "type": "primary_expression",
-          "named": true
-        },
-        {
-          "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
-          "named": true
-        },
-        {
-          "type": "unary_expression",
-          "named": true
-        },
-        {
-          "type": "unwrap_expression",
-          "named": true
-        },
-        {
-          "type": "variant_expression",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "binary_expression",
     "named": true,
     "fields": {
@@ -749,11 +732,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -766,6 +749,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -805,19 +792,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -849,11 +828,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -866,6 +845,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -905,19 +888,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -1012,11 +987,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -1029,6 +1004,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -1068,19 +1047,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -1110,6 +1081,21 @@
     }
   },
   {
+    "type": "collect_expression",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "comment",
     "named": true,
     "extra": true,
@@ -1132,11 +1118,11 @@
           "named": true
         },
         {
-          "type": "assignment_expression",
+          "type": "arrow_closure",
           "named": true
         },
         {
-          "type": "await_expression",
+          "type": "assignment_expression",
           "named": true
         },
         {
@@ -1149,6 +1135,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "collect_expression",
           "named": true
         },
         {
@@ -1204,10 +1194,6 @@
           "named": true
         },
         {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
           "type": "primary_expression",
           "named": true
         },
@@ -1221,10 +1207,6 @@
         },
         {
           "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
           "named": true
         },
         {
@@ -1263,11 +1245,11 @@
         "required": false,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -1280,6 +1262,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -1319,19 +1305,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -1399,11 +1377,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -1416,6 +1394,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -1455,19 +1437,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -1484,6 +1458,21 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "deriving_clause",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "type_identifier",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -1535,11 +1524,11 @@
         "required": false,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -1552,6 +1541,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -1591,19 +1584,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -1654,11 +1639,11 @@
       "required": true,
       "types": [
         {
-          "type": "assignment_expression",
+          "type": "arrow_closure",
           "named": true
         },
         {
-          "type": "await_expression",
+          "type": "assignment_expression",
           "named": true
         },
         {
@@ -1671,6 +1656,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "collect_expression",
           "named": true
         },
         {
@@ -1710,19 +1699,11 @@
           "named": true
         },
         {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
           "type": "primary_expression",
           "named": true
         },
         {
           "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
           "named": true
         },
         {
@@ -1879,6 +1860,16 @@
             "named": true
           }
         ]
+      },
+      "type_parameters": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_parameters",
+            "named": true
+          }
+        ]
       }
     }
   },
@@ -2011,11 +2002,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -2028,6 +2019,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -2067,19 +2062,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -2101,11 +2088,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -2118,6 +2105,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -2157,19 +2148,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -2282,11 +2265,11 @@
       "required": true,
       "types": [
         {
-          "type": "assignment_expression",
+          "type": "arrow_closure",
           "named": true
         },
         {
-          "type": "await_expression",
+          "type": "assignment_expression",
           "named": true
         },
         {
@@ -2299,6 +2282,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "collect_expression",
           "named": true
         },
         {
@@ -2338,19 +2325,11 @@
           "named": true
         },
         {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
           "type": "primary_expression",
           "named": true
         },
         {
           "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
           "named": true
         },
         {
@@ -2541,11 +2520,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -2558,6 +2537,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -2597,19 +2580,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -2677,11 +2652,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -2694,6 +2669,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -2733,19 +2712,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -2783,11 +2754,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -2800,6 +2771,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -2839,19 +2814,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -2879,11 +2846,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -2896,6 +2863,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -2935,19 +2906,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -2974,6 +2937,96 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "mock_expression",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "argument",
+          "named": true
+        },
+        {
+          "type": "array_type",
+          "named": true
+        },
+        {
+          "type": "function_type",
+          "named": true
+        },
+        {
+          "type": "generic_type",
+          "named": true
+        },
+        {
+          "type": "primitive_type",
+          "named": true
+        },
+        {
+          "type": "qualified_type",
+          "named": true
+        },
+        {
+          "type": "tuple_type",
+          "named": true
+        },
+        {
+          "type": "type_identifier",
+          "named": true
+        },
+        {
+          "type": "unit_type",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "newtype_definition",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "array_type",
+          "named": true
+        },
+        {
+          "type": "function_type",
+          "named": true
+        },
+        {
+          "type": "generic_type",
+          "named": true
+        },
+        {
+          "type": "primitive_type",
+          "named": true
+        },
+        {
+          "type": "qualified_type",
+          "named": true
+        },
+        {
+          "type": "tuple_type",
+          "named": true
+        },
+        {
+          "type": "type_identifier",
+          "named": true
+        },
+        {
+          "type": "unit_type",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -3005,11 +3058,11 @@
         "required": false,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -3022,6 +3075,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -3061,19 +3118,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -3164,11 +3213,11 @@
       "required": true,
       "types": [
         {
-          "type": "assignment_expression",
+          "type": "arrow_closure",
           "named": true
         },
         {
-          "type": "await_expression",
+          "type": "assignment_expression",
           "named": true
         },
         {
@@ -3181,6 +3230,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "collect_expression",
           "named": true
         },
         {
@@ -3220,19 +3273,11 @@
           "named": true
         },
         {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
           "type": "primary_expression",
           "named": true
         },
         {
           "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
           "named": true
         },
         {
@@ -3259,11 +3304,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -3276,6 +3321,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -3315,19 +3364,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -3349,11 +3390,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -3366,6 +3407,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -3405,19 +3450,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -3434,112 +3471,6 @@
           }
         ]
       }
-    }
-  },
-  {
-    "type": "pipe_lambda",
-    "named": true,
-    "fields": {
-      "body": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "assignment_expression",
-            "named": true
-          },
-          {
-            "type": "await_expression",
-            "named": true
-          },
-          {
-            "type": "binary_expression",
-            "named": true
-          },
-          {
-            "type": "block",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "construct_expression",
-            "named": true
-          },
-          {
-            "type": "dot_shorthand",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "jsx_element",
-            "named": true
-          },
-          {
-            "type": "jsx_fragment",
-            "named": true
-          },
-          {
-            "type": "jsx_self_closing",
-            "named": true
-          },
-          {
-            "type": "match_expression",
-            "named": true
-          },
-          {
-            "type": "member_expression",
-            "named": true
-          },
-          {
-            "type": "pipe_expression",
-            "named": true
-          },
-          {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
-            "type": "primary_expression",
-            "named": true
-          },
-          {
-            "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          },
-          {
-            "type": "unwrap_expression",
-            "named": true
-          },
-          {
-            "type": "variant_expression",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "lambda_parameter",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -3559,11 +3490,15 @@
           "named": true
         },
         {
+          "type": "clear",
+          "named": true
+        },
+        {
           "type": "identifier",
           "named": true
         },
         {
-          "type": "none",
+          "type": "mock_expression",
           "named": true
         },
         {
@@ -3592,6 +3527,10 @@
         },
         {
           "type": "type_identifier",
+          "named": true
+        },
+        {
+          "type": "unchanged",
           "named": true
         },
         {
@@ -3664,11 +3603,11 @@
         "required": false,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -3681,6 +3620,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -3720,19 +3663,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -3884,11 +3819,11 @@
       "required": false,
       "types": [
         {
-          "type": "assignment_expression",
+          "type": "arrow_closure",
           "named": true
         },
         {
-          "type": "await_expression",
+          "type": "assignment_expression",
           "named": true
         },
         {
@@ -3901,6 +3836,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "collect_expression",
           "named": true
         },
         {
@@ -3940,19 +3879,11 @@
           "named": true
         },
         {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
           "type": "primary_expression",
           "named": true
         },
         {
           "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
           "named": true
         },
         {
@@ -4042,11 +3973,11 @@
       "required": true,
       "types": [
         {
-          "type": "assignment_expression",
+          "type": "arrow_closure",
           "named": true
         },
         {
-          "type": "await_expression",
+          "type": "assignment_expression",
           "named": true
         },
         {
@@ -4059,6 +3990,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "collect_expression",
           "named": true
         },
         {
@@ -4098,19 +4033,11 @@
           "named": true
         },
         {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
           "type": "primary_expression",
           "named": true
         },
         {
           "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
           "named": true
         },
         {
@@ -4274,102 +4201,17 @@
             "named": true
           }
         ]
+      },
+      "type_parameters": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_parameters",
+            "named": true
+          }
+        ]
       }
-    }
-  },
-  {
-    "type": "try_expression",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "assignment_expression",
-          "named": true
-        },
-        {
-          "type": "await_expression",
-          "named": true
-        },
-        {
-          "type": "binary_expression",
-          "named": true
-        },
-        {
-          "type": "block",
-          "named": true
-        },
-        {
-          "type": "call_expression",
-          "named": true
-        },
-        {
-          "type": "construct_expression",
-          "named": true
-        },
-        {
-          "type": "dot_shorthand",
-          "named": true
-        },
-        {
-          "type": "index_expression",
-          "named": true
-        },
-        {
-          "type": "jsx_element",
-          "named": true
-        },
-        {
-          "type": "jsx_fragment",
-          "named": true
-        },
-        {
-          "type": "jsx_self_closing",
-          "named": true
-        },
-        {
-          "type": "match_expression",
-          "named": true
-        },
-        {
-          "type": "member_expression",
-          "named": true
-        },
-        {
-          "type": "pipe_expression",
-          "named": true
-        },
-        {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
-          "type": "primary_expression",
-          "named": true
-        },
-        {
-          "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
-          "named": true
-        },
-        {
-          "type": "unary_expression",
-          "named": true
-        },
-        {
-          "type": "unwrap_expression",
-          "named": true
-        },
-        {
-          "type": "variant_expression",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -4479,6 +4321,10 @@
             "named": true
           },
           {
+            "type": "newtype_definition",
+            "named": true
+          },
+          {
             "type": "primitive_type",
             "named": true
           },
@@ -4520,9 +4366,13 @@
       }
     },
     "children": {
-      "multiple": false,
+      "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "deriving_clause",
+          "named": true
+        },
         {
           "type": "type_parameters",
           "named": true
@@ -4554,11 +4404,11 @@
         "required": true,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -4571,6 +4421,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -4610,19 +4464,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -4695,11 +4541,11 @@
       "required": true,
       "types": [
         {
-          "type": "assignment_expression",
+          "type": "arrow_closure",
           "named": true
         },
         {
-          "type": "await_expression",
+          "type": "assignment_expression",
           "named": true
         },
         {
@@ -4712,6 +4558,10 @@
         },
         {
           "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "collect_expression",
           "named": true
         },
         {
@@ -4751,19 +4601,11 @@
           "named": true
         },
         {
-          "type": "pipe_lambda",
-          "named": true
-        },
-        {
           "type": "primary_expression",
           "named": true
         },
         {
           "type": "return_statement",
-          "named": true
-        },
-        {
-          "type": "try_expression",
           "named": true
         },
         {
@@ -4801,6 +4643,38 @@
       "required": false,
       "types": [
         {
+          "type": "array_type",
+          "named": true
+        },
+        {
+          "type": "function_type",
+          "named": true
+        },
+        {
+          "type": "generic_type",
+          "named": true
+        },
+        {
+          "type": "primitive_type",
+          "named": true
+        },
+        {
+          "type": "qualified_type",
+          "named": true
+        },
+        {
+          "type": "tuple_type",
+          "named": true
+        },
+        {
+          "type": "type_identifier",
+          "named": true
+        },
+        {
+          "type": "unit_type",
+          "named": true
+        },
+        {
           "type": "variant_field",
           "named": true
         }
@@ -4826,11 +4700,11 @@
         "required": false,
         "types": [
           {
-            "type": "assignment_expression",
+            "type": "arrow_closure",
             "named": true
           },
           {
-            "type": "await_expression",
+            "type": "assignment_expression",
             "named": true
           },
           {
@@ -4843,6 +4717,10 @@
           },
           {
             "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
             "named": true
           },
           {
@@ -4882,19 +4760,11 @@
             "named": true
           },
           {
-            "type": "pipe_lambda",
-            "named": true
-          },
-          {
             "type": "primary_expression",
             "named": true
           },
           {
             "type": "return_statement",
-            "named": true
-          },
-          {
-            "type": "try_expression",
             "named": true
           },
           {
@@ -5121,6 +4991,10 @@
     "named": false
   },
   {
+    "type": "=>",
+    "named": false
+  },
+  {
     "type": ">",
     "named": false
   },
@@ -5137,15 +5011,7 @@
     "named": false
   },
   {
-    "type": "Err",
-    "named": false
-  },
-  {
-    "type": "Ok",
-    "named": false
-  },
-  {
-    "type": "Some",
+    "type": "Value",
     "named": false
   },
   {
@@ -5173,19 +5039,23 @@
     "named": false
   },
   {
-    "type": "async",
-    "named": false
-  },
-  {
-    "type": "await",
-    "named": false
-  },
-  {
     "type": "boolean",
     "named": false
   },
   {
+    "type": "clear",
+    "named": true
+  },
+  {
+    "type": "collect",
+    "named": false
+  },
+  {
     "type": "const",
+    "named": false
+  },
+  {
+    "type": "deriving",
     "named": false
   },
   {
@@ -5225,8 +5095,8 @@
     "named": false
   },
   {
-    "type": "none",
-    "named": true
+    "type": "mock",
+    "named": false
   },
   {
     "type": "number",
@@ -5265,6 +5135,10 @@
     "named": false
   },
   {
+    "type": "throws",
+    "named": false
+  },
+  {
     "type": "todo",
     "named": true
   },
@@ -5277,19 +5151,15 @@
     "named": false
   },
   {
-    "type": "trusted",
-    "named": false
-  },
-  {
-    "type": "try",
-    "named": false
-  },
-  {
     "type": "type",
     "named": false
   },
   {
     "type": "type_identifier",
+    "named": true
+  },
+  {
+    "type": "unchanged",
     "named": true
   },
   {
@@ -5314,10 +5184,6 @@
   },
   {
     "type": "|>",
-    "named": false
-  },
-  {
-    "type": "||",
     "named": false
   },
   {

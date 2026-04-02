@@ -7,7 +7,7 @@ Floe supports JSX natively. Write React components with Floe's type system.
 ## Components
 
 ```floe
-import trusted { useState } from "react"
+import { useState } from "react"
 
 export fn Counter() -> JSX.Element {
   const [count, setCount] = useState(0)

@@ -146,11 +146,11 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
 // String literal type arguments (for npm interop)
 // Used with React's ComponentProps, event emitters, etc.
-import trusted { ComponentProps } from "react"
+import { ComponentProps } from "react"
 type DivProps = ComponentProps<"div">
 
 // Spread with generic types and typeof (npm interop)
-import trusted { tv, VariantProps } from "tailwind-variants"
+import { tv, VariantProps } from "tailwind-variants"
 const variants = tv({ base: "rounded", variants: { size: { sm: "p-2" } } })
 type Props {
     ...VariantProps<typeof variants>,
@@ -405,8 +405,9 @@ const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> Promi
 const results = Promise.allSettled([fetchA(), fetchB()]) |> Promise.await  // Array<Result<T, Error>>
 Promise.delay(1000) |> Promise.await   // wait 1 second
 
-// Smart try: auto-awaits Promises for npm interop
-const result = try npmAsyncFn()   // Result<T, Error> — awaits + catches rejections
+// throws imports: auto-wrapped in try/catch, return Result<T, Error>
+import throws { npmAsyncFn } from "some-lib"
+const result = npmAsyncFn()       // Result<T, Error> — auto-wrapped, awaits + catches rejections
 
 // parse<T> — compiler built-in for runtime type validation
 // No runtime library needed — the compiler inlines the checks
@@ -437,7 +438,7 @@ const vals = ICONS |> Record.values       // Array<string>   → Object.values(I
 const has = Record.has(ICONS, key)        // boolean         → (key in ICONS)
 const n = ICONS |> Record.size            // number          → Object.keys(ICONS).length
 
-// Http — pipe-friendly fetch with Result (no try needed)
+// Http — pipe-friendly fetch with Result (no throws needed)
 const data = Http.get("https://api.example.com/users") |> Promise.await? |> Http.json |> Promise.await?
 const result = Http.post(url, { name: "Alice" }) |> Promise.await?
 const body = Http.get(url) |> Promise.await? |> Http.text |> Promise.await?
@@ -464,21 +465,25 @@ const iso = d |> Date.toIso                   // d.toISOString()
 ## Imports
 
 ```floe
-// Standard import
+// Standard import (Floe files)
 import { Todo, Filter } from "./types"
 
-// npm imports are unsafe by default (might throw)
-import { parseYaml } from "yaml-lib"
-const result = try parseYaml(input)    // wraps in Result<T, Error>
+// npm imports — safe by default, call directly
+import { useState, useEffect } from "react"
+import { clsx } from "clsx"
+const [count, setCount] = useState(0)  // no special syntax needed
 
-// trusted imports skip the try requirement
-import trusted { useState, useEffect } from "react"
-import trusted { clsx } from "clsx"
+// throws imports — for npm functions that may throw
+import throws { parseYaml } from "yaml-lib"
+const result = parseYaml(input)    // auto-wrapped in Result<T, Error>
 
-// Per-function trust
-import { trusted capitalize, fetchData } from "some-lib"
-capitalize("hello")              // no try needed
-const data = try fetchData()     // try required
+// Per-function throws
+import { capitalize, throws fetchData } from "some-lib"
+capitalize("hello")              // direct call, no wrapping
+const data = fetchData()         // Result<T, Error> — auto-wrapped
+
+// Use ? to unwrap throws results
+const parsed = parseYaml(input)?  // unwraps or returns Err early
 
 // Importing for-block extensions
 import { for User } from "./user-helpers"
@@ -591,7 +596,7 @@ type Point {
 ## JSX / React Components
 
 ```floe
-import trusted { useState } from "react"
+import { useState } from "react"
 
 type Todo {
     id: string,
@@ -747,7 +752,7 @@ floe lsp                     # start language server (used by editors)
 4. **`?` only works** inside functions returning `Result` or `Option`
 5. **`==` is structural equality** — only between same types
 6. **No bracket indexing** — use `Map.get(map, key)` for maps, `Record.get(obj, key)` for plain-object records, `Array.get(arr, i)` for arrays (all return `Option<T>`). `obj[key]` is not valid Floe syntax
-7. **npm imports are unsafe by default** — use `try` or mark `trusted`
+7. **npm imports that may throw** — mark with `import throws` to auto-wrap in `Result<T, Error>`
 8. **`self` is explicit** in for blocks — no implicit `this`
 9. **No mutation** of function parameters
 10. **Unused variables/imports are compile errors** (prefix with `_` to suppress)

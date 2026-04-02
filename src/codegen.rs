@@ -11,7 +11,6 @@ mod types;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::checker::Type;
 use crate::parser::ast::*;
 use crate::resolve::ResolvedImports;
 use crate::stdlib::StdlibRegistry;
@@ -118,6 +117,8 @@ pub struct Codegen {
     for_block_type_names: HashSet<String>,
     /// Type names used as runtime constructors (e.g. `User(name: "x")`).
     constructor_used_names: HashSet<String>,
+    /// Names from `throws` imports — calls to these get auto-wrapped in try/catch IIFE.
+    throwing_imports: HashSet<String>,
 }
 
 impl Codegen {
@@ -140,6 +141,7 @@ impl Codegen {
             for_block_fns: HashMap::new(),
             for_block_type_names: HashSet::new(),
             constructor_used_names: HashSet::new(),
+            throwing_imports: HashSet::new(),
         }
     }
 
@@ -234,6 +236,10 @@ impl Codegen {
                     for spec in &decl.specifiers {
                         let name = spec.alias.as_ref().unwrap_or(&spec.name);
                         self.local_names.insert(name.clone());
+                        // Track throws imports for auto-wrapping
+                        if decl.throws || spec.throws {
+                            self.throwing_imports.insert(name.clone());
+                        }
                     }
                     // Register for-block functions from imports
                     if let Some(resolved) = self.resolved_imports.get(&decl.source).cloned() {
@@ -393,6 +399,7 @@ impl Codegen {
             for_block_fns: self.for_block_fns.clone(),
             for_block_type_names: self.for_block_type_names.clone(),
             constructor_used_names: self.constructor_used_names.clone(),
+            throwing_imports: self.throwing_imports.clone(),
         }
     }
 
@@ -520,10 +527,7 @@ fn collect_constructors_from_expr(expr: &Expr, names: &mut HashSet<String>) {
                 collect_constructors_from_expr(&arm.body, names);
             }
         }
-        ExprKind::Try(e)
-        | ExprKind::Unwrap(e)
-        | ExprKind::Value(e)
-        | ExprKind::Unary { operand: e, .. } => {
+        ExprKind::Unwrap(e) | ExprKind::Value(e) | ExprKind::Unary { operand: e, .. } => {
             collect_constructors_from_expr(e, names);
         }
         ExprKind::Array(items) | ExprKind::Tuple(items) => {
@@ -639,7 +643,7 @@ fn collect_value_names_from_expr(expr: &Expr, names: &mut HashSet<String>) {
             collect_value_names_from_expr(right, names);
         }
         ExprKind::Unary { operand, .. } => collect_value_names_from_expr(operand, names),
-        ExprKind::Try(e) | ExprKind::Unwrap(e) => {
+        ExprKind::Unwrap(e) => {
             collect_value_names_from_expr(e, names);
         }
         ExprKind::Value(e) => {

@@ -300,14 +300,6 @@ impl<'src> CstParser<'src> {
                 self.builder.finish_node();
             }
 
-            Some(TokenKind::Try) => {
-                self.builder.start_node(SyntaxKind::TRY_EXPR.into());
-                self.bump(); // try
-                self.eat_trivia();
-                self.parse_expr();
-                self.builder.finish_node();
-            }
-
             Some(TokenKind::Match) => self.parse_match_expr(),
             Some(TokenKind::Collect) => {
                 self.builder.start_node(SyntaxKind::COLLECT_EXPR.into());

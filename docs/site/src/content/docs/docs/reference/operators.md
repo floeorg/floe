@@ -56,14 +56,6 @@ x |> match { ... }  // match x { ... }
 
 The `?` operator unwraps `Ok(value)` or `Some(value)`, and returns early with `Err(e)` or `None` on failure. Only valid inside functions that return `Result` or `Option`.
 
-## Try
-
-| Operator | Description | Example |
-|----------|-------------|---------|
-| `try` | Wrap unsafe npm call in `Result` | `try parseYaml(input)` |
-
-The `try` operator wraps a potentially throwing npm function call in a `Result<T, Error>`. Required for non-`trusted` npm imports.
-
 ## Spread and Range
 
 | Operator | Context | Example |

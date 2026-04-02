@@ -7,8 +7,7 @@
 "import" @keyword
 "from" @keyword
 "export" @keyword
-"try" @keyword
-"trusted" @keyword
+"throws" @keyword
 "for" @keyword
 "trait" @keyword
 "opaque" @keyword
@@ -37,7 +36,6 @@
   "${" @punctuation.special
   "}" @punctuation.special)
 (boolean) @boolean
-(none) @constant.builtin
 (underscore) @variable.builtin
 (unit_value) @constant.builtin
 

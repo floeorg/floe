@@ -45,8 +45,8 @@ pub enum TokenKind {
     For,
     /// `self` — explicit receiver parameter in for blocks
     SelfKw,
-    /// `try` — wrap throwing expression in Result
-    Try,
+    /// `throws` — marks an import whose functions may throw (auto-wrapped in Result)
+    Throws,
     /// `trait` — trait declaration keyword
     Trait,
     /// `assert` — assertion (only valid inside test blocks)
@@ -266,7 +266,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "opaque" => Some(TokenKind::Opaque),
         "for" => Some(TokenKind::For),
         "self" => Some(TokenKind::SelfKw),
-        "try" => Some(TokenKind::Try),
+        "throws" => Some(TokenKind::Throws),
         "trait" => Some(TokenKind::Trait),
         "assert" => Some(TokenKind::Assert),
         "when" => Some(TokenKind::When),
@@ -317,7 +317,7 @@ mod tests {
         assert_eq!(lookup_keyword("fn"), Some(TokenKind::Fn));
         assert_eq!(lookup_keyword("match"), Some(TokenKind::Match));
         assert_eq!(lookup_keyword("opaque"), Some(TokenKind::Opaque));
-        assert_eq!(lookup_keyword("try"), Some(TokenKind::Try));
+        assert_eq!(lookup_keyword("throws"), Some(TokenKind::Throws));
         assert_eq!(lookup_keyword("trait"), Some(TokenKind::Trait));
         assert_eq!(lookup_keyword("Ok"), None);
         assert_eq!(lookup_keyword("Err"), None);
