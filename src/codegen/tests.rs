@@ -645,6 +645,15 @@ fn promise_await_pipe() {
     assert!(result.contains("await fetchData()"));
 }
 
+#[test]
+fn promise_try_await_pipe() {
+    let result = emit_with_types("const _x = fetchData() |> Promise.tryAwait");
+    assert!(
+        result.contains("async") && result.contains("await") && result.contains("ok:"),
+        "Promise.tryAwait should emit async IIFE with try/catch Result, got: {result}"
+    );
+}
+
 // ── Implicit Return ──────────────────────────────────────────
 
 #[test]
