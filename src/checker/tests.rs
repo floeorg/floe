@@ -5962,3 +5962,24 @@ const _h = handler
         );
     }
 }
+
+// ── Unknown binding warnings ────────────────────────────────
+
+#[test]
+fn unknown_binding_no_warning_for_known_type() {
+    let diags = check("const x = 42");
+    assert!(!has_warning_containing(&diags, "has type `unknown`"));
+}
+
+#[test]
+fn unknown_binding_no_warning_for_underscore_prefix() {
+    let diags = check("const _x = undefinedThing");
+    assert!(!has_warning_containing(&diags, "has type `unknown`"));
+}
+
+#[test]
+fn unknown_binding_no_duplicate_when_error_exists() {
+    let diags = check("const x = undefinedThing");
+    assert!(has_error_containing(&diags, "is not defined"));
+    assert!(!has_warning_containing(&diags, "has type `unknown`"));
+}
