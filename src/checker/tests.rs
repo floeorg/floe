@@ -534,6 +534,74 @@ const _y = fetchUser("id")
     assert!(has_error_containing(&diags, "fetchUser"));
 }
 
+// ── Trusted propagation through member access ──────────────
+
+#[test]
+fn untrusted_member_call_requires_try() {
+    let diags = check(
+        r#"
+import { jiraCommands } from "jira-lib"
+const _r = jiraCommands.getTransitions("id")
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::UntrustedImport),
+        "member call on untrusted import should require try, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn untrusted_member_call_ok_with_try() {
+    let diags = check(
+        r#"
+import { jiraCommands } from "jira-lib"
+fn test() -> Result<string, Error> {
+    const _r = try jiraCommands.getTransitions("id")
+    Ok("done")
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UntrustedImport),
+        "try on untrusted member call should be allowed, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trusted_member_call_no_error() {
+    let diags = check(
+        r#"
+import trusted { jiraCommands } from "jira-lib"
+const _r = jiraCommands.getTransitions("id")
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UntrustedImport),
+        "member call on trusted import should not error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn try_on_trusted_member_call_no_floe_warning() {
+    let diags = check(
+        r#"
+import trusted { jiraCommands } from "jira-lib"
+fn test() -> Result<string, Error> {
+    const _r = try jiraCommands.getTransitions("id")
+    Ok("done")
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TryOnFloeFunction),
+        "try on trusted member call should not warn about Floe function, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Constructor field validation ────────────────────────────
 
 #[test]

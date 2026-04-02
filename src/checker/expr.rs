@@ -95,14 +95,12 @@ impl Checker {
                     self.with_context(|ctx| ctx.inside_try = true, |this| this.check_expr(inner));
 
                 // Warn when try wraps a Floe function call (Floe functions never throw)
-                if let Some(callee_name) = Self::extract_callee_name(inner)
-                    && !self.npm_imports.contains(callee_name)
-                    && !self.stdlib.is_module(callee_name)
+                if let Some(root_name) = Self::extract_call_root_name(inner)
+                    && !self.npm_imports.contains(root_name)
+                    && !self.stdlib.is_module(root_name)
                 {
                     self.emit_warning_with_help(
-                        format!(
-                            "`try` is unnecessary — Floe function `{callee_name}` never throws"
-                        ),
+                        format!("`try` is unnecessary — Floe function `{root_name}` never throws"),
                         expr.span,
                         ErrorCode::TryOnFloeFunction,
                         "Floe functions use `Result` for errors, not exceptions",
@@ -281,14 +279,19 @@ impl Checker {
         }
     }
 
-    /// Extract the callee function name from a call expression (possibly inside pipes).
-    fn extract_callee_name(expr: &Expr) -> Option<&str> {
+    /// Extract the root identifier name from a call expression's callee.
+    /// For `foo(x)` returns "foo", for `obj.method(x)` returns "obj".
+    fn extract_call_root_name(expr: &Expr) -> Option<&str> {
         match &expr.kind {
             ExprKind::Call { callee, .. } => match &callee.kind {
                 ExprKind::Identifier(name) => Some(name),
+                ExprKind::Member { object, .. } => match &object.kind {
+                    ExprKind::Identifier(name) => Some(name),
+                    _ => None,
+                },
                 _ => None,
             },
-            ExprKind::Pipe { right, .. } => Self::extract_callee_name(right),
+            ExprKind::Pipe { right, .. } => Self::extract_call_root_name(right),
             _ => None,
         }
     }
@@ -704,17 +707,31 @@ impl Checker {
         }
 
         // Check for untrusted import call without try
-        if let ExprKind::Identifier(name) = &callee.kind
-            && !self.ctx.inside_try
-            && self.untrusted_imports.contains(name)
-        {
-            self.emit_error_with_help(
-                format!("calling untrusted import `{name}` requires `try`"),
-                span,
-                ErrorCode::UntrustedImport,
-                "untrusted import",
-                format!("use `try {name}(...)` or mark the import as `trusted`"),
-            );
+        if !self.ctx.inside_try {
+            if let ExprKind::Identifier(name) = &callee.kind
+                && self.untrusted_imports.contains(name)
+            {
+                self.emit_error_with_help(
+                    format!("calling untrusted import `{name}` requires `try`"),
+                    span,
+                    ErrorCode::UntrustedImport,
+                    "untrusted import",
+                    format!("use `try {name}(...)` or mark the import as `trusted`"),
+                );
+            }
+            // Trusted propagation: obj.method() where obj is an untrusted import
+            if let ExprKind::Member { object, field } = &callee.kind
+                && let ExprKind::Identifier(obj_name) = &object.kind
+                && self.untrusted_imports.contains(obj_name.as_str())
+            {
+                self.emit_error_with_help(
+                    format!("calling `{obj_name}.{field}` requires `try` — `{obj_name}` is an untrusted import"),
+                    span,
+                    ErrorCode::UntrustedImport,
+                    "untrusted import",
+                    format!("use `try {obj_name}.{field}(...)` or mark the import as `trusted`"),
+                );
+            }
         }
 
         // Save pipe context before checking callee (which would consume it)
