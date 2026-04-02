@@ -604,8 +604,8 @@ mod tests {
     }
 
     #[test]
-    fn function_async() {
-        assert_no_errors("async fn fetch(url: string) -> string { url }");
+    fn function_with_promise_return() {
+        assert_no_errors("fn fetch(url: string) -> Promise<string> { url }");
     }
 
     #[test]

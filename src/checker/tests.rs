@@ -2907,12 +2907,12 @@ fn stdlib_member_access_still_works() {
     );
 }
 
-// ── Promise / await ─────────────────────────────────────────
+// ── Promise / Promise.await ─────────────────────────────────
 
 #[test]
 fn fetch_returns_promise_response() {
     // fetch returns Promise<Response>, not Response directly
-    // So without await, you can't access .json()
+    // So without Promise.await, you can't access .json()
     let diags = check(
         r#"
 fn test() -> Result<string, Error> {
@@ -2923,33 +2923,10 @@ fn test() -> Result<string, Error> {
 "#,
     );
     // res should be Promise<Response>, so .json() should error
-    // (need await to unwrap Promise first)
+    // (need Promise.await to unwrap Promise first)
     assert!(
         has_error_containing(&diags, "Promise"),
-        "fetch without await should give Promise<Response>, accessing .json() should error about Promise, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn await_unwraps_promise() {
-    // await fetch() should give Response, so .json() works
-    let diags = check(
-        r#"
-fn test() -> Result<string, Error> {
-    const res = try await fetch("url")?
-    const j = res.json()
-    Ok("done")
-}
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::AccessOnUnknown),
-        "await should unwrap Promise, allowing .json() access, got: {:?}",
+        "fetch without Promise.await should give Promise<Response>, accessing .json() should error about Promise, got: {:?}",
         diags
             .iter()
             .filter(|d| d.severity == Severity::Error)

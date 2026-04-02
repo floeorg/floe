@@ -640,10 +640,10 @@ fn hover_const_without_annotation_detail_lacks_type_before_fix() {
 
 #[test]
 fn hover_nested_const_shows_type() {
-    // Reproduces #583: const inside nested async fn shows no type on hover
+    // Reproduces #583: const inside nested fn shows no type on hover
     let source = r#"
 fn outer() {
-    async fn inner() {
+    fn inner() {
         const s = "hello"
     }
 }
@@ -657,18 +657,16 @@ fn outer() {
 }
 
 #[test]
-fn hover_nested_const_await_shows_type() {
-    // When const s = await somePromise(), s should show its type
-    // even when nested inside an async fn inside an arrow
+fn hover_nested_const_with_type_annotation() {
+    // const with type annotation should show type even when nested
     let source = r#"
 fn outer() {
-    async fn inner() {
+    fn inner() {
         const s: Option<number> = None
     }
 }
 "#;
     let hover = simulate_hover(source, "s");
-    eprintln!("HOVER for s (await): {:?}", hover);
     assert!(
         hover.as_ref().is_some_and(|h| h.contains("Option<number>")),
         "const s with type annotation should show type, got: {:?}",

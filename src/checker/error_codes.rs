@@ -67,7 +67,7 @@ pub enum ErrorCode {
     UnsafeNarrowing,
     /// Access on `unknown` type.
     AccessOnUnknown,
-    /// Access on promise - use `await` first.
+    /// Access on promise - use `Promise.await` first.
     AccessOnPromise,
     /// Only one `_` placeholder allowed per call.
     MultiplePlaceholders,
@@ -89,9 +89,9 @@ pub enum ErrorCode {
     AssertNotBoolean,
 
     // ── Async / control flow ─────────────────────────────────────────
-    /// `await` used outside an `async` function.
+    /// `await` used outside an `async` function (legacy, kept for error code stability).
     AwaitOutsideAsync,
-    /// `await try` should be `try await`.
+    /// `await try` should be `try await` (legacy, kept for error code stability).
     AwaitTryOrder,
     /// String pattern on non-string type in match.
     StringPatternOnNonString,

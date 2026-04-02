@@ -1335,8 +1335,6 @@ fn collect_free_vars_from_ts(ts: &str, declared: &HashSet<String>, free: &mut Ha
                 | "import"
                 | "from"
                 | "type"
-                | "async"
-                | "await"
                 | "readonly"
         ) {
             continue;

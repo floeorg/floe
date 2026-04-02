@@ -2057,16 +2057,16 @@ impl Checker {
             return Type::Unknown;
         }
 
-        // Error on member access on Promise — must await first
+        // Error on member access on Promise — must use Promise.await first
         if let Type::Promise(_) = obj_ty {
             self.emit_error(
                 format!(
-                    "cannot access `.{field}` on `{}` — use `await` first",
+                    "cannot access `.{field}` on `{}` — use `Promise.await` first",
                     obj_ty
                 ),
                 span,
                 ErrorCode::AccessOnPromise,
-                "must `await` the Promise before accessing members",
+                "must use `Promise.await` before accessing members",
             );
             return Type::Unknown;
         }

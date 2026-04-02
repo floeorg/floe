@@ -453,7 +453,7 @@ pub enum ExprKind {
     Index { object: Box<Expr>, index: Box<Expr> },
 
     // -- Functions --
-    /// Arrow function: `|a, b| a + b` or `async |a, b| a + b`
+    /// Arrow function: `(a, b) => a + b`
     Arrow {
         async_fn: bool,
         params: Vec<Param>,
