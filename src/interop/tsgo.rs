@@ -808,7 +808,7 @@ import trusted { useSuspenseQuery } from "@tanstack/react-query"
 fn test() {
     const { data } = useSuspenseQuery({
         queryKey: ["products"],
-        queryFn: async () => fetchProducts(),
+        queryFn: () => fetchProducts(),
     })
 }"#;
         let program = Parser::new(source).parse_program().unwrap();
@@ -817,7 +817,7 @@ fn test() {
         let mut resolved = HashMap::new();
         let fetch_fn = FunctionDecl {
             exported: true,
-            async_fn: true,
+            async_fn: false,
             name: "fetchProducts".to_string(),
             type_params: vec![],
             params: vec![Param {
@@ -836,45 +836,52 @@ fn test() {
             }],
             return_type: Some(TypeExpr {
                 kind: TypeExprKind::Named {
-                    name: "Result".to_string(),
-                    type_args: vec![
-                        TypeExpr {
-                            kind: TypeExprKind::Tuple(vec![
+                    name: "Promise".to_string(),
+                    type_args: vec![TypeExpr {
+                        kind: TypeExprKind::Named {
+                            name: "Result".to_string(),
+                            type_args: vec![
                                 TypeExpr {
-                                    kind: TypeExprKind::Named {
-                                        name: "Array".to_string(),
-                                        type_args: vec![TypeExpr {
+                                    kind: TypeExprKind::Tuple(vec![
+                                        TypeExpr {
                                             kind: TypeExprKind::Named {
-                                                name: "Product".to_string(),
+                                                name: "Array".to_string(),
+                                                type_args: vec![TypeExpr {
+                                                    kind: TypeExprKind::Named {
+                                                        name: "Product".to_string(),
+                                                        type_args: vec![],
+                                                        bounds: vec![],
+                                                    },
+                                                    span: s,
+                                                }],
+                                                bounds: vec![],
+                                            },
+                                            span: s,
+                                        },
+                                        TypeExpr {
+                                            kind: TypeExprKind::Named {
+                                                name: "number".to_string(),
                                                 type_args: vec![],
                                                 bounds: vec![],
                                             },
                                             span: s,
-                                        }],
-                                        bounds: vec![],
-                                    },
+                                        },
+                                    ]),
                                     span: s,
                                 },
                                 TypeExpr {
                                     kind: TypeExprKind::Named {
-                                        name: "number".to_string(),
+                                        name: "ApiError".to_string(),
                                         type_args: vec![],
                                         bounds: vec![],
                                     },
                                     span: s,
                                 },
-                            ]),
-                            span: s,
+                            ],
+                            bounds: vec![],
                         },
-                        TypeExpr {
-                            kind: TypeExprKind::Named {
-                                name: "ApiError".to_string(),
-                                type_args: vec![],
-                                bounds: vec![],
-                            },
-                            span: s,
-                        },
-                    ],
+                        span: s,
+                    }],
                     bounds: vec![],
                 },
                 span: s,

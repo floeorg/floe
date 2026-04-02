@@ -747,15 +747,6 @@ mod tests {
     }
 
     #[test]
-    fn function_async() {
-        let item = first_item("async fn fetch(url: string) -> string { url }");
-        let ItemKind::Function(decl) = item else {
-            panic!("expected Function")
-        };
-        assert!(decl.async_fn);
-    }
-
-    #[test]
     fn function_exported() {
         let item = first_item("export fn hello() { 1 }");
         let ItemKind::Function(decl) = item else {

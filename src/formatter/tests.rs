@@ -406,8 +406,8 @@ fn format_trailing_comments_between_items() {
 #[test]
 fn format_long_pipe_goes_vertical() {
     assert_fmt(
-        "const data = await Http.get(`https://example.com/very/long/url/that/exceeds/width`)?|>Http.json?|>parse<Response>?",
-        "const data = await Http.get(`https://example.com/very/long/url/that/exceeds/width`)?\n    |> Http.json?\n    |> parse<Response>?",
+        "const data = Http.get(`https://example.com/very/long/url/that/exceeds/width`)|>Promise.await?|>Http.json|>Promise.await?",
+        "const data = Http.get(`https://example.com/very/long/url/that/exceeds/width`)\n    |> Promise.await?\n    |> Http.json\n    |> Promise.await?",
     );
 }
 
