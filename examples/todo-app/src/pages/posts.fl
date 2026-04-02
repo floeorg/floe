@@ -25,20 +25,22 @@ const queryClient = QueryClient({
     },
 })
 
-async fn fetchUser(userId: number) -> Result<User, Error> {
-    await Http.get(`https://jsonplaceholder.typicode.com/users/${userId}`)?
-        |> Http.json?
+fn fetchUser(userId: number) -> Promise<Result<User, Error>> {
+    Http.get(`https://jsonplaceholder.typicode.com/users/${userId}`)
+        |> Promise.await?
+        |> Http.json
+        |> Promise.await?
         |> parse<User>
 }
 
-async fn fetchPosts(url: string) -> Result<Array<Post>, Error> {
-    await Http.get(url)? |> Http.json? |> parse<Array<Post>>
+fn fetchPosts(url: string) -> Promise<Result<Array<Post>, Error>> {
+    Http.get(url) |> Promise.await? |> Http.json |> Promise.await? |> parse<Array<Post>>
 }
 
 fn PostAuthor(props: { userId: number }) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["user", props.userId],
-        queryFn: async () => fetchUser(props.userId),
+        queryFn: () => fetchUser(props.userId),
     })
 
     <span className="text-indigo-400">
@@ -59,7 +61,7 @@ fn PostList() -> JSX.Element {
 
     const { data } = useSuspenseQuery({
         queryKey: ["posts", selectedUserId],
-        queryFn: async () => fetchPosts(url),
+        queryFn: () => fetchPosts(url),
     })
 
     const posts = match data {
