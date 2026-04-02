@@ -88,11 +88,7 @@ pub enum ErrorCode {
     /// Assert expression must be boolean.
     AssertNotBoolean,
 
-    // ── Async / control flow ─────────────────────────────────────────
-    /// `await` used outside an `async` function (legacy, kept for error code stability).
-    AwaitOutsideAsync,
-    /// `await try` should be `try await` (legacy, kept for error code stability).
-    AwaitTryOrder,
+    // ── Control flow ────────────────────────────────────────────────
     /// String pattern on non-string type in match.
     StringPatternOnNonString,
     /// Tuple pattern arity mismatch in match.
@@ -153,8 +149,6 @@ impl ErrorCode {
             Self::InvalidSpreadType => "E032",
             Self::InvalidDerive => "E033",
             Self::AssertNotBoolean => "E034",
-            Self::AwaitOutsideAsync => "E035",
-            Self::AwaitTryOrder => "E036",
             Self::StringPatternOnNonString => "E037",
             Self::TuplePatternArity => "E038",
             Self::VariantPatternArity => "E039",
