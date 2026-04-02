@@ -65,5 +65,5 @@ curl -o llms.txt https://floe-lang.dev/llms.txt
 - Type system (records, unions, newtypes, opaque types, Result/Option)
 - Compilation rules (what Floe compiles to in TypeScript)
 - Standard library functions
-- Import system (`trusted`, `try`, for-blocks)
+- Import system (`throws` for error-wrapping, for-blocks)
 - Common pitfalls and rules

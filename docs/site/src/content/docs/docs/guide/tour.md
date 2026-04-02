@@ -109,9 +109,9 @@ export fn Counter() -> JSX.Element {
 
 ```floe
 import { Todo } from "./types"
-import { parseYaml } from "yaml-lib"
-const result = try parseYaml(input)         // wraps in Result
-import trusted { useState } from "react"    // skip try for safe libs
+import throws { parseYaml } from "yaml-lib"
+const data = parseYaml(input)?              // auto-wrapped in Result, ? unwraps
+import { useState } from "react"            // npm imports work directly
 import { for Array } from "./helpers"       // import for-block extensions
 
 fn fetchUser(id: string) -> Promise<Result<User, Error>> {

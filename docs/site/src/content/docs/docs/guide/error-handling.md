@@ -154,12 +154,19 @@ When importing from npm packages, Floe automatically wraps nullable types:
 ```floe
 import { getElementById } from "some-dom-lib"
 // .d.ts says: getElementById(id: string): Element | null
-// Floe sees: getElementById(id: string): Option<Element>
+// Floe sees: getElementById(id: string) -> Option<Element>
 ```
 
 The boundary wrapping also converts:
 - `T | undefined` to `Option<T>`
 - `any` to `unknown`
+
+For npm functions that may throw, use `throws` imports. Calls are auto-wrapped in `Result<T, Error>`:
+
+```floe
+import throws { parseYaml } from "yaml-lib"
+const data = parseYaml(input)?  // Result<T, Error>, ? unwraps
+```
 
 This means npm libraries work transparently with Floe's type system.
 

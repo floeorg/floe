@@ -1521,58 +1521,60 @@ Automatic conversions at import boundary:
 - `T | undefined` → `Option<T>`
 - `T | null | undefined` → `Option<T>`
 - External `any` → `unknown` (forces narrowing)
-- All TS imports are unsafe by default — must use `try` to call them
-- Functions that throw → use `try` expression to wrap in `Result`
-- `trusted` modifier skips the `try` requirement for known-safe imports
+- npm imports are callable directly by default (like `useState`, `clsx`)
+- `throws` modifier marks imports whose functions may throw — calls are auto-wrapped in `Result<T, Error>`
+- Nullable/optional types at the boundary are converted to `Option<T>`
 
-#### Unsafe-by-default TS imports
+#### Default npm imports
 
-Any function imported from TypeScript (not from Floe) is treated as potentially throwing:
+npm imports work directly — no special syntax needed for safe functions:
 
 ```floe
-import { fetchUser } from "some-ts-lib"
+import { useState } from "react"
+import { clsx } from "clsx"
 
-const user = fetchUser(id)       // compiler error: unhandled throwable import
-const user = try fetchUser(id)   // ok, returns Result<User, Error>
+const [count, setCount] = useState(0)  // direct call
+const classes = clsx("btn", active)    // direct call
 ```
 
-#### trusted imports
+#### throws imports
 
-For TS functions you know will not throw, mark them as `trusted`:
+For npm functions that may throw, mark them with `throws`. The compiler auto-wraps calls in `Result<T, Error>`:
 
 ```floe
 // Per-function:
-import { trusted capitalize, fetchUser } from "some-ts-lib"
-capitalize("hello")          // string, no try needed
-try fetchUser(id)            // Result<User, Error>
+import { capitalize, throws fetchUser } from "some-ts-lib"
+capitalize("hello")          // string, direct call
+fetchUser(id)                // Result<User, Error> — auto-wrapped
 
 // Whole module:
-import trusted { capitalize, slugify } from "string-utils"
-capitalize("hello")          // string, no try needed
+import throws { parseYaml, dumpYaml } from "yaml-lib"
+parseYaml(input)             // Result<unknown, Error> — auto-wrapped
 ```
 
-#### try expression
+#### throws with Result and ?
 
-`try` wraps a potentially throwing call in `Result<T, Error>`. Non-Error throws are coerced to `Error`:
+`throws` calls return `Result<T, Error>` automatically. Use `?` to unwrap:
 
 ```floe
-// JSON.parse is stdlib — already returns Result, no try needed
+// JSON.parse is stdlib — already returns Result, no throws needed
 const result = JSON.parse(input)
 // result: Result<T, ParseError>
 
-// try is for external TS imports that might throw:
-import { parseYaml } from "yaml-lib"
-const data = try parseYaml(input)
+// throws is for external npm imports that might throw:
+import throws { parseYaml } from "yaml-lib"
+const data = parseYaml(input)
 // data: Result<unknown, Error>
 
-// Async: try (expr |> Promise.await) — unwrap the promise, then wrap in Result
-import { fetchUser } from "api-client"
-const user = try (fetchUser(id) |> Promise.await)
+// Async throws: auto-awaits Promises and catches rejections
+import throws { fetchUser } from "api-client"
+const user = fetchUser(id)
+// user: Result<User, Error> — auto-awaited + wrapped
 
 // Compose with ? for concise error handling:
 fn loadProfile(id: string) -> Result<Profile, Error> {
-  const user = try fetchUser(id)?
-  const posts = try fetchPosts(user.id)?
+  const user = fetchUser(id)?
+  const posts = fetchPosts(user.id)?
   Ok(Profile(user, posts))
 }
 ```
@@ -1582,18 +1584,18 @@ fn loadProfile(id: string) -> Result<Profile, Error> {
 ```floe
 import { findElement } from "some-dom-lib"
 // .d.ts says: findElement(id: string): Element | null
-// Floe sees: findElement(id: string): Option<Element>
+// Floe sees: findElement(id: string) -> Option<Element>
 
-match try findElement("app") {
-  Ok(Some(el)) -> render(el),
-  _            -> panic("no #app element"),
+match findElement("app") {
+  Some(el) -> render(el),
+  None -> panic("no #app element"),
 }
 ```
 
 #### Codegen
 
 ```typescript
-// try parseYaml(input) →
+// import throws { parseYaml } from "yaml-lib"; parseYaml(input) →
 (() => { try { return { ok: true as const, value: parseYaml(input) }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()
 ```
 
@@ -1612,7 +1614,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `Type.Variant` (qualified) | `{ tag: "Variant" }` (same as bare) |
 | `fn f(x: T) -> U { ... }` | `function f(x: T): U { ... }` |
 | `fn f<T>(x: T) -> T { ... }` | `function f<T>(x: T): T { ... }` |
-| `try expr` | `(() => { try { return { ok: true, value: expr }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
+| `throws` call (e.g. `parseYaml(input)`) | `(() => { try { return { ok: true, value: parseYaml(input) }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
 | `match x { A -> ..., B -> ... }` | `x.tag === "A" ? ... : x.tag === "B" ? ... : absurd(x)` |
 | `match x { A(v) when v > 0 -> ... }` | `x.tag === "A" ? (() => { const v = x.value; if (v > 0) { return ...; } ... })()` |
 | `match url { "/users/{id}" -> f(id) }` | `url.match(/^\/users\/([^/]+)$/) ? (() => { const _m = url.match(...); const id = _m![1]; return f(id); })() : ...` |

@@ -47,7 +47,7 @@ Add `allowArbitraryExtensions` and `rootDirs` to `tsconfig.json` so TypeScript c
 Create `src/Counter.fl`:
 
 ```floe
-import trusted { useState } from "react"
+import { useState } from "react"
 
 export fn Counter() -> JSX.Element {
   const [count, setCount] = useState(0)

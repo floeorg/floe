@@ -30,6 +30,6 @@ Console.warn("careful")
 
 // Timing
 Console.time("fetch")
-const data = try fetchData()?
+const data = fetchData()?
 Console.timeEnd("fetch")
 ```

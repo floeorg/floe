@@ -33,13 +33,14 @@ fn fetchUser(id: string) -> Promise<User> {
 
 The return type must explicitly use `Promise<T>`, making async behavior visible to callers.
 
-## Smart `try` with Promises
+## `throws` with async functions
 
-When `try` is applied to a `Promise<T>` expression, it auto-awaits the Promise and catches both sync throws and async rejections:
+When a `throws` import returns a `Promise<T>`, the auto-wrapping handles both sync throws and async rejections. The call is auto-awaited and wrapped in `Result<T, Error>`:
 
 ```floe
 // npm async function that might reject
-const result = try jiraApi.transitionIssue(id, tid)
+import throws { transitionIssue } from "jira-api"
+const result = transitionIssue(id, tid)
 // Result<(), Error> — auto-awaited, rejections caught
 
 match result {
@@ -51,7 +52,7 @@ match result {
 | Tool | For | Does |
 |---|---|---|
 | `Promise.await` | Floe async functions | Unwrap `Promise<Result<T, E>>`, use `?` for errors |
-| `try` | npm/trusted functions | Catch errors (auto-awaits if Promise), returns `Result<T, Error>` |
+| `throws` imports | npm functions that may throw | Auto-wrap calls in `Result<T, Error>` (auto-awaits if Promise) |
 
 ## Examples
 

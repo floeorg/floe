@@ -20,7 +20,7 @@ Floe removes these and adds features that make correct code easy to write:
 ## What does it look like?
 
 ```floe
-import trusted { useState } from "react"
+import { useState } from "react"
 
 type Todo {
   id: string,
