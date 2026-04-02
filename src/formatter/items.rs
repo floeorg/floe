@@ -133,8 +133,8 @@ impl Formatter<'_> {
             self.write("]");
         } else if has_lbrace_before_eq {
             self.write("{ ");
-            let idents = self.collect_idents_before_eq(node);
-            self.write(&idents.join(", "));
+            let fields = self.collect_destructure_fields(node);
+            self.write(&fields.join(", "));
             self.write(" }");
         } else if has_lparen_before_eq {
             self.write("(");

@@ -310,6 +310,52 @@ impl<'src> Formatter<'src> {
         self.collect_idents_until(node, |k| k == SyntaxKind::L_PAREN)
     }
 
+    /// Collect destructuring fields before `=`, preserving `field: alias` renames.
+    /// Returns e.g. `["data: issues", "isLoading: loading"]` or `["name", "age"]`.
+    pub(crate) fn collect_destructure_fields(&self, node: &SyntaxNode) -> Vec<String> {
+        let mut fields = Vec::new();
+        let mut current_field: Option<String> = None;
+        let mut saw_colon = false;
+
+        for t in node.children_with_tokens() {
+            if let Some(tok) = t.as_token() {
+                match tok.kind() {
+                    SyntaxKind::EQUAL => break,
+                    SyntaxKind::IDENT => {
+                        if saw_colon {
+                            // This is the alias after ':'
+                            if let Some(ref mut field) = current_field {
+                                field.push_str(": ");
+                                field.push_str(tok.text());
+                            }
+                            saw_colon = false;
+                        } else {
+                            // Push previous field if any
+                            if let Some(field) = current_field.take() {
+                                fields.push(field);
+                            }
+                            current_field = Some(tok.text().to_string());
+                        }
+                    }
+                    SyntaxKind::COLON => {
+                        saw_colon = true;
+                    }
+                    SyntaxKind::COMMA => {
+                        if let Some(field) = current_field.take() {
+                            fields.push(field);
+                        }
+                        saw_colon = false;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if let Some(field) = current_field {
+            fields.push(field);
+        }
+        fields
+    }
+
     pub(crate) fn collect_idents_before_eq(&self, node: &SyntaxNode) -> Vec<String> {
         self.collect_idents_until(node, |k| k == SyntaxKind::EQUAL)
     }
