@@ -5968,19 +5968,17 @@ const _h = handler
 #[test]
 fn unknown_binding_no_warning_for_known_type() {
     let diags = check("const x = 42");
-    assert!(!has_error(&diags, ErrorCode::UnknownBinding));
+    assert!(!has_warning_containing(&diags, "has type `unknown`"));
 }
 
 #[test]
 fn unknown_binding_no_warning_for_underscore_prefix() {
-    // Underscore-prefixed names are intentionally unused, don't warn
     let diags = check("const _x = undefinedThing");
-    assert!(!has_error(&diags, ErrorCode::UnknownBinding));
+    assert!(!has_warning_containing(&diags, "has type `unknown`"));
 }
 
 #[test]
 fn unknown_binding_no_duplicate_when_error_exists() {
-    // When there's already an error (e.g. undefined name), don't also warn about unknown
     let diags = check("const x = undefinedThing");
     assert!(has_error_containing(&diags, "is not defined"));
     assert!(!has_warning_containing(&diags, "has type `unknown`"));

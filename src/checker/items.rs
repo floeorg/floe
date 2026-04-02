@@ -262,9 +262,8 @@ impl Checker {
     /// Define a single const binding (handles no-redefinition check, name_types, env, etc.)
     fn define_const_binding(&mut self, name: &str, ty: Type, exported: bool, span: Span) {
         self.check_no_redefinition(name, span);
-        // Warn when a binding resolves to unknown (e.g. unresolved tsgo probes,
-        // missing .d.ts types, untyped npm imports). Skip underscore-prefixed
-        // names and suppress when we already emitted an error for this span.
+        // Catch unresolved tsgo probes, missing .d.ts types, and untyped npm
+        // imports early instead of letting them cascade into confusing errors.
         if matches!(ty, Type::Unknown)
             && !name.starts_with('_')
             && !self.has_error_within_span(span)

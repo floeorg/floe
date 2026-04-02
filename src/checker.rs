@@ -661,9 +661,9 @@ impl Checker {
 
     /// Returns true if an error diagnostic has already been emitted within the given span.
     fn has_error_within_span(&self, span: Span) -> bool {
-        self.diagnostics.iter().any(|d| {
-            d.severity == Severity::Error && d.span.start >= span.start && d.span.end <= span.end
-        })
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error && span.contains_span(d.span))
     }
 
     // ── Type helpers ────────────────────────────────────────────────
