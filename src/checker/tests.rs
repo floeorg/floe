@@ -2935,40 +2935,22 @@ fn test() -> Result<string, Error> {
     );
 }
 
-// ── Promise.tryAwait ────────────────────────────────────────
+// ── Smart try: auto-awaits Promises ─────────────────────────
 
 #[test]
-fn try_on_promise_warns() {
-    // try on a Promise should warn — only catches sync errors
+fn try_on_promise_unwraps_to_result_of_inner() {
+    // try on Promise<string> should give Result<string, Error>, not Result<Promise<string>, Error>
     let diags = check(
         r#"
 fn asyncOp() -> Promise<string> { "hello" }
-fn test() {
-    const _r = try asyncOp()
+export fn test() -> Result<string, Error> {
+    try asyncOp()
 }
 "#,
     );
     assert!(
-        has_error(&diags, ErrorCode::TryOnPromise),
-        "try on Promise should warn, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn try_on_non_promise_no_warning() {
-    // try on a non-Promise should NOT warn
-    let diags = check(
-        r#"
-import trusted { parseData } from "parser"
-fn test() {
-    const _r = try parseData("input")
-}
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::TryOnPromise),
-        "try on non-Promise should not warn, got: {:?}",
+        !has_error_containing(&diags, "expected return type"),
+        "try on Promise<string> should produce Result<string, Error>, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

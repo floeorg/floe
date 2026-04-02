@@ -55,7 +55,7 @@ pub fn mark_async_functions(program: &mut Program) {
 }
 
 /// Check if an expression body contains a `Promise.await` member access
-/// at any depth (including inside pipes, calls, blocks, etc.)
+/// or a `try` on a Promise-typed expression (smart try auto-awaits).
 fn body_has_promise_await(expr: &Expr) -> bool {
     fn walk(expr: &Expr) -> bool {
         match &expr.kind {
@@ -65,6 +65,8 @@ fn body_has_promise_await(expr: &Expr) -> bool {
             {
                 true
             }
+            // Smart try: `try promiseExpr` auto-awaits, making the function async
+            ExprKind::Try(inner) if matches!(inner.ty, Type::Promise(_)) => true,
             ExprKind::Call { callee, args, .. } => {
                 walk(callee)
                     || args.iter().any(|a| match a {

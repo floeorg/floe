@@ -280,17 +280,21 @@ impl Codegen {
 
             // Try: `try expr` → IIFE with try/catch wrapping in Result
             // Non-Error throws are coerced to Error for consistent typing
+            // Smart try: if expr is Promise<T>, auto-await inside the IIFE
             ExprKind::Try(inner) => {
                 let has_await = expr_contains_await(inner);
-                if has_await {
-                    self.push(&format!("await (async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: "));
+                let is_promise = matches!(inner.ty, Type::Promise(_));
+                if has_await || is_promise {
+                    self.push(&format!("await (async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: await "));
+                    self.emit_expr(inner);
+                    self.push(&format!(" }}; }} catch (_e) {{ return {{ {OK_FIELD}: false as const, {ERROR_FIELD}: _e instanceof Error ? _e : new Error(String(_e)) }}; }} }})()"));
                 } else {
                     self.push(&format!(
                         "(() => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: "
                     ));
+                    self.emit_expr(inner);
+                    self.push(&format!(" }}; }} catch (_e) {{ return {{ {OK_FIELD}: false as const, {ERROR_FIELD}: _e instanceof Error ? _e : new Error(String(_e)) }}; }} }})()"));
                 }
-                self.emit_expr(inner);
-                self.push(&format!(" }}; }} catch (_e) {{ return {{ {OK_FIELD}: false as const, {ERROR_FIELD}: _e instanceof Error ? _e : new Error(String(_e)) }}; }} }})()"));
             }
 
             // parse<T>(value) → validation IIFE

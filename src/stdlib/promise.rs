@@ -7,7 +7,6 @@ pub fn register(fns: &mut Vec<StdlibFn>) {
 
     fns.extend([
         stdlib_fn!("Promise", "await", [promise_of(t.clone())], t.clone(), "await $0"),
-        stdlib_fn!("Promise", "tryAwait", [promise_of(t.clone())], result_of(t.clone(), Type::Named("Error".to_string())), "await (async () => { try { return { ok: true as const, value: await $0 }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()"),
         stdlib_fn!("Promise", "all", [array_of(promise_of(t.clone()))], promise_of(array_of(t.clone())), "Promise.all($0)"),
         stdlib_fn!("Promise", "race", [array_of(promise_of(t.clone()))], promise_of(t.clone()), "Promise.race($0)"),
         stdlib_fn!("Promise", "any", [array_of(promise_of(t.clone()))], promise_of(t.clone()), "Promise.any($0)"),
