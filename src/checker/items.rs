@@ -219,11 +219,8 @@ impl Checker {
     fn find_arrow_arg(expr: &Expr) -> Option<&Expr> {
         // Unwrap try/await wrappers (handles `try await f()`)
         let mut inner = expr;
-        loop {
-            match &inner.kind {
-                ExprKind::Try(e) | ExprKind::Await(e) => inner = e.as_ref(),
-                _ => break,
-            }
+        while let ExprKind::Try(e) | ExprKind::Await(e) = &inner.kind {
+            inner = e.as_ref();
         }
         if let ExprKind::Call { args, .. } = &inner.kind {
             for arg in args {
