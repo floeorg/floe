@@ -5719,3 +5719,56 @@ const _x = _take({ name: "Alice" })
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── tsgo/checker type merging ───────────────────────────────
+
+#[test]
+fn tsgo_function_with_unknown_return_uses_checker_return() {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    // useCallback((issue: IssueDto) => { ... }, [])
+    // tsgo returns (IssueDto) => any, checker infers (IssueDto) => ()
+    let program = crate::parser::Parser::new(
+        r#"
+import { useCallback } from "react"
+type Item { id: string }
+const handler = useCallback((item: Item) => {
+    const _x = item.id
+}, [])
+const _h = handler
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Mock: useCallback probe returns (Item) => any
+    let probe = DtsExport {
+        name: "__probe_handler".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Named("Item".to_string()),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Any),
+        },
+    };
+    let use_callback_export = DtsExport {
+        name: "useCallback".to_string(),
+        ts_type: TsType::Named("useCallback".to_string()),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("react".to_string(), vec![use_callback_export, probe]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (_, types, _) = checker.check_with_types(&program);
+
+    // handler should have () return, not unknown
+    if let Some(handler_ty) = types.get("handler") {
+        assert!(
+            !handler_ty.contains("unknown"),
+            "handler return type should not be unknown, got: {handler_ty}"
+        );
+    }
+}

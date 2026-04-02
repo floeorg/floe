@@ -59,7 +59,8 @@ impl Checker {
                 ty
             }
         });
-        let final_type = self.resolve_const_type(value_type, declared_type, &tsgo_type, span);
+        let final_type =
+            self.resolve_const_type(value_type, declared_type, &tsgo_type, &decl.value, span);
 
         match &decl.binding {
             ConstBinding::Name(name) => {
@@ -151,6 +152,7 @@ impl Checker {
         value_type: Type,
         declared_type: Option<Type>,
         tsgo_type: &Option<Type>,
+        value_expr: &Expr,
         span: Span,
     ) -> Type {
         if let Some(tsgo_ty) = tsgo_type {
@@ -161,6 +163,28 @@ impl Checker {
                 // variables) but the checker inferred a concrete type via
                 // generic inference — prefer the checker's type.
                 value_type
+            } else if let Type::Function {
+                params: tsgo_params,
+                return_type: tsgo_ret,
+                required_params: tsgo_req,
+            } = tsgo_ty
+                && matches!(tsgo_ret.as_ref(), Type::Unknown)
+            {
+                // Probe has concrete param types but Unknown return (e.g.
+                // useCallback with free variables in the body). Try to get
+                // the return type from the checker's inference of the arrow arg.
+                let checker_ret = Self::find_arrow_arg(value_expr)
+                    .and_then(|arrow| self.expr_types.get(&arrow.id))
+                    .and_then(|ty| match ty {
+                        Type::Function { return_type, .. } => Some(return_type.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| tsgo_ret.clone());
+                Type::Function {
+                    params: tsgo_params.clone(),
+                    required_params: *tsgo_req,
+                    return_type: checker_ret,
+                }
             } else {
                 tsgo_ty.clone()
             }
@@ -188,6 +212,30 @@ impl Checker {
         } else {
             value_type
         }
+    }
+
+    /// Find the first arrow function argument in a call expression.
+    /// For `useCallback((item) => {...}, [])`, returns the `(item) => {...}` expr.
+    fn find_arrow_arg(expr: &Expr) -> Option<&Expr> {
+        // Unwrap try/await wrappers (handles `try await f()`)
+        let mut inner = expr;
+        loop {
+            match &inner.kind {
+                ExprKind::Try(e) | ExprKind::Await(e) => inner = e.as_ref(),
+                _ => break,
+            }
+        }
+        if let ExprKind::Call { args, .. } = &inner.kind {
+            for arg in args {
+                let arg_expr = match arg {
+                    Arg::Positional(e) | Arg::Named { value: e, .. } => e,
+                };
+                if matches!(arg_expr.kind, ExprKind::Arrow { .. }) {
+                    return Some(arg_expr);
+                }
+            }
+        }
+        None
     }
 
     /// Check if an expression is wrapped in `await` (possibly through `try`).
