@@ -5,6 +5,21 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.43](https://github.com/floeorg/floe/compare/v0.1.42...v0.1.43) (2026-04-02)
+
+
+### Features
+
+* [[#938](https://github.com/floeorg/floe/issues/938)] LSP hover on pipe operator shows the piped value type ([#942](https://github.com/floeorg/floe/issues/942)) ([824dd6d](https://github.com/floeorg/floe/commit/824dd6d4c41f8440962bc27205e54b05db2c52dd))
+
+
+### Bug Fixes
+
+* [[#930](https://github.com/floeorg/floe/issues/930)] useCallback return type shows unknown when tsgo returns any for callback body ([#931](https://github.com/floeorg/floe/issues/931)) ([24595b5](https://github.com/floeorg/floe/commit/24595b5e1a908dd1613de89469d0dc1d2e35e031))
+* [[#932](https://github.com/floeorg/floe/issues/932)] Warn when a binding resolves to unknown type ([#943](https://github.com/floeorg/floe/issues/943)) ([ffe92ee](https://github.com/floeorg/floe/commit/ffe92eee01dc5d3704eabcc503e08c3fc8109a47))
+* [[#933](https://github.com/floeorg/floe/issues/933)] Formatter destroys object destructuring rename syntax ([#934](https://github.com/floeorg/floe/issues/934)) ([6a78e57](https://github.com/floeorg/floe/commit/6a78e577a0f215a740044d67dc9af6c82ca79a91))
+* [[#935](https://github.com/floeorg/floe/issues/935)] Checker accepts non-Option/Result/Array values in stdlib calls without error ([#940](https://github.com/floeorg/floe/issues/940)) ([9a8e804](https://github.com/floeorg/floe/commit/9a8e804e4b7bb3078ca284011826f75e0f92a8ae))
+
 ## [0.1.42](https://github.com/floeorg/floe/compare/v0.1.41...v0.1.42) (2026-04-02)
 
 

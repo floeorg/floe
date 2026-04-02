@@ -1,6 +1,6 @@
 {
   "name": "@floeorg/vite-plugin",
-  "version": "0.1.42",
+  "version": "0.1.43",
   "description": "Vite plugin for Floe - compile .fl files to TypeScript",
   "type": "module",
   "main": "dist/index.js",
