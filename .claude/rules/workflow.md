@@ -148,112 +148,14 @@ fix: [#384] Checker resolves pipe expressions to unknown type
 chore: [#257] Remove Brand type in favor of newtypes
 ```
 
-### 4. Quality Gate
+### 4. Ship
 
-Run before closing any task, scoped to what you changed.
+**When implementation is done, run `/ship`.** It handles everything: quality gates, `/simplify`, `/rulify`, draft PR, CI loop (including merge conflicts), mark ready, wait for merge, and `/land`.
 
-**Rust quality gate** (if you changed `src/**/*.rs`):
+See `.claude/skills/ship/SKILL.md` for the full pipeline. If the session ended before merge, run `/land` manually.
 
-```bash
-cargo fmt
-cargo clippy -- -D warnings
-RUSTFLAGS="-D warnings" cargo test
-```
+## Session Completion
 
-**All warnings are errors.** Clippy uses `-D warnings`; tests use `RUSTFLAGS="-D warnings"`. Fix warnings before proceeding.
-
-Order: fmt -> clippy -> test.
-
-**Always run the Floe example quality gate too** when changing compiler code — compiler changes can affect formatting, checking, and codegen output.
-
-**Floe example quality gate** (if you changed `src/**/*.rs` or `examples/**/*.fl`):
-
-**Important:** Run `pnpm install --frozen-lockfile` first if `node_modules/` is missing — `floe check` needs npm dependencies to resolve TypeScript types.
-
-```bash
-pnpm install --frozen-lockfile
-floe fmt examples/todo-app/src/ examples/store/src/
-floe check examples/todo-app/src/ examples/store/src/
-floe build examples/todo-app/src/ examples/store/src/
-```
-
-Order: fmt -> check -> build. All must pass with zero errors.
-
-**LSP integration tests** (if you changed LSP, checker, or language syntax):
-
-```bash
-python3 -m pytest tests/lsp/ --floe-bin=./target/debug/floe
-```
-
-All tests must pass (0 failures).
-
-### 5. Simplify
-
-Run `/simplify` to review changed code for reuse, quality, and efficiency. Fix any issues it finds before proceeding.
-
-### 6. PR (do NOT merge)
-
-Create the PR and **stop**. Do NOT merge - ask the user to review and merge.
-
-**Standalone issue** (not part of an epic) - PR targets main:
-
-```bash
-gh pr create --title "[#<num>] <full issue title>" --body "closes #<num>
-
-..."
-```
-
-**Sub-issue of an epic** - PR targets the epic branch:
-
-```bash
-gh pr create --base feature/#<epic-num>.<summary> \
-  --title "[#<epic-num>/#<num>] <full issue title>" \
-  --body "closes #<num>
-
-..."
-```
-
-**Epic PR** - already created as a draft at the start of the epic (see Epic workflow above). When all sub-issues are merged, mark it as ready for review:
-
-```bash
-gh pr ready <epic-pr-number>
-```
-
-The PR body **must start with `closes #<num>`** on the first line - this links the PR to the issue and auto-closes it on merge.
-
-After creating the PR, tell the user the PR URL and ask them to review and merge it. **Never run `gh pr merge` yourself.**
-
-### 7. Close (only after user review)
-
-Do NOT close the issue or remove the worktree until the user has reviewed and merged the PR. After the user confirms the PR is merged:
-
-```bash
-glb close <num>
-
-# Back in the main repo directory:
-git worktree remove ../floe-worktrees/<num>
-git pull
-```
-
-## Session Completion - MANDATORY
-
-Work is **not done** until `git push` succeeds.
-
-1. **File issues** for remaining work - `glb create`
-2. **Run quality gates** (if code changed) - fmt, clippy, test
-3. **Update issue status** - close finished work, update in-progress items
-4. **Push code to remote**:
-
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-
-5. **Verify** - all code changes committed AND pushed
-
-**Rules:**
-
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
+- **NEVER stop before pushing** — that leaves work stranded locally. YOU must push; never say "ready to push when you are."
+- **File issues** for any remaining work — `glb create`
 - If push fails, resolve and retry until it succeeds

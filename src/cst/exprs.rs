@@ -554,7 +554,7 @@ impl<'src> CstParser<'src> {
         {
             self.bump(); // operator
             self.eat_trivia();
-            self.parse_primary_expr();
+            self.parse_postfix_expr();
         }
 
         self.builder.finish_node();

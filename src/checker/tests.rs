@@ -5745,6 +5745,41 @@ const _r = find(users, .name == "a")
     assert!(diags.is_empty(), "expected no errors, got: {diags:?}");
 }
 
+#[test]
+fn dot_shorthand_predicate_with_captured_variable() {
+    let diags = check(
+        r#"
+type Column { id: string }
+type Issue { status_name: string }
+const columns: Array<Column> = [Column(id: "todo")]
+const issue = Issue(status_name: "todo")
+const _r = columns |> Array.find(.id == issue.status_name)
+"#,
+    );
+    assert!(
+        diags.is_empty(),
+        "captured variable in dot shorthand predicate should not resolve as unknown, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dot_shorthand_predicate_with_function_call_rhs() {
+    let diags = check(
+        r#"
+type User { name: string, active: boolean }
+fn getName() -> string { "alice" }
+const users: Array<User> = [User(name: "alice", active: true)]
+const _r = users |> Array.find(.name == getName())
+"#,
+    );
+    assert!(
+        diags.is_empty(),
+        "function call on rhs of dot shorthand should work, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Bug #805: Settable/Option fields default when omitted ───
 
 #[test]
