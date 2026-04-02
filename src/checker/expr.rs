@@ -615,7 +615,8 @@ impl Checker {
             let mut type_var_bindings: HashMap<usize, Type> = HashMap::new();
             let mut arg_count = 0;
 
-            // Pass 1: check non-arrow args and unify with stdlib param types
+            // Pass 1: check non-arrow args and collect type var bindings
+            let mut non_arrow_args: Vec<(usize, Type, Span)> = Vec::new();
             for (i, arg) in args.iter().enumerate() {
                 let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
                 if !matches!(e.kind, ExprKind::Arrow { .. }) {
@@ -627,7 +628,28 @@ impl Checker {
                             &mut type_var_bindings,
                         );
                     }
+                    non_arrow_args.push((i, actual_ty, e.span));
                     arg_count += 1;
+                }
+            }
+
+            // Validate non-arrow args against fully-resolved param types
+            for &(i, ref actual_ty, arg_span) in &non_arrow_args {
+                if let Some(param_ty) = stdlib_params.get(i) {
+                    let resolved_param = Self::substitute_type_vars(param_ty, &type_var_bindings);
+                    if !self.types_compatible(&resolved_param, actual_ty) {
+                        self.emit_error(
+                            format!(
+                                "argument {} to `{display}`: expected `{}`, found `{}`",
+                                i + 1,
+                                resolved_param,
+                                actual_ty
+                            ),
+                            arg_span,
+                            ErrorCode::TypeMismatch,
+                            format!("expected `{}`", resolved_param),
+                        );
+                    }
                 }
             }
 

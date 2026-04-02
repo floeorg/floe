@@ -235,10 +235,16 @@ impl Checker {
                     _ => true,
                 }
             }
-            // A concrete value T is assignable to Option<T> (implicit Some wrapping)
+            // A concrete value T is assignable to Option<T> (implicit Some wrapping),
+            // but not when the inner type is an unresolved type variable — that would
+            // make any value match Option<Var(0)> in stdlib signatures.
             (expected, actual) if expected.is_option() => {
                 if let Some(inner) = expected.option_inner() {
-                    self.types_compatible(inner, actual)
+                    if matches!(inner, Type::Var(_)) {
+                        false
+                    } else {
+                        self.types_compatible(inner, actual)
+                    }
                 } else {
                     true
                 }
