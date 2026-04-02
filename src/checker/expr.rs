@@ -80,14 +80,13 @@ impl Checker {
                 let ret = self.check_call(callee, type_args, args, expr.span);
                 // Auto-wrap throws import calls in Result
                 if self.is_throwing_call(callee) {
-                    let inner = match &ret {
+                    match &ret {
                         Type::Promise(inner) => Type::Promise(Box::new(Type::result_of(
                             *inner.clone(),
                             Type::Named(type_layout::TYPE_ERROR.to_string()),
                         ))),
                         _ => Type::result_of(ret, Type::Named(type_layout::TYPE_ERROR.to_string())),
-                    };
-                    inner
+                    }
                 } else {
                     ret
                 }
