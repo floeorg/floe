@@ -49,6 +49,30 @@ fn find_expr_type_at_offset(program: &Program, offset: usize) -> Option<(usize, 
     best
 }
 
+/// Find the type of the left-hand side of a pipe expression at the given offset.
+/// Used for hover on `|>` to show what value is being piped.
+fn find_pipe_input_type_at_offset(program: &Program, offset: usize) -> Option<Type> {
+    use crate::parser::ast::{Expr, ExprKind};
+
+    let mut best: Option<(usize, Type)> = None;
+
+    let mut check = |expr: &Expr| {
+        if let ExprKind::Pipe { left, .. } = &expr.kind
+            && offset >= expr.span.start
+            && offset <= expr.span.end
+            && !matches!(left.ty, Type::Unknown)
+        {
+            let width = expr.span.end - expr.span.start;
+            if best.as_ref().is_none_or(|(w, _)| width < *w) {
+                best = Some((width, left.ty.clone()));
+            }
+        }
+    };
+
+    crate::walk::walk_program(program, &mut check);
+    best.map(|(_, ty)| ty)
+}
+
 // ── Helpers ─────────────────────────────────────────────────────
 
 fn offset_to_range(source: &str, start: usize, end: usize) -> Range {

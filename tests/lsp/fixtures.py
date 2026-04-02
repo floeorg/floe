@@ -864,3 +864,8 @@ fn _test(x: boolean) -> string {
     }
 }
 """
+
+PIPE_HOVER = """\
+const items = [1, 2, 3]
+const _result = items |> map((x) => x + 1) |> Array.length
+"""
