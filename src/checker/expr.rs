@@ -95,20 +95,19 @@ impl Checker {
                     self.with_context(|ctx| ctx.inside_try = true, |this| this.check_expr(inner));
 
                 // Warn when try wraps a Floe function call (Floe functions never throw)
-                if let Some(callee_name) = Self::extract_callee_name(inner) {
-                    if !self.npm_imports.contains(callee_name)
-                        && !self.stdlib.is_module(callee_name)
-                    {
-                        self.emit_warning_with_help(
-                            format!(
-                                "`try` is unnecessary — Floe function `{callee_name}` never throws"
-                            ),
-                            expr.span,
-                            ErrorCode::TryOnFloeFunction,
-                            "Floe functions use `Result` for errors, not exceptions",
-                            "remove `try` and use `?` to unwrap the Result instead",
-                        );
-                    }
+                if let Some(callee_name) = Self::extract_callee_name(inner)
+                    && !self.npm_imports.contains(callee_name)
+                    && !self.stdlib.is_module(callee_name)
+                {
+                    self.emit_warning_with_help(
+                        format!(
+                            "`try` is unnecessary — Floe function `{callee_name}` never throws"
+                        ),
+                        expr.span,
+                        ErrorCode::TryOnFloeFunction,
+                        "Floe functions use `Result` for errors, not exceptions",
+                        "remove `try` and use `?` to unwrap the Result instead",
+                    );
                 }
 
                 // Smart try: if the expression is Promise<T>, unwrap to T
