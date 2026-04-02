@@ -70,6 +70,12 @@ const rows = data |> Option.unwrapOr([])
 // Collect all Options
 const allNames = [Some("Alice"), Some("Bob"), None]
   |> Option.all   // None (one is missing)
+
+// Optional JSX rendering — render if present, nothing if absent
+<div>
+  {user.nickname |> Option.map((nick) => <Badge>{nick}</Badge>)}
+</div>
+// None renders nothing (undefined is ignored by React)
 ```
 
 ## Guard Pattern

@@ -251,6 +251,10 @@ match url {
   {match state { Submitting -> "Sending...", _ -> "Send" }}
 </Button>
 
+// Optional rendering — Option<JSX.Element> works as a JSX child
+// None compiles to undefined, which React ignores
+{user.nickname |> Option.map((nick) => <Badge>{nick}</Badge>)}
+
 ```
 
 Match uses `->` for arms (not `=>`), so it's visually distinct from closures.
