@@ -1,7 +1,7 @@
 ---
 name: ship
 description: >
-  Run quality gates, /simplify, /rulify, create or update a PR, poll CI, poll for merge, then /land.
+  Run quality gates, /simplify, /rulify, /alignify, create or update a PR, poll CI, then mark ready.
   TRIGGER when: (1) the user says "ship it", "ship", or asks to create a PR, OR (2) you have finished implementing a task and are ready to submit it -- invoke this automatically as part of the workflow (see .claude/rules/workflow.md step 4).
   DO NOT TRIGGER when: the user just wants to run tests or quality gates without creating a PR.
 argument-hint: "[issue number (optional, inferred from branch if omitted)]"
@@ -140,20 +140,6 @@ gh pr ready <pr-number>
 Tell the user:
 
 1. **PR URL** — always link the PR. On re-runs, link it again so the user can review the latest changes.
-2. Tell the user you are now waiting for merge.
+2. Tell the user to say "merged" when the PR is merged so `/land` can clean up.
 
 **Never run `gh pr merge`.**
-
-## Step 7: Wait for merge
-
-Poll the PR state every 2 minutes. Keep output minimal — just a single short line each check, no verbose output.
-
-```bash
-gh pr view <pr-number> --json state --jq '.state'
-```
-
-- **MERGED**: run `/land` (close issue, remove worktree, sync main). Done.
-- **CLOSED** (without merge): report to user and stop.
-- **OPEN**: continue polling.
-
-If the user interrupts to request changes, stop polling. After making the changes, `/ship` will be re-triggered automatically and will resume from step 2 (quality gates onward, skipping PR creation).

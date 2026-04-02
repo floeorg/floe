@@ -150,7 +150,7 @@ chore: [#257] Remove Brand type in favor of newtypes
 
 ### 4. Ship
 
-**When implementation is done, run `/ship`.** It handles everything: quality gates, `/simplify`, `/rulify`, draft PR, CI loop (including merge conflicts), mark ready, wait for merge, and `/land`.
+**When implementation is done, run `/ship`.** It handles everything: quality gates, `/simplify`, `/rulify`, `/alignify`, draft PR, CI loop (including merge conflicts), and mark ready. After the user merges, say "merged" to trigger `/land`.
 
 See `.claude/skills/ship/SKILL.md` for the full pipeline. If the session ended before merge, run `/land` manually.
 
