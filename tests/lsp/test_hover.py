@@ -363,6 +363,20 @@ class TestHoverRecordSpread:
         assert h is not None, f"Expected hover for render prop param provided, got None"
         assert "?T" not in h, f"Render prop param should not show type var, got: {h}"
 
+    def test_pipe_hover_shows_input_type(self, lsp):
+        open_doc(lsp, URI, F.PIPE_HOVER)
+        # First |> at col 22: items (Array<number>) is being piped
+        h = hover_text(lsp.hover(URI, 1, 22))
+        assert h is not None, f"Expected hover for pipe operator, got None"
+        assert "Array" in h, f"Pipe hover should show Array type, got: {h}"
+
+    def test_pipe_hover_second_pipe_shows_mapped_type(self, lsp):
+        open_doc(lsp, URI, F.PIPE_HOVER)
+        # Second |> at col 43: map result (Array<number>) is being piped
+        h = hover_text(lsp.hover(URI, 1, 43))
+        assert h is not None, f"Expected hover for second pipe, got None"
+        assert "Array" in h, f"Second pipe should show Array type, got: {h}"
+
     def test_match_pattern_literal_shows_boolean(self, lsp):
         open_doc(lsp, URI, F.MATCH_PATTERN_LITERAL)
         # Hover on 'true' in match pattern (line 2, col 8)

@@ -21,6 +21,25 @@ impl FloeLsp {
         let word = word_at_offset(&doc.content, offset);
 
         if word.is_empty() {
+            // Check for pipe operator `|>` at cursor
+            let bytes = doc.content.as_bytes();
+            let is_pipe = (offset > 0
+                && offset < bytes.len()
+                && bytes[offset - 1] == b'|'
+                && bytes[offset] == b'>')
+                || (offset + 1 < bytes.len() && bytes[offset] == b'|' && bytes[offset + 1] == b'>');
+            if is_pipe
+                && let Some(ref typed_program) = doc.typed_program
+                && let Some(pipe_ty) = super::find_pipe_input_type_at_offset(typed_program, offset)
+            {
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!("```floe\n|> {pipe_ty}\n```\nPipe input type"),
+                    }),
+                    range: None,
+                }));
+            }
             return Ok(None);
         }
 
@@ -201,9 +220,7 @@ impl FloeLsp {
             "match" => {
                 "```floe\nmatch expr { pattern -> body, ... }\n```\nExhaustive pattern matching expression."
             }
-            "|>" => {
-                "```floe\nexpr |> function\n```\nPipe operator: passes left side as first argument to right side."
-            }
+            // Note: |> is handled earlier (before empty word check) since it's not a word char
             "todo" => "```floe\ntodo\n```\nPlaceholder for unfinished code. Throws at runtime.",
             "unreachable" => {
                 "```floe\nunreachable\n```\nAsserts a code path is impossible. Throws at runtime."
