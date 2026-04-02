@@ -768,40 +768,30 @@ fn import_named() {
 }
 
 #[test]
-fn import_trusted_all() {
-    match first_item(r#"import trusted { capitalize, slugify } from "string-utils""#) {
+fn import_throws_all() {
+    match first_item(r#"import throws { parseYaml, parseJson } from "yaml-lib""#) {
         ItemKind::Import(decl) => {
-            assert!(decl.trusted);
+            assert!(decl.throws);
             assert_eq!(decl.specifiers.len(), 2);
-            assert_eq!(decl.specifiers[0].name, "capitalize");
-            assert_eq!(decl.specifiers[1].name, "slugify");
+            assert_eq!(decl.specifiers[0].name, "parseYaml");
+            assert_eq!(decl.specifiers[1].name, "parseJson");
         }
         other => panic!("expected import, got {other:?}"),
     }
 }
 
 #[test]
-fn import_trusted_per_specifier() {
-    match first_item(r#"import { trusted capitalize, fetchUser } from "some-lib""#) {
+fn import_throws_per_specifier() {
+    match first_item(r#"import { throws parseYaml, capitalize } from "some-lib""#) {
         ItemKind::Import(decl) => {
-            assert!(!decl.trusted);
+            assert!(!decl.throws);
             assert_eq!(decl.specifiers.len(), 2);
-            assert!(decl.specifiers[0].trusted);
-            assert_eq!(decl.specifiers[0].name, "capitalize");
-            assert!(!decl.specifiers[1].trusted);
-            assert_eq!(decl.specifiers[1].name, "fetchUser");
+            assert!(decl.specifiers[0].throws);
+            assert_eq!(decl.specifiers[0].name, "parseYaml");
+            assert!(!decl.specifiers[1].throws);
+            assert_eq!(decl.specifiers[1].name, "capitalize");
         }
         other => panic!("expected import, got {other:?}"),
-    }
-}
-
-#[test]
-fn try_expression() {
-    match first_expr(r#"try fetchData("hello")"#) {
-        ExprKind::Try(inner) => {
-            assert!(matches!(&inner.kind, ExprKind::Call { .. }));
-        }
-        other => panic!("expected try expression, got {other:?}"),
     }
 }
 

@@ -98,15 +98,15 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        // Check for module-level `trusted` keyword (an IDENT "trusted" directly in IMPORT_DECL)
-        let module_trusted = node.children_with_tokens().any(|child| {
+        // Check for module-level `throws` keyword
+        let module_throws = node.children_with_tokens().any(|child| {
             child
                 .as_token()
-                .is_some_and(|t| t.kind() == SyntaxKind::IDENT && t.text() == "trusted")
+                .is_some_and(|t| t.kind() == SyntaxKind::KW_THROWS)
         });
 
         Some(ImportDecl {
-            trusted: module_trusted,
+            throws: module_throws,
             specifiers,
             for_specifiers,
             source,
@@ -125,11 +125,11 @@ impl<'src> Lowerer<'src> {
         let span = self.node_span(node);
         let idents = self.collect_idents(node);
 
-        // Check for per-specifier `trusted` — appears as first IDENT "trusted"
-        let per_trusted = idents.first().is_some_and(|name| name == "trusted") && idents.len() >= 2;
+        // Check for per-specifier `throws` — appears as first IDENT "throws"
+        let per_throws = idents.first().is_some_and(|name| name == "throws") && idents.len() >= 2;
 
-        let (name, alias) = if per_trusted {
-            // "trusted", "name" [, "alias"]
+        let (name, alias) = if per_throws {
+            // "throws", "name" [, "alias"]
             (idents[1].clone(), idents.get(2).cloned())
         } else {
             (idents.first()?.clone(), idents.get(1).cloned())
@@ -138,7 +138,7 @@ impl<'src> Lowerer<'src> {
         Some(ImportSpecifier {
             name,
             alias,
-            trusted: per_trusted,
+            throws: per_throws,
             span,
         })
     }

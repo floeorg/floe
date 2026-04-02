@@ -486,7 +486,6 @@ impl SymbolIndex {
                 Self::collect_expr(right, symbols);
             }
             ExprKind::Grouped(inner)
-            | ExprKind::Try(inner)
             | ExprKind::Unwrap(inner)
             | ExprKind::Unary { operand: inner, .. }
             | ExprKind::Spread(inner)

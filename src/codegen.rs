@@ -11,7 +11,6 @@ mod types;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::checker::Type;
 use crate::parser::ast::*;
 use crate::resolve::ResolvedImports;
 use crate::stdlib::StdlibRegistry;
@@ -520,10 +519,7 @@ fn collect_constructors_from_expr(expr: &Expr, names: &mut HashSet<String>) {
                 collect_constructors_from_expr(&arm.body, names);
             }
         }
-        ExprKind::Try(e)
-        | ExprKind::Unwrap(e)
-        | ExprKind::Value(e)
-        | ExprKind::Unary { operand: e, .. } => {
+        ExprKind::Unwrap(e) | ExprKind::Value(e) | ExprKind::Unary { operand: e, .. } => {
             collect_constructors_from_expr(e, names);
         }
         ExprKind::Array(items) | ExprKind::Tuple(items) => {
@@ -639,7 +635,7 @@ fn collect_value_names_from_expr(expr: &Expr, names: &mut HashSet<String>) {
             collect_value_names_from_expr(right, names);
         }
         ExprKind::Unary { operand, .. } => collect_value_names_from_expr(operand, names),
-        ExprKind::Try(e) | ExprKind::Unwrap(e) => {
+        ExprKind::Unwrap(e) => {
             collect_value_names_from_expr(e, names);
         }
         ExprKind::Value(e) => {

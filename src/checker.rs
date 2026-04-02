@@ -54,8 +54,7 @@ pub fn mark_async_functions(program: &mut Program) {
     });
 }
 
-/// Check if an expression body contains a `Promise.await` member access
-/// or a `try` on a Promise-typed expression (smart try auto-awaits).
+/// Check if an expression body contains a `Promise.await` member access.
 fn body_has_promise_await(expr: &Expr) -> bool {
     fn walk(expr: &Expr) -> bool {
         match &expr.kind {
@@ -65,8 +64,6 @@ fn body_has_promise_await(expr: &Expr) -> bool {
             {
                 true
             }
-            // Smart try: `try promiseExpr` auto-awaits, making the function async
-            ExprKind::Try(inner) if matches!(inner.ty, Type::Promise(_)) => true,
             ExprKind::Call { callee, args, .. } => {
                 walk(callee)
                     || args.iter().any(|a| match a {
@@ -79,7 +76,6 @@ fn body_has_promise_await(expr: &Expr) -> bool {
             ExprKind::Unary { operand, .. }
             | ExprKind::Grouped(operand)
             | ExprKind::Unwrap(operand)
-            | ExprKind::Try(operand)
             | ExprKind::Spread(operand)
             | ExprKind::Value(operand) => walk(operand),
             ExprKind::Block(items) | ExprKind::Collect(items) => items.iter().any(|item| {
@@ -119,8 +115,6 @@ use types::{TypeEnv, TypeInfo};
 pub(crate) struct CheckContext {
     /// The return type of the current function (for ? validation).
     pub current_return_type: Option<Type>,
-    /// Whether we are currently inside a `try` expression.
-    pub inside_try: bool,
     /// Whether we are currently inside a `collect` block.
     pub inside_collect: bool,
     /// The error type collected from `?` operations inside a `collect` block.
@@ -160,11 +154,6 @@ pub(crate) struct TraitRegistry {
     pub trait_impls: HashSet<(String, String)>,
 }
 
-/// Check if an expression is wrapped in `try`.
-pub fn expr_has_try(expr: &Expr) -> bool {
-    matches!(&expr.kind, ExprKind::Try(_))
-}
-
 // ── Checker ──────────────────────────────────────────────────────
 
 /// The Floe type checker.
@@ -183,9 +172,9 @@ pub struct Checker {
     pub(crate) unused: UnusedTracker,
     /// Trait declarations and implementations.
     pub(crate) traits: TraitRegistry,
-    /// Names of untrusted (external TS) imports that require `try`.
-    untrusted_imports: HashSet<String>,
-    /// Names from npm imports (both trusted and untrusted) — `try` is valid on these.
+    /// Names of throwing (external TS) imports marked with `throws`.
+    throwing_imports: HashSet<String>,
+    /// Names from npm imports — used for determining if `try` wrapping was valid.
     npm_imports: HashSet<String>,
     /// Whether we are in the type registration pass (suppress unknown type errors).
     registering_types: bool,
@@ -387,9 +376,9 @@ impl Checker {
             env.define(name, ty.clone());
         }
 
-        // Browser globals that can throw and require `try`
-        let mut untrusted_globals = HashSet::new();
-        untrusted_globals.insert("fetch".to_string());
+        // Browser globals that can throw
+        let mut throwing_globals = HashSet::new();
+        throwing_globals.insert("fetch".to_string());
 
         Self {
             env,
@@ -400,7 +389,7 @@ impl Checker {
             ctx: CheckContext::default(),
             unused: UnusedTracker::default(),
             traits: TraitRegistry::default(),
-            untrusted_imports: untrusted_globals,
+            throwing_imports: throwing_globals,
             npm_imports: HashSet::new(),
             registering_types: false,
             resolved_imports: HashMap::new(),
@@ -439,10 +428,10 @@ impl Checker {
     /// Run `f` with modified context flags, then restore the previous context.
     /// This replaces manual save/restore patterns like:
     /// ```ignore
-    /// let prev = self.ctx.inside_try;
-    /// self.ctx.inside_try = true;
+    /// let prev = self.ctx.inside_collect;
+    /// self.ctx.inside_collect = true;
     /// // ... work ...
-    /// self.ctx.inside_try = prev;
+    /// self.ctx.inside_collect = prev;
     /// ```
     pub(crate) fn with_context<T>(
         &mut self,
