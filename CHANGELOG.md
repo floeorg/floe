@@ -5,6 +5,22 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0](https://github.com/floeorg/floe/compare/v0.1.43...v0.2.0) (2026-04-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* [#944] Replace async/await keywords with Promise.await stdlib function ([#947](https://github.com/floeorg/floe/issues/947))
+
+### Features
+
+* [[#944](https://github.com/floeorg/floe/issues/944)] Replace async/await keywords with Promise.await stdlib function ([#947](https://github.com/floeorg/floe/issues/947)) ([713b805](https://github.com/floeorg/floe/commit/713b805aa5624943256e70239986201f52a1a80f))
+
+
+### Bug Fixes
+
+* [[#906](https://github.com/floeorg/floe/issues/906)] Dot shorthand with captured variables resolves outer references as unknown ([#946](https://github.com/floeorg/floe/issues/946)) ([851f586](https://github.com/floeorg/floe/commit/851f5866cb5d0aa6172a5ad5fc6449d1eb6d20dc))
+
 ## [0.1.43](https://github.com/floeorg/floe/compare/v0.1.42...v0.1.43) (2026-04-02)
 
 
