@@ -453,7 +453,7 @@ pub enum ExprKind {
     Index { object: Box<Expr>, index: Box<Expr> },
 
     // -- Functions --
-    /// Arrow function: `|a, b| a + b` or `async |a, b| a + b`
+    /// Arrow function: `(a, b) => a + b`
     Arrow {
         async_fn: bool,
         params: Vec<Param>,
@@ -466,8 +466,6 @@ pub enum ExprKind {
         subject: Box<Expr>,
         arms: Vec<MatchArm>,
     },
-    /// Await: `await expr`
-    Await(Box<Expr>),
     /// Try: `try expr` — wraps a throwing expression in Result
     Try(Box<Expr>),
 

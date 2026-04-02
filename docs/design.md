@@ -42,7 +42,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 - Dot shorthand `.field` for implicit field-access closures
 - JSX / TSX (full support)
 - Generics (types and functions), template literals
-- `async`/`await`
+- Async via `Promise.await` stdlib function (no `async`/`await` keywords)
 - Destructuring, spread, rest params
 - `||` (boolean OR), `&&`, `!` (boolean operators)
 - `==` (but only between same types — structural equality on objects)
@@ -95,7 +95,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Immutable sets | `Set.add`, `Set.remove` return new sets | `new Set([...old, val])` |
 | Date construction | `Date.now()`, `Date.from("...")` | `new Date()`, `new Date("...")` |
 | Strict parse | `Number.parse("123")` returns `Result` | no silent `NaN` or partial parse |
-| Http module | `Http.get(url)`, `Http.post(url, body)` | async IIFE wrapping `fetch` in `Result` |
+| Http module | `Http.get(url)`, `Http.post(url, body)` | IIFE wrapping `fetch` in `Promise<Result>` |
 | Promise module | `Promise.all`, `Promise.allSettled` | `allSettled` returns `Array<Result<T, Error>>` |
 | Array.mapResult | `Array.mapResult(arr, fn)` | map fallible fn, short-circuit on Err |
 | Array.filterMap | `Array.filterMap(arr, fn)` | map + filter in one pass (fn returns Option) |
@@ -1565,9 +1565,9 @@ import { parseYaml } from "yaml-lib"
 const data = try parseYaml(input)
 // data: Result<unknown, Error>
 
-// Async: try await (left to right matches execution order)
+// Async: try (expr |> Promise.await) — unwrap the promise, then wrap in Result
 import { fetchUser } from "api-client"
-const user = try await fetchUser(id)
+const user = try (fetchUser(id) |> Promise.await)
 
 // Compose with ? for concise error handling:
 fn loadProfile(id: string) -> Result<Profile, Error> {

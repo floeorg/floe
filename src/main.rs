@@ -151,6 +151,7 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
 
     let mut program = program;
     checker::annotate_types(&mut program, &expr_types);
+    checker::mark_async_functions(&mut program);
     desugar::desugar_program(&mut program, &resolved);
 
     Ok(CompileResult { program, resolved })
@@ -418,6 +419,7 @@ fn cmd_test(path: &Path) -> Result<()> {
         }
 
         checker::annotate_types(program, &expr_types);
+        checker::mark_async_functions(program);
         desugar::desugar_program(program, &resolved);
         let output = Codegen::with_imports(&resolved)
             .with_test_mode()

@@ -417,7 +417,7 @@
 
         if (stream.match(/^[a-zA-Z_]\w*/)) {
           const w = stream.current();
-          if (['fn','const','type','match','import','export','from','if','else','return','async','await','use','for','trait','opaque','trusted','test','assert','pub','try','when'].includes(w)) return 'keyword';
+          if (['fn','const','type','match','import','export','from','if','else','return','use','for','trait','opaque','trusted','test','assert','pub','try','when'].includes(w)) return 'keyword';
           if (['true','false'].includes(w)) return 'atom';
           if (['Ok','Err','Some','None','Result','Option','Array','Map','Set','string','number','boolean','JSX'].includes(w)) return 'typeName';
           if (w[0] >= 'A' && w[0] <= 'Z') return 'typeName';

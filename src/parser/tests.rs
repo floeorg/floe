@@ -732,10 +732,10 @@ fn fn_binding_form() {
 }
 
 #[test]
-fn async_function() {
-    match first_item("async fn fetchUser(id: string) -> Result<User, ApiError> { Ok(user) }") {
+fn promise_return_type_function() {
+    match first_item("fn fetchUser(id: string) -> Promise<Result<User, ApiError>> { Ok(user) }") {
         ItemKind::Function(decl) => {
-            assert!(decl.async_fn);
+            assert!(!decl.async_fn); // async_fn is set by mark_async_functions, not parser
             assert_eq!(decl.name, "fetchUser");
         }
         other => panic!("expected function, got {other:?}"),
@@ -800,16 +800,6 @@ fn try_expression() {
     match first_expr(r#"try fetchData("hello")"#) {
         ExprKind::Try(inner) => {
             assert!(matches!(&inner.kind, ExprKind::Call { .. }));
-        }
-        other => panic!("expected try expression, got {other:?}"),
-    }
-}
-
-#[test]
-fn try_await_expression() {
-    match first_expr(r#"try await fetchData("hello")"#) {
-        ExprKind::Try(inner) => {
-            assert!(matches!(&inner.kind, ExprKind::Await(_)));
         }
         other => panic!("expected try expression, got {other:?}"),
     }
@@ -1094,12 +1084,14 @@ fn pipe_with_placeholder() {
     }
 }
 
-// ── Await ────────────────────────────────────────────────────
+// ── Promise.await (stdlib, no keyword) ──────────────────────
 
 #[test]
-fn await_expr() {
-    let expr = first_expr("await fetchUser(id)");
-    assert!(matches!(expr, ExprKind::Await(_)));
+fn promise_await_is_member_access() {
+    // `Promise.await` is now a stdlib function, not a keyword.
+    // It parses as a regular member access expression.
+    let expr = first_expr("Promise.await");
+    assert!(matches!(expr, ExprKind::Member { .. }));
 }
 
 // ── If/Else is Banned ────────────────────────────────────────
@@ -1792,40 +1784,14 @@ fn lambda_object_destructure_with_rename() {
 // `|{ x, y }| expr` should parse with destructured params
 
 #[test]
-fn async_zero_arg_lambda() {
-    let expr = first_expr("async () => fetchData()");
-    match expr {
-        ExprKind::Arrow {
-            async_fn, params, ..
-        } => {
-            assert!(async_fn, "expected async lambda");
-            assert_eq!(params.len(), 0);
-        }
-        other => panic!("expected arrow, got {other:?}"),
-    }
-}
-
-#[test]
-fn async_lambda_with_params() {
-    let expr = first_expr("async (url) => fetch(url)");
-    match expr {
-        ExprKind::Arrow {
-            async_fn, params, ..
-        } => {
-            assert!(async_fn, "expected async lambda");
-            assert_eq!(params.len(), 1);
-            assert_eq!(params[0].name, "url");
-        }
-        other => panic!("expected arrow, got {other:?}"),
-    }
-}
-
-#[test]
 fn non_async_lambda_is_not_async() {
     let expr = first_expr("() => 42");
     match expr {
         ExprKind::Arrow { async_fn, .. } => {
-            assert!(!async_fn, "expected non-async lambda");
+            assert!(
+                !async_fn,
+                "parser always sets async_fn=false, mark_async_functions infers it later"
+            );
         }
         other => panic!("expected arrow, got {other:?}"),
     }

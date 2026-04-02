@@ -2814,26 +2814,26 @@ fn fetch_with_try_is_ok() {
 // ── Async function return types ────────────────────────────
 
 #[test]
-fn async_fn_promise_return_type_matches_body() {
+fn promise_return_type_matches_body() {
     let diags = check(
         r#"
-export async fn getName() -> Promise<string> {
+export fn getName() -> Promise<string> {
     "hello"
 }
 "#,
     );
     assert!(
         !has_error_containing(&diags, "expected return type"),
-        "async fn body string should match Promise<string>, got: {:?}",
+        "fn body string should match Promise<string>, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn async_fn_promise_option_return_type_matches() {
+fn promise_option_return_type_matches() {
     let diags = check(
         r#"
-export async fn maybeGet(x: number) -> Promise<Option<string>> {
+export fn maybeGet(x: number) -> Promise<Option<string>> {
     match x {
         0 -> None,
         _ -> Some("found"),
@@ -2843,23 +2843,23 @@ export async fn maybeGet(x: number) -> Promise<Option<string>> {
     );
     assert!(
         !has_error_containing(&diags, "expected return type"),
-        "async fn body Option<string> should match Promise<Option<string>>, got: {:?}",
+        "fn body Option<string> should match Promise<Option<string>>, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn async_fn_promise_mismatch_still_errors() {
+fn promise_return_type_mismatch_still_errors() {
     let diags = check(
         r#"
-export async fn bad() -> Promise<string> {
+export fn bad() -> Promise<string> {
     42
 }
 "#,
     );
     assert!(
         has_error_containing(&diags, "expected return type"),
-        "async fn body number should not match Promise<string>, got: {:?}",
+        "fn body number should not match Promise<string>, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -2907,12 +2907,12 @@ fn stdlib_member_access_still_works() {
     );
 }
 
-// ── Promise / await ─────────────────────────────────────────
+// ── Promise / Promise.await ─────────────────────────────────
 
 #[test]
 fn fetch_returns_promise_response() {
     // fetch returns Promise<Response>, not Response directly
-    // So without await, you can't access .json()
+    // So without Promise.await, you can't access .json()
     let diags = check(
         r#"
 fn test() -> Result<string, Error> {
@@ -2923,33 +2923,10 @@ fn test() -> Result<string, Error> {
 "#,
     );
     // res should be Promise<Response>, so .json() should error
-    // (need await to unwrap Promise first)
+    // (need Promise.await to unwrap Promise first)
     assert!(
         has_error_containing(&diags, "Promise"),
-        "fetch without await should give Promise<Response>, accessing .json() should error about Promise, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn await_unwraps_promise() {
-    // await fetch() should give Response, so .json() works
-    let diags = check(
-        r#"
-fn test() -> Result<string, Error> {
-    const res = try await fetch("url")?
-    const j = res.json()
-    Ok("done")
-}
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::AccessOnUnknown),
-        "await should unwrap Promise, allowing .json() access, got: {:?}",
+        "fetch without Promise.await should give Promise<Response>, accessing .json() should error about Promise, got: {:?}",
         diags
             .iter()
             .filter(|d| d.severity == Severity::Error)
@@ -5240,73 +5217,6 @@ type Props = string & { extra: number }
 
 // ── Await in non-async function ─────────────────────────────
 
-#[test]
-fn await_in_non_async_function_errors() {
-    let diags = check(
-        r#"
-fn init() {
-    const s = await getSession()
-}
-"#,
-    );
-    assert!(has_error_containing(
-        &diags,
-        "`await` can only be used inside an `async` function"
-    ));
-}
-
-#[test]
-fn await_in_async_function_ok() {
-    let diags = check(
-        r#"
-async fn init() -> string {
-    const s = await fetchData()
-    s
-}
-"#,
-    );
-    assert!(
-        !has_error_containing(&diags, "`await` can only be used"),
-        "await in async fn should be allowed, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn await_in_sync_lambda_inside_async_fn_errors() {
-    let diags = check(
-        r#"
-async fn outer() -> number {
-    const f = (x: number) => await fetchData()
-    await f(1)
-}
-"#,
-    );
-    assert!(has_error_containing(
-        &diags,
-        "`await` can only be used inside an `async` function"
-    ));
-}
-
-#[test]
-fn await_in_nested_sync_fn_inside_async_fn_errors() {
-    let diags = check(
-        r#"
-async fn outer() -> number {
-    fn inner() -> number {
-        const s = await fetchData()
-        s
-    }
-    await inner()
-}
-"#,
-    );
-    assert!(has_error_containing(
-        &diags,
-        "`await` can only be used inside an `async` function"
-    ));
-}
-
 // ── Bracket access (index) checking ─────────────────────────────
 
 #[test]
@@ -5866,46 +5776,6 @@ const _r = users |> Array.find(.name == getName())
     assert!(
         diags.is_empty(),
         "function call on rhs of dot shorthand should work, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-// ── Bug #804: Suggest try await instead of await try ────────
-
-#[test]
-fn await_try_suggests_try_await() {
-    let diags = check(
-        r#"
-async fn fetchData() -> Promise<string> {
-    "hello"
-}
-async fn handler() {
-    const _result = await try fetchData()
-}
-"#,
-    );
-    assert!(
-        has_error_containing(&diags, "await try"),
-        "should warn about await try order, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn try_await_no_error() {
-    let diags = check(
-        r#"
-async fn fetchData() -> Promise<string> {
-    "hello"
-}
-async fn handler() {
-    const _result = try await fetchData()
-}
-"#,
-    );
-    assert!(
-        !has_error_containing(&diags, "await try"),
-        "try await should not produce the hint, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

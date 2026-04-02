@@ -90,32 +90,6 @@ impl Checker {
                 async_fn,
             } => self.check_arrow(params, body, *async_fn),
             ExprKind::Match { subject, arms } => self.check_match(subject, arms, expr.span),
-            ExprKind::Await(inner) => {
-                if !self.ctx.inside_async {
-                    self.emit_error_with_help(
-                        "`await` can only be used inside an `async` function",
-                        expr.span,
-                        ErrorCode::AwaitOutsideAsync,
-                        "not inside an `async` function",
-                        "add `async` to the enclosing function declaration",
-                    );
-                }
-                let ty = self.check_expr(inner);
-                match &ty {
-                    Type::Promise(inner) => *inner.clone(),
-                    _ if ty.is_result() && matches!(ty.result_ok(), Some(Type::Promise(_))) => {
-                        self.emit_error_with_help(
-                            "`await try` wraps the Promise in a Result before awaiting",
-                            expr.span,
-                            ErrorCode::AwaitTryOrder,
-                            "wrong order",
-                            "use `try await` instead — await the Promise first, then wrap in Result",
-                        );
-                        ty
-                    }
-                    _ => ty,
-                }
-            }
             ExprKind::Try(inner) => {
                 let inner_ty =
                     self.with_context(|ctx| ctx.inside_try = true, |this| this.check_expr(inner));
@@ -439,9 +413,7 @@ impl Checker {
         }
     }
 
-    fn check_arrow(&mut self, params: &[Param], body: &Expr, async_fn: bool) -> Type {
-        let prev_inside_async = self.ctx.inside_async;
-        self.ctx.inside_async = async_fn;
+    fn check_arrow(&mut self, params: &[Param], body: &Expr, _async_fn: bool) -> Type {
         self.env.push_scope();
         let param_hints = std::mem::take(&mut self.ctx.lambda_param_hints);
         let param_types: Vec<_> = params
@@ -478,7 +450,6 @@ impl Checker {
             .collect();
         let return_type = self.check_expr(body);
         self.env.pop_scope();
-        self.ctx.inside_async = prev_inside_async;
         let required_params = param_types.len();
         Type::Function {
             params: param_types,
@@ -2086,16 +2057,16 @@ impl Checker {
             return Type::Unknown;
         }
 
-        // Error on member access on Promise — must await first
+        // Error on member access on Promise — must use Promise.await first
         if let Type::Promise(_) = obj_ty {
             self.emit_error(
                 format!(
-                    "cannot access `.{field}` on `{}` — use `await` first",
+                    "cannot access `.{field}` on `{}` — use `Promise.await` first",
                     obj_ty
                 ),
                 span,
                 ErrorCode::AccessOnPromise,
-                "must `await` the Promise before accessing members",
+                "must use `Promise.await` before accessing members",
             );
             return Type::Unknown;
         }

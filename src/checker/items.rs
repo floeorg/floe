@@ -46,7 +46,7 @@ impl Checker {
             // so adjust the probe type to match the Floe expression:
             // - `await`: unwrap Promise<T> → T
             // - `try`: wrap T → Result<T, Error>
-            let ty = if Self::expr_has_await(&decl.value)
+            let ty = if Self::expr_has_promise_await(&decl.value)
                 && let Type::Promise(inner) = ty
             {
                 *inner
@@ -217,9 +217,9 @@ impl Checker {
     /// Find the first arrow function argument in a call expression.
     /// For `useCallback((item) => {...}, [])`, returns the `(item) => {...}` expr.
     fn find_arrow_arg(expr: &Expr) -> Option<&Expr> {
-        // Unwrap try/await wrappers (handles `try await f()`)
+        // Unwrap try wrapper
         let mut inner = expr;
-        while let ExprKind::Try(e) | ExprKind::Await(e) = &inner.kind {
+        while let ExprKind::Try(e) = &inner.kind {
             inner = e.as_ref();
         }
         if let ExprKind::Call { args, .. } = &inner.kind {
@@ -235,9 +235,22 @@ impl Checker {
         None
     }
 
-    /// Check if an expression is wrapped in `await` (possibly through `try`).
-    fn expr_has_await(expr: &Expr) -> bool {
-        expr_has_await(expr)
+    /// Check if an expression contains a `Promise.await` pipe call.
+    fn expr_has_promise_await(expr: &Expr) -> bool {
+        match &expr.kind {
+            ExprKind::Pipe { left, right } => {
+                Self::is_promise_await_member(right)
+                    || Self::expr_has_promise_await(left)
+                    || Self::expr_has_promise_await(right)
+            }
+            ExprKind::Try(inner) | ExprKind::Unwrap(inner) => Self::expr_has_promise_await(inner),
+            _ => false,
+        }
+    }
+
+    fn is_promise_await_member(expr: &Expr) -> bool {
+        matches!(&expr.kind, ExprKind::Member { object, field }
+            if field == "await" && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise"))
     }
 
     /// Infer the type of an element from an array/tuple destructuring at a given index.
@@ -398,9 +411,12 @@ impl Checker {
 
         // Set up scope for function body
         let prev_return_type = self.ctx.current_return_type.take();
-        let prev_inside_async = self.ctx.inside_async;
-        self.ctx.current_return_type = Some(return_type.clone());
-        self.ctx.inside_async = decl.async_fn;
+        // For Promise<T> return types, unwrap so ? sees the inner type
+        let effective_return = match &return_type {
+            Type::Promise(inner) => *inner.clone(),
+            _ => return_type.clone(),
+        };
+        self.ctx.current_return_type = Some(effective_return);
 
         self.env.push_scope();
 
@@ -455,10 +471,10 @@ impl Checker {
         // Check return type compatibility
         if let Some(ref declared_return) = decl.return_type {
             let resolved = self.resolve_type(declared_return);
-            // For async functions, unwrap Promise from the declared type since
-            // the body type is the unwrapped inner value
-            let effective_declared = match (&resolved, decl.async_fn) {
-                (Type::Promise(inner), true) => inner.as_ref().clone(),
+            // For functions with Promise<T> return type, unwrap Promise since
+            // the body type is the inner value (async wrapping is automatic)
+            let effective_declared = match &resolved {
+                Type::Promise(inner) => inner.as_ref().clone(),
                 _ => resolved.clone(),
             };
             if !self.types_compatible(&effective_declared, &body_type)
@@ -495,7 +511,6 @@ impl Checker {
 
         self.env.pop_scope();
         self.ctx.current_return_type = prev_return_type;
-        self.ctx.inside_async = prev_inside_async;
     }
 
     pub(crate) fn check_for_block(&mut self, block: &ForBlock, _span: Span) {

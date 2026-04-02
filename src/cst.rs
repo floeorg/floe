@@ -147,7 +147,6 @@ impl<'src> CstParser<'src> {
                     | TokenKind::Const
                     | TokenKind::Import
                     | TokenKind::Export
-                    | TokenKind::Async
                     | TokenKind::Trait
             )
         )
@@ -372,21 +371,6 @@ impl<'src> CstParser<'src> {
     /// Scans to matching `)` and checks if followed by `=>`.
     fn is_arrow_expr(&self) -> bool {
         self.is_paren_followed_by(TokenKind::FatArrow)
-    }
-
-    /// Heuristic: is the current `async` the start of `async (params) => body`?
-    /// Skips past `async`, then checks if `(...)` is followed by `=>`.
-    fn is_async_arrow_expr(&self) -> bool {
-        // Current token is `async`, skip to the `(` after it
-        let mut i = self.pos + 1;
-        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
-            i += 1;
-        }
-        if i >= self.tokens.len() || self.tokens[i].kind != TokenKind::LeftParen {
-            return false;
-        }
-        // Now scan from `(` to matching `)`, then check for `=>`
-        self.is_paren_followed_by_at(i, TokenKind::FatArrow)
     }
 
     /// Check if the `(` at position `start` has a matching `)` followed by `kind`.
@@ -620,8 +604,8 @@ mod tests {
     }
 
     #[test]
-    fn function_async() {
-        assert_no_errors("async fn fetch(url: string) -> string { url }");
+    fn function_with_promise_return() {
+        assert_no_errors("fn fetch(url: string) -> Promise<string> { url }");
     }
 
     #[test]

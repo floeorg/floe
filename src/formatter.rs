@@ -77,7 +77,7 @@ impl<'src> Formatter<'src> {
             SyntaxKind::PIPE_EXPR => self.fmt_pipe(node),
             SyntaxKind::MATCH_EXPR => self.fmt_match(node),
             SyntaxKind::BINARY_EXPR => self.fmt_binary(node),
-            SyntaxKind::UNARY_EXPR | SyntaxKind::AWAIT_EXPR => self.fmt_unary(node),
+            SyntaxKind::UNARY_EXPR => self.fmt_unary(node),
             SyntaxKind::CALL_EXPR => self.fmt_call(node),
             SyntaxKind::CONSTRUCT_EXPR => self.fmt_construct(node),
             SyntaxKind::MEMBER_EXPR => self.fmt_member(node),
@@ -514,10 +514,7 @@ impl<'src> Formatter<'src> {
         let mut past_op = false;
         for t in node.children_with_tokens() {
             if let Some(tok) = t.as_token() {
-                if matches!(
-                    tok.kind(),
-                    SyntaxKind::BANG | SyntaxKind::MINUS | SyntaxKind::KW_AWAIT
-                ) {
+                if matches!(tok.kind(), SyntaxKind::BANG | SyntaxKind::MINUS) {
                     past_op = true;
                     continue;
                 }

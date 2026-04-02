@@ -126,13 +126,6 @@ impl<'src> CstParser<'src> {
                 self.parse_unary_expr();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Await) => {
-                self.builder.start_node(SyntaxKind::AWAIT_EXPR.into());
-                self.bump();
-                self.eat_trivia();
-                self.parse_unary_expr();
-                self.builder.finish_node();
-            }
             _ => self.parse_postfix_expr(),
         }
     }
@@ -171,8 +164,6 @@ impl<'src> CstParser<'src> {
                                 | Some(TokenKind::Import)
                                 | Some(TokenKind::Const)
                                 | Some(TokenKind::Fn)
-                                | Some(TokenKind::Async)
-                                | Some(TokenKind::Await)
                                 | Some(TokenKind::Trait)
                                 | Some(TokenKind::Collect)
                                 | Some(TokenKind::Deriving)
@@ -378,13 +369,6 @@ impl<'src> CstParser<'src> {
                 self.parse_dot_shorthand();
             }
 
-            Some(TokenKind::Async)
-                if self.peek_is(TokenKind::LeftParen) && self.is_async_arrow_expr() =>
-            {
-                // `async (params) => body`
-                self.parse_arrow_closure();
-            }
-
             Some(TokenKind::Fn) if self.peek_is(TokenKind::LeftParen) => {
                 // `fn(params) expr` is the old syntax — emit error pointing to =>
                 self.builder.start_node(SyntaxKind::ERROR.into());
@@ -578,15 +562,9 @@ impl<'src> CstParser<'src> {
 
     // ── Fn Lambda ────────────────────────────────────────────────
 
-    /// Parse `(params) => body` or `async (params) => body` arrow closure.
+    /// Parse `(params) => body` arrow closure.
     fn parse_arrow_closure(&mut self) {
         self.builder.start_node(SyntaxKind::ARROW_EXPR.into());
-
-        // Optional `async` keyword
-        if self.at(TokenKind::Async) {
-            self.bump(); // async
-            self.eat_trivia();
-        }
 
         self.expect(TokenKind::LeftParen);
         self.eat_trivia();

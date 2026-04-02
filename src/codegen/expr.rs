@@ -278,11 +278,6 @@ impl Codegen {
                 self.emit_match(subject, arms);
             }
 
-            ExprKind::Await(inner) => {
-                self.push("await ");
-                self.emit_expr(inner);
-            }
-
             // Try: `try expr` → IIFE with try/catch wrapping in Result
             // Non-Error throws are coerced to Error for consistent typing
             ExprKind::Try(inner) => {
@@ -800,10 +795,17 @@ impl Codegen {
     }
 }
 
-/// Check if an expression tree contains an Await node.
+/// Check if an expression tree contains a Promise.await stdlib call.
+/// Detects `expr |> Promise.await` and `Promise.await(expr)` patterns.
 pub(super) fn expr_contains_await(expr: &Expr) -> bool {
     match &expr.kind {
-        ExprKind::Await(_) => true,
+        // Direct member access: Promise.await (in pipe target position)
+        ExprKind::Member { object, field }
+            if field == "await"
+                && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise") =>
+        {
+            true
+        }
         ExprKind::Call { callee, args, .. } => {
             expr_contains_await(callee)
                 || args.iter().any(|a| match a {

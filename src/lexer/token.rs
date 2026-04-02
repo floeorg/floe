@@ -41,8 +41,6 @@ pub enum TokenKind {
     Match,
     Type,
     Opaque,
-    Async,
-    Await,
     /// `for` — for block keyword (grouping functions under a type)
     For,
     /// `self` — explicit receiver parameter in for blocks
@@ -266,8 +264,6 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "match" => Some(TokenKind::Match),
         "type" => Some(TokenKind::Type),
         "opaque" => Some(TokenKind::Opaque),
-        "async" => Some(TokenKind::Async),
-        "await" => Some(TokenKind::Await),
         "for" => Some(TokenKind::For),
         "self" => Some(TokenKind::SelfKw),
         "try" => Some(TokenKind::Try),

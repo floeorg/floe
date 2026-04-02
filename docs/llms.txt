@@ -361,7 +361,7 @@ Option.any([None, Some(1), None])      // Some(1)
 maybeUser |> Option.orElse(() => fetchDefaultUser())  // lazy fallback
 
 // Option.toErr — for { data, error } patterns (Supabase, TanStack Query, etc.)
-const { data, error } = await supabase.rpc("get_entries", { query })
+const { data, error } = supabase.rpc("get_entries", { query }) |> Promise.await
 error |> Option.toErr?              // bail if error exists
 const rows = data |> Option.unwrapOr([])
 
@@ -399,10 +399,11 @@ items |> Array.dropWhile(.done)                   // drop while predicate holds
 ["a", "b", "c"] |> Array.intersperse(", ")       // ["a", ", ", "b", ", ", "c"]
 
 // Promise helpers
-const users = await Promise.all([fetchUser(1), fetchUser(2)])
-const fastest = await Promise.race([fetchFromCDN(url), fetchFromOrigin(url)])
-const results = await Promise.allSettled([fetchA(), fetchB()])  // Array<Result<T, Error>>
-await Promise.delay(1000)   // wait 1 second
+// Promise.await: Promise<T> -> T (compiles to await, infers async on enclosing fn)
+const users = Promise.all([fetchUser(1), fetchUser(2)]) |> Promise.await
+const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> Promise.await
+const results = Promise.allSettled([fetchA(), fetchB()]) |> Promise.await  // Array<Result<T, Error>>
+Promise.delay(1000) |> Promise.await   // wait 1 second
 
 // parse<T> — compiler built-in for runtime type validation
 // No runtime library needed — the compiler inlines the checks
@@ -434,9 +435,9 @@ const has = Record.has(ICONS, key)        // boolean         → (key in ICONS)
 const n = ICONS |> Record.size            // number          → Object.keys(ICONS).length
 
 // Http — pipe-friendly fetch with Result (no try needed)
-const data = await Http.get("https://api.example.com/users")? |> Http.json?
-const result = await Http.post(url, { name: "Alice" })?
-const body = await Http.get(url)? |> Http.text?
+const data = Http.get("https://api.example.com/users") |> Promise.await? |> Http.json |> Promise.await?
+const result = Http.post(url, { name: "Alice" }) |> Promise.await?
+const body = Http.get(url) |> Promise.await? |> Http.text |> Promise.await?
 
 // Set<T> — immutable unique collections
 const tags = Set.fromArray(["urgent", "bug", "frontend"])
@@ -695,6 +696,7 @@ match key {
 | `void` | Unit type `()` |
 | `as` (type assertion) | Type guards or `match` |
 | `return` | Implicit returns — last expression is the return value |
+| `async`/`await` | `Promise.await` stdlib function; return type `Promise<T>` |
 
 ## Compilation Examples
 
@@ -717,6 +719,7 @@ match key {
 | `Console.log(x)` | `console.log(x)` |
 | `(1, 2)` | `[1, 2] as const` |
 | `()` (unit) | `undefined` |
+| `expr \|> Promise.await` | `await expr` (enclosing fn inferred `async`) |
 
 ## CLI Commands
 

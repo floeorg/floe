@@ -45,8 +45,8 @@ export fn name(param: Type) -> ReturnType {
   body
 }
 
-async fn name() -> Promise<T> {
-  await expr
+fn name() -> Promise<T> {
+  expr |> Promise.await
 }
 ```
 

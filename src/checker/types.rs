@@ -19,7 +19,7 @@ pub enum Type {
     /// A foreign type from npm imports — structure unknown to Floe,
     /// but TypeScript validated it at the source
     Foreign(String),
-    /// Promise<T> — async return type, unwrapped by `await`
+    /// Promise<T> — async return type, unwrapped by `Promise.await`
     Promise(Box<Type>),
     /// Opaque type: only the defining module can construct/destructure
     Opaque {

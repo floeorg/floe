@@ -345,30 +345,3 @@ const t = Todo(..old, done: true)
         value: (primary_expression
           (boolean))))))
 
-===
-Await expression
-===
-
-fn foo() -> string {
-    const data = await fetchData()
-    data
-}
-
----
-
-(source_file
-  (function_declaration
-    name: (identifier)
-    parameters: (parameter_list)
-    return_type: (primitive_type)
-    body: (block
-      (const_declaration
-        (identifier)
-        (await_expression
-          (call_expression
-            function: (primary_expression
-              (identifier))
-            (argument_list))))
-      (expression_statement
-        (primary_expression
-          (identifier))))))

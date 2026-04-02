@@ -140,7 +140,6 @@ module.exports = grammar({
 
     function_declaration: ($) =>
       seq(
-        optional("async"),
         "fn",
         field("name", choice($.identifier, $.type_identifier)),
         optional(field("type_parameters", $.type_parameters)),
@@ -295,7 +294,6 @@ module.exports = grammar({
         $.jsx_fragment,
         $.block,
         $.assignment_expression,
-        $.await_expression,
         $.try_expression,
         $.collect_expression,
         $.return_statement,
@@ -553,7 +551,6 @@ module.exports = grammar({
       prec.right(
         "pipe",
         seq(
-          optional("async"),
           "(",
           commaSep($.lambda_parameter),
           ")",
@@ -634,9 +631,6 @@ module.exports = grammar({
 
     assignment_expression: ($) =>
       prec.right("assign", seq(field("left", $._expression), "=", field("right", $._expression))),
-
-    await_expression: ($) =>
-      prec.right(seq("await", $._expression)),
 
     try_expression: ($) =>
       prec.right(seq("try", $._expression)),

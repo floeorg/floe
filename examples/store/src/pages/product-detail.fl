@@ -43,7 +43,7 @@ fn ProductDetailContent(
 ) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["product", props.productId],
-        queryFn: async () => fetchProduct(props.productId),
+        queryFn: () => fetchProduct(props.productId),
     })
 
     const (product, reviews) = data |> match {

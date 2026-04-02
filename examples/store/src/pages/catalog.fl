@@ -191,7 +191,7 @@ fn CategoryList(
 ) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["categories"],
-        queryFn: async () => fetchCategories(),
+        queryFn: () => fetchCategories(),
     })
 
     const categories = data |> match {
@@ -217,7 +217,7 @@ fn ProductGrid(
 ) -> JSX.Element {
     const { data } = useSuspenseQuery({
         queryKey: ["products", props.category, props.search],
-        queryFn: async () => fetchProducts(category: props.category, search: props.search, limit: 30),
+        queryFn: () => fetchProducts(category: props.category, search: props.search, limit: 30),
     })
 
     const (products, _total) = data |> match {

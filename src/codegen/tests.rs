@@ -130,9 +130,10 @@ fn export_function() {
 }
 
 #[test]
-fn async_function() {
-    let result = emit("async fn fetch() { await getData() }");
+fn promise_await_emits_async_function() {
+    let result = emit_with_types("fn fetch() -> Promise<string> { getData() |> Promise.await }");
     assert!(result.starts_with("async function fetch()"));
+    assert!(result.contains("await getData()"));
 }
 
 #[test]
@@ -636,11 +637,12 @@ fn floe_eq_helper_emitted_for_stdlib_contains() {
     );
 }
 
-// ── Await ────────────────────────────────────────────────────
+// ── Promise.await ───────────────────────────────────────────
 
 #[test]
-fn await_expr() {
-    assert_eq!(emit("await fetchData()"), "await fetchData();");
+fn promise_await_pipe() {
+    let result = emit_with_types("const _x = fetchData() |> Promise.await");
+    assert!(result.contains("await fetchData()"));
 }
 
 // ── Implicit Return ──────────────────────────────────────────
@@ -966,6 +968,7 @@ fn emit_with_types(input: &str) -> String {
     let (_, expr_types) = crate::checker::Checker::new().check_full(&program);
     let mut program = program;
     crate::checker::annotate_types(&mut program, &expr_types);
+    crate::checker::mark_async_functions(&mut program);
     desugar::desugar_program(&mut program, &std::collections::HashMap::new());
     Codegen::new().generate(&program).code.trim().to_string()
 }

@@ -7,8 +7,6 @@
 "import" @keyword
 "from" @keyword
 "export" @keyword
-"async" @keyword
-"await" @keyword
 "try" @keyword
 "trusted" @keyword
 "for" @keyword
@@ -78,7 +76,6 @@
 
 ; ── Arrow closure ────────────────────────────────────────
 (arrow_closure "=>" @operator)
-(arrow_closure "async" @keyword)
 
 ; ── Dot shorthand ────────────────────────────────────────
 (dot_shorthand

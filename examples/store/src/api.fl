@@ -35,9 +35,11 @@ export type CategoryResponse {
 
 // ── Single product fetch ───────────────────────────────
 
-export async fn fetchProduct(id: ProductId) -> Result<(Product, Array<Review>), ApiError> {
-    const data = await Http.get(`https://dummyjson.com/products/${id}`)?
-        |> Http.json?
+export fn fetchProduct(id: ProductId) -> Promise<Result<(Product, Array<Review>), ApiError>> {
+    const data = Http.get(`https://dummyjson.com/products/${id}`)
+        |> Promise.await?
+        |> Http.json
+        |> Promise.await?
         |> parse<ProductDetailResponse>?
 
     const product = Product(
@@ -60,28 +62,34 @@ export async fn fetchProduct(id: ProductId) -> Result<(Product, Array<Review>), 
 
 // ── Product list with filters ──────────────────────────
 
-export async fn fetchProducts(
+export fn fetchProducts(
     category: string = "",
     search: string = "",
     limit: number = 20,
     skip: number = 0,
-) -> Result<(Array<Product>, number), ApiError> {
+) -> Promise<Result<(Array<Product>, number), ApiError>> {
     const url = (category, search) |> match {
         ("", "") -> `https://dummyjson.com/products?limit=${limit}&skip=${skip}`,
         (cat, "") when cat != "" -> `https://dummyjson.com/products/category/${cat}?limit=${limit}&skip=${skip}`,
         (_, q) -> `https://dummyjson.com/products/search?q=${q}&limit=${limit}&skip=${skip}`,
     }
 
-    const data = await Http.get(url)? |> Http.json? |> parse<ProductListResponse>?
+    const data = Http.get(url)
+        |> Promise.await?
+        |> Http.json
+        |> Promise.await?
+        |> parse<ProductListResponse>?
 
     Ok((data.products, data.total))
 }
 
 // ── Categories ─────────────────────────────────────────
 
-export async fn fetchCategories() -> Result<Array<CategoryResponse>, ApiError> {
-    const data = await Http.get("https://dummyjson.com/products/categories")?
-        |> Http.json?
+export fn fetchCategories() -> Promise<Result<Array<CategoryResponse>, ApiError>> {
+    const data = Http.get("https://dummyjson.com/products/categories")
+        |> Promise.await?
+        |> Http.json
+        |> Promise.await?
         |> parse<Array<CategoryResponse>>?
 
     Ok(data)
@@ -89,12 +97,12 @@ export async fn fetchCategories() -> Result<Array<CategoryResponse>, ApiError> {
 
 // ── Parallel dashboard fetch ───────────────────────────
 
-export async fn fetchStoreDashboard(
+export fn fetchStoreDashboard(
     category: string = "",
-) -> Result<(Array<Product>, Array<CategoryResponse>), Array<ApiError>> {
+) -> Promise<Result<(Array<Product>, Array<CategoryResponse>), Array<ApiError>>> {
     collect {
-        const (products, _total) = await fetchProducts(category: category)?
-        const categories = await fetchCategories()?
+        const (products, _total) = fetchProducts(category: category) |> Promise.await?
+        const categories = fetchCategories() |> Promise.await?
 
         (products, categories)
     }

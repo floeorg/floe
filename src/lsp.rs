@@ -211,8 +211,6 @@ const KEYWORDS: &[(&str, &str)] = &[
     ),
     ("type", "type ${1:Name} = {\n\t${0:field}: ${2:Type},\n}"),
     ("return", "return ${0:expr}"),
-    ("async", "async "),
-    ("await", "await ${0:expr}"),
     ("opaque", "opaque type ${1:Name} = ${0:BaseType}"),
 ];
 
@@ -393,6 +391,7 @@ impl FloeLsp {
                 // Annotate the AST with resolved types for hover
                 let mut typed_program = program;
                 crate::checker::annotate_types(&mut typed_program, &expr_types);
+                crate::checker::mark_async_functions(&mut typed_program);
 
                 (
                     self.convert_diagnostics(source, &check_diags),

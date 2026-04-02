@@ -5,5 +5,3 @@ expression: output
 const result = (() => { try { return { ok: true as const, value: fetchData("hello") }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })();
 
 const parsed = (() => { try { return { ok: true as const, value: (() => { try { return { ok: true as const, value: JSON.parse(input) }; } catch (e) { return { ok: false as const, error: { message: String(e) } }; } })() }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })();
-
-const asyncResult = await (async () => { try { return { ok: true as const, value: await fetchUser(id) }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })();

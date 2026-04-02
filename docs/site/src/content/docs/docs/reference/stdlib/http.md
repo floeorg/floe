@@ -4,38 +4,38 @@ sidebar:
   order: 10
 ---
 
-Pipe-friendly HTTP functions that return `Result` natively. No `try` wrapper needed -- errors are captured automatically.
+Pipe-friendly HTTP functions that return `Promise<Result<...>>` natively. No `try` wrapper needed -- errors are captured automatically.
 
 ## Functions
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Http.get` | `string -> Result<Response, Error>` | GET request |
-| `Http.post` | `string, unknown -> Result<Response, Error>` | POST request with JSON body |
-| `Http.put` | `string, unknown -> Result<Response, Error>` | PUT request with JSON body |
-| `Http.delete` | `string -> Result<Response, Error>` | DELETE request |
-| `Http.json` | `Response -> Result<unknown, Error>` | Parse response body as JSON |
-| `Http.text` | `Response -> Result<string, Error>` | Read response body as text |
+| `Http.get` | `string -> Promise<Result<Response, Error>>` | GET request |
+| `Http.post` | `string, unknown -> Promise<Result<Response, Error>>` | POST request with JSON body |
+| `Http.put` | `string, unknown -> Promise<Result<Response, Error>>` | PUT request with JSON body |
+| `Http.delete` | `string -> Promise<Result<Response, Error>>` | DELETE request |
+| `Http.json` | `Response -> Promise<Result<unknown, Error>>` | Parse response body as JSON |
+| `Http.text` | `Response -> Promise<Result<string, Error>>` | Read response body as text |
 
 ## Examples
 
 ```floe
 // Simple GET and parse JSON
-const data = await Http.get("https://api.example.com/users")? |> Http.json?
+const data = Http.get("https://api.example.com/users") |> Promise.await? |> Http.json |> Promise.await?
 
 // POST with a body
-const result = await Http.post("https://api.example.com/users", { name: "Alice" })?
+const result = Http.post("https://api.example.com/users", { name: "Alice" }) |> Promise.await?
 
 // Full pipeline
-const users = await Http.get(url)?
-  |> Http.json?
+const users = Http.get(url) |> Promise.await?
+  |> Http.json |> Promise.await?
   |> Result.map((data) => Array.filter(data, .active))
 
 // Error handling with match
-match await Http.get(url) {
-  Ok(response) -> Http.json(response),
+match Http.get(url) |> Promise.await {
+  Ok(response) -> Http.json(response) |> Promise.await,
   Err(e) -> Console.error(e),
 }
 ```
 
-All Http functions are async and return `Result`. Use `await` and `?` for ergonomic error handling in pipelines.
+All Http functions return `Promise<Result<...>>`. Use `Promise.await` and `?` for ergonomic error handling in pipelines.

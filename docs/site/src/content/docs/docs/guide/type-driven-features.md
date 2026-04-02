@@ -69,9 +69,9 @@ No runtime dependency. No schema definition to maintain. Change the type, the va
 
 ```floe
 // API response validation
-async fn fetchUsers() -> Promise<Result<Array<User>, Error>> {
-  const response = await Http.get("/api/users")?
-  const data = await Http.json(response)?
+fn fetchUsers() -> Promise<Result<Array<User>, Error>> {
+  const response = Http.get("/api/users") |> Promise.await?
+  const data = Http.json(response) |> Promise.await?
   data |> parse<Array<User>>
 }
 

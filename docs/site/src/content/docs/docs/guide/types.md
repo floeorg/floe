@@ -244,7 +244,7 @@ So `UpdateUser(name: Value("Ryan"), avatar: Clear)` compiles to `{ name: "Ryan",
 
 ```floe
 fn updateProfile(id: string, patch: UpdateUser) -> Result<User, ApiError> {
-    const response = await Http.put("/api/users/{id}", patch)?
+    const response = Http.put("/api/users/{id}", patch) |> Promise.await?
     response |> Http.json? |> parse<User>
 }
 
