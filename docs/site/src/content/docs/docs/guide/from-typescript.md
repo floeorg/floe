@@ -24,6 +24,7 @@ Floe is designed to be familiar to TypeScript developers.
 | `===` | `==` | `==` compiles to `===` |
 | `switch` | `match` | Exhaustive, no fall-through |
 | `try/catch` | `try` expression | `const result = try parseYaml(input)` |
+| `{x && <Comp />}` | `Option.map` | `{x \|> Option.map((v) => <Comp v={v} />)}` |
 | `T \| null` | `Option<T>` | `Some(value)` / `None` |
 | `throw` | `Result<T, E>` | `Ok(value)` / `Err(error)` |
 

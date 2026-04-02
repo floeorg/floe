@@ -53,6 +53,19 @@ Use `match` expressions:
 </div>
 ```
 
+### Optional Rendering
+
+For the common "render if present, nothing if absent" pattern, use `Option.map`. Since `None` compiles to `undefined` and React ignores `undefined` children, `Option<JSX.Element>` works directly in JSX:
+
+```floe
+// Instead of matching with a None -> <></> arm:
+<div>
+  {user.nickname |> Option.map((nick) => <span className="badge">{nick}</span>)}
+</div>
+```
+
+This replaces the TypeScript `{x && <Component />}` pattern, without the [truthiness pitfalls](https://react.dev/learn/conditional-rendering#logical-and-operator-) (e.g. `{count && <Tag />}` rendering `0`).
+
 ## Lists
 
 Use pipes with `map`:

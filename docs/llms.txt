@@ -638,6 +638,11 @@ export fn App() -> JSX.Element {
     </div>
 }
 
+// Optional rendering — Option.map renders if present, nothing if absent
+// (None compiles to undefined, which React ignores)
+{user.nickname |> Option.map((nick) => <span className="badge">{nick}</span>)}
+// Replaces the TS pattern {x && <Comp />} without truthiness pitfalls
+
 // JSX spread attributes — forward all props
 export fn Card(props: CardProps) -> JSX.Element {
     <div {...props} className="card" />
