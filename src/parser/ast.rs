@@ -75,8 +75,8 @@ pub enum ItemKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImportDecl {
-    /// Whether the entire import is trusted: `import trusted { ... } from "..."`
-    pub trusted: bool,
+    /// Whether the entire import throws: `import throws { ... } from "..."`
+    pub throws: bool,
     pub specifiers: Vec<ImportSpecifier>,
     /// For-import specifiers: `import { for User, for Array } from "..."`
     pub for_specifiers: Vec<ForImportSpecifier>,
@@ -87,8 +87,8 @@ pub struct ImportDecl {
 pub struct ImportSpecifier {
     pub name: String,
     pub alias: Option<String>,
-    /// Whether this specific import is trusted: `import { trusted foo } from "..."`
-    pub trusted: bool,
+    /// Whether this specific import throws: `import { throws parseYaml } from "..."`
+    pub throws: bool,
     pub span: Span,
 }
 
@@ -466,9 +466,6 @@ pub enum ExprKind {
         subject: Box<Expr>,
         arms: Vec<MatchArm>,
     },
-    /// Try: `try expr` — wraps a throwing expression in Result
-    Try(Box<Expr>),
-
     // -- Built-in constructors --
     /// `Value(expr)` — Settable value present
     Value(Box<Expr>),
