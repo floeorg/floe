@@ -636,7 +636,11 @@ impl Checker {
             // Validate non-arrow args against fully-resolved param types
             for &(i, ref actual_ty, arg_span) in &non_arrow_args {
                 if let Some(param_ty) = stdlib_params.get(i) {
-                    let resolved_param = Self::substitute_type_vars(param_ty, &type_var_bindings);
+                    let resolved_param = if type_var_bindings.is_empty() {
+                        param_ty.clone()
+                    } else {
+                        Self::substitute_type_vars(param_ty, &type_var_bindings)
+                    };
                     if !self.types_compatible(&resolved_param, actual_ty) {
                         self.emit_error(
                             format!(
@@ -658,10 +662,14 @@ impl Checker {
                 let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
                 if matches!(e.kind, ExprKind::Arrow { .. }) {
                     if let Some(Type::Function { params, .. }) = stdlib_params.get(i) {
-                        self.ctx.lambda_param_hints = params
-                            .iter()
-                            .map(|p| Self::substitute_type_vars(p, &type_var_bindings))
-                            .collect();
+                        self.ctx.lambda_param_hints = if type_var_bindings.is_empty() {
+                            params.clone()
+                        } else {
+                            params
+                                .iter()
+                                .map(|p| Self::substitute_type_vars(p, &type_var_bindings))
+                                .collect()
+                        };
                     }
                     self.check_expr(e);
                     self.ctx.lambda_param_hints.clear();
