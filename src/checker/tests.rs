@@ -2935,6 +2935,44 @@ fn test() -> Result<string, Error> {
     );
 }
 
+// ── Promise.tryAwait ────────────────────────────────────────
+
+#[test]
+fn try_on_promise_warns() {
+    // try on a Promise should warn — only catches sync errors
+    let diags = check(
+        r#"
+fn asyncOp() -> Promise<string> { "hello" }
+fn test() {
+    const _r = try asyncOp()
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TryOnPromise),
+        "try on Promise should warn, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn try_on_non_promise_no_warning() {
+    // try on a non-Promise should NOT warn
+    let diags = check(
+        r#"
+import trusted { parseData } from "parser"
+fn test() {
+    const _r = try parseData("input")
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TryOnPromise),
+        "try on non-Promise should not warn, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 #[test]
 fn try_without_unwrap_gives_result() {
     // try fetch() without ? should give Result<Promise<Response>, Error>

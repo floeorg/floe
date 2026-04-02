@@ -11,6 +11,7 @@ Functions for working with `Promise<T>` values.
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `Promise.await` | `Promise<T> -> T` | Unwrap a Promise (compiles to `await`) |
+| `Promise.tryAwait` | `Promise<T> -> Result<T, Error>` | Await + catch rejections in one step |
 | `Promise.all` | `Array<Promise<T>> -> Promise<Array<T>>` | Wait for all, fail on first rejection |
 | `Promise.race` | `Array<Promise<T>> -> Promise<T>` | First to settle (resolve or reject) |
 | `Promise.any` | `Array<Promise<T>> -> Promise<T>` | First to resolve, fail if all reject |
@@ -32,6 +33,25 @@ fn fetchUser(id: string) -> Promise<User> {
 ```
 
 The return type must explicitly use `Promise<T>`, making async behavior visible to callers.
+
+## `Promise.tryAwait`
+
+`Promise.tryAwait` awaits a Promise and catches any rejection, returning a `Result<T, Error>`. Use it for npm/Tauri interop where async functions might reject:
+
+```floe
+// npm function that returns Promise<void> and might reject
+const result = jiraApi.transitionIssue(id, tid) |> Promise.tryAwait
+
+match result {
+    Ok(_) -> Console.log("Moved!"),
+    Err(e) -> Console.error("Failed:", e),
+}
+```
+
+| Pattern | Use case |
+|---|---|
+| `\|> Promise.await?` | Floe functions returning `Promise<Result<T, E>>` |
+| `\|> Promise.tryAwait` | npm/external calls returning `Promise<T>` that might reject |
 
 ## Examples
 

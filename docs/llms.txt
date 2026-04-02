@@ -400,10 +400,14 @@ items |> Array.dropWhile(.done)                   // drop while predicate holds
 
 // Promise helpers
 // Promise.await: Promise<T> -> T (compiles to await, infers async on enclosing fn)
+// Promise.tryAwait: Promise<T> -> Result<T, Error> (await + catch rejections)
 const users = Promise.all([fetchUser(1), fetchUser(2)]) |> Promise.await
 const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> Promise.await
 const results = Promise.allSettled([fetchA(), fetchB()]) |> Promise.await  // Array<Result<T, Error>>
 Promise.delay(1000) |> Promise.await   // wait 1 second
+
+// Promise.tryAwait for npm interop — catches async rejections as Result
+const result = npmAsyncFn() |> Promise.tryAwait   // Result<T, Error>
 
 // parse<T> — compiler built-in for runtime type validation
 // No runtime library needed — the compiler inlines the checks

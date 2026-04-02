@@ -109,6 +109,8 @@ pub enum ErrorCode {
     SuspiciousBinding,
     /// Binding resolved to `unknown` type.
     UnknownBinding,
+    /// `try` applied to a `Promise` — only catches sync errors.
+    TryOnPromise,
 }
 
 impl ErrorCode {
@@ -158,6 +160,7 @@ impl ErrorCode {
             Self::UncheckedArguments => "W004",
             Self::SuspiciousBinding => "W005",
             Self::UnknownBinding => "W006",
+            Self::TryOnPromise => "W007",
         }
     }
 }
