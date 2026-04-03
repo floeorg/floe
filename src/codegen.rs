@@ -430,7 +430,21 @@ pub(super) fn expand_codegen_template(template: &str, args: &[String]) -> String
     result = result.replace("$..", &args.join(", "));
     // Replace in reverse order so $10 doesn't get matched by $1
     for (i, arg) in args.iter().enumerate().rev() {
-        result = result.replace(&format!("${i}"), arg);
+        let placeholder = format!("${i}");
+        // If the arg contains a ternary and the template uses it with member access
+        // or call (e.g. `$0.filter(...)` or `$0[0]`), wrap in parens to avoid
+        // the ternary's false-branch binding to the member access.
+        let needs_parens = arg.contains(" ? ")
+            && result
+                .find(&placeholder)
+                .and_then(|pos| result.as_bytes().get(pos + placeholder.len()))
+                .is_some_and(|&ch| ch == b'.' || ch == b'[' || ch == b'(');
+        let replacement = if needs_parens {
+            format!("({arg})")
+        } else {
+            arg.clone()
+        };
+        result = result.replace(&placeholder, &replacement);
     }
     result
 }

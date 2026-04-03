@@ -637,6 +637,20 @@ fn floe_eq_helper_emitted_for_stdlib_contains() {
     );
 }
 
+// ── Option.unwrapOr chained pipe ────────────────────────────
+
+#[test]
+fn option_unwrap_or_chained_with_pipe() {
+    let result = emit(
+        "const _x: Option<Array<number>> = None\nconst _y = _x |> Option.unwrapOr([]) |> filter((n) => n > 0)",
+    );
+    // The ternary from unwrapOr must be parenthesized so .filter binds to the result, not to []
+    assert!(
+        !result.contains(": [].filter(") && !result.contains("[].filter("),
+        "Option.unwrapOr([]) piped into filter should parenthesize the ternary, got: {result}"
+    );
+}
+
 // ── Promise.await ───────────────────────────────────────────
 
 #[test]
