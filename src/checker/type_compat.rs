@@ -40,8 +40,9 @@ impl Checker {
                     _ => true,
                 }
             }
-            (Type::Promise(a), Type::Promise(b)) => self.types_unifiable(a, b),
-            (Type::Array(a), Type::Array(b)) => self.types_unifiable(a, b),
+            (Type::Promise(a), Type::Promise(b)) | (Type::Array(a), Type::Array(b)) => {
+                self.types_unifiable(a, b)
+            }
             (Type::Tuple(a), Type::Tuple(b)) => {
                 a.len() == b.len()
                     && a.iter()
@@ -209,8 +210,8 @@ impl Checker {
             | (Type::Unit, Type::Unit)
             | (Type::Undefined, Type::Undefined) => true,
             (Type::String, Type::StringLiteral(_)) => true,
-            (Type::StringLiteral(a), Type::StringLiteral(b)) => a == b,
-            (Type::Named(a), Type::Named(b)) => a == b,
+            (Type::StringLiteral(a), Type::StringLiteral(b))
+            | (Type::Named(a), Type::Named(b)) => a == b,
             (Type::Named(a), Type::Union { name: b, .. })
             | (Type::Union { name: a, .. }, Type::Named(b)) => a == b,
             (expected, actual) if expected.is_result() && actual.is_result() => {

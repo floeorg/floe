@@ -133,8 +133,7 @@ impl Checker {
                 let inner_ty = self.check_expr(inner);
                 Type::Settable(Box::new(inner_ty))
             }
-            ExprKind::Clear => Type::Settable(Box::new(Type::Unknown)),
-            ExprKind::Unchanged => Type::Settable(Box::new(Type::Unknown)),
+            ExprKind::Clear | ExprKind::Unchanged => Type::Settable(Box::new(Type::Unknown)),
             ExprKind::Todo => {
                 self.emit_warning_with_help(
                     "`todo` is a placeholder that will panic at runtime",
@@ -168,13 +167,12 @@ impl Checker {
                 }
                 last_type
             }),
-            ExprKind::Grouped(inner) => self.check_expr(inner),
+            ExprKind::Grouped(inner) | ExprKind::Spread(inner) => self.check_expr(inner),
             ExprKind::Array(elements) => self.check_array(elements),
             ExprKind::Tuple(elements) => {
                 let types: Vec<Type> = elements.iter().map(|el| self.check_expr(el)).collect();
                 Type::Tuple(types)
             }
-            ExprKind::Spread(inner) => self.check_expr(inner),
             ExprKind::Object(fields) => {
                 let field_types: Vec<(String, Type)> = fields
                     .iter()
@@ -418,8 +416,7 @@ impl Checker {
                     Type::Unknown
                 }
             }
-            Type::Unknown | Type::Foreign(_) | Type::Never => Type::Unknown,
-            Type::Var(_) => Type::Unknown,
+            Type::Unknown | Type::Foreign(_) | Type::Never | Type::Var(_) => Type::Unknown,
             _ => {
                 if let Type::Named(name) = &obj_ty
                     && self.env.lookup_type(name).is_none()

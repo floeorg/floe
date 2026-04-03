@@ -410,10 +410,10 @@ fn collect_bindings_inner(
                 bindings.push((name.clone(), rest_access));
             }
         }
-        PatternKind::StringPattern { .. } => {
-            // String pattern bindings are handled directly in emit_match_body
-        }
-        PatternKind::Wildcard | PatternKind::Literal(_) | PatternKind::Range { .. } => {}
+        PatternKind::StringPattern { .. }
+        | PatternKind::Wildcard
+        | PatternKind::Literal(_)
+        | PatternKind::Range { .. } => {}
     }
 }
 

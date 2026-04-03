@@ -331,7 +331,8 @@ impl Codegen {
             }
 
             // Unchanged → should only appear inside Construct args (filtered out)
-            ExprKind::Unchanged => {
+            // Unit → undefined
+            ExprKind::Unchanged | ExprKind::Unit => {
                 self.push("undefined");
             }
 
@@ -343,10 +344,6 @@ impl Codegen {
             // unreachable → throw new Error("unreachable")
             ExprKind::Unreachable => {
                 self.push(THROW_UNREACHABLE);
-            }
-
-            ExprKind::Unit => {
-                self.push("undefined");
             }
 
             ExprKind::Jsx(element) => {

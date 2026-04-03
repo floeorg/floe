@@ -58,7 +58,6 @@ impl Checker {
         // Resolve Named types to their actual definitions.
         let resolved_ty;
         let subject_ty = match subject_ty {
-            Type::Foreign(_) | Type::Promise(_) => subject_ty,
             Type::Named(type_name) => {
                 if let Some(actual) = self.env.lookup(type_name) {
                     resolved_ty = actual.clone();
@@ -67,7 +66,7 @@ impl Checker {
                     subject_ty
                 }
             }
-            _ => subject_ty,
+            Type::Foreign(_) | Type::Promise(_) | _ => subject_ty,
         };
 
         let has_catch_all = arms.iter().any(|arm| {

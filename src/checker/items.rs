@@ -256,8 +256,7 @@ impl Checker {
     fn tuple_element_type(final_type: &Type, i: usize) -> Type {
         match final_type {
             Type::Tuple(types) => types.get(i).cloned().unwrap_or(Type::Unknown),
-            Type::Unknown | Type::Var(_) => Type::Unknown,
-            _ => Type::Unknown,
+            Type::Unknown | Type::Var(_) | _ => Type::Unknown,
         }
     }
 

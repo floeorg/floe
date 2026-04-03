@@ -228,15 +228,17 @@ impl<'src> CstParser<'src> {
 
     fn parse_primary_expr(&mut self) {
         match self.current_kind() {
-            Some(TokenKind::Number(_)) => self.bump(),
-            Some(TokenKind::String(_)) => self.bump(),
-            Some(TokenKind::TemplateLiteral(_)) => self.bump(),
-            Some(TokenKind::Bool(_)) => self.bump(),
-            Some(TokenKind::Underscore) => self.bump(),
-            Some(TokenKind::Clear) => self.bump(),
-            Some(TokenKind::Unchanged) => self.bump(),
-            Some(TokenKind::Todo) => self.bump(),
-            Some(TokenKind::Unreachable) => self.bump(),
+            Some(
+                TokenKind::Number(_)
+                | TokenKind::String(_)
+                | TokenKind::TemplateLiteral(_)
+                | TokenKind::Bool(_)
+                | TokenKind::Underscore
+                | TokenKind::Clear
+                | TokenKind::Unchanged
+                | TokenKind::Todo
+                | TokenKind::Unreachable,
+            ) => self.bump(),
 
             Some(TokenKind::Value) => {
                 self.builder.start_node(SyntaxKind::VALUE_EXPR.into());
@@ -649,13 +651,7 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::PATTERN.into());
 
         match self.current_kind() {
-            Some(TokenKind::Underscore) => {
-                self.bump();
-            }
-            Some(TokenKind::Bool(_)) => {
-                self.bump();
-            }
-            Some(TokenKind::String(_)) => {
+            Some(TokenKind::Underscore | TokenKind::Bool(_) | TokenKind::String(_)) => {
                 self.bump();
             }
             Some(TokenKind::Minus) => {

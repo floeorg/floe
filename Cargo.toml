@@ -55,10 +55,10 @@ single_match_else = "deny"
 fn_params_excessive_bools = "deny"
 struct_excessive_bools = "deny"
 
-# ── Warn: flag for refactoring but don't block CI yet ──
-cognitive_complexity = "warn"
-too_many_lines = "warn"
-match_same_arms = "warn"
+# ── Warn: existing violations need refactoring ──
+cognitive_complexity = "deny"
+too_many_lines = "deny"
+match_same_arms = "deny"
 
 [dev-dependencies]
 insta = "1.47.2"
