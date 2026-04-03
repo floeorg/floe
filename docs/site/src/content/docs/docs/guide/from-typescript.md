@@ -9,7 +9,7 @@ Floe is designed to be familiar to TypeScript developers.
 - Import/export syntax
 - Template literals
 - JSX
-- Async (via `Promise.await` stdlib function instead of keywords)
+- Async (via `|> await` instead of keywords; return type must be `Promise<T>`)
 - Type annotations
 - Generics
 
@@ -27,7 +27,7 @@ Floe is designed to be familiar to TypeScript developers.
 | `{x && <Comp />}` | `Option.map` | `{x \|> Option.map((v) => <Comp v={v} />)}` |
 | `T \| null` | `Option<T>` | `Some(value)` / `None` |
 | `throw` | `Result<T, E>` | `Ok(value)` / `Err(error)` |
-| `async`/`await` | `Promise.await` | `expr \|> Promise.await` (compiler infers `async`) |
+| `async`/`await` | `\|> await` | `expr \|> await` (compiler infers `async`; return type must be `Promise<T>`) |
 
 ## What's Removed
 

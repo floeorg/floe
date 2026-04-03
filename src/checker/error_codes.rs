@@ -111,6 +111,8 @@ pub enum ErrorCode {
     UnknownBinding,
     /// `try` used on a Floe function (which never throws).
     TryOnFloeFunction,
+    /// Function uses `await` but return type is not `Promise<T>`.
+    MissingPromiseReturn,
 }
 
 impl ErrorCode {
@@ -161,6 +163,7 @@ impl ErrorCode {
             Self::SuspiciousBinding => "W005",
             Self::UnknownBinding => "W006",
             Self::TryOnFloeFunction => "W007",
+            Self::MissingPromiseReturn => "E041",
         }
     }
 }

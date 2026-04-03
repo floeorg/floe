@@ -128,14 +128,16 @@ type Callback = () -> ()
 
 ### Async Functions
 
-There is no `async` keyword. A function is async when its body uses `Promise.await`. The return type explicitly uses `Promise<T>`:
+There is no `async` keyword. A function is async when its body uses `|> await` (or `|> Promise.await`). The return type must explicitly use `Promise<T>` -- the compiler enforces this, just like `?` requires `Result<T, E>`:
 
 ```floe
 fn fetchUser(id: string) -> Promise<User> {
-  const response = fetch(`/api/users/${id}`) |> Promise.await
-  response.json() |> Promise.await
+  const response = fetch(`/api/users/${id}`) |> await
+  response.json() |> await
 }
 ```
+
+For functions without a return type annotation, the compiler infers `Promise<T>` automatically.
 
 ## Callback Flattening with `use`
 

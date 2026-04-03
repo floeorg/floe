@@ -21,17 +21,41 @@ Functions for working with `Promise<T>` values.
 
 ## `Promise.await`
 
-`Promise.await` is a stdlib function with signature `Promise<T> -> T`. It compiles to JavaScript's `await` keyword. Using `Promise.await` anywhere in a function body causes the compiler to infer `async` on the emitted function -- no `async` keyword is needed in Floe.
+`Promise.await` is a stdlib function with signature `Promise<T> -> T`. It compiles to JavaScript's `await` keyword. Using `Promise.await` anywhere in a function body causes the compiler to infer `async` on the emitted function -- no `async` keyword is needed in Floe. `await` is also available as a bare shorthand in pipes: `expr |> await`.
 
 ```floe
 fn fetchUser(id: string) -> Promise<User> {
-  const response = fetch(`/api/users/${id}`) |> Promise.await
-  response.json() |> Promise.await
+  const response = fetch(`/api/users/${id}`) |> await
+  response.json() |> await
 }
 // Compiles to: async function fetchUser(id: string): Promise<User> { ... }
 ```
 
-The return type must explicitly use `Promise<T>`, making async behavior visible to callers.
+The return type must explicitly use `Promise<T>`, making async behavior visible to callers. The compiler enforces this -- using `await` in a function with a non-`Promise` return type is a compile error:
+
+```floe
+// Error: function `bad` uses `await` but return type is `string`, not `Promise<string>`
+fn bad() -> string {
+  getData() |> await
+}
+
+// OK
+fn good() -> Promise<string> {
+  getData() |> await
+}
+```
+
+This parallels how `?` requires the function to return `Result<T, E>`. Both operators change the function contract, and both require explicit return types.
+
+For functions without a return type annotation, the compiler infers `Promise<T>` automatically:
+
+```floe
+fn fetchName(id: string) {
+  const user = fetchUser(id) |> await
+  user.name
+}
+// Inferred return type: Promise<string>
+```
 
 ## Untrusted async imports
 

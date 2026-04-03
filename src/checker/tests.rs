@@ -2874,7 +2874,65 @@ fn stdlib_member_access_still_works() {
 
 // ── Promise / Promise.await ─────────────────────────────────
 
-// ── Promise / Promise.await ─────────────────────────────────
+#[test]
+fn await_without_promise_return_type_errors() {
+    let diags = check(
+        r#"
+fn getData() -> Promise<string> { "hello" }
+fn bad() -> string { getData() |> Promise.await }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "uses `await`"),
+        "should error when await used but return type is not Promise<T>, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn await_with_promise_return_type_ok() {
+    let diags = check(
+        r#"
+fn getData() -> Promise<string> { "hello" }
+fn good() -> Promise<string> { getData() |> Promise.await }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "uses `await`"),
+        "should not error when return type is Promise<T>, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn bare_await_without_promise_return_type_errors() {
+    let diags = check(
+        r#"
+fn getData() -> Promise<string> { "hello" }
+fn bad() -> string { getData() |> await }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "uses `await`"),
+        "bare |> await should also trigger the error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn await_inferred_return_type_is_promise() {
+    let diags = check(
+        r#"
+fn getData() -> Promise<string> { "hello" }
+fn inferred() { getData() |> Promise.await }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "uses `await`"),
+        "unannotated async fn should not error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
 
 #[test]
 fn promise_return_type_unwrap() {

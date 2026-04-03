@@ -129,7 +129,7 @@ fn body_has_throwing_call(expr: &Expr, throwing: &HashSet<String>) -> bool {
 
 /// Check if an expression body contains a `Promise.await` member access
 /// or bare `await` identifier (shorthand for `Promise.await` in pipes).
-fn body_has_promise_await(expr: &Expr) -> bool {
+pub(crate) fn body_has_promise_await(expr: &Expr) -> bool {
     fn walk(expr: &Expr) -> bool {
         match &expr.kind {
             // Qualified: `Promise.await`

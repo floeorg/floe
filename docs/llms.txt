@@ -399,11 +399,12 @@ items |> Array.dropWhile(.done)                   // drop while predicate holds
 ["a", "b", "c"] |> Array.intersperse(", ")       // ["a", ", ", "b", ", ", "c"]
 
 // Promise helpers
-// Promise.await: Promise<T> -> T (compiles to await, infers async on enclosing fn)
-const users = Promise.all([fetchUser(1), fetchUser(2)]) |> Promise.await
-const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> Promise.await
-const results = Promise.allSettled([fetchA(), fetchB()]) |> Promise.await  // Array<Result<T, Error>>
-Promise.delay(1000) |> Promise.await   // wait 1 second
+// Promise.await (or bare `await`): Promise<T> -> T (compiles to await, infers async on enclosing fn)
+// Functions using await must return Promise<T> (like ? requires Result<T, E>)
+const users = Promise.all([fetchUser(1), fetchUser(2)]) |> await
+const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> await
+const results = Promise.allSettled([fetchA(), fetchB()]) |> await  // Array<Result<T, Error>>
+Promise.delay(1000) |> await   // wait 1 second
 
 // npm imports are untrusted by default: auto-wrapped in try/catch, return Result<T, Error>
 import { npmAsyncFn } from "some-lib"
@@ -704,7 +705,7 @@ match key {
 | `void` | Unit type `()` |
 | `as` (type assertion) | Type guards or `match` |
 | `return` | Implicit returns — last expression is the return value |
-| `async`/`await` | `Promise.await` stdlib function; return type `Promise<T>` |
+| `async`/`await` | `\|> await` (or `\|> Promise.await`); return type `Promise<T>` |
 
 ## Compilation Examples
 
@@ -727,7 +728,7 @@ match key {
 | `Console.log(x)` | `console.log(x)` |
 | `(1, 2)` | `[1, 2] as const` |
 | `()` (unit) | `undefined` |
-| `expr \|> Promise.await` | `await expr` (enclosing fn inferred `async`) |
+| `expr \|> await` | `await expr` (enclosing fn inferred `async`) |
 
 ## CLI Commands
 
@@ -749,7 +750,7 @@ floe lsp                     # start language server (used by editors)
 1. **No semicolons** in Floe source
 2. **Exported functions must have explicit return types** with `->`
 3. **match is exhaustive** — all variants must be handled
-4. **`?` only works** inside functions returning `Result` or `Option`
+4. **`?` only works** inside functions returning `Result` or `Option`; **`|> await` requires** return type `Promise<T>`
 5. **`==` is structural equality** — only between same types
 6. **No bracket indexing** — use `Map.get(map, key)` for maps, `Record.get(obj, key)` for plain-object records, `Array.get(arr, i)` for arrays (all return `Option<T>`). `obj[key]` is not valid Floe syntax
 7. **npm imports are untrusted by default** — calls auto-wrap in `Result<T, Error>`; use `import trusted` for safe imports
