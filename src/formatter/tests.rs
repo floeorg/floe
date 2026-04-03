@@ -472,27 +472,27 @@ fn format_preserves_blank_line_after_match_block() {
     assert_fmt(src, src);
 }
 
-// ── Import throws ──────────────────────────────────────────
+// ── Import trusted ─────────────────────────────────────────
 
 #[test]
-fn format_import_throws_module() {
+fn format_import_trusted_module() {
     assert_fmt(
-        r#"import throws {parseYaml,parseJson} from "yaml-lib""#,
-        r#"import throws { parseYaml, parseJson } from "yaml-lib""#,
+        r#"import trusted {useState,Suspense} from "react""#,
+        r#"import trusted { useState, Suspense } from "react""#,
     );
 }
 
 #[test]
-fn format_import_throws_specifier() {
+fn format_import_trusted_specifier() {
     assert_fmt(
-        r#"import {throws parseYaml,capitalize} from "some-lib""#,
-        r#"import { throws parseYaml, capitalize } from "some-lib""#,
+        r#"import {trusted capitalize,fetchUser} from "some-lib""#,
+        r#"import { trusted capitalize, fetchUser } from "some-lib""#,
     );
 }
 
 #[test]
-fn format_import_throws_roundtrip() {
-    let src = r#"import throws { parseYaml, parseJson } from "yaml-lib""#;
+fn format_import_trusted_roundtrip() {
+    let src = r#"import trusted { useState, useEffect } from "react""#;
     assert_fmt(src, src);
 }
 

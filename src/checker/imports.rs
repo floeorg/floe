@@ -70,9 +70,9 @@ impl Checker {
             // Track npm imports (resolved.is_none() means not a .fl file).
             if resolved.is_none() {
                 self.npm_imports.insert(effective_name.to_string());
-                // Track throwing imports (marked with `throws` at module or specifier level).
-                if decl.throws || spec.throws {
-                    self.throwing_imports.insert(effective_name.to_string());
+                // Track untrusted imports (not marked `trusted` at module or specifier level).
+                if !decl.trusted && !spec.trusted {
+                    self.untrusted_imports.insert(effective_name.to_string());
                 }
             }
         }

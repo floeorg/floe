@@ -92,7 +92,7 @@
         },
         {
           "name": "keyword.control.import.floe",
-          "match": "\\b(import|from|export|throws)\\b"
+          "match": "\\b(import|from|export|trusted)\\b"
         },
         {
           "name": "keyword.other.floe",

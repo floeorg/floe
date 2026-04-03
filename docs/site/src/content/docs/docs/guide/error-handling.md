@@ -161,11 +161,14 @@ The boundary wrapping also converts:
 - `T | undefined` to `Option<T>`
 - `any` to `unknown`
 
-For npm functions that may throw, use `throws` imports. Calls are auto-wrapped in `Result<T, Error>`:
+npm imports are untrusted by default -- calls are auto-wrapped in `Result<T, Error>`. Use `trusted` to mark safe imports that can be called directly:
 
 ```floe
-import throws { parseYaml } from "yaml-lib"
-const data = parseYaml(input)?  // Result<T, Error>, ? unwraps
+import { parseYaml } from "yaml-lib"                // untrusted (default)
+const data = parseYaml(input)?                       // Result<T, Error>, ? unwraps
+
+import trusted { useState } from "react"             // trusted = direct call
+const [count, setCount] = useState(0)
 ```
 
 This means npm libraries work transparently with Floe's type system.

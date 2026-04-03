@@ -5135,10 +5135,6 @@
     "named": false
   },
   {
-    "type": "throws",
-    "named": false
-  },
-  {
     "type": "todo",
     "named": true
   },
@@ -5148,6 +5144,10 @@
   },
   {
     "type": "true",
+    "named": false
+  },
+  {
+    "type": "trusted",
     "named": false
   },
   {

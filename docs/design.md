@@ -1521,53 +1521,53 @@ Automatic conversions at import boundary:
 - `T | undefined` → `Option<T>`
 - `T | null | undefined` → `Option<T>`
 - External `any` → `unknown` (forces narrowing)
-- npm imports are callable directly by default (like `useState`, `clsx`)
-- `throws` modifier marks imports whose functions may throw — calls are auto-wrapped in `Result<T, Error>`
+- npm imports are **untrusted by default** — calls are auto-wrapped in `Result<T, Error>`
+- `trusted` modifier marks imports that are safe to call directly (no Result wrapping)
 - Nullable/optional types at the boundary are converted to `Option<T>`
 
-#### Default npm imports
+#### Default npm imports (untrusted)
 
-npm imports work directly — no special syntax needed for safe functions:
+npm imports are untrusted by default — calls are auto-wrapped in `Result<T, Error>`:
 
 ```floe
-import { useState } from "react"
-import { clsx } from "clsx"
+import { parseYaml } from "yaml-lib"
+import { fetchUser } from "api-client"
 
-const [count, setCount] = useState(0)  // direct call
-const classes = clsx("btn", active)    // direct call
+const data = parseYaml(input)     // Result<unknown, Error> — auto-wrapped
+const user = fetchUser(id)        // Result<User, Error> — auto-wrapped
 ```
 
-#### throws imports
+#### trusted imports
 
-For npm functions that may throw, mark them with `throws`. The compiler auto-wraps calls in `Result<T, Error>`:
+For npm functions known to be safe, mark them with `trusted`. The compiler allows direct calls without Result wrapping:
 
 ```floe
-// Per-function:
-import { capitalize, throws fetchUser } from "some-ts-lib"
-capitalize("hello")          // string, direct call
-fetchUser(id)                // Result<User, Error> — auto-wrapped
-
 // Whole module:
-import throws { parseYaml, dumpYaml } from "yaml-lib"
-parseYaml(input)             // Result<unknown, Error> — auto-wrapped
+import trusted { useState, useEffect } from "react"
+useState(0)                  // direct call, no wrapping
+
+// Per-function:
+import { trusted capitalize, fetchUser } from "some-ts-lib"
+capitalize("hello")          // string, direct call
+fetchUser(id)                // Result<User, Error> — auto-wrapped (untrusted)
 ```
 
-#### throws with Result and ?
+#### Untrusted imports with Result and ?
 
-`throws` calls return `Result<T, Error>` automatically. Use `?` to unwrap:
+Untrusted calls return `Result<T, Error>` automatically. Use `?` to unwrap:
 
 ```floe
-// JSON.parse is stdlib — already returns Result, no throws needed
+// JSON.parse is stdlib — already returns Result
 const result = JSON.parse(input)
 // result: Result<T, ParseError>
 
-// throws is for external npm imports that might throw:
-import throws { parseYaml } from "yaml-lib"
+// npm imports are untrusted by default:
+import { parseYaml } from "yaml-lib"
 const data = parseYaml(input)
 // data: Result<unknown, Error>
 
-// Async throws: auto-awaits Promises and catches rejections
-import throws { fetchUser } from "api-client"
+// Async untrusted: auto-awaits Promises and catches rejections
+import { fetchUser } from "api-client"
 const user = fetchUser(id)
 // user: Result<User, Error> — auto-awaited + wrapped
 
@@ -1595,7 +1595,7 @@ match findElement("app") {
 #### Codegen
 
 ```typescript
-// import throws { parseYaml } from "yaml-lib"; parseYaml(input) →
+// import { parseYaml } from "yaml-lib"; parseYaml(input) → (untrusted, auto-wrapped)
 (() => { try { return { ok: true as const, value: parseYaml(input) }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()
 ```
 
@@ -1614,7 +1614,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `Type.Variant` (qualified) | `{ tag: "Variant" }` (same as bare) |
 | `fn f(x: T) -> U { ... }` | `function f(x: T): U { ... }` |
 | `fn f<T>(x: T) -> T { ... }` | `function f<T>(x: T): T { ... }` |
-| `throws` call (e.g. `parseYaml(input)`) | `(() => { try { return { ok: true, value: parseYaml(input) }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
+| untrusted npm call (e.g. `parseYaml(input)`) | `(() => { try { return { ok: true, value: parseYaml(input) }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
 | `match x { A -> ..., B -> ... }` | `x.tag === "A" ? ... : x.tag === "B" ? ... : absurd(x)` |
 | `match x { A(v) when v > 0 -> ... }` | `x.tag === "A" ? (() => { const v = x.value; if (v > 0) { return ...; } ... })()` |
 | `match url { "/users/{id}" -> f(id) }` | `url.match(/^\/users\/([^/]+)$/) ? (() => { const _m = url.match(...); const id = _m![1]; return f(id); })() : ...` |

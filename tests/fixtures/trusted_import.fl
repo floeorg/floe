@@ -1,5 +1,5 @@
-import { capitalize, slugify } from "string-utils"
+import trusted { capitalize, slugify } from "string-utils"
 
-import { trim, fetchUser } from "some-lib"
+import { trusted trim, fetchUser } from "some-lib"
 
 const name = capitalize("hello")

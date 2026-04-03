@@ -1,4 +1,4 @@
-import { useState, JSX } from "react"
+import trusted { useState, JSX } from "react"
 
 export fn Counter() -> JSX.Element {
     const [_count, setCount] = useState(0)

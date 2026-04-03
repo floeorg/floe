@@ -188,7 +188,7 @@ fn describe(d: Direction) -> string {
 COMPLETION_PIPE = "const nums = [1, 2, 3]\nconst result = nums |> \n"
 
 JSX_COMPONENT = """\
-import { useState } from "react"
+import trusted { useState } from "react"
 
 export fn Counter() -> JSX.Element {
     const [count, setCount] = useState(0)
@@ -337,7 +337,7 @@ const result = add(1, 2)
 """
 
 DEEPLY_NESTED_JSX = """\
-import { useState } from "react"
+import trusted { useState } from "react"
 
 export fn App() -> JSX.Element {
     const [items, setItems] = useState<Array<string>>([])
@@ -843,7 +843,7 @@ const _result = items |> map((item) => item + 1)
 """
 
 JSX_RENDER_PROP_PARAM = """\
-import { Draggable } from "@hello-pangea/dnd"
+import trusted { Draggable } from "@hello-pangea/dnd"
 
 type Props { id: string }
 

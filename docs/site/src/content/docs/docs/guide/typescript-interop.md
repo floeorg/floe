@@ -14,14 +14,14 @@ import { z } from "zod"
 import { clsx } from "clsx"
 ```
 
-The compiler reads `.d.ts` type definitions to understand the types of imported values. These imports are callable directly -- no special syntax needed.
+The compiler reads `.d.ts` type definitions to understand the types of imported values. npm imports are **untrusted by default** -- calls are auto-wrapped in `Result<T, Error>`.
 
-## `throws` imports
+## Untrusted imports (default)
 
-Some npm functions can throw exceptions at runtime (JSON parsers, API clients, file I/O). Mark these imports with `throws` so the compiler auto-wraps calls in `Result<T, Error>`:
+All npm imports are untrusted by default. The compiler auto-wraps calls in `Result<T, Error>`:
 
 ```floe
-import throws { parseYaml } from "yaml-lib"
+import { parseYaml } from "yaml-lib"
 
 // parseYaml is auto-wrapped — returns Result<T, Error>
 const result = parseYaml(input)
@@ -37,13 +37,23 @@ Use `?` to unwrap the result concisely:
 const data = parseYaml(input)?  // unwraps or returns Err early
 ```
 
-You can mark individual functions as throwing from a module:
+## `trusted` imports
+
+For npm functions known to be safe (like React hooks, utility libraries), mark them with `trusted` so they can be called directly without Result wrapping:
 
 ```floe
-import { capitalize, throws fetchData } from "some-lib"
+import trusted { useState, useEffect } from "react"
 
-capitalize("hello")             // direct call, no wrapping
-const data = fetchData()        // Result<T, Error> — auto-wrapped
+const [count, setCount] = useState(0)  // direct call, no wrapping
+```
+
+You can mark individual functions as trusted from a module:
+
+```floe
+import { trusted capitalize, fetchData } from "some-lib"
+
+capitalize("hello")             // direct call, no wrapping (trusted)
+const data = fetchData()        // Result<T, Error> — auto-wrapped (untrusted)
 ```
 
 ## Bridge types (`=` syntax)
