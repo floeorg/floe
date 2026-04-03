@@ -240,6 +240,7 @@ impl Checker {
     fn is_promise_await_member(expr: &Expr) -> bool {
         matches!(&expr.kind, ExprKind::Member { object, field }
             if field == "await" && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise"))
+            || matches!(&expr.kind, ExprKind::Identifier(name) if name == "await")
     }
 
     /// Infer the type of an element from an array/tuple destructuring at a given index.

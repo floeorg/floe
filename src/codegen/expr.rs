@@ -808,7 +808,7 @@ impl Codegen {
 }
 
 /// Check if an expression tree contains a Promise.await stdlib call.
-/// Detects `expr |> Promise.await` and `Promise.await(expr)` patterns.
+/// Detects `expr |> Promise.await`, `Promise.await(expr)`, and bare `|> await` patterns.
 pub(super) fn expr_contains_await(expr: &Expr) -> bool {
     match &expr.kind {
         // Direct member access: Promise.await (in pipe target position)
@@ -818,6 +818,8 @@ pub(super) fn expr_contains_await(expr: &Expr) -> bool {
         {
             true
         }
+        // Bare shorthand: `|> await`
+        ExprKind::Identifier(name) if name == "await" => true,
         ExprKind::Call { callee, args, .. } => {
             expr_contains_await(callee)
                 || args.iter().any(|a| match a {

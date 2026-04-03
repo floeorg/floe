@@ -645,6 +645,22 @@ fn promise_await_pipe() {
     assert!(result.contains("await fetchData()"));
 }
 
+#[test]
+fn bare_await_shorthand_emits_async_function() {
+    let result = emit_with_types("fn fetch() -> Promise<string> { getData() |> await }");
+    assert!(
+        result.starts_with("async function fetch()"),
+        "bare `|> await` should infer async on enclosing function, got: {result}"
+    );
+    assert!(result.contains("await getData()"));
+}
+
+#[test]
+fn bare_await_shorthand_pipe() {
+    let result = emit_with_types("const _x = fetchData() |> await");
+    assert!(result.contains("await fetchData()"));
+}
+
 // ── Implicit Return ──────────────────────────────────────────
 
 #[test]

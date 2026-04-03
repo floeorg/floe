@@ -1364,10 +1364,11 @@ fn expr_has_promise_await(expr: &Expr) -> bool {
     }
 }
 
-/// Check if an expression is `Promise.await` member access.
+/// Check if an expression is `Promise.await` member access or bare `await` shorthand.
 fn is_promise_await_member(expr: &Expr) -> bool {
     matches!(&expr.kind, ExprKind::Member { object, field }
         if field == "await" && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise"))
+        || matches!(&expr.kind, ExprKind::Identifier(name) if name == "await")
 }
 
 /// Unwrap wrappers to find the inner expression.

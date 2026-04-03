@@ -116,16 +116,20 @@ fn body_has_throwing_call(expr: &Expr, throwing: &HashSet<String>) -> bool {
     walk(expr, throwing)
 }
 
-/// Check if an expression body contains a `Promise.await` member access.
+/// Check if an expression body contains a `Promise.await` member access
+/// or bare `await` identifier (shorthand for `Promise.await` in pipes).
 fn body_has_promise_await(expr: &Expr) -> bool {
     fn walk(expr: &Expr) -> bool {
         match &expr.kind {
+            // Qualified: `Promise.await`
             ExprKind::Member { object, field }
                 if field == "await"
                     && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise") =>
             {
                 true
             }
+            // Bare shorthand: `|> await`
+            ExprKind::Identifier(name) if name == "await" => true,
             ExprKind::Call { callee, args, .. } => {
                 walk(callee)
                     || args.iter().any(|a| match a {
