@@ -5,6 +5,22 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0](https://github.com/floeorg/floe/compare/v0.2.1...v0.3.0) (2026-04-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* [#963] [#964] Replace trusted with throws, remove try keyword ([#965](https://github.com/floeorg/floe/issues/965))
+
+### Features
+
+* [[#963](https://github.com/floeorg/floe/issues/963)] [[#964](https://github.com/floeorg/floe/issues/964)] Replace trusted with throws, remove try keyword ([#965](https://github.com/floeorg/floe/issues/965)) ([87c41be](https://github.com/floeorg/floe/commit/87c41beda9226a08da549fd1c64a813c6d350660))
+
+
+### Bug Fixes
+
+* [[#967](https://github.com/floeorg/floe/issues/967)] Restore trusted keyword with auto-wrap semantics ([#968](https://github.com/floeorg/floe/issues/968)) ([2748b3e](https://github.com/floeorg/floe/commit/2748b3ef70964d3fc00695cd55fe794129a5d72f))
+
 ## [0.2.1](https://github.com/floeorg/floe/compare/v0.2.0...v0.2.1) (2026-04-02)
 
 
