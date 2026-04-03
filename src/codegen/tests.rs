@@ -165,7 +165,7 @@ fn import_type_only_specifier() {
             r#"import { Session } from "@supabase/supabase-js"
 const x: Option<Session> = None"#
         ),
-        "import { type Session } from \"@supabase/supabase-js\";\n\nconst x: Session | undefined = undefined;"
+        "import { type Session } from \"@supabase/supabase-js\";\n\nconst x: Session | null | undefined = undefined;"
     );
 }
 
@@ -496,7 +496,7 @@ fn newtype_erased() {
 #[test]
 fn option_type() {
     let result = emit("const x: Option<string> = None");
-    assert!(result.contains("string | undefined"));
+    assert!(result.contains("string | null | undefined"));
 }
 
 #[test]

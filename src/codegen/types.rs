@@ -8,10 +8,11 @@ impl Codegen {
             TypeExprKind::Named {
                 name, type_args, ..
             } => {
-                // Option<T> becomes T | undefined
+                // Option<T> becomes T | null | undefined
+                // Accepts both null (from serde/JSON) and undefined (from Floe's None)
                 if name == type_layout::TYPE_OPTION && type_args.len() == 1 {
                     self.emit_type_expr(&type_args[0]);
-                    self.push(" | undefined");
+                    self.push(" | null | undefined");
                     return;
                 }
                 // Settable<T> becomes T | null | undefined
