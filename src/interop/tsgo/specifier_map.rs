@@ -107,11 +107,12 @@ pub(super) fn build_specifier_map(
                         });
                 } else if let ConstBinding::Object(fields) = &decl.binding {
                     // For object destructuring: const { data } = f(...)
+                    // Probe names use __probe_{field}_rN_I format
                     let elem_types: Vec<TsType> = fields
                         .iter()
                         .enumerate()
-                        .map(|(i, _)| {
-                            let elem_name = format!("_r{}_{i}", probe_index);
+                        .map(|(i, f)| {
+                            let elem_name = format!("__probe_{}_r{}_{i}", f.field, probe_index);
                             probe_exports
                                 .iter()
                                 .find(|e| e.name == elem_name)
@@ -198,8 +199,11 @@ pub(super) fn build_specifier_map(
         }
         // Inlined const call probes (__probe_user_5, etc.) — same routing
         // but with dedup guard since __probe_ entries can also come from the
-        // index-based mapping above.
+        // index-based mapping above. Skip raw per-field probes from object
+        // destructuring (e.g. __probe_data_r4_0) since those are already
+        // mapped by the index-based section as __probe_data_4.
         if export.name.starts_with("__probe_")
+            && !export.name.contains("_r")
             && !result.values().flatten().any(|e| e.name == export.name)
             && let Some(first_specifier) = result.keys().next().cloned()
         {

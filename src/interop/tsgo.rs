@@ -369,6 +369,9 @@ impl TsgoResolver {
                         });
 
                         if has_any_field {
+                            // Use binding name prefix to disambiguate when multiple
+                            // destructurings from the same specifier have same field names
+                            let binding_name = decl.binding.binding_name();
                             let field_probes: Vec<(String, String)> = fields
                                 .iter()
                                 .map(|f| (f.field.clone(), format!("__probe_{}_", f.field)))
@@ -430,16 +433,21 @@ impl TsgoResolver {
             // Extract field types from the return type.
             // If the return type is a named/generic type (not inline object),
             // run a secondary tsgo probe with the import + field accesses to expand it.
-            let field_types: HashMap<&str, &TsType> = match &ret_export.ts_type {
-                TsType::Object(fields) => fields.iter().map(|f| (f.name.as_str(), &f.ty)).collect(),
+            let owned_field_types: HashMap<&str, TsType> = match &ret_export.ts_type {
+                TsType::Object(fields) => fields
+                    .iter()
+                    .map(|f| (f.name.as_str(), f.ty.clone()))
+                    .collect(),
                 TsType::Generic { args, .. } if !args.is_empty() => {
                     // Named generic return type (e.g. UseQueryResult<IssueDto[], Error>).
-                    // The first type arg is typically the data type. Use it to resolve
-                    // the `data` field which tsgo often returns as `any`.
-                    let mut map: HashMap<&str, &TsType> = HashMap::new();
-                    // First generic arg → data field (common pattern: UseQueryResult, UseSuspenseQueryResult, etc.)
+                    // The first type arg is the data type. data is TData | undefined.
+                    let mut map: HashMap<&str, TsType> = HashMap::new();
                     if field_probes.iter().any(|(f, _)| f == "data") {
-                        map.insert("data", &args[0]);
+                        // data: TData | undefined
+                        map.insert(
+                            "data",
+                            TsType::Union(vec![args[0].clone(), TsType::Undefined]),
+                        );
                     }
                     if map.is_empty() {
                         continue;
@@ -452,13 +460,13 @@ impl TsgoResolver {
             // Update per-field probes with resolved types
             if let Some(exports) = result.get_mut(&specifier) {
                 for (field_name, probe_prefix) in &field_probes {
-                    if let Some(field_ty) = field_types.get(field_name.as_str())
+                    if let Some(field_ty) = owned_field_types.get(field_name.as_str())
                         && let Some(probe) = exports.iter_mut().find(|e| {
                             e.name.starts_with(probe_prefix)
                                 && matches!(e.ts_type, TsType::Any | TsType::Unknown)
                         })
                     {
-                        probe.ts_type = (*field_ty).clone();
+                        probe.ts_type = field_ty.clone();
                     }
                 }
             }
