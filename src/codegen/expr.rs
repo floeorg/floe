@@ -410,8 +410,8 @@ impl Codegen {
             }
 
             ExprKind::DotShorthand { field, predicate } => {
-                match predicate {
-                    Some((op, rhs)) => match op {
+                if let Some((op, rhs)) = predicate {
+                    match op {
                         BinOp::Eq => {
                             self.needs_deep_equal = true;
                             self.push(&format!("(_x) => {DEEP_EQUAL_FN}(_x."));
@@ -434,12 +434,11 @@ impl Codegen {
                             self.push(&format!(" {} ", binop_str(*op)));
                             self.emit_expr(rhs);
                         }
-                    },
-                    None => {
-                        // `.field` → `(_x) => _x.field`
-                        self.push("(_x) => _x.");
-                        self.push(field);
                     }
+                } else {
+                    // `.field` → `(_x) => _x.field`
+                    self.push("(_x) => _x.");
+                    self.push(field);
                 }
             }
         }
@@ -576,62 +575,56 @@ impl Codegen {
 
     /// Like emit_block_expr but adds implicit return to the last expression.
     pub(super) fn emit_block_expr_with_return(&mut self, expr: &Expr) {
-        match &expr.kind {
-            ExprKind::Block(items) => {
-                self.push("{");
-                self.newline();
-                self.indent += 1;
-                for (i, item) in items.iter().enumerate() {
-                    let is_last = i == items.len() - 1;
-                    if is_last && matches!(item.kind, ItemKind::Expr(_)) {
-                        self.emit_indent();
-                        self.push("return ");
-                        if let ItemKind::Expr(e) = &item.kind {
-                            self.emit_expr(e);
-                        }
-                        self.push(";");
-                    } else {
-                        self.emit_item(item);
+        if let ExprKind::Block(items) = &expr.kind {
+            self.push("{");
+            self.newline();
+            self.indent += 1;
+            for (i, item) in items.iter().enumerate() {
+                let is_last = i == items.len() - 1;
+                if is_last && matches!(item.kind, ItemKind::Expr(_)) {
+                    self.emit_indent();
+                    self.push("return ");
+                    if let ItemKind::Expr(e) = &item.kind {
+                        self.emit_expr(e);
                     }
-                    self.newline();
+                    self.push(";");
+                } else {
+                    self.emit_item(item);
                 }
-                self.indent -= 1;
-                self.emit_indent();
-                self.push("}");
-            }
-            _ => {
-                self.push("{");
                 self.newline();
-                self.indent += 1;
-                self.emit_indent();
-                self.push("return ");
-                self.emit_expr(expr);
-                self.push(";");
-                self.newline();
-                self.indent -= 1;
-                self.emit_indent();
-                self.push("}");
             }
+            self.indent -= 1;
+            self.emit_indent();
+            self.push("}");
+        } else {
+            self.push("{");
+            self.newline();
+            self.indent += 1;
+            self.emit_indent();
+            self.push("return ");
+            self.emit_expr(expr);
+            self.push(";");
+            self.newline();
+            self.indent -= 1;
+            self.emit_indent();
+            self.push("}");
         }
     }
 
     pub(super) fn emit_block_expr(&mut self, expr: &Expr) {
-        match &expr.kind {
-            ExprKind::Block(items) => {
-                self.emit_block_items(items);
-            }
-            _ => {
-                self.push("{");
-                self.newline();
-                self.indent += 1;
-                self.emit_indent();
-                self.emit_expr(expr);
-                self.push(";");
-                self.newline();
-                self.indent -= 1;
-                self.emit_indent();
-                self.push("}");
-            }
+        if let ExprKind::Block(items) = &expr.kind {
+            self.emit_block_items(items);
+        } else {
+            self.push("{");
+            self.newline();
+            self.indent += 1;
+            self.emit_indent();
+            self.emit_expr(expr);
+            self.push(";");
+            self.newline();
+            self.indent -= 1;
+            self.emit_indent();
+            self.push("}");
         }
     }
 

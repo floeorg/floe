@@ -42,18 +42,17 @@ impl Checker {
         functions: &[FunctionDecl],
         span: Span,
     ) {
-        let trait_methods = match self.traits.trait_defs.get(trait_name) {
-            Some(methods) => methods.clone(),
-            None => {
-                self.emit_error_with_help(
-                    format!("unknown trait `{trait_name}`"),
-                    span,
-                    ErrorCode::UnknownTrait,
-                    "not defined",
-                    "check the spelling or define this trait",
-                );
-                return;
-            }
+        let trait_methods = if let Some(methods) = self.traits.trait_defs.get(trait_name) {
+            methods.clone()
+        } else {
+            self.emit_error_with_help(
+                format!("unknown trait `{trait_name}`"),
+                span,
+                ErrorCode::UnknownTrait,
+                "not defined",
+                "check the spelling or define this trait",
+            );
+            return;
         };
 
         // Check that all required methods are implemented

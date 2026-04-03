@@ -276,11 +276,9 @@ impl<'src> CstParser<'src> {
         // - EOF
         !matches!(
             self.current_kind(),
-            Some(TokenKind::LessThan)
-                | Some(TokenKind::LeftBrace)
-                | Some(TokenKind::RightBrace)
-                | Some(TokenKind::Eof)
-                | None
+            Some(
+                TokenKind::LessThan | TokenKind::LeftBrace | TokenKind::RightBrace | TokenKind::Eof
+            ) | None
         )
     }
 

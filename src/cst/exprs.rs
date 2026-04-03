@@ -119,7 +119,7 @@ impl<'src> CstParser<'src> {
 
     fn parse_unary_expr(&mut self) {
         match self.current_kind() {
-            Some(TokenKind::Bang) | Some(TokenKind::Minus) => {
+            Some(TokenKind::Bang | TokenKind::Minus) => {
                 self.builder.start_node(SyntaxKind::UNARY_EXPR.into());
                 self.bump();
                 self.eat_trivia();
@@ -153,22 +153,24 @@ impl<'src> CstParser<'src> {
                     if self.is_ident()
                         || matches!(
                             self.current_kind(),
-                            Some(TokenKind::Number(_))
-                                | Some(TokenKind::Banned(_))
-                                | Some(TokenKind::Parse)
-                                | Some(TokenKind::Match)
-                                | Some(TokenKind::For)
-                                | Some(TokenKind::From)
-                                | Some(TokenKind::Type)
-                                | Some(TokenKind::Export)
-                                | Some(TokenKind::Import)
-                                | Some(TokenKind::Const)
-                                | Some(TokenKind::Fn)
-                                | Some(TokenKind::Trait)
-                                | Some(TokenKind::Collect)
-                                | Some(TokenKind::Deriving)
-                                | Some(TokenKind::When)
-                                | Some(TokenKind::SelfKw)
+                            Some(
+                                TokenKind::Number(_)
+                                    | TokenKind::Banned(_)
+                                    | TokenKind::Parse
+                                    | TokenKind::Match
+                                    | TokenKind::For
+                                    | TokenKind::From
+                                    | TokenKind::Type
+                                    | TokenKind::Export
+                                    | TokenKind::Import
+                                    | TokenKind::Const
+                                    | TokenKind::Fn
+                                    | TokenKind::Trait
+                                    | TokenKind::Collect
+                                    | TokenKind::Deriving
+                                    | TokenKind::When
+                                    | TokenKind::SelfKw
+                            )
                         )
                     {
                         self.bump();
@@ -504,10 +506,7 @@ impl<'src> CstParser<'src> {
 
             // Punning: `label:` without a value — next non-trivia is `)` or `,`
             let next = self.next_non_trivia_kind();
-            let is_pun = matches!(
-                next,
-                Some(TokenKind::RightParen) | Some(TokenKind::Comma) | None
-            );
+            let is_pun = matches!(next, Some(TokenKind::RightParen | TokenKind::Comma) | None);
             if !is_pun {
                 self.eat_trivia();
                 self.parse_expr();
@@ -702,7 +701,7 @@ impl<'src> CstParser<'src> {
                         // Expect identifier or _ after ..
                         if matches!(
                             self.current_kind(),
-                            Some(TokenKind::Identifier(_)) | Some(TokenKind::Underscore)
+                            Some(TokenKind::Identifier(_) | TokenKind::Underscore)
                         ) {
                             self.bump();
                         } else {

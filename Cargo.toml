@@ -42,5 +42,23 @@ tempfile = { version = "3.27.0", optional = true }
 tokio = { version = "1.50.0", features = ["full"], optional = true }
 tower-lsp = { version = "0.20.0", optional = true }
 
+[lints.clippy]
+# ── Deny: these break CI immediately ──
+collapsible_if = "deny"
+collapsible_else_if = "deny"
+needless_bool = "deny"
+needless_return = "deny"
+redundant_else = "deny"
+manual_let_else = "deny"
+unnested_or_patterns = "deny"
+single_match_else = "deny"
+fn_params_excessive_bools = "deny"
+struct_excessive_bools = "deny"
+
+# ── Warn: flag for refactoring but don't block CI yet ──
+cognitive_complexity = "warn"
+too_many_lines = "warn"
+match_same_arms = "warn"
+
 [dev-dependencies]
 insta = "1.47.2"
