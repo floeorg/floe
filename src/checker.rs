@@ -34,33 +34,14 @@ pub fn annotate_types(program: &mut Program, types: &ExprTypeMap) {
 /// contain `Promise.await` calls or whose return type is `Promise<T>`.
 /// Also collects untrusted import names from the program for detection.
 pub fn mark_async_functions(program: &mut Program) {
-    // Collect untrusted import names (npm imports not marked `trusted`)
-    let mut throwing: HashSet<String> = HashSet::new();
-    for item in &program.items {
-        if let ItemKind::Import(decl) = &item.kind {
-            // Only track npm imports (source doesn't start with "./" or "../")
-            let is_npm = !decl.source.starts_with("./") && !decl.source.starts_with("../");
-            if is_npm {
-                for spec in &decl.specifiers {
-                    if !decl.trusted && !spec.trusted {
-                        let name = spec.alias.as_ref().unwrap_or(&spec.name);
-                        throwing.insert(name.clone());
-                    }
-                }
-            }
-        }
-    }
-
     for item in &mut program.items {
         match &mut item.kind {
             ItemKind::Function(decl) => {
-                decl.async_fn = body_has_promise_await(&decl.body)
-                    || body_has_throwing_call(&decl.body, &throwing);
+                decl.async_fn = body_has_promise_await(&decl.body);
             }
             ItemKind::ForBlock(block) => {
                 for func in &mut block.functions {
-                    func.async_fn = body_has_promise_await(&func.body)
-                        || body_has_throwing_call(&func.body, &throwing);
+                    func.async_fn = body_has_promise_await(&func.body);
                 }
             }
             _ => {}
@@ -71,60 +52,17 @@ pub fn mark_async_functions(program: &mut Program) {
     // nested `fn` declarations (e.g. handleDragEnd inside a component body).
     crate::walk::walk_program_mut(program, &mut |expr| match &mut expr.kind {
         ExprKind::Arrow { async_fn, body, .. } => {
-            *async_fn = body_has_promise_await(body) || body_has_throwing_call(body, &throwing);
+            *async_fn = body_has_promise_await(body);
         }
         ExprKind::Block(items) | ExprKind::Collect(items) => {
             for item in items {
                 if let ItemKind::Function(decl) = &mut item.kind {
-                    decl.async_fn = body_has_promise_await(&decl.body)
-                        || body_has_throwing_call(&decl.body, &throwing);
+                    decl.async_fn = body_has_promise_await(&decl.body);
                 }
             }
         }
         _ => {}
     });
-}
-
-/// Check if an expression body contains a call to a throwing import.
-fn body_has_throwing_call(expr: &Expr, throwing: &HashSet<String>) -> bool {
-    fn walk(expr: &Expr, throwing: &HashSet<String>) -> bool {
-        match &expr.kind {
-            ExprKind::Call { callee, args, .. } => {
-                let is_throwing = match &callee.kind {
-                    ExprKind::Identifier(name) => throwing.contains(name.as_str()),
-                    ExprKind::Member { object, .. } => {
-                        matches!(&object.kind, ExprKind::Identifier(n) if throwing.contains(n.as_str()))
-                    }
-                    _ => false,
-                };
-                is_throwing
-                    || walk(callee, throwing)
-                    || args.iter().any(|a| match a {
-                        Arg::Positional(e) | Arg::Named { value: e, .. } => walk(e, throwing),
-                    })
-            }
-            ExprKind::Pipe { left, right } => walk(left, throwing) || walk(right, throwing),
-            ExprKind::Binary { left, right, .. } => walk(left, throwing) || walk(right, throwing),
-            ExprKind::Block(items) | ExprKind::Collect(items) => {
-                items.iter().any(|item| match &item.kind {
-                    ItemKind::Expr(e) => walk(e, throwing),
-                    ItemKind::Const(c) => walk(&c.value, throwing),
-                    _ => false,
-                })
-            }
-            ExprKind::Match { subject, arms } => {
-                walk(subject, throwing) || arms.iter().any(|a| walk(&a.body, throwing))
-            }
-            ExprKind::Unwrap(inner)
-            | ExprKind::Unary { operand: inner, .. }
-            | ExprKind::Grouped(inner)
-            | ExprKind::Spread(inner)
-            | ExprKind::Value(inner) => walk(inner, throwing),
-            ExprKind::Arrow { .. } => false,
-            _ => false,
-        }
-    }
-    walk(expr, throwing)
 }
 
 /// Check if an expression body contains a `Promise.await` member access

@@ -1527,14 +1527,14 @@ Automatic conversions at import boundary:
 
 #### Default npm imports (untrusted)
 
-npm imports are untrusted by default — calls are auto-wrapped in `Result<T, Error>`:
+npm imports are untrusted by default — calls are wrapped in `Result<T, Error>`. Async functions (returning `Promise<T>`) are wrapped in `Promise<Result<T, Error>>` — the caller uses `|> await` to unwrap the Promise:
 
 ```floe
 import { parseYaml } from "yaml-lib"
 import { fetchUser } from "api-client"
 
-const data = parseYaml(input)     // Result<unknown, Error> — auto-wrapped
-const user = fetchUser(id)        // Result<User, Error> — auto-wrapped
+const data = parseYaml(input)          // Result<unknown, Error> — sync
+const user = fetchUser(id) |> await    // Promise<Result<User, Error>> → Result<User, Error>
 ```
 
 #### trusted imports
@@ -1549,7 +1549,7 @@ useState(0)                  // direct call, no wrapping
 // Per-function:
 import { trusted capitalize, fetchUser } from "some-ts-lib"
 capitalize("hello")          // string, direct call
-fetchUser(id)                // Result<User, Error> — auto-wrapped (untrusted)
+fetchUser(id) |> await       // Promise<Result<User, Error>> → Result<User, Error>
 ```
 
 #### Untrusted imports with Result and ?
@@ -1566,15 +1566,15 @@ import { parseYaml } from "yaml-lib"
 const data = parseYaml(input)
 // data: Result<unknown, Error>
 
-// Async untrusted: auto-awaits Promises and catches rejections
+// Async untrusted: returns Promise<Result<T, Error>>, use |> await to unwrap
 import { fetchUser } from "api-client"
-const user = fetchUser(id)
-// user: Result<User, Error> — auto-awaited + wrapped
+const user = fetchUser(id) |> await
+// user: Result<User, Error>
 
-// Compose with ? for concise error handling:
-fn loadProfile(id: string) -> Result<Profile, Error> {
-  const user = fetchUser(id)?
-  const posts = fetchPosts(user.id)?
+// Compose with |> await? for concise async error handling:
+fn loadProfile(id: string) -> Promise<Result<Profile, Error>> {
+  const user = fetchUser(id) |> await?
+  const posts = fetchPosts(user.id) |> await?
   Ok(Profile(user, posts))
 }
 ```
