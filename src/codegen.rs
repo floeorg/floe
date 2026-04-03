@@ -646,10 +646,7 @@ fn collect_value_names_from_expr(expr: &Expr, names: &mut HashSet<String>) {
             collect_value_names_from_expr(right, names);
         }
         ExprKind::Unary { operand, .. } => collect_value_names_from_expr(operand, names),
-        ExprKind::Unwrap(e) => {
-            collect_value_names_from_expr(e, names);
-        }
-        ExprKind::Value(e) => {
+        ExprKind::Unwrap(e) | ExprKind::Value(e) => {
             collect_value_names_from_expr(e, names);
         }
         ExprKind::Match { subject, arms } => {

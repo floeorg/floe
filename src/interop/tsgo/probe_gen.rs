@@ -909,11 +909,7 @@ fn collect_member_accesses_expr(
                 }
             }
         }
-        ExprKind::Binary { left, right, .. } => {
-            collect_member_accesses_expr(left, imported_names, accesses);
-            collect_member_accesses_expr(right, imported_names, accesses);
-        }
-        ExprKind::Pipe { left, right } => {
+        ExprKind::Binary { left, right, .. } | ExprKind::Pipe { left, right } => {
             collect_member_accesses_expr(left, imported_names, accesses);
             collect_member_accesses_expr(right, imported_names, accesses);
         }
@@ -954,7 +950,7 @@ fn collect_member_accesses_expr(
                 collect_member_accesses_expr(value, imported_names, accesses);
             }
         }
-        ExprKind::Array(elems) => {
+        ExprKind::Array(elems) | ExprKind::Tuple(elems) => {
             for e in elems {
                 collect_member_accesses_expr(e, imported_names, accesses);
             }

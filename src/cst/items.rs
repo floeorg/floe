@@ -40,7 +40,7 @@ impl<'src> CstParser<'src> {
                 self.parse_function_decl();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Opaque) | Some(TokenKind::Type) => {
+            Some(TokenKind::Opaque | TokenKind::Type) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_type_decl();

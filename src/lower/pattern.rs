@@ -195,12 +195,11 @@ impl<'src> Lowerer<'src> {
                                 },
                                 span,
                             });
-                        } else {
-                            return Some(Pattern {
-                                kind: PatternKind::Binding(name),
-                                span,
-                            });
                         }
+                        return Some(Pattern {
+                            kind: PatternKind::Binding(name),
+                            span,
+                        });
                     }
                     SyntaxKind::L_BRACE => {
                         // Record pattern
