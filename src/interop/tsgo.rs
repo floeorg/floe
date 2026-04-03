@@ -300,6 +300,7 @@ impl TsgoResolver {
         ts_imports: &HashMap<String, PathBuf>,
     ) {
         use crate::parser::ast::*;
+        let project_dir = self.project_dir.clone();
 
         // Build import name → source path mapping
         let mut import_paths: HashMap<String, PathBuf> = HashMap::new();
@@ -362,7 +363,7 @@ impl TsgoResolver {
                             exports.is_some_and(|exps| {
                                 exps.iter().any(|e| {
                                     e.name.starts_with(&probe_prefix)
-                                        && matches!(e.ts_type, TsType::Any)
+                                        && matches!(e.ts_type, TsType::Any | TsType::Unknown)
                                 })
                             })
                         });
@@ -406,7 +407,6 @@ impl TsgoResolver {
             let Some(hover) = client.query_symbol_type(source_path, root) else {
                 continue;
             };
-
             // Parse hover to extract return type fields
             // Hover format: "function useQuery(...): { data: T, isLoading: boolean, ... }"
             let Some(ret_start) = hover.rfind("): ").or_else(|| hover.rfind(") => ")) else {
@@ -427,9 +427,25 @@ impl TsgoResolver {
                 continue;
             };
 
-            // Extract field types from the return type object
+            // Extract field types from the return type.
+            // If the return type is a named/generic type (not inline object),
+            // run a secondary tsgo probe with the import + field accesses to expand it.
             let field_types: HashMap<&str, &TsType> = match &ret_export.ts_type {
                 TsType::Object(fields) => fields.iter().map(|f| (f.name.as_str(), &f.ty)).collect(),
+                TsType::Generic { args, .. } if !args.is_empty() => {
+                    // Named generic return type (e.g. UseQueryResult<IssueDto[], Error>).
+                    // The first type arg is typically the data type. Use it to resolve
+                    // the `data` field which tsgo often returns as `any`.
+                    let mut map: HashMap<&str, &TsType> = HashMap::new();
+                    // First generic arg → data field (common pattern: UseQueryResult, UseSuspenseQueryResult, etc.)
+                    if field_probes.iter().any(|(f, _)| f == "data") {
+                        map.insert("data", &args[0]);
+                    }
+                    if map.is_empty() {
+                        continue;
+                    }
+                    map
+                }
                 _ => continue,
             };
 
@@ -438,7 +454,8 @@ impl TsgoResolver {
                 for (field_name, probe_prefix) in &field_probes {
                     if let Some(field_ty) = field_types.get(field_name.as_str())
                         && let Some(probe) = exports.iter_mut().find(|e| {
-                            e.name.starts_with(probe_prefix) && matches!(e.ts_type, TsType::Any)
+                            e.name.starts_with(probe_prefix)
+                                && matches!(e.ts_type, TsType::Any | TsType::Unknown)
                         })
                     {
                         probe.ts_type = (*field_ty).clone();
