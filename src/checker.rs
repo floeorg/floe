@@ -66,11 +66,22 @@ pub fn mark_async_functions(program: &mut Program) {
             _ => {}
         }
     }
-    // Also mark arrows inside all expressions
-    crate::walk::walk_program_mut(program, &mut |expr| {
-        if let ExprKind::Arrow { async_fn, body, .. } = &mut expr.kind {
+    // Mark nested fn declarations and arrows inside all expressions.
+    // The walker visits Block/Collect items recursively, so this catches
+    // nested `fn` declarations (e.g. handleDragEnd inside a component body).
+    crate::walk::walk_program_mut(program, &mut |expr| match &mut expr.kind {
+        ExprKind::Arrow { async_fn, body, .. } => {
             *async_fn = body_has_promise_await(body) || body_has_throwing_call(body, &throwing);
         }
+        ExprKind::Block(items) | ExprKind::Collect(items) => {
+            for item in items {
+                if let ItemKind::Function(decl) = &mut item.kind {
+                    decl.async_fn = body_has_promise_await(&decl.body)
+                        || body_has_throwing_call(&decl.body, &throwing);
+                }
+            }
+        }
+        _ => {}
     });
 }
 

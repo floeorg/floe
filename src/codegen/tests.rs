@@ -661,6 +661,25 @@ fn bare_await_shorthand_pipe() {
     assert!(result.contains("await fetchData()"));
 }
 
+#[test]
+fn nested_fn_with_promise_await_emits_async() {
+    let result =
+        emit_with_types("fn outer() { fn inner() { getData() |> Promise.await } inner() }");
+    assert!(
+        result.contains("async function inner()"),
+        "nested fn with Promise.await should be async, got: {result}"
+    );
+}
+
+#[test]
+fn nested_fn_with_bare_await_emits_async() {
+    let result = emit_with_types("fn outer() { fn inner() { getData() |> await } inner() }");
+    assert!(
+        result.contains("async function inner()"),
+        "nested fn with bare await should be async, got: {result}"
+    );
+}
+
 // ── Implicit Return ──────────────────────────────────────────
 
 #[test]
