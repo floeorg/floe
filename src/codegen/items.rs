@@ -157,12 +157,18 @@ impl Codegen {
                     if sub.needs_deep_equal {
                         self.needs_deep_equal = true;
                     }
+                    if sub.has_jsx {
+                        self.has_jsx = true;
+                    }
                     sub.output
                 } else {
                     let mut sub = self.sub_codegen();
                     sub.emit_expr(&step.expr);
                     if sub.needs_deep_equal {
                         self.needs_deep_equal = true;
+                    }
+                    if sub.has_jsx {
+                        self.has_jsx = true;
                     }
                     sub.output
                 };

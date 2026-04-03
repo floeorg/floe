@@ -459,17 +459,23 @@ impl Codegen {
             if sub.needs_deep_equal {
                 self.needs_deep_equal = true;
             }
+            if sub.has_jsx {
+                self.has_jsx = true;
+            }
             arg_strings.push(sub.output);
         }
         arg_strings
     }
 
-    /// Emit a single expression via a sub-codegen, propagating `needs_deep_equal`.
+    /// Emit a single expression via a sub-codegen, propagating flags.
     pub(super) fn emit_expr_string(&mut self, expr: &Expr) -> String {
         let mut sub = self.sub_codegen();
         sub.emit_expr(expr);
         if sub.needs_deep_equal {
             self.needs_deep_equal = true;
+        }
+        if sub.has_jsx {
+            self.has_jsx = true;
         }
         sub.output
     }
