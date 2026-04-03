@@ -651,6 +651,17 @@ fn option_unwrap_or_chained_with_pipe() {
     );
 }
 
+#[test]
+fn option_stdlib_uses_null_check_not_undefined() {
+    // Option functions must use != null (catches both null and undefined)
+    // not !== undefined (misses null from serde/JSON)
+    let result = emit("const _x: Option<number> = None\nconst _y = _x |> Option.map((n) => n + 1)");
+    assert!(
+        result.contains("!= null") && !result.contains("!== undefined"),
+        "Option.map should use != null, not !== undefined, got: {result}"
+    );
+}
+
 // ── Promise.await ───────────────────────────────────────────
 
 #[test]
@@ -852,24 +863,24 @@ fn stdlib_array_chunk() {
 #[test]
 fn stdlib_option_map() {
     let result = emit("Option.map(Some(1), (n) => n * 2)");
-    assert!(result.contains("!== undefined"));
+    assert!(result.contains("!= null"));
 }
 
 #[test]
 fn stdlib_option_unwrap_or() {
     let result = emit("Option.unwrapOr(None, 0)");
-    assert!(result.contains("!== undefined"));
+    assert!(result.contains("!= null"));
     assert!(result.contains(": 0"));
 }
 
 #[test]
 fn stdlib_option_is_some() {
-    assert_eq!(emit("Option.isSome(Some(1))"), "1 !== undefined;");
+    assert_eq!(emit("Option.isSome(Some(1))"), "1 != null;");
 }
 
 #[test]
 fn stdlib_option_is_none() {
-    assert_eq!(emit("Option.isNone(None)"), "undefined === undefined;");
+    assert_eq!(emit("Option.isNone(None)"), "undefined == null;");
 }
 
 // ── Stdlib: Result ───────────────────────────────────────────

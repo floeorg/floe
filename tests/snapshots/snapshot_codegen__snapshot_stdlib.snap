@@ -47,21 +47,21 @@ const _len = [1, 2, 3].length;
 
 const _zipped = [1, 2].map((_v, _i) => [_v, ["a", "b"][_i]] as const);
 
-const _opt_mapped = 42 !== undefined ? ((n) => n * 2)(42) : undefined;
+const _opt_mapped = 42 != null ? ((n) => n * 2)(42) : undefined;
 
-const _opt_flat = 42 !== undefined ? ((n) => n * 2)(42) : undefined;
+const _opt_flat = 42 != null ? ((n) => n * 2)(42) : undefined;
 
-const _opt_unwrap = undefined !== undefined ? undefined : 0;
+const _opt_unwrap = undefined != null ? undefined : 0;
 
-const _opt_some = 1 !== undefined;
+const _opt_some = 1 != null;
 
-const _opt_none = undefined === undefined;
+const _opt_none = undefined == null;
 
-const _opt_to_res = 42 !== undefined ? { ok: true as const, value: 42 } : { ok: false as const, error: "not found" };
+const _opt_to_res = 42 != null ? { ok: true as const, value: 42 } : { ok: false as const, error: "not found" };
 
-const _opt_or = undefined !== undefined ? undefined : 99;
+const _opt_or = undefined != null ? undefined : 99;
 
-const _opt_values = (() => { const _a = [1, undefined, 3]; const _r = []; for (const _v of _a) { if (_v !== undefined) _r.push(_v); } return _r; })();
+const _opt_values = (() => { const _a = [1, undefined, 3]; const _r = []; for (const _v of _a) { if (_v != null) _r.push(_v); } return _r; })();
 
 const _res_mapped = { ok: true as const, value: 42 }.ok ? { ok: true as const, value: ((n) => n + 1)({ ok: true as const, value: 42 }.value) } : { ok: true as const, value: 42 };
 
@@ -219,7 +219,7 @@ const _piped = [...[3, 1, 2]].sort((a, b) => a - b);
 
 const _pipe_chain = [...[1, 2, 3, 4, 5].filter((n) => n > 2).map((n) => n * 10)].reverse();
 
-const _pipe_opt = 10 !== undefined ? ((n) => n + 1)(10) : undefined;
+const _pipe_opt = 10 != null ? ((n) => n + 1)(10) : undefined;
 
 const _pipe_str = "  hello  ".trim();
 

@@ -627,7 +627,7 @@ mod tests {
     fn lookup_option_or() {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Option", "or").unwrap();
-        assert_eq!(f.codegen, "$0 !== undefined ? $0 : $1");
+        assert_eq!(f.codegen, "$0 != null ? $0 : $1");
     }
 
     #[test]
@@ -1068,21 +1068,21 @@ mod tests {
     fn lookup_option_unwrap_or() {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Option", "unwrapOr").unwrap();
-        assert_eq!(f.codegen, "$0 !== undefined ? $0 : $1");
+        assert_eq!(f.codegen, "$0 != null ? $0 : $1");
     }
 
     #[test]
     fn lookup_option_is_some() {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Option", "isSome").unwrap();
-        assert_eq!(f.codegen, "$0 !== undefined");
+        assert_eq!(f.codegen, "$0 != null");
     }
 
     #[test]
     fn lookup_option_is_none() {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Option", "isNone").unwrap();
-        assert_eq!(f.codegen, "$0 === undefined");
+        assert_eq!(f.codegen, "$0 == null");
     }
 
     #[test]
@@ -1552,7 +1552,7 @@ mod tests {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Option", "guard").unwrap();
         assert_eq!(f.params.len(), 3);
-        assert!(f.codegen.contains("undefined"));
+        assert!(f.codegen.contains("!= null"));
     }
 
     #[test]
