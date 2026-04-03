@@ -77,6 +77,8 @@ pub enum ItemKind {
 pub struct ImportDecl {
     /// Whether the entire import is trusted: `import trusted { ... } from "..."`
     pub trusted: bool,
+    /// Default import name: `import Markdown from "react-markdown"`
+    pub default_import: Option<String>,
     pub specifiers: Vec<ImportSpecifier>,
     /// For-import specifiers: `import { for User, for Array } from "..."`
     pub for_specifiers: Vec<ForImportSpecifier>,

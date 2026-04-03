@@ -77,6 +77,13 @@ impl<'src> Lowerer<'src> {
         let mut for_specifiers = Vec::new();
         let mut source = String::new();
 
+        // Check if the import has braces (named imports) or not (default import)
+        let has_braces = node.children_with_tokens().any(|child| {
+            child
+                .as_token()
+                .is_some_and(|t| t.kind() == SyntaxKind::L_BRACE)
+        });
+
         for child in node.children() {
             if child.kind() == SyntaxKind::IMPORT_SPECIFIER
                 && let Some(spec) = self.lower_import_specifier(&child)
@@ -105,8 +112,17 @@ impl<'src> Lowerer<'src> {
                 .is_some_and(|t| t.kind() == SyntaxKind::KW_TRUSTED)
         });
 
+        // If no braces and exactly one specifier, it's a default import
+        let default_import = if !has_braces && specifiers.len() == 1 {
+            let name = specifiers.remove(0).name;
+            Some(name)
+        } else {
+            None
+        };
+
         Some(ImportDecl {
             trusted: module_trusted,
+            default_import,
             specifiers,
             for_specifiers,
             source,

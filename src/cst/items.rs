@@ -104,6 +104,14 @@ impl<'src> CstParser<'src> {
             self.parse_comma_separated(Self::parse_import_specifier_or_for, TokenKind::RightBrace);
             self.expect(TokenKind::RightBrace);
             self.eat_trivia();
+        } else if matches!(self.current_kind(), Some(TokenKind::Identifier(_)))
+            && !self.at(TokenKind::From)
+        {
+            // Default import: `import [trusted] Ident from "..."`
+            self.builder.start_node(SyntaxKind::IMPORT_SPECIFIER.into());
+            self.bump(); // ident
+            self.builder.finish_node();
+            self.eat_trivia();
         }
 
         // `from` is required with specifiers, optional for bare imports

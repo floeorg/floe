@@ -26,7 +26,10 @@ impl Codegen {
 
     fn emit_import(&mut self, decl: &ImportDecl) {
         self.emit_indent();
-        if decl.specifiers.is_empty() && decl.for_specifiers.is_empty() {
+        if decl.specifiers.is_empty()
+            && decl.for_specifiers.is_empty()
+            && decl.default_import.is_none()
+        {
             // Bare import: expand to named imports if we have resolved exports
             if let Some(resolved) = self.resolved_imports.get(&decl.source) {
                 let mut names: Vec<String> = Vec::new();
@@ -97,32 +100,57 @@ impl Codegen {
                         .map(|spec| spec.name.clone())
                         .collect()
                 };
-            self.push("import { ");
-            let mut first = true;
-            for spec in &decl.specifiers {
-                if !first {
-                    self.push(", ");
+            // Default import: `import X from "..."` or `import X, { a, b } from "..."`
+            if let Some(ref default_name) = decl.default_import {
+                self.push(&format!("import {default_name}"));
+                if !decl.specifiers.is_empty() {
+                    self.push(", { ");
+                    let mut first = true;
+                    for spec in &decl.specifiers {
+                        if !first {
+                            self.push(", ");
+                        }
+                        first = false;
+                        if type_only_names.contains(&spec.name) {
+                            self.push("type ");
+                        }
+                        self.push(&spec.name);
+                        if let Some(alias) = &spec.alias {
+                            self.push(" as ");
+                            self.push(alias);
+                        }
+                    }
+                    self.push(" }");
                 }
-                first = false;
-                if type_only_names.contains(&spec.name) {
-                    self.push("type ");
+                self.push(&format!(" from \"{}\";", decl.source));
+            } else {
+                self.push("import { ");
+                let mut first = true;
+                for spec in &decl.specifiers {
+                    if !first {
+                        self.push(", ");
+                    }
+                    first = false;
+                    if type_only_names.contains(&spec.name) {
+                        self.push("type ");
+                    }
+                    self.push(&spec.name);
+                    if let Some(alias) = &spec.alias {
+                        self.push(" as ");
+                        self.push(alias);
+                    }
                 }
-                self.push(&spec.name);
-                if let Some(alias) = &spec.alias {
-                    self.push(" as ");
-                    self.push(alias);
+                // Expand `for Type` specifiers into concrete function names
+                let for_func_names = self.resolve_for_import_names(decl);
+                for name in &for_func_names {
+                    if !first {
+                        self.push(", ");
+                    }
+                    first = false;
+                    self.push(name);
                 }
+                self.push(&format!(" }} from \"{}\";", decl.source));
             }
-            // Expand `for Type` specifiers into concrete function names
-            let for_func_names = self.resolve_for_import_names(decl);
-            for name in &for_func_names {
-                if !first {
-                    self.push(", ");
-                }
-                first = false;
-                self.push(name);
-            }
-            self.push(&format!(" }} from \"{}\";", decl.source));
         }
     }
 
