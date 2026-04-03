@@ -835,13 +835,16 @@ pub(super) fn expr_contains_await(expr: &Expr) -> bool {
         | ExprKind::Grouped(operand)
         | ExprKind::Unwrap(operand)
         | ExprKind::Spread(operand) => expr_contains_await(operand),
-        ExprKind::Collect(items) | ExprKind::Block(items) => items.iter().any(|item| {
-            if let ItemKind::Expr(e) = &item.kind {
-                expr_contains_await(e)
-            } else {
-                false
-            }
-        }),
+        ExprKind::Match { subject, arms } => {
+            expr_contains_await(subject) || arms.iter().any(|a| expr_contains_await(&a.body))
+        }
+        ExprKind::Collect(items) | ExprKind::Block(items) => {
+            items.iter().any(|item| match &item.kind {
+                ItemKind::Expr(e) => expr_contains_await(e),
+                ItemKind::Const(c) => expr_contains_await(&c.value),
+                _ => false,
+            })
+        }
         _ => false,
     }
 }
