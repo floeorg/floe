@@ -165,7 +165,7 @@ fn import_type_only_specifier() {
             r#"import { Session } from "@supabase/supabase-js"
 const x: Option<Session> = None"#
         ),
-        "import { type Session } from \"@supabase/supabase-js\";\n\nconst x: Session | undefined = undefined;"
+        "import { type Session } from \"@supabase/supabase-js\";\n\nconst x: Session | null | undefined = undefined;"
     );
 }
 
@@ -496,7 +496,7 @@ fn newtype_erased() {
 #[test]
 fn option_type() {
     let result = emit("const x: Option<string> = None");
-    assert!(result.contains("string | undefined"));
+    assert!(result.contains("string | null | undefined"));
 }
 
 #[test]
@@ -637,6 +637,31 @@ fn floe_eq_helper_emitted_for_stdlib_contains() {
     );
 }
 
+// ── Option.unwrapOr chained pipe ────────────────────────────
+
+#[test]
+fn option_unwrap_or_chained_with_pipe() {
+    let result = emit(
+        "const _x: Option<Array<number>> = None\nconst _y = _x |> Option.unwrapOr([]) |> filter((n) => n > 0)",
+    );
+    // The ternary from unwrapOr must be parenthesized so .filter binds to the result, not to []
+    assert!(
+        !result.contains(": [].filter(") && !result.contains("[].filter("),
+        "Option.unwrapOr([]) piped into filter should parenthesize the ternary, got: {result}"
+    );
+}
+
+#[test]
+fn option_stdlib_uses_null_check_not_undefined() {
+    // Option functions must use != null (catches both null and undefined)
+    // not !== undefined (misses null from serde/JSON)
+    let result = emit("const _x: Option<number> = None\nconst _y = _x |> Option.map((n) => n + 1)");
+    assert!(
+        result.contains("!= null") && !result.contains("!== undefined"),
+        "Option.map should use != null, not !== undefined, got: {result}"
+    );
+}
+
 // ── Promise.await ───────────────────────────────────────────
 
 #[test]
@@ -677,6 +702,24 @@ fn nested_fn_with_bare_await_emits_async() {
     assert!(
         result.contains("async function inner()"),
         "nested fn with bare await should be async, got: {result}"
+    );
+}
+
+#[test]
+fn match_on_comparison_wraps_subject_in_parens() {
+    let result = emit("const _x = match 5 > 0 { true -> \"yes\", false -> \"no\" }");
+    assert!(
+        result.contains("(5 > 0) === true"),
+        "match on comparison should wrap subject in parens, got: {result}"
+    );
+}
+
+#[test]
+fn match_arm_block_iife_returns_last_expr() {
+    let result = emit("const _x = match true { true -> { const a = 1\na + 2 }, false -> 0 }");
+    assert!(
+        result.contains("return a + 2"),
+        "match arm block IIFE should return last expression, got: {result}"
     );
 }
 
@@ -829,24 +872,24 @@ fn stdlib_array_chunk() {
 #[test]
 fn stdlib_option_map() {
     let result = emit("Option.map(Some(1), (n) => n * 2)");
-    assert!(result.contains("!== undefined"));
+    assert!(result.contains("!= null"));
 }
 
 #[test]
 fn stdlib_option_unwrap_or() {
     let result = emit("Option.unwrapOr(None, 0)");
-    assert!(result.contains("!== undefined"));
+    assert!(result.contains("!= null"));
     assert!(result.contains(": 0"));
 }
 
 #[test]
 fn stdlib_option_is_some() {
-    assert_eq!(emit("Option.isSome(Some(1))"), "1 !== undefined;");
+    assert_eq!(emit("Option.isSome(Some(1))"), "1 != null;");
 }
 
 #[test]
 fn stdlib_option_is_none() {
-    assert_eq!(emit("Option.isNone(None)"), "undefined === undefined;");
+    assert_eq!(emit("Option.isNone(None)"), "undefined == null;");
 }
 
 // ── Stdlib: Result ───────────────────────────────────────────
@@ -1723,6 +1766,21 @@ fn use_chained() {
     assert!(
         result.contains("second(a, (b)"),
         "second use should nest inside first callback, got: {result}"
+    );
+}
+
+#[test]
+fn use_callback_block_returns_last_expr() {
+    let result = emit(
+        r#"fn _test() -> number {
+    use x <- doSomething(42)
+    const y = x + 1
+    y + 2
+}"#,
+    );
+    assert!(
+        result.contains("return y + 2"),
+        "use callback block body should return last expression, got: {result}"
     );
 }
 

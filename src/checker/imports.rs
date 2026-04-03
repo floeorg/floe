@@ -6,6 +6,33 @@ impl Checker {
         let resolved = self.resolved_imports.get(&decl.source).cloned();
         let dts_exports = self.dts_imports.get(&decl.source).cloned();
 
+        // Handle default import: `import X from "module"`
+        if let Some(ref default_name) = decl.default_import {
+            let ty = if let Some(ref exports) = dts_exports {
+                if let Some(dts_export) = exports.iter().find(|e| e.name == "default") {
+                    interop::wrap_boundary_type(&dts_export.ts_type)
+                } else {
+                    Type::Foreign(default_name.clone())
+                }
+            } else {
+                Type::Foreign(default_name.clone())
+            };
+            self.env.define(default_name, ty);
+            self.unused.defined_sources.insert(
+                default_name.clone(),
+                format!("import from \"{}\"", decl.source),
+            );
+            self.unused.imported_names.push((
+                default_name.clone(),
+                Span {
+                    start: 0,
+                    end: 0,
+                    line: 0,
+                    column: 0,
+                },
+            ));
+        }
+
         for spec in &decl.specifiers {
             let effective_name = spec.alias.as_deref().unwrap_or(&spec.name);
 

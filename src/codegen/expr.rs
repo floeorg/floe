@@ -287,16 +287,21 @@ impl Codegen {
                     self.push(")");
                 }
                 self.push(" => ");
-                // Wrap object-like bodies in parens to avoid block statement ambiguity
-                // e.g. (p) => ({ id: p.id }) not (p) => { id: p.id }
-                let needs_parens =
-                    matches!(body.kind, ExprKind::Construct { .. } | ExprKind::Object(_));
-                if needs_parens {
-                    self.push("(");
-                }
-                self.emit_expr(body);
-                if needs_parens {
-                    self.push(")");
+                // Block bodies need implicit return on the last expression
+                if matches!(body.kind, ExprKind::Block(_)) {
+                    self.emit_block_expr_with_return(body);
+                } else {
+                    // Wrap object-like bodies in parens to avoid block statement ambiguity
+                    // e.g. (p) => ({ id: p.id }) not (p) => { id: p.id }
+                    let needs_parens =
+                        matches!(body.kind, ExprKind::Construct { .. } | ExprKind::Object(_));
+                    if needs_parens {
+                        self.push("(");
+                    }
+                    self.emit_expr(body);
+                    if needs_parens {
+                        self.push(")");
+                    }
                 }
             }
 
@@ -459,17 +464,23 @@ impl Codegen {
             if sub.needs_deep_equal {
                 self.needs_deep_equal = true;
             }
+            if sub.has_jsx {
+                self.has_jsx = true;
+            }
             arg_strings.push(sub.output);
         }
         arg_strings
     }
 
-    /// Emit a single expression via a sub-codegen, propagating `needs_deep_equal`.
+    /// Emit a single expression via a sub-codegen, propagating flags.
     pub(super) fn emit_expr_string(&mut self, expr: &Expr) -> String {
         let mut sub = self.sub_codegen();
         sub.emit_expr(expr);
         if sub.needs_deep_equal {
             self.needs_deep_equal = true;
+        }
+        if sub.has_jsx {
+            self.has_jsx = true;
         }
         sub.output
     }

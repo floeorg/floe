@@ -104,7 +104,19 @@ impl Codegen {
     fn emit_pattern_condition(&mut self, subject: &Expr, pattern: &Pattern) {
         match &pattern.kind {
             PatternKind::Literal(lit) => {
+                // Wrap binary/ternary subjects in parens to avoid precedence issues
+                // e.g. `match x > 0 { true -> ... }` should emit `(x > 0) === true`, not `x > 0 === true`
+                let needs_parens = matches!(
+                    subject.kind,
+                    ExprKind::Binary { .. } | ExprKind::Pipe { .. } | ExprKind::Unary { .. }
+                );
+                if needs_parens {
+                    self.push("(");
+                }
                 self.emit_expr(subject);
+                if needs_parens {
+                    self.push(")");
+                }
                 self.push(" === ");
                 self.emit_literal_pattern(lit);
             }
@@ -283,9 +295,18 @@ impl Codegen {
 
             if matches!(body.kind, ExprKind::Block(_)) {
                 if let ExprKind::Block(items) = &body.kind {
-                    for item in items {
-                        self.emit_item(item);
-                        self.push(" ");
+                    for (i, item) in items.iter().enumerate() {
+                        let is_last = i == items.len() - 1;
+                        if is_last && matches!(item.kind, ItemKind::Expr(_)) {
+                            if let ItemKind::Expr(expr) = &item.kind {
+                                self.push("return ");
+                                self.emit_expr(expr);
+                                self.push("; ");
+                            }
+                        } else {
+                            self.emit_item(item);
+                            self.push(" ");
+                        }
                     }
                 }
             } else {
@@ -316,11 +337,21 @@ impl Codegen {
                 self.push(&format!("const {name} = {access}; "));
             }
             if matches!(body.kind, ExprKind::Block(_)) {
-                // For block bodies, emit statements directly inside the IIFE
+                // For block bodies, emit statements directly inside the IIFE.
+                // The last expression item needs `return` for the IIFE to produce a value.
                 if let ExprKind::Block(items) = &body.kind {
-                    for item in items {
-                        self.emit_item(item);
-                        self.push(" ");
+                    for (i, item) in items.iter().enumerate() {
+                        let is_last = i == items.len() - 1;
+                        if is_last && matches!(item.kind, ItemKind::Expr(_)) {
+                            if let ItemKind::Expr(expr) = &item.kind {
+                                self.push("return ");
+                                self.emit_expr(expr);
+                                self.push("; ");
+                            }
+                        } else {
+                            self.emit_item(item);
+                            self.push(" ");
+                        }
                     }
                 }
             } else {
