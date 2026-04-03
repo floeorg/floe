@@ -691,6 +691,14 @@ fn collect_value_names_from_expr(expr: &Expr, names: &mut HashSet<String>) {
                 }
             }
         }
+        ExprKind::Object(fields) => {
+            for (_, value) in fields {
+                collect_value_names_from_expr(value, names);
+            }
+        }
+        ExprKind::Grouped(inner) | ExprKind::Spread(inner) => {
+            collect_value_names_from_expr(inner, names);
+        }
         ExprKind::Jsx(jsx) => collect_value_names_from_jsx(jsx, names),
         _ => {}
     }
