@@ -808,7 +808,7 @@ impl Codegen {
 }
 
 /// Check if an expression tree contains a Promise.await stdlib call.
-/// Detects `expr |> Promise.await` and `Promise.await(expr)` patterns.
+/// Detects `expr |> Promise.await`, `Promise.await(expr)`, and bare `|> await` patterns.
 pub(super) fn expr_contains_await(expr: &Expr) -> bool {
     match &expr.kind {
         // Direct member access: Promise.await (in pipe target position)
@@ -818,6 +818,8 @@ pub(super) fn expr_contains_await(expr: &Expr) -> bool {
         {
             true
         }
+        // Bare shorthand: `|> await`
+        ExprKind::Identifier(name) if name == "await" => true,
         ExprKind::Call { callee, args, .. } => {
             expr_contains_await(callee)
                 || args.iter().any(|a| match a {
@@ -833,13 +835,16 @@ pub(super) fn expr_contains_await(expr: &Expr) -> bool {
         | ExprKind::Grouped(operand)
         | ExprKind::Unwrap(operand)
         | ExprKind::Spread(operand) => expr_contains_await(operand),
-        ExprKind::Collect(items) | ExprKind::Block(items) => items.iter().any(|item| {
-            if let ItemKind::Expr(e) = &item.kind {
-                expr_contains_await(e)
-            } else {
-                false
-            }
-        }),
+        ExprKind::Match { subject, arms } => {
+            expr_contains_await(subject) || arms.iter().any(|a| expr_contains_await(&a.body))
+        }
+        ExprKind::Collect(items) | ExprKind::Block(items) => {
+            items.iter().any(|item| match &item.kind {
+                ItemKind::Expr(e) => expr_contains_await(e),
+                ItemKind::Const(c) => expr_contains_await(&c.value),
+                _ => false,
+            })
+        }
         _ => false,
     }
 }

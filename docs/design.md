@@ -42,7 +42,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 - Dot shorthand `.field` for implicit field-access closures
 - JSX / TSX (full support)
 - Generics (types and functions), template literals
-- Async via `Promise.await` stdlib function (no `async`/`await` keywords)
+- Async via `|> await` (or `|> Promise.await`) — no `async` keyword; return type must be `Promise<T>`
 - Destructuring, spread, rest params
 - `||` (boolean OR), `&&`, `!` (boolean operators)
 - `==` (but only between same types — structural equality on objects)

@@ -240,6 +240,7 @@ impl Checker {
     fn is_promise_await_member(expr: &Expr) -> bool {
         matches!(&expr.kind, ExprKind::Member { object, field }
             if field == "await" && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise"))
+            || matches!(&expr.kind, ExprKind::Identifier(name) if name == "await")
     }
 
     /// Infer the type of an element from an array/tuple destructuring at a given index.
@@ -442,12 +443,19 @@ impl Checker {
 
         // Check body
         let body_type = self.check_expr(&decl.body);
+        let uses_await = super::body_has_promise_await(&decl.body);
 
         // When no return type annotation, infer from body and update the function type
         if decl.return_type.is_none() && !matches!(body_type, Type::Var(_) | Type::Unknown) {
+            // If the body uses await, wrap the inferred return type in Promise<T>
+            let inferred_return = if uses_await {
+                Type::Promise(Box::new(body_type.clone()))
+            } else {
+                body_type.clone()
+            };
             let fn_type = Type::Function {
                 params: param_types.clone(),
-                return_type: Box::new(body_type.clone()),
+                return_type: Box::new(inferred_return),
                 required_params,
             };
             // Update in the name_types map for hover display
@@ -460,6 +468,21 @@ impl Checker {
         // Check return type compatibility
         if let Some(ref declared_return) = decl.return_type {
             let resolved = self.resolve_type(declared_return);
+
+            // Error if function uses await but return type is not Promise<T>
+            if uses_await && !matches!(resolved, Type::Promise(_)) {
+                self.emit_error_with_help(
+                    format!(
+                        "function `{}` uses `await` but return type is `{}`, not `Promise<{}>`",
+                        decl.name, resolved, body_type
+                    ),
+                    span,
+                    ErrorCode::MissingPromiseReturn,
+                    format!("expected `Promise<{}>`", body_type),
+                    "change the return type to `Promise<T>`, or remove the `await`",
+                );
+            }
+
             // For functions with Promise<T> return type, unwrap Promise since
             // the body type is the inner value (async wrapping is automatic)
             let effective_declared = match &resolved {
