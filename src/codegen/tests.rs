@@ -1749,6 +1749,21 @@ fn use_chained() {
     );
 }
 
+#[test]
+fn use_callback_block_returns_last_expr() {
+    let result = emit(
+        r#"fn _test() -> number {
+    use x <- doSomething(42)
+    const y = x + 1
+    y + 2
+}"#,
+    );
+    assert!(
+        result.contains("return y + 2"),
+        "use callback block body should return last expression, got: {result}"
+    );
+}
+
 // ── Mock Built-in ────────────────────────────────────────────
 
 #[test]

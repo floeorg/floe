@@ -287,16 +287,21 @@ impl Codegen {
                     self.push(")");
                 }
                 self.push(" => ");
-                // Wrap object-like bodies in parens to avoid block statement ambiguity
-                // e.g. (p) => ({ id: p.id }) not (p) => { id: p.id }
-                let needs_parens =
-                    matches!(body.kind, ExprKind::Construct { .. } | ExprKind::Object(_));
-                if needs_parens {
-                    self.push("(");
-                }
-                self.emit_expr(body);
-                if needs_parens {
-                    self.push(")");
+                // Block bodies need implicit return on the last expression
+                if matches!(body.kind, ExprKind::Block(_)) {
+                    self.emit_block_expr_with_return(body);
+                } else {
+                    // Wrap object-like bodies in parens to avoid block statement ambiguity
+                    // e.g. (p) => ({ id: p.id }) not (p) => { id: p.id }
+                    let needs_parens =
+                        matches!(body.kind, ExprKind::Construct { .. } | ExprKind::Object(_));
+                    if needs_parens {
+                        self.push("(");
+                    }
+                    self.emit_expr(body);
+                    if needs_parens {
+                        self.push(")");
+                    }
                 }
             }
 
