@@ -104,7 +104,19 @@ impl Codegen {
     fn emit_pattern_condition(&mut self, subject: &Expr, pattern: &Pattern) {
         match &pattern.kind {
             PatternKind::Literal(lit) => {
+                // Wrap binary/ternary subjects in parens to avoid precedence issues
+                // e.g. `match x > 0 { true -> ... }` should emit `(x > 0) === true`, not `x > 0 === true`
+                let needs_parens = matches!(
+                    subject.kind,
+                    ExprKind::Binary { .. } | ExprKind::Pipe { .. } | ExprKind::Unary { .. }
+                );
+                if needs_parens {
+                    self.push("(");
+                }
                 self.emit_expr(subject);
+                if needs_parens {
+                    self.push(")");
+                }
                 self.push(" === ");
                 self.emit_literal_pattern(lit);
             }

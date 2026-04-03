@@ -706,6 +706,15 @@ fn nested_fn_with_bare_await_emits_async() {
 }
 
 #[test]
+fn match_on_comparison_wraps_subject_in_parens() {
+    let result = emit("const _x = match 5 > 0 { true -> \"yes\", false -> \"no\" }");
+    assert!(
+        result.contains("(5 > 0) === true"),
+        "match on comparison should wrap subject in parens, got: {result}"
+    );
+}
+
+#[test]
 fn match_arm_block_iife_returns_last_expr() {
     let result = emit("const _x = match true { true -> { const a = 1\na + 2 }, false -> 0 }");
     assert!(
