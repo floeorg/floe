@@ -107,11 +107,20 @@ impl Codegen {
             }
 
             ExprKind::Call { callee, args, .. } => {
-                // Auto-wrap untrusted import calls in try/catch IIFE
+                // Wrap untrusted import calls in try/catch IIFE.
+                // Async calls (Promise<T>): async IIFE → Promise<Result<T, Error>>, caller uses |> await
+                // Sync calls: sync IIFE → Result<T, Error>
                 if self.is_untrusted_call(callee) {
-                    self.push(&format!(
-                        "await (async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: await "
-                    ));
+                    let is_async = matches!(expr.ty, crate::checker::Type::Promise(_));
+                    if is_async {
+                        self.push(&format!(
+                            "(async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: await "
+                        ));
+                    } else {
+                        self.push(&format!(
+                            "(() => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: "
+                        ));
+                    }
                     self.emit_expr(callee);
                     self.push("(");
                     self.emit_args(args);

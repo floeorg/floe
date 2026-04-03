@@ -57,15 +57,23 @@ fn fetchName(id: string) {
 // Inferred return type: Promise<string>
 ```
 
-## Untrusted async imports
+## Untrusted imports
 
-When an untrusted npm import returns a `Promise<T>`, the auto-wrapping handles both sync throws and async rejections. The call is auto-awaited and wrapped in `Result<T, Error>`:
+npm imports are untrusted by default. The compiler wraps calls in try/catch and returns `Result<T, Error>`:
+
+- **Sync functions**: wrapped in sync try/catch → `Result<T, Error>`
+- **Async functions** (returns `Promise<T>`): wrapped in async try/catch → `Promise<Result<T, Error>>` — use `|> await` to unwrap the Promise
 
 ```floe
-// npm async function that might reject (untrusted by default)
+// Sync npm function — Result<T, Error> directly
+import { parseYaml } from "yaml-lib"
+const result = parseYaml(text)
+// Result<Config, Error> — no await needed
+
+// Async npm function — Promise<Result<T, Error>>, needs |> await
 import { transitionIssue } from "jira-api"
-const result = transitionIssue(id, tid)
-// Result<(), Error> — auto-awaited, rejections caught
+const result = transitionIssue(id, tid) |> await
+// Result<(), Error>
 
 match result {
     Ok(_) -> Console.log("Moved!"),
@@ -75,8 +83,9 @@ match result {
 
 | Tool | For | Does |
 |---|---|---|
-| `Promise.await` | Floe async functions | Unwrap `Promise<Result<T, E>>`, use `?` for errors |
-| Untrusted imports (default) | npm functions | Auto-wrap calls in `Result<T, Error>` (auto-awaits if Promise) |
+| `|> await` | Floe async functions | Unwrap `Promise<T>` |
+| Untrusted imports (default) | npm sync functions | Wrap in `Result<T, Error>` |
+| Untrusted imports (default) | npm async functions | Wrap in `Promise<Result<T, Error>>` — use `|> await` |
 | `trusted` imports | npm functions known to be safe | Direct calls, no wrapping |
 
 ## Examples

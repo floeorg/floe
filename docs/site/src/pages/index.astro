@@ -634,15 +634,15 @@ fn render(route: Route) -> JSX.Element {
           user.fl
         </div>
         <Code
-          code={`fn getUser(id: string) -> Result<User, ApiError> {
-  const response = fetch("/api/users/{id}")?
-  const user = response.json()?
+          code={`fn getUser(id: string) -> Promise<Result<User, ApiError>> {
+  const response = fetch("/api/users/{id}") |> await?
+  const user = response.json() |> await?
 
   Ok(user)
 }
 
 // The caller sees exactly what can go wrong
-match getUser("123") {
+match getUser("123") |> await {
   Ok(user) -> renderProfile(user),
   Err(NotFound) -> <p>User not found</p>,
   Err(Unauthorized) -> redirect("/login"),

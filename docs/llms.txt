@@ -406,9 +406,11 @@ const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> await
 const results = Promise.allSettled([fetchA(), fetchB()]) |> await  // Array<Result<T, Error>>
 Promise.delay(1000) |> await   // wait 1 second
 
-// npm imports are untrusted by default: auto-wrapped in try/catch, return Result<T, Error>
-import { npmAsyncFn } from "some-lib"
-const result = npmAsyncFn()       // Result<T, Error> — auto-wrapped, awaits + catches rejections
+// npm imports are untrusted by default: wrapped in try/catch, return Result<T, Error>
+import { npmSyncFn } from "sync-lib"
+const result = npmSyncFn()            // Result<T, Error> — sync, no await needed
+import { npmAsyncFn } from "async-lib"
+const result = npmAsyncFn() |> await  // Promise<Result<T, Error>> |> await → Result<T, Error>
 
 // parse<T> — compiler built-in for runtime type validation
 // No runtime library needed — the compiler inlines the checks
