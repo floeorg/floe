@@ -149,7 +149,7 @@ fn import_named() {
     // Both names used in value positions → regular import
     assert_eq!(
         emit(
-            r#"import { useState, useEffect } from "react"
+            r#"import trusted { useState, useEffect } from "react"
 const x = useState(0)
 const y = useEffect"#
         ),

@@ -78,8 +78,8 @@ impl Checker {
                 args,
             } => {
                 let ret = self.check_call(callee, type_args, args, expr.span);
-                // Auto-wrap throws import calls in Result
-                if self.is_throwing_call(callee) {
+                // Auto-wrap untrusted import calls in Result
+                if self.is_untrusted_call(callee) {
                     match &ret {
                         Type::Promise(inner) => Type::Promise(Box::new(Type::result_of(
                             *inner.clone(),
@@ -264,13 +264,13 @@ impl Checker {
         }
     }
 
-    /// Check if a call expression targets a `throws` import (direct or member access).
-    fn is_throwing_call(&self, callee: &Expr) -> bool {
+    /// Check if a call expression targets an untrusted import (direct or member access).
+    fn is_untrusted_call(&self, callee: &Expr) -> bool {
         match &callee.kind {
-            ExprKind::Identifier(name) => self.throwing_imports.contains(name.as_str()),
+            ExprKind::Identifier(name) => self.untrusted_imports.contains(name.as_str()),
             ExprKind::Member { object, .. } => {
                 if let ExprKind::Identifier(obj_name) = &object.kind {
-                    self.throwing_imports.contains(obj_name.as_str())
+                    self.untrusted_imports.contains(obj_name.as_str())
                 } else {
                     false
                 }

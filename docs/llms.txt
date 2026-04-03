@@ -405,8 +405,8 @@ const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> Promi
 const results = Promise.allSettled([fetchA(), fetchB()]) |> Promise.await  // Array<Result<T, Error>>
 Promise.delay(1000) |> Promise.await   // wait 1 second
 
-// throws imports: auto-wrapped in try/catch, return Result<T, Error>
-import throws { npmAsyncFn } from "some-lib"
+// npm imports are untrusted by default: auto-wrapped in try/catch, return Result<T, Error>
+import { npmAsyncFn } from "some-lib"
 const result = npmAsyncFn()       // Result<T, Error> — auto-wrapped, awaits + catches rejections
 
 // parse<T> — compiler built-in for runtime type validation
@@ -438,7 +438,7 @@ const vals = ICONS |> Record.values       // Array<string>   → Object.values(I
 const has = Record.has(ICONS, key)        // boolean         → (key in ICONS)
 const n = ICONS |> Record.size            // number          → Object.keys(ICONS).length
 
-// Http — pipe-friendly fetch with Result (no throws needed)
+// Http — pipe-friendly fetch with Result (already returns Result natively)
 const data = Http.get("https://api.example.com/users") |> Promise.await? |> Http.json |> Promise.await?
 const result = Http.post(url, { name: "Alice" }) |> Promise.await?
 const body = Http.get(url) |> Promise.await? |> Http.text |> Promise.await?
@@ -468,22 +468,22 @@ const iso = d |> Date.toIso                   // d.toISOString()
 // Standard import (Floe files)
 import { Todo, Filter } from "./types"
 
-// npm imports — safe by default, call directly
-import { useState, useEffect } from "react"
-import { clsx } from "clsx"
-const [count, setCount] = useState(0)  // no special syntax needed
+// npm imports — untrusted by default, auto-wrapped in Result<T, Error>
+import { fetchUser } from "some-lib"
+const user = fetchUser("id")     // Result<User, Error> — auto-wrapped
 
-// throws imports — for npm functions that may throw
-import throws { parseYaml } from "yaml-lib"
-const result = parseYaml(input)    // auto-wrapped in Result<T, Error>
+// trusted imports — safe to call directly, no wrapping
+import trusted { useState, useEffect } from "react"
+import { clsx } from "clsx"      // untrusted by default
+const [count, setCount] = useState(0)  // direct call (trusted)
 
-// Per-function throws
-import { capitalize, throws fetchData } from "some-lib"
-capitalize("hello")              // direct call, no wrapping
-const data = fetchData()         // Result<T, Error> — auto-wrapped
+// Per-function trusted
+import { trusted capitalize, fetchData } from "some-lib"
+capitalize("hello")              // direct call, no wrapping (trusted)
+const data = fetchData()         // Result<T, Error> — auto-wrapped (untrusted)
 
-// Use ? to unwrap throws results
-const parsed = parseYaml(input)?  // unwraps or returns Err early
+// Use ? to unwrap untrusted results
+const parsed = fetchData()?      // unwraps or returns Err early
 
 // Importing for-block extensions
 import { for User } from "./user-helpers"
@@ -674,7 +674,7 @@ test "addition" {
 ```floe
 // todo — placeholder, type never, warns at compile time
 fn processPayment(order: Order) -> Result<Receipt, Error> {
-    todo    // throws "not implemented" at runtime
+    todo    // panics with "not implemented" at runtime
 }
 
 // unreachable — assert impossible, type never
@@ -752,7 +752,7 @@ floe lsp                     # start language server (used by editors)
 4. **`?` only works** inside functions returning `Result` or `Option`
 5. **`==` is structural equality** — only between same types
 6. **No bracket indexing** — use `Map.get(map, key)` for maps, `Record.get(obj, key)` for plain-object records, `Array.get(arr, i)` for arrays (all return `Option<T>`). `obj[key]` is not valid Floe syntax
-7. **npm imports that may throw** — mark with `import throws` to auto-wrap in `Result<T, Error>`
+7. **npm imports are untrusted by default** — calls auto-wrap in `Result<T, Error>`; use `import trusted` for safe imports
 8. **`self` is explicit** in for blocks — no implicit `this`
 9. **No mutation** of function parameters
 10. **Unused variables/imports are compile errors** (prefix with `_` to suppress)

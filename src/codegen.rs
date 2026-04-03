@@ -117,8 +117,8 @@ pub struct Codegen {
     for_block_type_names: HashSet<String>,
     /// Type names used as runtime constructors (e.g. `User(name: "x")`).
     constructor_used_names: HashSet<String>,
-    /// Names from `throws` imports — calls to these get auto-wrapped in try/catch IIFE.
-    throwing_imports: HashSet<String>,
+    /// Names of untrusted npm imports — calls to these get auto-wrapped in try/catch IIFE.
+    untrusted_imports: HashSet<String>,
 }
 
 impl Codegen {
@@ -141,7 +141,7 @@ impl Codegen {
             for_block_fns: HashMap::new(),
             for_block_type_names: HashSet::new(),
             constructor_used_names: HashSet::new(),
-            throwing_imports: HashSet::new(),
+            untrusted_imports: HashSet::new(),
         }
     }
 
@@ -236,9 +236,12 @@ impl Codegen {
                     for spec in &decl.specifiers {
                         let name = spec.alias.as_ref().unwrap_or(&spec.name);
                         self.local_names.insert(name.clone());
-                        // Track throws imports for auto-wrapping
-                        if decl.throws || spec.throws {
-                            self.throwing_imports.insert(name.clone());
+                        // Track untrusted imports for auto-wrapping
+                        // npm imports (not .fl files) that aren't marked trusted
+                        let is_npm =
+                            !decl.source.starts_with("./") && !decl.source.starts_with("../");
+                        if is_npm && !decl.trusted && !spec.trusted {
+                            self.untrusted_imports.insert(name.clone());
                         }
                     }
                     // Register for-block functions from imports
@@ -399,7 +402,7 @@ impl Codegen {
             for_block_fns: self.for_block_fns.clone(),
             for_block_type_names: self.for_block_type_names.clone(),
             constructor_used_names: self.constructor_used_names.clone(),
-            throwing_imports: self.throwing_imports.clone(),
+            untrusted_imports: self.untrusted_imports.clone(),
         }
     }
 

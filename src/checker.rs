@@ -32,16 +32,20 @@ pub fn annotate_types(program: &mut Program, types: &ExprTypeMap) {
 
 /// Walk the AST and set `async_fn = true` on functions/arrows whose bodies
 /// contain `Promise.await` calls or whose return type is `Promise<T>`.
-/// Also collects throwing import names from the program for detection.
+/// Also collects untrusted import names from the program for detection.
 pub fn mark_async_functions(program: &mut Program) {
-    // Collect throwing import names
+    // Collect untrusted import names (npm imports not marked `trusted`)
     let mut throwing: HashSet<String> = HashSet::new();
     for item in &program.items {
         if let ItemKind::Import(decl) = &item.kind {
-            for spec in &decl.specifiers {
-                if decl.throws || spec.throws {
-                    let name = spec.alias.as_ref().unwrap_or(&spec.name);
-                    throwing.insert(name.clone());
+            // Only track npm imports (source doesn't start with "./" or "../")
+            let is_npm = !decl.source.starts_with("./") && !decl.source.starts_with("../");
+            if is_npm {
+                for spec in &decl.specifiers {
+                    if !decl.trusted && !spec.trusted {
+                        let name = spec.alias.as_ref().unwrap_or(&spec.name);
+                        throwing.insert(name.clone());
+                    }
                 }
             }
         }
@@ -230,9 +234,9 @@ pub struct Checker {
     pub(crate) unused: UnusedTracker,
     /// Trait declarations and implementations.
     pub(crate) traits: TraitRegistry,
-    /// Names of throwing (external TS) imports marked with `throws`.
-    throwing_imports: HashSet<String>,
-    /// Names from npm imports — used for determining if `try` wrapping was valid.
+    /// Names of untrusted (external TS) imports — npm imports not marked `trusted`.
+    untrusted_imports: HashSet<String>,
+    /// Names from npm imports (both trusted and untrusted).
     npm_imports: HashSet<String>,
     /// Whether we are in the type registration pass (suppress unknown type errors).
     registering_types: bool,
@@ -434,9 +438,9 @@ impl Checker {
             env.define(name, ty.clone());
         }
 
-        // Browser globals that can throw
-        let mut throwing_globals = HashSet::new();
-        throwing_globals.insert("fetch".to_string());
+        // Browser globals that can throw (untrusted by default)
+        let mut untrusted_globals = HashSet::new();
+        untrusted_globals.insert("fetch".to_string());
 
         Self {
             env,
@@ -447,7 +451,7 @@ impl Checker {
             ctx: CheckContext::default(),
             unused: UnusedTracker::default(),
             traits: TraitRegistry::default(),
-            throwing_imports: throwing_globals,
+            untrusted_imports: untrusted_globals,
             npm_imports: HashSet::new(),
             registering_types: false,
             resolved_imports: HashMap::new(),

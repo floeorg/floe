@@ -92,9 +92,9 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::Import);
         self.eat_trivia();
 
-        // `import throws { ... }` — module-level throws
-        if self.at(TokenKind::Throws) {
-            self.bump(); // throws
+        // `import trusted { ... }` — module-level trusted
+        if self.at(TokenKind::Trusted) {
+            self.bump(); // trusted
             self.eat_trivia();
         }
 
@@ -133,9 +133,9 @@ impl<'src> CstParser<'src> {
 
     fn parse_import_specifier(&mut self) {
         self.builder.start_node(SyntaxKind::IMPORT_SPECIFIER.into());
-        // `throws foo` — per-specifier throws
-        if self.at(TokenKind::Throws) && self.peek_is_ident() {
-            self.bump(); // throws
+        // `trusted foo` — per-specifier trusted
+        if self.at(TokenKind::Trusted) && self.peek_is_ident() {
+            self.bump(); // trusted
             self.eat_trivia();
         }
         self.expect_ident();

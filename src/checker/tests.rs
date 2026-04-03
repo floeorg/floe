@@ -401,7 +401,7 @@ fn call_site_type_args_infer_return() {
 
     let program = crate::parser::Parser::new(
         r#"
-import { useState } from "react"
+import trusted { useState } from "react"
 type Todo { text: string }
 const [todos, _setTodos] = useState<Array<Todo>>([])
 const _x = todos
@@ -471,11 +471,11 @@ const _x = _user |> display
 
 // (Inline for-declaration tests removed — only block form is supported)
 
-// ── npm imports (no enforcement needed, throws are auto-wrapped) ──
+// ── Untrusted Import Auto-wrapping ───────────────────────────
 
 #[test]
-fn npm_import_callable_without_throws() {
-    // Regular npm imports can be called freely (no try needed)
+fn untrusted_import_auto_wraps_to_result() {
+    // Untrusted npm imports auto-wrap return type to Result
     let diags = check(
         r#"
 import { capitalize } from "some-lib"
@@ -484,7 +484,38 @@ const _x = capitalize("hello")
     );
     assert!(
         diags.iter().all(|d| d.severity != Severity::Error),
-        "npm import should be callable without throws, got: {:?}",
+        "untrusted npm import should be callable (auto-wrapped), got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trusted_specifier_no_auto_wrap() {
+    let diags = check(
+        r#"
+import { trusted capitalize } from "some-lib"
+const _x = capitalize("hello")
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "trusted import should be callable directly, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trusted_module_no_auto_wrap() {
+    let diags = check(
+        r#"
+import trusted { capitalize, slugify } from "string-utils"
+const _x = capitalize("hello")
+const _y = slugify("hello world")
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "trusted module import should be callable directly, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -1600,7 +1631,7 @@ fn dispatch_generic_converts_to_function() {
 
     let program = crate::parser::Parser::new(
         r#"
-import { useState } from "react"
+import trusted { useState } from "react"
 type Todo { text: string }
 const [todos, setTodos] = useState<Array<Todo>>([])
 fn handler() {
@@ -1675,7 +1706,7 @@ fn calling_dispatch_type_is_callable() {
 
     let program = crate::parser::Parser::new(
         r#"
-import { useState } from "react"
+import trusted { useState } from "react"
 type Todo { text: string }
 const [todos, setTodos] = useState<Array<Todo>>([])
 fn handler() {
@@ -1819,7 +1850,7 @@ fn object_destructure_from_trusted_import_gets_field_types() {
 
     let program = crate::parser::Parser::new(
         r#"
-import { useQuery } from "react-query"
+import trusted { useQuery } from "react-query"
 const { data, isLoading } = useQuery("key")
 const _x = data
 const _y = isLoading
@@ -2654,7 +2685,7 @@ const doubled = len + 1
 fn npm_import_used_as_constructor_no_error() {
     let diags = check(
         r#"
-import { QueryClient } from "@tanstack/react-query"
+import trusted { QueryClient } from "@tanstack/react-query"
 const _qc = QueryClient(defaultOptions: {})
 "#,
     );
@@ -2718,7 +2749,7 @@ fn timer_globals_are_recognized() {
 fn narrowing_unknown_to_concrete_type_is_error() {
     let diags = check(
         r#"
-import { getData } from "some-lib"
+import trusted { getData } from "some-lib"
 const data = getData()
 const x: number = data
 "#,
@@ -2734,7 +2765,7 @@ const x: number = data
 fn unknown_to_unknown_annotation_is_ok() {
     let diags = check(
         r#"
-import { getData } from "some-lib"
+import trusted { getData } from "some-lib"
 const data = getData()
 const x: unknown = data
 "#,
@@ -2804,7 +2835,7 @@ export fn bad() -> Promise<string> {
 fn member_access_on_unknown_is_error() {
     let diags = check(
         r#"
-import { getData } from "some-lib"
+import trusted { getData } from "some-lib"
 const data = getData()
 const x = data.name
 "#,
@@ -2820,7 +2851,7 @@ const x = data.name
 fn method_call_on_unknown_is_error() {
     let diags = check(
         r#"
-import { getData } from "some-lib"
+import trusted { getData } from "some-lib"
 const data = getData()
 const x = data.toJSON()
 "#,
@@ -3507,7 +3538,7 @@ fn imported_optional_params_allow_omission() {
     // useQueryClient(queryClient?: QueryClient): QueryClient
     let program = crate::parser::Parser::new(
         r#"
-import { useQueryClient } from "@tanstack/react-query"
+import trusted { useQueryClient } from "@tanstack/react-query"
 const _client = useQueryClient()
 "#,
     )
@@ -3545,7 +3576,7 @@ fn imported_optional_params_still_validates_max_args() {
     // fn(a: string, b?: number): void — max 2 args
     let program = crate::parser::Parser::new(
         r#"
-import { doStuff } from "some-lib"
+import trusted { doStuff } from "some-lib"
 const _x = doStuff("hi", 1, true)
 "#,
     )
@@ -3591,7 +3622,7 @@ fn ts_union_accepts_compatible_member() {
     // format(date: Date | number | string, fmt: string): string
     let program = crate::parser::Parser::new(
         r#"
-import { format } from "date-fns"
+import trusted { format } from "date-fns"
 const _x = format("2024-01-01", "PPpp")
 "#,
     )
@@ -3639,7 +3670,7 @@ fn ts_union_rejects_incompatible_type() {
     // doStuff(x: number | string): void
     let program = crate::parser::Parser::new(
         r#"
-import { doStuff } from "some-lib"
+import trusted { doStuff } from "some-lib"
 const _x = doStuff(true)
 "#,
     )
@@ -3681,7 +3712,7 @@ fn ts_union_compatible_with_itself() {
     // calling with return value of same type should work
     let program = crate::parser::Parser::new(
         r#"
-import { identity, consume } from "some-lib"
+import trusted { identity, consume } from "some-lib"
 const x = identity()
 const _y = consume(x)
 "#,
@@ -3745,7 +3776,7 @@ fn foreign_rejects_primitive_string() {
     // takesClient(c: QueryClient): void — should reject a string
     let program = crate::parser::Parser::new(
         r#"
-import { takesClient } from "some-lib"
+import trusted { takesClient } from "some-lib"
 const _x = takesClient("hello")
 "#,
     )
@@ -3783,7 +3814,7 @@ fn foreign_accepts_same_foreign() {
     // getClient(): QueryClient, takesClient(c: QueryClient): void
     let program = crate::parser::Parser::new(
         r#"
-import { getClient, takesClient } from "some-lib"
+import trusted { getClient, takesClient } from "some-lib"
 const client = getClient()
 const _x = takesClient(client)
 "#,
@@ -4410,7 +4441,7 @@ fn member_access_on_imported_type_valid_fields_ok() {
 
     let program = crate::parser::Parser::new(
         r#"
-import { UserRow } from "db"
+import trusted { UserRow } from "db"
 
 const row = UserRow(id: 1, name: "test")
 const _id = row.id
@@ -4461,8 +4492,8 @@ fn foreign_type_member_access_resolves_via_record_definition() {
 
     let program = crate::parser::Parser::new(
         r#"
-import { useState } from "react"
-import { Transition } from "api"
+import trusted { useState } from "react"
+import trusted { Transition } from "api"
 
 fn test(id: string) -> () { () }
 
@@ -5349,7 +5380,7 @@ fn jsx_callback_param_inferred_from_probe() {
     // Source: NavLink with a callback className prop
     let program = crate::parser::Parser::new(
         r#"
-import { NavLink } from "react-router-dom"
+import trusted { NavLink } from "react-router-dom"
 
 fn page() {
     <NavLink className={(state) => "active"} />
@@ -5419,7 +5450,7 @@ fn jsx_children_render_prop_params_inferred_from_probe() {
     // Source: Draggable with a render prop child (function-as-child pattern)
     let program = crate::parser::Parser::new(
         r#"
-import { Draggable } from "@hello-pangea/dnd"
+import trusted { Draggable } from "@hello-pangea/dnd"
 
 fn page() {
     <Draggable draggableId="id" index={0}>
@@ -5512,7 +5543,7 @@ fn jsx_children_render_prop_named_type_shows_in_name_types() {
 
     let program = crate::parser::Parser::new(
         r#"
-import { Draggable } from "@hello-pangea/dnd"
+import trusted { Draggable } from "@hello-pangea/dnd"
 
 fn page() {
     <Draggable draggableId="id" index={0}>
@@ -5751,7 +5782,7 @@ fn tsgo_function_with_unknown_return_uses_checker_return() {
     // tsgo returns (IssueDto) => any, checker infers (IssueDto) => ()
     let program = crate::parser::Parser::new(
         r#"
-import { useCallback } from "react"
+import trusted { useCallback } from "react"
 type Item { id: string }
 const handler = useCallback((item: Item) => {
     const _x = item.id

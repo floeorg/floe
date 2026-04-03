@@ -7,7 +7,7 @@
 "import" @keyword
 "from" @keyword
 "export" @keyword
-"throws" @keyword
+"trusted" @keyword
 "for" @keyword
 "trait" @keyword
 "opaque" @keyword

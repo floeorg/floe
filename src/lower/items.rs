@@ -98,15 +98,15 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        // Check for module-level `throws` keyword
-        let module_throws = node.children_with_tokens().any(|child| {
+        // Check for module-level `trusted` keyword
+        let module_trusted = node.children_with_tokens().any(|child| {
             child
                 .as_token()
-                .is_some_and(|t| t.kind() == SyntaxKind::KW_THROWS)
+                .is_some_and(|t| t.kind() == SyntaxKind::KW_TRUSTED)
         });
 
         Some(ImportDecl {
-            throws: module_throws,
+            trusted: module_trusted,
             specifiers,
             for_specifiers,
             source,
@@ -125,8 +125,8 @@ impl<'src> Lowerer<'src> {
         let span = self.node_span(node);
         let idents = self.collect_idents(node);
 
-        // Check for per-specifier `throws` — appears as KW_THROWS token before the ident
-        let per_throws = self.has_keyword(node, SyntaxKind::KW_THROWS);
+        // Check for per-specifier `trusted` — appears as KW_TRUSTED token before the ident
+        let per_trusted = self.has_keyword(node, SyntaxKind::KW_TRUSTED);
 
         let name = idents.first()?.clone();
         let alias = idents.get(1).cloned();
@@ -134,7 +134,7 @@ impl<'src> Lowerer<'src> {
         Some(ImportSpecifier {
             name,
             alias,
-            throws: per_throws,
+            trusted: per_trusted,
             span,
         })
     }

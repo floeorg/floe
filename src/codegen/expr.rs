@@ -1,13 +1,13 @@
 use super::*;
 
 impl Codegen {
-    /// Check if a callee targets a `throws` import.
-    fn is_throwing_call(&self, callee: &Expr) -> bool {
+    /// Check if a callee targets an untrusted import.
+    fn is_untrusted_call(&self, callee: &Expr) -> bool {
         match &callee.kind {
-            ExprKind::Identifier(name) => self.throwing_imports.contains(name.as_str()),
+            ExprKind::Identifier(name) => self.untrusted_imports.contains(name.as_str()),
             ExprKind::Member { object, .. } => {
                 if let ExprKind::Identifier(obj_name) = &object.kind {
-                    self.throwing_imports.contains(obj_name.as_str())
+                    self.untrusted_imports.contains(obj_name.as_str())
                 } else {
                     false
                 }
@@ -107,8 +107,8 @@ impl Codegen {
             }
 
             ExprKind::Call { callee, args, .. } => {
-                // Auto-wrap throws import calls in try/catch IIFE
-                if self.is_throwing_call(callee) {
+                // Auto-wrap untrusted import calls in try/catch IIFE
+                if self.is_untrusted_call(callee) {
                     self.push(&format!(
                         "await (async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: await "
                     ));

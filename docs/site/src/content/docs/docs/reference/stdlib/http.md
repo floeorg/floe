@@ -4,7 +4,7 @@ sidebar:
   order: 10
 ---
 
-Pipe-friendly HTTP functions that return `Promise<Result<...>>` natively. No `throws` import needed -- errors are captured automatically.
+Pipe-friendly HTTP functions that return `Promise<Result<...>>` natively. As a stdlib module, errors are captured automatically.
 
 ## Functions
 

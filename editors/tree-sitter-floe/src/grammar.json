@@ -63,7 +63,7 @@
           "members": [
             {
               "type": "STRING",
-              "value": "throws"
+              "value": "trusted"
             },
             {
               "type": "BLANK"
@@ -139,7 +139,7 @@
           "members": [
             {
               "type": "STRING",
-              "value": "throws"
+              "value": "trusted"
             },
             {
               "type": "BLANK"

@@ -67,7 +67,7 @@ module.exports = grammar({
     import_declaration: ($) =>
       seq(
         "import",
-        optional("throws"),
+        optional("trusted"),
         "{",
         commaSep1(choice($.import_specifier, $.import_for_specifier)),
         "}",
@@ -76,7 +76,7 @@ module.exports = grammar({
       ),
 
     import_specifier: ($) =>
-      seq(optional("throws"), $.identifier, optional(seq("as", $.identifier))),
+      seq(optional("trusted"), $.identifier, optional(seq("as", $.identifier))),
 
     import_for_specifier: ($) =>
       seq("for", field("type", choice($.type_identifier, $.identifier))),

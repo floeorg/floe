@@ -32,13 +32,13 @@ impl Formatter<'_> {
     pub(crate) fn fmt_import(&mut self, node: &SyntaxNode) {
         self.write("import ");
 
-        // Check for module-level `throws` keyword
-        let has_throws = node.children_with_tokens().any(|t| {
+        // Check for module-level `trusted` keyword
+        let has_trusted = node.children_with_tokens().any(|t| {
             t.as_token()
-                .is_some_and(|tok| tok.kind() == SyntaxKind::KW_THROWS)
+                .is_some_and(|tok| tok.kind() == SyntaxKind::KW_TRUSTED)
         });
-        if has_throws {
-            self.write("throws ");
+        if has_trusted {
+            self.write("trusted ");
         }
 
         let specifiers: Vec<_> = node
@@ -82,11 +82,11 @@ impl Formatter<'_> {
             .filter(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::BANNED)
             .collect();
 
-        // Check for per-specifier `throws` — KW_THROWS token before the idents
-        let has_throws = self.has_token(node, SyntaxKind::KW_THROWS);
+        // Check for per-specifier `trusted` — KW_TRUSTED token before the idents
+        let has_trusted = self.has_token(node, SyntaxKind::KW_TRUSTED);
 
-        if has_throws {
-            self.write("throws ");
+        if has_trusted {
+            self.write("trusted ");
             if let Some(name) = idents.first() {
                 self.write(name.text());
             }

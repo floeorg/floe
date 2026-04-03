@@ -33,13 +33,13 @@ fn fetchUser(id: string) -> Promise<User> {
 
 The return type must explicitly use `Promise<T>`, making async behavior visible to callers.
 
-## `throws` with async functions
+## Untrusted async imports
 
-When a `throws` import returns a `Promise<T>`, the auto-wrapping handles both sync throws and async rejections. The call is auto-awaited and wrapped in `Result<T, Error>`:
+When an untrusted npm import returns a `Promise<T>`, the auto-wrapping handles both sync throws and async rejections. The call is auto-awaited and wrapped in `Result<T, Error>`:
 
 ```floe
-// npm async function that might reject
-import throws { transitionIssue } from "jira-api"
+// npm async function that might reject (untrusted by default)
+import { transitionIssue } from "jira-api"
 const result = transitionIssue(id, tid)
 // Result<(), Error> — auto-awaited, rejections caught
 
@@ -52,7 +52,8 @@ match result {
 | Tool | For | Does |
 |---|---|---|
 | `Promise.await` | Floe async functions | Unwrap `Promise<Result<T, E>>`, use `?` for errors |
-| `throws` imports | npm functions that may throw | Auto-wrap calls in `Result<T, Error>` (auto-awaits if Promise) |
+| Untrusted imports (default) | npm functions | Auto-wrap calls in `Result<T, Error>` (auto-awaits if Promise) |
+| `trusted` imports | npm functions known to be safe | Direct calls, no wrapping |
 
 ## Examples
 
