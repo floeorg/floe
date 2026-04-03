@@ -680,6 +680,15 @@ fn nested_fn_with_bare_await_emits_async() {
     );
 }
 
+#[test]
+fn match_arm_block_iife_returns_last_expr() {
+    let result = emit("const _x = match true { true -> { const a = 1\na + 2 }, false -> 0 }");
+    assert!(
+        result.contains("return a + 2"),
+        "match arm block IIFE should return last expression, got: {result}"
+    );
+}
+
 // ── Implicit Return ──────────────────────────────────────────
 
 #[test]
