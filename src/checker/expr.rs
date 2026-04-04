@@ -740,16 +740,12 @@ impl Checker {
                         Self::substitute_type_vars(param_ty, &type_var_bindings)
                     };
                     if !self.types_compatible(&resolved_param, actual_ty) {
+                        let (msg, label) = self.type_mismatch_detail(&resolved_param, actual_ty);
                         self.emit_error(
-                            format!(
-                                "argument {} to `{display}`: expected `{}`, found `{}`",
-                                i + 1,
-                                resolved_param,
-                                actual_ty
-                            ),
+                            format!("argument {} to `{display}`: {}", i + 1, msg),
                             arg_span,
                             ErrorCode::TypeMismatch,
-                            format!("expected `{}`", resolved_param),
+                            label,
                         );
                     }
                 }
@@ -967,16 +963,12 @@ impl Checker {
                             continue;
                         }
                         if !self.types_compatible(param_ty, arg_ty) {
+                            let (msg, label) = self.type_mismatch_detail(param_ty, arg_ty);
                             self.emit_error(
-                                format!(
-                                    "argument {} to `{callee_name}`: expected `{}`, found `{}`",
-                                    i + 1,
-                                    param_ty,
-                                    arg_ty
-                                ),
+                                format!("argument {} to `{callee_name}`: {}", i + 1, msg),
                                 span,
                                 ErrorCode::TypeMismatch,
-                                format!("expected `{}`", param_ty),
+                                label,
                             );
                         }
                     }
@@ -1042,16 +1034,12 @@ impl Checker {
                     // Normal call: check all argument types
                     for (i, (arg_ty, param_ty)) in arg_types.iter().zip(params.iter()).enumerate() {
                         if !self.types_compatible(param_ty, arg_ty) {
+                            let (msg, label) = self.type_mismatch_detail(param_ty, arg_ty);
                             self.emit_error(
-                                format!(
-                                    "argument {} to `{callee_name}`: expected `{}`, found `{}`",
-                                    i + 1,
-                                    param_ty,
-                                    arg_ty
-                                ),
+                                format!("argument {} to `{callee_name}`: {}", i + 1, msg),
                                 span,
                                 ErrorCode::TypeMismatch,
-                                format!("expected `{}`", param_ty),
+                                label,
                             );
                         }
                     }
@@ -1429,16 +1417,12 @@ impl Checker {
                         && !self.types_compatible(expected_ty, &arg_ty)
                         && !matches!(arg_ty, Type::Unknown | Type::Var(_))
                     {
+                        let (msg, label) = self.type_mismatch_detail(expected_ty, &arg_ty);
                         self.emit_error(
-                            format!(
-                                "argument {}: expected `{}`, found `{}`",
-                                positional_index + 1,
-                                expected_ty,
-                                arg_ty
-                            ),
+                            format!("argument {}: {}", positional_index + 1, msg),
                             span,
                             ErrorCode::TypeMismatch,
-                            format!("expected `{}`", expected_ty),
+                            label,
                         );
                     }
                     positional_index += 1;
@@ -1644,14 +1628,12 @@ impl Checker {
                     if let Some(first_param) = params.first()
                         && !self.types_compatible(first_param, left_ty)
                     {
+                        let (msg, label) = self.type_mismatch_detail(first_param, left_ty);
                         self.emit_error(
-                            format!(
-                                "argument 1 to `{name}`: expected `{}`, found `{}`",
-                                first_param, left_ty
-                            ),
+                            format!("argument 1 to `{name}`: {}", msg),
                             right.span,
                             ErrorCode::TypeMismatch,
-                            format!("expected `{}`", first_param),
+                            label,
                         );
                     }
                     return *return_type;
@@ -1688,14 +1670,12 @@ impl Checker {
         if let Some(first_param) = stdlib_fn.params.first()
             && !self.types_compatible(first_param, left_ty)
         {
+            let (msg, label) = self.type_mismatch_detail(first_param, left_ty);
             self.emit_error(
-                format!(
-                    "argument 1 to `{display_name}`: expected `{}`, found `{}`",
-                    first_param, left_ty
-                ),
+                format!("argument 1 to `{display_name}`: {}", msg),
                 right.span,
                 ErrorCode::TypeMismatch,
-                format!("expected `{}`", first_param),
+                label,
             );
         }
         if let Type::Array(elem) = left_ty {
@@ -2549,6 +2529,52 @@ impl Checker {
             }
         }
         resolved
+    }
+
+    /// When both types are records, returns a focused message showing only the mismatching fields.
+    /// Otherwise returns the standard `expected X, found Y` form.
+    /// Returns `(main_message, inline_label)`.
+    fn type_mismatch_detail(&self, expected: &Type, found: &Type) -> (String, String) {
+        if let (Type::Record(exp_fields), Type::Record(fnd_fields)) = (expected, found) {
+            let fnd_map: std::collections::HashMap<&str, &Type> =
+                fnd_fields.iter().map(|(k, v)| (k.as_str(), v)).collect();
+
+            let mismatches: Vec<String> = exp_fields
+                .iter()
+                .filter_map(|(name, exp_ty)| match fnd_map.get(name.as_str()) {
+                    Some(fnd_ty) => {
+                        let compat = if self.types_compatible(exp_ty, fnd_ty) {
+                            true
+                        } else if let Type::Settable(inner) = exp_ty {
+                            self.types_compatible(inner, fnd_ty)
+                        } else {
+                            false
+                        };
+                        if compat {
+                            None
+                        } else {
+                            Some(format!(
+                                "`{}`: expected `{}`, found `{}`",
+                                name, exp_ty, fnd_ty
+                            ))
+                        }
+                    }
+                    None if !exp_ty.is_settable() && !exp_ty.is_option() => {
+                        Some(format!("`{}` is missing", name))
+                    }
+                    _ => None,
+                })
+                .collect();
+
+            if !mismatches.is_empty() {
+                let label = mismatches[0].clone();
+                return (format!("field mismatch — {}", mismatches.join(", ")), label);
+            }
+        }
+        (
+            format!("expected `{}`, found `{}`", expected, found),
+            format!("expected `{}`", expected),
+        )
     }
 }
 
