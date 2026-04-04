@@ -2328,6 +2328,13 @@ impl Checker {
                     }
                 }
             }
+            // Check ambient types from TypeScript lib definitions (e.g., lib.dom.d.ts).
+            // This resolves types like Window, Navigator, Console for member access.
+            if let Some(ambient_ty) = self.ambient_types.get(base_name)
+                && matches!(ambient_ty, Type::Record(_))
+            {
+                return ambient_ty.clone();
+            }
         }
         resolved
     }

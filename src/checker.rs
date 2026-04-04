@@ -222,6 +222,10 @@ pub struct Checker {
     /// Maps component_name -> Vec of parameter types for children render props.
     /// Populated from tsgo probe results (__jsxc_Component_N entries).
     jsx_children_hints: HashMap<String, Vec<Type>>,
+    /// Ambient type definitions from TypeScript lib files (e.g., lib.dom.d.ts).
+    /// Maps interface names (Window, Navigator, Console, etc.) to their Record types.
+    /// Used by `resolve_type_to_concrete()` to resolve member access on globals.
+    ambient_types: HashMap<String, Type>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -417,6 +421,7 @@ impl Checker {
             for_block_overloads: HashMap::new(),
             jsx_callback_hints: HashMap::new(),
             jsx_children_hints: HashMap::new(),
+            ambient_types: HashMap::new(),
         }
     }
 
@@ -437,6 +442,50 @@ impl Checker {
             resolved_imports: fl_imports,
             dts_imports,
             ..Self::new()
+        }
+    }
+
+    /// Create a checker with all available type context.
+    ///
+    /// This is the single entry point for constructing a checker with imports
+    /// and ambient types. Replaces the need to branch between `new()`,
+    /// `with_imports()`, `with_all_imports()` at call sites.
+    pub fn from_context(
+        fl_imports: HashMap<String, ResolvedImports>,
+        dts_imports: HashMap<String, Vec<DtsExport>>,
+        ambient: Option<crate::interop::ambient::AmbientDeclarations>,
+    ) -> Self {
+        let mut checker = Self::new();
+        checker.resolved_imports = fl_imports;
+        checker.dts_imports = dts_imports;
+        if let Some(ambient) = ambient {
+            checker.register_ambient_types(ambient);
+        }
+        checker
+    }
+
+    /// Register ambient types from TypeScript lib definitions, replacing
+    /// the hardcoded browser globals with real typed declarations.
+    fn register_ambient_types(&mut self, ambient: crate::interop::ambient::AmbientDeclarations) {
+        self.ambient_types = ambient.types;
+
+        // Preserve Floe-specific types (Response, Error, Event) from stdlib
+        const PRESERVED: &[&str] = &["Response", "Error", "Event"];
+
+        for (name, ty) in ambient.globals {
+            if PRESERVED.contains(&name.as_str()) {
+                continue;
+            }
+            // Skip constructor entries (`declare var Foo: { prototype: Foo }`)
+            // that shadow interface definitions — we want the interface for
+            // member access, not the constructor object.
+            if self.ambient_types.contains_key(&name) && matches!(ty, Type::Record(_)) {
+                continue;
+            }
+            if name == "fetch" {
+                self.untrusted_imports.insert(name.clone());
+            }
+            self.env.define(&name, ty);
         }
     }
 

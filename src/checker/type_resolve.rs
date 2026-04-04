@@ -174,6 +174,10 @@ impl Checker {
                         );
                         Type::Unknown
                     }
+                } else if self.ambient_types.contains_key(name) {
+                    // Accept ambient type names from TypeScript lib definitions
+                    // (e.g., Date, RegExp, URL, HTMLElement) as valid type annotations.
+                    Type::Named(name.to_string())
                 } else {
                     self.emit_error_with_help(
                         format!("unknown type `{name}`"),

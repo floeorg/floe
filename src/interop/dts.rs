@@ -216,20 +216,7 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
         collect_type_alias_defaults(stmt, &mut type_aliases);
     }
 
-    let mut interface_bodies: HashMap<String, Vec<ObjectField>> = HashMap::new();
-    let mut interface_extends: HashMap<String, Vec<String>> = HashMap::new();
-
-    // Collect interfaces from all sources (exports, namespace exports)
-    for stmt in &ret.program.body {
-        collect_interface_info(stmt, &mut interface_bodies, &mut interface_extends);
-    }
-
-    // Resolve extends chains: merge parent fields into each interface
-    let resolved_names: Vec<String> = interface_extends.keys().cloned().collect();
-    for name in &resolved_names {
-        let fields = resolve_interface_fields(name, &interface_bodies, &interface_extends);
-        interface_bodies.insert(name.clone(), fields);
-    }
+    let mut interface_bodies = collect_and_resolve_interfaces(&ret.program.body);
 
     // Resolve type aliases in interface field types
     // (e.g. DraggableId<TId> → string when DraggableId<T = string> = T)
@@ -475,7 +462,7 @@ fn convert_formal_params(params: &FormalParameters<'_>) -> Vec<FunctionParam> {
 }
 
 /// Convert an oxc function declaration to our TsType::Function.
-fn convert_function(
+pub(super) fn convert_function(
     params: &FormalParameters<'_>,
     return_type: &Option<oxc_allocator::Box<'_, oxc_ast::ast::TSTypeAnnotation<'_>>>,
 ) -> TsType {
@@ -491,7 +478,9 @@ fn convert_function(
 }
 
 /// Convert an oxc variable declarator to a DtsExport (for const declarations).
-fn convert_variable_declarator(declarator: &VariableDeclarator<'_>) -> Option<DtsExport> {
+pub(super) fn convert_variable_declarator(
+    declarator: &VariableDeclarator<'_>,
+) -> Option<DtsExport> {
     let name = match &declarator.id {
         oxc_ast::ast::BindingPattern::BindingIdentifier(ident) => ident.name.to_string(),
         _ => return None,
@@ -521,11 +510,40 @@ fn convert_property_signature(prop: &TSPropertySignature<'_>) -> Option<ObjectFi
 }
 
 /// Convert interface body members to TsType::Object.
-fn convert_interface_body(members: &[TSSignature<'_>]) -> TsType {
+pub(super) fn convert_interface_body(members: &[TSSignature<'_>]) -> TsType {
     let fields: Vec<ObjectField> = members
         .iter()
         .filter_map(|sig| match sig {
             TSSignature::TSPropertySignature(prop) => convert_property_signature(prop),
+            // Treat getter methods (e.g., `get location(): Location`) as property fields
+            // and regular methods (e.g., `writeText(data: string): Promise<void>`) as
+            // function-typed fields. This is critical for lib.dom.d.ts interfaces.
+            TSSignature::TSMethodSignature(method) => {
+                let name = property_key_name(&method.key)?;
+                match method.kind {
+                    oxc_ast::ast::TSMethodSignatureKind::Get => {
+                        let ty = method
+                            .return_type
+                            .as_ref()
+                            .map(|ta| convert_oxc_type(&ta.type_annotation))
+                            .unwrap_or(TsType::Any);
+                        Some(ObjectField {
+                            name,
+                            ty,
+                            optional: method.optional,
+                        })
+                    }
+                    oxc_ast::ast::TSMethodSignatureKind::Method => {
+                        let ty = convert_function(&method.params, &method.return_type);
+                        Some(ObjectField {
+                            name,
+                            ty,
+                            optional: method.optional,
+                        })
+                    }
+                    _ => None, // skip setters
+                }
+            }
             _ => None,
         })
         .collect();
@@ -690,7 +708,7 @@ macro_rules! convert_shared_type_arms {
 }
 
 /// Convert an oxc TSType to our TsType enum.
-fn convert_oxc_type(ty: &OxcTSType<'_>) -> TsType {
+pub(super) fn convert_oxc_type(ty: &OxcTSType<'_>) -> TsType {
     convert_shared_type_arms!(OxcTSType, ty)
 }
 
@@ -872,7 +890,7 @@ pub(super) fn parse_interface_export(
 // ── Interface extends resolution ───────────────────────────────
 
 /// Collect interface body fields and extends names from a statement.
-fn collect_interface_info(
+pub(super) fn collect_interface_info(
     stmt: &Statement<'_>,
     bodies: &mut HashMap<String, Vec<ObjectField>>,
     extends: &mut HashMap<String, Vec<String>>,
@@ -925,7 +943,7 @@ fn collect_interface_info(
 }
 
 /// Recursively resolve all fields for an interface, including inherited ones.
-fn resolve_interface_fields(
+pub(super) fn resolve_interface_fields(
     name: &str,
     bodies: &HashMap<String, Vec<ObjectField>>,
     extends: &HashMap<String, Vec<String>>,
@@ -969,6 +987,30 @@ fn resolve_interface_fields_inner(
     }
 
     all_fields
+}
+
+/// Collect and resolve all interface definitions from AST statements.
+///
+/// Collects interface bodies and extends chains, then resolves extends
+/// by merging parent fields into each child. Shared between `parse_dts_content`
+/// and `parse_ambient_lib`.
+pub(super) fn collect_and_resolve_interfaces(
+    stmts: &[Statement<'_>],
+) -> HashMap<String, Vec<ObjectField>> {
+    let mut bodies: HashMap<String, Vec<ObjectField>> = HashMap::new();
+    let mut extends: HashMap<String, Vec<String>> = HashMap::new();
+
+    for stmt in stmts {
+        collect_interface_info(stmt, &mut bodies, &mut extends);
+    }
+
+    let resolved_names: Vec<String> = extends.keys().cloned().collect();
+    for name in &resolved_names {
+        let fields = resolve_interface_fields(name, &bodies, &extends);
+        bodies.insert(name.clone(), fields);
+    }
+
+    bodies
 }
 
 /// Collect type alias default values from statements.
