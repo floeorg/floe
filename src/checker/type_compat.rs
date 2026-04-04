@@ -97,6 +97,10 @@ impl Checker {
     /// Check if an actual record is compatible with an expected record.
     /// Fields with Settable or Option types can be omitted (default to Unchanged/None).
     fn records_compatible(&self, expected: &[(String, Type)], actual: &[(String, Type)]) -> bool {
+        // Empty expected record (from unresolved generics in npm types) accepts any record
+        if expected.is_empty() && !actual.is_empty() {
+            return true;
+        }
         // Every expected field must either match an actual field or be omittable
         expected.iter().all(|(name, ty)| {
             if let Some((_, act_ty)) = actual.iter().find(|(n, _)| n == name) {

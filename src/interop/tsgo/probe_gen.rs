@@ -577,15 +577,70 @@ pub(super) fn generate_probe(
         ));
     }
 
-    // Scan for chained method calls on imported names (e.g. db.insert(...).values)
-    // and generate ReturnType-based probes so tsgo resolves types at each chain step
+    // Build a map of parameter names to imported type names so we can generate
+    // type-based chain probes for parameters typed as npm types (e.g. db: Database)
+    let param_type_map: HashMap<String, String> = {
+        let mut map = HashMap::new();
+        for item in &program.items {
+            let funcs: Vec<&FunctionDecl> = match &item.kind {
+                ItemKind::Function(f) => vec![f],
+                ItemKind::ForBlock(block) => block.functions.iter().collect(),
+                _ => vec![],
+            };
+            for func in funcs {
+                for param in &func.params {
+                    if let Some(TypeExpr {
+                        kind:
+                            TypeExprKind::Named {
+                                name: type_name, ..
+                            },
+                        ..
+                    }) = &param.type_ann
+                        && imported_names.contains_key(type_name)
+                    {
+                        map.insert(param.name.clone(), type_name.clone());
+                    }
+                }
+            }
+        }
+        map
+    };
+
+    // Scan for chained method calls on imported names or parameters typed as
+    // imported types (e.g. db.insert(...).values where db: Database from npm)
     let mut chain_paths: Vec<Vec<String>> = Vec::new();
+    // Track which chains are type-rooted (param with imported type) vs variable-rooted
+    let mut type_rooted_chains: HashSet<String> = HashSet::new();
+    // Track the first call argument for generic preservation (e.g. "snippetsTable" in
+    // db.insert(snippetsTable) so we can generate a conditional type that preserves
+    // the table's generic parameter instead of erasing it with ReturnType<>)
+    let mut first_call_arg: HashMap<String, String> = HashMap::new();
     crate::walk::walk_program(program, &mut |expr| {
-        if matches!(&expr.kind, ExprKind::Member { .. })
-            && let Some(path) = extract_import_chain_path(expr, &imported_names)
-            && path.len() > 2
-        {
-            chain_paths.push(path);
+        if matches!(&expr.kind, ExprKind::Member { .. }) {
+            // Try variable-rooted chain (direct import like `import { db }`)
+            if let Some(path) = extract_import_chain_path(expr, &imported_names)
+                && path.len() > 2
+            {
+                chain_paths.push(path);
+                return;
+            }
+            // Try type-rooted chain (parameter like `db: Database`)
+            if let Some((type_name, path)) = extract_typed_param_chain_path(expr, &param_type_map)
+                && path.len() > 2
+            {
+                // Replace the variable name with the type name as the root
+                let mut type_path = vec![type_name];
+                type_path.extend(path[1..].iter().cloned());
+                let root_key = type_path[..=1].join("$");
+                type_rooted_chains.insert(root_key.clone());
+
+                // Capture the first call's argument if it's an imported name
+                if let Some(arg_name) = extract_first_call_arg(expr, &imported_names) {
+                    first_call_arg.entry(root_key).or_insert(arg_name);
+                }
+
+                chain_paths.push(type_path);
+            }
         }
     });
     chain_paths.sort();
@@ -604,11 +659,35 @@ pub(super) fn generate_probe(
 
                 let ret_name = format!("__chain_ret_{prev_key}");
                 if emitted_ret_decls.insert(ret_name.clone()) {
+                    let first_step_key = path[..=1].join("$");
+                    let is_type_rooted = type_rooted_chains.contains(&first_step_key);
+
                     if end_idx == 2 {
-                        lines.push(format!(
-                            "declare const {ret_name}: ReturnType<typeof {}.{}>;",
-                            path[0], path[1]
-                        ));
+                        if is_type_rooted {
+                            // Type-rooted: use indexed access type
+                            // When we know the first argument (e.g. snippetsTable), use a
+                            // conditional type to preserve generics:
+                            //   Database["insert"] extends (arg: typeof snippetsTable, ...r: any[]) => infer R ? R : never
+                            // Otherwise fall back to ReturnType which erases generics:
+                            //   ReturnType<Database["insert"]>
+                            if let Some(arg) = first_call_arg.get(&first_step_key) {
+                                lines.push(format!(
+                                    "declare const {ret_name}: {}[\"{}\"] extends (arg: typeof {arg}, ...r: any[]) => infer R ? R : never;",
+                                    path[0], path[1]
+                                ));
+                            } else {
+                                lines.push(format!(
+                                    "declare const {ret_name}: ReturnType<{}[\"{}\"]>;",
+                                    path[0], path[1]
+                                ));
+                            }
+                        } else {
+                            // Variable-rooted: use typeof
+                            lines.push(format!(
+                                "declare const {ret_name}: ReturnType<typeof {}.{}>;",
+                                path[0], path[1]
+                            ));
+                        }
                     } else {
                         let prev_prev_key = path[..end_idx - 1].join("$");
                         let prev_ret = format!("__chain_ret_{prev_prev_key}");
@@ -1141,6 +1220,64 @@ fn extract_import_chain_path(
             }
             _ => None,
         },
+        _ => None,
+    }
+}
+
+/// Extract a chain path from an expression rooted at a parameter whose type is an
+/// imported name. Returns (type_name, path) where type_name is the imported type
+/// and path starts with the variable name.
+/// For `db.insert(...).values` where `db: Database`, returns ("Database", ["db", "insert", "values"]).
+fn extract_typed_param_chain_path(
+    expr: &Expr,
+    param_type_map: &HashMap<String, String>,
+) -> Option<(String, Vec<String>)> {
+    fn extract_inner(
+        expr: &Expr,
+        param_type_map: &HashMap<String, String>,
+    ) -> Option<(String, Vec<String>)> {
+        match &expr.kind {
+            ExprKind::Member { object, field } => match &object.kind {
+                ExprKind::Identifier(name) if param_type_map.contains_key(name) => {
+                    let type_name = param_type_map[name].clone();
+                    Some((type_name, vec![name.clone(), field.clone()]))
+                }
+                ExprKind::Call { callee, .. } => {
+                    let (type_name, mut path) = extract_inner(callee, param_type_map)?;
+                    path.push(field.clone());
+                    Some((type_name, path))
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+    extract_inner(expr, param_type_map)
+}
+
+/// Extract the name of the first argument from the innermost call in a chain
+/// expression, if that argument is an imported identifier.
+/// For `db.insert(snippetsTable).values({...})`, returns Some("snippetsTable").
+fn extract_first_call_arg(expr: &Expr, imported_names: &HashMap<String, String>) -> Option<String> {
+    match &expr.kind {
+        ExprKind::Member { object, .. } => extract_first_call_arg(object, imported_names),
+        ExprKind::Call { callee, args, .. } => {
+            // Check if this is the innermost call (callee is a member on an identifier)
+            if let ExprKind::Member { object, .. } = &callee.kind
+                && matches!(&object.kind, ExprKind::Identifier(_))
+            {
+                // This is the first call — extract the first argument if it's an imported name
+                if let Some(Arg::Positional(arg_expr)) = args.first()
+                    && let ExprKind::Identifier(name) = &arg_expr.kind
+                    && imported_names.contains_key(name)
+                {
+                    return Some(name.clone());
+                }
+                return None;
+            }
+            // Recurse into the callee to find the innermost call
+            extract_first_call_arg(callee, imported_names)
+        }
         _ => None,
     }
 }
