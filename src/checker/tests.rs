@@ -3456,11 +3456,11 @@ type Route {
 }
 
 #[test]
-fn type_alias_still_works() {
+fn type_alias_without_ts_import_is_error() {
     let diags = check("type Name = string");
     assert!(
-        diags.iter().all(|d| d.severity != Severity::Error),
-        "type aliases should still work, got errors: {:?}",
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "type alias without TS import should error: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -5037,25 +5037,27 @@ const _result = toModel(row)
 // ── typeof operator ────────────────────────────────────────
 
 #[test]
-fn typeof_function_binding() {
+fn typeof_local_binding_is_bridge_error() {
     let diags = check(
         "fn greet(name: string) -> string { `Hello, ${name}!` }
 type Greeter = typeof greet",
     );
-    assert!(diags.is_empty(), "typeof function should pass: {diags:?}");
+    assert!(
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "typeof on local binding should error as bridge type: {diags:?}"
+    );
 }
 
 #[test]
-fn typeof_record_binding() {
+fn typeof_local_record_binding_is_bridge_error() {
     let diags = check(
         "type Config { baseUrl: string, timeout: number }
 const config = Config(baseUrl: \"https://api.com\", timeout: 5000)
-type MyConfig = typeof config
-fn _getUrl(c: MyConfig) -> string { c.baseUrl }",
+type MyConfig = typeof config",
     );
     assert!(
-        diags.is_empty(),
-        "typeof record alias should allow field access: {diags:?}"
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "typeof on local record binding should error as bridge type: {diags:?}"
     );
 }
 
@@ -5117,55 +5119,54 @@ fn array_assignable_to_option_array() {
 // ── intersection types ─────────────────────────────────────
 
 #[test]
-fn intersection_two_records() {
+fn intersection_local_types_is_bridge_error() {
     let diags = check(
         "type A { x: number }
 type B { y: string }
-type C = A & B
-fn _test(c: C) -> number { c.x }",
+type C = A & B",
     );
     assert!(
-        diags.is_empty(),
-        "intersection of two records should allow field access: {diags:?}"
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "intersection of local types should error as bridge type: {diags:?}"
     );
 }
 
 #[test]
-fn intersection_three_types() {
+fn intersection_three_local_types_is_bridge_error() {
     let diags = check(
         "type A { x: number }
 type B { y: string }
 type D = A & B & { z: boolean }",
     );
     assert!(
-        diags.is_empty(),
-        "three-way intersection should work: {diags:?}"
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "three-way local intersection should error as bridge type: {diags:?}"
     );
 }
 
 #[test]
-fn intersection_with_typeof() {
+fn intersection_with_local_typeof_is_bridge_error() {
     let diags = check(
         "type Config { baseUrl: string }
 const config = Config(baseUrl: \"https://api.com\")
 type Extended = typeof config & { timeout: number }",
     );
     assert!(
-        diags.is_empty(),
-        "typeof & record intersection should work: {diags:?}"
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "typeof & local record intersection should error as bridge type: {diags:?}"
     );
 }
 
 #[test]
-fn intersection_after_generic_type() {
+fn intersection_local_generic_is_bridge_error() {
     let diags = check(
         "type A { x: number }
 type B { y: string }
 type C = Array<A> & B",
     );
     assert!(
-        diags.is_empty(),
-        "intersection after generic type should work: {diags:?}"
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "intersection with local generic should error as bridge type: {diags:?}"
     );
 }
 
@@ -5186,14 +5187,85 @@ fn _test(b: B) -> number { b.x }",
 }
 
 #[test]
-fn string_literal_type_arg() {
+fn alias_with_local_type_is_bridge_error() {
     let diags = check(
         "type A { x: number }
 type B = Array<\"div\">",
     );
     assert!(
-        diags.is_empty(),
-        "string literal type argument should parse and check: {diags:?}"
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "alias referencing only local types should error as bridge type: {diags:?}"
+    );
+}
+
+// ── Bridge type with npm import (positive) ──────────────────
+
+#[test]
+fn bridge_alias_with_npm_import_is_ok() {
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { ComponentProps } from "react"
+type DivProps = ComponentProps<"div">
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "react".to_string(),
+        vec![DtsExport {
+            name: "ComponentProps".to_string(),
+            ts_type: TsType::Named("ComponentProps".to_string()),
+        }],
+    );
+
+    let diags = Checker::with_all_imports(HashMap::new(), dts_imports).check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "bridge type referencing npm import should not error: {diags:?}"
+    );
+}
+
+#[test]
+fn bridge_intersection_with_npm_import_is_ok() {
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { VariantProps } from "tailwind-variants"
+type CardProps = VariantProps & { className: string }
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "tailwind-variants".to_string(),
+        vec![DtsExport {
+            name: "VariantProps".to_string(),
+            ts_type: TsType::Named("VariantProps".to_string()),
+        }],
+    );
+
+    let diags = Checker::with_all_imports(HashMap::new(), dts_imports).check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "bridge intersection with npm import should not error: {diags:?}"
+    );
+}
+
+#[test]
+fn string_literal_union_always_errors() {
+    let diags = check(r#"type ButtonVariant = "outline" | "ghost""#);
+    assert!(
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "string literal union should always error in Floe source: {diags:?}"
     );
 }
 

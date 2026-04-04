@@ -375,6 +375,24 @@ fn describe(m: Method) -> string {
 }
 """
 
+STRING_LITERAL_UNION_NATIVE = """\
+type Method {
+    | Get
+    | Post
+    | Put
+    | Delete
+}
+
+fn describe(m: Method) -> string {
+    match m {
+        Get -> "get",
+        Post -> "post",
+        Put -> "put",
+        Delete -> "delete",
+    }
+}
+"""
+
 COLLECT_FILE = """\
 fn validateName(name: string) -> Result<string, string> {
     match name |> String.length {

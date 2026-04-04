@@ -113,6 +113,8 @@ pub enum ErrorCode {
     TryOnFloeFunction,
     /// Function uses `await` but return type is not `Promise<T>`.
     MissingPromiseReturn,
+    /// Bridge type syntax (`= ...`) used without referencing any TypeScript import.
+    BridgeTypeWithoutImport,
 }
 
 impl ErrorCode {
@@ -164,6 +166,7 @@ impl ErrorCode {
             Self::UnknownBinding => "W006",
             Self::TryOnFloeFunction => "W007",
             Self::MissingPromiseReturn => "E041",
+            Self::BridgeTypeWithoutImport => "E042",
         }
     }
 }
