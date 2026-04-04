@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import * as vite from "vite";
 
 export interface FloeOptions {
@@ -10,7 +12,9 @@ export interface FloeOptions {
  * Vite plugin for Floe.
  *
  * Transforms `.fl` files to TypeScript in the build pipeline.
- * Uses the `floe` compiler binary for compilation.
+ * Reads pre-compiled output from `.floe/` when available (kept
+ * up-to-date by `floe watch`), falling back to on-demand compilation
+ * via the `floe` CLI.
  *
  * @example
  * ```ts
@@ -24,10 +28,15 @@ export interface FloeOptions {
  */
 export default function floe(options: FloeOptions = {}): import("vite").Plugin {
   const compiler = options.compiler ?? "floe";
+  let projectRoot: string;
 
   return {
     name: "vite-plugin-floe",
     enforce: "pre" as const,
+
+    configResolved(config: { root: string }) {
+      projectRoot = config.root;
+    },
 
     config(config: { resolve?: { extensions?: string[] } }) {
       const existing = config.resolve?.extensions ?? [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"];
@@ -47,12 +56,13 @@ export default function floe(options: FloeOptions = {}): import("vite").Plugin {
       if (!cleanId.endsWith(".fl")) return null;
 
       try {
-        const compiled = compileFloe(compiler, code, id);
+        // Try reading pre-compiled output from .floe/ (kept fresh by `floe watch`)
+        const cached = readCompiledOutput(cleanId, projectRoot);
+        if (cached) {
+          return transformTsx(cached, cleanId);
+        }
 
-        // The Floe compiler outputs TSX. Transform it to plain JS so
-        // Vite's import analysis (es-module-lexer) can parse it.
-        // Without this, .fl files keep their original extension in the
-        // pipeline and the react plugin skips them (.tsx/.jsx only).
+        const compiled = compileFloe(compiler, code, id);
         return transformTsx(compiled.code, cleanId);
       } catch (error) {
         const message =
@@ -70,6 +80,38 @@ export default function floe(options: FloeOptions = {}): import("vite").Plugin {
       }
     },
   };
+}
+
+/**
+ * Read compiled .ts/.tsx output from .floe/ if it exists and is fresh
+ * (newer than the source .fl file). Returns null if missing or stale.
+ */
+function readCompiledOutput(
+  flFile: string,
+  projectRoot: string,
+): string | null {
+  const rel = relative(projectRoot, flFile);
+  const floeDir = join(projectRoot, ".floe");
+
+  let sourceMtime: number;
+  try {
+    sourceMtime = statSync(flFile).mtimeMs;
+  } catch {
+    return null;
+  }
+
+  for (const ext of ["tsx", "ts"]) {
+    const outPath = join(floeDir, rel).replace(/\.fl$/, `.${ext}`);
+    try {
+      if (statSync(outPath).mtimeMs >= sourceMtime) {
+        return readFileSync(outPath, "utf-8");
+      }
+    } catch {
+      // File doesn't exist, try next extension
+    }
+  }
+
+  return null;
 }
 
 // Vite 6+ has transformWithOxc, Vite 5 has transformWithEsbuild.
