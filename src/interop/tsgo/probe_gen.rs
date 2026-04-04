@@ -581,12 +581,11 @@ pub(super) fn generate_probe(
     // and generate ReturnType-based probes so tsgo resolves types at each chain step
     let mut chain_paths: Vec<Vec<String>> = Vec::new();
     crate::walk::walk_program(program, &mut |expr| {
-        if matches!(&expr.kind, ExprKind::Member { .. }) {
-            if let Some(path) = extract_import_chain_path(expr, &imported_names) {
-                if path.len() > 2 {
-                    chain_paths.push(path);
-                }
-            }
+        if matches!(&expr.kind, ExprKind::Member { .. })
+            && let Some(path) = extract_import_chain_path(expr, &imported_names)
+            && path.len() > 2
+        {
+            chain_paths.push(path);
         }
     });
     chain_paths.sort();
@@ -595,6 +594,7 @@ pub(super) fn generate_probe(
 
     if has_chain_probes {
         let mut emitted_ret_decls: HashSet<String> = HashSet::new();
+        let mut emitted_chain_exports: HashSet<String> = HashSet::new();
 
         for path in &chain_paths {
             for end_idx in 2..path.len() {
@@ -620,10 +620,8 @@ pub(super) fn generate_probe(
                 }
 
                 let export_name = format!("__chain_{chain_key}");
-                if !lines.iter().any(|l| l.contains(&export_name)) {
-                    lines.push(format!(
-                        "export const {export_name} = {ret_name}.{field};",
-                    ));
+                if emitted_chain_exports.insert(export_name.clone()) {
+                    lines.push(format!("export const {export_name} = {ret_name}.{field};",));
                 }
             }
         }

@@ -367,12 +367,8 @@ impl Checker {
         // Check for npm member access via tsgo probes (e.g. z.object, z.string)
         if let ExprKind::Identifier(name) = &object.kind {
             let member_key = format!("__member_{name}_{field}");
-            for exports in self.dts_imports.values() {
-                if let Some(export) = exports.iter().find(|e| e.name == member_key) {
-                    let ty = crate::interop::wrap_boundary_type(&export.ts_type);
-                    self.name_types.insert(member_key, ty.to_string());
-                    return ty;
-                }
+            if let Some(ty) = self.lookup_dts_probe(&member_key) {
+                return ty;
             }
         }
 
@@ -380,12 +376,8 @@ impl Checker {
         // e.g. db.insert(snippets).values → __chain_db$insert$values)
         if let Some(chain_key) = extract_chain_key(object, field) {
             let probe_name = format!("__chain_{chain_key}");
-            for exports in self.dts_imports.values() {
-                if let Some(export) = exports.iter().find(|e| e.name == probe_name) {
-                    let ty = crate::interop::wrap_boundary_type(&export.ts_type);
-                    self.name_types.insert(probe_name, ty.to_string());
-                    return ty;
-                }
+            if let Some(ty) = self.lookup_dts_probe(&probe_name) {
+                return ty;
             }
         }
 
@@ -2099,6 +2091,20 @@ impl Checker {
     }
 
     /// Resolve the type of a member access (`obj_ty.field`), producing diagnostics for errors.
+    /// Look up a DTS probe by name across all import specifiers.
+    /// Returns the wrapped Floe type if found, or None.
+    fn lookup_dts_probe(&mut self, probe_name: &str) -> Option<Type> {
+        for exports in self.dts_imports.values() {
+            if let Some(export) = exports.iter().find(|e| e.name == probe_name) {
+                let ty = crate::interop::wrap_boundary_type(&export.ts_type);
+                self.name_types
+                    .insert(probe_name.to_string(), ty.to_string());
+                return Some(ty);
+            }
+        }
+        None
+    }
+
     fn resolve_member_type(&mut self, obj_ty: &Type, field: &str, span: Span) -> Type {
         // Rule 6: No property access on unnarrowed unions
         if obj_ty.is_result() {
