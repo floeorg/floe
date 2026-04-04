@@ -58,8 +58,9 @@ impl Checker {
             // Reject bridge type syntax (= ...) that doesn't reference any TS import.
             // String literal unions never reference TS types, so always error.
             // Aliases must reference at least one foreign/npm type.
+            // Opaque types are exempt — `opaque type X = T` is valid Floe syntax.
             match &decl.def {
-                TypeDef::StringLiteralUnion(_) => {
+                TypeDef::StringLiteralUnion(_) if !decl.opaque => {
                     self.diagnostics.push(
                         Diagnostic::error(
                             format!(
@@ -72,7 +73,7 @@ impl Checker {
                         .with_error_code(ErrorCode::BridgeTypeWithoutImport),
                     );
                 }
-                TypeDef::Alias(type_expr) => {
+                TypeDef::Alias(type_expr) if !decl.opaque => {
                     if !self.type_expr_references_foreign(type_expr) {
                         self.diagnostics.push(
                             Diagnostic::error(
@@ -213,10 +214,10 @@ impl Checker {
                 if self.is_dts_export_name(name) {
                     return true;
                 }
-                if let Some(ty) = self.env.lookup(name) {
-                    if matches!(ty, Type::Foreign(_)) {
-                        return true;
-                    }
+                if let Some(ty) = self.env.lookup(name)
+                    && matches!(ty, Type::Foreign(_))
+                {
+                    return true;
                 }
                 type_args
                     .iter()

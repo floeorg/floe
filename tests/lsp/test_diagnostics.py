@@ -23,7 +23,7 @@ VALID_SOURCES = [
     ("spread type", F.SPREAD_FILE),
     ("record spread", F.RECORD_SPREAD),
     ("closure assign", F.CLOSURE_ASSIGN),
-    ("string literal union", F.STRING_LITERAL_UNION),
+    ("string literal union (bridge type error)", F.STRING_LITERAL_UNION_NATIVE),
     ("collect/error accumulation", F.COLLECT_FILE),
     ("default params", F.DEFAULT_PARAMS),
     ("when guards", F.WHEN_GUARD),
@@ -95,6 +95,12 @@ def test_type_mismatch(lsp):
     """Assigning number to string should produce E001."""
     result = open_doc(lsp, URI, F.TYPE_MISMATCH)
     assert "E001" in result.codes, f"Expected E001, got codes: {result.codes}"
+
+
+def test_bridge_type_without_import(lsp):
+    """String literal union in Floe source should produce E042."""
+    result = open_doc(lsp, URI, F.STRING_LITERAL_UNION)
+    assert "E042" in result.codes, f"Expected E042, got codes: {result.codes}"
 
 
 # ── Exhaustiveness checking (E004) ──────────────────────────────
