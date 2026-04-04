@@ -1,6 +1,36 @@
 use super::*;
 use crate::type_layout;
 
+/// Extract chain segments from an expression for chain probe lookup.
+/// `Identifier("db")` → `["db"]`
+/// `Member { Identifier("db"), "insert" }` → `["db", "insert"]`
+/// `Call { Member { Identifier("db"), "insert" }, .. }` → `["db", "insert"]`
+fn extract_chain_segments(expr: &Expr) -> Option<Vec<String>> {
+    match &expr.kind {
+        ExprKind::Identifier(name) => Some(vec![name.clone()]),
+        ExprKind::Member { object, field } => {
+            let mut segs = extract_chain_segments(object)?;
+            segs.push(field.clone());
+            Some(segs)
+        }
+        ExprKind::Call { callee, .. } => extract_chain_segments(callee),
+        _ => None,
+    }
+}
+
+/// Build the chain probe key for a member access on a call result.
+/// For `db.insert(...).values`, returns `Some("db$insert$values")`.
+/// Returns `None` if the expression is not a valid import chain (depth < 3).
+fn extract_chain_key(object: &Expr, field: &str) -> Option<String> {
+    let mut segments = extract_chain_segments(object)?;
+    segments.push(field.to_string());
+    if segments.len() >= 3 {
+        Some(segments.join("$"))
+    } else {
+        None
+    }
+}
+
 /// Check if a string is a single uppercase letter (generic type parameter).
 fn is_generic_param(s: &str) -> bool {
     s.len() == 1 && s.chars().next().is_some_and(|c| c.is_ascii_uppercase())
@@ -341,6 +371,19 @@ impl Checker {
                 if let Some(export) = exports.iter().find(|e| e.name == member_key) {
                     let ty = crate::interop::wrap_boundary_type(&export.ts_type);
                     self.name_types.insert(member_key, ty.to_string());
+                    return ty;
+                }
+            }
+        }
+
+        // Check for chain probe (chained member access on call results of imports,
+        // e.g. db.insert(snippets).values → __chain_db$insert$values)
+        if let Some(chain_key) = extract_chain_key(object, field) {
+            let probe_name = format!("__chain_{chain_key}");
+            for exports in self.dts_imports.values() {
+                if let Some(export) = exports.iter().find(|e| e.name == probe_name) {
+                    let ty = crate::interop::wrap_boundary_type(&export.ts_type);
+                    self.name_types.insert(probe_name, ty.to_string());
                     return ty;
                 }
             }
@@ -954,6 +997,18 @@ impl Checker {
                     }
                     return_type
                 }
+            }
+            // Foreign types (npm) via member access: the callee is a chained method
+            // on an opaque npm type (e.g. `db.insert(snippets).values`). We can't
+            // validate arguments but the result stays Foreign so subsequent chained
+            // member accesses and calls continue to work.
+            //
+            // Only applies when the callee is a member access (chained call pattern),
+            // not for standalone Foreign identifiers like overloaded npm functions
+            // where we genuinely can't determine the return type.
+            Type::Foreign(_) if matches!(callee.kind, ExprKind::Member { .. }) => {
+                self.check_args_unchecked(args);
+                Type::Foreign("_".into())
             }
             Type::Unknown => {
                 self.check_args_unchecked(args);

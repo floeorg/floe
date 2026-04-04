@@ -6187,6 +6187,293 @@ import { Something } from "unknown-package"
     );
 }
 
+// ── Chained method calls on foreign types ──────────────────
+
+#[test]
+fn chained_method_calls_on_foreign_type_propagate_without_error() {
+    // Simulates: db.insert(snippets).values({ code: "abc" }).returning()
+    // When db.insert resolves to a function returning a Foreign type,
+    // subsequent .values() and .returning() should NOT produce E025.
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { db } from "drizzle"
+import trusted { snippets } from "./schema"
+
+fn example() -> () {
+    const _result = db.insert(snippets).values(snippets).returning()
+    ()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // db.insert resolves to a function returning a Foreign type
+    let db_export = DtsExport {
+        name: "db".to_string(),
+        ts_type: TsType::Named("BetterSQLite3Database".to_string()),
+    };
+    let member_probe = DtsExport {
+        name: "__member_db_insert".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Any,
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Named("SQLiteInsertBase".to_string())),
+        },
+    };
+    let snippets_export = DtsExport {
+        name: "snippets".to_string(),
+        ts_type: TsType::Named("SQLiteTable".to_string()),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("drizzle".to_string(), vec![db_export, member_probe]);
+    dts_imports.insert("./schema".to_string(), vec![snippets_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "chained method calls on foreign types should not produce errors, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn calling_foreign_type_returns_foreign_not_unknown() {
+    // When a Foreign type is called (e.g. a builder method returned from npm),
+    // the result should stay Foreign so subsequent member access works.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { createBuilder } from "some-lib"
+
+fn test() -> () {
+    const builder = createBuilder()
+    const _result = builder.step1().step2().finish()
+    ()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let export = DtsExport {
+        name: "createBuilder".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Named("Builder".to_string())),
+        },
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "calling a Foreign type should return Foreign (not unknown), got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn chain_probe_resolves_real_types_for_builder_pattern() {
+    // When chain probes (__chain_db$insert$values) are present in DTS imports,
+    // the checker should resolve real types at each step of the chain instead
+    // of falling back to Foreign.
+    use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { db } from "drizzle"
+import trusted { snippets } from "./schema"
+
+fn example() -> () {
+    const _result = db.insert(snippets).values(snippets).returning()
+    ()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // db is a Foreign type, db.insert is a function via __member_ probe
+    let db_export = DtsExport {
+        name: "db".to_string(),
+        ts_type: TsType::Named("BetterSQLite3Database".to_string()),
+    };
+    let member_probe = DtsExport {
+        name: "__member_db_insert".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Any,
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Named("SQLiteInsertBase".to_string())),
+        },
+    };
+    // Chain probe: .values on the return of db.insert() is a function returning InsertWithValues
+    let chain_values = DtsExport {
+        name: "__chain_db$insert$values".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Object(vec![ObjectField {
+                    name: "code".to_string(),
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                }]),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Named("InsertWithValues".to_string())),
+        },
+    };
+    // Chain probe: .returning on the return of .values() is a function returning Promise
+    let chain_returning = DtsExport {
+        name: "__chain_db$insert$values$returning".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Promise".to_string(),
+                args: vec![TsType::Any],
+            }),
+        },
+    };
+    let snippets_export = DtsExport {
+        name: "snippets".to_string(),
+        ts_type: TsType::Named("SQLiteTable".to_string()),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "drizzle".to_string(),
+        vec![db_export, member_probe, chain_values, chain_returning],
+    );
+    dts_imports.insert("./schema".to_string(), vec![snippets_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "chain probes should resolve real types for builder pattern, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn chain_probe_deep_chain_resolves() {
+    // Test that chain probes work for 4+ levels of chaining.
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { query } from "query-builder"
+
+fn example() -> () {
+    const _result = query.select(query).from(query).where(query).limit(query)
+    ()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let query_export = DtsExport {
+        name: "query".to_string(),
+        ts_type: TsType::Named("QueryBuilder".to_string()),
+    };
+    let member_select = DtsExport {
+        name: "__member_query_select".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Any,
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Named("QB".to_string())),
+        },
+    };
+    let chain_from = DtsExport {
+        name: "__chain_query$select$from".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Any,
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Named("QB".to_string())),
+        },
+    };
+    let chain_where = DtsExport {
+        name: "__chain_query$select$from$where".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Any,
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Named("QB".to_string())),
+        },
+    };
+    let chain_limit = DtsExport {
+        name: "__chain_query$select$from$where$limit".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Any,
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Named("QB".to_string())),
+        },
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "query-builder".to_string(),
+        vec![
+            query_export,
+            member_select,
+            chain_from,
+            chain_where,
+            chain_limit,
+        ],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "deep chain probes (4+ levels) should resolve without errors, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 #[test]
 fn named_import_const_not_in_resolved_fl_module_errors() {
     use crate::resolve::ResolvedImports;
