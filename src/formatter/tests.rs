@@ -68,6 +68,22 @@ fn format_type_alias() {
     assert_fmt("type StringAlias = string", "type StringAlias = string");
 }
 
+#[test]
+fn format_string_union_type() {
+    assert_fmt(
+        r#"export type ExpiryOption = "1h" | "1d" | "1w""#,
+        r#"export type ExpiryOption = "1h" | "1d" | "1w""#,
+    );
+}
+
+#[test]
+fn format_string_union_type_normalizes_spacing() {
+    assert_fmt(
+        r#"type Status = "active"|"inactive"  |  "pending""#,
+        r#"type Status = "active" | "inactive" | "pending""#,
+    );
+}
+
 // ── Expressions ─────────────────────────────────────────────
 
 #[test]
