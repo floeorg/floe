@@ -90,13 +90,7 @@ impl Checker {
         }
     }
 
-    fn check_type_arg_arity(
-        &mut self,
-        name: &str,
-        expected: usize,
-        actual: usize,
-        span: Span,
-    ) {
+    fn check_type_arg_arity(&mut self, name: &str, expected: usize, actual: usize, span: Span) {
         if actual != expected && actual != 0 {
             self.emit_error_with_help(
                 format!("`{name}` expects {expected} type argument(s), found {actual}"),
