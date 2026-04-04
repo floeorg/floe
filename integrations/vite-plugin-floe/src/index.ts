@@ -62,7 +62,6 @@ export default function floe(options: FloeOptions = {}): import("vite").Plugin {
           return transformTsx(cached, cleanId);
         }
 
-        // Fallback: compile on-demand via CLI
         const compiled = compileFloe(compiler, code, id);
         return transformTsx(compiled.code, cleanId);
       } catch (error) {
