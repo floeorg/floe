@@ -5,6 +5,24 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0](https://github.com/floeorg/floe/compare/v0.3.0...v0.4.0) (2026-04-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* [#979] Remove auto-await from untrusted async imports ([#980](https://github.com/floeorg/floe/issues/980))
+
+### Features
+
+* [[#979](https://github.com/floeorg/floe/issues/979)] Remove auto-await from untrusted async imports ([#980](https://github.com/floeorg/floe/issues/980)) ([5f74369](https://github.com/floeorg/floe/commit/5f74369259b9b5976b9093b47c52d343714085b3))
+
+
+### Bug Fixes
+
+* [[#977](https://github.com/floeorg/floe/issues/977)] Improve tsgo probe for object destructuring type resolution ([#981](https://github.com/floeorg/floe/issues/981)) ([b0d988d](https://github.com/floeorg/floe/commit/b0d988d537995a72b6127c0afb7f3d42ba77bdfa))
+* Match arm block IIFEs missing return on last expression ([#974](https://github.com/floeorg/floe/issues/974)) ([9c725fa](https://github.com/floeorg/floe/commit/9c725fad15bd5f86bdf57cb6eb8ef9ad56c0ce84))
+* Nested fn declarations not inferred as async with Promise.await ([#971](https://github.com/floeorg/floe/issues/971)) ([266de21](https://github.com/floeorg/floe/commit/266de21d07a4b83d9bdfa4d3b93201cd66007af9))
+
 ## [0.3.0](https://github.com/floeorg/floe/compare/v0.2.1...v0.3.0) (2026-04-03)
 
 
