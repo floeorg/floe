@@ -13,7 +13,7 @@ fn extract_chain_segments(expr: &Expr) -> Option<Vec<String>> {
             segs.push(field.clone());
             Some(segs)
         }
-        ExprKind::Call { callee, .. } => extract_chain_segments(callee),
+        ExprKind::Call { callee, .. } | ExprKind::Unwrap(callee) => extract_chain_segments(callee),
         _ => None,
     }
 }
@@ -107,9 +107,12 @@ impl Checker {
                 type_args,
                 args,
             } => {
+                // Check untrusted BEFORE check_call, since check_call's nested
+                // expression evaluation would clobber any shared state
+                let is_untrusted =
+                    self.is_untrusted_call(callee) || self.is_callee_on_untrusted_foreign(callee);
                 let ret = self.check_call(callee, type_args, args, expr.span);
-                // Auto-wrap untrusted import calls in Result
-                if self.is_untrusted_call(callee) {
+                if is_untrusted {
                     match &ret {
                         Type::Promise(inner) => Type::Promise(Box::new(Type::result_of(
                             *inner.clone(),
@@ -294,18 +297,75 @@ impl Checker {
         }
     }
 
-    /// Check if a call expression targets an untrusted import (direct or member access).
+    /// Check if a call expression targets an untrusted import.
+    /// Walks chain roots through Call/Unwrap: db.insert(...)?.values(...) → checks db.
     fn is_untrusted_call(&self, callee: &Expr) -> bool {
-        match &callee.kind {
-            ExprKind::Identifier(name) => self.untrusted_imports.contains(name.as_str()),
-            ExprKind::Member { object, .. } => {
-                if let ExprKind::Identifier(obj_name) = &object.kind {
-                    self.untrusted_imports.contains(obj_name.as_str())
-                } else {
-                    false
-                }
+        fn find_root(expr: &Expr) -> Option<&str> {
+            match &expr.kind {
+                ExprKind::Identifier(name) => Some(name.as_str()),
+                ExprKind::Member { object, .. } => find_root(object),
+                ExprKind::Call { callee, .. } => find_root(callee),
+                ExprKind::Unwrap(inner) => find_root(inner),
+                _ => None,
             }
-            _ => false,
+        }
+        find_root(callee).is_some_and(|root| self.untrusted_imports.contains(root))
+    }
+
+    /// Check if a callee is a method on an untrusted Foreign type (e.g. self.client: Database).
+    /// Check if a callee chain passes through an untrusted npm type at any level.
+    fn is_callee_on_untrusted_foreign(&self, callee: &Expr) -> bool {
+        fn walk(checker: &Checker, expr: &Expr) -> bool {
+            match &expr.kind {
+                ExprKind::Identifier(name) => checker
+                    .env
+                    .lookup(name)
+                    .is_some_and(|ty| checker.is_type_untrusted(ty)),
+                ExprKind::Member { object, field } => {
+                    // Check object type and its member type
+                    if let Some(obj_ty) = checker.peek_object_type(object) {
+                        if checker.is_type_untrusted(&obj_ty) {
+                            return true;
+                        }
+                        let member_ty = checker.resolve_member_type_silent(&obj_ty, field);
+                        if checker.is_type_untrusted(&member_ty) {
+                            return true;
+                        }
+                    }
+                    walk(checker, object)
+                }
+                ExprKind::Call { callee, .. } | ExprKind::Unwrap(callee) => walk(checker, callee),
+                _ => false,
+            }
+        }
+        walk(self, callee)
+    }
+
+    fn is_type_untrusted(&self, ty: &Type) -> bool {
+        let name = match ty {
+            Type::Foreign(n) | Type::Named(n) => n,
+            _ => return false,
+        };
+        let base = name.split(['<', '.']).next().unwrap_or(name);
+        self.untrusted_imports.contains(base)
+    }
+
+    /// Peek at an object expression's type from the env without running check_expr.
+    /// Handles Identifier, Member (self.field), and chains through Call/Unwrap.
+    fn peek_object_type(&self, expr: &Expr) -> Option<Type> {
+        match &expr.kind {
+            ExprKind::Identifier(name) => self.env.lookup(name).cloned(),
+            // Resolve member access recursively: self.field, or deeper chains
+            ExprKind::Member { object, field } => {
+                let obj_ty = self.peek_object_type(object)?;
+                Some(self.resolve_member_type_silent(&obj_ty, field))
+            }
+            // expr()?.field or expr().field — recurse to find if the chain
+            // originates from a Foreign type
+            ExprKind::Call { callee, .. } | ExprKind::Unwrap(callee) => {
+                self.peek_object_type(callee)
+            }
+            _ => None,
         }
     }
 

@@ -1275,7 +1275,7 @@ fn extract_import_chain_path(
             ExprKind::Identifier(name) if imported_names.contains_key(name) => {
                 Some(vec![name.clone(), field.clone()])
             }
-            ExprKind::Call { callee, .. } => {
+            ExprKind::Call { callee, .. } | ExprKind::Unwrap(callee) => {
                 let mut path = extract_import_chain_path(callee, imported_names)?;
                 path.push(field.clone());
                 Some(path)
@@ -1322,8 +1322,8 @@ fn extract_typed_param_chain_path(
                         None
                     }
                 }
-                // Chained call: expr().method(...)
-                ExprKind::Call { callee, .. } => {
+                // Chained call or unwrap: expr().method(...) or expr()?.method(...)
+                ExprKind::Call { callee, .. } | ExprKind::Unwrap(callee) => {
                     let (type_name, mut path) = extract_inner(callee, param_type_map)?;
                     path.push(field.clone());
                     Some((type_name, path))
@@ -1376,6 +1376,9 @@ fn collect_chain_step_args(
                 }
                 walk(callee, imported_names, type_path, args_map, zero_args);
             }
+            ExprKind::Unwrap(inner) => {
+                walk(inner, imported_names, type_path, args_map, zero_args);
+            }
             _ => {}
         }
     }
@@ -1399,10 +1402,12 @@ fn count_chain_depth(expr: &Expr) -> usize {
             {
                 1
             }
-            ExprKind::Call { callee, .. } => 1 + count_chain_depth(callee),
+            ExprKind::Call { callee, .. } | ExprKind::Unwrap(callee) => {
+                1 + count_chain_depth(callee)
+            }
             _ => 0,
         },
-        ExprKind::Call { callee, .. } => count_chain_depth(callee),
+        ExprKind::Call { callee, .. } | ExprKind::Unwrap(callee) => count_chain_depth(callee),
         _ => 0,
     }
 }

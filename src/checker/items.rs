@@ -612,7 +612,12 @@ impl Checker {
 
             // Check the function body
             let prev_return_type = self.ctx.current_return_type.take();
-            self.ctx.current_return_type = Some(return_type.clone());
+            // For Promise<T> return types, unwrap so ? sees the inner type
+            let effective_return = match &return_type {
+                Type::Promise(inner) => *inner.clone(),
+                _ => return_type.clone(),
+            };
+            self.ctx.current_return_type = Some(effective_return);
 
             self.env.push_scope();
 
