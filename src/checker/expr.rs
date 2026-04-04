@@ -2531,10 +2531,29 @@ impl Checker {
         resolved
     }
 
-    /// When both types are records, returns a focused message showing only the mismatching fields.
-    /// Otherwise returns the standard `expected X, found Y` form.
-    /// Returns `(main_message, inline_label)`.
-    fn type_mismatch_detail(&self, expected: &Type, found: &Type) -> (String, String) {
+    /// Returns extra diagnostic detail when there is a specific explanation for the mismatch.
+    /// Returns `None` for ordinary mismatches — callers fall back to `"expected X, found Y"`.
+    /// Returns `Some((annotation, inline_label))` for:
+    /// - Untrusted import result used without `?`
+    /// - Record field-level diffs
+    pub(super) fn extra_mismatch_detail(
+        &self,
+        expected: &Type,
+        found: &Type,
+    ) -> Option<(String, String)> {
+        // Found is Result<T, E> but T is what was expected — untrusted import not unwrapped
+        if found.is_result()
+            && let Some(ok_ty) = found.result_ok()
+            && self.types_unifiable(expected, ok_ty)
+        {
+            let msg = format!(
+                "found `{}` — this is an untrusted import result, use `?` to unwrap or `import trusted` if it cannot fail",
+                found
+            );
+            return Some((msg, "use `?` to unwrap or `import trusted`".to_string()));
+        }
+
+        // Both are records — diff the fields and report only mismatches
         if let (Type::Record(exp_fields), Type::Record(fnd_fields)) = (expected, found) {
             let fnd_map: std::collections::HashMap<&str, &Type> =
                 fnd_fields.iter().map(|(k, v)| (k.as_str(), v)).collect();
@@ -2552,6 +2571,8 @@ impl Checker {
                         };
                         if compat {
                             None
+                        } else if let Some((msg, _)) = self.extra_mismatch_detail(exp_ty, fnd_ty) {
+                            Some(format!("`{}`: {}", name, msg))
                         } else {
                             Some(format!(
                                 "`{}`: expected `{}`, found `{}`",
@@ -2568,8 +2589,19 @@ impl Checker {
 
             if !mismatches.is_empty() {
                 let label = mismatches[0].clone();
-                return (format!("field mismatch — {}", mismatches.join(", ")), label);
+                return Some((format!("field mismatch — {}", mismatches.join(", ")), label));
             }
+        }
+
+        None
+    }
+
+    /// When both types are records or found is an unwrapped Result, returns a focused message.
+    /// Otherwise returns the standard `expected X, found Y` form.
+    /// Returns `(main_message, inline_label)`.
+    pub(super) fn type_mismatch_detail(&self, expected: &Type, found: &Type) -> (String, String) {
+        if let Some(detail) = self.extra_mismatch_detail(expected, found) {
+            return detail;
         }
         (
             format!("expected `{}`, found `{}`", expected, found),

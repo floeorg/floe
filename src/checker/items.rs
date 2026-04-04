@@ -506,14 +506,30 @@ impl Checker {
             if !self.types_compatible(&effective_declared, &body_type)
                 && !matches!(body_type, Type::Var(_))
             {
+                let (msg, label) = if let Some((annotation, lbl)) =
+                    self.extra_mismatch_detail(&effective_declared, &body_type)
+                {
+                    (
+                        format!(
+                            "function `{}`: expected return type `{}`, {}",
+                            decl.name, resolved, annotation
+                        ),
+                        lbl,
+                    )
+                } else {
+                    (
+                        format!(
+                            "function `{}`: expected return type `{}`, found `{}`",
+                            decl.name, resolved, body_type
+                        ),
+                        format!("expected `{}`", resolved),
+                    )
+                };
                 self.emit_error(
-                    format!(
-                        "function `{}`: expected return type `{}`, found `{}`",
-                        decl.name, resolved, body_type
-                    ),
+                    msg,
                     last_expr_span(&decl.body),
                     ErrorCode::TypeMismatch,
-                    format!("expected `{}`", resolved),
+                    label,
                 );
             }
 
@@ -667,14 +683,30 @@ impl Checker {
                 if !self.types_compatible(&effective_declared, &body_type)
                     && !matches!(body_type, Type::Var(_))
                 {
+                    let (msg, label) = if let Some((annotation, lbl)) =
+                        self.extra_mismatch_detail(&effective_declared, &body_type)
+                    {
+                        (
+                            format!(
+                                "function `{}`: expected return type `{}`, {}",
+                                func.name, resolved, annotation
+                            ),
+                            lbl,
+                        )
+                    } else {
+                        (
+                            format!(
+                                "function `{}`: expected return type `{}`, found `{}`",
+                                func.name, resolved, body_type
+                            ),
+                            format!("expected `{}`", resolved),
+                        )
+                    };
                     self.emit_error(
-                        format!(
-                            "function `{}`: expected return type `{}`, found `{}`",
-                            func.name, resolved, body_type
-                        ),
+                        msg,
                         last_expr_span(&func.body),
                         ErrorCode::TypeMismatch,
-                        format!("expected `{}`", resolved),
+                        label,
                     );
                 }
             }
