@@ -468,6 +468,25 @@ impl Formatter<'_> {
     pub(crate) fn fmt_type_alias_def(&mut self, node: &SyntaxNode) {
         if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
             self.fmt_type_expr(&type_expr);
+        } else if node.kind() == SyntaxKind::TYPE_DEF_STRING_UNION {
+            self.fmt_string_union_def(node);
+        } else {
+            self.fmt_verbatim(node);
+        }
+    }
+
+    fn fmt_string_union_def(&mut self, node: &SyntaxNode) {
+        let mut first = true;
+        for t in node.children_with_tokens() {
+            if let Some(tok) = t.as_token() {
+                if tok.kind() == SyntaxKind::STRING {
+                    if !first {
+                        self.write(" | ");
+                    }
+                    self.write(tok.text());
+                    first = false;
+                }
+            }
         }
     }
 
