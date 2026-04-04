@@ -4,11 +4,9 @@ impl<'src> Lowerer<'src> {
     pub(super) fn lower_jsx_element(&mut self, node: &SyntaxNode) -> Option<JsxElement> {
         let span = self.node_span(node);
 
-        // Detect fragment: no tag name idents
-        let idents = self.collect_idents_direct(node);
+        let name = crate::syntax::jsx_tag_name_from_node(node);
 
-        if idents.is_empty() {
-            // Fragment
+        if name.is_none() {
             let children = self.lower_jsx_children(node);
             return Some(JsxElement {
                 kind: JsxElementKind::Fragment { children },
@@ -16,7 +14,7 @@ impl<'src> Lowerer<'src> {
             });
         }
 
-        let name = idents.first()?.clone();
+        let name = name.unwrap();
         // Self-closing: SLASH appears right before GREATER_THAN (not after LESS_THAN)
         let self_closing = {
             let mut prev_was_slash = false;

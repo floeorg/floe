@@ -1,0 +1,11 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+import { type JSX } from "react";
+
+import { type Select, type ListBox } from "ui";
+
+export function App(): JSX.Element {
+  return <div><Select.Trigger>Open</Select.Trigger><Select.Value /><Select.Popover><ListBox.Item key={"a"} id={"a"}>Alpha</ListBox.Item></Select.Popover></div>;
+}

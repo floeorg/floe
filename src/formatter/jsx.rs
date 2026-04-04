@@ -286,22 +286,7 @@ impl Formatter<'_> {
     }
 
     fn jsx_tag_name(&self, node: &SyntaxNode) -> Option<String> {
-        let mut past_lt = false;
-        for t in node.children_with_tokens() {
-            if let Some(tok) = t.as_token() {
-                if tok.kind() == SyntaxKind::LESS_THAN {
-                    past_lt = true;
-                    continue;
-                }
-                if past_lt && tok.kind() == SyntaxKind::IDENT {
-                    return Some(tok.text().to_string());
-                }
-                if past_lt && !tok.kind().is_trivia() {
-                    return None;
-                }
-            }
-        }
-        None
+        crate::syntax::jsx_tag_name_from_node(node)
     }
 
     fn jsx_has_children(&self, node: &SyntaxNode) -> bool {

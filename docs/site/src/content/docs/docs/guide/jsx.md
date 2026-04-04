@@ -88,6 +88,29 @@ export fn Card(props: CardProps) -> JSX.Element {
 
 Compiles to `<div {...props} className={"card"} />` in TypeScript.
 
+## Member Expressions
+
+Compound component patterns using dot notation are supported:
+
+```floe
+import { Select, ListBox } from "ui"
+
+export fn Picker() -> JSX.Element {
+    <Select>
+        <Select.Trigger>Choose...</Select.Trigger>
+        <Select.Value />
+        <Select.Popover>
+            <ListBox>
+                <ListBox.Item key="a">Alpha</ListBox.Item>
+                <ListBox.Item key="b">Beta</ListBox.Item>
+            </ListBox>
+        </Select.Popover>
+    </Select>
+}
+```
+
+This is common in component libraries like React Aria, Radix UI, and similar. The tag name compiles as-is to TypeScript.
+
 ## Fragments
 
 ```floe

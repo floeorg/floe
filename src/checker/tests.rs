@@ -5500,6 +5500,50 @@ fn convertAll(rows: Array<AccentRow>) -> Array<Accent> {
     );
 }
 
+// ── JSX member expressions ──────────────────────────────────
+
+#[test]
+fn jsx_member_expression_no_error() {
+    let diags = check(
+        r#"
+import trusted { JSX } from "react"
+
+fn Select(_props: { children: JSX.Element }) -> JSX.Element { <div /> }
+
+fn App() -> JSX.Element {
+    <div>
+        <Select.Trigger>Open</Select.Trigger>
+        <Select.Value />
+    </div>
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UndefinedName),
+        "JSX member expressions should not produce undefined name errors, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn jsx_member_expression_marks_root_used() {
+    let diags = check(
+        r#"
+import trusted { JSX } from "react"
+import trusted { Select } from "ui"
+
+fn App() -> JSX.Element {
+    <Select.Trigger />
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UnusedImport),
+        "Select should be marked as used via <Select.Trigger />, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── JSX callback parameter inference from tsgo probes ──────
 
 #[test]

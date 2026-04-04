@@ -733,17 +733,23 @@ impl Checker {
                 // Resolve the component's props type for prop validation
                 let props_map: Option<std::collections::HashMap<String, Type>> =
                     if name.starts_with(|c: char| c.is_uppercase()) {
-                        self.unused.used_names.insert(name.clone());
-                        if let Some(comp_ty) = self.env.lookup(name).cloned() {
-                            self.resolve_jsx_props_fields(&comp_ty)
-                        } else {
-                            self.emit_error(
-                                format!("component `{name}` is not defined"),
-                                element.span,
-                                ErrorCode::UndefinedName,
-                                "not found in scope",
-                            );
+                        if let Some((root, _)) = name.split_once('.') {
+                            // Member expression: mark root as used, skip prop resolution
+                            self.unused.used_names.insert(root.to_string());
                             None
+                        } else {
+                            self.unused.used_names.insert(name.clone());
+                            if let Some(comp_ty) = self.env.lookup(name).cloned() {
+                                self.resolve_jsx_props_fields(&comp_ty)
+                            } else {
+                                self.emit_error(
+                                    format!("component `{name}` is not defined"),
+                                    element.span,
+                                    ErrorCode::UndefinedName,
+                                    "not found in scope",
+                                );
+                                None
+                            }
                         }
                     } else {
                         None

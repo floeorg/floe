@@ -169,6 +169,17 @@ impl<'src> CstParser<'src> {
                                 | Some(TokenKind::Deriving)
                                 | Some(TokenKind::When)
                                 | Some(TokenKind::SelfKw)
+                                | Some(TokenKind::Value)
+                                | Some(TokenKind::Clear)
+                                | Some(TokenKind::Unchanged)
+                                | Some(TokenKind::Todo)
+                                | Some(TokenKind::Unreachable)
+                                | Some(TokenKind::Mock)
+                                | Some(TokenKind::Assert)
+                                | Some(TokenKind::Use)
+                                | Some(TokenKind::Typeof)
+                                | Some(TokenKind::Opaque)
+                                | Some(TokenKind::Trusted)
                         )
                     {
                         self.bump();

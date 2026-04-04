@@ -210,6 +210,17 @@ impl SyntaxKind {
                 | Self::KW_DERIVING
                 | Self::KW_WHEN
                 | Self::KW_SELF
+                | Self::KW_VALUE
+                | Self::KW_CLEAR
+                | Self::KW_UNCHANGED
+                | Self::KW_TODO
+                | Self::KW_UNREACHABLE
+                | Self::KW_MOCK
+                | Self::KW_ASSERT
+                | Self::KW_USE
+                | Self::KW_TYPEOF
+                | Self::KW_OPAQUE
+                | Self::KW_TRUSTED
         )
     }
 }
@@ -241,6 +252,36 @@ impl rowan::Language for FloeLang {
 /// Convenience type aliases.
 pub type SyntaxNode = rowan::SyntaxNode<FloeLang>;
 pub type SyntaxToken = rowan::SyntaxToken<FloeLang>;
+
+/// Extract the full JSX tag name from a JSX_ELEMENT CST node, including member
+/// expressions (e.g., `Select.Trigger`). Returns `None` for fragments.
+pub fn jsx_tag_name_from_node(node: &SyntaxNode) -> Option<String> {
+    let mut name = String::new();
+    let mut past_lt = false;
+    for child in node.children_with_tokens() {
+        if let Some(tok) = child.as_token() {
+            let kind = tok.kind();
+            if kind == SyntaxKind::LESS_THAN {
+                past_lt = true;
+                continue;
+            }
+            if !past_lt {
+                continue;
+            }
+            if kind.is_trivia() {
+                continue;
+            }
+            if kind.is_member_name() {
+                name.push_str(tok.text());
+            } else if kind == SyntaxKind::DOT && !name.is_empty() {
+                name.push('.');
+            } else {
+                break;
+            }
+        }
+    }
+    if name.is_empty() { None } else { Some(name) }
+}
 
 /// Convert a lexer `TokenKind` to a `SyntaxKind`.
 pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {

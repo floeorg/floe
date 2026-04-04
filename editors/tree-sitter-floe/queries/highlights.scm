@@ -141,6 +141,26 @@
 (jsx_self_closing
   name: (type_identifier) @tag)
 
+(jsx_member_expression
+  object: (identifier) @tag
+  "." @tag.delimiter
+  property: (identifier) @tag)
+
+(jsx_member_expression
+  object: (type_identifier) @tag
+  "." @tag.delimiter
+  property: (type_identifier) @tag)
+
+(jsx_member_expression
+  object: (type_identifier) @tag
+  "." @tag.delimiter
+  property: (identifier) @tag)
+
+(jsx_member_expression
+  object: (identifier) @tag
+  "." @tag.delimiter
+  property: (type_identifier) @tag)
+
 (jsx_attribute
   name: (identifier) @tag.attribute)
 

@@ -152,6 +152,14 @@ impl<'src> CstParser<'src> {
         )
     }
 
+    /// Check if the current token maps to a SyntaxKind that is a valid member
+    /// name (identifiers, keywords, numbers, etc.). Delegates to
+    /// `SyntaxKind::is_member_name` via `token_kind_to_syntax`.
+    fn is_member_name_token(&self) -> bool {
+        self.current_kind()
+            .is_some_and(|kind| crate::syntax::token_kind_to_syntax(&kind).is_member_name())
+    }
+
     fn at_end(&self) -> bool {
         self.pos >= self.tokens.len() || self.at(TokenKind::Eof)
     }

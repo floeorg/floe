@@ -20,7 +20,8 @@ impl<'src> CstParser<'src> {
             return;
         }
 
-        self.expect_ident(); // tag name
+        self.expect_ident();
+        self.parse_jsx_member_segments();
         self.eat_trivia();
 
         // Props
@@ -49,14 +50,27 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::GreaterThan);
         self.parse_jsx_children();
 
-        // Closing tag: </Tag>
+        // Closing tag: </Tag> or </Tag.Member>
         self.expect(TokenKind::LessThan);
         self.expect(TokenKind::Slash);
         self.eat_trivia();
         self.expect_ident();
+        self.parse_jsx_member_segments();
         self.expect(TokenKind::GreaterThan);
 
         self.builder.finish_node();
+    }
+
+    /// Parse `.Member` segments after a JSX tag name (e.g., `.Trigger` in `Select.Trigger`).
+    fn parse_jsx_member_segments(&mut self) {
+        while self.at(TokenKind::Dot) {
+            self.bump();
+            if self.is_member_name_token() {
+                self.bump();
+            } else {
+                self.expect_ident();
+            }
+        }
     }
 
     fn parse_jsx_prop(&mut self) {
@@ -150,7 +164,6 @@ impl<'src> CstParser<'src> {
                             && !self.at(TokenKind::LessThan)
                             && self.is_jsx_text_token()
                         {
-                            // Eat whitespace between text tokens too
                             self.bump();
                         }
                         self.builder.finish_node();
