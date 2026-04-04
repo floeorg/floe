@@ -187,15 +187,15 @@ pub(super) fn build_specifier_map(
             }
         }
         // Route chain probe results (__chain_X$Y$Z exports)
-        if let Some(rest) = export.name.strip_prefix("__chain_") {
-            if let Some(dollar_pos) = rest.find('$') {
-                let obj_name = &rest[..dollar_pos];
-                if let Some(specifier) = imported_names.get(obj_name) {
-                    result
-                        .entry(specifier.clone())
-                        .or_default()
-                        .push(export.clone());
-                }
+        if let Some(rest) = export.name.strip_prefix("__chain_")
+            && let Some(dollar_pos) = rest.find('$')
+        {
+            let obj_name = &rest[..dollar_pos];
+            if let Some(specifier) = imported_names.get(obj_name) {
+                result
+                    .entry(specifier.clone())
+                    .or_default()
+                    .push(export.clone());
             }
         }
         // Route type/JSX probes to any specifier so the checker can find them
