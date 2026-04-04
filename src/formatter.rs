@@ -135,21 +135,13 @@ impl<'src> Formatter<'src> {
                             self.newline();
                             self.newline();
                         } else {
+                            let is_import_like = |k: SyntaxKind| {
+                                matches!(k, SyntaxKind::IMPORT_DECL | SyntaxKind::REEXPORT_DECL)
+                            };
                             let want_blank = match (prev_kind, child_inner_kind) {
-                                // Group imports and re-exports together (no blank line)
-                                (Some(SyntaxKind::IMPORT_DECL), Some(SyntaxKind::IMPORT_DECL))
-                                | (
-                                    Some(SyntaxKind::IMPORT_DECL),
-                                    Some(SyntaxKind::REEXPORT_DECL),
-                                )
-                                | (
-                                    Some(SyntaxKind::REEXPORT_DECL),
-                                    Some(SyntaxKind::IMPORT_DECL),
-                                )
-                                | (
-                                    Some(SyntaxKind::REEXPORT_DECL),
-                                    Some(SyntaxKind::REEXPORT_DECL),
-                                ) => false,
+                                (Some(a), Some(b)) if is_import_like(a) && is_import_like(b) => {
+                                    false
+                                }
                                 (Some(a), Some(b)) if a != b => true,
                                 _ => true,
                             };

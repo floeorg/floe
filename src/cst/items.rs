@@ -141,10 +141,8 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::RightBrace);
         self.eat_trivia();
 
-        if self.at(TokenKind::From) {
-            self.bump();
-            self.eat_trivia();
-        }
+        self.expect(TokenKind::From);
+        self.eat_trivia();
         self.expect_kind(TokenKind::String("".into()));
 
         self.builder.finish_node();
