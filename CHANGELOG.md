@@ -5,6 +5,14 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.1](https://github.com/floeorg/floe/compare/v0.4.0...v0.4.1) (2026-04-04)
+
+
+### Bug Fixes
+
+* [[#985](https://github.com/floeorg/floe/issues/985)] Parser errors on hyphenated JSX attribute names like aria-label ([#986](https://github.com/floeorg/floe/issues/986)) ([04b7080](https://github.com/floeorg/floe/commit/04b708096cc33e44c0c52f965651ae83abecda94))
+* Remove unnecessary npm upgrade from release workflow ([#983](https://github.com/floeorg/floe/issues/983)) ([52031bf](https://github.com/floeorg/floe/commit/52031bfce7015b075ef3519dad2822e27920755d))
+
 ## [0.4.0](https://github.com/floeorg/floe/compare/v0.3.0...v0.4.0) (2026-04-04)
 
 
