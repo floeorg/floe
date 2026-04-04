@@ -141,6 +141,9 @@ pub(crate) struct CheckContext {
     pub lambda_param_hints: Vec<Type>,
     /// When inside a pipe, holds the type of the piped (left) value.
     pub pipe_input_type: Option<Type>,
+    /// Set by check_call/check_member when the callee resolved through an
+    /// untrusted Foreign type. Read by check_expr to auto-wrap in Result.
+    pub last_call_was_untrusted_foreign: bool,
 }
 
 // ── Unused name tracking ────────────────────────────────────────

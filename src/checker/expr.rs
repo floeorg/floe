@@ -108,8 +108,11 @@ impl Checker {
                 args,
             } => {
                 let ret = self.check_call(callee, type_args, args, expr.span);
-                // Auto-wrap untrusted import calls in Result
-                if self.is_untrusted_call(callee) {
+                // Auto-wrap untrusted calls in Result: direct untrusted imports
+                // AND calls on untrusted Foreign types (npm method chains)
+                let was_untrusted_foreign = self.ctx.last_call_was_untrusted_foreign;
+                self.ctx.last_call_was_untrusted_foreign = false;
+                if self.is_untrusted_call(callee) || was_untrusted_foreign {
                     match &ret {
                         Type::Promise(inner) => Type::Promise(Box::new(Type::result_of(
                             *inner.clone(),
@@ -296,16 +299,28 @@ impl Checker {
 
     /// Check if a call expression targets an untrusted import (direct or member access).
     fn is_untrusted_call(&self, callee: &Expr) -> bool {
-        match &callee.kind {
-            ExprKind::Identifier(name) => self.untrusted_imports.contains(name.as_str()),
-            ExprKind::Member { object, .. } => {
-                if let ExprKind::Identifier(obj_name) = &object.kind {
-                    self.untrusted_imports.contains(obj_name.as_str())
-                } else {
-                    false
-                }
+        // Walk the chain to find the root identifier
+        // (e.g. db in db.insert(...).values(...))
+        fn find_root(expr: &Expr) -> Option<&str> {
+            match &expr.kind {
+                ExprKind::Identifier(name) => Some(name.as_str()),
+                ExprKind::Member { object, .. } => find_root(object),
+                ExprKind::Call { callee, .. } => find_root(callee),
+                _ => None,
             }
-            _ => false,
+        }
+        find_root(callee).is_some_and(|root| self.untrusted_imports.contains(root))
+    }
+
+    /// Check if calling a Foreign type should be untrusted.
+    /// Returns true if the Foreign type name matches an untrusted import
+    /// (e.g. Database imported without `trusted`, used via self.client: Database).
+    fn is_foreign_callee_untrusted(&self, callee_ty: &Type) -> bool {
+        if let Type::Foreign(name) = callee_ty {
+            let base = name.split(['<', '.']).next().unwrap_or(name);
+            self.untrusted_imports.contains(base)
+        } else {
+            false
         }
     }
 
@@ -378,12 +393,20 @@ impl Checker {
             // Try variable-name key first (direct imports)
             let probe_name = format!("__chain_{chain_key}");
             if let Some(ty) = self.lookup_dts_probe(&probe_name) {
+                let root = chain_key.split('$').next().unwrap_or("");
+                if self.untrusted_imports.contains(root) {
+                    self.ctx.last_call_was_untrusted_foreign = true;
+                }
                 return ty;
             }
             // Try type-name key (parameters typed as npm types, e.g. db: Database)
             if let Some(type_key) = self.chain_key_by_root_type(object, field) {
                 let probe_name = format!("__chain_{type_key}");
                 if let Some(ty) = self.lookup_dts_probe(&probe_name) {
+                    let type_root = type_key.split('$').next().unwrap_or("");
+                    if self.untrusted_imports.contains(type_root) {
+                        self.ctx.last_call_was_untrusted_foreign = true;
+                    }
                     return ty;
                 }
             }
@@ -1006,8 +1029,11 @@ impl Checker {
             // Only applies when the callee is a member access (chained call pattern),
             // not for standalone Foreign identifiers like overloaded npm functions
             // where we genuinely can't determine the return type.
-            Type::Foreign(_) if matches!(callee.kind, ExprKind::Member { .. }) => {
+            Type::Foreign(ref name) if matches!(callee.kind, ExprKind::Member { .. }) => {
                 self.check_args_unchecked(args);
+                if self.is_foreign_callee_untrusted(&Type::Foreign(name.clone())) {
+                    self.ctx.last_call_was_untrusted_foreign = true;
+                }
                 Type::Foreign("_".into())
             }
             Type::Unknown => {
