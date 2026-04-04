@@ -170,6 +170,18 @@ impl FloeLsp {
                     range: None,
                 }));
             }
+
+            // Typed AST fallback for member access on call results (e.g. db.insert(...).values)
+            // where obj_name can't be extracted from text (preceded by `)` not an identifier)
+            if let Some((_, ref ty)) = typed_ast {
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!("```floe\n(property) {word}: {}\n```", ty),
+                    }),
+                    range: None,
+                }));
+            }
         }
 
         // Check stdlib module names (Array, String, Option, etc.)
