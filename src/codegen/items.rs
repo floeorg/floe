@@ -6,6 +6,7 @@ impl Codegen {
     pub(super) fn emit_item(&mut self, item: &Item) {
         match &item.kind {
             ItemKind::Import(decl) => self.emit_import(decl),
+            ItemKind::ReExport(decl) => self.emit_reexport(decl),
             ItemKind::Const(decl) => self.emit_const(decl),
             ItemKind::Function(decl) => self.emit_function(decl),
             ItemKind::TypeDecl(decl) => self.emit_type_decl(decl),
@@ -152,6 +153,24 @@ impl Codegen {
                 self.push(&format!(" }} from \"{}\";", decl.source));
             }
         }
+    }
+
+    // ── Re-export ────────────────────────────────────────────────
+
+    fn emit_reexport(&mut self, decl: &ReExportDecl) {
+        self.emit_indent();
+        self.push("export { ");
+        for (i, spec) in decl.specifiers.iter().enumerate() {
+            if i > 0 {
+                self.push(", ");
+            }
+            self.push(&spec.name);
+            if let Some(alias) = &spec.alias {
+                self.push(" as ");
+                self.push(alias);
+            }
+        }
+        self.push(&format!(" }} from \"{}\";", decl.source));
     }
 
     // ── Const ────────────────────────────────────────────────────

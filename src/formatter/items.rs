@@ -109,6 +109,50 @@ impl Formatter<'_> {
         }
     }
 
+    // ── Re-export ───────────────────────────────────────────────
+
+    pub(crate) fn fmt_reexport(&mut self, node: &SyntaxNode) {
+        // The `export` keyword is emitted by fmt_item
+        self.write("{ ");
+        let specifiers: Vec<_> = node
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::REEXPORT_SPECIFIER)
+            .collect();
+        for (i, spec) in specifiers.iter().enumerate() {
+            if i > 0 {
+                self.write(", ");
+            }
+            self.fmt_reexport_specifier(spec);
+        }
+        self.write(" } ");
+        self.write("from ");
+        for t in node.children_with_tokens() {
+            if let Some(tok) = t.as_token()
+                && tok.kind() == SyntaxKind::STRING
+            {
+                self.write(tok.text());
+            }
+        }
+    }
+
+    fn fmt_reexport_specifier(&mut self, node: &SyntaxNode) {
+        let idents: Vec<_> = node
+            .children_with_tokens()
+            .filter_map(|t| t.into_token())
+            .filter(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::BANNED)
+            .collect();
+
+        if let Some(name) = idents.first() {
+            self.write(name.text());
+        }
+        if idents.len() > 1 {
+            self.write(" as ");
+            if let Some(alias) = idents.last() {
+                self.write(alias.text());
+            }
+        }
+    }
+
     fn fmt_import_for_specifier(&mut self, node: &SyntaxNode) {
         self.write("for ");
         if let Some(name) = self.first_ident(node) {

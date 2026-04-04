@@ -70,6 +70,7 @@ impl<'src> Formatter<'src> {
             SyntaxKind::ITEM => self.fmt_item(node),
             SyntaxKind::EXPR_ITEM => self.fmt_expr_item(node),
             SyntaxKind::IMPORT_DECL => self.fmt_import(node),
+            SyntaxKind::REEXPORT_DECL => self.fmt_reexport(node),
             SyntaxKind::CONST_DECL => self.fmt_const(node),
             SyntaxKind::FUNCTION_DECL => self.fmt_function(node),
             SyntaxKind::TYPE_DECL => self.fmt_type_decl(node),
@@ -134,11 +135,14 @@ impl<'src> Formatter<'src> {
                             self.newline();
                             self.newline();
                         } else {
+                            let is_import_like = |k: SyntaxKind| {
+                                matches!(k, SyntaxKind::IMPORT_DECL | SyntaxKind::REEXPORT_DECL)
+                            };
                             let want_blank = match (prev_kind, child_inner_kind) {
-                                (Some(a), Some(b)) if a != b => true,
-                                (Some(SyntaxKind::IMPORT_DECL), Some(SyntaxKind::IMPORT_DECL)) => {
+                                (Some(a), Some(b)) if is_import_like(a) && is_import_like(b) => {
                                     false
                                 }
+                                (Some(a), Some(b)) if a != b => true,
                                 _ => true,
                             };
                             if want_blank {

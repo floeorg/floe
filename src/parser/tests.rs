@@ -1318,6 +1318,36 @@ fn import_mixed_names_and_for_types() {
     }
 }
 
+// ── Re-exports ──────────────────────────────────────────────
+
+#[test]
+fn reexport_named() {
+    let input = r#"export { Card, CardContent } from "@heroui/react""#;
+    match first_item(input) {
+        ItemKind::ReExport(decl) => {
+            assert_eq!(decl.specifiers.len(), 2);
+            assert_eq!(decl.specifiers[0].name, "Card");
+            assert_eq!(decl.specifiers[1].name, "CardContent");
+            assert_eq!(decl.source, "@heroui/react");
+        }
+        other => panic!("expected re-export, got {other:?}"),
+    }
+}
+
+#[test]
+fn reexport_with_alias() {
+    let input = r#"export { Todo as TodoItem } from "./types""#;
+    match first_item(input) {
+        ItemKind::ReExport(decl) => {
+            assert_eq!(decl.specifiers.len(), 1);
+            assert_eq!(decl.specifiers[0].name, "Todo");
+            assert_eq!(decl.specifiers[0].alias, Some("TodoItem".to_string()));
+            assert_eq!(decl.source, "./types");
+        }
+        other => panic!("expected re-export, got {other:?}"),
+    }
+}
+
 // ── Test Blocks ─────────────────────────────────────────────
 
 #[test]

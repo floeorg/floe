@@ -443,8 +443,8 @@ impl SymbolIndex {
                         }
                     }
                 }
-                ItemKind::TestBlock(_) => {
-                    // Test blocks don't contribute symbols
+                ItemKind::ReExport(_) | ItemKind::TestBlock(_) => {
+                    // Re-exports and test blocks don't contribute symbols
                 }
                 ItemKind::Expr(expr) => {
                     Self::collect_expr(expr, symbols);
