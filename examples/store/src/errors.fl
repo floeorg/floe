@@ -5,12 +5,9 @@ import { ApiError, Display } from "./types"
 for ApiError: Display {
     export fn display(self) -> string {
         self |> match {
-            // Level 2: drill into NetworkError variants
             Network(Timeout(ms)) -> `Request timed out after ${ms}ms`,
             Network(DnsFailure(host)) -> `Cannot resolve ${host}`,
             Network(ConnectionRefused) -> "Server is not responding",
-
-            // Level 1: other ApiError variants
             NotFound(id) -> `Product #${id} not found`,
             BadResponse(status, _) -> status |> match {
                 400..499 -> `Client error (${status})`,
