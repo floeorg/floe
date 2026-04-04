@@ -5974,3 +5974,45 @@ fn unknown_binding_no_duplicate_when_error_exists() {
     assert!(has_error_containing(&diags, "is not defined"));
     assert!(!has_warning_containing(&diags, "has type `unknown`"));
 }
+
+// ── tsgo required for TS imports ────────────────────────────
+
+#[test]
+fn tsgo_missing_emits_error_for_ts_import() {
+    let source = r#"import { useJiraStore } from "../../stores/jira-store"
+const x = useJiraStore()"#;
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let checker = Checker::from_context(
+        HashMap::new(),
+        HashMap::new(),
+        None,
+        HashSet::from(["../../stores/jira-store".to_string()]),
+    );
+    let diags = checker.check(&program);
+    assert!(
+        has_error(&diags, ErrorCode::TsgoNotFound),
+        "should emit TsgoNotFound error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn tsgo_missing_no_error_for_npm_import() {
+    let source = r#"import { useState } from "react""#;
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    // "react" is not in ts_imports_missing_tsgo, so no error
+    let checker = Checker::from_context(
+        HashMap::new(),
+        HashMap::new(),
+        None,
+        HashSet::from(["../../stores/jira-store".to_string()]),
+    );
+    let diags = checker.check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::TsgoNotFound),
+        "should not emit TsgoNotFound for npm imports, got: {diags:?}"
+    );
+}

@@ -115,6 +115,32 @@ fn find_probe_dts(probe_dir: &Path) -> Option<PathBuf> {
     walk(&out_dir)
 }
 
+/// Check whether tsgo (or npx @typescript/native-preview) is available on the system.
+/// The result is cached for the lifetime of the process.
+pub fn is_tsgo_available() -> bool {
+    use std::sync::OnceLock;
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        // Try tsgo directly
+        if let Ok(output) = Command::new("tsgo").arg("--version").output()
+            && output.status.success()
+        {
+            return true;
+        }
+
+        // Try npx @typescript/native-preview
+        if let Ok(output) = Command::new("npx")
+            .args(["@typescript/native-preview", "--version"])
+            .output()
+            && output.status.success()
+        {
+            return true;
+        }
+
+        false
+    })
+}
+
 /// Run tsgo on the probe directory and return the output `.d.ts` content.
 pub(super) fn run_tsgo(probe_dir: &Path) -> Result<String, String> {
     // Try tsgo first, then fall back to npx @typescript/native-preview

@@ -23,8 +23,19 @@ use super::dts::parse_dts_exports_from_str;
 
 use probe_gen::generate_probe;
 #[cfg(feature = "cli")]
+pub use probe_run::is_tsgo_available;
+#[cfg(feature = "cli")]
 use probe_run::{create_probe_dir, run_tsgo};
 use specifier_map::build_specifier_map;
+
+/// Result of resolving TypeScript imports via tsgo.
+pub struct TsgoResult {
+    /// Resolved exports per import specifier.
+    pub exports: HashMap<String, Vec<DtsExport>>,
+    /// Import sources that resolve to `.ts`/`.tsx` files but could not be
+    /// resolved because tsgo is not installed.
+    pub ts_imports_missing_tsgo: HashSet<String>,
+}
 
 /// Resolves npm import types using probes, DTS parsing, and tsgo LSP.
 pub struct TsgoResolver {
@@ -68,18 +79,22 @@ impl TsgoResolver {
     /// `source_dir` is the directory of the `.fl` file being compiled, used to
     /// resolve relative imports to local `.ts`/`.tsx` files.
     ///
-    /// Returns a map from specifier (npm or relative) to its resolved exports.
+    /// Returns a [`TsgoResult`] with resolved exports and any `.ts` imports
+    /// that could not be resolved because tsgo is not installed.
     pub fn resolve_imports(
         &mut self,
         program: &Program,
         resolved_imports: &HashMap<String, crate::resolve::ResolvedImports>,
         source_dir: &Path,
         tsconfig_paths: &crate::resolve::TsconfigPaths,
-    ) -> HashMap<String, Vec<DtsExport>> {
+    ) -> TsgoResult {
         #[cfg(not(feature = "cli"))]
         {
             let _ = (program, resolved_imports, source_dir, tsconfig_paths);
-            return HashMap::new();
+            return TsgoResult {
+                exports: HashMap::new(),
+                ts_imports_missing_tsgo: HashSet::new(),
+            };
         }
 
         #[cfg(feature = "cli")]
@@ -87,11 +102,31 @@ impl TsgoResolver {
             let ts_imports =
                 find_relative_ts_imports(program, resolved_imports, source_dir, tsconfig_paths);
 
+            // When .ts/.tsx imports exist and tsgo is not available, still
+            // resolve npm imports (which use .d.ts and don't need tsgo) but
+            // record the .ts sources so the checker can emit a hard error.
+            let missing_tsgo: HashSet<String> = if !ts_imports.is_empty() && !is_tsgo_available() {
+                ts_imports.keys().cloned().collect()
+            } else {
+                HashSet::new()
+            };
+
+            // Exclude .ts imports from probe when tsgo is unavailable — the
+            // probe file would reference them and fail to compile.
+            let effective_ts_imports = if missing_tsgo.is_empty() {
+                &ts_imports
+            } else {
+                &HashMap::new()
+            };
+
             // Probe-based resolution for call-site types, enhanced with
             // DTS parsing, typeof resolution, and LSP hover for unresolved types.
-            let mut result = self.run_probe(program, resolved_imports, &ts_imports);
-            self.enhance_import_types(&mut result, program, &ts_imports);
-            result
+            let mut result = self.run_probe(program, resolved_imports, effective_ts_imports);
+            self.enhance_import_types(&mut result, program, effective_ts_imports);
+            TsgoResult {
+                exports: result,
+                ts_imports_missing_tsgo: missing_tsgo,
+            }
         }
     }
 
@@ -733,8 +768,11 @@ const [input, setInput] = useState("")
             &crate::resolve::TsconfigPaths::default(),
         );
 
-        eprintln!("tsgo result keys: {:?}", result.keys().collect::<Vec<_>>());
-        if let Some(react_exports) = result.get("react") {
+        eprintln!(
+            "tsgo result keys: {:?}",
+            result.exports.keys().collect::<Vec<_>>()
+        );
+        if let Some(react_exports) = result.exports.get("react") {
             for export in react_exports {
                 eprintln!("  export: {} -> {:?}", export.name, export.ts_type);
             }
@@ -752,7 +790,7 @@ const [input, setInput] = useState("")
         } else {
             panic!(
                 "should have react exports, got keys: {:?}",
-                result.keys().collect::<Vec<_>>()
+                result.exports.keys().collect::<Vec<_>>()
             );
         }
     }
@@ -785,7 +823,7 @@ const [filter, setFilter] = useState<Filter>(Filter.All)
             &crate::resolve::TsconfigPaths::default(),
         );
 
-        if let Some(react_exports) = result.get("react") {
+        if let Some(react_exports) = result.exports.get("react") {
             for export in react_exports {
                 eprintln!("  export: {} -> {:?}", export.name, export.ts_type);
             }

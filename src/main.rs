@@ -130,10 +130,16 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
     let resolved = resolve::resolve_imports(file_path, &program, &tsconfig_paths);
 
     let mut tsgo_resolver = floe::interop::TsgoResolver::new(&project_dir);
-    let dts_map = tsgo_resolver.resolve_imports(&program, &resolved, &source_dir, &tsconfig_paths);
+    let tsgo_result =
+        tsgo_resolver.resolve_imports(&program, &resolved, &source_dir, &tsconfig_paths);
 
     let ambient = floe::interop::ambient::load_ambient_types(&project_dir);
-    let checker = Checker::from_context(resolved.clone(), dts_map, ambient);
+    let checker = Checker::from_context(
+        resolved.clone(),
+        tsgo_result.exports,
+        ambient,
+        tsgo_result.ts_imports_missing_tsgo,
+    );
     let (check_diags, expr_types) = checker.check_full(&program);
     // Print diagnostics to stderr but don't block compilation
     // (floe check handles strict error reporting separately)
@@ -307,7 +313,7 @@ fn cmd_check(path: &Path) -> Result<()> {
                 let resolved = resolve::resolve_imports(file, &program, &tsconfig_paths);
 
                 let mut tsgo_resolver = floe::interop::TsgoResolver::new(&project_dir);
-                let dts_map = tsgo_resolver.resolve_imports(
+                let tsgo_result = tsgo_resolver.resolve_imports(
                     &program,
                     &resolved,
                     &source_dir,
@@ -315,7 +321,13 @@ fn cmd_check(path: &Path) -> Result<()> {
                 );
 
                 let ambient = floe::interop::ambient::load_ambient_types(&project_dir);
-                let check_diags = Checker::from_context(resolved, dts_map, ambient).check(&program);
+                let check_diags = Checker::from_context(
+                    resolved,
+                    tsgo_result.exports,
+                    ambient,
+                    tsgo_result.ts_imports_missing_tsgo,
+                )
+                .check(&program);
                 let type_errors: Vec<_> = check_diags
                     .iter()
                     .filter(|d| d.severity == diagnostic::Severity::Error)
