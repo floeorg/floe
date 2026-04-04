@@ -445,46 +445,43 @@ impl Checker {
         }
     }
 
-    /// Create a checker with .fl imports, .d.ts imports, and ambient types
-    /// from TypeScript lib definitions (e.g., lib.dom.d.ts).
-    pub fn with_all_imports_and_ambient(
+    /// Create a checker with all available type context.
+    ///
+    /// This is the single entry point for constructing a checker with imports
+    /// and ambient types. Replaces the need to branch between `new()`,
+    /// `with_imports()`, `with_all_imports()` at call sites.
+    pub fn from_context(
         fl_imports: HashMap<String, ResolvedImports>,
         dts_imports: HashMap<String, Vec<DtsExport>>,
-        ambient: crate::interop::ambient::AmbientDeclarations,
+        ambient: Option<crate::interop::ambient::AmbientDeclarations>,
     ) -> Self {
         let mut checker = Self::new();
         checker.resolved_imports = fl_imports;
         checker.dts_imports = dts_imports;
-        checker.register_ambient_types(ambient);
+        if let Some(ambient) = ambient {
+            checker.register_ambient_types(ambient);
+        }
         checker
     }
 
     /// Register ambient types from TypeScript lib definitions, replacing
     /// the hardcoded browser globals with real typed declarations.
     fn register_ambient_types(&mut self, ambient: crate::interop::ambient::AmbientDeclarations) {
-        // Store type definitions for resolve_type_to_concrete() lookups
         self.ambient_types = ambient.types;
 
-        // Register globals in the type environment, overriding the
-        // hardcoded fallback types with real typed declarations.
-        // Skip names that are handled specially by the Floe stdlib
-        // (Response, Error, Event) to preserve Floe-specific field sets.
-        let preserved_names: HashSet<&str> =
-            ["Response", "Error", "Event"].iter().copied().collect();
+        // Preserve Floe-specific types (Response, Error, Event) from stdlib
+        const PRESERVED: &[&str] = &["Response", "Error", "Event"];
 
         for (name, ty) in ambient.globals {
-            if preserved_names.contains(name.as_str()) {
+            if PRESERVED.contains(&name.as_str()) {
                 continue;
             }
-            // Skip `declare var X: { prototype: X; ... }` constructor entries
-            // that share a name with an interface. In lib.dom.d.ts, each
-            // interface Foo has a matching `declare var Foo: { prototype: Foo }`
-            // for the constructor. We want the interface (in ambient_types)
-            // for member access resolution, not the constructor object.
+            // Skip constructor entries (`declare var Foo: { prototype: Foo }`)
+            // that shadow interface definitions — we want the interface for
+            // member access, not the constructor object.
             if self.ambient_types.contains_key(&name) && matches!(ty, Type::Record(_)) {
                 continue;
             }
-            // Mark fetch as untrusted (auto-wrapped in Result)
             if name == "fetch" {
                 self.untrusted_imports.insert(name.clone());
             }

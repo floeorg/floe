@@ -132,11 +132,8 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
     let mut tsgo_resolver = floe::interop::TsgoResolver::new(&project_dir);
     let dts_map = tsgo_resolver.resolve_imports(&program, &resolved, &source_dir, &tsconfig_paths);
 
-    let checker = match floe::interop::ambient::load_ambient_types(&project_dir) {
-        Some(ambient) => Checker::with_all_imports_and_ambient(resolved.clone(), dts_map, ambient),
-        None if dts_map.is_empty() => Checker::with_imports(resolved.clone()),
-        None => Checker::with_all_imports(resolved.clone(), dts_map),
-    };
+    let ambient = floe::interop::ambient::load_ambient_types(&project_dir);
+    let checker = Checker::from_context(resolved.clone(), dts_map, ambient);
     let (check_diags, expr_types) = checker.check_full(&program);
     // Print diagnostics to stderr but don't block compilation
     // (floe check handles strict error reporting separately)
@@ -317,14 +314,8 @@ fn cmd_check(path: &Path) -> Result<()> {
                     &tsconfig_paths,
                 );
 
-                let check_diags = match floe::interop::ambient::load_ambient_types(&project_dir) {
-                    Some(ambient) => {
-                        Checker::with_all_imports_and_ambient(resolved, dts_map, ambient)
-                            .check(&program)
-                    }
-                    None if dts_map.is_empty() => Checker::with_imports(resolved).check(&program),
-                    None => Checker::with_all_imports(resolved, dts_map).check(&program),
-                };
+                let ambient = floe::interop::ambient::load_ambient_types(&project_dir);
+                let check_diags = Checker::from_context(resolved, dts_map, ambient).check(&program);
                 let type_errors: Vec<_> = check_diags
                     .iter()
                     .filter(|d| d.severity == diagnostic::Severity::Error)

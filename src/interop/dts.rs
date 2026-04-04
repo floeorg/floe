@@ -216,20 +216,7 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
         collect_type_alias_defaults(stmt, &mut type_aliases);
     }
 
-    let mut interface_bodies: HashMap<String, Vec<ObjectField>> = HashMap::new();
-    let mut interface_extends: HashMap<String, Vec<String>> = HashMap::new();
-
-    // Collect interfaces from all sources (exports, namespace exports)
-    for stmt in &ret.program.body {
-        collect_interface_info(stmt, &mut interface_bodies, &mut interface_extends);
-    }
-
-    // Resolve extends chains: merge parent fields into each interface
-    let resolved_names: Vec<String> = interface_extends.keys().cloned().collect();
-    for name in &resolved_names {
-        let fields = resolve_interface_fields(name, &interface_bodies, &interface_extends);
-        interface_bodies.insert(name.clone(), fields);
-    }
+    let mut interface_bodies = collect_and_resolve_interfaces(&ret.program.body);
 
     // Resolve type aliases in interface field types
     // (e.g. DraggableId<TId> → string when DraggableId<T = string> = T)
@@ -491,7 +478,9 @@ pub(super) fn convert_function(
 }
 
 /// Convert an oxc variable declarator to a DtsExport (for const declarations).
-fn convert_variable_declarator(declarator: &VariableDeclarator<'_>) -> Option<DtsExport> {
+pub(super) fn convert_variable_declarator(
+    declarator: &VariableDeclarator<'_>,
+) -> Option<DtsExport> {
     let name = match &declarator.id {
         oxc_ast::ast::BindingPattern::BindingIdentifier(ident) => ident.name.to_string(),
         _ => return None,
@@ -998,6 +987,30 @@ fn resolve_interface_fields_inner(
     }
 
     all_fields
+}
+
+/// Collect and resolve all interface definitions from AST statements.
+///
+/// Collects interface bodies and extends chains, then resolves extends
+/// by merging parent fields into each child. Shared between `parse_dts_content`
+/// and `parse_ambient_lib`.
+pub(super) fn collect_and_resolve_interfaces(
+    stmts: &[Statement<'_>],
+) -> HashMap<String, Vec<ObjectField>> {
+    let mut bodies: HashMap<String, Vec<ObjectField>> = HashMap::new();
+    let mut extends: HashMap<String, Vec<String>> = HashMap::new();
+
+    for stmt in stmts {
+        collect_interface_info(stmt, &mut bodies, &mut extends);
+    }
+
+    let resolved_names: Vec<String> = extends.keys().cloned().collect();
+    for name in &resolved_names {
+        let fields = resolve_interface_fields(name, &bodies, &extends);
+        bodies.insert(name.clone(), fields);
+    }
+
+    bodies
 }
 
 /// Collect type alias default values from statements.

@@ -382,14 +382,7 @@ impl FloeLsp {
                 // Add imported for-block functions to the symbol index
                 index.add_imported_for_blocks(&resolved_imports);
 
-                let checker = match ambient_types {
-                    Some(ambient) => {
-                        Checker::with_all_imports_and_ambient(resolved_imports, dts_map, ambient)
-                    }
-                    None if resolved_imports.is_empty() && dts_map.is_empty() => Checker::new(),
-                    None if dts_map.is_empty() => Checker::with_imports(resolved_imports),
-                    None => Checker::with_all_imports(resolved_imports, dts_map),
-                };
+                let checker = Checker::from_context(resolved_imports, dts_map, ambient_types);
                 let (mut check_diags, type_map, expr_types) = checker.check_with_types(&program);
                 check_diags.extend(import_diags_early);
 

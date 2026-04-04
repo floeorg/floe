@@ -14,14 +14,12 @@ use oxc_ast::ast::Statement;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
-use super::dts::{
-    collect_interface_info, convert_function, convert_oxc_type, resolve_interface_fields,
-};
-use super::ts_types::ObjectField;
+use super::dts::{collect_and_resolve_interfaces, convert_function, convert_variable_declarator};
 use super::wrapper::wrap_boundary_type;
 use crate::checker::Type;
 
 /// Ambient declarations parsed from TypeScript lib files.
+#[derive(Default)]
 pub struct AmbientDeclarations {
     /// Global variables/functions (e.g., `window`, `document`, `navigator`, `fetch`).
     /// These are registered directly in the checker's type environment.
@@ -111,75 +109,41 @@ fn parse_ambient_lib(content: &str) -> AmbientDeclarations {
     let ret = Parser::new(&allocator, content, source_type).parse();
 
     if ret.panicked {
-        return AmbientDeclarations {
-            globals: Vec::new(),
-            types: HashMap::new(),
-        };
+        return AmbientDeclarations::default();
     }
 
-    // ── Phase 1: Collect all interface definitions ──────────────
-    let mut interface_bodies: HashMap<String, Vec<ObjectField>> = HashMap::new();
-    let mut interface_extends: HashMap<String, Vec<String>> = HashMap::new();
-
-    for stmt in &ret.program.body {
-        collect_interface_info(stmt, &mut interface_bodies, &mut interface_extends);
-    }
-
-    // Resolve extends chains: merge parent fields into each interface
-    let resolved_names: Vec<String> = interface_extends.keys().cloned().collect();
-    for name in &resolved_names {
-        let fields = resolve_interface_fields(name, &interface_bodies, &interface_extends);
-        interface_bodies.insert(name.clone(), fields);
-    }
-
-    // Convert interface bodies to Floe types
+    // Phase 1: Collect and resolve all interface definitions
+    let interface_bodies = collect_and_resolve_interfaces(&ret.program.body);
     let mut types: HashMap<String, Type> = HashMap::new();
     for (name, fields) in &interface_bodies {
         let ts_type = super::TsType::Object(fields.clone());
-        let floe_type = wrap_boundary_type(&ts_type);
-        types.insert(name.clone(), floe_type);
+        types.insert(name.clone(), wrap_boundary_type(&ts_type));
     }
 
-    // ── Phase 2: Collect `declare var` and `declare function` globals ──
+    // Phase 2: Collect `declare var` and `declare function` globals
     let mut globals: Vec<(String, Type)> = Vec::new();
     let mut seen_globals: HashSet<String> = HashSet::new();
 
     for stmt in &ret.program.body {
         match stmt {
-            // `declare var name: Type;`
             Statement::VariableDeclaration(var_decl) if var_decl.declare => {
                 for declarator in &var_decl.declarations {
-                    let name = match &declarator.id {
-                        oxc_ast::ast::BindingPattern::BindingIdentifier(ident) => {
-                            ident.name.to_string()
-                        }
-                        _ => continue,
-                    };
-                    if !seen_globals.insert(name.clone()) {
-                        continue;
+                    if let Some(export) = convert_variable_declarator(declarator)
+                        && seen_globals.insert(export.name.clone())
+                    {
+                        globals.push((export.name, wrap_boundary_type(&export.ts_type)));
                     }
-                    let ts_type = declarator
-                        .type_annotation
-                        .as_ref()
-                        .map(|ta| convert_oxc_type(&ta.type_annotation))
-                        .unwrap_or(super::TsType::Any);
-                    let floe_type = wrap_boundary_type(&ts_type);
-                    globals.push((name, floe_type));
                 }
             }
-
-            // `declare function name(...): ReturnType;`
             Statement::FunctionDeclaration(func) if func.declare => {
                 if let Some(ref id) = func.id {
                     let name = id.name.to_string();
                     if seen_globals.insert(name.clone()) {
                         let ts_type = convert_function(&func.params, &func.return_type);
-                        let floe_type = wrap_boundary_type(&ts_type);
-                        globals.push((name, floe_type));
+                        globals.push((name, wrap_boundary_type(&ts_type)));
                     }
                 }
             }
-
             _ => {}
         }
     }
