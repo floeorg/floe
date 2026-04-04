@@ -152,32 +152,12 @@ impl<'src> CstParser<'src> {
         )
     }
 
-    /// Check if the current token can appear as a member name in JSX member
-    /// expressions (e.g., `Value` in `<Select.Value />`). Includes identifiers,
-    /// keywords, and built-in constructors.
-    fn is_jsx_member_name(&self) -> bool {
-        self.is_ident()
-            || self.is_keyword()
-            || matches!(
-                self.current_kind(),
-                Some(
-                    TokenKind::Value
-                        | TokenKind::Clear
-                        | TokenKind::Unchanged
-                        | TokenKind::Todo
-                        | TokenKind::Unreachable
-                        | TokenKind::Mock
-                        | TokenKind::Assert
-                        | TokenKind::When
-                        | TokenKind::Collect
-                        | TokenKind::Deriving
-                        | TokenKind::Use
-                        | TokenKind::Typeof
-                        | TokenKind::SelfKw
-                        | TokenKind::Opaque
-                        | TokenKind::Trusted
-                )
-            )
+    /// Check if the current token maps to a SyntaxKind that is a valid member
+    /// name (identifiers, keywords, numbers, etc.). Delegates to
+    /// `SyntaxKind::is_member_name` via `token_kind_to_syntax`.
+    fn is_member_name_token(&self) -> bool {
+        self.current_kind()
+            .is_some_and(|kind| crate::syntax::token_kind_to_syntax(&kind).is_member_name())
     }
 
     fn at_end(&self) -> bool {
