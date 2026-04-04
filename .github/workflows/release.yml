@@ -143,9 +143,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Upgrade npm for trusted publishing support
-        run: npm install -g npm@latest
-
       - name: Build and publish Vite plugin
         working-directory: integrations/vite-plugin-floe
         run: |
