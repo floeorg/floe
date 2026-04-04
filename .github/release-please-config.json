@@ -14,6 +14,16 @@
         },
         {
           "type": "json",
+          "path": "integrations/core/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "integrations/register/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "editors/vscode/package.json",
           "jsonpath": "$.version"
         }

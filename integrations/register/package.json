@@ -1,0 +1,36 @@
+{
+  "name": "@floeorg/register",
+  "version": "0.1.0",
+  "description": "Node.js loader hook for Floe - resolve .fl imports at runtime",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "floe",
+    "loader",
+    "register"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/floeorg/floe",
+    "directory": "integrations/register"
+  },
+  "homepage": "https://github.com/floeorg/floe",
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2"
+  }
+}

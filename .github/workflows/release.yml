@@ -143,6 +143,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build and publish core package
+        working-directory: integrations/core
+        run: |
+          pnpm build
+          npx npm@latest publish --access public --provenance
+
+      - name: Build and publish register package
+        working-directory: integrations/register
+        run: |
+          pnpm build
+          npx npm@latest publish --access public --provenance
+
       - name: Build and publish Vite plugin
         working-directory: integrations/vite-plugin-floe
         run: |
