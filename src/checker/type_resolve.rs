@@ -91,6 +91,8 @@ impl Checker {
     }
 
     fn check_type_arg_arity(&mut self, name: &str, expected: usize, actual: usize, span: Span) {
+        // Skip when no type args are provided — bare `Option`, `Result`, etc. are
+        // valid (inner types default to Unknown and may be inferred later).
         if actual != expected && actual != 0 {
             self.emit_error_with_help(
                 format!("`{name}` expects {expected} type argument(s), found {actual}"),
@@ -156,7 +158,7 @@ impl Checker {
                     .unwrap_or(Type::Unknown);
                 Type::Array(Box::new(inner))
             }
-            "Promise" => {
+            type_layout::TYPE_PROMISE => {
                 self.check_type_arg_arity(name, 1, type_args.len(), span);
                 let inner = type_args
                     .first()

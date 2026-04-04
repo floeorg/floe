@@ -6277,11 +6277,24 @@ const x: Array<string, number> = []
 }
 
 #[test]
+fn settable_with_too_many_type_args_errors() {
+    let source = r#"
+const x: Settable<string, number> = Settable("hi")
+"#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::TypeArgumentArity),
+        "Settable<string, number> should error, got: {diags:?}"
+    );
+}
+
+#[test]
 fn correct_type_arg_arity_no_error() {
     let source = r#"
 const a: Option<string> = None
 const b: Result<string, number> = Ok("hi")
 const c: Array<number> = []
+fn foo() -> Promise<string> { "hi" }
 "#;
     let diags = check(source);
     assert!(
