@@ -2546,10 +2546,9 @@ impl Checker {
             && let Some(ok_ty) = found.result_ok()
             && self.types_unifiable(expected, ok_ty)
         {
-            let msg = format!(
-                "found `{}` — this is an untrusted import result, use `?` to unwrap or `import trusted` if it cannot fail",
-                found
-            );
+            let msg =
+                "found an untrusted import `Result` — use `?` to unwrap or `import trusted` if it cannot fail"
+                    .to_string();
             return Some((msg, "use `?` to unwrap or `import trusted`".to_string()));
         }
 
