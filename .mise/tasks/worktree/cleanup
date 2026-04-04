@@ -1,0 +1,15 @@
+#!/bin/bash
+# mise description="Remove worktree + per-worktree database"
+# mise args=["num"]
+set -euo pipefail
+
+NUM="$1"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+WT_DIR="$REPO_ROOT/../floe-worktrees/$NUM"
+DB_NAME="floe_wt_$NUM"
+
+git worktree remove "$WT_DIR" 2>/dev/null || true
+dropdb "$DB_NAME" 2>/dev/null || true
+git worktree prune
+
+echo "Cleaned up worktree $NUM (database: $DB_NAME)"

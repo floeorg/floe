@@ -1,0 +1,27 @@
+#!/bin/bash
+# mise description="Create worktree with full setup (branch, DB, env, deps)"
+# mise args=["num", "branch", "base?"]
+set -euo pipefail
+
+NUM="$1"
+BRANCH="$2"
+BASE="${3:-main}"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+WT_DIR="$REPO_ROOT/../floe-worktrees/$NUM"
+DB_NAME="floe_wt_$NUM"
+
+git worktree add "$WT_DIR" -b "$BRANCH" "$BASE"
+cd "$WT_DIR"
+
+# Per-worktree database
+createdb "$DB_NAME" 2>/dev/null || true
+cp -f .env.example .env 2>/dev/null || true
+sed -i '' "s|DATABASE_URL=.*|DATABASE_URL=postgres://floe:floe@localhost:5432/$DB_NAME|" "$WT_DIR/.env"
+
+# Dependencies
+if [ -f "pnpm-workspace.yaml" ]; then pnpm install; fi
+
+# Migrations
+mise run db:migrate 2>/dev/null || true
+
+echo "Worktree ready at $WT_DIR (database: $DB_NAME)"
