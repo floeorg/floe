@@ -6211,3 +6211,106 @@ import { API_URL } from "./config"
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Generic type argument arity ─────────────────────────────
+
+#[test]
+fn option_with_too_many_type_args_errors() {
+    let source = r#"
+const x: Option<string, number> = None
+"#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::TypeArgumentArity),
+        "Option<string, number> should error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn result_with_too_many_type_args_errors() {
+    let source = r#"
+const x: Result<string, number, boolean> = Ok("hi")
+"#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::TypeArgumentArity),
+        "Result<string, number, boolean> should error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn result_with_too_few_type_args_errors() {
+    let source = r#"
+const x: Result<string> = Ok("hi")
+"#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::TypeArgumentArity),
+        "Result<string> should error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn promise_with_too_many_type_args_errors() {
+    let source = r#"
+fn foo() -> Promise<string, number> {
+    "hi"
+}
+"#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::TypeArgumentArity),
+        "Promise<string, number> should error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn array_with_too_many_type_args_errors() {
+    let source = r#"
+const x: Array<string, number> = []
+"#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::TypeArgumentArity),
+        "Array<string, number> should error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn settable_with_too_many_type_args_errors() {
+    let source = r#"
+const x: Settable<string, number> = Settable("hi")
+"#;
+    let diags = check(source);
+    assert!(
+        has_error(&diags, ErrorCode::TypeArgumentArity),
+        "Settable<string, number> should error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn correct_type_arg_arity_no_error() {
+    let source = r#"
+const a: Option<string> = None
+const b: Result<string, number> = Ok("hi")
+const c: Array<number> = []
+fn foo() -> Promise<string> { "hi" }
+"#;
+    let diags = check(source);
+    assert!(
+        !has_error(&diags, ErrorCode::TypeArgumentArity),
+        "correct type arg arities should not error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn option_without_type_args_no_arity_error() {
+    let source = r#"
+const x: Option = None
+"#;
+    let diags = check(source);
+    assert!(
+        !has_error(&diags, ErrorCode::TypeArgumentArity),
+        "Option without type args should not produce arity error, got: {diags:?}"
+    );
+}
