@@ -66,7 +66,9 @@ impl Checker {
                 TypeDef::Alias(type_expr)
                     if !decl.opaque && !self.type_expr_references_foreign(type_expr) =>
                 {
-                    Some("`type Name = ...` is for TypeScript interop only — use `type Name { }` for Floe-native types")
+                    Some(
+                        "`type Name = ...` is for TypeScript interop only — use `type Name { }` for Floe-native types",
+                    )
                 }
                 _ => None,
             };
