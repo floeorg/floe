@@ -5988,7 +5988,7 @@ const x = useJiraStore()"#;
         HashMap::new(),
         HashMap::new(),
         None,
-        vec!["../../stores/jira-store".to_string()],
+        HashSet::from(["../../stores/jira-store".to_string()]),
     );
     let diags = checker.check(&program);
     assert!(
@@ -6008,7 +6008,7 @@ fn tsgo_missing_no_error_for_npm_import() {
         HashMap::new(),
         HashMap::new(),
         None,
-        vec!["../../stores/jira-store".to_string()],
+        HashSet::from(["../../stores/jira-store".to_string()]),
     );
     let diags = checker.check(&program);
     assert!(

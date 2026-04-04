@@ -345,7 +345,7 @@ impl FloeLsp {
 
                 // Resolve .d.ts imports BEFORE the checker so it gets npm type info
                 let mut dts_map = HashMap::new();
-                let mut ts_imports_missing_tsgo = Vec::new();
+                let mut ts_imports_missing_tsgo = HashSet::new();
                 let mut import_diags_early = Vec::new();
                 let mut ambient_types = None;
                 if let Ok(source_path) = uri.to_file_path() {

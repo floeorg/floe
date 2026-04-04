@@ -458,12 +458,12 @@ impl Checker {
         fl_imports: HashMap<String, ResolvedImports>,
         dts_imports: HashMap<String, Vec<DtsExport>>,
         ambient: Option<crate::interop::ambient::AmbientDeclarations>,
-        ts_imports_missing_tsgo: Vec<String>,
+        ts_imports_missing_tsgo: HashSet<String>,
     ) -> Self {
         let mut checker = Self::new();
         checker.resolved_imports = fl_imports;
         checker.dts_imports = dts_imports;
-        checker.ts_imports_missing_tsgo = ts_imports_missing_tsgo.into_iter().collect();
+        checker.ts_imports_missing_tsgo = ts_imports_missing_tsgo;
         if let Some(ambient) = ambient {
             checker.register_ambient_types(ambient);
         }

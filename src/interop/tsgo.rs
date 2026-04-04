@@ -34,7 +34,7 @@ pub struct TsgoResult {
     pub exports: HashMap<String, Vec<DtsExport>>,
     /// Import sources that resolve to `.ts`/`.tsx` files but could not be
     /// resolved because tsgo is not installed.
-    pub ts_imports_missing_tsgo: Vec<String>,
+    pub ts_imports_missing_tsgo: HashSet<String>,
 }
 
 /// Resolves npm import types using probes, DTS parsing, and tsgo LSP.
@@ -93,7 +93,7 @@ impl TsgoResolver {
             let _ = (program, resolved_imports, source_dir, tsconfig_paths);
             return TsgoResult {
                 exports: HashMap::new(),
-                ts_imports_missing_tsgo: Vec::new(),
+                ts_imports_missing_tsgo: HashSet::new(),
             };
         }
 
@@ -102,22 +102,30 @@ impl TsgoResolver {
             let ts_imports =
                 find_relative_ts_imports(program, resolved_imports, source_dir, tsconfig_paths);
 
-            // When there are .ts/.tsx imports and tsgo is not available, emit
-            // a hard error instead of silently falling back to unknown types.
-            if !ts_imports.is_empty() && !is_tsgo_available() {
-                return TsgoResult {
-                    exports: HashMap::new(),
-                    ts_imports_missing_tsgo: ts_imports.keys().cloned().collect(),
-                };
-            }
+            // When .ts/.tsx imports exist and tsgo is not available, still
+            // resolve npm imports (which use .d.ts and don't need tsgo) but
+            // record the .ts sources so the checker can emit a hard error.
+            let missing_tsgo: HashSet<String> = if !ts_imports.is_empty() && !is_tsgo_available() {
+                ts_imports.keys().cloned().collect()
+            } else {
+                HashSet::new()
+            };
+
+            // Exclude .ts imports from probe when tsgo is unavailable — the
+            // probe file would reference them and fail to compile.
+            let effective_ts_imports = if missing_tsgo.is_empty() {
+                &ts_imports
+            } else {
+                &HashMap::new()
+            };
 
             // Probe-based resolution for call-site types, enhanced with
             // DTS parsing, typeof resolution, and LSP hover for unresolved types.
-            let mut result = self.run_probe(program, resolved_imports, &ts_imports);
-            self.enhance_import_types(&mut result, program, &ts_imports);
+            let mut result = self.run_probe(program, resolved_imports, effective_ts_imports);
+            self.enhance_import_types(&mut result, program, effective_ts_imports);
             TsgoResult {
                 exports: result,
-                ts_imports_missing_tsgo: Vec::new(),
+                ts_imports_missing_tsgo: missing_tsgo,
             }
         }
     }
