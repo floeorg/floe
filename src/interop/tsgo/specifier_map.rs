@@ -107,11 +107,12 @@ pub(super) fn build_specifier_map(
                         });
                 } else if let ConstBinding::Object(fields) = &decl.binding {
                     // For object destructuring: const { data } = f(...)
+                    // Probe names use __probe_{field}_rN_I format
                     let elem_types: Vec<TsType> = fields
                         .iter()
                         .enumerate()
-                        .map(|(i, _)| {
-                            let elem_name = format!("_r{}_{i}", probe_index);
+                        .map(|(i, f)| {
+                            let elem_name = format!("__probe_{}_r{}_{i}", f.field, probe_index);
                             probe_exports
                                 .iter()
                                 .find(|e| e.name == elem_name)
@@ -198,8 +199,11 @@ pub(super) fn build_specifier_map(
         }
         // Inlined const call probes (__probe_user_5, etc.) — same routing
         // but with dedup guard since __probe_ entries can also come from the
-        // index-based mapping above.
+        // index-based mapping above. Skip raw per-field probes from object
+        // destructuring (e.g. __probe_data_r4_0) since those are already
+        // mapped by the index-based section as __probe_data_4.
         if export.name.starts_with("__probe_")
+            && !is_raw_per_field_probe(&export.name)
             && !result.values().flatten().any(|e| e.name == export.name)
             && let Some(first_specifier) = result.keys().next().cloned()
         {
@@ -211,4 +215,20 @@ pub(super) fn build_specifier_map(
     }
 
     result
+}
+
+/// Check if a probe name is a raw per-field probe from object destructuring
+/// (e.g. `__probe_data_r4_0`). These are already mapped by the index-based
+/// section and should not be duplicated via the catch-all routing.
+fn is_raw_per_field_probe(name: &str) -> bool {
+    // Pattern: __probe_{field}_r{digit}_{digit}
+    if let Some(rest) = name.strip_prefix("__probe_") {
+        rest.contains("_r")
+            && rest
+                .find("_r")
+                .and_then(|pos| rest.as_bytes().get(pos + 2))
+                .is_some_and(|b| b.is_ascii_digit())
+    } else {
+        false
+    }
 }

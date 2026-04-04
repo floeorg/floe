@@ -444,15 +444,32 @@ pub(super) fn generate_probe(
             ));
         }
     }
-    // Collect free vars (excluding declared names) and emit as `any`
+    // Collect free vars (excluding declared names).
+    // Replace them with `null!` in args to avoid `any` poisoning generic inference.
+    // e.g. `useJiraIssues(key, jql)` with `key: any` makes tsgo return `any` for data,
+    // but `useJiraIssues(null!, null!)` lets tsgo infer from the function's param types.
     let mut free_vars: HashSet<String> = HashSet::new();
     for call in &probe_calls {
         for arg_str in &call.args {
             collect_free_vars_from_ts(arg_str, &declared_names, &mut free_vars);
         }
     }
+    // Replace simple free var args with null! to avoid `any` poisoning.
+    // Complex args (expressions containing free vars) still need declarations.
+    let mut replaced_vars: HashSet<String> = HashSet::new();
+    for call in &mut probe_calls {
+        for arg in &mut call.args {
+            if free_vars.contains(arg.as_str()) {
+                replaced_vars.insert(arg.clone());
+                *arg = "null!".to_string();
+            }
+        }
+    }
+    // Only declare free vars that weren't fully replaced
     for var in &free_vars {
-        lines.push(format!("declare const {var}: any;"));
+        if !replaced_vars.contains(var) {
+            lines.push(format!("declare const {var}: any;"));
+        }
     }
 
     // Emit probe const declarations
@@ -491,9 +508,11 @@ pub(super) fn generate_probe(
                 call.callee,
             ));
             for (i, f) in fields.iter().enumerate() {
+                // Use __probe_{field}_ prefix so the LSP enhancement can find
+                // and fix `any` results by querying the function's return type.
                 lines.push(format!(
-                    "export const _r{}_{i} = {tmp}.{};",
-                    call.index, f.field,
+                    "export const __probe_{}_r{}_{i} = {tmp}.{};",
+                    f.field, call.index, f.field,
                 ));
             }
         } else {
