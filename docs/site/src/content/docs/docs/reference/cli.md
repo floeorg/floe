@@ -63,12 +63,14 @@ npm install -g tsx
 
 ### `floe watch`
 
-Watch files and recompile on change.
+Watch files and recompile on change. Runs an initial `floe build`, then recompiles individual files as they change.
 
 ```bash
 floe watch src/
 floe watch src/ --out-dir dist/
 ```
+
+This is the recommended way to develop with Floe. Run it alongside your dev server (Vite, wrangler, node, bun, etc.) -- any tool that handles TypeScript picks up the compiled output from `.floe/` automatically.
 
 ### `floe init`
 

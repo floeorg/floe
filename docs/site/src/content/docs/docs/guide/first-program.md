@@ -78,25 +78,55 @@ npm run dev
 
 Vite compiles `.fl` files on the fly. HMR works automatically.
 
-## Standalone (without Vite)
+## Any Toolchain (without Vite)
 
-For scripts or non-React projects, use `floe build` directly:
+`floe watch` compiles `.fl` files to `.floe/` and recompiles on change. Since the output is standard TypeScript, any tool works -- wrangler, node, bun, esbuild, webpack, etc.
+
+### Configure TypeScript
+
+Add `rootDirs` to your `tsconfig.json` so TypeScript resolves `.fl` imports through the `.floe/` output:
+
+```json
+{
+  "compilerOptions": {
+    "allowArbitraryExtensions": true,
+    "rootDirs": ["./src", "./.floe/src"]
+  }
+}
+```
+
+### Add Scripts
+
+```json
+{
+  "scripts": {
+    "dev": "floe watch src/",
+    "build": "floe build src/"
+  }
+}
+```
+
+### Development
+
+Run `floe watch` alongside your dev server:
 
 ```bash
-# Create a file
-cat > hello.fl << 'EOF'
-export fn greet(name: string) -> string {
-  `Hello, ${name}!`
-}
+# Terminal 1
+npm run dev
 
-greet("world") |> Console.log
-EOF
+# Terminal 2 -- your backend/app server
+wrangler dev     # or: node src/app.ts, bun src/app.ts, etc.
+```
 
-# Compile to TypeScript
-floe build hello.fl
+When you edit a `.fl` file, `floe watch` recompiles it to `.floe/`. Your dev server sees the `.ts` file change and hot-reloads.
 
-# Run the output
-npx tsx hello.ts
+### Production
+
+Run `floe build` before your build step:
+
+```bash
+floe build src/
+# then your normal build
 ```
 
 ### Type Checking

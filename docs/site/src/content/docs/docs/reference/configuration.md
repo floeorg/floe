@@ -45,18 +45,45 @@ my-app/
 
 ## Build Output
 
-By default, `floe build` outputs files next to the source:
+By default, `floe build` and `floe watch` output compiled files to a `.floe/` directory at the project root, mirroring the source tree:
 
 ```
-src/main.fl    -> src/main.ts
-src/App.fl     -> src/App.tsx    (if JSX detected)
+src/main.fl    -> .floe/src/main.ts
+src/App.fl     -> .floe/src/App.tsx    (if JSX detected)
 ```
 
-Use `--out-dir` to specify a separate output directory:
+The `.floe/` directory also contains `.d.fl.ts` type declarations so TypeScript can resolve `.fl` imports. Add `rootDirs` to your `tsconfig.json` to make this transparent:
+
+```json
+{
+  "compilerOptions": {
+    "allowArbitraryExtensions": true,
+    "rootDirs": ["./src", "./.floe/src"]
+  }
+}
+```
+
+Add `.floe/` to your `.gitignore` -- it's a build artifact.
+
+Use `--out-dir` to specify a different output directory:
 
 ```bash
 floe build src/ --out-dir dist/
 ```
+
+## package.json Scripts
+
+```json
+{
+  "scripts": {
+    "dev": "floe watch src/",
+    "build": "floe build src/",
+    "check": "floe check src/"
+  }
+}
+```
+
+Run `floe watch` alongside your dev server. Since `floe watch` writes standard `.ts`/`.tsx` files to `.floe/`, any tool that handles TypeScript works automatically -- Vite, wrangler, node, bun, esbuild, webpack, etc.
 
 ## npm Interop
 
