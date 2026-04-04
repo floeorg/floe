@@ -147,7 +147,7 @@ jobs:
         working-directory: integrations/vite-plugin-floe
         run: |
           pnpm build
-          npm publish --access public --provenance
+          npx npm@latest publish --access public --provenance
 
   publish-extension:
     name: Publish VS Code Extension
