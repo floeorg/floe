@@ -642,7 +642,13 @@ impl Checker {
 
             if let Some(ref declared_return) = func.return_type {
                 let resolved = self.resolve_type(declared_return);
-                if !self.types_compatible(&resolved, &body_type)
+                // For Promise<T> return types, unwrap Promise since the body
+                // type is the inner value (async wrapping is automatic)
+                let effective_declared = match &resolved {
+                    Type::Promise(inner) => inner.as_ref().clone(),
+                    _ => resolved.clone(),
+                };
+                if !self.types_compatible(&effective_declared, &body_type)
                     && !matches!(body_type, Type::Var(_))
                 {
                     self.emit_error(
