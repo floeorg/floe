@@ -59,36 +59,29 @@ impl Checker {
             // String literal unions never reference TS types, so always error.
             // Aliases must reference at least one foreign/npm type.
             // Opaque types are exempt — `opaque type X = T` is valid Floe syntax.
-            match &decl.def {
+            let bridge_help = match &decl.def {
                 TypeDef::StringLiteralUnion(_) if !decl.opaque => {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            format!(
-                                "bridge type `{}` uses `=` syntax but doesn't reference any TypeScript import",
-                                decl.name
-                            ),
-                            span,
-                        )
-                        .with_help("use a union type instead: `type Name { | Variant1 | Variant2 }`")
-                        .with_error_code(ErrorCode::BridgeTypeWithoutImport),
-                    );
+                    Some("use a union type instead: `type Name { | Variant1 | Variant2 }`")
                 }
-                TypeDef::Alias(type_expr) if !decl.opaque => {
-                    if !self.type_expr_references_foreign(type_expr) {
-                        self.diagnostics.push(
-                            Diagnostic::error(
-                                format!(
-                                    "bridge type `{}` uses `=` syntax but doesn't reference any TypeScript import",
-                                    decl.name
-                                ),
-                                span,
-                            )
-                            .with_help("`type Name = ...` is for TypeScript interop only — use `type Name { }` for Floe-native types")
-                            .with_error_code(ErrorCode::BridgeTypeWithoutImport),
-                        );
-                    }
+                TypeDef::Alias(type_expr)
+                    if !decl.opaque && !self.type_expr_references_foreign(type_expr) =>
+                {
+                    Some("`type Name = ...` is for TypeScript interop only — use `type Name { }` for Floe-native types")
                 }
-                _ => {}
+                _ => None,
+            };
+            if let Some(help) = bridge_help {
+                self.diagnostics.push(
+                    Diagnostic::error(
+                        format!(
+                            "bridge type `{}` uses `=` syntax but doesn't reference any TypeScript import",
+                            decl.name
+                        ),
+                        span,
+                    )
+                    .with_help(help)
+                    .with_error_code(ErrorCode::BridgeTypeWithoutImport),
+                );
             }
         }
 
