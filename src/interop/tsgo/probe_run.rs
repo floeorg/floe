@@ -122,20 +122,19 @@ pub fn is_tsgo_available() -> bool {
     static AVAILABLE: OnceLock<bool> = OnceLock::new();
     *AVAILABLE.get_or_init(|| {
         // Try tsgo directly
-        if let Ok(output) = Command::new("tsgo").arg("--version").output() {
-            if output.status.success() {
-                return true;
-            }
+        if let Ok(output) = Command::new("tsgo").arg("--version").output()
+            && output.status.success()
+        {
+            return true;
         }
 
         // Try npx @typescript/native-preview
         if let Ok(output) = Command::new("npx")
             .args(["@typescript/native-preview", "--version"])
             .output()
+            && output.status.success()
         {
-            if output.status.success() {
-                return true;
-            }
+            return true;
         }
 
         false

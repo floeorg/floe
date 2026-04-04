@@ -760,7 +760,10 @@ const [input, setInput] = useState("")
             &crate::resolve::TsconfigPaths::default(),
         );
 
-        eprintln!("tsgo result keys: {:?}", result.exports.keys().collect::<Vec<_>>());
+        eprintln!(
+            "tsgo result keys: {:?}",
+            result.exports.keys().collect::<Vec<_>>()
+        );
         if let Some(react_exports) = result.exports.get("react") {
             for export in react_exports {
                 eprintln!("  export: {} -> {:?}", export.name, export.ts_type);
