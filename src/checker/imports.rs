@@ -51,7 +51,21 @@ impl Checker {
 
             // Try to find the actual type from resolved imports
             let ty = if let Some(ref resolved) = resolved {
-                self.lookup_resolved_symbol(&spec.name, resolved)
+                match self.lookup_resolved_symbol(&spec.name, resolved) {
+                    Some(ty) => ty,
+                    None => {
+                        self.emit_error(
+                            format!(
+                                "module \"{}\" has no export named `{}`",
+                                decl.source, spec.name
+                            ),
+                            spec.span,
+                            ErrorCode::ExportNotFound,
+                            "not found in module",
+                        );
+                        Type::Unknown
+                    }
+                }
             } else if let Some(ref exports) = dts_exports {
                 // Look up in .d.ts exports
                 if let Some(dts_export) = exports.iter().find(|e| e.name == spec.name) {
@@ -75,7 +89,16 @@ impl Checker {
                         ty
                     }
                 } else {
-                    Type::Foreign(spec.name.clone())
+                    self.emit_error(
+                        format!(
+                            "module \"{}\" has no export named `{}`",
+                            decl.source, spec.name
+                        ),
+                        spec.span,
+                        ErrorCode::ExportNotFound,
+                        "not found in module",
+                    );
+                    Type::Unknown
                 }
             } else {
                 // No .fl resolution and no .d.ts — type is foreign to Floe
@@ -161,20 +184,21 @@ impl Checker {
     }
 
     /// Look up a symbol name in resolved imports and return its type.
+    /// Returns `None` if the name is not exported by the module.
     pub(crate) fn lookup_resolved_symbol(
         &mut self,
         name: &str,
         resolved: &ResolvedImports,
-    ) -> Type {
+    ) -> Option<Type> {
         // Check type declarations
         for decl in &resolved.type_decls {
             if decl.name == name {
                 // The type was already registered in the pre-registration pass,
                 // so just look it up from the env
                 if let Some(ty) = self.env.lookup(name).cloned() {
-                    return ty;
+                    return Some(ty);
                 }
-                return Type::Named(name.to_string());
+                return Some(Type::Named(name.to_string()));
             }
         }
 
@@ -182,21 +206,29 @@ impl Checker {
         for func in &resolved.function_decls {
             if func.name == name {
                 if let Some(ty) = self.env.lookup(name).cloned() {
-                    return ty;
+                    return Some(ty);
                 }
-                return Type::Unknown;
+                return Some(Type::Unknown);
             }
         }
 
         // Check const names
         for const_name in &resolved.const_names {
             if const_name == name {
-                return Type::Unknown;
+                return Some(Type::Unknown);
             }
         }
 
-        // Not found in resolved module — fall back to Unknown
-        Type::Unknown
+        // Check trait declarations (traits are registered during pre-registration,
+        // but we still need to recognize them here to avoid false ExportNotFound errors)
+        for trait_decl in &resolved.trait_decls {
+            if trait_decl.name == name {
+                return Some(Type::Named(name.to_string()));
+            }
+        }
+
+        // Not found in resolved module
+        None
     }
 
     /// Register for-block functions from an imported module without checking bodies.
