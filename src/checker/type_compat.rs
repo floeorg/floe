@@ -150,10 +150,11 @@ impl Checker {
             return true;
         }
 
-        // Foreign types: nominal for Foreign-vs-Foreign, reject primitives,
-        // permissive with complex types for genuinely opaque npm types.
+        // Foreign types: reject primitives, permissive otherwise.
+        // Foreign-vs-Foreign is permissive because npm types often have subtype
+        // relationships (e.g. SQLiteColumn extends SQLWrapper) that Floe can't verify.
+        // TypeScript's own type checker validates the generated code.
         match (expected, actual) {
-            (Type::Foreign(a), Type::Foreign(b)) => return a == b,
             (Type::Foreign(_), _) if actual.is_primitive() => return false,
             (_, Type::Foreign(_)) if expected.is_primitive() => return false,
             (Type::Foreign(_), _) | (_, Type::Foreign(_)) => return true,
