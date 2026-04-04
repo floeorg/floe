@@ -203,7 +203,7 @@ pub(super) fn build_specifier_map(
         // destructuring (e.g. __probe_data_r4_0) since those are already
         // mapped by the index-based section as __probe_data_4.
         if export.name.starts_with("__probe_")
-            && !export.name.contains("_r")
+            && !is_raw_per_field_probe(&export.name)
             && !result.values().flatten().any(|e| e.name == export.name)
             && let Some(first_specifier) = result.keys().next().cloned()
         {
@@ -215,4 +215,20 @@ pub(super) fn build_specifier_map(
     }
 
     result
+}
+
+/// Check if a probe name is a raw per-field probe from object destructuring
+/// (e.g. `__probe_data_r4_0`). These are already mapped by the index-based
+/// section and should not be duplicated via the catch-all routing.
+fn is_raw_per_field_probe(name: &str) -> bool {
+    // Pattern: __probe_{field}_r{digit}_{digit}
+    if let Some(rest) = name.strip_prefix("__probe_") {
+        rest.contains("_r")
+            && rest
+                .find("_r")
+                .and_then(|pos| rest.as_bytes().get(pos + 2))
+                .is_some_and(|b| b.is_ascii_digit())
+    } else {
+        false
+    }
 }

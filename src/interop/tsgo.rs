@@ -300,7 +300,6 @@ impl TsgoResolver {
         ts_imports: &HashMap<String, PathBuf>,
     ) {
         use crate::parser::ast::*;
-        let project_dir = self.project_dir.clone();
 
         // Build import name → source path mapping
         let mut import_paths: HashMap<String, PathBuf> = HashMap::new();
@@ -369,9 +368,6 @@ impl TsgoResolver {
                         });
 
                         if has_any_field {
-                            // Use binding name prefix to disambiguate when multiple
-                            // destructurings from the same specifier have same field names
-                            let binding_name = decl.binding.binding_name();
                             let field_probes: Vec<(String, String)> = fields
                                 .iter()
                                 .map(|f| (f.field.clone(), format!("__probe_{}_", f.field)))
