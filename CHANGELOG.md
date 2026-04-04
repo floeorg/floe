@@ -5,6 +5,14 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.5](https://github.com/floeorg/floe/compare/v0.4.4...v0.4.5) (2026-04-04)
+
+
+### Bug Fixes
+
+* [[#1013](https://github.com/floeorg/floe/issues/1013)] Resolve chained method calls on complex npm types ([#1017](https://github.com/floeorg/floe/issues/1017)) ([d42e89c](https://github.com/floeorg/floe/commit/d42e89cfad2f1600120d1585ed72e5facaebf8a3))
+* [[#1014](https://github.com/floeorg/floe/issues/1014)] validate generic type argument arity ([#1015](https://github.com/floeorg/floe/issues/1015)) ([c6c0c8a](https://github.com/floeorg/floe/commit/c6c0c8a358763c114aca4eca6545cacc968c5df1))
+
 ## [0.4.4](https://github.com/floeorg/floe/compare/v0.4.3...v0.4.4) (2026-04-04)
 
 
