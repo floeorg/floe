@@ -1,5 +1,16 @@
 use super::*;
 
+/// Returns the span of the last item in a block body, falling back to the body's own span.
+/// Used to point return-type errors at the actual return value instead of the whole function.
+fn last_expr_span(body: &Expr) -> Span {
+    if let ExprKind::Block(items) = &body.kind
+        && let Some(last) = items.last()
+    {
+        return last.span;
+    }
+    body.span
+}
+
 impl Checker {
     // ── Item Checking ────────────────────────────────────────────
 
@@ -500,7 +511,7 @@ impl Checker {
                         "function `{}`: expected return type `{}`, found `{}`",
                         decl.name, resolved, body_type
                     ),
-                    span,
+                    last_expr_span(&decl.body),
                     ErrorCode::TypeMismatch,
                     format!("expected `{}`", resolved),
                 );
@@ -661,7 +672,7 @@ impl Checker {
                             "function `{}`: expected return type `{}`, found `{}`",
                             func.name, resolved, body_type
                         ),
-                        block.span,
+                        last_expr_span(&func.body),
                         ErrorCode::TypeMismatch,
                         format!("expected `{}`", resolved),
                     );
