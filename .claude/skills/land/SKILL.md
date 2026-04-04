@@ -1,7 +1,7 @@
 ---
 name: land
 description: >
-  Clean up after a PR is merged - close the issue, remove the worktree, and sync main.
+  Clean up after a PR is merged - close the issue, remove the worktree + DB, and sync main.
   TRIGGER when: the user says "merged", "landed", "done", or confirms a PR has been merged.
   DO NOT TRIGGER when: the PR is still open or under review.
 argument-hint: "[issue number (optional, inferred from branch if omitted)]"
@@ -29,13 +29,11 @@ Clean up after a merged PR: close the issue, remove the worktree, sync main.
 glb close <num>
 ```
 
-## Step 3: Remove the worktree
-
-Navigate back to the main repo and remove the worktree:
+## Step 3: Clean up worktree
 
 ```bash
 cd ~/Code/Projects/floe
-git worktree remove ../floe-worktrees/<num>
+mise run worktree:cleanup <num>
 ```
 
 ## Step 4: Sync main
@@ -53,7 +51,7 @@ If this was a sub-issue, check whether all sub-issues of the parent epic are now
 glb sub list <epic-num>
 ```
 
-If all sub-issues are done, tell the user the epic is ready to be finalized — the epic PR can be marked ready for review.
+If all sub-issues are done, tell the user the epic is ready to be finalized.
 
 ## Step 6: Report
 

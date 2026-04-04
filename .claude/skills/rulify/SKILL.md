@@ -15,61 +15,72 @@ $ARGUMENTS
 
 ## Processing Flow
 
-### Step 1: Collect changed files and applicable rules
+### Step 1: Collect changed files
 
-Collect the following information:
-
-1. **Get changed files**: Retrieve using the appropriate method based on the argument:
-   - **If a PR number is specified** (e.g., `#123`, `123`): Get via `gh pr diff {PR_number} --name-only`
-   - **Otherwise (default)**: Get all diffs from the branch's origin + uncommitted changes
-     - `git fetch origin` to get the latest remote info
-     - `git merge-base HEAD origin/main` to identify the base commit (try origin/master if origin/main doesn't exist)
-     - `git diff --name-only {base_commit}...HEAD` to get committed changes
-     - `git diff --name-only` to get unstaged changes
-     - `git diff --name-only --cached` to get staged changes
-     - `git ls-files --others --exclude-standard` to get untracked files
-     - Deduplicate and merge all results
-2. **List rule files**: List all `.claude/rules/*.md` files.
-3. **Check CLAUDE.md**: If `CLAUDE.md` exists at the project root, read it and use it as an additional rule source.
+1. **Get changed files and the diff**:
+   - **If a PR number is specified** (e.g., `#123`, `123`):
+     - Files: `gh pr diff {PR_number} --name-only`
+     - Diff: `gh pr diff {PR_number}`
+   - **Otherwise (default)**:
+     - `git fetch origin`
+     - `git merge-base HEAD origin/main` (try origin/master if origin/main doesn't exist)
+     - Files: `git diff --name-only {base}...HEAD` + unstaged + staged + untracked (deduplicated)
+     - Diff: `git diff {base}...HEAD` + `git diff` (unstaged) + `git diff --cached` (staged)
+     - For untracked files, read their contents
+2. **Store the combined diff** — this will be passed to agents inline so they don't need to read files themselves.
 
 If there are no changed files, report "No changed files found" and stop.
 
-### Step 2: Launch agents in parallel for each rule
+### Step 2: Filter rules by scope
 
-Launch an Agent for each collected rule file. **Independent rules must be launched in parallel.**
+1. **List rule files**: List all `.claude/rules/*.md` files.
+2. **Read each rule file's frontmatter** — check for a `paths:` field.
+3. **Filter**: For each rule, check if any changed file matches the rule's `paths:` glob patterns.
+   - Rules **without** a `paths:` field apply to all files — always include.
+   - Rules **with** a `paths:` field are skipped if no changed file matches any of their patterns.
+4. **Check CLAUDE.md**: If `CLAUDE.md` exists, read it — its content will be appended as context to all agents.
 
-Each agent's prompt must include the following:
+Report how many rules were filtered out (e.g., "Skipped 3/8 rules (no matching files)").
+
+### Step 3: Launch agents for applicable rules
+
+Launch an Agent for each applicable rule. **All agents must be launched in parallel in a single message.**
+
+Each agent's prompt must include:
 
 ```
-Inspect the changed files for violations against the following rule.
+Inspect the following diff for violations against this rule. Do NOT use any tools to read files — all content is provided below.
 
 ## Rule
 Rule name: {rule_file_name}
 
-{Rule file contents}
+{Full rule file contents}
 
-## Files to inspect
-{List of changed files (paths only)}
+## Changed files
+{List of changed file paths}
 
-## Additional rules from CLAUDE.md (if applicable)
-{Relevant sections from CLAUDE.md. Omit if no CLAUDE.md exists}
+## Diff
+```diff
+{The combined diff from step 1}
+```
 
-## Procedure
+## Additional context from CLAUDE.md (if applicable)
+{Relevant sections from CLAUDE.md, or omit if none}
 
-1. Understand the rule's content
-2. Read each changed file and inspect for violations against the rule
+## Instructions
+
+1. Read the rule carefully
+2. Scan the diff for violations — focus only on added/modified lines (lines starting with +)
 3. If the rule has a `paths` scope, skip files outside that scope
-4. Report inspection results in the format below
+4. Report results in the format below
 
 ## Output format
 
 ### If no violations
-Report only: ✅ {rule_name}: No violations
+✅ {rule_name}: No violations
 
 ### If violations found
-Report in the following format:
-
-#### ❌ {rule_name}: Violations found
+❌ {rule_name}: Violations found
 
 For each violation:
 - **File**: target_file_path:line_number
@@ -77,29 +88,27 @@ For each violation:
 - **Severity**: 🔴 Clear violation / 🟡 Gray area
 - **Fix**: Specific fix description
 
-## Important constraints
+## Constraints
 
-- Do not flag anything not explicitly stated in the rule
-- Do not report "nice to have" improvements
+- Do NOT flag anything not explicitly stated in the rule
+- Do NOT report "nice to have" improvements
+- Do NOT flag unchanged code (context lines starting with space)
 - Only report items that clearly violate the rule
-- Do not flag unchanged parts of files (referencing them for context is OK)
-- This rule inspection agent only reads code -- it does not modify code (actual auto-fixes are handled in Step 4 by the main agent)
+- Do NOT use any tools — all content is provided inline
 ```
 
 Agent settings:
 - `subagent_type`: "general-purpose"
-- `model`: "sonnet" (for speed)
-- All rule inspection agents must be **launched in parallel in a single message**
+- `model`: "haiku"
+- All agents launched **in parallel in a single message**
 
-### Step 3: Aggregate and display results
-
-Aggregate all agent results and display in the following format:
+### Step 4: Aggregate and display results
 
 ```
 ## Rulify Results
 
 ### Summary
-- Rules inspected: N
+- Rules checked: N (M skipped — no matching files)
 - ✅ No violations: N
 - ❌ Violations found: N
 
@@ -107,38 +116,37 @@ Aggregate all agent results and display in the following format:
 (Display results from rules with violations here)
 ```
 
-### Step 4: Auto-fix
+### Step 5: Auto-fix
 
-If 🔴 clear violations exist, execute auto-fixes:
-
-1. Review the fix details for 🔴 (clear violations)
+If 🔴 clear violations exist:
+1. Review the fix details
 2. Apply fixes to each file using the Edit tool
-3. After fixes, run formatters/tests/builds as needed
+3. Run formatters/tests/builds as needed
 
-🟡 Gray area violations are reported only -- no fixes applied.
+🟡 Gray area violations are reported only — no fixes applied.
 
-### Step 5: Report fix results
+### Step 6: Report fix results
 
 ```
 ## Rulify Complete
 
 ### Auto-fixed
 - {file_path}: {fix summary}
-- ...
 
 ### Needs review (gray area)
 - {file_path}: {issue description}
-- ...
 
 ### No fixes needed
-(If all rules were satisfied)
 All rules passed! No violations found.
 ```
 
 ## Important Rules
 
-1. **Parallel execution**: Rule inspection agents must always be launched in parallel. Do not run sequentially.
-2. **Strict scoping**: Only inspect changed files.
-3. **Avoid false positives**: Do not flag anything not explicitly stated in the rules. If ambiguous, mark as 🟡 gray area.
-4. **Auto-fix safety**: Only auto-fix 🔴 clear violations. 🟡 items are reported only.
-5. **Separation from formatters**: Leave formatting issues to formatters; focus on rule violation inspection.
+1. **Pass diff inline**: The orchestrator reads files once and passes the diff to agents. Agents do NOT read files themselves.
+2. **Pre-filter by paths scope**: Skip rules that can't apply to the changed files. Don't waste tokens on irrelevant rules.
+3. **Use haiku for agents**: Agents only analyze provided content — no tools needed, haiku is sufficient.
+4. **Parallel execution**: All applicable rule agents must be launched in parallel.
+5. **Strict scoping**: Only inspect changed lines (+ lines in the diff).
+6. **Avoid false positives**: Do not flag anything not explicitly stated in the rules.
+7. **Auto-fix safety**: Only auto-fix 🔴 clear violations. 🟡 items are reported only.
+8. **Separation from formatters**: Leave formatting issues to formatters.

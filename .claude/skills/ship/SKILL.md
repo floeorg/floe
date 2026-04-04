@@ -2,7 +2,7 @@
 name: ship
 description: >
   Run quality gates, /simplify, /rulify, create or update a PR, poll CI, then mark ready.
-  TRIGGER when: (1) the user says "ship it", "ship", or asks to create a PR, OR (2) you have finished implementing a task and are ready to submit it -- invoke this automatically as part of the workflow (see .claude/rules/workflow.md step 4).
+  TRIGGER when: (1) the user says "ship it", "ship", or asks to create a PR, OR (2) you have finished implementing a task and are ready to submit it -- invoke this automatically as part of the workflow.
   DO NOT TRIGGER when: the user just wants to run tests or quality gates without creating a PR.
 argument-hint: "[issue number (optional, inferred from branch if omitted)]"
 ---
@@ -21,35 +21,21 @@ On **re-runs** (PR already exists), skip PR creation — just run quality gates,
 
 1. Get the current branch name: `git branch --show-current`
 2. Infer the issue number from the branch if not provided via `$ARGUMENTS`
-3. Determine what was changed:
+3. Determine which packages/apps were changed:
    - `git diff --name-only $(git merge-base HEAD origin/main)...HEAD` (or the epic branch if this is a sub-issue)
-   - Note whether Rust source (`src/**/*.rs`), Floe examples (`examples/**/*.fl`), or LSP code was changed
+   - Map changed paths to packages and frontend apps
 4. Check if this is a sub-issue (branch matches `feature/#<epic>/#<sub>.*`) — if so, the PR base is the epic branch, not main
 5. Check if a PR already exists for this branch: `gh pr view --json number,state 2>/dev/null`
 
 ## Step 2: Quality gates
 
-Run quality gates scoped to what changed. Fix issues at each step before proceeding.
+Run quality gates **scoped to changed packages only**. Fix issues at each step before proceeding.
 
-**Rust quality gate** (if `src/**/*.rs` changed):
-```bash
-cargo fmt
-cargo clippy -- -D warnings
-RUSTFLAGS="-D warnings" cargo test
-```
+Check `.claude/rules/` for the specific quality gate commands for each technology in this project (e.g., Rust formatting/linting/testing, frontend linting/typechecking/testing).
 
-**Floe example quality gate** (if `src/**/*.rs` or `examples/**/*.fl` changed):
-```bash
-pnpm install --frozen-lockfile   # only if node_modules/ is missing
-floe fmt examples/todo-app/src/ examples/store/src/
-floe check examples/todo-app/src/ examples/store/src/
-floe build examples/todo-app/src/ examples/store/src/
-```
-
-**LSP integration tests** (if LSP, checker, or language syntax changed):
-```bash
-python3 -m pytest tests/lsp/ --floe-bin=./target/debug/floe
-```
+Common patterns:
+- **Rust**: `cargo fmt -p <pkg>`, `cargo clippy -p <pkg> -- -D warnings`, `cargo nextest run -p <pkg>`
+- **Frontend**: `cd <app-dir> && pnpm lint:fix`, `cd <app-dir> && pnpm check`
 
 Commit any fixes from this step.
 
@@ -61,7 +47,7 @@ Run self-checks in order:
 2. **`/rulify`** — cross-check changes against `.claude/rules/`
 
 If any made changes:
-- Re-run quality gates (step 2) on affected areas
+- Re-run quality gates (step 2) on affected packages
 - Commit fixes
 
 ## Step 4: PR
@@ -75,11 +61,9 @@ git push -u origin $(git branch --show-current)
 
 **If no PR exists**, create a draft:
 
-**PR titles use conventional commit prefixes** (`feat:`, `fix:`, `chore:`, `test:`). Append `!` for breaking changes.
-
 **Standalone issue** (PR targets main):
 ```bash
-gh pr create --draft --title "feat: [#<num>] <issue title>" --body "$(cat <<'EOF'
+gh pr create --draft --title "[#<num>] <issue title>" --body "$(cat <<'EOF'
 closes #<num>
 
 <summary of changes>
@@ -94,7 +78,7 @@ EOF
 **Sub-issue** (PR targets epic branch):
 ```bash
 gh pr create --draft --base feature/#<epic-num>.<summary> \
-  --title "feat: [#<epic-num>/#<num>] <issue title>" --body "$(cat <<'EOF'
+  --title "[#<epic-num>/#<num>] <issue title>" --body "$(cat <<'EOF'
 closes #<num>
 
 <summary of changes>
@@ -106,7 +90,7 @@ EOF
 )"
 ```
 
-Get the issue title from `glb show <num>`. The PR body must start with `closes #<num>`.
+Get the issue title from `glb show <num>`. The PR body must start with `closes #<num>` and include a test plan.
 
 ## Step 5: CI loop
 
@@ -122,7 +106,7 @@ Track consecutive failures. **Cap at 3 — after 3 consecutive failures, stop an
 
 1. **Merge conflicts** (`mergeable` is `CONFLICTING`): rebase onto the base branch and resolve conflicts
 2. **CI failures**: read failure logs and fix the issue
-3. Re-run quality gates (step 2) on affected areas
+3. Re-run quality gates (step 2) on affected packages
 4. If the fix involved new logic or structural changes (not just mechanical fixes like missing imports or type annotations), re-run `/simplify` and `/rulify`
 5. Commit, push, poll again
 
@@ -138,7 +122,12 @@ gh pr ready <pr-number>
 
 Tell the user:
 
-1. **PR URL** — always link the PR. On re-runs, link it again so the user can review the latest changes.
-2. Tell the user to say "merged" when the PR is merged so `/land` can clean up.
+1. **PR URL** — always link the PR.
+2. **Local testing instructions**:
+   - How to run the dev server
+   - URL(s) to open
+   - What to do to trigger the feature
+   - What to look for to confirm it works
+3. Tell the user to say "merged" when the PR is merged so `/land` can clean up.
 
 **Never run `gh pr merge`.**

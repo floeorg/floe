@@ -1,0 +1,18 @@
+[project]
+name = "floe"
+worktree_dir = "floe-worktrees"
+
+[modules]
+include = [
+    "core",
+    "rust",
+]
+
+[skills]
+include = [
+    "ship",
+    "rulify",
+    "alignify",
+    "retrospective",
+    "land",
+]
