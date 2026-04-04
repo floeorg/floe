@@ -6016,3 +6016,198 @@ fn tsgo_missing_no_error_for_npm_import() {
         "should not emit TsgoNotFound for npm imports, got: {diags:?}"
     );
 }
+
+// ── Export not found (#976) ─────────────────────────────────
+
+#[test]
+fn named_import_not_in_resolved_fl_module_errors() {
+    use crate::lexer::span::Span;
+    use crate::parser::ast::*;
+    use crate::resolve::ResolvedImports;
+    use std::collections::HashMap;
+
+    let dummy_span = Span::new(0, 0, 0, 0);
+
+    // Module "./utils" exports type `User` but not `Admin`
+    let mut resolved = ResolvedImports::default();
+    resolved.type_decls.push(TypeDecl {
+        exported: true,
+        opaque: false,
+        name: "User".to_string(),
+        type_params: vec![],
+        def: TypeDef::Record(vec![RecordEntry::Field(Box::new(RecordField {
+            name: "name".to_string(),
+            type_ann: TypeExpr {
+                kind: TypeExprKind::Named {
+                    name: "string".to_string(),
+                    type_args: vec![],
+                    bounds: vec![],
+                },
+                span: dummy_span,
+            },
+            default: None,
+            span: dummy_span,
+        }))]),
+        deriving: vec![],
+    });
+
+    let mut fl_imports = HashMap::new();
+    fl_imports.insert("./utils".to_string(), resolved);
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { User, Admin } from "./utils"
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let diags = Checker::with_imports(fl_imports).check(&program);
+    assert!(
+        has_error(&diags, ErrorCode::ExportNotFound),
+        "importing non-existent export from .fl module should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(has_error_containing(&diags, "has no export named `Admin`"));
+}
+
+#[test]
+fn named_import_found_in_resolved_fl_module_ok() {
+    use crate::resolve::ResolvedImports;
+    use std::collections::HashMap;
+
+    let mut resolved = ResolvedImports::default();
+    resolved.const_names.push("API_URL".to_string());
+
+    let mut fl_imports = HashMap::new();
+    fl_imports.insert("./config".to_string(), resolved);
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { API_URL } from "./config"
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let diags = Checker::with_imports(fl_imports).check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::ExportNotFound),
+        "importing existing const should not error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn named_import_not_in_dts_exports_errors() {
+    use crate::interop;
+    use std::collections::HashMap;
+
+    // "react-markdown" only has a default export, no named "Markdown" export
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "react-markdown".to_string(),
+        vec![interop::DtsExport {
+            name: "default".to_string(),
+            ts_type: interop::TsType::Any,
+        }],
+    );
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { Markdown } from "react-markdown"
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let diags = Checker::with_all_imports(HashMap::new(), dts_imports).check(&program);
+    assert!(
+        has_error(&diags, ErrorCode::ExportNotFound),
+        "importing non-existent named export from npm package should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(has_error_containing(
+        &diags,
+        "has no export named `Markdown`"
+    ));
+}
+
+#[test]
+fn named_import_found_in_dts_exports_ok() {
+    use crate::interop;
+    use std::collections::HashMap;
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "react".to_string(),
+        vec![interop::DtsExport {
+            name: "useState".to_string(),
+            ts_type: interop::TsType::Function {
+                params: vec![],
+                return_type: Box::new(interop::TsType::Any),
+            },
+        }],
+    );
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { useState } from "react"
+const _x = useState()
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let diags = Checker::with_all_imports(HashMap::new(), dts_imports).check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::ExportNotFound),
+        "importing existing named export from npm should not error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn unresolved_npm_import_no_false_positive() {
+    // When neither .fl nor .d.ts resolution is available, we can't verify
+    // exports — should NOT error (fallback to Foreign type).
+    let program = crate::parser::Parser::new(
+        r#"
+import { Something } from "unknown-package"
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let diags = Checker::new().check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::ExportNotFound),
+        "unresolved npm import should not produce ExportNotFound, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn named_import_const_not_in_resolved_fl_module_errors() {
+    use crate::resolve::ResolvedImports;
+    use std::collections::HashMap;
+
+    // Module "./config" exports nothing
+    let mut fl_imports = HashMap::new();
+    fl_imports.insert("./config".to_string(), ResolvedImports::default());
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { API_URL } from "./config"
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let diags = Checker::with_imports(fl_imports).check(&program);
+    assert!(
+        has_error(&diags, ErrorCode::ExportNotFound),
+        "importing non-existent const from empty .fl module should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

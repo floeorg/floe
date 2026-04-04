@@ -41,6 +41,8 @@ pub enum ErrorCode {
     PackageNotFound,
     /// Calling untrusted import requires `try`.
     UntrustedImport,
+    /// Named export not found in module.
+    ExportNotFound,
 
     // ── Field / property access ──────────────────────────────────────
     /// Unknown field on a type (record, union, etc.).
@@ -170,6 +172,7 @@ impl ErrorCode {
             Self::MissingPromiseReturn => "E041",
             Self::BridgeTypeWithoutImport => "E042",
             Self::TsgoNotFound => "E043",
+            Self::ExportNotFound => "E044",
         }
     }
 }
