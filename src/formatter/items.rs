@@ -478,14 +478,14 @@ impl Formatter<'_> {
     fn fmt_string_union_def(&mut self, node: &SyntaxNode) {
         let mut first = true;
         for t in node.children_with_tokens() {
-            if let Some(tok) = t.as_token() {
-                if tok.kind() == SyntaxKind::STRING {
-                    if !first {
-                        self.write(" | ");
-                    }
-                    self.write(tok.text());
-                    first = false;
+            if let Some(tok) = t.as_token()
+                && tok.kind() == SyntaxKind::STRING
+            {
+                if !first {
+                    self.write(" | ");
                 }
+                self.write(tok.text());
+                first = false;
             }
         }
     }
