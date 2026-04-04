@@ -10,6 +10,7 @@
 //! - `T | null | undefined` -> `Option<T>`
 //! - `any`               -> `unknown`
 
+pub mod ambient;
 mod dts;
 mod ts_types;
 pub mod tsgo;

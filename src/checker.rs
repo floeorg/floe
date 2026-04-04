@@ -222,6 +222,10 @@ pub struct Checker {
     /// Maps component_name -> Vec of parameter types for children render props.
     /// Populated from tsgo probe results (__jsxc_Component_N entries).
     jsx_children_hints: HashMap<String, Vec<Type>>,
+    /// Ambient type definitions from TypeScript lib files (e.g., lib.dom.d.ts).
+    /// Maps interface names (Window, Navigator, Console, etc.) to their Record types.
+    /// Used by `resolve_type_to_concrete()` to resolve member access on globals.
+    ambient_types: HashMap<String, Type>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -417,6 +421,7 @@ impl Checker {
             for_block_overloads: HashMap::new(),
             jsx_callback_hints: HashMap::new(),
             jsx_children_hints: HashMap::new(),
+            ambient_types: HashMap::new(),
         }
     }
 
@@ -437,6 +442,53 @@ impl Checker {
             resolved_imports: fl_imports,
             dts_imports,
             ..Self::new()
+        }
+    }
+
+    /// Create a checker with .fl imports, .d.ts imports, and ambient types
+    /// from TypeScript lib definitions (e.g., lib.dom.d.ts).
+    pub fn with_all_imports_and_ambient(
+        fl_imports: HashMap<String, ResolvedImports>,
+        dts_imports: HashMap<String, Vec<DtsExport>>,
+        ambient: crate::interop::ambient::AmbientDeclarations,
+    ) -> Self {
+        let mut checker = Self::new();
+        checker.resolved_imports = fl_imports;
+        checker.dts_imports = dts_imports;
+        checker.register_ambient_types(ambient);
+        checker
+    }
+
+    /// Register ambient types from TypeScript lib definitions, replacing
+    /// the hardcoded browser globals with real typed declarations.
+    fn register_ambient_types(&mut self, ambient: crate::interop::ambient::AmbientDeclarations) {
+        // Store type definitions for resolve_type_to_concrete() lookups
+        self.ambient_types = ambient.types;
+
+        // Register globals in the type environment, overriding the
+        // hardcoded fallback types with real typed declarations.
+        // Skip names that are handled specially by the Floe stdlib
+        // (Response, Error, Event) to preserve Floe-specific field sets.
+        let preserved_names: HashSet<&str> =
+            ["Response", "Error", "Event"].iter().copied().collect();
+
+        for (name, ty) in ambient.globals {
+            if preserved_names.contains(name.as_str()) {
+                continue;
+            }
+            // Skip `declare var X: { prototype: X; ... }` constructor entries
+            // that share a name with an interface. In lib.dom.d.ts, each
+            // interface Foo has a matching `declare var Foo: { prototype: Foo }`
+            // for the constructor. We want the interface (in ambient_types)
+            // for member access resolution, not the constructor object.
+            if self.ambient_types.contains_key(&name) && matches!(ty, Type::Record(_)) {
+                continue;
+            }
+            // Mark fetch as untrusted (auto-wrapped in Result)
+            if name == "fetch" {
+                self.untrusted_imports.insert(name.clone());
+            }
+            self.env.define(&name, ty);
         }
     }
 

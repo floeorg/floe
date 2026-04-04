@@ -475,7 +475,7 @@ fn convert_formal_params(params: &FormalParameters<'_>) -> Vec<FunctionParam> {
 }
 
 /// Convert an oxc function declaration to our TsType::Function.
-fn convert_function(
+pub(super) fn convert_function(
     params: &FormalParameters<'_>,
     return_type: &Option<oxc_allocator::Box<'_, oxc_ast::ast::TSTypeAnnotation<'_>>>,
 ) -> TsType {
@@ -521,11 +521,28 @@ fn convert_property_signature(prop: &TSPropertySignature<'_>) -> Option<ObjectFi
 }
 
 /// Convert interface body members to TsType::Object.
-fn convert_interface_body(members: &[TSSignature<'_>]) -> TsType {
+pub(super) fn convert_interface_body(members: &[TSSignature<'_>]) -> TsType {
     let fields: Vec<ObjectField> = members
         .iter()
         .filter_map(|sig| match sig {
             TSSignature::TSPropertySignature(prop) => convert_property_signature(prop),
+            // Treat getter methods (e.g., `get location(): Location`) as property fields.
+            // This is critical for lib.dom.d.ts where many properties are declared as getters.
+            TSSignature::TSMethodSignature(method)
+                if matches!(method.kind, oxc_ast::ast::TSMethodSignatureKind::Get) =>
+            {
+                let name = property_key_name(&method.key)?;
+                let ty = method
+                    .return_type
+                    .as_ref()
+                    .map(|ta| convert_oxc_type(&ta.type_annotation))
+                    .unwrap_or(TsType::Any);
+                Some(ObjectField {
+                    name,
+                    ty,
+                    optional: method.optional,
+                })
+            }
             _ => None,
         })
         .collect();
@@ -690,7 +707,7 @@ macro_rules! convert_shared_type_arms {
 }
 
 /// Convert an oxc TSType to our TsType enum.
-fn convert_oxc_type(ty: &OxcTSType<'_>) -> TsType {
+pub(super) fn convert_oxc_type(ty: &OxcTSType<'_>) -> TsType {
     convert_shared_type_arms!(OxcTSType, ty)
 }
 
@@ -872,7 +889,7 @@ pub(super) fn parse_interface_export(
 // ── Interface extends resolution ───────────────────────────────
 
 /// Collect interface body fields and extends names from a statement.
-fn collect_interface_info(
+pub(super) fn collect_interface_info(
     stmt: &Statement<'_>,
     bodies: &mut HashMap<String, Vec<ObjectField>>,
     extends: &mut HashMap<String, Vec<String>>,
@@ -925,7 +942,7 @@ fn collect_interface_info(
 }
 
 /// Recursively resolve all fields for an interface, including inherited ones.
-fn resolve_interface_fields(
+pub(super) fn resolve_interface_fields(
     name: &str,
     bodies: &HashMap<String, Vec<ObjectField>>,
     extends: &HashMap<String, Vec<String>>,

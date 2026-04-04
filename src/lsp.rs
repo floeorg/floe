@@ -346,6 +346,7 @@ impl FloeLsp {
                 // Resolve .d.ts imports BEFORE the checker so it gets npm type info
                 let mut dts_map = HashMap::new();
                 let mut import_diags_early = Vec::new();
+                let mut ambient_types = None;
                 if let Ok(source_path) = uri.to_file_path() {
                     let source_dir = source_path.parent().unwrap_or(Path::new("."));
                     let project_dir = find_project_dir(source_dir);
@@ -373,17 +374,21 @@ impl FloeLsp {
                         let mut cache_write = self.dts_cache.write().await;
                         cache_write.extend(new_cache);
                     }
+
+                    // Load ambient types from TypeScript lib definitions
+                    ambient_types = crate::interop::ambient::load_ambient_types(&project_dir);
                 }
 
                 // Add imported for-block functions to the symbol index
                 index.add_imported_for_blocks(&resolved_imports);
 
-                let checker = if resolved_imports.is_empty() && dts_map.is_empty() {
-                    Checker::new()
-                } else if dts_map.is_empty() {
-                    Checker::with_imports(resolved_imports)
-                } else {
-                    Checker::with_all_imports(resolved_imports, dts_map)
+                let checker = match ambient_types {
+                    Some(ambient) => {
+                        Checker::with_all_imports_and_ambient(resolved_imports, dts_map, ambient)
+                    }
+                    None if resolved_imports.is_empty() && dts_map.is_empty() => Checker::new(),
+                    None if dts_map.is_empty() => Checker::with_imports(resolved_imports),
+                    None => Checker::with_all_imports(resolved_imports, dts_map),
                 };
                 let (mut check_diags, type_map, expr_types) = checker.check_with_types(&program);
                 check_diags.extend(import_diags_early);
