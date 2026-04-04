@@ -5,6 +5,21 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.3](https://github.com/floeorg/floe/compare/v0.4.2...v0.4.3) (2026-04-04)
+
+
+### Features
+
+* [[#1003](https://github.com/floeorg/floe/issues/1003)] Floe integration plugin ecosystem ([#1008](https://github.com/floeorg/floe/issues/1008)) ([dbb4338](https://github.com/floeorg/floe/commit/dbb433837a8f3df3c0394b5847f3d1ac98de0843))
+* [[#995](https://github.com/floeorg/floe/issues/995)] Support re-export syntax ([#1009](https://github.com/floeorg/floe/issues/1009)) ([28c4a78](https://github.com/floeorg/floe/commit/28c4a78dc5ae8b93a59cdab8c5686e13892614a8))
+
+
+### Bug Fixes
+
+* [[#976](https://github.com/floeorg/floe/issues/976)] Error when named import does not exist in module ([#1000](https://github.com/floeorg/floe/issues/1000)) ([3d60062](https://github.com/floeorg/floe/commit/3d60062a32bca0a4d47ecc574b63f3776fa51abb))
+* [[#978](https://github.com/floeorg/floe/issues/978)] Make tsgo required when importing from .ts files ([#999](https://github.com/floeorg/floe/issues/999)) ([94a6933](https://github.com/floeorg/floe/commit/94a6933ebafce5fea3bfae9129316bdc029f6a8a))
+* [[#994](https://github.com/floeorg/floe/issues/994)] Formatter preserves string union types instead of deleting them ([#996](https://github.com/floeorg/floe/issues/996)) ([3e66961](https://github.com/floeorg/floe/commit/3e66961d8304425e25c4ca10a688f9fec7ac14ed))
+
 ## [0.4.2](https://github.com/floeorg/floe/compare/v0.4.1...v0.4.2) (2026-04-04)
 
 
