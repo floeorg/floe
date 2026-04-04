@@ -163,10 +163,7 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        Some(ReExportDecl {
-            specifiers,
-            source,
-        })
+        Some(ReExportDecl { specifiers, source })
     }
 
     fn lower_import_for_specifier(&mut self, node: &SyntaxNode) -> Option<ForImportSpecifier> {

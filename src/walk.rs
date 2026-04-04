@@ -33,7 +33,10 @@ pub fn walk_item_mut(item: &mut Item, f: &mut impl FnMut(&mut Expr)) {
                 }
             }
         }
-        ItemKind::Import(_) | ItemKind::ReExport(_) | ItemKind::TypeDecl(_) | ItemKind::TraitDecl(_) => {}
+        ItemKind::Import(_)
+        | ItemKind::ReExport(_)
+        | ItemKind::TypeDecl(_)
+        | ItemKind::TraitDecl(_) => {}
     }
 }
 

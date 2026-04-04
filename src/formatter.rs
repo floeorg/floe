@@ -138,11 +138,18 @@ impl<'src> Formatter<'src> {
                             let want_blank = match (prev_kind, child_inner_kind) {
                                 // Group imports and re-exports together (no blank line)
                                 (Some(SyntaxKind::IMPORT_DECL), Some(SyntaxKind::IMPORT_DECL))
-                                | (Some(SyntaxKind::IMPORT_DECL), Some(SyntaxKind::REEXPORT_DECL))
-                                | (Some(SyntaxKind::REEXPORT_DECL), Some(SyntaxKind::IMPORT_DECL))
-                                | (Some(SyntaxKind::REEXPORT_DECL), Some(SyntaxKind::REEXPORT_DECL)) => {
-                                    false
-                                }
+                                | (
+                                    Some(SyntaxKind::IMPORT_DECL),
+                                    Some(SyntaxKind::REEXPORT_DECL),
+                                )
+                                | (
+                                    Some(SyntaxKind::REEXPORT_DECL),
+                                    Some(SyntaxKind::IMPORT_DECL),
+                                )
+                                | (
+                                    Some(SyntaxKind::REEXPORT_DECL),
+                                    Some(SyntaxKind::REEXPORT_DECL),
+                                ) => false,
                                 (Some(a), Some(b)) if a != b => true,
                                 _ => true,
                             };
