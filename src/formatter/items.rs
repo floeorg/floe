@@ -572,16 +572,16 @@ impl Formatter<'_> {
         let mut methods: Vec<(bool, SyntaxNode)> = Vec::new();
         let mut next_is_export = false;
         for child_or_tok in node.children_with_tokens() {
-            if let Some(tok) = child_or_tok.as_token() {
-                if tok.kind() == SyntaxKind::KW_EXPORT {
-                    next_is_export = true;
-                }
+            if let Some(tok) = child_or_tok.as_token()
+                && tok.kind() == SyntaxKind::KW_EXPORT
+            {
+                next_is_export = true;
             }
-            if let Some(child) = child_or_tok.into_node() {
-                if child.kind() == SyntaxKind::FUNCTION_DECL {
-                    methods.push((next_is_export, child));
-                    next_is_export = false;
-                }
+            if let Some(child) = child_or_tok.into_node()
+                && child.kind() == SyntaxKind::FUNCTION_DECL
+            {
+                methods.push((next_is_export, child));
+                next_is_export = false;
             }
         }
 
