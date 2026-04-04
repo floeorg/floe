@@ -104,7 +104,14 @@ impl Checker {
         // Every expected field must either match an actual field or be omittable
         expected.iter().all(|(name, ty)| {
             if let Some((_, act_ty)) = actual.iter().find(|(n, _)| n == name) {
-                self.types_compatible(ty, act_ty)
+                if self.types_compatible(ty, act_ty) {
+                    true
+                } else if let Type::Settable(inner) = ty {
+                    // Settable<T> accepts T directly (user provides value, not Settable wrapper)
+                    self.types_compatible(inner, act_ty)
+                } else {
+                    false
+                }
             } else {
                 // Field omitted — OK if it's Settable or Option
                 ty.is_settable() || ty.is_option()

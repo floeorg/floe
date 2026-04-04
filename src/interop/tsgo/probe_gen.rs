@@ -654,6 +654,8 @@ pub(super) fn generate_probe(
     // generate conditional types that preserve generic parameters)
     // Key: "Database$insert" or "Database$select$from", Value: imported arg name
     let mut chain_step_args: HashMap<String, String> = HashMap::new();
+    // Track which chain steps are zero-arg calls (e.g. .select()) for full-chain probes
+    let mut chain_step_zero_args: HashSet<String> = HashSet::new();
     crate::walk::walk_program(program, &mut |expr| {
         if matches!(&expr.kind, ExprKind::Member { .. }) {
             // Try variable-rooted chain (direct import like `import { db }`)
@@ -674,7 +676,13 @@ pub(super) fn generate_probe(
                 type_rooted_chains.insert(root_key.clone());
 
                 // Capture imported arguments at each call step in the chain
-                collect_chain_step_args(expr, &imported_names, &type_path, &mut chain_step_args);
+                collect_chain_step_args(
+                    expr,
+                    &imported_names,
+                    &type_path,
+                    &mut chain_step_args,
+                    &mut chain_step_zero_args,
+                );
 
                 chain_paths.push(type_path);
             }
@@ -690,68 +698,71 @@ pub(super) fn generate_probe(
         lines.push(
             "type _Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;".to_string(),
         );
-        let mut emitted_ret_decls: HashSet<String> = HashSet::new();
+        let mut emitted_chain_bases: HashSet<String> = HashSet::new();
         let mut emitted_chain_exports: HashSet<String> = HashSet::new();
 
         for path in &chain_paths {
-            for end_idx in 2..path.len() {
-                let chain_key = path[..=end_idx].join("$");
-                let prev_key = path[..end_idx].join("$");
-                let field = &path[end_idx];
+            let first_step_key = path[..=1].join("$");
+            let is_type_rooted = type_rooted_chains.contains(&first_step_key);
 
-                let ret_name = format!("__chain_ret_{prev_key}");
-                if emitted_ret_decls.insert(ret_name.clone()) {
-                    let first_step_key = path[..=1].join("$");
-                    let is_type_rooted = type_rooted_chains.contains(&first_step_key);
+            if is_type_rooted {
+                // Full-chain call expressions: let TypeScript propagate generics naturally
+                // through the entire chain (e.g. select().from(snippetsTable) preserves
+                // the table type even though select() has no args).
+                let base_name = format!("__chain_base_{}", path[0]);
+                if emitted_chain_bases.insert(base_name.clone()) {
+                    lines.push(format!("declare const {base_name}: {};", path[0]));
+                }
 
-                    // Check if this step has a known imported argument for generic
-                    // preservation (e.g. snippetsTable in .insert(snippetsTable) or .from(snippetsTable))
-                    let step_arg = chain_step_args.get(&prev_key);
-
-                    if end_idx == 2 {
-                        if is_type_rooted {
-                            if let Some(arg) = step_arg {
-                                lines.push(format!(
-                                    "declare const {ret_name}: _Expand<{}[\"{}\"] extends (arg: typeof {arg}, ...r: any[]) => infer R ? R : never>;",
-                                    path[0], path[1]
-                                ));
+                for end_idx in 2..path.len() {
+                    let chain_key = path[..=end_idx].join("$");
+                    let export_name = format!("__chain_{chain_key}");
+                    if emitted_chain_exports.insert(export_name.clone()) {
+                        let mut expr = base_name.clone();
+                        for step in 1..end_idx {
+                            let method = &path[step];
+                            let step_key = path[..=step].join("$");
+                            if chain_step_zero_args.contains(&step_key) {
+                                expr = format!("{expr}.{method}()");
+                            } else if let Some(arg) = chain_step_args.get(&step_key) {
+                                expr = format!("{expr}.{method}({arg})");
                             } else {
-                                lines.push(format!(
-                                    "declare const {ret_name}: _Expand<ReturnType<{}[\"{}\"]>>;",
-                                    path[0], path[1]
-                                ));
+                                expr = format!("{expr}.{method}(null! as any)");
                             }
-                        } else if let Some(arg) = step_arg {
-                            lines.push(format!(
-                                "declare const {ret_name}: _Expand<typeof {}.{} extends (arg: typeof {arg}, ...r: any[]) => infer R ? R : never>;",
-                                path[0], path[1]
-                            ));
-                        } else {
+                        }
+                        let field = &path[end_idx];
+                        lines.push(format!("export const {export_name} = {expr}.{field};"));
+                    }
+                }
+            } else {
+                // Variable-rooted: step-by-step ReturnType
+                let mut emitted_ret_decls: HashSet<String> = HashSet::new();
+                for end_idx in 2..path.len() {
+                    let chain_key = path[..=end_idx].join("$");
+                    let prev_key = path[..end_idx].join("$");
+                    let field = &path[end_idx];
+
+                    let ret_name = format!("__chain_ret_{prev_key}");
+                    if emitted_ret_decls.insert(ret_name.clone()) {
+                        if end_idx == 2 {
                             lines.push(format!(
                                 "declare const {ret_name}: _Expand<ReturnType<typeof {}.{}>>;",
                                 path[0], path[1]
                             ));
-                        }
-                    } else {
-                        let prev_prev_key = path[..end_idx - 1].join("$");
-                        let prev_ret = format!("__chain_ret_{prev_prev_key}");
-                        if let Some(arg) = step_arg {
-                            lines.push(format!(
-                                "declare const {ret_name}: _Expand<typeof {prev_ret}.{} extends (arg: typeof {arg}, ...r: any[]) => infer R ? R : never>;",
-                                path[end_idx - 1]
-                            ));
                         } else {
+                            let prev_prev_key = path[..end_idx - 1].join("$");
+                            let prev_ret = format!("__chain_ret_{prev_prev_key}");
                             lines.push(format!(
                                 "declare const {ret_name}: _Expand<ReturnType<typeof {prev_ret}.{}>>;",
                                 path[end_idx - 1]
                             ));
                         }
                     }
-                }
 
-                let export_name = format!("__chain_{chain_key}");
-                if emitted_chain_exports.insert(export_name.clone()) {
-                    lines.push(format!("export const {export_name} = {ret_name}.{field};",));
+                    let export_name = format!("__chain_{chain_key}");
+                    if emitted_chain_exports.insert(export_name.clone()) {
+                        lines.push(format!("export const {export_name} = {ret_name}.{field};"));
+                    }
                 }
             }
         }
@@ -1335,36 +1346,41 @@ fn collect_chain_step_args(
     imported_names: &HashMap<String, String>,
     type_path: &[String],
     args_map: &mut HashMap<String, String>,
+    zero_args: &mut HashSet<String>,
 ) {
     fn walk(
         expr: &Expr,
         imported_names: &HashMap<String, String>,
         type_path: &[String],
         args_map: &mut HashMap<String, String>,
+        zero_args: &mut HashSet<String>,
     ) {
         match &expr.kind {
             ExprKind::Member { object, .. } => {
-                walk(object, imported_names, type_path, args_map);
+                walk(object, imported_names, type_path, args_map, zero_args);
             }
             ExprKind::Call { callee, args, .. } => {
-                if let Some(Arg::Positional(arg_expr)) = args.first()
-                    && let ExprKind::Identifier(name) = &arg_expr.kind
-                    && imported_names.contains_key(name)
-                    && let ExprKind::Member { .. } = &callee.kind
-                {
+                if let ExprKind::Member { .. } = &callee.kind {
                     let step_idx = count_chain_depth(callee);
                     if step_idx > 0 && step_idx < type_path.len() {
                         let step_key = type_path[..=step_idx].join("$");
-                        args_map.entry(step_key).or_insert_with(|| name.clone());
+                        if args.is_empty() {
+                            zero_args.insert(step_key);
+                        } else if let Some(Arg::Positional(arg_expr)) = args.first()
+                            && let ExprKind::Identifier(name) = &arg_expr.kind
+                            && imported_names.contains_key(name)
+                        {
+                            args_map.entry(step_key).or_insert_with(|| name.clone());
+                        }
                     }
                 }
-                walk(callee, imported_names, type_path, args_map);
+                walk(callee, imported_names, type_path, args_map, zero_args);
             }
             _ => {}
         }
     }
 
-    walk(expr, imported_names, type_path, args_map);
+    walk(expr, imported_names, type_path, args_map, zero_args);
 }
 
 /// Count the depth of a chain expression from an identifier root.
