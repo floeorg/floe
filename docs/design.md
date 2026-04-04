@@ -40,7 +40,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 - `fn` for named/exported functions
 - Closures `(x) => expr` for inline/anonymous functions
 - Dot shorthand `.field` for implicit field-access closures
-- JSX / TSX (full support)
+- JSX / TSX (full support, including member expressions like `<Select.Trigger />`)
 - Generics (types and functions), template literals
 - Async via `|> await` (or `|> Promise.await`) — no `async` keyword; return type must be `Promise<T>`
 - Destructuring, spread, rest params

@@ -1,0 +1,12 @@
+import trusted { JSX } from "react"
+import trusted { Select, ListBox } from "ui"
+
+export fn App() -> JSX.Element {
+    <div>
+        <Select.Trigger>Open</Select.Trigger>
+        <Select.Value />
+        <Select.Popover>
+            <ListBox.Item key="a" id="a">Alpha</ListBox.Item>
+        </Select.Popover>
+    </div>
+}

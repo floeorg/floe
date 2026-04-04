@@ -600,7 +600,14 @@ module.exports = grammar({
       seq("</", field("name", $._jsx_name), ">"),
 
     _jsx_name: ($) =>
-      choice($.identifier, $.type_identifier),
+      choice($.jsx_member_expression, $.identifier, $.type_identifier),
+
+    jsx_member_expression: ($) =>
+      seq(
+        field("object", choice($.identifier, $.type_identifier)),
+        ".",
+        field("property", choice($.identifier, $.type_identifier)),
+      ),
 
     jsx_attribute: ($) =>
       choice(

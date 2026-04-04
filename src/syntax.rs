@@ -210,6 +210,9 @@ impl SyntaxKind {
                 | Self::KW_DERIVING
                 | Self::KW_WHEN
                 | Self::KW_SELF
+                | Self::KW_VALUE
+                | Self::KW_CLEAR
+                | Self::KW_UNCHANGED
         )
     }
 }

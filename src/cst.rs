@@ -152,6 +152,34 @@ impl<'src> CstParser<'src> {
         )
     }
 
+    /// Check if the current token can appear as a member name in JSX member
+    /// expressions (e.g., `Value` in `<Select.Value />`). Includes identifiers,
+    /// keywords, and built-in constructors.
+    fn is_jsx_member_name(&self) -> bool {
+        self.is_ident()
+            || self.is_keyword()
+            || matches!(
+                self.current_kind(),
+                Some(
+                    TokenKind::Value
+                        | TokenKind::Clear
+                        | TokenKind::Unchanged
+                        | TokenKind::Todo
+                        | TokenKind::Unreachable
+                        | TokenKind::Mock
+                        | TokenKind::Assert
+                        | TokenKind::When
+                        | TokenKind::Collect
+                        | TokenKind::Deriving
+                        | TokenKind::Use
+                        | TokenKind::Typeof
+                        | TokenKind::SelfKw
+                        | TokenKind::Opaque
+                        | TokenKind::Trusted
+                )
+            )
+    }
+
     fn at_end(&self) -> bool {
         self.pos >= self.tokens.len() || self.at(TokenKind::Eof)
     }

@@ -86,6 +86,12 @@ fn snapshot_jsx_comment() {
 }
 
 #[test]
+fn snapshot_jsx_member_expr() {
+    let output = compile_fixture("jsx_member_expr");
+    insta::assert_snapshot!(output);
+}
+
+#[test]
 fn snapshot_imports() {
     let output = compile_fixture("imports");
     insta::assert_snapshot!(output);

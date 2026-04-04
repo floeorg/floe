@@ -21,6 +21,15 @@ impl<'src> CstParser<'src> {
         }
 
         self.expect_ident(); // tag name
+        // Member expressions: Select.Trigger, Select.Value, etc.
+        while self.at(TokenKind::Dot) {
+            self.bump(); // .
+            if self.is_jsx_member_name() {
+                self.bump();
+            } else {
+                self.expect_ident();
+            }
+        }
         self.eat_trivia();
 
         // Props
@@ -54,6 +63,15 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::Slash);
         self.eat_trivia();
         self.expect_ident();
+        // Member expressions in closing tag: </Select.Value>
+        while self.at(TokenKind::Dot) {
+            self.bump(); // .
+            if self.is_jsx_member_name() {
+                self.bump();
+            } else {
+                self.expect_ident();
+            }
+        }
         self.expect(TokenKind::GreaterThan);
 
         self.builder.finish_node();

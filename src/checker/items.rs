@@ -733,8 +733,14 @@ impl Checker {
                 // Resolve the component's props type for prop validation
                 let props_map: Option<std::collections::HashMap<String, Type>> =
                     if name.starts_with(|c: char| c.is_uppercase()) {
-                        self.unused.used_names.insert(name.clone());
-                        if let Some(comp_ty) = self.env.lookup(name).cloned() {
+                        // For member expressions (Select.Trigger), mark the root as used
+                        let root_name = name.split('.').next().unwrap_or(name);
+                        self.unused.used_names.insert(root_name.to_string());
+                        if name.contains('.') {
+                            // Member expression components come from npm libraries;
+                            // skip prop type resolution
+                            None
+                        } else if let Some(comp_ty) = self.env.lookup(name).cloned() {
                             self.resolve_jsx_props_fields(&comp_ty)
                         } else {
                             self.emit_error(

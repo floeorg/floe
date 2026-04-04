@@ -4,10 +4,10 @@ impl<'src> Lowerer<'src> {
     pub(super) fn lower_jsx_element(&mut self, node: &SyntaxNode) -> Option<JsxElement> {
         let span = self.node_span(node);
 
-        // Detect fragment: no tag name idents
-        let idents = self.collect_idents_direct(node);
+        // Extract tag name: IDENT(.IDENT)* after the opening <
+        let name = self.collect_jsx_tag_name(node);
 
-        if idents.is_empty() {
+        if name.is_none() {
             // Fragment
             let children = self.lower_jsx_children(node);
             return Some(JsxElement {
@@ -16,7 +16,7 @@ impl<'src> Lowerer<'src> {
             });
         }
 
-        let name = idents.first()?.clone();
+        let name = name.unwrap();
         // Self-closing: SLASH appears right before GREATER_THAN (not after LESS_THAN)
         let self_closing = {
             let mut prev_was_slash = false;
@@ -144,6 +144,37 @@ impl<'src> Lowerer<'src> {
                 }
                 if kind == SyntaxKind::MINUS || kind.is_member_name() {
                     name.push_str(tok.text());
+                } else {
+                    break;
+                }
+            }
+        }
+        if name.is_empty() { None } else { Some(name) }
+    }
+
+    /// Collect the full JSX tag name including member expressions.
+    /// e.g., `<Select.Trigger>` → "Select.Trigger", `<div>` → "div"
+    /// Returns None for fragments (no ident after `<`).
+    fn collect_jsx_tag_name(&self, node: &SyntaxNode) -> Option<String> {
+        let mut name = String::new();
+        let mut past_lt = false;
+        for child in node.children_with_tokens() {
+            if let Some(tok) = child.as_token() {
+                let kind = tok.kind();
+                if kind == SyntaxKind::LESS_THAN {
+                    past_lt = true;
+                    continue;
+                }
+                if !past_lt {
+                    continue;
+                }
+                if kind.is_trivia() {
+                    continue;
+                }
+                if kind == SyntaxKind::IDENT || kind.is_member_name() {
+                    name.push_str(tok.text());
+                } else if kind == SyntaxKind::DOT && !name.is_empty() {
+                    name.push('.');
                 } else {
                     break;
                 }

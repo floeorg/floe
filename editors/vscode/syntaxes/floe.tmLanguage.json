@@ -250,8 +250,8 @@
     "jsx": {
       "patterns": [
         {
-          "comment": "JSX element: handles both self-closing (<br />) and paired (<div>...</div>) tags",
-          "begin": "(?<![a-zA-Z0-9_])(<)([A-Z][a-zA-Z0-9]*|[a-z][a-zA-Z0-9-]*)(?=[\\s/>])",
+          "comment": "JSX element: handles both self-closing (<br />) and paired (<div>...</div>) tags, including member expressions (Select.Trigger)",
+          "begin": "(?<![a-zA-Z0-9_])(<)([A-Z][a-zA-Z0-9]*(?:\\.[a-zA-Z][a-zA-Z0-9]*)*|[a-z][a-zA-Z0-9-]*)(?=[\\s/>])",
           "beginCaptures": {
             "1": { "name": "punctuation.definition.tag.begin.floe" },
             "2": { "name": "entity.name.tag.floe" }

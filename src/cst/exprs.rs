@@ -169,6 +169,9 @@ impl<'src> CstParser<'src> {
                                 | Some(TokenKind::Deriving)
                                 | Some(TokenKind::When)
                                 | Some(TokenKind::SelfKw)
+                                | Some(TokenKind::Value)
+                                | Some(TokenKind::Clear)
+                                | Some(TokenKind::Unchanged)
                         )
                     {
                         self.bump();

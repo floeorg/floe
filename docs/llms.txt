@@ -659,6 +659,11 @@ export fn App() -> JSX.Element {
 export fn Card(props: CardProps) -> JSX.Element {
     <div {...props} className="card" />
 }
+
+// JSX member expressions — compound components with dot notation
+<Select.Trigger>Open</Select.Trigger>
+<Select.Value />
+<ListBox.Item key="a">Alpha</ListBox.Item>
 ```
 
 ## Tests
