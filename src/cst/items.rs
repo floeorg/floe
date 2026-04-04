@@ -27,6 +27,13 @@ impl<'src> CstParser<'src> {
                 self.bump();
                 self.builder.finish_node();
             }
+            Some(TokenKind::LeftBrace) if exported => {
+                // `export { X, Y } from "module"` — re-export
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
+                self.parse_reexport();
+                self.builder.finish_node();
+            }
             Some(TokenKind::Const) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
@@ -120,6 +127,43 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
         self.expect_kind(TokenKind::String("".into()));
+
+        self.builder.finish_node();
+    }
+
+    // ── Re-export ─────────────────────────────────────────────────
+
+    fn parse_reexport(&mut self) {
+        self.builder.start_node(SyntaxKind::REEXPORT_DECL.into());
+        self.expect(TokenKind::LeftBrace);
+        self.eat_trivia();
+        self.parse_comma_separated(Self::parse_reexport_specifier, TokenKind::RightBrace);
+        self.expect(TokenKind::RightBrace);
+        self.eat_trivia();
+
+        if self.at(TokenKind::From) {
+            self.bump();
+            self.eat_trivia();
+        }
+        self.expect_kind(TokenKind::String("".into()));
+
+        self.builder.finish_node();
+    }
+
+    fn parse_reexport_specifier(&mut self) {
+        self.builder
+            .start_node(SyntaxKind::REEXPORT_SPECIFIER.into());
+        self.expect_ident();
+        self.eat_trivia();
+
+        // Check for `as alias`
+        if self.at_identifier("as")
+            || self.at(TokenKind::Banned(crate::lexer::token::BannedKeyword::As))
+        {
+            self.bump();
+            self.eat_trivia();
+            self.expect_ident();
+        }
 
         self.builder.finish_node();
     }

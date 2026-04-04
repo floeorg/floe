@@ -61,6 +61,13 @@ impl Codegen {
                         self.emit_dts_for_block_function(&mut out, func, &block.type_name);
                     }
                 }
+                ItemKind::ReExport(decl) => {
+                    if !first {
+                        out.push('\n');
+                    }
+                    first = false;
+                    self.emit_dts_reexport(&mut out, decl);
+                }
                 // Traits, tests, and expressions don't produce declarations
                 ItemKind::TraitDecl(_) | ItemKind::TestBlock(_) | ItemKind::Expr(_) => {}
             }
@@ -70,6 +77,21 @@ impl Codegen {
             out.push('\n');
         }
         out
+    }
+
+    fn emit_dts_reexport(&self, out: &mut String, decl: &ReExportDecl) {
+        out.push_str("export { ");
+        for (i, spec) in decl.specifiers.iter().enumerate() {
+            if i > 0 {
+                out.push_str(", ");
+            }
+            out.push_str(&spec.name);
+            if let Some(alias) = &spec.alias {
+                out.push_str(" as ");
+                out.push_str(alias);
+            }
+        }
+        out.push_str(&format!(" }} from \"{}\";", decl.source));
     }
 
     fn emit_dts_import(&self, out: &mut String, decl: &ImportDecl) {

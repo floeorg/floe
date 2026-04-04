@@ -55,6 +55,8 @@ pub struct Item {
 pub enum ItemKind {
     /// `import { x, y } from "module"`
     Import(ImportDecl),
+    /// `export { x, y } from "module"` — re-export without importing into scope
+    ReExport(ReExportDecl),
     /// `const x = expr` or `export const x = expr`
     Const(ConstDecl),
     /// `function f(...) { ... }` or `export function f(...) { ... }`
@@ -99,6 +101,21 @@ pub struct ImportSpecifier {
 pub struct ForImportSpecifier {
     /// The type name (base type only, no type params): e.g., "User", "Array"
     pub type_name: String,
+    pub span: Span,
+}
+
+// ── Re-export Declaration ───────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReExportDecl {
+    pub specifiers: Vec<ReExportSpecifier>,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReExportSpecifier {
+    pub name: String,
+    pub alias: Option<String>,
     pub span: Span,
 }
 

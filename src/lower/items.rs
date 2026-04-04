@@ -14,6 +14,13 @@ impl<'src> Lowerer<'src> {
                         span,
                     });
                 }
+                SyntaxKind::REEXPORT_DECL => {
+                    let decl = self.lower_reexport(&child)?;
+                    return Some(Item {
+                        kind: ItemKind::ReExport(decl),
+                        span,
+                    });
+                }
                 SyntaxKind::CONST_DECL => {
                     let decl = self.lower_const(&child, node)?;
                     return Some(Item {
@@ -125,6 +132,39 @@ impl<'src> Lowerer<'src> {
             default_import,
             specifiers,
             for_specifiers,
+            source,
+        })
+    }
+
+    fn lower_reexport(&mut self, node: &SyntaxNode) -> Option<ReExportDecl> {
+        let mut specifiers = Vec::new();
+        let mut source = String::new();
+
+        for child in node.children() {
+            if child.kind() == SyntaxKind::REEXPORT_SPECIFIER {
+                let span = self.node_span(&child);
+                let idents = self.collect_idents(&child);
+                if let Some(name) = idents.first() {
+                    let alias = idents.get(1).cloned();
+                    specifiers.push(ReExportSpecifier {
+                        name: name.clone(),
+                        alias,
+                        span,
+                    });
+                }
+            }
+        }
+
+        for token in node.children_with_tokens() {
+            if let Some(token) = token.as_token()
+                && token.kind() == SyntaxKind::STRING
+            {
+                source = self.unquote_string(token.text());
+            }
+        }
+
+        Some(ReExportDecl {
+            specifiers,
             source,
         })
     }

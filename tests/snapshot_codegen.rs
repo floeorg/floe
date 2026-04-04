@@ -92,6 +92,12 @@ fn snapshot_imports() {
 }
 
 #[test]
+fn snapshot_reexport() {
+    let output = compile_fixture("reexport");
+    insta::assert_snapshot!(output);
+}
+
+#[test]
 fn snapshot_constructors() {
     let output = compile_fixture("constructors");
     insta::assert_snapshot!(output);

@@ -6,6 +6,9 @@ impl Checker {
     pub(crate) fn check_item(&mut self, item: &Item) {
         match &item.kind {
             ItemKind::Import(decl) => self.check_import(decl, item.span),
+            ItemKind::ReExport(_) => {
+                // Re-exports don't introduce names into the current scope
+            }
             ItemKind::Const(decl) => self.check_const(decl, item.span),
             ItemKind::Function(decl) => self.check_function(decl, item.span),
             ItemKind::TypeDecl(decl) => self.validate_type_decl_annotations(decl),
