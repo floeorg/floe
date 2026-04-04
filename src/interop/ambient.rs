@@ -70,17 +70,38 @@ fn find_ts_lib_dir(project_dir: &Path) -> Option<PathBuf> {
 
 /// Load ambient type declarations from the project's TypeScript installation.
 ///
+/// Parses `lib.dom.d.ts` (browser globals) and `lib.es5.d.ts` (core JS types
+/// like Date, RegExp, Map, Set, Promise, Error) and merges the results.
+///
 /// Returns `None` if TypeScript is not installed or lib files can't be parsed.
 pub fn load_ambient_types(project_dir: &Path) -> Option<AmbientDeclarations> {
     let lib_dir = find_ts_lib_dir(project_dir)?;
-    let dom_path = lib_dir.join("lib.dom.d.ts");
 
-    if !dom_path.exists() {
-        return None;
+    // Load lib files in order — later files can override earlier ones
+    let lib_files = ["lib.es5.d.ts", "lib.dom.d.ts"];
+
+    let mut merged = AmbientDeclarations {
+        globals: Vec::new(),
+        types: HashMap::new(),
+    };
+    let mut seen_globals: HashSet<String> = HashSet::new();
+    let mut loaded_any = false;
+
+    for filename in &lib_files {
+        let path = lib_dir.join(filename);
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            let result = parse_ambient_lib(&content);
+            for (name, ty) in result.globals {
+                if seen_globals.insert(name.clone()) {
+                    merged.globals.push((name, ty));
+                }
+            }
+            merged.types.extend(result.types);
+            loaded_any = true;
+        }
     }
 
-    let content = std::fs::read_to_string(&dom_path).ok()?;
-    Some(parse_ambient_lib(&content))
+    if loaded_any { Some(merged) } else { None }
 }
 
 /// Parse ambient declarations from a TypeScript lib file.
