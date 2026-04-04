@@ -5,6 +5,20 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.2](https://github.com/floeorg/floe/compare/v0.4.1...v0.4.2) (2026-04-04)
+
+
+### Features
+
+* [[#987](https://github.com/floeorg/floe/issues/987)] Load ambient types from TypeScript lib definitions ([#992](https://github.com/floeorg/floe/issues/992)) ([2d50e7b](https://github.com/floeorg/floe/commit/2d50e7b46ef078d03dfc53865056a600cd831a32))
+* [[#990](https://github.com/floeorg/floe/issues/990)] Vite plugin reads from .floe/ output ([#991](https://github.com/floeorg/floe/issues/991)) ([56caf88](https://github.com/floeorg/floe/commit/56caf8896de027086d764a19b5a68634758aae6c))
+
+
+### Bug Fixes
+
+* [[#982](https://github.com/floeorg/floe/issues/982)] Error on bridge type syntax without TS import reference ([#988](https://github.com/floeorg/floe/issues/988)) ([6c056c9](https://github.com/floeorg/floe/commit/6c056c9d8dcfb54e6dccb2507a2e57385ea9d896))
+* Use npx npm@latest for provenance publish ([#993](https://github.com/floeorg/floe/issues/993)) ([3a89aef](https://github.com/floeorg/floe/commit/3a89aefc5ff202ed3906dcf225994fbf624b807c))
+
 ## [0.4.1](https://github.com/floeorg/floe/compare/v0.4.0...v0.4.1) (2026-04-04)
 
 
