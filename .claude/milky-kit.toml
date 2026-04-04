@@ -2,11 +2,8 @@
 name = "floe"
 worktree_dir = "floe-worktrees"
 
-[modules]
-include = [
-    "core",
-    "rust",
-]
+[stack]
+languages = ["rust"]
 
 [skills]
 include = [
