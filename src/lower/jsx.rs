@@ -142,11 +142,10 @@ impl<'src> Lowerer<'src> {
                 if kind.is_trivia() {
                     continue;
                 }
-                if kind == SyntaxKind::IDENT || kind == SyntaxKind::MINUS {
+                if kind == SyntaxKind::MINUS || kind.is_member_name() {
                     name.push_str(tok.text());
-                } else if kind.is_member_name() {
-                    // Keywords used as prop names (e.g., type, for)
-                    name.push_str(tok.text());
+                } else {
+                    break;
                 }
             }
         }

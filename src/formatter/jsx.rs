@@ -152,7 +152,7 @@ impl Formatter<'_> {
                 if kind.is_trivia() {
                     continue;
                 }
-                if kind == SyntaxKind::IDENT || kind == SyntaxKind::MINUS || kind.is_member_name() {
+                if kind == SyntaxKind::MINUS || kind.is_member_name() {
                     self.write(tok.text());
                 } else {
                     break;
