@@ -1,5 +1,10 @@
 <!-- managed by milky-kit | DO NOT EDIT — changes will be overwritten on next sync -->
 
+---
+paths:
+  - ".claude/**"
+---
+
 # `.claude` Directory Development Guide
 
 ## References
