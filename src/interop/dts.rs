@@ -526,22 +526,34 @@ pub(super) fn convert_interface_body(members: &[TSSignature<'_>]) -> TsType {
         .iter()
         .filter_map(|sig| match sig {
             TSSignature::TSPropertySignature(prop) => convert_property_signature(prop),
-            // Treat getter methods (e.g., `get location(): Location`) as property fields.
-            // This is critical for lib.dom.d.ts where many properties are declared as getters.
-            TSSignature::TSMethodSignature(method)
-                if matches!(method.kind, oxc_ast::ast::TSMethodSignatureKind::Get) =>
-            {
+            // Treat getter methods (e.g., `get location(): Location`) as property fields
+            // and regular methods (e.g., `writeText(data: string): Promise<void>`) as
+            // function-typed fields. This is critical for lib.dom.d.ts interfaces.
+            TSSignature::TSMethodSignature(method) => {
                 let name = property_key_name(&method.key)?;
-                let ty = method
-                    .return_type
-                    .as_ref()
-                    .map(|ta| convert_oxc_type(&ta.type_annotation))
-                    .unwrap_or(TsType::Any);
-                Some(ObjectField {
-                    name,
-                    ty,
-                    optional: method.optional,
-                })
+                match method.kind {
+                    oxc_ast::ast::TSMethodSignatureKind::Get => {
+                        let ty = method
+                            .return_type
+                            .as_ref()
+                            .map(|ta| convert_oxc_type(&ta.type_annotation))
+                            .unwrap_or(TsType::Any);
+                        Some(ObjectField {
+                            name,
+                            ty,
+                            optional: method.optional,
+                        })
+                    }
+                    oxc_ast::ast::TSMethodSignatureKind::Method => {
+                        let ty = convert_function(&method.params, &method.return_type);
+                        Some(ObjectField {
+                            name,
+                            ty,
+                            optional: method.optional,
+                        })
+                    }
+                    _ => None, // skip setters
+                }
             }
             _ => None,
         })
