@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.7](https://github.com/floeorg/floe/compare/v0.4.6...v0.4.7) (2026-04-04)
+
+
+### Bug Fixes
+
+* [[#1028](https://github.com/floeorg/floe/issues/1028)] Foreign method chain calls are untrusted ([#1037](https://github.com/floeorg/floe/issues/1037)) ([ca51e5a](https://github.com/floeorg/floe/commit/ca51e5a9408911b4b5924f54973bf90acca71bcf))
+
 ## [0.4.6](https://github.com/floeorg/floe/compare/v0.4.5...v0.4.6) (2026-04-04)
 
 
