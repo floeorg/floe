@@ -542,7 +542,6 @@ impl Formatter<'_> {
     pub(crate) fn fmt_for_block(&mut self, node: &SyntaxNode) {
         self.write("for ");
 
-        // Format the target type
         if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
             self.fmt_type_expr(&type_expr);
         }
@@ -550,25 +549,11 @@ impl Formatter<'_> {
         // Optional trait bound: `for User: Display`
         if self.has_token(node, SyntaxKind::COLON) {
             self.write(": ");
-            // The trait name is the IDENT token after the COLON
-            let mut past_colon = false;
-            for t in node.children_with_tokens() {
-                if let Some(tok) = t.as_token() {
-                    if tok.kind() == SyntaxKind::COLON {
-                        past_colon = true;
-                        continue;
-                    }
-                    if past_colon && tok.kind() == SyntaxKind::IDENT {
-                        self.write(tok.text());
-                        break;
-                    }
-                }
-            }
+            self.fmt_token_expr_after_keyword(node, SyntaxKind::COLON);
         }
 
         self.write(" {");
 
-        // Collect functions with their export status
         let mut methods: Vec<(bool, SyntaxNode)> = Vec::new();
         let mut next_is_export = false;
         for child_or_tok in node.children_with_tokens() {
@@ -585,22 +570,7 @@ impl Formatter<'_> {
             }
         }
 
-        self.indent += 1;
-        for (i, (exported, func)) in methods.iter().enumerate() {
-            self.newline();
-            if i > 0 {
-                self.newline();
-            }
-            self.write_indent();
-            if *exported {
-                self.write("export ");
-            }
-            self.fmt_function(func);
-        }
-        self.indent -= 1;
-        self.newline();
-        self.write_indent();
-        self.write("}");
+        self.fmt_method_list(&methods);
     }
 
     // ── Trait Declaration ───────────────────────────────────────
@@ -614,18 +584,28 @@ impl Formatter<'_> {
 
         self.write(" {");
 
-        let methods: Vec<_> = node
+        let methods: Vec<(bool, SyntaxNode)> = node
             .children()
             .filter(|c| c.kind() == SyntaxKind::FUNCTION_DECL)
+            .map(|c| (false, c))
             .collect();
 
+        self.fmt_method_list(&methods);
+    }
+
+    /// Format a list of methods inside a block (`for` or `trait`).
+    /// Each entry is `(exported, FUNCTION_DECL node)`.
+    fn fmt_method_list(&mut self, methods: &[(bool, SyntaxNode)]) {
         self.indent += 1;
-        for (i, func) in methods.iter().enumerate() {
+        for (i, (exported, func)) in methods.iter().enumerate() {
             self.newline();
             if i > 0 {
                 self.newline();
             }
             self.write_indent();
+            if *exported {
+                self.write("export ");
+            }
             self.fmt_function(func);
         }
         self.indent -= 1;
