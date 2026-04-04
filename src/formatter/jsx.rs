@@ -142,17 +142,19 @@ impl Formatter<'_> {
             return;
         }
 
-        // JSX prop names can be identifiers or keywords (e.g., `type`, `for`)
-        if let Some(name) = self.first_ident(node) {
-            self.write(&name);
-        } else {
-            // Check for keyword tokens used as prop names
-            for t in node.children_with_tokens() {
-                if let Some(tok) = t.as_token()
-                    && !tok.kind().is_trivia()
-                    && tok.kind() != SyntaxKind::EQUAL
-                {
+        // JSX prop names can be identifiers, keywords, or hyphenated (e.g., aria-label, data-testid)
+        for t in node.children_with_tokens() {
+            if let Some(tok) = t.as_token() {
+                let kind = tok.kind();
+                if kind == SyntaxKind::EQUAL {
+                    break;
+                }
+                if kind.is_trivia() {
+                    continue;
+                }
+                if kind == SyntaxKind::IDENT || kind == SyntaxKind::MINUS || kind.is_member_name() {
                     self.write(tok.text());
+                } else {
                     break;
                 }
             }

@@ -522,6 +522,13 @@ fn jsx_with_props() {
 }
 
 #[test]
+fn jsx_hyphenated_props() {
+    let result = emit(r#"<Input aria-label="Share link" data-testid="input" />"#);
+    assert!(result.contains("aria-label={\"Share link\"}"));
+    assert!(result.contains("data-testid={\"input\"}"));
+}
+
+#[test]
 fn jsx_with_children() {
     let result = emit("<div>{x}</div>");
     assert_eq!(result, "<div>{x}</div>;");
