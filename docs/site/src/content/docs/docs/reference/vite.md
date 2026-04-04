@@ -64,9 +64,12 @@ The compiler generates `.d.fl.ts` type declarations in the `.floe/` directory, a
 ## How It Works
 
 1. Vite encounters a `.fl` import
-2. The plugin calls `floe` to compile it to TypeScript
-3. The TypeScript output is passed to Vite's normal pipeline
-4. Hot Module Replacement works automatically
+2. The plugin reads pre-compiled output from `.floe/` if `floe watch` is running and the output is fresh
+3. Otherwise, it falls back to calling `floe build --emit-stdout` to compile on-demand
+4. The TypeScript output is passed to Vite's normal pipeline
+5. Hot Module Replacement works automatically
+
+Running `floe watch src/` alongside Vite is optional but recommended -- it avoids per-file process spawns and shares the same `.floe/` output that other tools use.
 
 ## With React
 

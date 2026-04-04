@@ -78,25 +78,62 @@ npm run dev
 
 Vite compiles `.fl` files on the fly. HMR works automatically.
 
-## Standalone (without Vite)
+## Node / Any Runtime (without Vite)
 
-For scripts or non-React projects, use `floe build` directly:
+For backend apps, scripts, or non-Vite projects, use `@floeorg/register` to resolve `.fl` imports at runtime, and `floe watch` to keep compiled output fresh.
+
+### Install
 
 ```bash
-# Create a file
-cat > hello.fl << 'EOF'
-export fn greet(name: string) -> string {
-  `Hello, ${name}!`
+npm install -D @floeorg/register
+```
+
+### Configure TypeScript
+
+Add `rootDirs` to your `tsconfig.json` so TypeScript resolves `.fl` imports through the `.floe/` output:
+
+```json
+{
+  "compilerOptions": {
+    "allowArbitraryExtensions": true,
+    "rootDirs": ["./src", "./.floe/src"]
+  }
 }
+```
 
-greet("world") |> Console.log
-EOF
+### Add Scripts
 
-# Compile to TypeScript
-floe build hello.fl
+```json
+{
+  "scripts": {
+    "dev": "floe watch src/ & node --import @floeorg/register src/app.ts",
+    "build": "floe build src/"
+  }
+}
+```
 
-# Run the output
-npx tsx hello.ts
+The `--import @floeorg/register` flag teaches Node how to resolve `.fl` imports. It redirects them to the compiled `.ts`/`.tsx` output in `.floe/`. Works with `node` (v22.14+), `tsx`, and any Node-based runtime.
+
+### Development
+
+`floe watch` recompiles `.fl` files to `.floe/` on change. Run it alongside your app:
+
+```bash
+# Single command (as in the script above)
+npm run dev
+
+# Or in separate terminals
+floe watch src/              # Terminal 1
+node --import @floeorg/register src/app.ts   # Terminal 2
+```
+
+### Production
+
+Run `floe build` before your build step:
+
+```bash
+floe build src/
+# then your normal build
 ```
 
 ### Type Checking

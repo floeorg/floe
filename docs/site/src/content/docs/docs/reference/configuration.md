@@ -45,18 +45,66 @@ my-app/
 
 ## Build Output
 
-By default, `floe build` outputs files next to the source:
+By default, `floe build` and `floe watch` output compiled files to a `.floe/` directory at the project root, mirroring the source tree:
 
 ```
-src/main.fl    -> src/main.ts
-src/App.fl     -> src/App.tsx    (if JSX detected)
+src/main.fl    -> .floe/src/main.ts
+src/App.fl     -> .floe/src/App.tsx    (if JSX detected)
 ```
 
-Use `--out-dir` to specify a separate output directory:
+The `.floe/` directory also contains `.d.fl.ts` type declarations so TypeScript can resolve `.fl` imports. Add `rootDirs` to your `tsconfig.json` to make this transparent:
+
+```json
+{
+  "compilerOptions": {
+    "allowArbitraryExtensions": true,
+    "rootDirs": ["./src", "./.floe/src"]
+  }
+}
+```
+
+Add `.floe/` to your `.gitignore` -- it's a build artifact.
+
+Use `--out-dir` to specify a different output directory:
 
 ```bash
 floe build src/ --out-dir dist/
 ```
+
+## package.json Scripts
+
+For **Vite** projects (using `@floeorg/vite-plugin`):
+
+```json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "floe build src/ && vite build",
+    "check": "floe check src/"
+  }
+}
+```
+
+For **Node / backend** projects (using `@floeorg/register`):
+
+```json
+{
+  "scripts": {
+    "dev": "floe watch src/ & node --import @floeorg/register src/app.ts",
+    "build": "floe build src/",
+    "check": "floe check src/"
+  }
+}
+```
+
+## Integrations
+
+| Package | Runtime | What it does |
+|---|---|---|
+| [`@floeorg/vite-plugin`](https://www.npmjs.com/package/@floeorg/vite-plugin) | Vite | Transforms `.fl` files in the Vite pipeline with HMR |
+| [`@floeorg/register`](https://www.npmjs.com/package/@floeorg/register) | Node, tsx | Resolves `.fl` imports via `.floe/` at runtime |
+
+Both read pre-compiled output from `.floe/` (populated by `floe watch` or `floe build`). The Vite plugin also falls back to on-demand compilation if `.floe/` is missing.
 
 ## npm Interop
 
