@@ -73,17 +73,38 @@ floe build src/ --out-dir dist/
 
 ## package.json Scripts
 
+For **Vite** projects (using `@floeorg/vite-plugin`):
+
 ```json
 {
   "scripts": {
-    "dev": "floe watch src/",
+    "dev": "vite",
+    "build": "floe build src/ && vite build",
+    "check": "floe check src/"
+  }
+}
+```
+
+For **Node / backend** projects (using `@floeorg/register`):
+
+```json
+{
+  "scripts": {
+    "dev": "floe watch src/ & node --import @floeorg/register src/app.ts",
     "build": "floe build src/",
     "check": "floe check src/"
   }
 }
 ```
 
-Run `floe watch` alongside your dev server. Since `floe watch` writes standard `.ts`/`.tsx` files to `.floe/`, any tool that handles TypeScript works automatically -- Vite, wrangler, node, bun, esbuild, webpack, etc.
+## Integrations
+
+| Package | Runtime | What it does |
+|---|---|---|
+| [`@floeorg/vite-plugin`](https://www.npmjs.com/package/@floeorg/vite-plugin) | Vite | Transforms `.fl` files in the Vite pipeline with HMR |
+| [`@floeorg/register`](https://www.npmjs.com/package/@floeorg/register) | Node, tsx | Resolves `.fl` imports via `.floe/` at runtime |
+
+Both read pre-compiled output from `.floe/` (populated by `floe watch` or `floe build`). The Vite plugin also falls back to on-demand compilation if `.floe/` is missing.
 
 ## npm Interop
 
