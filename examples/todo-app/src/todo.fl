@@ -4,6 +4,7 @@ for string {
     export fn validate(self) -> Validation {
         const trimmed = self |> trim
         const len = trimmed |> String.length
+
         match len {
             0 -> Empty,
             1 -> TooShort,
@@ -42,7 +43,6 @@ for Array<Todo> {
         (self |> length, self |> filter(.done == true) |> length)
     }
 
-    // Placeholder for future search functionality
     export fn search(self, _query: string) -> Array<Todo> {
         todo
     }

@@ -731,3 +731,73 @@ fn format_object_destructure_mixed() {
         "const { data: items, isLoading } = hook()",
     );
 }
+
+// ── For Blocks ─────────────────────────────────────────────
+
+#[test]
+fn format_for_block_basic() {
+    assert_fmt(
+        "for User {\n  fn display(self) -> string {\n  `${self.name}`\n}\n}",
+        "for User {\n    fn display(self) -> string {\n        `${self.name}`\n    }\n}",
+    );
+}
+
+#[test]
+fn format_for_block_with_trait() {
+    assert_fmt(
+        "for  User :  Display  {\nfn display(self) -> string {\n`${self.name}`\n}\n}",
+        "for User: Display {\n    fn display(self) -> string {\n        `${self.name}`\n    }\n}",
+    );
+}
+
+#[test]
+fn format_for_block_with_export() {
+    assert_fmt(
+        "for User {\n  export fn display(self) -> string {\n  `${self.name}`\n}\n}",
+        "for User {\n    export fn display(self) -> string {\n        `${self.name}`\n    }\n}",
+    );
+}
+
+#[test]
+fn format_for_block_multiple_methods() {
+    assert_fmt(
+        "for User {\nfn name(self) -> string { self.name }\nfn age(self) -> number { self.age }\n}",
+        "for User {\n    fn name(self) -> string {\n        self.name\n    }\n\n    fn age(self) -> number {\n        self.age\n    }\n}",
+    );
+}
+
+#[test]
+fn format_for_block_generic_type() {
+    assert_fmt(
+        "for Array<Todo> {\nexport fn remaining(self) -> number {\nself |> filter(.done == false) |> length\n}\n}",
+        "for Array<Todo> {\n    export fn remaining(self) -> number {\n        self |> filter(.done == false) |> length\n    }\n}",
+    );
+}
+
+#[test]
+fn format_trait_decl_basic() {
+    assert_fmt(
+        "trait Display {\nfn display(self) -> string\n}",
+        "trait Display {\n    fn display(self) -> string\n}",
+    );
+}
+
+#[test]
+fn format_trait_decl_with_default_impl() {
+    assert_fmt(
+        "trait Eq {\nfn eq(self,other:Self) -> boolean\nfn neq(self,other:Self) -> boolean {\n!(self |> eq(other))\n}\n}",
+        "trait Eq {\n    fn eq(self, other: Self) -> boolean\n\n    fn neq(self, other: Self) -> boolean {\n        !(self |> eq(other))\n    }\n}",
+    );
+}
+
+#[test]
+fn idempotent_for_block() {
+    let formatted = "for User: Display {\n    export fn display(self) -> string {\n        `${self.name}`\n    }\n}";
+    assert_fmt(formatted, formatted);
+}
+
+#[test]
+fn idempotent_trait_decl() {
+    let formatted = "trait Display {\n    fn display(self) -> string\n}";
+    assert_fmt(formatted, formatted);
+}

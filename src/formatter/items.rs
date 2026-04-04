@@ -279,9 +279,8 @@ impl Formatter<'_> {
             }
         }
 
-        self.write(" ");
-
         if let Some(block) = node.children().find(|c| c.kind() == SyntaxKind::BLOCK_EXPR) {
+            self.write(" ");
             self.fmt_block(&block);
         }
     }
@@ -294,7 +293,11 @@ impl Formatter<'_> {
                 .is_some_and(|tok| tok.kind() == SyntaxKind::UNDERSCORE)
         });
 
-        if has_lbrace {
+        let has_self = self.has_token(node, SyntaxKind::KW_SELF);
+
+        if has_self {
+            self.write("self");
+        } else if has_lbrace {
             // Destructured param: { name, age }
             let idents = self.collect_idents_before_colon_or_eq(node);
             self.write("{ ");
@@ -532,6 +535,103 @@ impl Formatter<'_> {
                 first = false;
             }
         }
+    }
+
+    // ── For Block ───────────────────────────────────────────────
+
+    pub(crate) fn fmt_for_block(&mut self, node: &SyntaxNode) {
+        self.write("for ");
+
+        // Format the target type
+        if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
+            self.fmt_type_expr(&type_expr);
+        }
+
+        // Optional trait bound: `for User: Display`
+        if self.has_token(node, SyntaxKind::COLON) {
+            self.write(": ");
+            // The trait name is the IDENT token after the COLON
+            let mut past_colon = false;
+            for t in node.children_with_tokens() {
+                if let Some(tok) = t.as_token() {
+                    if tok.kind() == SyntaxKind::COLON {
+                        past_colon = true;
+                        continue;
+                    }
+                    if past_colon && tok.kind() == SyntaxKind::IDENT {
+                        self.write(tok.text());
+                        break;
+                    }
+                }
+            }
+        }
+
+        self.write(" {");
+
+        // Collect functions with their export status
+        let mut methods: Vec<(bool, SyntaxNode)> = Vec::new();
+        let mut next_is_export = false;
+        for child_or_tok in node.children_with_tokens() {
+            if let Some(tok) = child_or_tok.as_token() {
+                if tok.kind() == SyntaxKind::KW_EXPORT {
+                    next_is_export = true;
+                }
+            }
+            if let Some(child) = child_or_tok.into_node() {
+                if child.kind() == SyntaxKind::FUNCTION_DECL {
+                    methods.push((next_is_export, child));
+                    next_is_export = false;
+                }
+            }
+        }
+
+        self.indent += 1;
+        for (i, (exported, func)) in methods.iter().enumerate() {
+            self.newline();
+            if i > 0 {
+                self.newline();
+            }
+            self.write_indent();
+            if *exported {
+                self.write("export ");
+            }
+            self.fmt_function(func);
+        }
+        self.indent -= 1;
+        self.newline();
+        self.write_indent();
+        self.write("}");
+    }
+
+    // ── Trait Declaration ───────────────────────────────────────
+
+    pub(crate) fn fmt_trait_decl(&mut self, node: &SyntaxNode) {
+        self.write("trait ");
+
+        if let Some(name) = self.first_ident(node) {
+            self.write(&name);
+        }
+
+        self.write(" {");
+
+        let methods: Vec<_> = node
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::FUNCTION_DECL)
+            .collect();
+
+        self.indent += 1;
+        for (i, func) in methods.iter().enumerate() {
+            self.newline();
+            if i > 0 {
+                self.newline();
+            }
+            self.write_indent();
+            self.fmt_function(func);
+        }
+        self.indent -= 1;
+        self.newline();
+        self.write_indent();
+        self.write("}");
     }
 
     // ── Type Expressions ────────────────────────────────────────
