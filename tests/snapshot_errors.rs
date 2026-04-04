@@ -138,7 +138,7 @@ trait Eq {
   }
 }
 
-type User = { name: string }
+type User { name: string }
 
 for User: Eq {
   export fn eq(self, other: string) -> boolean {
