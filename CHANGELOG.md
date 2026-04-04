@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.4](https://github.com/floeorg/floe/compare/v0.4.3...v0.4.4) (2026-04-04)
+
+
+### Bug Fixes
+
+* normalize repository URLs in package.json files ([#1011](https://github.com/floeorg/floe/issues/1011)) ([370113c](https://github.com/floeorg/floe/commit/370113c1436a6011ae9ba9adc76c98bbfe6e80b9))
+
 ## [0.4.3](https://github.com/floeorg/floe/compare/v0.4.2...v0.4.3) (2026-04-04)
 
 
