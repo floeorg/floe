@@ -3,10 +3,8 @@ use super::*;
 /// Returns the span of the last item in a block body, falling back to the body's own span.
 /// Used to point return-type errors at the actual return value instead of the whole function.
 fn last_expr_span(body: &Expr) -> Span {
-    if let ExprKind::Block(items) = &body.kind {
-        if let Some(last) = items.last() {
-            return last.span;
-        }
+    if let ExprKind::Block(items) = &body.kind && let Some(last) = items.last() {
+        return last.span;
     }
     body.span
 }
