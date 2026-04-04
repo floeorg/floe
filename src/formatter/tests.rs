@@ -394,6 +394,14 @@ fn format_jsx_keyword_prop() {
 }
 
 #[test]
+fn format_jsx_hyphenated_prop() {
+    assert_fmt(
+        r#"<Input aria-label="Share link" data-testid="input" />"#,
+        r#"<Input aria-label="Share link" data-testid="input" />"#,
+    );
+}
+
+#[test]
 fn format_trailing_comments_between_items() {
     assert_fmt(
         "const x = 1\n// section\nconst y = 2",

@@ -117,8 +117,8 @@ impl<'src> Lowerer<'src> {
 
     pub(super) fn lower_jsx_prop(&mut self, node: &SyntaxNode) -> Option<JsxProp> {
         let span = self.node_span(node);
-        let idents = self.collect_idents_direct(node);
-        let name = idents.first()?.clone();
+        // Reconstruct the full prop name including hyphens (e.g., aria-label, data-testid)
+        let name = self.collect_jsx_prop_name(node)?;
 
         let value = if self.has_token(node, SyntaxKind::EQUAL) {
             self.lower_expr_after_eq(node)
@@ -127,6 +127,29 @@ impl<'src> Lowerer<'src> {
         };
 
         Some(JsxProp::Named { name, value, span })
+    }
+
+    /// Collect the full JSX prop name, joining ident/keyword tokens with hyphens.
+    /// e.g., `aria-label` → "aria-label", `data-testid` → "data-testid"
+    fn collect_jsx_prop_name(&self, node: &SyntaxNode) -> Option<String> {
+        let mut name = String::new();
+        for child in node.children_with_tokens() {
+            if let Some(tok) = child.as_token() {
+                let kind = tok.kind();
+                if kind == SyntaxKind::EQUAL {
+                    break;
+                }
+                if kind.is_trivia() {
+                    continue;
+                }
+                if kind == SyntaxKind::MINUS || kind.is_member_name() {
+                    name.push_str(tok.text());
+                } else {
+                    break;
+                }
+            }
+        }
+        if name.is_empty() { None } else { Some(name) }
     }
 
     pub(super) fn lower_jsx_spread_prop(&mut self, node: &SyntaxNode) -> Option<JsxProp> {

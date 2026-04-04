@@ -1002,6 +1002,22 @@ fn jsx_with_props() {
 }
 
 #[test]
+fn jsx_hyphenated_prop_names() {
+    let expr = first_expr(r#"<Input aria-label="Share link" data-testid="input" />"#);
+    match expr {
+        ExprKind::Jsx(JsxElement {
+            kind: JsxElementKind::Element { props, .. },
+            ..
+        }) => {
+            assert_eq!(props.len(), 2);
+            assert!(matches!(&props[0], JsxProp::Named { name, .. } if name == "aria-label"));
+            assert!(matches!(&props[1], JsxProp::Named { name, .. } if name == "data-testid"));
+        }
+        _ => panic!("expected jsx element"),
+    }
+}
+
+#[test]
 fn jsx_with_children() {
     let expr = first_expr("<div>{x}</div>");
     match expr {

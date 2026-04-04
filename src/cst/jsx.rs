@@ -76,10 +76,21 @@ impl<'src> CstParser<'src> {
 
         self.builder.start_node(SyntaxKind::JSX_PROP.into());
         // Accept identifiers and keywords as JSX prop names (e.g., type="text", for="id")
+        // Also support hyphenated names like aria-label, data-testid
         if self.is_ident() || self.is_keyword() {
             self.bump();
         } else {
             self.expect_ident();
+        }
+        // Continue consuming -ident sequences for hyphenated attribute names
+        while self.at(TokenKind::Minus) {
+            self.bump(); // -
+            if self.is_ident() || self.is_keyword() {
+                self.bump();
+            } else {
+                self.expect_ident();
+                break;
+            }
         }
         self.eat_trivia();
 
