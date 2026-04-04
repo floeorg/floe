@@ -1,6 +1,6 @@
 #!/bin/bash
-# mise description="Remove worktree + per-worktree database"
-# mise args=["num"]
+#MISE description="Remove worktree + per-worktree database"
+#MISE args=["num"]
 set -euo pipefail
 
 NUM="$1"

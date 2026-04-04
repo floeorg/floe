@@ -1,6 +1,5 @@
 #!/bin/bash
-# mise description="Create worktree with full setup (branch, DB, env, deps)"
-# mise args=["num", "branch", "base?"]
+#MISE description="Create worktree with full setup (branch, DB, env, deps)"
 set -euo pipefail
 
 NUM="$1"
@@ -13,10 +12,14 @@ DB_NAME="floe_wt_$NUM"
 git worktree add "$WT_DIR" -b "$BRANCH" "$BASE"
 cd "$WT_DIR"
 
-# Per-worktree database
+# Per-worktree database (skip if no docker-compose / no DB)
 createdb "$DB_NAME" 2>/dev/null || true
-cp -f .env.example .env 2>/dev/null || true
-sed -i '' "s|DATABASE_URL=.*|DATABASE_URL=postgres://floe:floe@localhost:5432/$DB_NAME|" "$WT_DIR/.env"
+
+# Copy and patch env if it exists
+if [ -f .env.example ]; then
+  cp -f .env.example .env
+  sed -i '' "s|DATABASE_URL=.*|DATABASE_URL=postgres://floe:floe@localhost:5432/$DB_NAME|" "$WT_DIR/.env"
+fi
 
 # Dependencies
 if [ -f "pnpm-workspace.yaml" ]; then pnpm install; fi

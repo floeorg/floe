@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Format check, lint, and test Rust"
+#MISE description="Format check, lint, and test Rust"
 set -euo pipefail
 
 cargo fmt --check

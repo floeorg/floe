@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Start API server"
+#MISE description="Start API server"
 set -euo pipefail
 
 cargo run -p api
