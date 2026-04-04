@@ -5,6 +5,17 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.6](https://github.com/floeorg/floe/compare/v0.4.5...v0.4.6) (2026-04-04)
+
+
+### Bug Fixes
+
+* [[#1013](https://github.com/floeorg/floe/issues/1013)] Type-based chain probes for Drizzle builder pattern ([#1018](https://github.com/floeorg/floe/issues/1018)) ([d5df9de](https://github.com/floeorg/floe/commit/d5df9de6e7ecfd17af870d822cf5e5ccac6d33d1))
+* [[#1020](https://github.com/floeorg/floe/issues/1020)] Format for-blocks and trait declarations ([#1023](https://github.com/floeorg/floe/issues/1023)) ([9d0a25b](https://github.com/floeorg/floe/commit/9d0a25b971450ccf32e72c40d958598496d3f614))
+* [[#1021](https://github.com/floeorg/floe/issues/1021)] Accept npm subtypes in function arguments ([#1022](https://github.com/floeorg/floe/issues/1022)) ([1e476af](https://github.com/floeorg/floe/commit/1e476af918aab039086439c6b51b86df69367e15))
+* [[#1021](https://github.com/floeorg/floe/issues/1021)] Chain probes for self.field patterns and type expansion ([#1024](https://github.com/floeorg/floe/issues/1024)) ([528730d](https://github.com/floeorg/floe/commit/528730d5b978aa4980eeb1be9dac62d740a38ed9))
+* [[#1025](https://github.com/floeorg/floe/issues/1025)] Full-chain probes for select().from(table) generic propagation ([#1026](https://github.com/floeorg/floe/issues/1026)) ([f8b8ff6](https://github.com/floeorg/floe/commit/f8b8ff682a7dd4314306f3ff8bc5b932b7b0db95))
+
 ## [0.4.5](https://github.com/floeorg/floe/compare/v0.4.4...v0.4.5) (2026-04-04)
 
 
