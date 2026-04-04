@@ -226,6 +226,9 @@ pub struct Checker {
     /// Maps interface names (Window, Navigator, Console, etc.) to their Record types.
     /// Used by `resolve_type_to_concrete()` to resolve member access on globals.
     ambient_types: HashMap<String, Type>,
+    /// Import sources that resolve to `.ts`/`.tsx` files but could not be
+    /// resolved because tsgo is not installed.
+    ts_imports_missing_tsgo: HashSet<String>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -422,6 +425,7 @@ impl Checker {
             jsx_callback_hints: HashMap::new(),
             jsx_children_hints: HashMap::new(),
             ambient_types: HashMap::new(),
+            ts_imports_missing_tsgo: HashSet::new(),
         }
     }
 
@@ -454,10 +458,12 @@ impl Checker {
         fl_imports: HashMap<String, ResolvedImports>,
         dts_imports: HashMap<String, Vec<DtsExport>>,
         ambient: Option<crate::interop::ambient::AmbientDeclarations>,
+        ts_imports_missing_tsgo: Vec<String>,
     ) -> Self {
         let mut checker = Self::new();
         checker.resolved_imports = fl_imports;
         checker.dts_imports = dts_imports;
+        checker.ts_imports_missing_tsgo = ts_imports_missing_tsgo.into_iter().collect();
         if let Some(ambient) = ambient {
             checker.register_ambient_types(ambient);
         }

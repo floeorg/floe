@@ -345,6 +345,7 @@ impl FloeLsp {
 
                 // Resolve .d.ts imports BEFORE the checker so it gets npm type info
                 let mut dts_map = HashMap::new();
+                let mut ts_imports_missing_tsgo = Vec::new();
                 let mut import_diags_early = Vec::new();
                 let mut ambient_types = None;
                 if let Ok(source_path) = uri.to_file_path() {
@@ -363,12 +364,14 @@ impl FloeLsp {
 
                     // Use tsgo for fully-resolved types — no fallback
                     let mut tsgo_resolver = crate::interop::TsgoResolver::new(&project_dir);
-                    dts_map = tsgo_resolver.resolve_imports(
+                    let tsgo_result = tsgo_resolver.resolve_imports(
                         &program,
                         &resolved_imports,
                         source_dir,
                         &tsconfig_paths,
                     );
+                    dts_map = tsgo_result.exports;
+                    ts_imports_missing_tsgo = tsgo_result.ts_imports_missing_tsgo;
 
                     if !new_cache.is_empty() {
                         let mut cache_write = self.dts_cache.write().await;
@@ -382,7 +385,12 @@ impl FloeLsp {
                 // Add imported for-block functions to the symbol index
                 index.add_imported_for_blocks(&resolved_imports);
 
-                let checker = Checker::from_context(resolved_imports, dts_map, ambient_types);
+                let checker = Checker::from_context(
+                    resolved_imports,
+                    dts_map,
+                    ambient_types,
+                    ts_imports_missing_tsgo,
+                );
                 let (mut check_diags, type_map, expr_types) = checker.check_with_types(&program);
                 check_diags.extend(import_diags_early);
 

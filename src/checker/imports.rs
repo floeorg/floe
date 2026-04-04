@@ -1,7 +1,20 @@
 use super::*;
 
 impl Checker {
-    pub(crate) fn check_import(&mut self, decl: &ImportDecl) {
+    pub(crate) fn check_import(&mut self, decl: &ImportDecl, item_span: Span) {
+        // If this import targets a .ts/.tsx file and tsgo is not installed,
+        // emit a hard error instead of silently falling back to unknown types.
+        if self.ts_imports_missing_tsgo.contains(&decl.source) {
+            self.emit_error_with_help(
+                "tsgo is required to resolve TypeScript imports",
+                item_span,
+                ErrorCode::TsgoNotFound,
+                "cannot resolve types without tsgo",
+                "install with: npm i -g @typescript/native-preview",
+            );
+            return;
+        }
+
         // Look up resolved symbols for this import source
         let resolved = self.resolved_imports.get(&decl.source).cloned();
         let dts_exports = self.dts_imports.get(&decl.source).cloned();

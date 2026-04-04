@@ -115,6 +115,8 @@ pub enum ErrorCode {
     MissingPromiseReturn,
     /// Bridge type syntax (`= ...`) used without referencing any TypeScript import.
     BridgeTypeWithoutImport,
+    /// tsgo is required to resolve TypeScript imports but is not installed.
+    TsgoNotFound,
 }
 
 impl ErrorCode {
@@ -167,6 +169,7 @@ impl ErrorCode {
             Self::TryOnFloeFunction => "W007",
             Self::MissingPromiseReturn => "E041",
             Self::BridgeTypeWithoutImport => "E042",
+            Self::TsgoNotFound => "E043",
         }
     }
 }
