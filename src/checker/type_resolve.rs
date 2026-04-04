@@ -90,6 +90,24 @@ impl Checker {
         }
     }
 
+    fn check_type_arg_arity(
+        &mut self,
+        name: &str,
+        expected: usize,
+        actual: usize,
+        span: Span,
+    ) {
+        if actual != expected && actual != 0 {
+            self.emit_error_with_help(
+                format!("`{name}` expects {expected} type argument(s), found {actual}"),
+                span,
+                ErrorCode::TypeArgumentArity,
+                "wrong number of type arguments",
+                format!("`{name}` takes exactly {expected} type argument(s)"),
+            );
+        }
+    }
+
     pub(crate) fn resolve_named_type(
         &mut self,
         name: &str,
@@ -109,6 +127,7 @@ impl Checker {
             type_layout::TYPE_UNKNOWN => Type::Unknown,
             type_layout::TYPE_ERROR | type_layout::TYPE_RESPONSE => Type::Named(name.to_string()),
             type_layout::TYPE_RESULT => {
+                self.check_type_arg_arity(name, 2, type_args.len(), span);
                 let ok = type_args
                     .first()
                     .map(|t| self.resolve_type(t))
@@ -120,6 +139,7 @@ impl Checker {
                 Type::result_of(ok, err)
             }
             type_layout::TYPE_OPTION => {
+                self.check_type_arg_arity(name, 1, type_args.len(), span);
                 let inner = type_args
                     .first()
                     .map(|t| self.resolve_type(t))
@@ -127,6 +147,7 @@ impl Checker {
                 Type::option_of(inner)
             }
             type_layout::TYPE_SETTABLE => {
+                self.check_type_arg_arity(name, 1, type_args.len(), span);
                 let inner = type_args
                     .first()
                     .map(|t| self.resolve_type(t))
@@ -134,6 +155,7 @@ impl Checker {
                 Type::Settable(Box::new(inner))
             }
             type_layout::TYPE_ARRAY => {
+                self.check_type_arg_arity(name, 1, type_args.len(), span);
                 let inner = type_args
                     .first()
                     .map(|t| self.resolve_type(t))
@@ -141,6 +163,7 @@ impl Checker {
                 Type::Array(Box::new(inner))
             }
             "Promise" => {
+                self.check_type_arg_arity(name, 1, type_args.len(), span);
                 let inner = type_args
                     .first()
                     .map(|t| self.resolve_type(t))

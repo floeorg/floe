@@ -119,6 +119,8 @@ pub enum ErrorCode {
     BridgeTypeWithoutImport,
     /// tsgo is required to resolve TypeScript imports but is not installed.
     TsgoNotFound,
+    /// Wrong number of type arguments for a generic type.
+    TypeArgumentArity,
 }
 
 impl ErrorCode {
@@ -173,6 +175,7 @@ impl ErrorCode {
             Self::BridgeTypeWithoutImport => "E042",
             Self::TsgoNotFound => "E043",
             Self::ExportNotFound => "E044",
+            Self::TypeArgumentArity => "E045",
         }
     }
 }
