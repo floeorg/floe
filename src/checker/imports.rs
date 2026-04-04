@@ -98,7 +98,7 @@ impl Checker {
                         ErrorCode::ExportNotFound,
                         "not found in module",
                     );
-                    Type::Foreign(spec.name.clone())
+                    Type::Unknown
                 }
             } else {
                 // No .fl resolution and no .d.ts — type is foreign to Floe
@@ -219,10 +219,11 @@ impl Checker {
             }
         }
 
-        // Check trait declarations
+        // Check trait declarations (traits are registered during pre-registration,
+        // but we still need to recognize them here to avoid false ExportNotFound errors)
         for trait_decl in &resolved.trait_decls {
             if trait_decl.name == name {
-                return Some(Type::Foreign(name.to_string()));
+                return Some(Type::Named(name.to_string()));
             }
         }
 
