@@ -624,6 +624,7 @@ macro_rules! convert_shared_type_arms {
             }
 
             // Object literal type: { key: Type; ... }
+            // Also handles callable objects: { (params): ReturnType; }
             $prefix::TSTypeLiteral(lit) => {
                 let fields: Vec<ObjectField> = lit
                     .members
@@ -633,6 +634,23 @@ macro_rules! convert_shared_type_arms {
                         _ => None,
                     })
                     .collect();
+                // If no named fields but has call signatures, extract the first
+                // as a function type (common for overloaded npm builder methods)
+                if fields.is_empty() {
+                    for sig in &lit.members {
+                        if let TSSignature::TSCallSignatureDeclaration(call) = sig {
+                            return TsType::Function {
+                                params: convert_formal_params(&call.params),
+                                return_type: Box::new(
+                                    call.return_type
+                                        .as_ref()
+                                        .map(|ta| convert_oxc_type(&ta.type_annotation))
+                                        .unwrap_or(TsType::Any),
+                                ),
+                            };
+                        }
+                    }
+                }
                 TsType::Object(fields)
             }
 

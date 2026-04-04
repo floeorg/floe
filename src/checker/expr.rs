@@ -375,9 +375,17 @@ impl Checker {
         // Check for chain probe (chained member access on call results of imports,
         // e.g. db.insert(snippets).values → __chain_db$insert$values)
         if let Some(chain_key) = extract_chain_key(object, field) {
+            // Try variable-name key first (direct imports)
             let probe_name = format!("__chain_{chain_key}");
             if let Some(ty) = self.lookup_dts_probe(&probe_name) {
                 return ty;
+            }
+            // Try type-name key (parameters typed as npm types, e.g. db: Database)
+            if let Some(type_key) = self.chain_key_by_root_type(object, field) {
+                let probe_name = format!("__chain_{type_key}");
+                if let Some(ty) = self.lookup_dts_probe(&probe_name) {
+                    return ty;
+                }
             }
         }
 
@@ -1671,6 +1679,10 @@ impl Checker {
             match (&stdlib_fn.return_type, left_ty) {
                 (Type::Array(_), Type::Array(elem)) => Type::Array(elem.clone()),
                 (ret, actual) if ret.is_option() && actual.is_option() => actual.clone(),
+                // Foreign input: generics can't be resolved, propagate Foreign
+                // so chained calls like db.insert(...).values(...).returning() |> await
+                // don't collapse to Unknown
+                (_, Type::Foreign(_)) => left_ty.clone(),
                 _ => stdlib_fn.return_type.clone(),
             }
         }
@@ -2090,7 +2102,34 @@ impl Checker {
         }
     }
 
-    /// Resolve the type of a member access (`obj_ty.field`), producing diagnostics for errors.
+    /// Build a chain key using the root identifier's Foreign type name instead of the
+    /// variable name. For `db.insert(...).values` where `db: Database`, returns
+    /// `"Database$insert$values"`. Returns None if the root isn't Foreign.
+    fn chain_key_by_root_type(&self, object: &Expr, field: &str) -> Option<String> {
+        let mut segments = extract_chain_segments(object)?;
+        segments.push(field.to_string());
+        if segments.len() < 3 {
+            return None;
+        }
+        // Find the root identifier and get its type
+        let root_name = &segments[0];
+        let root_type = self.env.lookup(root_name)?;
+        let type_name = match root_type {
+            Type::Foreign(name) => name.clone(),
+            Type::Named(name) => {
+                // Check if this Named type is actually foreign (imported from npm)
+                if self.env.lookup_type(name).is_none() {
+                    name.clone()
+                } else {
+                    return None;
+                }
+            }
+            _ => return None,
+        };
+        segments[0] = type_name;
+        Some(segments.join("$"))
+    }
+
     /// Look up a DTS probe by name across all import specifiers.
     /// Returns the wrapped Floe type if found, or None.
     fn lookup_dts_probe(&mut self, probe_name: &str) -> Option<Type> {
