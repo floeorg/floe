@@ -577,6 +577,56 @@ pub(super) fn generate_probe(
         ));
     }
 
+    // Scan for chained method calls on imported names (e.g. db.insert(...).values)
+    // and generate ReturnType-based probes so tsgo resolves types at each chain step
+    let mut chain_paths: Vec<Vec<String>> = Vec::new();
+    crate::walk::walk_program(program, &mut |expr| {
+        if matches!(&expr.kind, ExprKind::Member { .. })
+            && let Some(path) = extract_import_chain_path(expr, &imported_names)
+            && path.len() > 2
+        {
+            chain_paths.push(path);
+        }
+    });
+    chain_paths.sort();
+    chain_paths.dedup();
+    let has_chain_probes = !chain_paths.is_empty();
+
+    if has_chain_probes {
+        let mut emitted_ret_decls: HashSet<String> = HashSet::new();
+        let mut emitted_chain_exports: HashSet<String> = HashSet::new();
+
+        for path in &chain_paths {
+            for end_idx in 2..path.len() {
+                let chain_key = path[..=end_idx].join("$");
+                let prev_key = path[..end_idx].join("$");
+                let field = &path[end_idx];
+
+                let ret_name = format!("__chain_ret_{prev_key}");
+                if emitted_ret_decls.insert(ret_name.clone()) {
+                    if end_idx == 2 {
+                        lines.push(format!(
+                            "declare const {ret_name}: ReturnType<typeof {}.{}>;",
+                            path[0], path[1]
+                        ));
+                    } else {
+                        let prev_prev_key = path[..end_idx - 1].join("$");
+                        let prev_ret = format!("__chain_ret_{prev_prev_key}");
+                        lines.push(format!(
+                            "declare const {ret_name}: ReturnType<typeof {prev_ret}.{}>;",
+                            path[end_idx - 1]
+                        ));
+                    }
+                }
+
+                let export_name = format!("__chain_{chain_key}");
+                if emitted_chain_exports.insert(export_name.clone()) {
+                    lines.push(format!("export const {export_name} = {ret_name}.{field};",));
+                }
+            }
+        }
+    }
+
     // Emit type probes for type aliases that reference imported types.
     // This lets tsgo resolve conditional/mapped types (e.g. VariantProps<T>).
     // Also emit const bindings for any local consts used in typeof expressions
@@ -698,7 +748,12 @@ pub(super) fn generate_probe(
 
     let has_jsx_probes = !collector.probes.is_empty() || !collector.children_probes.is_empty();
 
-    if probe_index == 0 && member_accesses.is_empty() && !has_type_probes && !has_jsx_probes {
+    if probe_index == 0
+        && member_accesses.is_empty()
+        && !has_chain_probes
+        && !has_type_probes
+        && !has_jsx_probes
+    {
         return String::new();
     }
 
@@ -1064,6 +1119,29 @@ fn collect_member_accesses_jsx(
                 }
             }
         }
+    }
+}
+
+/// Extract a chain path from an expression rooted at an imported identifier.
+/// Returns `["db", "insert", "values"]` for `db.insert(...).values`.
+/// Returns `None` if the expression doesn't form a valid import-rooted chain.
+fn extract_import_chain_path(
+    expr: &Expr,
+    imported_names: &HashMap<String, String>,
+) -> Option<Vec<String>> {
+    match &expr.kind {
+        ExprKind::Member { object, field } => match &object.kind {
+            ExprKind::Identifier(name) if imported_names.contains_key(name) => {
+                Some(vec![name.clone(), field.clone()])
+            }
+            ExprKind::Call { callee, .. } => {
+                let mut path = extract_import_chain_path(callee, imported_names)?;
+                path.push(field.clone());
+                Some(path)
+            }
+            _ => None,
+        },
+        _ => None,
     }
 }
 
