@@ -611,6 +611,10 @@ pub(super) fn generate_probe(
     let mut chain_paths: Vec<Vec<String>> = Vec::new();
     // Track which chains are type-rooted (param with imported type) vs variable-rooted
     let mut type_rooted_chains: HashSet<String> = HashSet::new();
+    // Track the first call argument for generic preservation (e.g. "snippetsTable" in
+    // db.insert(snippetsTable) so we can generate a conditional type that preserves
+    // the table's generic parameter instead of erasing it with ReturnType<>)
+    let mut first_call_arg: HashMap<String, String> = HashMap::new();
     crate::walk::walk_program(program, &mut |expr| {
         if matches!(&expr.kind, ExprKind::Member { .. }) {
             // Try variable-rooted chain (direct import like `import { db }`)
@@ -627,7 +631,14 @@ pub(super) fn generate_probe(
                 // Replace the variable name with the type name as the root
                 let mut type_path = vec![type_name];
                 type_path.extend(path[1..].iter().cloned());
-                type_rooted_chains.insert(type_path[..=1].join("$"));
+                let root_key = type_path[..=1].join("$");
+                type_rooted_chains.insert(root_key.clone());
+
+                // Capture the first call's argument if it's an imported name
+                if let Some(arg_name) = extract_first_call_arg(expr, &imported_names) {
+                    first_call_arg.entry(root_key).or_insert(arg_name);
+                }
+
                 chain_paths.push(type_path);
             }
         }
@@ -654,11 +665,22 @@ pub(super) fn generate_probe(
                     if end_idx == 2 {
                         if is_type_rooted {
                             // Type-rooted: use indexed access type
-                            // Database["insert"] instead of typeof db.insert
-                            lines.push(format!(
-                                "declare const {ret_name}: ReturnType<{}[\"{}\"]>;",
-                                path[0], path[1]
-                            ));
+                            // When we know the first argument (e.g. snippetsTable), use a
+                            // conditional type to preserve generics:
+                            //   Database["insert"] extends (arg: typeof snippetsTable, ...r: any[]) => infer R ? R : never
+                            // Otherwise fall back to ReturnType which erases generics:
+                            //   ReturnType<Database["insert"]>
+                            if let Some(arg) = first_call_arg.get(&first_step_key) {
+                                lines.push(format!(
+                                    "declare const {ret_name}: {}[\"{}\"] extends (arg: typeof {arg}, ...r: any[]) => infer R ? R : never;",
+                                    path[0], path[1]
+                                ));
+                            } else {
+                                lines.push(format!(
+                                    "declare const {ret_name}: ReturnType<{}[\"{}\"]>;",
+                                    path[0], path[1]
+                                ));
+                            }
                         } else {
                             // Variable-rooted: use typeof
                             lines.push(format!(
@@ -1231,6 +1253,33 @@ fn extract_typed_param_chain_path(
         }
     }
     extract_inner(expr, param_type_map)
+}
+
+/// Extract the name of the first argument from the innermost call in a chain
+/// expression, if that argument is an imported identifier.
+/// For `db.insert(snippetsTable).values({...})`, returns Some("snippetsTable").
+fn extract_first_call_arg(expr: &Expr, imported_names: &HashMap<String, String>) -> Option<String> {
+    match &expr.kind {
+        ExprKind::Member { object, .. } => extract_first_call_arg(object, imported_names),
+        ExprKind::Call { callee, args, .. } => {
+            // Check if this is the innermost call (callee is a member on an identifier)
+            if let ExprKind::Member { object, .. } = &callee.kind
+                && matches!(&object.kind, ExprKind::Identifier(_))
+            {
+                // This is the first call — extract the first argument if it's an imported name
+                if let Some(Arg::Positional(arg_expr)) = args.first()
+                    && let ExprKind::Identifier(name) = &arg_expr.kind
+                    && imported_names.contains_key(name)
+                {
+                    return Some(name.clone());
+                }
+                return None;
+            }
+            // Recurse into the callee to find the innermost call
+            extract_first_call_arg(callee, imported_names)
+        }
+        _ => None,
+    }
 }
 
 /// Convert a Floe TypeDecl to a TypeScript type declaration string.
