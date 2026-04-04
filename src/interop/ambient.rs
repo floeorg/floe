@@ -45,23 +45,23 @@ fn find_ts_lib_dir(project_dir: &Path) -> Option<PathBuf> {
 
     // pnpm: check .pnpm store — find the latest typescript version
     let pnpm_dir = project_dir.join("node_modules/.pnpm");
-    if pnpm_dir.is_dir() {
-        if let Ok(entries) = std::fs::read_dir(&pnpm_dir) {
-            let mut ts_dirs: Vec<PathBuf> = entries
-                .filter_map(|e| e.ok())
-                .filter(|e| {
-                    e.file_name()
-                        .to_str()
-                        .is_some_and(|n| n.starts_with("typescript@"))
-                })
-                .map(|e| e.path().join("node_modules/typescript/lib"))
-                .filter(|p| p.is_dir())
-                .collect();
-            // Sort to get the latest version (lexicographic is fine for semver prefixed dirs)
-            ts_dirs.sort();
-            if let Some(dir) = ts_dirs.pop() {
-                return Some(dir);
-            }
+    if pnpm_dir.is_dir()
+        && let Ok(entries) = std::fs::read_dir(&pnpm_dir)
+    {
+        let mut ts_dirs: Vec<PathBuf> = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .is_some_and(|n| n.starts_with("typescript@"))
+            })
+            .map(|e| e.path().join("node_modules/typescript/lib"))
+            .filter(|p| p.is_dir())
+            .collect();
+        // Sort to get the latest version (lexicographic is fine for semver prefixed dirs)
+        ts_dirs.sort();
+        if let Some(dir) = ts_dirs.pop() {
+            return Some(dir);
         }
     }
 
