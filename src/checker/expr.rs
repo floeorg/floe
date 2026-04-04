@@ -810,7 +810,7 @@ impl Checker {
             Type::Function {
                 params,
                 return_type,
-                ..
+                required_params: type_required_params,
             } => {
                 let callee_name = match &callee.kind {
                     ExprKind::Identifier(name) => name.as_str(),
@@ -851,7 +851,7 @@ impl Checker {
                     .fn_required_params
                     .get(callee_name)
                     .copied()
-                    .unwrap_or(params.len());
+                    .unwrap_or(type_required_params);
 
                 // Validate argument count
                 if arg_types.len() < required_params || arg_types.len() > params.len() {
@@ -2102,32 +2102,84 @@ impl Checker {
         }
     }
 
-    /// Build a chain key using the root identifier's Foreign type name instead of the
-    /// variable name. For `db.insert(...).values` where `db: Database`, returns
-    /// `"Database$insert$values"`. Returns None if the root isn't Foreign.
+    /// Build a chain key using the root's Foreign type name instead of the variable name.
+    /// Handles both direct parameters (`db: Database` → `"Database$insert$values"`) and
+    /// self.field access (`self.client` where client: Database → `"Database$insert$values"`).
     fn chain_key_by_root_type(&self, object: &Expr, field: &str) -> Option<String> {
         let mut segments = extract_chain_segments(object)?;
         segments.push(field.to_string());
         if segments.len() < 3 {
             return None;
         }
-        // Find the root identifier and get its type
+
+        // Try the root identifier's type directly (e.g. db: Database)
         let root_name = &segments[0];
-        let root_type = self.env.lookup(root_name)?;
-        let type_name = match root_type {
-            Type::Foreign(name) => name.clone(),
-            Type::Named(name) => {
-                // Check if this Named type is actually foreign (imported from npm)
-                if self.env.lookup_type(name).is_none() {
-                    name.clone()
-                } else {
-                    return None;
+        if let Some(root_type) = self.env.lookup(root_name) {
+            let type_name = match root_type {
+                Type::Foreign(name) => Some(name.clone()),
+                Type::Named(name) if self.env.lookup_type(name).is_none() => Some(name.clone()),
+                _ => None,
+            };
+            if let Some(type_name) = type_name {
+                segments[0] = type_name;
+                return Some(segments.join("$"));
+            }
+        }
+
+        // Try self.field pattern: if root is a record type, check if the second segment
+        // is a field with a Foreign type (e.g. self.client where client: Database)
+        if segments.len() >= 4 {
+            let second = &segments[1];
+            if let Some(root_type) = self.env.lookup(root_name) {
+                let member_ty = self.resolve_member_type_silent(root_type, second);
+                let type_name = match &member_ty {
+                    Type::Foreign(name) => Some(name.clone()),
+                    Type::Named(name) if self.env.lookup_type(name).is_none() => Some(name.clone()),
+                    _ => None,
+                };
+                if let Some(type_name) = type_name {
+                    // Collapse [self, client, insert, values] → [Database, insert, values]
+                    let mut new_segments = vec![type_name];
+                    new_segments.extend(segments[2..].iter().cloned());
+                    return Some(new_segments.join("$"));
                 }
             }
-            _ => return None,
+        }
+
+        None
+    }
+
+    /// Resolve a member type without emitting diagnostics (for probe key lookups).
+    fn resolve_member_type_silent(&self, obj_ty: &Type, field: &str) -> Type {
+        let concrete = match obj_ty {
+            Type::Named(name) => {
+                // Try type definition first (for record types like DrizzleSnippetRepository)
+                if let Some(info) = self.env.lookup_type(name) {
+                    if let TypeDef::Record(entries) = &info.def {
+                        let fields: Vec<(String, Type)> = entries
+                            .iter()
+                            .filter_map(|e| e.as_field())
+                            .map(|f| (f.name.clone(), simple_resolve_type_expr(&f.type_ann)))
+                            .collect();
+                        Type::Record(fields)
+                    } else {
+                        self.env.lookup(name).cloned().unwrap_or(Type::Unknown)
+                    }
+                } else {
+                    self.env.lookup(name).cloned().unwrap_or(Type::Unknown)
+                }
+            }
+            other => other.clone(),
         };
-        segments[0] = type_name;
-        Some(segments.join("$"))
+        if let Type::Record(fields) = &concrete
+            && let Some((_, ty)) = fields.iter().find(|(n, _)| n == field)
+        {
+            return ty.clone();
+        }
+        if let Type::Foreign(name) = obj_ty {
+            return Type::Foreign(format!("{name}.{field}"));
+        }
+        Type::Unknown
     }
 
     /// Look up a DTS probe by name across all import specifiers.
