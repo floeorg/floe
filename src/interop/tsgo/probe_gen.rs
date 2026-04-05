@@ -821,14 +821,21 @@ pub(super) fn generate_probe(
                         }
                         let field = &path[end_idx];
                         lines.push(format!("export const {export_name} = {expr}.{field};"));
-                        // Also emit an "awaited" variant that captures the awaited result
-                        // of calling the method — handles thenable builders (e.g. drizzle's
+                        // Also capture the result of CALLING the method (the builder value)
+                        // and its awaited form. This handles thenable builders (e.g. drizzle's
                         // `.returning()` returns a PromiseLike that resolves to the rows).
-                        // References the value `{export_name}` (valid TS) since
-                        // `typeof expr.field` isn't valid when expr contains calls.
-                        let await_name = format!("__chain_await_{chain_key}");
+                        // Calling in the probe is safe: tsgo only type-checks it, never executes.
+                        let called_name = format!("__chain_called_{chain_key}");
                         lines.push(format!(
-                            "export declare const {await_name}: Awaited<ReturnType<NonNullable<typeof {export_name}>>>;"
+                            "export const {called_name} = {expr}.{field}();"
+                        ));
+                        let await_name = format!("__chain_await_{chain_key}");
+                        let await_fn = format!("{await_name}_fn");
+                        lines.push(format!(
+                            "declare function {await_fn}(): Awaited<typeof {called_name}>;"
+                        ));
+                        lines.push(format!(
+                            "export const {await_name} = {await_fn}();"
                         ));
                     }
                 }
