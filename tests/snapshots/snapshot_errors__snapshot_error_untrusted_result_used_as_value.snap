@@ -2,12 +2,12 @@
 source: tests/snapshot_errors.rs
 expression: output
 ---
-[31m[E001] Error:[0m function `process`: expected return type `string`, found an untrusted import `Result` — use `?` to unwrap or `import trusted` if it cannot fail
+[31m[E001] Error:[0m function `process`: expected return type `string`, found `Result<unknown, Error>`
    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.fl:4:5 [38;5;246m][0m
    [38;5;246m│[0m
  [38;5;246m4 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[31mr[0m[31me[0m[31ms[0m[31mu[0m[31ml[0m[31mt[0m
  [38;5;240m  │[0m     [31m─[0m[31m─[0m[31m─[0m[31m┬[0m[31m─[0m[31m─[0m[31m─[0m  
- [38;5;240m  │[0m        [31m╰[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m use `?` to unwrap or `import trusted`
+ [38;5;240m  │[0m        [31m╰[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m[31m─[0m expected `string`
 [38;5;246m───╯[0m
 [33m[W001] Warning:[0m unused variable `process`
    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.fl:2:1 [38;5;246m][0m
