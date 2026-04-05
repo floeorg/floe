@@ -105,6 +105,17 @@ impl Checker {
                 if Self::is_await_ref(right)
                     && let Some(awaited_ty) = self.lookup_awaited_chain_probe(left)
                 {
+                    // If the chain passes through untrusted imports, wrap the awaited
+                    // result in Result<T, Error> so the user explicitly handles failures
+                    // (match or `?`). Consistent with untrusted call semantics.
+                    if let ExprKind::Call { callee, .. } = &left.kind
+                        && self.is_callee_on_untrusted_foreign(callee)
+                    {
+                        return Type::result_of(
+                            awaited_ty,
+                            Type::Named(type_layout::TYPE_ERROR.to_string()),
+                        );
+                    }
                     return awaited_ty;
                 }
                 self.check_pipe_right(&left_ty, right)
@@ -1335,6 +1346,17 @@ impl Checker {
         if let Some(spread_expr) = spread {
             let spread_type = self.check_expr(spread_expr);
 
+            // Reject Result spreads — the Result must be unwrapped first (match or `?`)
+            if spread_type.is_result() {
+                self.emit_error_with_help(
+                    format!("cannot spread `Result` value into `{type_name}` — unwrap the Result first"),
+                    spread_expr.span,
+                    ErrorCode::FieldAccessOnResult,
+                    "`Result` must be narrowed first",
+                    "use `match result { Ok(v) -> ..., Err(e) -> ... }` or `?` to unwrap",
+                );
+            }
+
             if let Type::Record(spread_fields) = &spread_type {
                 let spread_keys: Vec<&str> =
                     spread_fields.iter().map(|(k, _)| k.as_str()).collect();
@@ -2241,9 +2263,14 @@ impl Checker {
     /// e.g. for `db.insert(t).values({...}).returning()`, tries probes
     /// `__chain_await_db$insert$values$returning` and (type-rooted)
     /// `__chain_await_Database$insert$values$returning`.
+    /// Also handles the `?` unwrap form `chain()?` by peeling through Unwrap.
     fn lookup_awaited_chain_probe(&mut self, left: &Expr) -> Option<Type> {
-        // left must be a call (`.method()`) so we can look up the awaited result
-        let callee = match &left.kind {
+        // Peel through Unwrap (e.g. `chain()?`) to reach the underlying call
+        let expr = match &left.kind {
+            ExprKind::Unwrap(inner) => inner.as_ref(),
+            _ => left,
+        };
+        let callee = match &expr.kind {
             ExprKind::Call { callee, .. } => callee,
             _ => return None,
         };
