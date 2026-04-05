@@ -2550,12 +2550,6 @@ impl Checker {
         expected: &Type,
         found: &Type,
     ) -> Option<(String, String)> {
-        // Found is Result<T, E> but T is what was expected — untrusted import not unwrapped
-        if self.is_untrusted_result_mismatch(expected, found) {
-            let msg = "found an untrusted import `Result` — use `?` to unwrap or `import trusted` if it cannot fail".to_string();
-            return Some((msg, "use `?` to unwrap or `import trusted`".to_string()));
-        }
-
         // Both are records — diff the fields and report only mismatches
         if let (Type::Record(exp_fields), Type::Record(fnd_fields)) = (expected, found) {
             let fnd_map: std::collections::HashMap<&str, &Type> =
@@ -2574,11 +2568,6 @@ impl Checker {
                         };
                         if compat {
                             None
-                        } else if self.is_untrusted_result_mismatch(exp_ty, fnd_ty) {
-                            Some(format!(
-                                "`{}`: untrusted import `Result` — use `?` to unwrap or `import trusted`",
-                                name
-                            ))
                         } else if let Some((msg, _)) = self.extra_mismatch_detail(exp_ty, fnd_ty) {
                             Some(format!("`{}`: {}", name, msg))
                         } else {
