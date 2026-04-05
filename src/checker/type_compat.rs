@@ -142,6 +142,12 @@ impl Checker {
             return true;
         }
 
+        // Result<T, E> is never compatible with a non-Result expected type.
+        // Users must unwrap with `?` or handle with `match`.
+        if actual.is_result() && !expected.is_result() {
+            return false;
+        }
+
         // Generic type parameters (single uppercase letter like T, U, E, S)
         // are wildcards that match any type — used in stdlib function signatures
         if let Type::Named(n) = expected

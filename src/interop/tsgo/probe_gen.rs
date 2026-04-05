@@ -179,22 +179,29 @@ pub(super) fn generate_probe(
     for decl in &all_consts {
         if let ConstBinding::Name(name) = &decl.binding {
             let inner = unwrap_try_await_expr(&decl.value);
-            // Only track consts whose value involves an import (directly or via member)
             if let ExprKind::Call { callee, .. } = &inner.kind {
                 let callee_name = expr_to_callee_name(callee);
-                if let Some(cn) = &callee_name {
+                let should_track = if let Some(cn) = &callee_name {
                     let root = cn.split('.').next().unwrap_or("");
-                    if imported_names.contains_key(cn) || imported_names.contains_key(root) {
-                        let mut ts_expr = expr_to_ts_approx(inner);
-                        // Substitute any local const references in the expression
-                        // e.g. z.array(PostSchema) → z.array(z.object({...}))
-                        for (const_name, const_expr) in &local_const_exprs {
-                            if ts_expr.contains(const_name.as_str()) {
-                                ts_expr = ts_expr.replace(const_name.as_str(), const_expr);
-                            }
+                    // Track import calls (direct or member)
+                    imported_names.contains_key(cn)
+                        || imported_names.contains_key(root)
+                        // Track stdlib calls (Date.now, Date.from, etc.) so probes
+                        // that reference these consts can inline the TS equivalent
+                        || is_stdlib_module(root)
+                } else {
+                    false
+                };
+                if should_track {
+                    let mut ts_expr = expr_to_ts_approx(inner);
+                    // Substitute any local const references in the expression
+                    // e.g. z.array(PostSchema) → z.array(z.object({...}))
+                    for (const_name, const_expr) in &local_const_exprs {
+                        if ts_expr.contains(const_name.as_str()) {
+                            ts_expr = ts_expr.replace(const_name.as_str(), const_expr);
                         }
-                        local_const_exprs.insert(name.clone(), ts_expr);
                     }
+                    local_const_exprs.insert(name.clone(), ts_expr);
                 }
             }
         }
@@ -238,7 +245,19 @@ pub(super) fn generate_probe(
 
                 if is_imported || is_member_of_import {
                     let ts_type_args: Vec<String> = type_args.iter().map(type_expr_to_ts).collect();
-                    let ts_args: Vec<String> = args.iter().map(arg_to_ts_approx).collect();
+                    let ts_args: Vec<String> = args
+                        .iter()
+                        .map(|a| {
+                            let mut s = arg_to_ts_approx(a);
+                            // Substitute local consts (e.g. now → new Date())
+                            for (cname, cexpr) in &local_const_exprs {
+                                if s == *cname {
+                                    s = cexpr.clone();
+                                }
+                            }
+                            s
+                        })
+                        .collect();
                     probe_calls.push(ProbeCall {
                         index: probe_index,
                         callee: name.clone(),
@@ -1621,6 +1640,22 @@ fn expr_to_ts_approx(expr: &Expr) -> String {
             type_args,
             args,
         } => {
+            // Translate stdlib calls that compile differently in TypeScript
+            if let ExprKind::Member { object, field } = &callee.kind
+                && let ExprKind::Identifier(module) = &object.kind
+            {
+                let args_str: Vec<String> = args.iter().map(arg_to_ts_approx).collect();
+                match (module.as_str(), field.as_str()) {
+                    ("Date", "now") => return "new Date()".to_string(),
+                    ("Date", "from" | "fromMillis") if args_str.len() == 1 => {
+                        return format!("new Date({})", args_str[0]);
+                    }
+                    ("Console", "log" | "error" | "warn") => {
+                        return format!("console.{}({})", field, args_str.join(", "));
+                    }
+                    _ => {}
+                }
+            }
             let callee_str = expr_to_ts_approx(callee);
             let type_args_str = format_type_args_ts(type_args);
             let args_str: Vec<String> = args.iter().map(arg_to_ts_approx).collect();
@@ -1654,6 +1689,12 @@ fn expr_to_ts_approx(expr: &Expr) -> String {
         // For anything else, use a placeholder that TypeScript can handle
         _ => "undefined as any".to_string(),
     }
+}
+
+/// Check if a name is a Floe stdlib module (Date, Console, Math, etc.)
+/// whose methods compile to different TypeScript (e.g. Date.now() → new Date()).
+fn is_stdlib_module(name: &str) -> bool {
+    matches!(name, "Date" | "Console" | "Math" | "JSON")
 }
 
 /// Collect function declarations nested inside expression bodies.

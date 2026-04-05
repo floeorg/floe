@@ -67,8 +67,25 @@ impl Checker {
                 ty
             }
         });
-        let final_type =
-            self.resolve_const_type(value_type, declared_type, &tsgo_type, &decl.value, span);
+        let mut final_type = self.resolve_const_type(
+            value_type.clone(),
+            declared_type,
+            &tsgo_type,
+            &decl.value,
+            span,
+        );
+
+        // If the checker inferred Result (untrusted import wrapping) but the tsgo probe
+        // resolved to a concrete unwrapped type, re-wrap so the Result isn't lost.
+        if value_type.is_result() && !final_type.is_result() {
+            final_type = match final_type {
+                Type::Promise(inner) => Type::Promise(Box::new(Type::result_of(
+                    *inner,
+                    Type::Named(type_layout::TYPE_ERROR.to_string()),
+                ))),
+                other => Type::result_of(other, Type::Named(type_layout::TYPE_ERROR.to_string())),
+            };
+        }
 
         match &decl.binding {
             ConstBinding::Name(name) => {
