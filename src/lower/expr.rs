@@ -31,8 +31,7 @@ impl<'src> Lowerer<'src> {
                                 if !matches!(
                                     token.kind(),
                                     SyntaxKind::PIPE | SyntaxKind::PIPE_UNWRAP
-                                )
-                                    && let Some(expr) = self.token_to_expr(token)
+                                ) && let Some(expr) = self.token_to_expr(token)
                                 {
                                     left_exprs.push(expr);
                                 }
