@@ -1724,6 +1724,14 @@ impl Checker {
                 // so chained calls like db.insert(...).values(...).returning() |> await
                 // don't collapse to Unknown
                 (_, Type::Foreign(_)) => left_ty.clone(),
+                // Result<Foreign, _> from an untrusted chain (e.g. untrusted db chain
+                // wrapped at each call): propagate the Result as-is so the user can
+                // unwrap and access the Foreign result rather than getting `?T0`.
+                _ if left_ty.is_result()
+                    && matches!(left_ty.result_ok(), Some(Type::Foreign(_))) =>
+                {
+                    left_ty.clone()
+                }
                 _ => stdlib_fn.return_type.clone(),
             }
         }
