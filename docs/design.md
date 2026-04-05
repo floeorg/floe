@@ -55,6 +55,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Pipe operator | `a \|> b \|> c` | `c(b(a))` |
 | Pipe w/ placeholder | `a \|> f(x, _, y)` | `f(x, a, y)` |
 | Pipe into match | `a \|> match { ... }` | `match a { ... }` (syntax sugar) |
+| Pipe-unwrap | `a \|>? f` | `(a \|> f)?` (pipe then unwrap Result/Option) |
 | Partial application | `add(10, _)` | `(x) => add(10, x)` |
 | Match expression | `match x { ... }` | exhaustive if/else chain |
 | Match with ranges | `match n { 1..10 -> ... }` | range check |
@@ -1362,6 +1363,7 @@ Key tokens beyond standard TypeScript:
 | Token | Lexeme |
 |-------|--------|
 | `Pipe` | `\|>` |
+| `PipeUnwrap` | `\|>?` (pipe then unwrap) |
 | `Arrow` | `->` (match arms, return types, function types) |
 | `FatArrow` | `=>` (closures) |
 | `Question` | `?` (postfix, Result/Option unwrap) |
