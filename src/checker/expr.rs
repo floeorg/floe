@@ -1349,7 +1349,9 @@ impl Checker {
             // Reject Result spreads — the Result must be unwrapped first (match or `?`)
             if spread_type.is_result() {
                 self.emit_error_with_help(
-                    format!("cannot spread `Result` value into `{type_name}` — unwrap the Result first"),
+                    format!(
+                        "cannot spread `Result` value into `{type_name}` — unwrap the Result first"
+                    ),
                     spread_expr.span,
                     ErrorCode::FieldAccessOnResult,
                     "`Result` must be narrowed first",
@@ -2253,7 +2255,8 @@ impl Checker {
         match &expr.kind {
             ExprKind::Identifier(name) => name == "await",
             ExprKind::Member { object, field } => {
-                field == "await" && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise")
+                field == "await"
+                    && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise")
             }
             _ => false,
         }

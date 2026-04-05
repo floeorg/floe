@@ -826,17 +826,13 @@ pub(super) fn generate_probe(
                         // `.returning()` returns a PromiseLike that resolves to the rows).
                         // Calling in the probe is safe: tsgo only type-checks it, never executes.
                         let called_name = format!("__chain_called_{chain_key}");
-                        lines.push(format!(
-                            "export const {called_name} = {expr}.{field}();"
-                        ));
+                        lines.push(format!("export const {called_name} = {expr}.{field}();"));
                         let await_name = format!("__chain_await_{chain_key}");
                         let await_fn = format!("{await_name}_fn");
                         lines.push(format!(
                             "declare function {await_fn}(): Awaited<typeof {called_name}>;"
                         ));
-                        lines.push(format!(
-                            "export const {await_name} = {await_fn}();"
-                        ));
+                        lines.push(format!("export const {await_name} = {await_fn}();"));
                     }
                 }
             } else {
