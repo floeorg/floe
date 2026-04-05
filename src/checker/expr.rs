@@ -2158,7 +2158,18 @@ impl Checker {
         if let Some(root_type) = self.env.lookup(root_name) {
             let type_name = match root_type {
                 Type::Foreign(name) => Some(name.clone()),
+                // Unknown type (not registered): use the name as the chain root
                 Type::Named(name) if self.env.lookup_type(name).is_none() => Some(name.clone()),
+                // Bridge type alias (= syntax, wrapping a TS type): resolve_member_type
+                // can't evaluate TypeScript method access, so fall through to chain probes.
+                Type::Named(name)
+                    if self
+                        .env
+                        .lookup_type(name)
+                        .is_some_and(|info| matches!(info.def, TypeDef::Alias(_))) =>
+                {
+                    Some(name.clone())
+                }
                 _ => None,
             };
             if let Some(type_name) = type_name {
@@ -2344,10 +2355,30 @@ impl Checker {
 
         // Named type that couldn't resolve to concrete — if no local type definition
         // exists, treat as foreign (the type came from npm through cross-file propagation).
-        // If it HAS a local definition, it's a genuine error (missing field).
+        // If it HAS a local definition, it's a genuine error (missing field) UNLESS the
+        // definition is a bridge type alias (= syntax) wrapping a foreign TS type.
         if let Type::Named(name) = obj_ty {
             if self.env.lookup_type(name).is_none() {
                 return Type::Foreign(format!("{name}.{field}"));
+            }
+            // Bridge type alias: resolve through the alias and check if it reaches a
+            // foreign/unknown type. If so, propagate member access silently so chain
+            // probes at deeper levels (depth ≥ 3) can resolve the full chain type.
+            if self
+                .env
+                .lookup_type(name)
+                .is_some_and(|info| matches!(info.def, TypeDef::Alias(_)))
+            {
+                let resolved = self.resolve_type_to_concrete(obj_ty);
+                match &resolved {
+                    Type::Named(resolved_name) if self.env.lookup_type(resolved_name).is_none() => {
+                        return Type::Foreign(format!("{resolved_name}.{field}"));
+                    }
+                    Type::Foreign(resolved_name) => {
+                        return Type::Foreign(format!("{resolved_name}.{field}"));
+                    }
+                    _ => {}
+                }
             }
             self.emit_error_with_help(
                 format!("cannot access `.{field}` on unresolved type `{name}`"),

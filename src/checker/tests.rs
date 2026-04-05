@@ -6519,6 +6519,105 @@ fn example() -> () {
 }
 
 #[test]
+fn chain_probe_resolves_for_fl_bridge_type_param() {
+    // When a function parameter is typed as a Floe bridge type alias (e.g. db: Database
+    // where `type Database = DrizzleType`), chain probes keyed by type name should resolve
+    // even though the checker knows the type definition.
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use crate::lexer::span::Span;
+    use crate::parser::ast::{TypeDecl, TypeDef, TypeExpr, TypeExprKind};
+    use crate::resolve::ResolvedImports;
+    use std::collections::HashMap;
+
+    let dummy_span = Span::new(0, 0, 0, 0);
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { Database } from "./db"
+import { snippetsTable } from "./schema"
+
+fn createItem(
+    db: Database,
+    input: { content: string },
+) -> Promise<Array<string>> {
+    const rows = db.insert(snippetsTable).values(snippetsTable).returning() |> await
+    rows
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Database is defined as a bridge type alias in a .fl module
+    let database_type_decl = TypeDecl {
+        exported: true,
+        opaque: false,
+        name: "Database".to_string(),
+        type_params: vec![],
+        def: TypeDef::Alias(TypeExpr {
+            kind: TypeExprKind::Named {
+                name: "BetterSQLite3Database".to_string(),
+                type_args: vec![],
+                bounds: vec![],
+            },
+            span: dummy_span,
+        }),
+        deriving: vec![],
+    };
+    let mut fl_imports = HashMap::new();
+    let mut resolved_db = ResolvedImports::default();
+    resolved_db.type_decls.push(database_type_decl);
+    fl_imports.insert("./db".to_string(), resolved_db);
+
+    let mut resolved_schema = ResolvedImports::default();
+    resolved_schema
+        .const_names
+        .push("snippetsTable".to_string());
+    fl_imports.insert("./schema".to_string(), resolved_schema);
+
+    // Chain probes keyed by the type name (Database) not the variable name (db)
+    let chain_values = DtsExport {
+        name: "__chain_Database$insert$values".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Any,
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Named("InsertWithValues".to_string())),
+        },
+    };
+    let chain_returning = DtsExport {
+        name: "__chain_Database$insert$values$returning".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Promise".to_string(),
+                args: vec![TsType::Generic {
+                    name: "Array".to_string(),
+                    args: vec![TsType::Primitive("string".to_string())],
+                }],
+            }),
+        },
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("./db".to_string(), vec![chain_values, chain_returning]);
+
+    let checker = Checker::with_all_imports(fl_imports, dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "chain probes should resolve for fl bridge type parameters, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn named_import_const_not_in_resolved_fl_module_errors() {
     use crate::resolve::ResolvedImports;
     use std::collections::HashMap;
