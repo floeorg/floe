@@ -53,10 +53,10 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         self.parse_comparison_expr();
 
-        while self.at(TokenKind::Pipe) {
+        while self.at(TokenKind::Pipe) || self.at(TokenKind::PipeUnwrap) {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::PIPE_EXPR.into());
-            self.bump(); // |>
+            self.bump(); // |> or |>?
             self.eat_trivia();
 
             // Pipe into match: `x |> match { ... }`

@@ -17,3 +17,19 @@ fn _testPipeChainUnwrap() -> Result<string, string> {
 fn _testPipeOptionUnwrap() -> Option<number> {
     [1, 2, 3] |> Array.head?
 }
+
+fn _testPipeUnwrapOp() -> Result<string, string> {
+    "hello" |>? validate
+}
+
+fn _testPipeUnwrapOpChain() -> Result<string, string> {
+    "hello" |>? validate |>? format
+}
+
+fn _testPipeUnwrapOpMixed() -> Result<string, string> {
+    "hello" |> validate |>? format
+}
+
+fn _testPipeUnwrapOpOption() -> Option<number> {
+    [1, 2, 3] |>? Array.head
+}

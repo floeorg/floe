@@ -28,7 +28,10 @@ impl<'src> Lowerer<'src> {
                                 }
                             }
                             rowan::NodeOrToken::Token(ref token) => {
-                                if token.kind() != SyntaxKind::PIPE
+                                if !matches!(
+                                    token.kind(),
+                                    SyntaxKind::PIPE | SyntaxKind::PIPE_UNWRAP
+                                )
                                     && let Some(expr) = self.token_to_expr(token)
                                 {
                                     left_exprs.push(expr);
@@ -62,9 +65,26 @@ impl<'src> Lowerer<'src> {
                         let left = iter.next()?;
                         let right = iter.next()?;
 
-                        // `a |> f?` restructure: lift `?` above the pipe → `(a |> f)?`
-                        if let ExprKind::Unwrap(inner) = right.kind {
-                            let pipe_span = self.node_span(node);
+                        // `|>?` operator: wrap the pipe in Unwrap
+                        let is_pipe_unwrap = node.children_with_tokens().any(|ct| {
+                            ct.as_token()
+                                .is_some_and(|t| t.kind() == SyntaxKind::PIPE_UNWRAP)
+                        });
+                        let pipe_span = self.node_span(node);
+
+                        if is_pipe_unwrap {
+                            Some(self.expr(
+                                ExprKind::Unwrap(Box::new(self.expr(
+                                    ExprKind::Pipe {
+                                        left: Box::new(left),
+                                        right: Box::new(right),
+                                    },
+                                    pipe_span,
+                                ))),
+                                pipe_span,
+                            ))
+                        } else if let ExprKind::Unwrap(inner) = right.kind {
+                            // `a |> f?` restructure: lift `?` above the pipe → `(a |> f)?`
                             Some(self.expr(
                                 ExprKind::Unwrap(Box::new(self.expr(
                                     ExprKind::Pipe {
@@ -81,7 +101,7 @@ impl<'src> Lowerer<'src> {
                                     left: Box::new(left),
                                     right: Box::new(right),
                                 },
-                                self.node_span(node),
+                                pipe_span,
                             ))
                         }
                     } else {

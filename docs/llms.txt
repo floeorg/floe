@@ -232,6 +232,12 @@ const message = response.status
         404 -> "not found",
         _ -> "error",
     }
+
+// Pipe-unwrap operator |>? — pipe then unwrap the result
+// Equivalent to (x |> f)? — unwraps Result/Option or returns early
+const row = chain() |>? await                    // pipe to await, then unwrap
+const first = list |>? Array.first               // pipe lookup, unwrap Option
+const data = input |>? JSON.parse                // pipe parse, unwrap Result
 ```
 
 ## Match Expressions

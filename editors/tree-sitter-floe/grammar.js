@@ -425,7 +425,7 @@ module.exports = grammar({
         "pipe",
         seq(
           field("left", $._expression),
-          "|>",
+          choice("|>", "|>?"),
           field("right", $._expression),
         ),
       ),
