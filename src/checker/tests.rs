@@ -6645,3 +6645,208 @@ const x: Option = None
         "Option without type args should not produce arity error, got: {diags:?}"
     );
 }
+
+// ── Untrusted import: create-snippet scenario ───────────────
+
+#[test]
+fn untrusted_import_const_gets_result_type() {
+    // Simulates: import { addSeconds } from "date-fns"
+    // const expiresAt = addSeconds(now, 5)
+    // Hover on expiresAt should show Result<Date, Error>, not ()
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { addSeconds } from "date-fns"
+const now = Date.now()
+const expiresAt = addSeconds(now, 5)
+const _x = expiresAt
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // addSeconds(date: Date, amount: number) -> Date
+    let add_seconds_export = DtsExport {
+        name: "addSeconds".to_string(),
+        ts_type: TsType::Function {
+            params: vec![
+                FunctionParam {
+                    ty: TsType::Primitive("Date".to_string()),
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: TsType::Primitive("number".to_string()),
+                    optional: false,
+                },
+            ],
+            return_type: Box::new(TsType::Primitive("Date".to_string())),
+        },
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("date-fns".to_string(), vec![add_seconds_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (_diags, name_types, _) = checker.check_with_types(&program);
+
+    // expiresAt should be Result<Date, Error> — untrusted call wraps the return type
+    let expires_type = name_types
+        .get("expiresAt")
+        .expect("expiresAt should be in name_types");
+    assert!(
+        expires_type.contains("Result"),
+        "expiresAt should be Result<Date, Error> from untrusted call, got: {}",
+        expires_type
+    );
+    assert!(
+        !expires_type.contains("()"),
+        "expiresAt should NOT be () or Result<(), Error>, got: {}",
+        expires_type
+    );
+}
+
+#[test]
+fn untrusted_import_field_mismatch_shows_hint() {
+    // When an untrusted Result is passed as a record field where the unwrapped
+    // type is expected, the error should mention "untrusted" and suggest ? or trusted
+    use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { transform } from "some-lib"
+import trusted { insert } from "db-lib"
+
+fn test() -> () {
+    const name = transform("hello")
+    insert({ name: name })
+    ()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let transform_export = DtsExport {
+        name: "transform".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Primitive("string".to_string())),
+        },
+    };
+    let insert_export = DtsExport {
+        name: "insert".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Object(vec![ObjectField {
+                    name: "name".to_string(),
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                }]),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Primitive("void".to_string())),
+        },
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![transform_export]);
+    dts_imports.insert("db-lib".to_string(), vec![insert_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, name_types, _) = checker.check_with_types(&program);
+
+    // name should be Result<string, Error>
+    let name_type = name_types
+        .get("name")
+        .expect("name should be in name_types");
+    assert!(
+        name_type.contains("Result"),
+        "name should be Result<string, Error>, got: {}",
+        name_type
+    );
+
+    // The field mismatch error should mention untrusted
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        !errors.is_empty(),
+        "should have a type error for passing Result<string, Error> where string is expected"
+    );
+    let error_msg = &errors[0].message;
+    assert!(
+        error_msg.contains("untrusted") || error_msg.contains("Result"),
+        "error should mention untrusted or Result, got: {}",
+        error_msg
+    );
+}
+
+#[test]
+fn untrusted_import_probe_override_known_limitation() {
+    // Known limitation: when a tsgo probe returns void (failed generic resolution,
+    // e.g. date-fns's ResultDate), the probe overrides the checker's Result wrapping,
+    // and the const gets type () instead of Result<Date, Error>.
+    //
+    // This test documents the current behavior. The proper fix requires the probe
+    // system to resolve TypeScript generics correctly. See issue #XXX.
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import { addSeconds } from "date-fns"
+const now = Date.now()
+const expiresAt = addSeconds(now, 5)
+const _x = expiresAt
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let fn_export = DtsExport {
+        name: "addSeconds".to_string(),
+        ts_type: TsType::Function {
+            params: vec![
+                FunctionParam {
+                    ty: TsType::Primitive("Date".to_string()),
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: TsType::Primitive("number".to_string()),
+                    optional: false,
+                },
+            ],
+            return_type: Box::new(TsType::Primitive("Date".to_string())),
+        },
+    };
+    // Probe returns void (simulates failed generic resolution)
+    let probe = DtsExport {
+        name: "__probe_expiresAt".to_string(),
+        ts_type: TsType::Primitive("void".to_string()),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("date-fns".to_string(), vec![fn_export, probe]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (_diags, name_types, _) = checker.check_with_types(&program);
+
+    let expires_type = name_types
+        .get("expiresAt")
+        .expect("expiresAt should be in name_types");
+
+    // KNOWN LIMITATION: probe returns void and overrides the checker's Result type.
+    // The correct type should be Result<Date, Error>, but we get () instead.
+    // When this is fixed, change this assertion to check for "Result".
+    assert_eq!(
+        expires_type, "()",
+        "Documents known probe override bug — when fixed, this should be Result<Date, Error>"
+    );
+}
