@@ -138,9 +138,6 @@ pub(super) fn generate_probe(
             }
         }
     }
-    // Remove specifiers whose entire name list was already covered
-    fl_module_npm_imports.retain(|_, names| !names.is_empty());
-
     // Build set of Floe-defined type names for param_type_map lookup.
     // Allows chain probes for parameters typed as Floe bridge types
     // (e.g. db: Database where Database is `type Database = DrizzleType`).
@@ -737,6 +734,15 @@ pub(super) fn generate_probe(
     let mut chain_step_args: HashMap<String, String> = HashMap::new();
     // Track which chain steps are zero-arg calls (e.g. .select()) for full-chain probes
     let mut chain_step_zero_args: HashSet<String> = HashSet::new();
+    // Pre-merge imported_names and fl_module_imported_names for type-rooted chain arg detection.
+    // Built once here rather than inside the walk closure to avoid cloning per expression.
+    let combined_imported_names: HashMap<String, String> = {
+        let mut m = imported_names.clone();
+        for name in &fl_module_imported_names {
+            m.entry(name.clone()).or_default();
+        }
+        m
+    };
     crate::walk::walk_program(program, &mut |expr| {
         if matches!(&expr.kind, ExprKind::Member { .. }) {
             // Try variable-rooted chain (direct import like `import { db }`)
@@ -757,17 +763,11 @@ pub(super) fn generate_probe(
                 type_rooted_chains.insert(root_key.clone());
 
                 // Capture imported arguments at each call step in the chain.
-                // For type-rooted chains, also check fl_module_imported_names so
-                // args like `snippetsTable` (imported from a .fl-adjacent TS file) are captured.
-                let mut combined_names = imported_names.clone();
-                for name in &fl_module_imported_names {
-                    combined_names
-                        .entry(name.clone())
-                        .or_default();
-                }
+                // combined_imported_names includes fl_module_imported_names so
+                // args like `snippetsTable` (imported via a .fl module's npm dep) are captured.
                 collect_chain_step_args(
                     expr,
-                    &combined_names,
+                    &combined_imported_names,
                     &type_path,
                     &mut chain_step_args,
                     &mut chain_step_zero_args,

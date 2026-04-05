@@ -2158,15 +2158,15 @@ impl Checker {
         if let Some(root_type) = self.env.lookup(root_name) {
             let type_name = match root_type {
                 Type::Foreign(name) => Some(name.clone()),
-                // Unknown type (not registered): use the name as the chain root
-                Type::Named(name) if self.env.lookup_type(name).is_none() => Some(name.clone()),
-                // Bridge type alias (= syntax, wrapping a TS type): resolve_member_type
-                // can't evaluate TypeScript method access, so fall through to chain probes.
+                // Unknown types (not registered locally) and bridge type aliases (= syntax
+                // wrapping a TS type) both use chain probes since resolve_member_type can't
+                // evaluate TypeScript method access for either.
                 Type::Named(name)
-                    if self
-                        .env
-                        .lookup_type(name)
-                        .is_some_and(|info| matches!(info.def, TypeDef::Alias(_))) =>
+                    if self.env.lookup_type(name).is_none()
+                        || self
+                            .env
+                            .lookup_type(name)
+                            .is_some_and(|info| matches!(info.def, TypeDef::Alias(_))) =>
                 {
                     Some(name.clone())
                 }
@@ -2358,17 +2358,14 @@ impl Checker {
         // If it HAS a local definition, it's a genuine error (missing field) UNLESS the
         // definition is a bridge type alias (= syntax) wrapping a foreign TS type.
         if let Type::Named(name) = obj_ty {
-            if self.env.lookup_type(name).is_none() {
+            let type_info = self.env.lookup_type(name);
+            if type_info.is_none() {
                 return Type::Foreign(format!("{name}.{field}"));
             }
             // Bridge type alias: resolve through the alias and check if it reaches a
             // foreign/unknown type. If so, propagate member access silently so chain
             // probes at deeper levels (depth ≥ 3) can resolve the full chain type.
-            if self
-                .env
-                .lookup_type(name)
-                .is_some_and(|info| matches!(info.def, TypeDef::Alias(_)))
-            {
+            if type_info.is_some_and(|info| matches!(info.def, TypeDef::Alias(_))) {
                 let resolved = self.resolve_type_to_concrete(obj_ty);
                 match &resolved {
                     Type::Named(resolved_name) if self.env.lookup_type(resolved_name).is_none() => {
