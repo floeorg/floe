@@ -47,6 +47,13 @@ impl<'src> CstParser<'src> {
                 self.parse_function_decl();
                 self.builder.finish_node();
             }
+            Some(TokenKind::Async) => {
+                // `async fn name(...)` — async function declaration
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
+                self.parse_function_decl();
+                self.builder.finish_node();
+            }
             Some(TokenKind::Opaque) | Some(TokenKind::Type) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
@@ -280,6 +287,12 @@ impl<'src> CstParser<'src> {
 
     fn parse_function_decl(&mut self) {
         self.builder.start_node(SyntaxKind::FUNCTION_DECL.into());
+
+        // Optional `async` prefix: `async fn name(...)`
+        if self.at(TokenKind::Async) {
+            self.bump(); // async
+            self.eat_trivia();
+        }
 
         self.expect(TokenKind::Fn);
         self.eat_trivia();
@@ -671,7 +684,7 @@ impl<'src> CstParser<'src> {
                 self.bump();
                 self.eat_trivia();
             }
-            if self.at(TokenKind::Fn) {
+            if self.at(TokenKind::Fn) || self.at(TokenKind::Async) {
                 self.parse_for_block_function();
                 self.eat_trivia();
             } else {
@@ -749,6 +762,12 @@ impl<'src> CstParser<'src> {
 
     fn parse_for_block_function(&mut self) {
         self.builder.start_node(SyntaxKind::FUNCTION_DECL.into());
+
+        // Optional `async` prefix
+        if self.at(TokenKind::Async) {
+            self.bump(); // async
+            self.eat_trivia();
+        }
 
         self.expect(TokenKind::Fn);
         self.eat_trivia();

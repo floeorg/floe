@@ -61,6 +61,8 @@ pub enum TokenKind {
     Use,
     /// `typeof` — type-level operator to extract the type of a value binding
     Typeof,
+    /// `async` — marks a function as async (return type is implicitly wrapped in `Promise<T>`)
+    Async,
 
     // Built-in type constructors
     Value,
@@ -274,6 +276,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "deriving" => Some(TokenKind::Deriving),
         "use" => Some(TokenKind::Use),
         "typeof" => Some(TokenKind::Typeof),
+        "async" => Some(TokenKind::Async),
         "true" => Some(TokenKind::Bool(true)),
         "false" => Some(TokenKind::Bool(false)),
 

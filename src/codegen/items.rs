@@ -367,7 +367,19 @@ impl Codegen {
 
         if let Some(ret) = &decl.return_type {
             self.push(": ");
-            self.emit_type_expr(ret);
+            // For `async fn f() -> T`, the source has T but TS requires Promise<T>
+            // on async functions. Wrap the annotation in Promise<>.
+            // If the annotation is already Promise<T> (or `uses_await` detected it),
+            // emit as-is.
+            let needs_promise_wrap = decl.async_fn
+                && !matches!(&ret.kind, TypeExprKind::Named { name, type_args, .. } if name == "Promise" && !type_args.is_empty());
+            if needs_promise_wrap {
+                self.push("Promise<");
+                self.emit_type_expr(ret);
+                self.push(">");
+            } else {
+                self.emit_type_expr(ret);
+            }
         }
 
         self.push(" ");
@@ -494,7 +506,15 @@ impl Codegen {
 
         if let Some(ret) = &func.return_type {
             self.push(": ");
-            self.emit_type_expr(ret);
+            let needs_promise_wrap = func.async_fn
+                && !matches!(&ret.kind, TypeExprKind::Named { name, type_args, .. } if name == "Promise" && !type_args.is_empty());
+            if needs_promise_wrap {
+                self.push("Promise<");
+                self.emit_type_expr(ret);
+                self.push(">");
+            } else {
+                self.emit_type_expr(ret);
+            }
         }
 
         self.push(" ");

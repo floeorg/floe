@@ -42,7 +42,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 - Dot shorthand `.field` for implicit field-access closures
 - JSX / TSX (full support, including member expressions like `<Select.Trigger />`)
 - Generics (types and functions), template literals
-- Async via `|> await` (or `|> Promise.await`) — no `async` keyword; return type must be `Promise<T>`
+- Async via `|> await` (or `|> Promise.await`) — return type must be `Promise<T>`, or use `async fn f() -> T` sugar
 - Destructuring, spread, rest params
 - `||` (boolean OR), `&&`, `!` (boolean operators)
 - `==` (but only between same types — structural equality on objects)
@@ -1571,8 +1571,9 @@ import { fetchUser } from "api-client"
 const user = fetchUser(id) |> await
 // user: Result<User, Error>
 
-// Compose with |> await? for concise async error handling:
-fn loadProfile(id: string) -> Promise<Result<Profile, Error>> {
+// Compose with |> await? for concise async error handling.
+// `async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type:
+async fn loadProfile(id: string) -> Result<Profile, Error> {
   const user = fetchUser(id) |> await?
   const posts = fetchPosts(user.id) |> await?
   Ok(Profile(user, posts))

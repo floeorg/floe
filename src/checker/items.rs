@@ -390,6 +390,29 @@ impl Checker {
             .map(|t| self.resolve_type(t))
             .unwrap_or_else(|| self.fresh_type_var());
 
+        // `async fn f() -> T` is sugar for `fn f() -> Promise<T>`.
+        // Error if the user wrote `async fn f() -> Promise<T>` — the Promise is
+        // already implied by `async`.
+        let return_type = if decl.async_fn {
+            if matches!(return_type, Type::Promise(_)) {
+                self.emit_error_with_help(
+                    format!(
+                        "`async fn {}` already implies `Promise<T>` in the return type",
+                        decl.name
+                    ),
+                    span,
+                    ErrorCode::TypeMismatch,
+                    "redundant `Promise<>` wrapper",
+                    "remove the explicit `Promise<>` — `async` wraps the return type automatically",
+                );
+                return_type
+            } else {
+                Type::Promise(Box::new(return_type))
+            }
+        } else {
+            return_type
+        };
+
         // Define function in outer scope before checking body
         let param_types: Vec<_> = decl
             .params
@@ -478,8 +501,9 @@ impl Checker {
 
         // When no return type annotation, infer from body and update the function type
         if decl.return_type.is_none() && !matches!(body_type, Type::Var(_) | Type::Unknown) {
-            // If the body uses await, wrap the inferred return type in Promise<T>
-            let inferred_return = if uses_await {
+            // If the body uses await, or the function is declared `async`,
+            // wrap the inferred return type in Promise<T>
+            let inferred_return = if uses_await || decl.async_fn {
                 Type::Promise(Box::new(body_type.clone()))
             } else {
                 body_type.clone()
@@ -500,8 +524,10 @@ impl Checker {
         if let Some(ref declared_return) = decl.return_type {
             let resolved = self.resolve_type(declared_return);
 
-            // Error if function uses await but return type is not Promise<T>
-            if uses_await && !matches!(resolved, Type::Promise(_)) {
+            // Error if function uses await but return type is not Promise<T>.
+            // `async fn` implicitly wraps the return type in `Promise<T>`, so skip
+            // this check — the body uses the inner type directly.
+            if uses_await && !decl.async_fn && !matches!(resolved, Type::Promise(_)) {
                 self.emit_error_with_help(
                     format!(
                         "function `{}` uses `await` but return type is `{}`, not `Promise<{}>`",

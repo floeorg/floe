@@ -258,9 +258,17 @@ impl Codegen {
 
         if let Some(ret) = &decl.return_type {
             out.push_str(": ");
+            let needs_promise_wrap = decl.async_fn
+                && !matches!(&ret.kind, TypeExprKind::Named { name, type_args, .. } if name == "Promise" && !type_args.is_empty());
             let mut cg = self.sub_codegen();
             cg.emit_type_expr(ret);
-            out.push_str(&cg.output);
+            if needs_promise_wrap {
+                out.push_str("Promise<");
+                out.push_str(&cg.output);
+                out.push('>');
+            } else {
+                out.push_str(&cg.output);
+            }
         }
         out.push(';');
     }
@@ -330,9 +338,17 @@ impl Codegen {
 
         if let Some(ret) = &func.return_type {
             out.push_str(": ");
+            let needs_promise_wrap = func.async_fn
+                && !matches!(&ret.kind, TypeExprKind::Named { name, type_args, .. } if name == "Promise" && !type_args.is_empty());
             let mut cg = self.sub_codegen();
             cg.emit_type_expr(ret);
-            out.push_str(&cg.output);
+            if needs_promise_wrap {
+                out.push_str("Promise<");
+                out.push_str(&cg.output);
+                out.push('>');
+            } else {
+                out.push_str(&cg.output);
+            }
         }
         out.push(';');
     }

@@ -32,16 +32,17 @@ pub fn annotate_types(program: &mut Program, types: &ExprTypeMap) {
 
 /// Walk the AST and set `async_fn = true` on functions/arrows whose bodies
 /// contain `Promise.await` calls or whose return type is `Promise<T>`.
+/// Preserves the parser-set `async_fn` flag (from the `async fn` sugar).
 /// Also collects untrusted import names from the program for detection.
 pub fn mark_async_functions(program: &mut Program) {
     for item in &mut program.items {
         match &mut item.kind {
             ItemKind::Function(decl) => {
-                decl.async_fn = body_has_promise_await(&decl.body);
+                decl.async_fn = decl.async_fn || body_has_promise_await(&decl.body);
             }
             ItemKind::ForBlock(block) => {
                 for func in &mut block.functions {
-                    func.async_fn = body_has_promise_await(&func.body);
+                    func.async_fn = func.async_fn || body_has_promise_await(&func.body);
                 }
             }
             _ => {}
@@ -52,12 +53,12 @@ pub fn mark_async_functions(program: &mut Program) {
     // nested `fn` declarations (e.g. handleDragEnd inside a component body).
     crate::walk::walk_program_mut(program, &mut |expr| match &mut expr.kind {
         ExprKind::Arrow { async_fn, body, .. } => {
-            *async_fn = body_has_promise_await(body);
+            *async_fn = *async_fn || body_has_promise_await(body);
         }
         ExprKind::Block(items) | ExprKind::Collect(items) => {
             for item in items {
                 if let ItemKind::Function(decl) = &mut item.kind {
-                    decl.async_fn = body_has_promise_await(&decl.body);
+                    decl.async_fn = decl.async_fn || body_has_promise_await(&decl.body);
                 }
             }
         }

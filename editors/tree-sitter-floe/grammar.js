@@ -141,6 +141,7 @@ module.exports = grammar({
 
     function_declaration: ($) =>
       seq(
+        optional("async"),
         "fn",
         field("name", choice($.identifier, $.type_identifier)),
         optional(field("type_parameters", $.type_parameters)),

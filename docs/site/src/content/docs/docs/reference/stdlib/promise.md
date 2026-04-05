@@ -57,6 +57,32 @@ fn fetchName(id: string) {
 // Inferred return type: Promise<string>
 ```
 
+## `async fn` sugar
+
+`async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type and the compiler wraps it automatically. This keeps signatures readable when the return type has several layers (`Result<Option<T>, Error>`, etc.):
+
+```floe
+// Verbose — three nested generics
+fn findByCode(code: string) -> Promise<Result<Option<Snippet>, Error>> {
+  // ...
+}
+
+// Sugar — the `Promise<>` wrapper is implied by `async`
+async fn findByCode(code: string) -> Result<Option<Snippet>, Error> {
+  // ...
+}
+```
+
+Behavior:
+
+- The return type annotation is the **inner** type (what the body actually produces). Callers see `Promise<T>`.
+- The function body returns `T` directly (no manual wrapping).
+- Callers still use `|> await` to unwrap the `Promise<T>`.
+- `async fn f() -> Promise<T>` is an error — `async` already implies the wrapper.
+- Plain `fn f() -> Promise<T>` still works for cases where you want to be explicit, or for non-async functions that return promises (e.g. storing them in `Array<Promise<T>>`).
+
+Both forms compile to the same `async function` in TypeScript.
+
 ## Untrusted imports
 
 npm imports are untrusted by default. The compiler wraps calls in try/catch and returns `Result<T, Error>`:
