@@ -208,6 +208,20 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
         }
     }
 
+    // Collect generic parameter constraints from function declarations.
+    // When tsgo doesn't resolve generics (e.g. `ResultDate extends Date`),
+    // the probe output may reference the parameter name instead of the
+    // resolved type. Map parameter names to their constraint bounds.
+    let mut generic_param_bounds: HashMap<String, TsType> = HashMap::new();
+    for stmt in &ret.program.body {
+        collect_fn_generic_constraints(stmt, &mut generic_param_bounds);
+    }
+    if !generic_param_bounds.is_empty() {
+        for export in &mut exports {
+            resolve_generic_params(&mut export.ts_type, &generic_param_bounds);
+        }
+    }
+
     // Third pass: collect type aliases and resolve interface extends.
     // Type aliases like `type DraggableId<T = string> = T` are resolved
     // to their default type parameter value (e.g. `string`).
@@ -1127,6 +1141,101 @@ fn resolve_field_type_aliases(ty: &mut TsType, aliases: &HashMap<String, TsType>
         TsType::Tuple(types) => {
             for t in types {
                 resolve_field_type_aliases(t, aliases);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Collect generic parameter constraint bounds from function declarations.
+/// For `function f<ResultDate extends Date>(...): ResultDate`, records
+/// `ResultDate → Named("Date")`.
+fn collect_fn_generic_constraints(stmt: &Statement<'_>, bounds: &mut HashMap<String, TsType>) {
+    use oxc_ast::ast::{Declaration, TSModuleDeclarationBody};
+
+    // Helper: extract constraints from a TSTypeParameterDeclaration
+    fn extract_params(
+        params: &oxc_ast::ast::TSTypeParameterDeclaration<'_>,
+        bounds: &mut HashMap<String, TsType>,
+    ) {
+        let param_names: Vec<String> = params.params.iter().map(|p| p.name.to_string()).collect();
+        for param in &params.params {
+            let name = param.name.to_string();
+            if let Some(ref constraint) = param.constraint {
+                let bound = convert_oxc_type(constraint);
+                // Only add if the bound is a concrete type (not another parameter)
+                if !matches!(&bound, TsType::Named(n) if param_names.contains(n)) {
+                    bounds.insert(name, bound);
+                }
+            }
+        }
+    }
+
+    match stmt {
+        Statement::ExportNamedDeclaration(export_decl) => {
+            if let Some(ref decl) = export_decl.declaration {
+                match decl {
+                    Declaration::FunctionDeclaration(fn_decl) => {
+                        if let Some(ref tp) = fn_decl.type_parameters {
+                            extract_params(tp, bounds);
+                        }
+                    }
+                    Declaration::TSTypeAliasDeclaration(type_decl) => {
+                        if let Some(ref tp) = type_decl.type_parameters {
+                            extract_params(tp, bounds);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Statement::TSModuleDeclaration(ns_decl) => {
+            if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
+                for inner_stmt in &block.body {
+                    collect_fn_generic_constraints(inner_stmt, bounds);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Resolve generic parameter names to their constraint bounds in a TsType.
+fn resolve_generic_params(ty: &mut TsType, bounds: &HashMap<String, TsType>) {
+    match ty {
+        TsType::Named(name) => {
+            if let Some(resolved) = bounds.get(name) {
+                *ty = resolved.clone();
+            }
+        }
+        TsType::Generic { args, .. } => {
+            for arg in args {
+                resolve_generic_params(arg, bounds);
+            }
+        }
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            for param in params {
+                resolve_generic_params(&mut param.ty, bounds);
+            }
+            resolve_generic_params(return_type, bounds);
+        }
+        TsType::Object(fields) => {
+            for field in fields {
+                resolve_generic_params(&mut field.ty, bounds);
+            }
+        }
+        TsType::Array(inner) => resolve_generic_params(inner, bounds),
+        TsType::Union(parts) => {
+            for part in parts {
+                resolve_generic_params(part, bounds);
+            }
+        }
+        TsType::Tuple(parts) => {
+            for part in parts {
+                resolve_generic_params(part, bounds);
             }
         }
         _ => {}

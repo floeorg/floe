@@ -67,8 +67,25 @@ impl Checker {
                 ty
             }
         });
-        let final_type =
-            self.resolve_const_type(value_type, declared_type, &tsgo_type, &decl.value, span);
+        let mut final_type = self.resolve_const_type(
+            value_type.clone(),
+            declared_type,
+            &tsgo_type,
+            &decl.value,
+            span,
+        );
+
+        // If the checker inferred Result (untrusted import wrapping) but the tsgo probe
+        // resolved to a concrete unwrapped type, re-wrap so the Result isn't lost.
+        if value_type.is_result() && !final_type.is_result() {
+            final_type = match final_type {
+                Type::Promise(inner) => Type::Promise(Box::new(Type::result_of(
+                    *inner,
+                    Type::Named(type_layout::TYPE_ERROR.to_string()),
+                ))),
+                other => Type::result_of(other, Type::Named(type_layout::TYPE_ERROR.to_string())),
+            };
+        }
 
         match &decl.binding {
             ConstBinding::Name(name) => {
@@ -506,14 +523,30 @@ impl Checker {
             if !self.types_compatible(&effective_declared, &body_type)
                 && !matches!(body_type, Type::Var(_))
             {
+                let (msg, label) = if let Some((annotation, lbl)) =
+                    self.extra_mismatch_detail(&effective_declared, &body_type)
+                {
+                    (
+                        format!(
+                            "function `{}`: expected return type `{}`, {}",
+                            decl.name, resolved, annotation
+                        ),
+                        lbl,
+                    )
+                } else {
+                    (
+                        format!(
+                            "function `{}`: expected return type `{}`, found `{}`",
+                            decl.name, resolved, body_type
+                        ),
+                        format!("expected `{}`", resolved),
+                    )
+                };
                 self.emit_error(
-                    format!(
-                        "function `{}`: expected return type `{}`, found `{}`",
-                        decl.name, resolved, body_type
-                    ),
+                    msg,
                     last_expr_span(&decl.body),
                     ErrorCode::TypeMismatch,
-                    format!("expected `{}`", resolved),
+                    label,
                 );
             }
 
@@ -667,14 +700,30 @@ impl Checker {
                 if !self.types_compatible(&effective_declared, &body_type)
                     && !matches!(body_type, Type::Var(_))
                 {
+                    let (msg, label) = if let Some((annotation, lbl)) =
+                        self.extra_mismatch_detail(&effective_declared, &body_type)
+                    {
+                        (
+                            format!(
+                                "function `{}`: expected return type `{}`, {}",
+                                func.name, resolved, annotation
+                            ),
+                            lbl,
+                        )
+                    } else {
+                        (
+                            format!(
+                                "function `{}`: expected return type `{}`, found `{}`",
+                                func.name, resolved, body_type
+                            ),
+                            format!("expected `{}`", resolved),
+                        )
+                    };
                     self.emit_error(
-                        format!(
-                            "function `{}`: expected return type `{}`, found `{}`",
-                            func.name, resolved, body_type
-                        ),
+                        msg,
                         last_expr_span(&func.body),
                         ErrorCode::TypeMismatch,
-                        format!("expected `{}`", resolved),
+                        label,
                     );
                 }
             }

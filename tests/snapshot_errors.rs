@@ -113,6 +113,20 @@ fn snapshot_error_untrusted_import() {
     insta::assert_snapshot!(output);
 }
 
+#[test]
+fn snapshot_error_untrusted_result_used_as_value() {
+    // Untrusted npm call result used directly where the unwrapped type is expected
+    let output = get_diagnostics(
+        "test.fl",
+        r#"import { transform } from "some-lib"
+fn process(x: string) -> string {
+    const result = transform(x)
+    result
+}"#,
+    );
+    insta::assert_snapshot!(output);
+}
+
 // ── Trait Error Snapshots ─────────────────────────────────────
 
 #[test]
