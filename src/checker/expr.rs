@@ -99,6 +99,14 @@ impl Checker {
             ExprKind::Unary { op, operand } => self.check_unary(*op, operand, expr.span),
             ExprKind::Pipe { left, right } => {
                 let left_ty = self.check_expr(left);
+                // Special case: `chain_call() |> await` — look up the awaited chain probe
+                // which captures `Awaited<ReturnType<typeof chain>>`. This handles drizzle-style
+                // thenable builders where the chain result isn't a Promise but resolves via await.
+                if Self::is_await_ref(right)
+                    && let Some(awaited_ty) = self.lookup_awaited_chain_probe(left)
+                {
+                    return awaited_ty;
+                }
                 self.check_pipe_right(&left_ty, right)
             }
             ExprKind::Unwrap(inner) => self.check_unwrap(inner, expr.span),
@@ -2194,7 +2202,15 @@ impl Checker {
                 let member_ty = self.resolve_member_type_silent(root_type, second);
                 let type_name = match &member_ty {
                     Type::Foreign(name) => Some(name.clone()),
-                    Type::Named(name) if self.env.lookup_type(name).is_none() => Some(name.clone()),
+                    Type::Named(name)
+                        if self.env.lookup_type(name).is_none()
+                            || self
+                                .env
+                                .lookup_type(name)
+                                .is_some_and(|info| matches!(info.def, TypeDef::Alias(_))) =>
+                    {
+                        Some(name.clone())
+                    }
                     _ => None,
                 };
                 if let Some(type_name) = type_name {
@@ -2206,6 +2222,48 @@ impl Checker {
             }
         }
 
+        None
+    }
+
+    /// Check if an expression is a reference to the `await` stdlib function
+    /// (either `await` bare or `Promise.await`).
+    fn is_await_ref(expr: &Expr) -> bool {
+        match &expr.kind {
+            ExprKind::Identifier(name) => name == "await",
+            ExprKind::Member { object, field } => {
+                field == "await" && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise")
+            }
+            _ => false,
+        }
+    }
+
+    /// Look up an awaited chain probe for a chain call expression.
+    /// e.g. for `db.insert(t).values({...}).returning()`, tries probes
+    /// `__chain_await_db$insert$values$returning` and (type-rooted)
+    /// `__chain_await_Database$insert$values$returning`.
+    fn lookup_awaited_chain_probe(&mut self, left: &Expr) -> Option<Type> {
+        // left must be a call (`.method()`) so we can look up the awaited result
+        let callee = match &left.kind {
+            ExprKind::Call { callee, .. } => callee,
+            _ => return None,
+        };
+        let (object, field) = match &callee.kind {
+            ExprKind::Member { object, field } => (object, field),
+            _ => return None,
+        };
+        let chain_key = extract_chain_key(object, field)?;
+        // Try variable-name key first
+        let probe_name = format!("__chain_await_{chain_key}");
+        if let Some(ty) = self.lookup_dts_probe(&probe_name) {
+            return Some(ty);
+        }
+        // Try type-name key (parameter/field typed as npm/bridge type)
+        if let Some(type_key) = self.chain_key_by_root_type(object, field) {
+            let probe_name = format!("__chain_await_{type_key}");
+            if let Some(ty) = self.lookup_dts_probe(&probe_name) {
+                return Some(ty);
+            }
+        }
         None
     }
 

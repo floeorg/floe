@@ -821,6 +821,15 @@ pub(super) fn generate_probe(
                         }
                         let field = &path[end_idx];
                         lines.push(format!("export const {export_name} = {expr}.{field};"));
+                        // Also emit an "awaited" variant that captures the awaited result
+                        // of calling the method — handles thenable builders (e.g. drizzle's
+                        // `.returning()` returns a PromiseLike that resolves to the rows).
+                        // References the value `{export_name}` (valid TS) since
+                        // `typeof expr.field` isn't valid when expr contains calls.
+                        let await_name = format!("__chain_await_{chain_key}");
+                        lines.push(format!(
+                            "export declare const {await_name}: Awaited<ReturnType<NonNullable<typeof {export_name}>>>;"
+                        ));
                     }
                 }
             } else {
