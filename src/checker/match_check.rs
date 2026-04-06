@@ -382,9 +382,12 @@ impl Checker {
     // ── Pattern Checking ─────────────────────────────────────────
 
     pub(super) fn check_pattern(&mut self, pattern: &Pattern, subject_ty: &Type) {
-        // Resolve Named types to their actual definitions via the type namespace.
+        // Resolve Named types to their actual definitions via the type namespace for
+        // structural checking (variant matching, field access, etc.). Keep the original
+        // Named type for bindings so hover shows the declared type name, not expanded fields.
         // Keep Named if the resolved type is Unknown (foreign npm types with no definition).
         let resolved_ty;
+        let binding_ty = subject_ty; // original type, used for env binding
         let subject_ty = if let Type::Named(_) = subject_ty {
             let concrete = self
                 .env
@@ -521,8 +524,8 @@ impl Checker {
                         );
                     }
                 }
-                self.env.define(name, subject_ty.clone());
-                self.name_types.insert(name.clone(), subject_ty.to_string());
+                self.env.define(name, binding_ty.clone());
+                self.name_types.insert(name.clone(), binding_ty.to_string());
             }
             PatternKind::Tuple(patterns) => {
                 if let Type::Tuple(types) = subject_ty {
