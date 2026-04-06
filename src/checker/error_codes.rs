@@ -123,6 +123,8 @@ pub enum ErrorCode {
     TypeArgumentArity,
     /// Type name used where a value is expected.
     TypeUsedAsValue,
+    /// Value of this type cannot be called as a function.
+    NotCallable,
 }
 
 impl ErrorCode {
@@ -179,6 +181,7 @@ impl ErrorCode {
             Self::ExportNotFound => "E044",
             Self::TypeArgumentArity => "E045",
             Self::TypeUsedAsValue => "E046",
+            Self::NotCallable => "E047",
         }
     }
 }
