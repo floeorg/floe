@@ -208,16 +208,12 @@ impl Checker {
             }
         }
 
-        // Resolve Named types to concrete for structural comparison
-        let expected_concrete = self.resolve_named_to_concrete(expected);
+        // Nominal: a Floe Named type is only compatible with the same Named type.
+        // Structural matching only applies in the Floe → Foreign direction:
+        // when the *expected* side is an anonymous Record (from a .d.ts import),
+        // a Floe Named type can satisfy it by shape — the inline object case.
         let actual_concrete = self.resolve_named_to_concrete(actual);
 
-        // Named<->Record structural comparison
-        if let Some(Type::Record(ref exp_fields)) = expected_concrete
-            && let Type::Record(act_fields) = actual
-        {
-            return self.records_compatible(exp_fields, act_fields);
-        }
         if let Some(Type::Record(ref act_fields)) = actual_concrete
             && let Type::Record(exp_fields) = expected
         {

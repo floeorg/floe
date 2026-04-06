@@ -5963,12 +5963,12 @@ const _r = users |> Array.find(.name == getName())
 
 #[test]
 fn option_fields_can_be_omitted() {
-    // Option fields in a record should allow omission (default to None)
+    // Option fields in a record constructor should allow omission (default to None)
     let diags = check(
         r#"
 type Config { name: string, nickname: Option<string> }
 fn _take(c: Config) { c }
-const _x = _take({ name: "Alice" })
+const _x = _take(Config(name: "Alice"))
 "#,
     );
     assert!(
@@ -5990,6 +5990,44 @@ const _x = _take({ name: "Alice" })
     assert!(
         has_error_containing(&diags, "expected"),
         "omitting required fields should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+// ── nominal typing ──────────────────────────────────────────
+
+#[test]
+fn different_named_types_with_same_shape_are_incompatible() {
+    // Two Floe types with identical fields must not be interchangeable (nominal)
+    let diags = check(
+        r#"
+type Point { x: number, y: number }
+type Vec2  { x: number, y: number }
+fn _move(v: Vec2) -> Vec2 { v }
+const p = Point(x: 1, y: 2)
+const _r = _move(p)
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "expected `Vec2`, found `Point`"),
+        "different named types with same shape should be incompatible, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn inline_object_literal_is_not_assignable_to_named_type() {
+    // An inline record literal must not satisfy a Floe Named type (use the constructor)
+    let diags = check(
+        r#"
+type Vec2 { x: number, y: number }
+fn _move(v: Vec2) -> Vec2 { v }
+const _r = _move({ x: 1, y: 2 })
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "expected"),
+        "inline object literal should not satisfy a named type, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
