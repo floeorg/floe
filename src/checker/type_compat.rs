@@ -171,10 +171,6 @@ impl Checker {
         // Foreign-vs-Foreign is permissive because npm types often have subtype
         // relationships (e.g. SQLiteColumn extends SQLWrapper) that Floe can't verify.
         // TypeScript's own type checker validates the generated code.
-        // Foreign types: reject primitives, permissive otherwise.
-        // Foreign-vs-Foreign is permissive because npm types often have subtype
-        // relationships (e.g. SQLiteColumn extends SQLWrapper) that Floe can't verify.
-        // TypeScript's own type checker validates the generated code.
         if let Type::Foreign(_) = expected {
             return !actual.is_primitive();
         }
