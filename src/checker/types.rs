@@ -185,6 +185,13 @@ impl Type {
         }
     }
 
+    /// Returns true if the type is still being resolved (Unknown, Error, or a type
+    /// variable). Guards on this pattern prevent emitting cascading diagnostics when
+    /// there is not yet enough type information to report a meaningful error.
+    pub(crate) fn is_undetermined(&self) -> bool {
+        matches!(self, Type::Unknown | Type::Error | Type::Var(_))
+    }
+
     pub(crate) fn is_numeric(&self) -> bool {
         matches!(self, Type::Number)
     }

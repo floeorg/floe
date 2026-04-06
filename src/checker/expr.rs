@@ -292,7 +292,7 @@ impl Checker {
         let ty = self.check_expr(operand);
         match op {
             UnaryOp::Neg => {
-                if !ty.is_numeric() && !matches!(ty, Type::Unknown | Type::Error | Type::Var(_)) {
+                if !ty.is_numeric() && !ty.is_undetermined() {
                     self.emit_error(
                         format!("cannot negate type `{}`, expected `number`", ty),
                         span,
@@ -615,8 +615,8 @@ impl Checker {
 
             if let Some(ref first_type) = result_type {
                 if !self.types_unifiable(first_type, &arm_type)
-                    && !matches!(arm_type, Type::Unknown | Type::Error | Type::Var(_))
-                    && !matches!(first_type, Type::Unknown | Type::Error | Type::Var(_))
+                    && !arm_type.is_undetermined()
+                    && !first_type.is_undetermined()
                 {
                     self.emit_error(
                         format!(
@@ -682,8 +682,8 @@ impl Checker {
             let ty = self.check_expr(el);
             if let Some(ref prev) = elem_type {
                 if !self.types_compatible(prev, &ty)
-                    && !matches!(ty, Type::Unknown | Type::Error | Type::Var(_))
-                    && !matches!(prev, Type::Unknown | Type::Error | Type::Var(_))
+                    && !ty.is_undetermined()
+                    && !prev.is_undetermined()
                 {
                     mixed = true;
                 }
@@ -1137,8 +1137,8 @@ impl Checker {
             // Rule 8: == only between same types
             BinOp::Eq | BinOp::NotEq => {
                 if !self.types_compatible(&left_ty, &right_ty)
-                    && !matches!(left_ty, Type::Unknown | Type::Error | Type::Var(_))
-                    && !matches!(right_ty, Type::Unknown | Type::Error | Type::Var(_))
+                    && !left_ty.is_undetermined()
+                    && !right_ty.is_undetermined()
                 {
                     self.emit_error_with_help(
                         format!("cannot compare `{}` with `{}`", left_ty, right_ty),
@@ -1418,7 +1418,7 @@ impl Checker {
                     if let Some(ref field_types) = field_type_map
                         && let Some((_, expected_ty)) = field_types.iter().find(|(n, _)| n == label)
                         && !self.types_compatible(expected_ty, &arg_ty)
-                        && !matches!(arg_ty, Type::Unknown | Type::Error | Type::Var(_))
+                        && !arg_ty.is_undetermined()
                     {
                         self.emit_error(
                             format!(
@@ -1436,7 +1436,7 @@ impl Checker {
                     if let Some(ref field_types) = variant_field_types
                         && let Some(expected_ty) = field_types.get(positional_index)
                         && !self.types_compatible(expected_ty, &arg_ty)
-                        && !matches!(arg_ty, Type::Unknown | Type::Error | Type::Var(_))
+                        && !arg_ty.is_undetermined()
                     {
                         let (msg, label) = self.type_mismatch_detail(expected_ty, &arg_ty);
                         self.emit_error(
@@ -1779,9 +1779,7 @@ impl Checker {
         bindings: &mut HashMap<usize, Type>,
     ) {
         match (param_ty, actual_ty) {
-            (Type::Var(n), _)
-                if !matches!(actual_ty, Type::Unknown | Type::Error | Type::Var(_)) =>
-            {
+            (Type::Var(n), _) if !actual_ty.is_undetermined() => {
                 bindings.insert(*n, actual_ty.clone());
             }
             (Type::Array(p), Type::Array(a))

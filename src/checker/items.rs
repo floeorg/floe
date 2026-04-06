@@ -181,9 +181,7 @@ impl Checker {
         span: Span,
     ) -> Type {
         if let Some(tsgo_ty) = tsgo_type {
-            if matches!(tsgo_ty, Type::Unknown)
-                && !matches!(value_type, Type::Unknown | Type::Error | Type::Var(_))
-            {
+            if matches!(tsgo_ty, Type::Unknown) && !value_type.is_undetermined() {
                 // Probe resolved to Unknown (e.g. useMemo callback with free
                 // variables) but the checker inferred a concrete type via
                 // generic inference — prefer the checker's type.
@@ -477,9 +475,7 @@ impl Checker {
         let uses_await = super::body_has_promise_await(&decl.body);
 
         // When no return type annotation, infer from body and update the function type
-        if decl.return_type.is_none()
-            && !matches!(body_type, Type::Var(_) | Type::Unknown | Type::Error)
-        {
+        if decl.return_type.is_none() && !body_type.is_undetermined() {
             // If the body uses await, wrap the inferred return type in Promise<T>
             let inferred_return = if uses_await {
                 Type::Promise(Box::new(body_type.clone()))

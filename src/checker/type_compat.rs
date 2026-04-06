@@ -22,9 +22,7 @@ impl Checker {
     /// Used for match arm unification where `Result<unknown, E>` should unify
     /// with `Result<T, unknown>`.
     pub(crate) fn types_unifiable(&self, a: &Type, b: &Type) -> bool {
-        if matches!(a, Type::Unknown | Type::Error | Type::Var(_))
-            || matches!(b, Type::Unknown | Type::Error | Type::Var(_))
-        {
+        if a.is_undetermined() || b.is_undetermined() {
             return true;
         }
         match (a, b) {
