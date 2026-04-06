@@ -260,6 +260,19 @@ impl Checker {
                     required_params,
                 };
             }
+            // A registered type name used as a bare value is an error
+            // (record/union/alias types are not runtime values). Qualified
+            // variant access like `Route.Home` is parsed as `Construct`, not
+            // `Member`, so it never reaches this branch.
+            if self.env.lookup_type(name).is_some() {
+                self.emit_error(
+                    format!("`{name}` is a type, not a value"),
+                    span,
+                    ErrorCode::TypeUsedAsValue,
+                    "type name used as value",
+                );
+                return Type::Unknown;
+            }
             ty
         } else if self.stdlib.is_module(name) {
             // Stdlib module names (Array, String, etc.) are valid identifiers
