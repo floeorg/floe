@@ -72,8 +72,14 @@ pub enum Type {
     StringLiteral(String),
     /// Type variable (for inference)
     Var(usize),
-    /// The unknown/any escape hatch
+    /// The unknown/any escape hatch — used for genuinely unknown external types
+    /// (e.g. npm imports without type probes). Compatible with everything as expected,
+    /// but not as actual (same as TypeScript's `unknown`).
     Unknown,
+    /// Error sentinel — type resolution failed and an error was already emitted.
+    /// Compatible with all types in both directions to suppress cascading errors.
+    /// Should never reach codegen; if it does, that indicates a checker bug.
+    Error,
     /// Unit type () — replaces void, a real value usable in generics
     Unit,
     /// The never type — used for `todo` and `unreachable`, compatible with any type
@@ -177,6 +183,13 @@ impl Type {
         } else {
             self
         }
+    }
+
+    /// Returns true if the type is still being resolved (Unknown, Error, or a type
+    /// variable). Guards on this pattern prevent emitting cascading diagnostics when
+    /// there is not yet enough type information to report a meaningful error.
+    pub(crate) fn is_undetermined(&self) -> bool {
+        matches!(self, Type::Unknown | Type::Error | Type::Var(_))
     }
 
     pub(crate) fn is_numeric(&self) -> bool {
@@ -390,6 +403,7 @@ fn fmt_type(ty: &Type, style: TypeDisplayStyle, f: &mut fmt::Formatter<'_>) -> f
             TypeDisplayStyle::Default => write!(f, "?T{id}"),
         },
         Type::Unknown => f.write_str("unknown"),
+        Type::Error => f.write_str("<error>"),
         Type::Unit => f.write_str("()"),
         Type::Never => f.write_str("never"),
     }
