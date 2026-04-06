@@ -1097,9 +1097,17 @@ impl Checker {
                 Type::Foreign("_".into())
             }
             // Standalone Foreign identifier (trusted import without type info):
-            // argument types can't be validated, return Unknown.
-            Type::Foreign(_) => {
+            // argument types can't be validated. Warn so users know to add .d.ts types.
+            Type::Foreign(foreign_name) => {
                 self.check_args_unchecked(args);
+                let display_name = foreign_name.clone();
+                self.emit_warning_with_help(
+                    format!("`{display_name}` has unknown type - arguments are not type-checked"),
+                    span,
+                    ErrorCode::UncheckedArguments,
+                    "Type could not be resolved",
+                    "Check that the import source has type declarations",
+                );
                 Type::Unknown
             }
             Type::Error => {

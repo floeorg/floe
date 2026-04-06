@@ -2,4 +2,12 @@
 source: tests/snapshot_errors.rs
 expression: output
 ---
-
+[33m[W004] Warning:[0m `fetchUser` has unknown type - arguments are not type-checked
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.fl:2:12 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m2 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m_[0m[38;5;249mx[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[33mf[0m[33me[0m[33mt[0m[33mc[0m[33mh[0m[33mU[0m[33ms[0m[33me[0m[33mr[0m[33m([0m[33m"[0m[33m1[0m[33m2[0m[33m3[0m[33m"[0m[33m)[0m
+ [38;5;240m  │[0m            [33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m┬[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m  
+ [38;5;240m  │[0m                    [33m╰[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m Type could not be resolved
+ [38;5;240m  │[0m 
+ [38;5;240m  │[0m [38;5;115mHelp[0m: Check that the import source has type declarations
+[38;5;246m───╯[0m
