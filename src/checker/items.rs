@@ -182,7 +182,7 @@ impl Checker {
     ) -> Type {
         if let Some(tsgo_ty) = tsgo_type {
             if matches!(tsgo_ty, Type::Unknown)
-                && !matches!(value_type, Type::Unknown | Type::Var(_))
+                && !matches!(value_type, Type::Unknown | Type::Error | Type::Var(_))
             {
                 // Probe resolved to Unknown (e.g. useMemo callback with free
                 // variables) but the checker inferred a concrete type via
@@ -278,7 +278,7 @@ impl Checker {
     fn array_element_type(effective_type: &Type, i: usize) -> Type {
         match effective_type {
             Type::Tuple(types) => types.get(i).cloned().unwrap_or(Type::Unknown),
-            Type::Unknown | Type::Var(_) => Type::Unknown,
+            Type::Unknown | Type::Error | Type::Var(_) => Type::Unknown,
             other if i == 0 => other.clone(),
             _ => Type::Unknown,
         }
@@ -288,7 +288,7 @@ impl Checker {
     fn tuple_element_type(final_type: &Type, i: usize) -> Type {
         match final_type {
             Type::Tuple(types) => types.get(i).cloned().unwrap_or(Type::Unknown),
-            Type::Unknown | Type::Var(_) => Type::Unknown,
+            Type::Unknown | Type::Error | Type::Var(_) => Type::Unknown,
             _ => Type::Unknown,
         }
     }
@@ -477,7 +477,7 @@ impl Checker {
         let uses_await = super::body_has_promise_await(&decl.body);
 
         // When no return type annotation, infer from body and update the function type
-        if decl.return_type.is_none() && !matches!(body_type, Type::Var(_) | Type::Unknown) {
+        if decl.return_type.is_none() && !matches!(body_type, Type::Var(_) | Type::Unknown | Type::Error) {
             // If the body uses await, wrap the inferred return type in Promise<T>
             let inferred_return = if uses_await {
                 Type::Promise(Box::new(body_type.clone()))
@@ -521,7 +521,7 @@ impl Checker {
                 _ => resolved.clone(),
             };
             if !self.types_compatible(&effective_declared, &body_type)
-                && !matches!(body_type, Type::Var(_))
+                && !matches!(body_type, Type::Var(_) | Type::Error)
             {
                 let (msg, label) = if let Some((annotation, lbl)) =
                     self.extra_mismatch_detail(&effective_declared, &body_type)
@@ -742,7 +742,7 @@ impl Checker {
                 TestStatement::Assert(expr, span) => {
                     let ty = self.check_expr(expr);
                     // Ensure assert expression evaluates to boolean
-                    if !matches!(ty, Type::Bool | Type::Unknown | Type::Var(_)) {
+                    if !matches!(ty, Type::Bool | Type::Unknown | Type::Error | Type::Var(_)) {
                         self.emit_error(
                             format!("assert expression must be boolean, found `{}`", ty),
                             *span,
@@ -890,7 +890,7 @@ impl Checker {
     /// Skip Foreign, Named (npm types), Unknown, Var, and Option-wrapped versions.
     fn is_jsx_prop_type_checkable(&self, ty: &Type) -> bool {
         match ty {
-            Type::Unknown | Type::Foreign(_) | Type::Named(_) | Type::Var(_) => false,
+            Type::Unknown | Type::Error | Type::Foreign(_) | Type::Named(_) | Type::Var(_) => false,
             _ if ty.is_option() => {
                 // Option<T> — check if T is checkable
                 ty.option_inner()

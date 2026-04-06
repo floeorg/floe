@@ -22,7 +22,9 @@ impl Checker {
     /// Used for match arm unification where `Result<unknown, E>` should unify
     /// with `Result<T, unknown>`.
     pub(crate) fn types_unifiable(&self, a: &Type, b: &Type) -> bool {
-        if matches!(a, Type::Unknown | Type::Var(_)) || matches!(b, Type::Unknown | Type::Var(_)) {
+        if matches!(a, Type::Unknown | Type::Error | Type::Var(_))
+            || matches!(b, Type::Unknown | Type::Error | Type::Var(_))
+        {
             return true;
         }
         match (a, b) {
@@ -57,8 +59,8 @@ impl Checker {
     /// `Result<Option<Session>, AuthError>`
     pub(crate) fn merge_types(a: &Type, b: &Type) -> Type {
         match (a, b) {
-            (Type::Unknown, _) => b.clone(),
-            (_, Type::Unknown) => a.clone(),
+            (Type::Unknown | Type::Error, _) => b.clone(),
+            (_, Type::Unknown | Type::Error) => a.clone(),
             (a, b) if a.is_result() && b.is_result() => {
                 let ok = Self::merge_types(
                     a.result_ok().unwrap_or(&Type::Unknown),
@@ -124,6 +126,10 @@ impl Checker {
     }
 
     pub(crate) fn types_compatible(&self, expected: &Type, actual: &Type) -> bool {
+        // Error in either position: suppress cascading errors by accepting any type
+        if matches!(expected, Type::Error) || matches!(actual, Type::Error) {
+            return true;
+        }
         // Unknown/Var as EXPECTED: anything can be assigned to unknown (widening)
         if matches!(expected, Type::Unknown | Type::Var(_)) {
             return true;

@@ -63,7 +63,7 @@ impl Checker {
                             ErrorCode::ExportNotFound,
                             "not found in module",
                         );
-                        Type::Unknown
+                        Type::Error
                     }
                 }
             } else if let Some(ref exports) = dts_exports {
@@ -98,7 +98,7 @@ impl Checker {
                         ErrorCode::ExportNotFound,
                         "not found in module",
                     );
-                    Type::Unknown
+                    Type::Error
                 }
             } else {
                 // No .fl resolution and no .d.ts — type is foreign to Floe

@@ -199,3 +199,25 @@ fn snapshot_error_member_access_on_non_record_type() {
     );
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_error_no_cascade_from_undefined_name() {
+    // When a name is undefined, the error type (Type::Error) should suppress
+    // cascading "type mismatch" errors on downstream uses.
+    let output = get_diagnostics(
+        "test.fl",
+        "fn check() -> number {\n  undefined_name + 1\n}",
+    );
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_error_no_cascade_from_invalid_field_access() {
+    // When field access fails, Type::Error suppresses cascading errors
+    // on the result (e.g. no "found <error>" type mismatch message).
+    let output = get_diagnostics(
+        "test.fl",
+        "type User { name: string }\nfn check(u: User) -> number {\n  u.missing_field\n}",
+    );
+    insta::assert_snapshot!(output);
+}
