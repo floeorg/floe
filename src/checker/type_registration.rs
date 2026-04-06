@@ -105,10 +105,10 @@ impl Checker {
                 // are not runtime values and stay out of the value namespace.
                 let has_unresolved_spreads =
                     entries.iter().any(|e| matches!(e, RecordEntry::Spread(_)));
-                if has_unresolved_spreads {
-                    if let Some(probe_ty) = self.find_type_probe(&decl.name) {
-                        self.env.define(&decl.name, probe_ty);
-                    }
+                if has_unresolved_spreads
+                    && let Some(probe_ty) = self.find_type_probe(&decl.name)
+                {
+                    self.env.define(&decl.name, probe_ty);
                 }
 
                 // Populate __field_ entries for dot-access completions
