@@ -196,6 +196,14 @@ pub(super) fn build_specifier_map(
                     .entry(specifier.clone())
                     .or_default()
                     .push(export.clone());
+            } else if let Some(first_specifier) = result.keys().next().cloned() {
+                // Type-name-rooted chain (e.g. __chain_Database$insert$values$returning)
+                // where the root is a Floe bridge type, not a direct npm import.
+                // Route to any available specifier so lookup_dts_probe can find it.
+                result
+                    .entry(first_specifier)
+                    .or_default()
+                    .push(export.clone());
             }
         }
         // Route type/JSX probes to any specifier so the checker can find them

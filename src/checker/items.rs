@@ -276,6 +276,7 @@ impl Checker {
     fn array_element_type(effective_type: &Type, i: usize) -> Type {
         match effective_type {
             Type::Tuple(types) => types.get(i).cloned().unwrap_or(Type::Unknown),
+            Type::Array(elem) => (**elem).clone(),
             Type::Unknown | Type::Error | Type::Var(_) => Type::Unknown,
             other if i == 0 => other.clone(),
             _ => Type::Unknown,

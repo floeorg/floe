@@ -3,7 +3,7 @@
 //! The probe re-exports imported symbols with concrete type arguments so tsgo
 //! can emit a `.d.ts` with fully-resolved types.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::parser::ast::*;
@@ -112,7 +112,54 @@ pub(super) fn generate_probe(
         }
     }
 
-    if external_imports.is_empty() {
+    // Collect npm imports from resolved .fl modules so bridge type aliases
+    // (e.g. `type Database = DrizzleD1Database<Schema>`) are resolvable in the probe.
+    // Keyed by specifier for deduplication; NOT added to `imported_names` so they
+    // don't produce `_rN` re-exports and don't perturb the specifier_map index.
+    let mut fl_module_npm_imports: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    // Names imported from FL module npm deps — used for chain step arg detection.
+    let mut fl_module_imported_names: HashSet<String> = HashSet::new();
+    for resolved in resolved_imports.values() {
+        for decl in &resolved.npm_imports {
+            let names = fl_module_npm_imports
+                .entry(decl.source.clone())
+                .or_default();
+            for spec in &decl.specifiers {
+                let effective_name = spec.alias.as_deref().unwrap_or(&spec.name);
+                // Only add if not already in the main imported_names (avoid collisions)
+                if !imported_names.contains_key(effective_name) {
+                    names.push(if let Some(alias) = &spec.alias {
+                        format!("{} as {}", spec.name, alias)
+                    } else {
+                        spec.name.clone()
+                    });
+                    fl_module_imported_names.insert(effective_name.to_string());
+                }
+            }
+        }
+    }
+    // Build set of Floe-defined type names for param_type_map lookup.
+    // Allows chain probes for parameters typed as Floe bridge types
+    // (e.g. db: Database where Database is `type Database = DrizzleType`).
+    let fl_type_names: HashSet<&str> = program
+        .items
+        .iter()
+        .filter_map(|item| {
+            if let ItemKind::TypeDecl(decl) = &item.kind {
+                Some(decl.name.as_str())
+            } else {
+                None
+            }
+        })
+        .chain(
+            resolved_imports
+                .values()
+                .flat_map(|r| r.type_decls.iter())
+                .map(|d| d.name.as_str()),
+        )
+        .collect();
+
+    if external_imports.is_empty() && fl_module_npm_imports.is_empty() {
         return String::new();
     }
 
@@ -141,6 +188,16 @@ pub(super) fn generate_probe(
             "import {{ {} }} from \"{}\";",
             names.join(", "),
             source
+        ));
+    }
+
+    // Emit npm imports from resolved .fl modules (for bridge type resolution).
+    // These are type-only context imports; they don't produce _rN re-exports.
+    for (specifier, names) in &fl_module_npm_imports {
+        lines.push(format!(
+            "import {{ {} }} from \"{}\";",
+            names.join(", "),
+            specifier
         ));
     }
 
@@ -636,7 +693,8 @@ pub(super) fn generate_probe(
                             },
                         ..
                     }) = &param.type_ann
-                        && imported_names.contains_key(type_name)
+                        && (imported_names.contains_key(type_name)
+                            || fl_type_names.contains(type_name.as_str()))
                     {
                         map.insert(param.name.clone(), type_name.clone());
                     }
@@ -652,7 +710,8 @@ pub(super) fn generate_probe(
                             && let TypeExprKind::Named {
                                 name: field_type, ..
                             } = &field.type_ann.kind
-                            && imported_names.contains_key(field_type)
+                            && (imported_names.contains_key(field_type)
+                                || fl_type_names.contains(field_type.as_str()))
                         {
                             map.insert(format!("self.{}", field.name), field_type.clone());
                         }
@@ -675,6 +734,15 @@ pub(super) fn generate_probe(
     let mut chain_step_args: HashMap<String, String> = HashMap::new();
     // Track which chain steps are zero-arg calls (e.g. .select()) for full-chain probes
     let mut chain_step_zero_args: HashSet<String> = HashSet::new();
+    // Pre-merge imported_names and fl_module_imported_names for type-rooted chain arg detection.
+    // Built once here rather than inside the walk closure to avoid cloning per expression.
+    let combined_imported_names: HashMap<String, String> = {
+        let mut m = imported_names.clone();
+        for name in &fl_module_imported_names {
+            m.entry(name.clone()).or_default();
+        }
+        m
+    };
     crate::walk::walk_program(program, &mut |expr| {
         if matches!(&expr.kind, ExprKind::Member { .. }) {
             // Try variable-rooted chain (direct import like `import { db }`)
@@ -694,10 +762,12 @@ pub(super) fn generate_probe(
                 let root_key = type_path[..=1].join("$");
                 type_rooted_chains.insert(root_key.clone());
 
-                // Capture imported arguments at each call step in the chain
+                // Capture imported arguments at each call step in the chain.
+                // combined_imported_names includes fl_module_imported_names so
+                // args like `snippetsTable` (imported via a .fl module's npm dep) are captured.
                 collect_chain_step_args(
                     expr,
-                    &imported_names,
+                    &combined_imported_names,
                     &type_path,
                     &mut chain_step_args,
                     &mut chain_step_zero_args,
@@ -751,6 +821,18 @@ pub(super) fn generate_probe(
                         }
                         let field = &path[end_idx];
                         lines.push(format!("export const {export_name} = {expr}.{field};"));
+                        // Also capture the result of CALLING the method (the builder value)
+                        // and its awaited form. This handles thenable builders (e.g. drizzle's
+                        // `.returning()` returns a PromiseLike that resolves to the rows).
+                        // Calling in the probe is safe: tsgo only type-checks it, never executes.
+                        let called_name = format!("__chain_called_{chain_key}");
+                        lines.push(format!("export const {called_name} = {expr}.{field}();"));
+                        let await_name = format!("__chain_await_{chain_key}");
+                        let await_fn = format!("{await_name}_fn");
+                        lines.push(format!(
+                            "declare function {await_fn}(): Awaited<typeof {called_name}>;"
+                        ));
+                        lines.push(format!("export const {await_name} = {await_fn}();"));
                     }
                 }
             } else {

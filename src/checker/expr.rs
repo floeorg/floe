@@ -99,6 +99,25 @@ impl Checker {
             ExprKind::Unary { op, operand } => self.check_unary(*op, operand, expr.span),
             ExprKind::Pipe { left, right } => {
                 let left_ty = self.check_expr(left);
+                // Special case: `chain_call() |> await` — look up the awaited chain probe
+                // which captures `Awaited<ReturnType<typeof chain>>`. This handles drizzle-style
+                // thenable builders where the chain result isn't a Promise but resolves via await.
+                if Self::is_await_ref(right)
+                    && let Some(awaited_ty) = self.lookup_awaited_chain_probe(left)
+                {
+                    // If the chain passes through untrusted imports, wrap the awaited
+                    // result in Result<T, Error> so the user explicitly handles failures
+                    // (match or `?`). Consistent with untrusted call semantics.
+                    if let ExprKind::Call { callee, .. } = &left.kind
+                        && self.is_callee_on_untrusted_foreign(callee)
+                    {
+                        return Type::result_of(
+                            awaited_ty,
+                            Type::Named(type_layout::TYPE_ERROR.to_string()),
+                        );
+                    }
+                    return awaited_ty;
+                }
                 self.check_pipe_right(&left_ty, right)
             }
             ExprKind::Unwrap(inner) => self.check_unwrap(inner, expr.span),
@@ -1347,6 +1366,19 @@ impl Checker {
         if let Some(spread_expr) = spread {
             let spread_type = self.check_expr(spread_expr);
 
+            // Reject Result spreads — the Result must be unwrapped first (match or `?`)
+            if spread_type.is_result() {
+                self.emit_error_with_help(
+                    format!(
+                        "cannot spread `Result` value into `{type_name}` — unwrap the Result first"
+                    ),
+                    spread_expr.span,
+                    ErrorCode::FieldAccessOnResult,
+                    "`Result` must be narrowed first",
+                    "use `match result { Ok(v) -> ..., Err(e) -> ... }` or `?` to unwrap",
+                );
+            }
+
             if let Type::Record(spread_fields) = &spread_type {
                 let spread_keys: Vec<&str> =
                     spread_fields.iter().map(|(k, _)| k.as_str()).collect();
@@ -1744,6 +1776,14 @@ impl Checker {
                 // so chained calls like db.insert(...).values(...).returning() |> await
                 // don't collapse to Unknown
                 (_, Type::Foreign(_)) => left_ty.clone(),
+                // Result<Foreign, _> from an untrusted chain (e.g. untrusted db chain
+                // wrapped at each call): propagate the Result as-is so the user can
+                // unwrap and access the Foreign result rather than getting `?T0`.
+                _ if left_ty.is_result()
+                    && matches!(left_ty.result_ok(), Some(Type::Foreign(_))) =>
+                {
+                    left_ty.clone()
+                }
                 _ => stdlib_fn.return_type.clone(),
             }
         }
@@ -2180,7 +2220,18 @@ impl Checker {
         if let Some(root_type) = self.env.lookup(root_name) {
             let type_name = match root_type {
                 Type::Foreign(name) => Some(name.clone()),
-                Type::Named(name) if self.env.lookup_type(name).is_none() => Some(name.clone()),
+                // Unknown types (not registered locally) and bridge type aliases (= syntax
+                // wrapping a TS type) both use chain probes since resolve_member_type can't
+                // evaluate TypeScript method access for either.
+                Type::Named(name)
+                    if self.env.lookup_type(name).is_none()
+                        || self
+                            .env
+                            .lookup_type(name)
+                            .is_some_and(|info| matches!(info.def, TypeDef::Alias(_))) =>
+                {
+                    Some(name.clone())
+                }
                 _ => None,
             };
             if let Some(type_name) = type_name {
@@ -2197,7 +2248,15 @@ impl Checker {
                 let member_ty = self.resolve_member_type_silent(root_type, second);
                 let type_name = match &member_ty {
                     Type::Foreign(name) => Some(name.clone()),
-                    Type::Named(name) if self.env.lookup_type(name).is_none() => Some(name.clone()),
+                    Type::Named(name)
+                        if self.env.lookup_type(name).is_none()
+                            || self
+                                .env
+                                .lookup_type(name)
+                                .is_some_and(|info| matches!(info.def, TypeDef::Alias(_))) =>
+                    {
+                        Some(name.clone())
+                    }
                     _ => None,
                 };
                 if let Some(type_name) = type_name {
@@ -2209,6 +2268,54 @@ impl Checker {
             }
         }
 
+        None
+    }
+
+    /// Check if an expression is a reference to the `await` stdlib function
+    /// (either `await` bare or `Promise.await`).
+    fn is_await_ref(expr: &Expr) -> bool {
+        match &expr.kind {
+            ExprKind::Identifier(name) => name == "await",
+            ExprKind::Member { object, field } => {
+                field == "await"
+                    && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise")
+            }
+            _ => false,
+        }
+    }
+
+    /// Look up an awaited chain probe for a chain call expression.
+    /// e.g. for `db.insert(t).values({...}).returning()`, tries probes
+    /// `__chain_await_db$insert$values$returning` and (type-rooted)
+    /// `__chain_await_Database$insert$values$returning`.
+    /// Also handles the `?` unwrap form `chain()?` by peeling through Unwrap.
+    fn lookup_awaited_chain_probe(&mut self, left: &Expr) -> Option<Type> {
+        // Peel through Unwrap (e.g. `chain()?`) to reach the underlying call
+        let expr = match &left.kind {
+            ExprKind::Unwrap(inner) => inner.as_ref(),
+            _ => left,
+        };
+        let callee = match &expr.kind {
+            ExprKind::Call { callee, .. } => callee,
+            _ => return None,
+        };
+        let (object, field) = match &callee.kind {
+            ExprKind::Member { object, field } => (object, field),
+            _ => return None,
+        };
+        let chain_key = extract_chain_key(object, field)?;
+        // Try variable-name key first
+        let probe_name = format!("__chain_await_{chain_key}");
+        if let Some(ty) = self.lookup_dts_probe(&probe_name) {
+            return Some(ty);
+        }
+        // Try type-name key (parameter/field typed as npm/bridge type)
+        if let Some(type_key) = self.chain_key_by_root_type(object, field) {
+            let probe_name = format!("__chain_await_{type_key}");
+            if let Some(ty) = self.lookup_dts_probe(&probe_name) {
+                return Some(ty);
+            }
+        }
         None
     }
 
@@ -2371,10 +2478,27 @@ impl Checker {
 
         // Named type that couldn't resolve to concrete — if no local type definition
         // exists, treat as foreign (the type came from npm through cross-file propagation).
-        // If it HAS a local definition, it's a genuine error (missing field).
+        // If it HAS a local definition, it's a genuine error (missing field) UNLESS the
+        // definition is a bridge type alias (= syntax) wrapping a foreign TS type.
         if let Type::Named(name) = obj_ty {
-            if self.env.lookup_type(name).is_none() {
+            let type_info = self.env.lookup_type(name);
+            if type_info.is_none() {
                 return Type::Foreign(format!("{name}.{field}"));
+            }
+            // Bridge type alias: resolve through the alias and check if it reaches a
+            // foreign/unknown type. If so, propagate member access silently so chain
+            // probes at deeper levels (depth ≥ 3) can resolve the full chain type.
+            if type_info.is_some_and(|info| matches!(info.def, TypeDef::Alias(_))) {
+                let resolved = self.resolve_type_to_concrete(obj_ty);
+                match &resolved {
+                    Type::Named(resolved_name) if self.env.lookup_type(resolved_name).is_none() => {
+                        return Type::Foreign(format!("{resolved_name}.{field}"));
+                    }
+                    Type::Foreign(resolved_name) => {
+                        return Type::Foreign(format!("{resolved_name}.{field}"));
+                    }
+                    _ => {}
+                }
             }
             self.emit_error_with_help(
                 format!("cannot access `.{field}` on unresolved type `{name}`"),
