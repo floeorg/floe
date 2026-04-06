@@ -260,6 +260,19 @@ impl Checker {
                     required_params,
                 };
             }
+            // A registered type name used as a bare value is an error
+            // (record/union/alias types are not runtime values). Qualified
+            // variant access like `Route.Home` is parsed as `Construct`, not
+            // `Member`, so it never reaches this branch.
+            if self.env.lookup_type(name).is_some() {
+                self.emit_error(
+                    format!("`{name}` is a type, not a value"),
+                    span,
+                    ErrorCode::TypeUsedAsValue,
+                    "type name used as value",
+                );
+                return Type::Error;
+            }
             ty
         } else if self.stdlib.is_module(name) {
             // Stdlib module names (Array, String, etc.) are valid identifiers
@@ -271,7 +284,7 @@ impl Checker {
                 ErrorCode::UndefinedName,
                 "not found in scope",
             );
-            Type::Unknown
+            Type::Error
         }
     }
 
@@ -279,7 +292,7 @@ impl Checker {
         let ty = self.check_expr(operand);
         match op {
             UnaryOp::Neg => {
-                if !ty.is_numeric() && !matches!(ty, Type::Unknown | Type::Var(_)) {
+                if !ty.is_numeric() && !ty.is_undetermined() {
                     self.emit_error(
                         format!("cannot negate type `{}`, expected `number`", ty),
                         span,
@@ -416,7 +429,7 @@ impl Checker {
                     ErrorCode::InvalidTryOperator,
                     "not a `Result` or `Option`",
                 );
-                Type::Unknown
+                Type::Error
             }
         }
     }
@@ -471,7 +484,7 @@ impl Checker {
         match &concrete {
             Type::Array(inner) => {
                 // Index must be a number
-                if !matches!(idx_ty, Type::Number | Type::Unknown) {
+                if !matches!(idx_ty, Type::Number | Type::Unknown | Type::Error) {
                     self.emit_error(
                         format!("array index must be `number`, found `{}`", idx_ty),
                         index.span,
@@ -499,7 +512,7 @@ impl Checker {
                                 )
                                 .with_error_code(ErrorCode::InvalidTupleIndex),
                             );
-                            Type::Unknown
+                            Type::Error
                         }
                     } else {
                         self.diagnostics.push(
@@ -509,7 +522,7 @@ impl Checker {
                             )
                             .with_error_code(ErrorCode::InvalidTupleIndex),
                         );
-                        Type::Unknown
+                        Type::Error
                     }
                 } else {
                     self.emit_error(
@@ -518,10 +531,10 @@ impl Checker {
                         ErrorCode::InvalidTupleIndex,
                         "dynamic indexing is not allowed on tuples",
                     );
-                    Type::Unknown
+                    Type::Error
                 }
             }
-            Type::Unknown | Type::Foreign(_) | Type::Never => Type::Unknown,
+            Type::Unknown | Type::Error | Type::Foreign(_) | Type::Never => Type::Unknown,
             Type::Var(_) => Type::Unknown,
             _ => {
                 if let Type::Named(name) = &obj_ty
@@ -535,7 +548,7 @@ impl Checker {
                     ErrorCode::InvalidBracketAccess,
                     "not an array or tuple type",
                 );
-                Type::Unknown
+                Type::Error
             }
         }
     }
@@ -602,8 +615,8 @@ impl Checker {
 
             if let Some(ref first_type) = result_type {
                 if !self.types_unifiable(first_type, &arm_type)
-                    && !matches!(arm_type, Type::Unknown | Type::Var(_))
-                    && !matches!(first_type, Type::Unknown | Type::Var(_))
+                    && !arm_type.is_undetermined()
+                    && !first_type.is_undetermined()
                 {
                     self.emit_error(
                         format!(
@@ -669,8 +682,8 @@ impl Checker {
             let ty = self.check_expr(el);
             if let Some(ref prev) = elem_type {
                 if !self.types_compatible(prev, &ty)
-                    && !matches!(ty, Type::Unknown | Type::Var(_))
-                    && !matches!(prev, Type::Unknown | Type::Var(_))
+                    && !ty.is_undetermined()
+                    && !prev.is_undetermined()
                 {
                     mixed = true;
                 }
@@ -1058,6 +1071,11 @@ impl Checker {
                 self.check_args_unchecked(args);
                 Type::Foreign("_".into())
             }
+            Type::Error => {
+                // Error already emitted upstream — suppress cascading diagnostics
+                self.check_args_unchecked(args);
+                Type::Error
+            }
             Type::Unknown => {
                 self.check_args_unchecked(args);
                 let callee_name = match &callee.kind {
@@ -1094,7 +1112,10 @@ impl Checker {
 
     fn check_boolean_operand(&mut self, ty: &Type, concrete: &Type, span: Span, op: &str) {
         if !concrete.is_boolean()
-            && !matches!(concrete, Type::Unknown | Type::Var(_) | Type::Foreign(_))
+            && !matches!(
+                concrete,
+                Type::Unknown | Type::Error | Type::Var(_) | Type::Foreign(_)
+            )
         {
             self.emit_error_with_help(
                 format!("expected boolean operand for `{op}`, found `{}`", ty),
@@ -1116,8 +1137,8 @@ impl Checker {
             // Rule 8: == only between same types
             BinOp::Eq | BinOp::NotEq => {
                 if !self.types_compatible(&left_ty, &right_ty)
-                    && !matches!(left_ty, Type::Unknown | Type::Var(_))
-                    && !matches!(right_ty, Type::Unknown | Type::Var(_))
+                    && !left_ty.is_undetermined()
+                    && !right_ty.is_undetermined()
                 {
                     self.emit_error_with_help(
                         format!("cannot compare `{}` with `{}`", left_ty, right_ty),
@@ -1397,7 +1418,7 @@ impl Checker {
                     if let Some(ref field_types) = field_type_map
                         && let Some((_, expected_ty)) = field_types.iter().find(|(n, _)| n == label)
                         && !self.types_compatible(expected_ty, &arg_ty)
-                        && !matches!(arg_ty, Type::Unknown | Type::Var(_))
+                        && !arg_ty.is_undetermined()
                     {
                         self.emit_error(
                             format!(
@@ -1415,7 +1436,7 @@ impl Checker {
                     if let Some(ref field_types) = variant_field_types
                         && let Some(expected_ty) = field_types.get(positional_index)
                         && !self.types_compatible(expected_ty, &arg_ty)
-                        && !matches!(arg_ty, Type::Unknown | Type::Var(_))
+                        && !arg_ty.is_undetermined()
                     {
                         let (msg, label) = self.type_mismatch_detail(expected_ty, &arg_ty);
                         self.emit_error(
@@ -1638,8 +1659,8 @@ impl Checker {
                     }
                     return *return_type;
                 }
-                // Unknown types: don't error (not enough info)
-                Type::Unknown | Type::Var(_) => {}
+                // Unknown/Error types: don't error (not enough info or error already emitted)
+                Type::Unknown | Type::Error | Type::Var(_) => {}
                 // Non-function types: error
                 _ => {
                     self.emit_error(
@@ -1758,7 +1779,7 @@ impl Checker {
         bindings: &mut HashMap<usize, Type>,
     ) {
         match (param_ty, actual_ty) {
-            (Type::Var(n), _) if !matches!(actual_ty, Type::Unknown | Type::Var(_)) => {
+            (Type::Var(n), _) if !actual_ty.is_undetermined() => {
                 bindings.insert(*n, actual_ty.clone());
             }
             (Type::Array(p), Type::Array(a))
@@ -1956,7 +1977,9 @@ impl Checker {
     ) {
         match (param, arg) {
             // Named("S") matches anything if S is a generic param
-            (Type::Named(n), _) if generics.contains(n) && !matches!(arg, Type::Unknown) => {
+            (Type::Named(n), _)
+                if generics.contains(n) && !matches!(arg, Type::Unknown | Type::Error) =>
+            {
                 subs.entry(n.clone()).or_insert_with(|| arg.clone());
             }
             // Recurse into compound types
@@ -2247,7 +2270,7 @@ impl Checker {
                 "`Result` must be narrowed first",
                 "use `match result { Ok(v) -> ..., Err(e) -> ... }`",
             );
-            return Type::Unknown;
+            return Type::Error;
         }
         if let Type::Union { name, .. } = obj_ty {
             self.emit_error_with_help(
@@ -2257,7 +2280,7 @@ impl Checker {
                 "union must be narrowed first",
                 "use `match` to narrow the union first",
             );
-            return Type::Unknown;
+            return Type::Error;
         }
 
         // Error on member access on Promise — must use Promise.await first
@@ -2271,7 +2294,7 @@ impl Checker {
                 ErrorCode::AccessOnPromise,
                 "must use `Promise.await` before accessing members",
             );
-            return Type::Unknown;
+            return Type::Error;
         }
 
         // Error on member access on `unknown` — must narrow first
@@ -2283,7 +2306,12 @@ impl Checker {
                 "`unknown` must be narrowed before member access",
                 "use `match`, type validation (e.g. Zod), or pattern matching",
             );
-            return Type::Unknown;
+            return Type::Error;
+        }
+
+        // Error propagation: if the object type is already an error, propagate silently
+        if matches!(obj_ty, Type::Error) {
+            return Type::Error;
         }
 
         // Resolve Named types to their concrete definition
@@ -2309,7 +2337,7 @@ impl Checker {
                 )
                 .with_error_code(ErrorCode::InvalidTupleIndex),
             );
-            return Type::Unknown;
+            return Type::Error;
         }
 
         // Error on member access on primitive and function types
@@ -2321,7 +2349,7 @@ impl Checker {
                     ErrorCode::InvalidFieldAccess,
                     "not a record type",
                 );
-                return Type::Unknown;
+                return Type::Error;
             }
             _ => {}
         }
@@ -2356,7 +2384,7 @@ impl Checker {
                 "type definition not found",
                 "ensure the type's source module has a .d.ts file or is a .fl file",
             );
-            return Type::Unknown;
+            return Type::Error;
         }
 
         // Never is the bottom type — member access propagates Never
@@ -2376,7 +2404,7 @@ impl Checker {
             ErrorCode::InvalidFieldAccess,
             "this type does not support member access",
         );
-        Type::Unknown
+        Type::Error
     }
 
     /// Validate field access on a resolved Record type, returning the field type
@@ -2408,7 +2436,7 @@ impl Checker {
                     .join(", ")
             ),
         );
-        Type::Unknown
+        Type::Error
     }
 
     /// Define bindings for a destructured parameter in the current scope.

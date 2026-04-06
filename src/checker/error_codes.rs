@@ -121,6 +121,8 @@ pub enum ErrorCode {
     TsgoNotFound,
     /// Wrong number of type arguments for a generic type.
     TypeArgumentArity,
+    /// Type name used where a value is expected.
+    TypeUsedAsValue,
 }
 
 impl ErrorCode {
@@ -176,6 +178,7 @@ impl ErrorCode {
             Self::TsgoNotFound => "E043",
             Self::ExportNotFound => "E044",
             Self::TypeArgumentArity => "E045",
+            Self::TypeUsedAsValue => "E046",
         }
     }
 }

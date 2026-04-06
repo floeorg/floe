@@ -82,6 +82,8 @@ pub enum TokenKind {
     // -- Operators --
     /// `|>` — pipe operator
     Pipe,
+    /// `|>?` — pipe-unwrap operator (pipe, then unwrap the result)
+    PipeUnwrap,
     /// `->` — match arm arrow
     ThinArrow,
     /// `<-` — use binding arrow

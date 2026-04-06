@@ -83,6 +83,7 @@
 
 ; ── Operators ────────────────────────────────────────────
 "|>" @operator
+"|>?" @operator
 "->" @operator
 "?" @operator
 ".." @operator

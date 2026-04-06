@@ -38,6 +38,7 @@ Equality operators compile to strict equality (`===`, `!==`). Structural equalit
 | Operator | Description | Example |
 |----------|-------------|---------|
 | `\|>` | Pipe | `x \|> f` |
+| `\|>?` | Pipe-unwrap | `x \|>? f` |
 
 The pipe operator passes the left side as the first argument to the right side. Use `_` as a placeholder for non-first-argument positions.
 
@@ -46,6 +47,12 @@ x |> f          // f(x)
 x |> f(a, _)    // f(a, x)
 x |> f |> g     // g(f(x))
 x |> match { ... }  // match x { ... }
+```
+
+The pipe-unwrap operator `|>?` pipes the value and then unwraps the result — equivalent to `(x |> f)?`.
+
+```floe
+x |>? f         // (x |> f)? — unwraps Result/Option, returns early on Err/None
 ```
 
 ## Unwrap

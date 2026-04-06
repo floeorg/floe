@@ -201,11 +201,16 @@ impl<'src> Lexer<'src> {
                 }
             }
 
-            // Pipe (|>) or PipePipe (||)
+            // Pipe (|>), PipeUnwrap (|>?), or PipePipe (||)
             b'|' => {
                 if self.peek() == Some(b'>') {
                     self.advance();
-                    TokenKind::Pipe
+                    if self.peek() == Some(b'?') {
+                        self.advance();
+                        TokenKind::PipeUnwrap
+                    } else {
+                        TokenKind::Pipe
+                    }
                 } else if self.peek() == Some(b'|') {
                     self.advance();
                     TokenKind::PipePipe

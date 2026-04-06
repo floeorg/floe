@@ -84,7 +84,7 @@ impl Checker {
                         "not defined",
                         "typeof can only be used with value bindings (const, fn)",
                     );
-                    Type::Unknown
+                    Type::Error
                 }
             }
         }
@@ -191,7 +191,7 @@ impl Checker {
                             "cannot use a value as a type",
                             "check the spelling or import/define this type",
                         );
-                        Type::Unknown
+                        Type::Error
                     }
                 } else if self.ambient_types.contains_key(name) {
                     // Accept ambient type names from TypeScript lib definitions
@@ -205,7 +205,7 @@ impl Checker {
                         "not defined",
                         "check the spelling or import/define this type",
                     );
-                    Type::Unknown
+                    Type::Error
                 }
             }
         }

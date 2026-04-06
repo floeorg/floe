@@ -167,7 +167,7 @@
       "patterns": [
         {
           "name": "keyword.operator.pipe.floe",
-          "match": "\\|>"
+          "match": "\\|>\\??"
         },
         {
           "name": "keyword.operator.arrow.floe",

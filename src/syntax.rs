@@ -52,6 +52,7 @@ pub enum SyntaxKind {
 
     // Operators
     PIPE,          // |>
+    PIPE_UNWRAP,   // |>?
     THIN_ARROW,    // ->
     LEFT_ARROW,    // <-
     FAT_ARROW,     // =>
@@ -319,6 +320,7 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::Todo => SyntaxKind::KW_TODO,
         TokenKind::Unreachable => SyntaxKind::KW_UNREACHABLE,
         TokenKind::Pipe => SyntaxKind::PIPE,
+        TokenKind::PipeUnwrap => SyntaxKind::PIPE_UNWRAP,
         TokenKind::ThinArrow => SyntaxKind::THIN_ARROW,
         TokenKind::LeftArrow => SyntaxKind::LEFT_ARROW,
         TokenKind::FatArrow => SyntaxKind::FAT_ARROW,
