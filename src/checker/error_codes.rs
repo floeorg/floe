@@ -65,6 +65,8 @@ pub enum ErrorCode {
     UnknownTrait,
     /// Missing required trait method in a for-block.
     MissingTraitMethod,
+    /// Trait method implementation has wrong parameter types or return type.
+    TraitMethodSignatureMismatch,
     /// Unsafe narrowing from `unknown` - use runtime validation.
     UnsafeNarrowing,
     /// Access on `unknown` type.
@@ -154,6 +156,7 @@ impl ErrorCode {
             Self::InvalidFieldAccess => "E021",
             Self::UnknownTrait => "E022",
             Self::MissingTraitMethod => "E023",
+            Self::TraitMethodSignatureMismatch => "E048",
             Self::UnsafeNarrowing => "E024",
             Self::AccessOnUnknown => "E025",
             Self::AccessOnPromise => "E026",
