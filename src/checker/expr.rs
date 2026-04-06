@@ -247,6 +247,18 @@ impl Checker {
                 .with_error_code(ErrorCode::AmbiguousVariant),
             );
         }
+        // Type declarations (records, unions, aliases, string literal unions) are
+        // never runtime values. Union variants are in the value scope but not
+        // type_defs, so they are correctly allowed through.
+        if self.env.lookup_type(name).is_some() {
+            self.emit_error(
+                format!("`{name}` is a type, not a value"),
+                span,
+                ErrorCode::TypeUsedAsValue,
+                "type name used as value",
+            );
+            return Type::Error;
+        }
         if let Some(ty) = self.env.lookup(name).cloned() {
             // Non-unit variant as bare identifier → constructor function
             if let Type::Union { ref variants, .. } = ty
@@ -260,28 +272,7 @@ impl Checker {
                     required_params,
                 };
             }
-            // Alias type names are still registered in the value namespace (they
-            // resolve to their underlying type). Reject bare alias use as a value.
-            if self.env.lookup_type(name).is_some() {
-                self.emit_error(
-                    format!("`{name}` is a type, not a value"),
-                    span,
-                    ErrorCode::TypeUsedAsValue,
-                    "type name used as value",
-                );
-                return Type::Error;
-            }
             ty
-        } else if self.env.lookup_type(name).is_some() {
-            // Name exists only in the type namespace (record, union, string literal
-            // union) — not a runtime value.
-            self.emit_error(
-                format!("`{name}` is a type, not a value"),
-                span,
-                ErrorCode::TypeUsedAsValue,
-                "type name used as value",
-            );
-            Type::Error
         } else if self.stdlib.is_module(name) {
             // Stdlib module names (Array, String, etc.) are valid identifiers
             Type::Unknown
