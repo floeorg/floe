@@ -1,5 +1,6 @@
 ; ── Keywords ──────────────────────────────────────────────
 "fn" @keyword
+"async" @keyword
 "const" @keyword
 "type" @keyword
 "match" @keyword

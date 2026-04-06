@@ -128,7 +128,7 @@ type Callback = () -> ()
 
 ### Async Functions
 
-There is no `async` keyword. A function is async when its body uses `|> await` (or `|> Promise.await`). The return type must explicitly use `Promise<T>` -- the compiler enforces this, just like `?` requires `Result<T, E>`:
+A function is async when its body uses `|> await` (or `|> Promise.await`). The return type must be `Promise<T>` -- the compiler enforces this, just like `?` requires `Result<T, E>`:
 
 ```floe
 fn fetchUser(id: string) -> Promise<User> {
@@ -138,6 +138,22 @@ fn fetchUser(id: string) -> Promise<User> {
 ```
 
 For functions without a return type annotation, the compiler infers `Promise<T>` automatically.
+
+**`async fn` sugar.** When the return type is verbose (e.g. `Promise<Result<Option<T>, Error>>`), use `async fn f() -> T` to write the inner type directly. The compiler wraps it in `Promise<>`:
+
+```floe
+// Verbose
+fn findUser(id: string) -> Promise<Result<Option<User>, Error>> {
+  // ...
+}
+
+// Sugar — the Promise<> wrapper is implied
+async fn findUser(id: string) -> Result<Option<User>, Error> {
+  // ...
+}
+```
+
+Both forms compile to the same `async function` in TypeScript. Callers still use `|> await` to unwrap. See the [Promise reference](/docs/reference/stdlib/promise/#async-fn-sugar) for details.
 
 ## Callback Flattening with `use`
 

@@ -743,6 +743,32 @@ fn promise_return_type_function() {
 }
 
 #[test]
+fn async_fn_declaration_sets_async_fn_flag() {
+    match first_item("async fn fetchUser(id: string) -> Result<User, Error> { Ok(user) }") {
+        ItemKind::Function(decl) => {
+            assert!(
+                decl.async_fn,
+                "parser should set async_fn=true for `async fn`"
+            );
+            assert_eq!(decl.name, "fetchUser");
+        }
+        other => panic!("expected function, got {other:?}"),
+    }
+}
+
+#[test]
+fn exported_async_fn_declaration() {
+    match first_item("export async fn fetchUser(id: string) -> Result<User, Error> { Ok(user) }") {
+        ItemKind::Function(decl) => {
+            assert!(decl.async_fn);
+            assert!(decl.exported);
+            assert_eq!(decl.name, "fetchUser");
+        }
+        other => panic!("expected function, got {other:?}"),
+    }
+}
+
+#[test]
 fn function_with_defaults() {
     match first_item("fn f(x: number = 10) { x }") {
         ItemKind::Function(decl) => {

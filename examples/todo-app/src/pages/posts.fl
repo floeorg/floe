@@ -25,7 +25,7 @@ const queryClient = QueryClient({
     },
 })
 
-fn fetchUser(userId: number) -> Promise<Result<User, Error>> {
+async fn fetchUser(userId: number) -> Result<User, Error> {
     Http.get(`https://jsonplaceholder.typicode.com/users/${userId}`)
         |> Promise.await?
         |> Http.json
@@ -33,7 +33,7 @@ fn fetchUser(userId: number) -> Promise<Result<User, Error>> {
         |> parse<User>
 }
 
-fn fetchPosts(url: string) -> Promise<Result<Array<Post>, Error>> {
+async fn fetchPosts(url: string) -> Result<Array<Post>, Error> {
     Http.get(url) |> Promise.await? |> Http.json |> Promise.await? |> parse<Array<Post>>
 }
 

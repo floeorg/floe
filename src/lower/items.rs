@@ -290,7 +290,7 @@ impl<'src> Lowerer<'src> {
 
         Some(FunctionDecl {
             exported,
-            async_fn: false,
+            async_fn: self.has_keyword(node, SyntaxKind::KW_ASYNC),
             name,
             type_params,
             params,
@@ -527,7 +527,7 @@ impl<'src> Lowerer<'src> {
 
         Some(FunctionDecl {
             exported: false,
-            async_fn: false,
+            async_fn: self.has_keyword(node, SyntaxKind::KW_ASYNC),
             name,
             type_params: self.collect_type_params(node),
             params,

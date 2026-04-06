@@ -137,6 +137,27 @@ fn promise_await_emits_async_function() {
 }
 
 #[test]
+fn async_fn_sugar_wraps_return_type_in_promise() {
+    // `async fn f() -> T` should emit `async function f(): Promise<T>`
+    let result = emit_with_types("async fn fetch() -> string { \"hi\" }");
+    assert!(
+        result.starts_with("async function fetch(): Promise<string>"),
+        "expected async + Promise wrap, got: {result}"
+    );
+}
+
+#[test]
+fn async_fn_sugar_with_await_body() {
+    let result =
+        emit_with_types("async fn fetch() -> string { const x = getData() |> Promise.await\n x }");
+    assert!(
+        result.starts_with("async function fetch(): Promise<string>"),
+        "expected async + Promise wrap, got: {result}"
+    );
+    assert!(result.contains("await getData()"));
+}
+
+#[test]
 fn function_with_defaults() {
     let result = emit("fn f(x: number = 10) { x }");
     assert!(result.contains("x: number = 10"));

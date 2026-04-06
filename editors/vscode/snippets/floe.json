@@ -17,6 +17,15 @@
     ],
     "description": "Exported function declaration"
   },
+  "Async Function": {
+    "prefix": "afn",
+    "body": [
+      "async fn ${1:name}(${2:params}) -> ${3:ReturnType} {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Async function declaration (return type is wrapped in Promise<T>)"
+  },
   "Match Expression": {
     "prefix": "match",
     "body": [

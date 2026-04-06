@@ -48,6 +48,11 @@ export fn name(param: Type) -> ReturnType {
 fn name() -> Promise<T> {
   expr |> Promise.await
 }
+
+// async fn sugar — `async fn f() -> T` means `fn f() -> Promise<T>`
+async fn name() -> T {
+  expr |> await
+}
 ```
 
 ### Type
