@@ -746,7 +746,10 @@ fn promise_return_type_function() {
 fn async_fn_declaration_sets_async_fn_flag() {
     match first_item("async fn fetchUser(id: string) -> Result<User, Error> { Ok(user) }") {
         ItemKind::Function(decl) => {
-            assert!(decl.async_fn, "parser should set async_fn=true for `async fn`");
+            assert!(
+                decl.async_fn,
+                "parser should set async_fn=true for `async fn`"
+            );
             assert_eq!(decl.name, "fetchUser");
         }
         other => panic!("expected function, got {other:?}"),
@@ -755,8 +758,7 @@ fn async_fn_declaration_sets_async_fn_flag() {
 
 #[test]
 fn exported_async_fn_declaration() {
-    match first_item("export async fn fetchUser(id: string) -> Result<User, Error> { Ok(user) }")
-    {
+    match first_item("export async fn fetchUser(id: string) -> Result<User, Error> { Ok(user) }") {
         ItemKind::Function(decl) => {
             assert!(decl.async_fn);
             assert!(decl.exported);
