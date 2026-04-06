@@ -893,6 +893,14 @@ impl Checker {
         let resolved_type_args: Vec<Type> =
             type_args.iter().map(|t| self.resolve_type(t)).collect();
 
+        // Resolve Named types (e.g. type aliases like `type Handler = fn(...) -> ...`)
+        // to their concrete types so function aliases are callable like bare functions.
+        let callee_ty = if let Type::Named(_) = &callee_ty {
+            self.resolve_type_to_concrete(&callee_ty)
+        } else {
+            callee_ty
+        };
+
         match callee_ty {
             Type::Function {
                 params,
@@ -1082,12 +1090,17 @@ impl Checker {
             // validate arguments but the result stays Foreign so subsequent chained
             // member accesses and calls continue to work.
             //
-            // Only applies when the callee is a member access (chained call pattern),
-            // not for standalone Foreign identifiers like overloaded npm functions
-            // where we genuinely can't determine the return type.
+            // Foreign member access (chained call): preserve Foreign type so subsequent
+            // member accesses and calls continue to work.
             Type::Foreign(_) if matches!(callee.kind, ExprKind::Member { .. }) => {
                 self.check_args_unchecked(args);
                 Type::Foreign("_".into())
+            }
+            // Standalone Foreign identifier (trusted import without type info):
+            // argument types can't be validated, return Unknown.
+            Type::Foreign(_) => {
+                self.check_args_unchecked(args);
+                Type::Unknown
             }
             Type::Error => {
                 // Error already emitted upstream — suppress cascading diagnostics
@@ -1112,7 +1125,13 @@ impl Checker {
             }
             _ => {
                 self.check_args_unchecked(args);
-                Type::Unknown
+                self.emit_error(
+                    format!("value of type `{callee_ty}` is not callable"),
+                    span,
+                    ErrorCode::NotCallable,
+                    "not a function",
+                );
+                Type::Error
             }
         }
     }

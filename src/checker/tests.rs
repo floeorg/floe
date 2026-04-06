@@ -2872,6 +2872,55 @@ fn stdlib_member_access_still_works() {
     );
 }
 
+// ── NotCallable ─────────────────────────────────────────────
+
+#[test]
+fn calling_non_function_is_error() {
+    let diags = check(
+        r#"
+        const n = 42
+        const x = n()
+    "#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::NotCallable),
+        "calling a number should error E047, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn calling_record_is_error() {
+    let diags = check(
+        r#"
+        type User { name: string }
+        const u = User(name: "Alice")
+        const x = u()
+    "#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::NotCallable),
+        "calling a record value should error E047, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn calling_function_alias_works() {
+    let diags = check(
+        r#"
+        fn greet(name: string) -> string { "hello " + name }
+        const f: (string) -> string = greet
+        const x = f("Alice")
+    "#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::NotCallable),
+        "calling through a function type alias should not error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Promise / Promise.await ─────────────────────────────────
 
 #[test]
