@@ -5963,12 +5963,12 @@ const _r = users |> Array.find(.name == getName())
 
 #[test]
 fn option_fields_can_be_omitted() {
-    // Option fields in a record should allow omission (default to None)
+    // Option fields in a record constructor should allow omission (default to None)
     let diags = check(
         r#"
 type Config { name: string, nickname: Option<string> }
 fn _take(c: Config) { c }
-const _x = _take({ name: "Alice" })
+const _x = _take(Config(name: "Alice"))
 "#,
     );
     assert!(
@@ -5990,6 +5990,165 @@ const _x = _take({ name: "Alice" })
     assert!(
         has_error_containing(&diags, "expected"),
         "omitting required fields should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+// ── nominal typing ──────────────────────────────────────────
+
+#[test]
+fn different_named_types_with_same_shape_are_incompatible() {
+    // Two Floe types with identical fields must not be interchangeable (nominal)
+    let diags = check(
+        r#"
+type Point { x: number, y: number }
+type Vec2  { x: number, y: number }
+fn _move(v: Vec2) -> Vec2 { v }
+const p = Point(x: 1, y: 2)
+const _r = _move(p)
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "expected `Vec2`, found `Point`"),
+        "different named types with same shape should be incompatible, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn inline_object_literal_is_not_assignable_to_named_type() {
+    // An inline record literal must not satisfy a Floe Named type (use the constructor)
+    let diags = check(
+        r#"
+type Vec2 { x: number, y: number }
+fn _move(v: Vec2) -> Vec2 { v }
+const _r = _move({ x: 1, y: 2 })
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "expected"),
+        "inline object literal should not satisfy a named type, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn named_type_satisfies_inline_record_annotation() {
+    // A Floe Named type can be passed to a function expecting an anonymous record
+    // (inline type annotation), as long as its fields are compatible.
+    let diags = check(
+        r#"
+type Point { x: number, y: number }
+fn _draw(p: { x: number, y: number }) -> () { () }
+const pt = Point(x: 3, y: 4)
+const _r = _draw(pt)
+"#,
+    );
+    assert!(
+        diags.is_empty(),
+        "Named type should satisfy an inline record annotation, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn named_type_satisfies_foreign_object_param() {
+    // A Floe Named type can be passed to a foreign function expecting an object type.
+    use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    // insert(row: { code: string, content: string }): void
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { insert } from "some-db"
+type Row { code: string, content: string }
+const _r = insert(Row(code: "abc", content: "hello"))
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let export = DtsExport {
+        name: "insert".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Object(vec![
+                    ObjectField {
+                        name: "code".to_string(),
+                        ty: TsType::Primitive("string".to_string()),
+                        optional: false,
+                    },
+                    ObjectField {
+                        name: "content".to_string(),
+                        ty: TsType::Primitive("string".to_string()),
+                        optional: false,
+                    },
+                ]),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Primitive("void".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-db".to_string(), vec![export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        diags.is_empty(),
+        "Named type should satisfy a foreign object param structurally, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn foreign_record_return_is_not_auto_coerced_to_named_type() {
+    // A foreign function returning an object type does NOT auto-satisfy a Floe Named type.
+    // The user must explicitly construct the Floe type from the foreign data.
+    use crate::interop::{DtsExport, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    // getRow(): { code: string, content: string }
+    // const r: Row = getRow()  -- should error (foreign record ≠ Floe Row)
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { getRow } from "some-db"
+type Row { code: string, content: string }
+fn _take(r: Row) -> () { () }
+const _r = _take(getRow())
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let export = DtsExport {
+        name: "getRow".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Object(vec![
+                ObjectField {
+                    name: "code".to_string(),
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                },
+                ObjectField {
+                    name: "content".to_string(),
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                },
+            ])),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-db".to_string(), vec![export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        has_error_containing(&diags, "expected"),
+        "foreign record return should not auto-satisfy a Floe Named type, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
