@@ -98,13 +98,16 @@ impl Formatter<'_> {
 
     pub(crate) fn fmt_pipe(&mut self, node: &SyntaxNode) {
         let mut segments = Vec::new();
-        self.collect_pipe_segments(node, &mut segments);
+        let mut ops: Vec<&'static str> = Vec::new();
+        self.collect_pipe_segments(node, &mut segments, &mut ops);
 
         // Try inline first
         let inline = self.try_inline(|f| {
             for (i, seg) in segments.iter().enumerate() {
                 if i > 0 {
-                    f.write(" |> ");
+                    f.write(" ");
+                    f.write(ops[i - 1]);
+                    f.write(" ");
                 }
                 f.fmt_pipe_segment(seg);
             }
@@ -113,24 +116,32 @@ impl Formatter<'_> {
         if self.fits_inline(&inline) {
             self.write(&inline);
         } else {
-            // Vertical: first segment on current line, rest indented with |>
+            // Vertical: first segment on current line, rest indented with operator
             for (i, seg) in segments.iter().enumerate() {
                 if i > 0 {
                     self.newline();
                     self.write_indent();
-                    self.write("    |> ");
+                    self.write("    ");
+                    self.write(ops[i - 1]);
+                    self.write(" ");
                 }
                 self.fmt_pipe_segment(seg);
             }
         }
     }
 
-    fn collect_pipe_segments(&self, node: &SyntaxNode, segments: &mut Vec<PipeSegment>) {
+    fn collect_pipe_segments(
+        &self,
+        node: &SyntaxNode,
+        segments: &mut Vec<PipeSegment>,
+        ops: &mut Vec<&'static str>,
+    ) {
         if node.kind() != SyntaxKind::PIPE_EXPR {
             segments.push(PipeSegment::Node(node.clone()));
             return;
         }
 
+        let mut op: &'static str = "|>";
         let mut left_nodes = Vec::new();
         let mut right_nodes = Vec::new();
         let mut past_pipe = false;
@@ -140,6 +151,10 @@ impl Formatter<'_> {
                 rowan::NodeOrToken::Token(tok) => {
                     if tok.kind() == SyntaxKind::PIPE {
                         past_pipe = true;
+                        op = "|>";
+                    } else if tok.kind() == SyntaxKind::PIPE_UNWRAP {
+                        past_pipe = true;
+                        op = "|>?";
                     } else if !tok.kind().is_trivia() {
                         if past_pipe {
                             right_nodes.push(PipeSegment::Token(tok.text().to_string()));
@@ -152,7 +167,7 @@ impl Formatter<'_> {
                     if past_pipe {
                         right_nodes.push(PipeSegment::Node(child));
                     } else if child.kind() == SyntaxKind::PIPE_EXPR {
-                        self.collect_pipe_segments(&child, segments);
+                        self.collect_pipe_segments(&child, segments, ops);
                     } else {
                         left_nodes.push(PipeSegment::Node(child));
                     }
@@ -163,6 +178,7 @@ impl Formatter<'_> {
         for ln in left_nodes {
             segments.push(ln);
         }
+        ops.push(op);
         for rn in right_nodes {
             segments.push(rn);
         }

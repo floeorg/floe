@@ -5360,7 +5360,7 @@ fn bracket_access_on_record_errors() {
     let diags = check(
         r#"
 type User { name: string, age: number }
-const u = User { name: "Alice", age: 30 }
+const u = User(name: "Alice", age: 30)
 const x = u[0]
 "#,
     );
@@ -6939,4 +6939,58 @@ const _x = expiresAt
         "expiresAt should be Result<unknown, Error> from untrusted call, got: {}",
         expires_type
     );
+}
+
+#[test]
+fn record_type_name_as_bare_value_errors() {
+    let diags = check(
+        r#"
+type Foo { a: string }
+export fn bad() -> number {
+    const x = Foo
+    42
+}
+"#,
+    );
+    assert!(has_error(&diags, ErrorCode::TypeUsedAsValue));
+    assert!(has_error_containing(&diags, "`Foo` is a type, not a value"));
+}
+
+#[test]
+fn union_type_name_as_bare_value_errors() {
+    let diags = check(
+        r#"
+type Route { | Home | Profile(string) }
+export fn bad() -> Route {
+    Route
+}
+"#,
+    );
+    assert!(has_error(&diags, ErrorCode::TypeUsedAsValue));
+}
+
+#[test]
+fn qualified_variant_access_still_works() {
+    let diags = check(
+        r#"
+type Route { | Home | Profile(string) }
+export fn ok() -> Route {
+    Route.Home
+}
+"#,
+    );
+    assert!(!has_error(&diags, ErrorCode::TypeUsedAsValue));
+}
+
+#[test]
+fn bare_nullary_variant_still_works() {
+    let diags = check(
+        r#"
+type Route { | Home | Profile(string) }
+export fn ok() -> Route {
+    Home
+}
+"#,
+    );
+    assert!(!has_error(&diags, ErrorCode::TypeUsedAsValue));
 }

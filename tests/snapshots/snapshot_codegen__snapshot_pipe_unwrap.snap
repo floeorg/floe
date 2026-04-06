@@ -1,6 +1,5 @@
 ---
 source: tests/snapshot_codegen.rs
-assertion_line: 199
 expression: output
 ---
 function validate(s: string): { ok: true; value: string } | { ok: false; error: string } {
@@ -20,5 +19,21 @@ function _testPipeChainUnwrap(): { ok: true; value: string } | { ok: false; erro
 }
 
 function _testPipeOptionUnwrap(): number | null | undefined {
+  return (() => { const __r = [1, 2, 3][0]; if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })();
+}
+
+function _testPipeUnwrapOp(): { ok: true; value: string } | { ok: false; error: string } {
+  return (() => { const __r = validate("hello"); if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })();
+}
+
+function _testPipeUnwrapOpChain(): { ok: true; value: string } | { ok: false; error: string } {
+  return (() => { const __r = format((() => { const __r = validate("hello"); if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })()); if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })();
+}
+
+function _testPipeUnwrapOpMixed(): { ok: true; value: string } | { ok: false; error: string } {
+  return (() => { const __r = format(validate("hello")); if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })();
+}
+
+function _testPipeUnwrapOpOption(): number | null | undefined {
   return (() => { const __r = [1, 2, 3][0]; if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })();
 }
