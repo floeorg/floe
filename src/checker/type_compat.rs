@@ -171,11 +171,11 @@ impl Checker {
         // Foreign-vs-Foreign is permissive because npm types often have subtype
         // relationships (e.g. SQLiteColumn extends SQLWrapper) that Floe can't verify.
         // TypeScript's own type checker validates the generated code.
-        match (expected, actual) {
-            (Type::Foreign(_), _) if actual.is_primitive() => return false,
-            (_, Type::Foreign(_)) if expected.is_primitive() => return false,
-            (Type::Foreign(_), _) | (_, Type::Foreign(_)) => return true,
-            _ => {}
+        if let Type::Foreign(_) = expected {
+            return !actual.is_primitive();
+        }
+        if let Type::Foreign(_) = actual {
+            return !expected.is_primitive();
         }
 
         // Opaque type: within the defining module, the underlying type
@@ -224,18 +224,38 @@ impl Checker {
             return self.records_compatible(exp_fields, act_fields);
         }
 
-        match (expected, actual) {
-            (Type::Number, Type::Number)
-            | (Type::String, Type::String)
-            | (Type::Bool, Type::Bool)
-            | (Type::Unit, Type::Unit)
-            | (Type::Undefined, Type::Undefined) => true,
-            (Type::String, Type::StringLiteral(_)) => true,
-            (Type::StringLiteral(a), Type::StringLiteral(b)) => a == b,
-            (Type::Named(a), Type::Named(b)) => a == b,
-            (Type::Named(a), Type::Union { name: b, .. })
-            | (Type::Union { name: a, .. }, Type::Named(b)) => a == b,
-            (expected, actual) if expected.is_result() && actual.is_result() => {
+        // TsUnion as actual: every member must be compatible with expected.
+        // Pulled out as an early exit so the match below doesn't need to repeat this in every arm.
+        if let Type::TsUnion(members) = actual {
+            return members.iter().all(|m| self.types_compatible(expected, m));
+        }
+
+        // Match on `expected` explicitly so that adding a new Type variant causes a compile
+        // error here, forcing the developer to decide how it interacts with other types.
+        // Variants already handled by early-return guards above are marked unreachable.
+        match expected {
+            // Caught by early guards above — cannot reach here
+            Type::Error | Type::Unknown | Type::Var(_) | Type::Never | Type::Foreign(_) => {
+                unreachable!("handled by early guards in types_compatible")
+            }
+
+            Type::Number => matches!(actual, Type::Number),
+            Type::String => matches!(actual, Type::String | Type::StringLiteral(_)),
+            Type::Bool => matches!(actual, Type::Bool),
+            Type::Unit => matches!(actual, Type::Unit),
+            Type::Undefined => matches!(actual, Type::Undefined),
+            Type::StringLiteral(s) => matches!(actual, Type::StringLiteral(t) if t == s),
+
+            Type::Named(exp_name) => match actual {
+                Type::Named(act_name) => act_name == exp_name,
+                Type::Union { name, .. } => name == exp_name,
+                _ => false,
+            },
+
+            Type::Union { name: exp_name, .. } if expected.is_result() => {
+                if !actual.is_result() {
+                    return false; // already enforced by the early guard above
+                }
                 let ok_compat = match (expected.result_ok(), actual.result_ok()) {
                     (Some(e), Some(a)) => self.types_compatible(e, a),
                     _ => true,
@@ -246,8 +266,7 @@ impl Checker {
                 };
                 ok_compat && err_compat
             }
-            (Type::Union { name: a, .. }, Type::Union { name: b, .. }) => a == b,
-            (expected, actual) if expected.is_option() && actual.is_option() => {
+            Type::Union { .. } if expected.is_option() && actual.is_option() => {
                 // None (Option<Unknown>) is compatible with any Option<T>
                 if matches!(actual.option_inner(), Some(Type::Unknown)) {
                     return true;
@@ -260,7 +279,7 @@ impl Checker {
             // A concrete value T is assignable to Option<T> (implicit Some wrapping),
             // but not when the inner type is an unresolved type variable — that would
             // make any value match Option<Var(0)> in stdlib signatures.
-            (expected, actual) if expected.is_option() => {
+            Type::Union { .. } if expected.is_option() => {
                 if let Some(inner) = expected.option_inner() {
                     if matches!(inner, Type::Var(_)) {
                         false
@@ -271,60 +290,91 @@ impl Checker {
                     true
                 }
             }
-            (Type::Promise(a), Type::Promise(b)) => self.types_compatible(a, b),
-            (Type::Settable(_), Type::Settable(b)) if matches!(**b, Type::Unknown) => {
-                true // Clear/Unchanged (Settable<Unknown>) is compatible with any Settable<T>
+            Type::Union { name: exp_name, .. } => match actual {
+                Type::Named(n) => n == exp_name,
+                Type::Union { name: n, .. } => n == exp_name,
+                _ => false,
+            },
+
+            Type::Promise(a) => matches!(actual, Type::Promise(b) if self.types_compatible(a, b)),
+
+            Type::Settable(a) => match actual {
+                // Clear/Unchanged (Settable<Unknown>) is compatible with any Settable<T>
+                Type::Settable(b) if matches!(**b, Type::Unknown) => true,
+                Type::Settable(b) => self.types_compatible(a, b),
+                _ => false,
+            },
+
+            Type::Array(a) => match actual {
+                // Empty array [] (Array<Unknown>) is compatible with any Array<T>
+                Type::Array(b) if matches!(**b, Type::Unknown) => true,
+                Type::Array(b) => self.types_compatible(a, b),
+                _ => false,
+            },
+
+            Type::Map { key: k1, value: v1 } | Type::RecordMap { key: k1, value: v1 } => {
+                match actual {
+                    Type::Map { key: k2, value: v2 } | Type::RecordMap { key: k2, value: v2 } => {
+                        self.types_compatible(k1, k2) && self.types_compatible(v1, v2)
+                    }
+                    _ => false,
+                }
             }
-            (Type::Settable(a), Type::Settable(b)) => self.types_compatible(a, b),
-            (Type::Array(_), Type::Array(b)) if matches!(**b, Type::Unknown) => {
-                true // empty array [] is compatible with any Array<T>
-            }
-            (Type::Array(a), Type::Array(b)) => self.types_compatible(a, b),
-            (
-                Type::Map { key: k1, value: v1 } | Type::RecordMap { key: k1, value: v1 },
-                Type::Map { key: k2, value: v2 } | Type::RecordMap { key: k2, value: v2 },
-            ) => self.types_compatible(k1, k2) && self.types_compatible(v1, v2),
-            (Type::Set { element: e1 }, Type::Set { element: e2 }) => self.types_compatible(e1, e2),
-            (Type::Tuple(a), Type::Tuple(b)) => {
-                a.len() == b.len()
-                    && a.iter()
-                        .zip(b.iter())
-                        .all(|(x, y)| self.types_compatible(x, y))
-            }
-            (
-                Type::Function {
-                    params: p1,
-                    return_type: r1,
-                    ..
-                },
+
+            Type::Set { element: e1 } => match actual {
+                Type::Set { element: e2 } => self.types_compatible(e1, e2),
+                _ => false,
+            },
+
+            Type::Tuple(a) => match actual {
+                Type::Tuple(b) => {
+                    a.len() == b.len()
+                        && a.iter()
+                            .zip(b.iter())
+                            .all(|(x, y)| self.types_compatible(x, y))
+                }
+                _ => false,
+            },
+
+            Type::Function {
+                params: p1,
+                return_type: r1,
+                ..
+            } => match actual {
                 Type::Function {
                     params: p2,
                     return_type: r2,
                     ..
-                },
-            ) => {
-                p1.len() == p2.len()
-                    && p1
-                        .iter()
-                        .zip(p2.iter())
-                        .all(|(x, y)| self.types_compatible(x, y))
-                    && self.types_compatible(r1, r2)
+                } => {
+                    p1.len() == p2.len()
+                        && p1
+                            .iter()
+                            .zip(p2.iter())
+                            .all(|(x, y)| self.types_compatible(x, y))
+                        && self.types_compatible(r1, r2)
+                }
+                _ => false,
+            },
+
+            // TsUnion as expected: actual must match at least one member.
+            // TsUnion as actual is handled by the early exit above.
+            Type::TsUnion(exp_members) => match actual {
+                Type::TsUnion(act_members) => act_members
+                    .iter()
+                    .all(|a| exp_members.iter().any(|e| self.types_compatible(e, a))),
+                _ => exp_members.iter().any(|m| self.types_compatible(m, actual)),
+            },
+
+            Type::Record(fields_a) => match actual {
+                Type::Record(fields_b) => self.records_compatible(fields_a, fields_b),
+                _ => false,
+            },
+
+            // Opaque is never constructed by the checker (opaque types use Type::Named
+            // with the `info.opaque` flag). Listed explicitly to enforce exhaustiveness.
+            Type::Opaque { name: exp_name, .. } => {
+                matches!(actual, Type::Opaque { name: act_name, .. } if act_name == exp_name)
             }
-            // TsUnion vs TsUnion: every actual member must match at least one expected member
-            (Type::TsUnion(exp_members), Type::TsUnion(act_members)) => act_members
-                .iter()
-                .all(|a| exp_members.iter().any(|e| self.types_compatible(e, a))),
-            // TsUnion as expected: actual must match at least one member
-            (Type::TsUnion(members), _) => members.iter().any(|m| self.types_compatible(m, actual)),
-            // TsUnion as actual: every member must be compatible with expected
-            (_, Type::TsUnion(members)) => {
-                members.iter().all(|m| self.types_compatible(expected, m))
-            }
-            // Structural record compatibility
-            (Type::Record(fields_a), Type::Record(fields_b)) => {
-                self.records_compatible(fields_a, fields_b)
-            }
-            _ => false,
         }
     }
 }
