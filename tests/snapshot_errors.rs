@@ -130,6 +130,48 @@ fn process(x: string) -> string {
 // ── Trait Error Snapshots ─────────────────────────────────────
 
 #[test]
+fn snapshot_error_trait_method_param_type_mismatch() {
+    let output = get_diagnostics(
+        "test.fl",
+        r#"
+trait Repo {
+  fn create(self, input: number) -> string
+}
+
+type MyRepo {}
+
+for MyRepo: Repo {
+  fn create(self, input: string) -> string {
+    input
+  }
+}
+"#,
+    );
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_error_trait_method_return_type_mismatch() {
+    let output = get_diagnostics(
+        "test.fl",
+        r#"
+trait Repo {
+  fn create(self) -> number
+}
+
+type MyRepo {}
+
+for MyRepo: Repo {
+  fn create(self) -> string {
+    "oops"
+  }
+}
+"#,
+    );
+    insta::assert_snapshot!(output);
+}
+
+#[test]
 fn snapshot_error_trait_missing_method() {
     let output = error_fixture("trait_missing_method");
     insta::assert_snapshot!(output);

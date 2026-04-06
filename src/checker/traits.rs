@@ -8,6 +8,13 @@ impl Checker {
             .map(|m| TraitMethodSig {
                 name: m.name.clone(),
                 has_default: m.body.is_some(),
+                params: m
+                    .params
+                    .iter()
+                    .filter(|p| p.name != "self")
+                    .cloned()
+                    .collect(),
+                return_type: m.return_type.clone(),
             })
             .collect();
         self.traits.trait_defs.insert(decl.name.clone(), methods);
@@ -56,24 +63,117 @@ impl Checker {
             }
         };
 
-        // Check that all required methods are implemented
-        let impl_names: HashSet<&str> = functions.iter().map(|f| f.name.as_str()).collect();
+        // Build a map from method name to impl function for signature checking
+        let impl_fns: HashMap<&str, &FunctionDecl> =
+            functions.iter().map(|f| (f.name.as_str(), f)).collect();
 
         for method in &trait_methods {
-            if !method.has_default && !impl_names.contains(method.name.as_str()) {
-                self.emit_error_with_help(
-                    format!(
+            if !impl_fns.contains_key(method.name.as_str()) {
+                if !method.has_default {
+                    self.emit_error_with_help(
+                        format!(
                             "trait `{trait_name}` requires method `{}` but it is not implemented for `{type_name}`",
                             method.name
                         ),
-                    span,
-                    ErrorCode::MissingTraitMethod,
-                    format!("missing method `{}`", method.name),
+                        span,
+                        ErrorCode::MissingTraitMethod,
+                        format!("missing method `{}`", method.name),
+                        format!(
+                            "add `fn {}(self, ...) {{ ... }}` to the for block",
+                            method.name
+                        ),
+                    );
+                }
+                continue;
+            }
+
+            let impl_fn = impl_fns[method.name.as_str()];
+            let impl_params: Vec<&Param> =
+                impl_fn.params.iter().filter(|p| p.name != "self").collect();
+
+            // Check parameter count
+            if impl_params.len() != method.params.len() {
+                self.emit_error_with_help(
                     format!(
-                        "add `fn {}(self, ...) {{ ... }}` to the for block",
-                        method.name
+                        "method `{}` in `{type_name}` has {} parameter(s) but trait `{trait_name}` requires {}",
+                        method.name,
+                        impl_params.len(),
+                        method.params.len(),
                     ),
+                    span,
+                    ErrorCode::TraitMethodSignatureMismatch,
+                    format!("expected {} parameter(s)", method.params.len()),
+                    format!("change the signature to match trait `{trait_name}`"),
                 );
+                continue;
+            }
+
+            // Check each parameter type
+            for (i, (impl_param, trait_param)) in
+                impl_params.iter().zip(method.params.iter()).enumerate()
+            {
+                let impl_ty = impl_param
+                    .type_ann
+                    .as_ref()
+                    .map(|ta| self.resolve_type(ta))
+                    .unwrap_or(Type::Unknown);
+                let trait_ty = trait_param
+                    .type_ann
+                    .as_ref()
+                    .map(|ta| self.resolve_type(ta))
+                    .unwrap_or(Type::Unknown);
+
+                if !impl_ty.is_undetermined() && !trait_ty.is_undetermined() && impl_ty != trait_ty {
+                    let param_span = impl_param
+                        .type_ann
+                        .as_ref()
+                        .map(|ta| ta.span)
+                        .unwrap_or(span);
+                    self.emit_error_with_help(
+                        format!(
+                            "parameter {} of method `{}` has type `{}` but trait `{trait_name}` requires `{}`",
+                            i + 1,
+                            method.name,
+                            impl_ty,
+                            trait_ty,
+                        ),
+                        param_span,
+                        ErrorCode::TraitMethodSignatureMismatch,
+                        format!("expected `{}`", trait_ty),
+                        format!("change to match trait `{trait_name}`"),
+                    );
+                }
+            }
+
+            // Check return type
+            if let Some(ref trait_rt) = method.return_type.clone() {
+                let trait_ret = self.resolve_type(trait_rt);
+                let impl_ret = impl_fn
+                    .return_type
+                    .as_ref()
+                    .map(|rt| self.resolve_type(rt))
+                    .unwrap_or(Type::Unknown);
+
+                if !impl_ret.is_undetermined() && !trait_ret.is_undetermined() && impl_ret != trait_ret
+                {
+                    let ret_span = impl_fn
+                        .return_type
+                        .as_ref()
+                        .map(|rt| rt.span)
+                        .unwrap_or(span);
+                    self.emit_error_with_help(
+                        format!(
+                            "method `{}` returns `{}` but trait `{trait_name}` requires `{}`",
+                            method.name,
+                            impl_ret,
+                            trait_ret,
+                        ),
+                        ret_span,
+                        ErrorCode::TraitMethodSignatureMismatch,
+                        format!("expected `{}`", trait_ret),
+                        format!("change to match trait `{trait_name}`"),
+                    );
+                }
             }
         }
 

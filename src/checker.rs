@@ -238,6 +238,10 @@ pub(crate) struct TraitMethodSig {
     pub name: String,
     /// Whether this method has a default implementation.
     pub has_default: bool,
+    /// Non-self parameters from the trait definition (for signature checking).
+    pub params: Vec<Param>,
+    /// Return type from the trait definition (for signature checking).
+    pub return_type: Option<TypeExpr>,
 }
 
 impl Default for Checker {
