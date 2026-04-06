@@ -123,7 +123,8 @@ impl Checker {
                     .map(|ta| self.resolve_type(ta))
                     .unwrap_or(Type::Unknown);
 
-                if !impl_ty.is_undetermined() && !trait_ty.is_undetermined() && impl_ty != trait_ty {
+                if !impl_ty.is_undetermined() && !trait_ty.is_undetermined() && impl_ty != trait_ty
+                {
                     let param_span = impl_param
                         .type_ann
                         .as_ref()
@@ -154,7 +155,9 @@ impl Checker {
                     .map(|rt| self.resolve_type(rt))
                     .unwrap_or(Type::Unknown);
 
-                if !impl_ret.is_undetermined() && !trait_ret.is_undetermined() && impl_ret != trait_ret
+                if !impl_ret.is_undetermined()
+                    && !trait_ret.is_undetermined()
+                    && impl_ret != trait_ret
                 {
                     let ret_span = impl_fn
                         .return_type
@@ -164,9 +167,7 @@ impl Checker {
                     self.emit_error_with_help(
                         format!(
                             "method `{}` returns `{}` but trait `{trait_name}` requires `{}`",
-                            method.name,
-                            impl_ret,
-                            trait_ret,
+                            method.name, impl_ret, trait_ret,
                         ),
                         ret_span,
                         ErrorCode::TraitMethodSignatureMismatch,
