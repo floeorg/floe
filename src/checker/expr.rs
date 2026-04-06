@@ -1112,7 +1112,10 @@ impl Checker {
 
     fn check_boolean_operand(&mut self, ty: &Type, concrete: &Type, span: Span, op: &str) {
         if !concrete.is_boolean()
-            && !matches!(concrete, Type::Unknown | Type::Error | Type::Var(_) | Type::Foreign(_))
+            && !matches!(
+                concrete,
+                Type::Unknown | Type::Error | Type::Var(_) | Type::Foreign(_)
+            )
         {
             self.emit_error_with_help(
                 format!("expected boolean operand for `{op}`, found `{}`", ty),
@@ -1776,7 +1779,9 @@ impl Checker {
         bindings: &mut HashMap<usize, Type>,
     ) {
         match (param_ty, actual_ty) {
-            (Type::Var(n), _) if !matches!(actual_ty, Type::Unknown | Type::Error | Type::Var(_)) => {
+            (Type::Var(n), _)
+                if !matches!(actual_ty, Type::Unknown | Type::Error | Type::Var(_)) =>
+            {
                 bindings.insert(*n, actual_ty.clone());
             }
             (Type::Array(p), Type::Array(a))
@@ -1974,7 +1979,9 @@ impl Checker {
     ) {
         match (param, arg) {
             // Named("S") matches anything if S is a generic param
-            (Type::Named(n), _) if generics.contains(n) && !matches!(arg, Type::Unknown | Type::Error) => {
+            (Type::Named(n), _)
+                if generics.contains(n) && !matches!(arg, Type::Unknown | Type::Error) =>
+            {
                 subs.entry(n.clone()).or_insert_with(|| arg.clone());
             }
             // Recurse into compound types

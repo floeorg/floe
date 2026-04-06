@@ -477,7 +477,9 @@ impl Checker {
         let uses_await = super::body_has_promise_await(&decl.body);
 
         // When no return type annotation, infer from body and update the function type
-        if decl.return_type.is_none() && !matches!(body_type, Type::Var(_) | Type::Unknown | Type::Error) {
+        if decl.return_type.is_none()
+            && !matches!(body_type, Type::Var(_) | Type::Unknown | Type::Error)
+        {
             // If the body uses await, wrap the inferred return type in Promise<T>
             let inferred_return = if uses_await {
                 Type::Promise(Box::new(body_type.clone()))

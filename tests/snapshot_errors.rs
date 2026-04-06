@@ -204,10 +204,7 @@ fn snapshot_error_member_access_on_non_record_type() {
 fn snapshot_error_no_cascade_from_undefined_name() {
     // When a name is undefined, the error type (Type::Error) should suppress
     // cascading "type mismatch" errors on downstream uses.
-    let output = get_diagnostics(
-        "test.fl",
-        "fn check() -> number {\n  undefined_name + 1\n}",
-    );
+    let output = get_diagnostics("test.fl", "fn check() -> number {\n  undefined_name + 1\n}");
     insta::assert_snapshot!(output);
 }
 
