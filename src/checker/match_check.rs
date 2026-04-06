@@ -55,17 +55,15 @@ impl Checker {
         arms: &[MatchArm],
         span: Span,
     ) {
-        // Resolve Named types to their actual definitions.
+        // Resolve Named types to their actual definitions via the type namespace.
         let resolved_ty;
         let subject_ty = match subject_ty {
             Type::Foreign(_) | Type::Promise(_) => subject_ty,
-            Type::Named(type_name) => {
-                if let Some(actual) = self.env.lookup(type_name) {
-                    resolved_ty = actual.clone();
-                    &resolved_ty
-                } else {
-                    subject_ty
-                }
+            Type::Named(_) => {
+                resolved_ty = self
+                    .env
+                    .resolve_to_concrete(subject_ty, &expr::simple_resolve_type_expr);
+                &resolved_ty
             }
             _ => subject_ty,
         };
@@ -384,18 +382,21 @@ impl Checker {
     // ── Pattern Checking ─────────────────────────────────────────
 
     pub(super) fn check_pattern(&mut self, pattern: &Pattern, subject_ty: &Type) {
-        // Resolve Named types to their actual definitions for pattern matching
+        // Resolve Named types to their actual definitions via the type namespace for
+        // structural checking (variant matching, field access, etc.). Keep the original
+        // Named type for bindings so hover shows the declared type name, not expanded fields.
+        // Keep Named if the resolved type is Unknown (foreign npm types with no definition).
         let resolved_ty;
-        let subject_ty = if let Type::Named(type_name) = subject_ty {
-            // Resolve Named types to their definitions, but keep Named if the
-            // env value is Unknown (foreign npm types that have no definition)
-            if let Some(actual) = self.env.lookup(type_name)
-                && !matches!(actual, Type::Unknown)
-            {
-                resolved_ty = actual.clone();
-                &resolved_ty
-            } else {
+        let binding_ty = subject_ty; // original type, used for env binding
+        let subject_ty = if let Type::Named(_) = subject_ty {
+            let concrete = self
+                .env
+                .resolve_to_concrete(subject_ty, &expr::simple_resolve_type_expr);
+            if matches!(concrete, Type::Unknown) {
                 subject_ty
+            } else {
+                resolved_ty = concrete;
+                &resolved_ty
             }
         } else {
             subject_ty
@@ -523,8 +524,8 @@ impl Checker {
                         );
                     }
                 }
-                self.env.define(name, subject_ty.clone());
-                self.name_types.insert(name.clone(), subject_ty.to_string());
+                self.env.define(name, binding_ty.clone());
+                self.name_types.insert(name.clone(), binding_ty.to_string());
             }
             PatternKind::Tuple(patterns) => {
                 if let Type::Tuple(types) = subject_ty {

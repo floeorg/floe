@@ -247,6 +247,18 @@ impl Checker {
                 .with_error_code(ErrorCode::AmbiguousVariant),
             );
         }
+        // Type declarations (records, unions, aliases, string literal unions) are
+        // never runtime values. Union variants are in the value scope but not
+        // type_defs, so they are correctly allowed through.
+        if self.env.lookup_type(name).is_some() {
+            self.emit_error(
+                format!("`{name}` is a type, not a value"),
+                span,
+                ErrorCode::TypeUsedAsValue,
+                "type name used as value",
+            );
+            return Type::Error;
+        }
         if let Some(ty) = self.env.lookup(name).cloned() {
             // Non-unit variant as bare identifier → constructor function
             if let Type::Union { ref variants, .. } = ty
@@ -259,19 +271,6 @@ impl Checker {
                     return_type: Box::new(ty),
                     required_params,
                 };
-            }
-            // A registered type name used as a bare value is an error
-            // (record/union/alias types are not runtime values). Qualified
-            // variant access like `Route.Home` is parsed as `Construct`, not
-            // `Member`, so it never reaches this branch.
-            if self.env.lookup_type(name).is_some() {
-                self.emit_error(
-                    format!("`{name}` is a type, not a value"),
-                    span,
-                    ErrorCode::TypeUsedAsValue,
-                    "type name used as value",
-                );
-                return Type::Error;
             }
             ty
         } else if self.stdlib.is_module(name) {

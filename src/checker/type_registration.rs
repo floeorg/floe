@@ -97,22 +97,16 @@ impl Checker {
         };
         self.env.define_type(&decl.name, info);
 
-        // Register the type name in the value namespace too (for constructors)
         match &flattened_def {
             TypeDef::Record(entries) => {
                 // If the record has unresolved spreads (foreign generic types),
-                // use the type probe for the value namespace so member access
-                // resolves through the foreign type system.
+                // register the probe type in the value namespace so member access
+                // resolves through the foreign type system. Plain record type names
+                // are not runtime values and stay out of the value namespace.
                 let has_unresolved_spreads =
                     entries.iter().any(|e| matches!(e, RecordEntry::Spread(_)));
-                if has_unresolved_spreads {
-                    if let Some(probe_ty) = self.find_type_probe(&decl.name) {
-                        self.env.define(&decl.name, probe_ty);
-                    } else {
-                        self.env.define(&decl.name, Type::Named(decl.name.clone()));
-                    }
-                } else {
-                    self.env.define(&decl.name, Type::Named(decl.name.clone()));
+                if has_unresolved_spreads && let Some(probe_ty) = self.find_type_probe(&decl.name) {
+                    self.env.define(&decl.name, probe_ty);
                 }
 
                 // Populate __field_ entries for dot-access completions
@@ -142,8 +136,8 @@ impl Checker {
                     name: decl.name.clone(),
                     variants: var_types.clone(),
                 };
-                self.env.define(&decl.name, union_type.clone());
-                // Register each variant constructor and track ambiguity
+                // Union type names are not runtime values — only variants are.
+                // Register each variant constructor and track ambiguity.
                 for (vname, _) in &var_types {
                     // Check if this variant name is already defined by another union
                     if let Some(existing) = self.env.lookup(vname)
@@ -162,14 +156,9 @@ impl Checker {
                     self.env.define(vname, union_type.clone());
                 }
             }
-            TypeDef::StringLiteralUnion(variants) => {
-                let ty = Type::TsUnion(
-                    variants
-                        .iter()
-                        .map(|s| Type::StringLiteral(s.clone()))
-                        .collect(),
-                );
-                self.env.define(&decl.name, ty);
+            TypeDef::StringLiteralUnion(_) => {
+                // String literal union names are not runtime values — nothing to register
+                // in the value namespace.
             }
             TypeDef::Alias(type_expr) => {
                 let mut ty = self.resolve_type(type_expr);
