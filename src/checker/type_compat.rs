@@ -209,9 +209,9 @@ impl Checker {
         }
 
         // Nominal: a Floe Named type is only compatible with the same Named type.
-        // Structural matching only applies in the Floe → Foreign direction:
-        // when the *expected* side is an anonymous Record (from a .d.ts import),
-        // a Floe Named type can satisfy it by shape — the inline object case.
+        // Structural matching only applies when the *expected* side is an anonymous
+        // Record (inline type annotation or foreign .d.ts object type) — a Floe Named
+        // type can satisfy it by shape.
         let actual_concrete = self.resolve_named_to_concrete(actual);
 
         if let Some(Type::Record(ref act_fields)) = actual_concrete
