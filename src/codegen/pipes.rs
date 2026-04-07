@@ -126,9 +126,7 @@ impl Codegen {
             let has_method = self
                 .trait_decls
                 .get(bound_trait.as_str())
-                .map_or(false, |td| {
-                    td.methods.iter().any(|m| m.name == *method_name)
-                });
+                .is_some_and(|td| td.methods.iter().any(|m| m.name == *method_name));
             if has_method {
                 self.emit_expr(left);
                 self.push(".");

@@ -487,11 +487,11 @@ impl Codegen {
         }
         // For trait impls used as generic bounds, emit a factory function
         // so instances satisfy the TypeScript interface
-        if let Some(trait_name) = &block.trait_name {
-            if self.traits_needing_interface.contains(trait_name.as_str()) {
-                self.newline();
-                self.emit_trait_impl_factory(block);
-            }
+        if let Some(trait_name) = &block.trait_name
+            && self.traits_needing_interface.contains(trait_name.as_str())
+        {
+            self.newline();
+            self.emit_trait_impl_factory(block);
         }
     }
 

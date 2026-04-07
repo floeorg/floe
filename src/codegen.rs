@@ -279,13 +279,13 @@ impl Codegen {
                         self.local_names.insert(func.name.clone());
                     }
                     // Track types that implement traits so we can emit factory functions
-                    if let Some(trait_name) = &block.trait_name {
-                        if let TypeExprKind::Named { name, .. } = &block.type_name.kind {
-                            self.type_trait_impls
-                                .entry(name.clone())
-                                .or_default()
-                                .push(trait_name.clone());
-                        }
+                    if let Some(trait_name) = &block.trait_name
+                        && let TypeExprKind::Named { name, .. } = &block.type_name.kind
+                    {
+                        self.type_trait_impls
+                            .entry(name.clone())
+                            .or_default()
+                            .push(trait_name.clone());
                     }
                 }
                 ItemKind::TraitDecl(decl) => {
