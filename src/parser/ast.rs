@@ -196,6 +196,11 @@ pub struct Param {
     pub span: Span,
 }
 
+/// Returns `true` if the first element of `params` is named `self`.
+pub fn params_have_self(params: &[Param]) -> bool {
+    params.first().is_some_and(|p| p.name == "self")
+}
+
 /// Destructuring pattern for a function/lambda parameter.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParamDestructure {

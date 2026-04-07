@@ -238,6 +238,8 @@ pub(crate) struct TraitMethodSig {
     pub name: String,
     /// Whether this method has a default implementation.
     pub has_default: bool,
+    /// Whether the trait method's first parameter is `self`.
+    pub has_self: bool,
     /// Non-self parameters from the trait definition (for signature checking).
     pub params: Vec<Param>,
     /// Return type from the trait definition (for signature checking).
