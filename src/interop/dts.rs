@@ -970,6 +970,12 @@ pub(super) fn collect_interface_info(
                 }
             }
         }
+        // `declare global { ... }` — oxc parses this as TSGlobalDeclaration
+        Statement::TSGlobalDeclaration(global_decl) => {
+            for inner_stmt in &global_decl.body.body {
+                collect_interface_info(inner_stmt, bodies, extends);
+            }
+        }
         _ => {}
     }
 }
