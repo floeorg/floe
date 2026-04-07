@@ -520,8 +520,18 @@ impl Checker {
         }
 
         // Check return type compatibility
-        if let Some(ref declared_return) = decl.return_type {
-            let resolved = self.resolve_type(declared_return);
+        // `return_type` is already resolved above; derive `resolved` from it to
+        // avoid calling resolve_type twice (which would duplicate diagnostics).
+        // For `async fn`, return_type is Promise<T>, so unwrap to get the raw T.
+        if decl.return_type.is_some() {
+            let resolved = if decl.async_fn {
+                match &return_type {
+                    Type::Promise(inner) => *inner.clone(),
+                    _ => return_type.clone(),
+                }
+            } else {
+                return_type.clone()
+            };
 
             // Error if function uses await but return type is not Promise<T>.
             // `async fn` implicitly wraps the return type in `Promise<T>`, so skip
