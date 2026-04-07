@@ -2490,7 +2490,7 @@ impl Checker {
         // `obj.method()` → error; use `obj |> method()` instead.
         // Foreign types (npm/TS) with for-blocks are included: all for-block methods
         // must go through pipes regardless of receiver type.
-        if let Some(_) = self.resolve_for_block_method(field, obj_ty) {
+        if self.resolve_for_block_method(field, obj_ty).is_some() {
             self.emit_error_with_help(
                 format!("cannot call for-block method `{field}` with dot syntax"),
                 span,
@@ -2577,7 +2577,7 @@ impl Checker {
         if let Some((_, ty)) = fields.iter().find(|(n, _)| n == field) {
             return ty.clone();
         }
-        if let Some(_) = self.resolve_for_block_method(field, obj_ty) {
+        if self.resolve_for_block_method(field, obj_ty).is_some() {
             self.emit_error_with_help(
                 format!("cannot call for-block method `{field}` with dot syntax"),
                 span,
