@@ -170,6 +170,31 @@ export fn MyPage() -> JSX.Element {
 }
 ```
 
+## Globals (browser and runtime APIs)
+
+Browser globals like `window`, `document`, `navigator`, and `fetch` are available automatically -- no imports needed. Floe reads your `tsconfig.json` to determine which globals exist:
+
+```floe
+// Browser project (lib includes "DOM")
+const url = window.location.href
+navigator.clipboard.writeText("hello") |> await
+const width = window.innerWidth
+```
+
+For non-browser runtimes, configure `compilerOptions.lib` and `compilerOptions.types` in your `tsconfig.json`:
+
+```json
+// Node.js
+{ "compilerOptions": { "lib": ["ES2020"], "types": ["node"] } }
+```
+
+```floe
+// Now process, Buffer, etc. are available
+const env = process.env
+```
+
+See [Configuration](/docs/reference/configuration/#lib-and-types---controlling-globals) for details.
+
 ## Output
 
 Floe's compiled output is standard TypeScript. Your build tool (Vite, Next.js, etc.) processes it like any other `.ts` file. There is no Floe-specific runtime or framework to install.

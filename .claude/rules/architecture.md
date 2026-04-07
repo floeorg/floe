@@ -55,4 +55,5 @@ After the checker runs, `annotate_types()` walks the AST and fills in `expr.ty` 
 | `stdlib.rs` | Standard library function registry - type signatures and codegen templates |
 | `resolve.rs` | Import resolution for .fl files |
 | `interop/` | npm/.d.ts import resolution via tsgo |
+| `interop/ambient.rs` | Ambient type loading from tsconfig (lib files, @types packages, `declare global` blocks) |
 | `desugar.rs` | AST transforms between checker and codegen |

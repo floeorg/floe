@@ -1602,6 +1602,38 @@ match findElement("app") {
 (() => { try { return { ok: true as const, value: parseYaml(input) }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()
 ```
 
+### Ambient Types (Browser/Runtime Globals)
+
+Floe loads ambient types (globals like `window`, `document`, `process`, `fetch`) from the project's `tsconfig.json` rather than hardcoding them.
+
+#### How it works
+
+1. **`compilerOptions.lib`** determines which TS lib files to load:
+   - `["ES2020", "DOM"]` → browser project (gets `window`, `document`, `navigator`, etc.)
+   - `["ESNext"]` → server project (gets `Date`, `Promise`, `Map`, etc. but no DOM)
+   - Lib files are loaded transitively via `/// <reference lib="..." />` directives
+
+2. **`compilerOptions.types`** determines which `@types/*` packages to load:
+   - `["node"]` → loads `@types/node` (gets `process`, `Buffer`, `__dirname`, etc.)
+   - `["@cloudflare/workers-types"]` → loads Cloudflare Workers globals
+   - When `types` is not set, all installed `@types/*` packages are auto-included (TS default)
+
+3. **`declare global { ... }` blocks** are parsed to extract globals from packages like `@types/node` that use this pattern
+
+4. **Fallback**: when no `tsconfig.json` is found, defaults to `lib.es5` + `lib.dom` (browser)
+
+#### Implementation
+
+The `interop/ambient.rs` module:
+- Parses `tsconfig.json` for `compilerOptions.lib` and `compilerOptions.types`
+- Locates TypeScript lib files in `node_modules/typescript/lib/`
+- Follows `/// <reference lib="..." />` and `/// <reference path="..." />` directives
+- Parses `declare var`, `declare function`, and `interface` definitions using `oxc_parser`
+- Converts TS types to Floe types via the existing `wrap_boundary_type()` pipeline
+- Registers globals in the checker's type environment, replacing hardcoded fallbacks
+
+Constructor globals (`declare var Window: { prototype: Window; new(): Window }`) are filtered out to prevent shadowing interface definitions used for member access resolution.
+
 ### Code Generator (`floe_codegen`)
 
 Emits clean, readable `.tsx`. Zero runtime imports.
