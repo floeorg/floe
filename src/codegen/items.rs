@@ -353,7 +353,16 @@ impl Codegen {
         self.push(&decl.name);
         if !decl.type_params.is_empty() {
             self.push("<");
-            self.push(&decl.type_params.join(", "));
+            for (i, tp) in decl.type_params.iter().enumerate() {
+                if i > 0 {
+                    self.push(", ");
+                }
+                self.push(&tp.name);
+                if !tp.bounds.is_empty() {
+                    self.push(" extends ");
+                    self.push(&tp.bounds.join(" & "));
+                }
+            }
             self.push(">");
         }
         self.push("(");
@@ -382,12 +391,23 @@ impl Codegen {
             }
         }
 
+        // Track type param bounds so pipe dispatch can use method calls
+        // for generic-bounded values (e.g. `repo |> create(input)` → `repo.create(input)`)
+        for tp in &decl.type_params {
+            if !tp.bounds.is_empty() {
+                self.current_type_param_bounds
+                    .insert(tp.name.clone(), tp.bounds.clone());
+            }
+        }
+
         self.push(" ");
         if is_unit_return {
             self.emit_block_expr(&decl.body);
         } else {
             self.emit_block_expr_with_return(&decl.body);
         }
+
+        self.current_type_param_bounds.clear();
     }
 
     pub(super) fn emit_object_destructure_fields(&mut self, fields: &[ObjectDestructureField]) {
@@ -465,6 +485,140 @@ impl Codegen {
             }
             self.emit_for_block_function(func, &block.type_name);
         }
+        // For trait impls used as generic bounds, emit a factory function
+        // so instances satisfy the TypeScript interface
+        if let Some(trait_name) = &block.trait_name {
+            if self.traits_needing_interface.contains(trait_name.as_str()) {
+                self.newline();
+                self.emit_trait_impl_factory(block);
+            }
+        }
+    }
+
+    /// Emit a factory function for a `for Type: Trait` block.
+    ///
+    /// The factory wraps the standalone for-block functions as method properties
+    /// on the returned object, so that `Type` instances satisfy the TypeScript
+    /// interface emitted for the trait.
+    ///
+    /// Example: `for DrizzleSnippetRepository: SnippetRepository { fn create(...) }` emits:
+    /// ```typescript
+    /// function DrizzleSnippetRepository__make(data: { client: Database }): DrizzleSnippetRepository {
+    ///   return { ...data, create: (input) => DrizzleSnippetRepository__create(data, input) };
+    /// }
+    /// ```
+    fn emit_trait_impl_factory(&mut self, block: &ForBlock) {
+        let type_name = match &block.type_name.kind {
+            TypeExprKind::Named { name, .. } => name.clone(),
+            _ => return,
+        };
+
+        let factory_name = format!("{type_name}__make");
+        self.emit_indent();
+        self.push("function ");
+        self.push(&factory_name);
+        self.push("(__data: ");
+        self.emit_type_expr(&block.type_name);
+        self.push("): ");
+        self.emit_type_expr(&block.type_name);
+        self.push(" {\n");
+        self.indent += 1;
+        self.emit_indent();
+        self.push("return {\n");
+        self.indent += 1;
+        self.emit_indent();
+        self.push("...__data,\n");
+
+        for func in &block.functions {
+            // Skip self param — methods only take the non-self params
+            let non_self_params: Vec<&Param> =
+                func.params.iter().filter(|p| p.name != "self").collect();
+            let mangled = for_block_fn_name(&block.type_name, &func.name);
+
+            self.emit_indent();
+            self.push(&func.name);
+            self.push(": (");
+            for (i, param) in non_self_params.iter().enumerate() {
+                if i > 0 {
+                    self.push(", ");
+                }
+                self.push(&param.name);
+                if let Some(ta) = &param.type_ann {
+                    self.push(": ");
+                    self.emit_type_expr(ta);
+                }
+            }
+            self.push(") => ");
+            self.push(&mangled);
+            self.push("(__data");
+            for param in &non_self_params {
+                self.push(", ");
+                self.push(&param.name);
+            }
+            self.push("),\n");
+        }
+
+        self.indent -= 1;
+        self.emit_indent();
+        self.push("};\n");
+        self.indent -= 1;
+        self.emit_indent();
+        self.push("}");
+    }
+
+    /// Emit TypeScript interfaces for all traits used as generic bounds.
+    /// Returns the emitted string (empty if none needed).
+    pub(super) fn emit_trait_interfaces(&mut self) -> String {
+        if self.traits_needing_interface.is_empty() {
+            return String::new();
+        }
+
+        let trait_names: Vec<String> = self.traits_needing_interface.iter().cloned().collect();
+        let mut out = String::new();
+
+        for trait_name in &trait_names {
+            let Some(decl) = self.trait_decls.get(trait_name).cloned() else {
+                continue;
+            };
+
+            out.push_str("interface ");
+            out.push_str(trait_name);
+            out.push_str(" {\n");
+
+            for method in &decl.methods {
+                // Skip self — TypeScript interfaces have implicit `this`
+                let non_self_params: Vec<&Param> =
+                    method.params.iter().filter(|p| p.name != "self").collect();
+
+                out.push_str("  ");
+                out.push_str(&method.name);
+                out.push('(');
+                for (i, param) in non_self_params.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    out.push_str(&param.name);
+                    if let Some(ta) = &param.type_ann {
+                        out.push_str(": ");
+                        let mut cg = self.sub_codegen();
+                        cg.emit_type_expr(ta);
+                        out.push_str(&cg.output);
+                    }
+                }
+                out.push(')');
+                if let Some(rt) = &method.return_type {
+                    out.push_str(": ");
+                    let mut cg = self.sub_codegen();
+                    cg.emit_type_expr(rt);
+                    out.push_str(&cg.output);
+                }
+                out.push_str(";\n");
+            }
+
+            out.push('}');
+        }
+
+        out
     }
 
     fn emit_for_block_function(&mut self, func: &FunctionDecl, for_type: &TypeExpr) {

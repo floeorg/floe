@@ -380,7 +380,27 @@ impl Checker {
 
         // Register generic type parameters so they're recognized during type resolution
         for tp in &decl.type_params {
-            self.env.define(tp, Type::Named(tp.clone()));
+            self.env.define(&tp.name, Type::Named(tp.name.clone()));
+            if !tp.bounds.is_empty() {
+                // Validate each bound is a known trait
+                for bound in &tp.bounds {
+                    if !self.traits.trait_defs.contains_key(bound.as_str()) {
+                        self.emit_error_with_help(
+                            format!("unknown trait `{bound}`"),
+                            decl.params
+                                .first()
+                                .and_then(|p| p.type_ann.as_ref())
+                                .map(|t| t.span)
+                                .unwrap_or(span),
+                            ErrorCode::UnknownTrait,
+                            "not defined",
+                            "check the spelling or define this trait",
+                        );
+                    }
+                }
+                self.env
+                    .define_type_param_bounds(&tp.name, tp.bounds.clone());
+            }
         }
 
         let return_type = decl

@@ -165,7 +165,18 @@ impl SymbolIndex {
                     let type_params = if decl.type_params.is_empty() {
                         String::new()
                     } else {
-                        format!("<{}>", decl.type_params.join(", "))
+                        let parts: Vec<String> = decl
+                            .type_params
+                            .iter()
+                            .map(|tp| {
+                                if tp.bounds.is_empty() {
+                                    tp.name.clone()
+                                } else {
+                                    format!("{}: {}", tp.name, tp.bounds.join(" + "))
+                                }
+                            })
+                            .collect();
+                        format!("<{}>", parts.join(", "))
                     };
 
                     symbols.push(Symbol {

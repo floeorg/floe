@@ -109,6 +109,39 @@ impl Codegen {
         None
     }
 
+    /// Emit method dispatch for generic-bounded pipe calls.
+    /// `repo |> create(input)` where repo: R: SnippetRepository → `repo.create(input)`
+    fn try_emit_trait_bounded_pipe(&mut self, left: &Expr, callee: &Expr, args: &[Arg]) -> bool {
+        let crate::checker::Type::Named(type_param_name) = &left.ty else {
+            return false;
+        };
+        let Some(bounds) = self.current_type_param_bounds.get(type_param_name.as_str()) else {
+            return false;
+        };
+        let ExprKind::Identifier(method_name) = &callee.kind else {
+            return false;
+        };
+        // Check if any bound trait has this method
+        for bound_trait in bounds {
+            let has_method = self
+                .trait_decls
+                .get(bound_trait.as_str())
+                .map_or(false, |td| {
+                    td.methods.iter().any(|m| m.name == *method_name)
+                });
+            if has_method {
+                self.emit_expr(left);
+                self.push(".");
+                self.push(method_name);
+                self.push("(");
+                self.emit_args(args);
+                self.push(")");
+                return true;
+            }
+        }
+        false
+    }
+
     pub(super) fn emit_pipe(&mut self, left: &Expr, right: &Expr) {
         match &right.kind {
             // Stdlib pipe: `arr |> Array.sort` or `arr |> Array.map(fn)`
@@ -121,6 +154,11 @@ impl Codegen {
                 // Type-directed resolution: bare function name → check stdlib
                 if let Some(output) = self.try_emit_bare_stdlib_pipe(left, callee, args) {
                     self.push(&output);
+                    return;
+                }
+                // Trait-bounded generic dispatch:
+                // `repo |> create(input)` where repo: R: Trait → `repo.create(input)`
+                if self.try_emit_trait_bounded_pipe(left, callee, args) {
                     return;
                 }
                 // Qualified for-block: `row |> AccentRow.toModel(args)` → `AccentRow__toModel(row, args)`

@@ -174,12 +174,20 @@ impl ConstBinding {
 
 // ── Function Declaration ─────────────────────────────────────────
 
+/// A generic type parameter with optional trait bounds: `R: SnippetRepository`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeParam {
+    pub name: String,
+    /// Trait names this parameter must implement (e.g. `["SnippetRepository"]`).
+    pub bounds: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDecl {
     pub exported: bool,
     pub async_fn: bool,
     pub name: String,
-    pub type_params: Vec<String>,
+    pub type_params: Vec<TypeParam>,
     pub params: Vec<Param>,
     pub return_type: Option<TypeExpr>,
     pub body: Box<Expr>,
