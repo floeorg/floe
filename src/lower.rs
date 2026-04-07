@@ -1124,14 +1124,14 @@ mod tests {
             panic!("expected Call")
         };
         // The callback has zero params
-        if let Arg::Positional(ref callback) = args[0] {
-            if let ExprKind::Arrow { ref params, .. } = callback.kind {
-                assert_eq!(
-                    params.len(),
-                    0,
-                    "zero-binding use should produce zero-param callback"
-                );
-            }
+        if let Arg::Positional(ref callback) = args[0]
+            && let ExprKind::Arrow { ref params, .. } = callback.kind
+        {
+            assert_eq!(
+                params.len(),
+                0,
+                "zero-binding use should produce zero-param callback"
+            );
         }
     }
 
