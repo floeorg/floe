@@ -414,17 +414,54 @@ impl<'src> Lowerer<'src> {
         idents
     }
 
-    /// Collect type parameter names from `<T, U>` in function declarations.
-    pub(super) fn collect_type_params(&self, node: &SyntaxNode) -> Vec<String> {
+    /// Collect type parameters from `<T, R: Trait>` in function declarations.
+    /// Supports optional trait bounds after `:`.
+    pub(super) fn collect_type_params(&self, node: &SyntaxNode) -> Vec<TypeParam> {
         let mut params = Vec::new();
         let mut in_angle = false;
+        let mut current_name: Option<String> = None;
+        let mut after_colon = false;
+
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
                 match token.kind() {
                     SyntaxKind::LESS_THAN => in_angle = true,
-                    SyntaxKind::GREATER_THAN => break,
+                    SyntaxKind::GREATER_THAN => {
+                        if let Some(name) = current_name.take() {
+                            params.push(TypeParam {
+                                name,
+                                bounds: Vec::new(),
+                            });
+                        }
+                        break;
+                    }
+                    SyntaxKind::COMMA if in_angle => {
+                        if let Some(name) = current_name.take() {
+                            params.push(TypeParam {
+                                name,
+                                bounds: Vec::new(),
+                            });
+                        }
+                        after_colon = false;
+                    }
+                    SyntaxKind::COLON if in_angle && current_name.is_some() => {
+                        after_colon = true;
+                    }
                     SyntaxKind::IDENT if in_angle => {
-                        params.push(token.text().to_string());
+                        if after_colon {
+                            // This ident is a bound — attach to the last param being built
+                            // (current_name is already set, we need to store the bound separately)
+                            // Rebuild: push param with bound
+                            if let Some(name) = current_name.take() {
+                                params.push(TypeParam {
+                                    name,
+                                    bounds: vec![token.text().to_string()],
+                                });
+                                after_colon = false;
+                            }
+                        } else {
+                            current_name = Some(token.text().to_string());
+                        }
                     }
                     _ => {}
                 }

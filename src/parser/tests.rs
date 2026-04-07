@@ -697,7 +697,9 @@ fn generic_function_decl() {
     match first_item("fn identity<T>(x: T) -> T { x }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "identity");
-            assert_eq!(decl.type_params, vec!["T"]);
+            assert_eq!(decl.type_params.len(), 1);
+            assert_eq!(decl.type_params[0].name, "T");
+            assert!(decl.type_params[0].bounds.is_empty());
             assert_eq!(decl.params.len(), 1);
             assert!(decl.return_type.is_some());
         }
@@ -710,8 +712,24 @@ fn generic_function_multi_params() {
     match first_item("fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "pair");
-            assert_eq!(decl.type_params, vec!["A", "B"]);
+            assert_eq!(decl.type_params.len(), 2);
+            assert_eq!(decl.type_params[0].name, "A");
+            assert_eq!(decl.type_params[1].name, "B");
             assert_eq!(decl.params.len(), 2);
+        }
+        other => panic!("expected function, got {other:?}"),
+    }
+}
+
+#[test]
+fn generic_function_with_trait_bound() {
+    match first_item("fn process<R: Display>(repo: R) -> string { todo }") {
+        ItemKind::Function(decl) => {
+            assert_eq!(decl.name, "process");
+            assert_eq!(decl.type_params.len(), 1);
+            assert_eq!(decl.type_params[0].name, "R");
+            assert_eq!(decl.type_params[0].bounds, vec!["Display"]);
+            assert_eq!(decl.params.len(), 1);
         }
         other => panic!("expected function, got {other:?}"),
     }

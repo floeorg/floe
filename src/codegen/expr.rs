@@ -210,6 +210,22 @@ impl Codegen {
                     return;
                 }
 
+                // Types with trait impls use a factory function so instances
+                // satisfy the TypeScript interface (they carry method wrappers).
+                if !is_variant && self.type_trait_impls.contains_key(type_name.as_str()) {
+                    self.push(&format!("{type_name}__make({{ "));
+                    if let Some(spread_expr) = spread {
+                        self.push("...");
+                        self.emit_expr(spread_expr);
+                        if !args.is_empty() {
+                            self.push(", ");
+                        }
+                    }
+                    self.emit_named_fields(args);
+                    self.push(" })");
+                    return;
+                }
+
                 self.push("{ ");
                 if is_variant {
                     self.push(&format!("{TAG_FIELD}: \""));

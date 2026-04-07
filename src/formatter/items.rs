@@ -222,6 +222,9 @@ impl Formatter<'_> {
             self.write(&name);
         }
 
+        // Emit generic type parameters: <T, R: Trait>
+        self.fmt_type_params(node);
+
         let params: Vec<_> = node
             .children()
             .filter(|c| c.kind() == SyntaxKind::PARAM)
@@ -285,6 +288,41 @@ impl Formatter<'_> {
         if let Some(block) = node.children().find(|c| c.kind() == SyntaxKind::BLOCK_EXPR) {
             self.write(" ");
             self.fmt_block(&block);
+        }
+    }
+
+    /// Emit generic type parameters from a function node: `<T, R: Trait>`.
+    /// Reproduces tokens between `<` and `>` (idents, colons, commas).
+    fn fmt_type_params(&mut self, node: &SyntaxNode) {
+        let mut in_angle = false;
+        let mut started = false;
+        for token in node.children_with_tokens() {
+            if let Some(tok) = token.as_token() {
+                match tok.kind() {
+                    SyntaxKind::LESS_THAN => {
+                        self.write("<");
+                        in_angle = true;
+                        started = true;
+                    }
+                    SyntaxKind::GREATER_THAN if in_angle => {
+                        self.write(">");
+                        return;
+                    }
+                    SyntaxKind::IDENT if in_angle => {
+                        self.write(tok.text());
+                    }
+                    SyntaxKind::COLON if in_angle => {
+                        self.write(": ");
+                    }
+                    SyntaxKind::COMMA if in_angle => {
+                        self.write(", ");
+                    }
+                    _ if in_angle => {}
+                    // Stop looking once we've passed the point where `<` would appear
+                    SyntaxKind::L_PAREN if !started => return,
+                    _ => {}
+                }
+            }
         }
     }
 

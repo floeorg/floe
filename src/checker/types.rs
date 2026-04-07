@@ -504,6 +504,11 @@ impl TypeEnv {
         self.type_param_bounds.insert(name.to_string(), bounds);
     }
 
+    /// Look up trait bounds for a type parameter.
+    pub(crate) fn get_type_param_bounds(&self, name: &str) -> Option<&Vec<String>> {
+        self.type_param_bounds.get(name)
+    }
+
     /// Resolve a `Type::Named("Foo")` to its concrete type by looking up the type definition.
     /// For records, returns `Type::Record(fields)`. For unions, returns `Type::Union`.
     /// For aliases, follows the chain. Primitives and non-Named types pass through unchanged.

@@ -299,11 +299,11 @@ impl<'src> CstParser<'src> {
         self.expect_ident();
         self.eat_trivia();
 
-        // Optional type parameters: <T, U>
+        // Optional type parameters: <T, U> or <R: Trait, T>
         if self.at(TokenKind::LessThan) {
             self.bump(); // <
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_item, TokenKind::GreaterThan);
+            self.parse_comma_separated(Self::parse_type_param, TokenKind::GreaterThan);
             self.expect(TokenKind::GreaterThan);
             self.eat_trivia();
         }

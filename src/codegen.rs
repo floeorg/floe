@@ -119,6 +119,18 @@ pub struct Codegen {
     constructor_used_names: HashSet<String>,
     /// Names of untrusted npm imports — calls to these get auto-wrapped in try/catch IIFE.
     untrusted_imports: HashSet<String>,
+    /// All trait declarations in the program, keyed by trait name.
+    /// Used to emit TypeScript interfaces for trait-bounded generics.
+    trait_decls: HashMap<String, TraitDecl>,
+    /// Maps type name -> list of trait names it implements.
+    /// Types with trait impls get a factory function emitted from their for-block.
+    type_trait_impls: HashMap<String, Vec<String>>,
+    /// Type param bounds for the function currently being emitted.
+    /// Maps type param name -> list of trait names. Cleared after each function.
+    current_type_param_bounds: HashMap<String, Vec<String>>,
+    /// Trait names that need to be emitted as TypeScript interfaces.
+    /// Populated during first pass when a trait is used as a generic bound.
+    traits_needing_interface: HashSet<String>,
 }
 
 impl Codegen {
@@ -142,6 +154,10 @@ impl Codegen {
             for_block_type_names: HashSet::new(),
             constructor_used_names: HashSet::new(),
             untrusted_imports: HashSet::new(),
+            trait_decls: HashMap::new(),
+            type_trait_impls: HashMap::new(),
+            current_type_param_bounds: HashMap::new(),
+            traits_needing_interface: HashSet::new(),
         }
     }
 
@@ -226,6 +242,12 @@ impl Codegen {
                 }
                 ItemKind::Function(decl) => {
                     self.local_names.insert(decl.name.clone());
+                    // Collect traits used as generic bounds — they need TypeScript interfaces
+                    for tp in &decl.type_params {
+                        for bound in &tp.bounds {
+                            self.traits_needing_interface.insert(bound.clone());
+                        }
+                    }
                 }
                 ItemKind::Const(decl) => {
                     if let ConstBinding::Name(name) = &decl.binding {
@@ -256,13 +278,32 @@ impl Codegen {
                     for func in &block.functions {
                         self.local_names.insert(func.name.clone());
                     }
+                    // Track types that implement traits so we can emit factory functions
+                    if let Some(trait_name) = &block.trait_name
+                        && let TypeExprKind::Named { name, .. } = &block.type_name.kind
+                    {
+                        self.type_trait_impls
+                            .entry(name.clone())
+                            .or_default()
+                            .push(trait_name.clone());
+                    }
+                }
+                ItemKind::TraitDecl(decl) => {
+                    self.trait_decls.insert(decl.name.clone(), decl.clone());
                 }
                 _ => {}
             }
         }
 
+        // Emit TypeScript interfaces for all traits used as generic bounds
+        // These must come first so they're available to all function signatures
+        let interface_output = self.emit_trait_interfaces();
+        if !interface_output.is_empty() {
+            self.output.push_str(&interface_output);
+        }
+
         for (i, item) in program.items.iter().enumerate() {
-            if i > 0 {
+            if i > 0 || !interface_output.is_empty() {
                 self.newline();
             }
             self.emit_item(item);
@@ -403,6 +444,10 @@ impl Codegen {
             for_block_type_names: self.for_block_type_names.clone(),
             constructor_used_names: self.constructor_used_names.clone(),
             untrusted_imports: self.untrusted_imports.clone(),
+            trait_decls: self.trait_decls.clone(),
+            type_trait_impls: self.type_trait_impls.clone(),
+            current_type_param_bounds: self.current_type_param_bounds.clone(),
+            traits_needing_interface: self.traits_needing_interface.clone(),
         }
     }
 

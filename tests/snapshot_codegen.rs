@@ -164,6 +164,37 @@ fn snapshot_traits() {
 }
 
 #[test]
+fn snapshot_trait_constrained_generics() {
+    let output = compile(
+        r#"
+trait Repo {
+  fn create(self, input: string) -> string
+  fn findById(self, id: number) -> string
+}
+
+type DrizzleRepo {
+  db: string,
+}
+
+for DrizzleRepo: Repo {
+  export fn create(self, input: string) -> string {
+    input
+  }
+
+  export fn findById(self, id: number) -> string {
+    "found"
+  }
+}
+
+fn doWork<R: Repo>(repo: R, input: string) -> string {
+  repo |> create(input)
+}
+"#,
+    );
+    insta::assert_snapshot!(output);
+}
+
+#[test]
 fn snapshot_tuples() {
     let output = compile_fixture("tuples");
     insta::assert_snapshot!(output);

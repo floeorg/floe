@@ -492,6 +492,18 @@ impl<'src> CstParser<'src> {
         self.expect_ident();
     }
 
+    /// Parse a type parameter: `T` or `T: Trait` (with trait bound).
+    fn parse_type_param(&mut self) {
+        self.expect_ident();
+        self.eat_trivia();
+        if self.at(TokenKind::Colon) {
+            self.bump(); // :
+            self.eat_trivia();
+            self.expect_ident(); // trait name
+            self.eat_trivia();
+        }
+    }
+
     /// Parse a destructuring field: `ident` or `ident: ident` (with rename).
     fn parse_destructure_field(&mut self) {
         self.expect_ident();

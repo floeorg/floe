@@ -247,7 +247,16 @@ impl Codegen {
         out.push_str(&decl.name);
         if !decl.type_params.is_empty() {
             out.push('<');
-            out.push_str(&decl.type_params.join(", "));
+            for (i, tp) in decl.type_params.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(&tp.name);
+                if !tp.bounds.is_empty() {
+                    out.push_str(" extends ");
+                    out.push_str(&tp.bounds.join(" & "));
+                }
+            }
             out.push('>');
         }
         out.push('(');

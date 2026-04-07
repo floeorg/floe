@@ -1,0 +1,29 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+interface Repo {
+  create(input: string): string;
+  findById(id: number): string;
+}
+
+
+type DrizzleRepo = { db: string };
+
+export function DrizzleRepo__create(self: DrizzleRepo, input: string): string {
+  return input;
+}
+export function DrizzleRepo__findById(self: DrizzleRepo, id: number): string {
+  return "found";
+}
+function DrizzleRepo__make(__data: DrizzleRepo): DrizzleRepo {
+  return {
+    ...__data,
+    create: (input: string) => DrizzleRepo__create(__data, input),
+    findById: (id: number) => DrizzleRepo__findById(__data, id),
+  };
+}
+
+function doWork<R extends Repo>(repo: R, input: string): string {
+  return repo.create(input);
+}
