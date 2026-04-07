@@ -8,6 +8,7 @@ impl Checker {
             .map(|m| TraitMethodSig {
                 name: m.name.clone(),
                 has_default: m.body.is_some(),
+                has_self: m.params.first().is_some_and(|p| p.name == "self"),
                 params: m
                     .params
                     .iter()
@@ -88,8 +89,36 @@ impl Checker {
             }
 
             let impl_fn = impl_fns[method.name.as_str()];
+            let impl_has_self = impl_fn.params.first().is_some_and(|p| p.name == "self");
             let impl_params: Vec<&Param> =
                 impl_fn.params.iter().filter(|p| p.name != "self").collect();
+
+            // Check self presence
+            if impl_has_self != method.has_self {
+                let msg = if method.has_self {
+                    format!(
+                        "method `{}` in `{type_name}` is missing `self` but trait `{trait_name}` requires it",
+                        method.name
+                    )
+                } else {
+                    format!(
+                        "method `{}` in `{type_name}` has `self` but trait `{trait_name}` does not",
+                        method.name
+                    )
+                };
+                self.emit_error_with_help(
+                    msg,
+                    span,
+                    ErrorCode::TraitMethodSignatureMismatch,
+                    if method.has_self {
+                        "add `self` as the first parameter"
+                    } else {
+                        "remove `self` parameter"
+                    },
+                    format!("change the signature to match trait `{trait_name}`"),
+                );
+                continue;
+            }
 
             // Check parameter count
             if impl_params.len() != method.params.len() {
