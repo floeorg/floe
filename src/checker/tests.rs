@@ -5489,10 +5489,30 @@ const _result: Out = input |> In.convert
     );
 }
 
-// ── For-block member access ─────────────────────────────────
+// ── For-block dot-call errors ────────────────────────────────
 
 #[test]
-fn for_block_method_resolves_via_member_access() {
+fn dot_call_on_for_block_method_errors() {
+    let diags = check(
+        r#"
+type User { name: string }
+
+for User {
+    fn greet(self) -> string { `Hello, ${self.name}` }
+}
+
+const u = User(name: "Ryan")
+const _g = u.greet()
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::DotCallOnForBlockMethod),
+        "dot-call on for-block method should error"
+    );
+}
+
+#[test]
+fn dot_call_on_for_block_method_via_record_field_errors() {
     let diags = check(
         r#"
 type AccentRow { id: number, entryId: number }
@@ -5509,19 +5529,14 @@ fn convert(row: AccentRow) -> Accent {
 }
 "#,
     );
-    let errors: Vec<_> = diags
-        .iter()
-        .filter(|d| d.severity == Severity::Error)
-        .collect();
     assert!(
-        errors.is_empty(),
-        "for-block method via member access should resolve, got: {:?}",
-        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        has_error(&diags, ErrorCode::DotCallOnForBlockMethod),
+        "dot-call on for-block method should error; use pipe syntax instead"
     );
 }
 
 #[test]
-fn for_block_method_in_map_resolves_return_type() {
+fn dot_call_on_for_block_method_in_closure_errors() {
     let diags = check(
         r#"
 type AccentRow { id: number, entryId: number }
@@ -5538,14 +5553,29 @@ fn convertAll(rows: Array<AccentRow>) -> Array<Accent> {
 }
 "#,
     );
-    let errors: Vec<_> = diags
-        .iter()
-        .filter(|d| d.severity == Severity::Error)
-        .collect();
     assert!(
-        errors.is_empty(),
-        "for-block method in map should resolve return type, got: {:?}",
-        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        has_error(&diags, ErrorCode::DotCallOnForBlockMethod),
+        "dot-call on for-block method inside closure should error"
+    );
+}
+
+#[test]
+fn pipe_call_on_for_block_method_allowed() {
+    let diags = check(
+        r#"
+type User { name: string }
+
+for User {
+    fn greet(self) -> string { `Hello, ${self.name}` }
+}
+
+const u = User(name: "Ryan")
+const _g: string = u |> greet
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::DotCallOnForBlockMethod),
+        "pipe syntax for for-block method should not error"
     );
 }
 

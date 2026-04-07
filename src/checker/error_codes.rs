@@ -127,6 +127,8 @@ pub enum ErrorCode {
     TypeUsedAsValue,
     /// Value of this type cannot be called as a function.
     NotCallable,
+    /// For-block method called via dot syntax — must use pipe syntax.
+    DotCallOnForBlockMethod,
 }
 
 impl ErrorCode {
@@ -185,6 +187,7 @@ impl ErrorCode {
             Self::TypeArgumentArity => "E045",
             Self::TypeUsedAsValue => "E046",
             Self::NotCallable => "E047",
+            Self::DotCallOnForBlockMethod => "E049",
         }
     }
 }
