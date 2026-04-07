@@ -315,3 +315,30 @@ const x: Repo = todo
     );
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_error_undefined_type_in_annotation() {
+    let output = get_diagnostics("test.fl", r#"fn doThing(x: GhostType) -> string { "hi" }"#);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_error_field_access_on_unknown_from_bad_annotation() {
+    let output = get_diagnostics(
+        "test.fl",
+        r#"fn doThing(x: GhostType) -> string { x.someField }"#,
+    );
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_error_passing_unknown_to_typed_param() {
+    let output = get_diagnostics(
+        "test.fl",
+        r#"
+fn takes(x: string) -> string { x }
+fn doThing(x: GhostType) -> string { takes(x) }
+"#,
+    );
+    insta::assert_snapshot!(output);
+}
