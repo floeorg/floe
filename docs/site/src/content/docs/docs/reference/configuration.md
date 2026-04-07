@@ -25,6 +25,29 @@ Key settings:
 - `strict: true` - matches Floe's strictness philosophy
 - `moduleResolution: "bundler"` - works with Vite and modern bundlers
 
+### `lib` and `types` - controlling globals
+
+Floe reads `compilerOptions.lib` and `compilerOptions.types` to determine which globals are available:
+
+```json
+// Browser project (default if lib is omitted)
+{ "compilerOptions": { "lib": ["ES2020", "DOM"] } }
+// → window, document, navigator, fetch, Date, Promise, etc.
+
+// Node.js backend
+{ "compilerOptions": { "lib": ["ES2020"], "types": ["node"] } }
+// → process, Buffer, __dirname (no window/document)
+
+// Cloudflare Workers
+{ "compilerOptions": { "lib": ["ESNext"], "types": ["@cloudflare/workers-types"] } }
+// → Workers globals, Date, Promise (no window/document)
+```
+
+- **`lib`** controls which TypeScript lib files are loaded (ES versions, DOM, WebWorker, etc.)
+- **`types`** controls which `@types/*` packages are loaded for global declarations
+- If `types` is omitted, all installed `@types/*` packages are auto-included (TypeScript default)
+- If `lib` is omitted, defaults to `ES5` + `DOM`
+
 ## Project Structure
 
 Recommended layout:

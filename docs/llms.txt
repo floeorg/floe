@@ -415,6 +415,25 @@ const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> await
 const results = Promise.allSettled([fetchA(), fetchB()]) |> await  // Array<Result<T, Error>>
 Promise.delay(1000) |> await   // wait 1 second
 
+// ── Globals (browser/runtime) ──
+// Globals like window, document, navigator, fetch, process, Buffer are loaded
+// automatically from the project's tsconfig.json — no imports needed.
+//
+// compilerOptions.lib controls which TS lib files load:
+//   "lib": ["ES2020", "DOM"]  → browser globals (window, document, navigator)
+//   "lib": ["ESNext"]         → core JS only (Date, Promise, Map — no DOM)
+//
+// compilerOptions.types controls which @types/* packages load:
+//   "types": ["node"]                      → process, Buffer, __dirname
+//   "types": ["@cloudflare/workers-types"] → Cloudflare Workers globals
+//   (omitted)                              → auto-includes all @types/*
+//
+// Examples:
+const url = window.location.href        // string (from lib.dom.d.ts)
+navigator.clipboard.writeText("hello")  // Promise<void>
+const w = window.innerWidth             // number
+const p = process.env                   // from @types/node
+
 // npm imports are untrusted by default: wrapped in try/catch, return Result<T, Error>
 import { npmSyncFn } from "sync-lib"
 const result = npmSyncFn()            // Result<T, Error> — sync, no await needed
