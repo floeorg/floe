@@ -318,10 +318,7 @@ const x: Repo = todo
 
 #[test]
 fn snapshot_error_undefined_type_in_annotation() {
-    let output = get_diagnostics(
-        "test.fl",
-        r#"fn doThing(x: GhostType) -> string { "hi" }"#,
-    );
+    let output = get_diagnostics("test.fl", r#"fn doThing(x: GhostType) -> string { "hi" }"#);
     insta::assert_snapshot!(output);
 }
 
