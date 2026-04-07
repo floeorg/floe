@@ -8,7 +8,7 @@ impl Checker {
             .map(|m| TraitMethodSig {
                 name: m.name.clone(),
                 has_default: m.body.is_some(),
-                has_self: m.params.first().is_some_and(|p| p.name == "self"),
+                has_self: params_have_self(&m.params),
                 params: m
                     .params
                     .iter()
@@ -89,12 +89,9 @@ impl Checker {
             }
 
             let impl_fn = impl_fns[method.name.as_str()];
-            let impl_has_self = impl_fn.params.first().is_some_and(|p| p.name == "self");
-            let impl_params: Vec<&Param> =
-                impl_fn.params.iter().filter(|p| p.name != "self").collect();
 
             // Check self presence
-            if impl_has_self != method.has_self {
+            if params_have_self(&impl_fn.params) != method.has_self {
                 let msg = if method.has_self {
                     format!(
                         "method `{}` in `{type_name}` is missing `self` but trait `{trait_name}` requires it",
@@ -119,6 +116,9 @@ impl Checker {
                 );
                 continue;
             }
+
+            let impl_params: Vec<&Param> =
+                impl_fn.params.iter().filter(|p| p.name != "self").collect();
 
             // Check parameter count
             if impl_params.len() != method.params.len() {
