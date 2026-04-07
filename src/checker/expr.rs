@@ -2486,10 +2486,19 @@ impl Checker {
             _ => {}
         }
 
-        // For-block methods: check before foreign/named fallback so that
-        // `a.toModel()` resolves to the for-block method's type.
-        if let Some(ty) = self.resolve_for_block_method(field, obj_ty) {
-            return ty;
+        // For-block methods via dot syntax are not allowed — pipe syntax is required.
+        // `obj.method()` → error; use `obj |> method()` instead.
+        // Foreign types (npm/TS) with for-blocks are included: all for-block methods
+        // must go through pipes regardless of receiver type.
+        if self.resolve_for_block_method(field, obj_ty).is_some() {
+            self.emit_error_with_help(
+                format!("cannot call for-block method `{field}` with dot syntax"),
+                span,
+                ErrorCode::DotCallOnForBlockMethod,
+                "for-block methods require pipe syntax",
+                format!("use `|> {field}(...)` instead of `.{field}(...)`"),
+            );
+            return Type::Error;
         }
 
         // Foreign types: try to resolve to Record via DTS before allowing blind access
@@ -2568,8 +2577,15 @@ impl Checker {
         if let Some((_, ty)) = fields.iter().find(|(n, _)| n == field) {
             return ty.clone();
         }
-        if let Some(ty) = self.resolve_for_block_method(field, obj_ty) {
-            return ty;
+        if self.resolve_for_block_method(field, obj_ty).is_some() {
+            self.emit_error_with_help(
+                format!("cannot call for-block method `{field}` with dot syntax"),
+                span,
+                ErrorCode::DotCallOnForBlockMethod,
+                "for-block methods require pipe syntax",
+                format!("use `|> {field}(...)` instead of `.{field}(...)`"),
+            );
+            return Type::Error;
         }
         self.emit_error_with_help(
             format!("type `{}` has no field `{field}`", obj_ty),

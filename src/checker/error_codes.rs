@@ -129,6 +129,8 @@ pub enum ErrorCode {
     NotCallable,
     /// Trait name used in a type position.
     TraitUsedAsType,
+    /// For-block method called via dot syntax — must use pipe syntax.
+    DotCallOnForBlockMethod,
 }
 
 impl ErrorCode {
@@ -188,6 +190,7 @@ impl ErrorCode {
             Self::TypeUsedAsValue => "E046",
             Self::NotCallable => "E047",
             Self::TraitUsedAsType => "E049",
+            Self::DotCallOnForBlockMethod => "E050",
         }
     }
 }
