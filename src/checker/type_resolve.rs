@@ -167,6 +167,18 @@ impl Checker {
                 Type::Promise(Box::new(inner))
             }
             _ => {
+                // Trait names are not types — always error when used in a type position.
+                if !self.registering_types && self.traits.trait_defs.contains_key(name) {
+                    self.emit_error_with_help(
+                        format!("`{name}` is a trait, not a type — traits cannot be used in type positions"),
+                        span,
+                        ErrorCode::TraitUsedAsType,
+                        "trait, not a type",
+                        "traits are compile-time contracts and cannot appear as types",
+                    );
+                    return Type::Error;
+                }
+
                 // Check if this is a known user-defined type or imported name.
                 // Skip validation during type registration (forward references).
                 // If the env has a Foreign type, preserve it.

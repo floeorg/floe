@@ -2575,6 +2575,52 @@ for User: Printable {
     assert!(has_error_containing(&diags, "prettyPrint"));
 }
 
+#[test]
+fn trait_impl_missing_self_when_trait_requires_it() {
+    let diags = check(
+        r#"
+trait Display {
+  fn display(self) -> string
+}
+type User { name: string }
+for User: Display {
+  fn display() -> string {
+    "hello"
+  }
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TraitMethodSignatureMismatch),
+        "should error when impl omits self but trait requires it: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(has_error_containing(&diags, "missing `self`"));
+}
+
+#[test]
+fn trait_impl_has_self_when_trait_does_not() {
+    let diags = check(
+        r#"
+trait Greet {
+  fn greet(name: string) -> string
+}
+type User {}
+for User: Greet {
+  fn greet(self, name: string) -> string {
+    name
+  }
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TraitMethodSignatureMismatch),
+        "should error when impl adds self but trait does not have it: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(has_error_containing(&diags, "has `self`"));
+}
+
 // ── Bug: Cross-file trait resolution ────────────────────────
 // Traits imported from another file should be recognized by the checker
 
