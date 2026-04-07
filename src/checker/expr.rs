@@ -1681,6 +1681,29 @@ impl Checker {
                 })
         });
 
+        // Trait-bounded generic dispatch: if the left side is a type parameter
+        // with trait bounds, resolve the method from the trait definition.
+        let has_trait_method = if !has_overload
+            && let Some(name) = bare_name
+            && let Type::Named(type_param) = left_ty
+        {
+            let bounds = self.env.get_type_param_bounds(type_param.as_str()).cloned();
+            if let Some(bounds) = bounds {
+                let fn_type = self.resolve_trait_method(name, &bounds);
+                if let Some(fn_type) = fn_type {
+                    self.env.push_scope();
+                    self.env.define(name, fn_type);
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         // Default: check normally, with pipe context for arg validation
         let left_ty_clone = left_ty.clone();
         let right_ty = self.with_context(
@@ -1688,7 +1711,7 @@ impl Checker {
             |this| this.check_expr(right),
         );
 
-        if has_overload {
+        if has_overload || has_trait_method {
             self.env.pop_scope();
         }
 

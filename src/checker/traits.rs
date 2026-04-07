@@ -212,4 +212,43 @@ impl Checker {
             .trait_impls
             .insert((type_name.to_string(), trait_name.to_string()));
     }
+
+    /// Look up a trait method by name across a list of trait bounds.
+    /// Returns the method as a `Type::Function` if found.
+    pub(crate) fn resolve_trait_method(
+        &mut self,
+        method_name: &str,
+        bounds: &[String],
+    ) -> Option<Type> {
+        for bound_trait in bounds {
+            let methods = self.traits.trait_defs.get(bound_trait.as_str())?.clone();
+            for method in &methods {
+                if method.name == method_name {
+                    // Build a Type::Function from the trait method signature
+                    // Include self as first param (type Unknown — it's the generic receiver)
+                    let mut param_types = vec![Type::Unknown]; // self
+                    for param in &method.params {
+                        let ty = param
+                            .type_ann
+                            .as_ref()
+                            .map(|ta| self.resolve_type(ta))
+                            .unwrap_or(Type::Unknown);
+                        param_types.push(ty);
+                    }
+                    let return_type = method
+                        .return_type
+                        .as_ref()
+                        .map(|rt| self.resolve_type(rt))
+                        .unwrap_or(Type::Unknown);
+
+                    return Some(Type::Function {
+                        params: param_types,
+                        return_type: Box::new(return_type),
+                        required_params: method.params.len() + 1, // +1 for self
+                    });
+                }
+            }
+        }
+        None
+    }
 }

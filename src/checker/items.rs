@@ -396,6 +396,9 @@ impl Checker {
                             "not defined",
                             "check the spelling or define this trait",
                         );
+                    } else {
+                        // Mark the trait name as used (not flagged as unused import)
+                        self.unused.used_names.insert(bound.clone());
                     }
                 }
                 self.env
