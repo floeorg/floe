@@ -127,6 +127,8 @@ pub enum ErrorCode {
     TypeUsedAsValue,
     /// Value of this type cannot be called as a function.
     NotCallable,
+    /// Trait name used in a type position.
+    TraitUsedAsType,
 }
 
 impl ErrorCode {
@@ -185,6 +187,7 @@ impl ErrorCode {
             Self::TypeArgumentArity => "E045",
             Self::TypeUsedAsValue => "E046",
             Self::NotCallable => "E047",
+            Self::TraitUsedAsType => "E049",
         }
     }
 }

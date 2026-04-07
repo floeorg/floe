@@ -260,3 +260,49 @@ fn snapshot_error_no_cascade_from_invalid_field_access() {
     );
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_error_trait_used_as_parameter_type() {
+    let output = get_diagnostics("test.fl", r#"
+trait Repo {
+  fn create(self) -> string
+}
+
+type MyRepo {}
+
+for MyRepo: Repo {
+  fn create(self) -> string { "ok" }
+}
+
+fn doThing(repo: Repo) -> string {
+  "hi"
+}
+"#);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_error_trait_used_as_return_type() {
+    let output = get_diagnostics("test.fl", r#"
+trait Repo {
+  fn create(self) -> string
+}
+
+fn getRepo() -> Repo {
+  todo
+}
+"#);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_error_trait_used_in_const_annotation() {
+    let output = get_diagnostics("test.fl", r#"
+trait Repo {
+  fn create(self) -> string
+}
+
+const x: Repo = todo
+"#);
+    insta::assert_snapshot!(output);
+}
