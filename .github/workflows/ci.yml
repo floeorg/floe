@@ -12,11 +12,11 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
+  RUSTFLAGS: "-D warnings -C link-arg=-fuse-ld=mold"
 
 jobs:
   rust:
-    name: Rust (fmt, clippy, test, build)
+    name: Rust (fmt · test · clippy · build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -27,34 +27,37 @@ jobs:
           toolchain: "1.94.0"
           components: rustfmt, clippy
 
-      - name: Cache cargo
-        uses: actions/cache@v5
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ci-profile
 
+      - name: Install mold linker
+        run: sudo apt-get update && sudo apt-get install -y mold
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      # fmt first — fail fast on trivial issues.
       - name: Format check
         run: cargo fmt -- --check
 
-      - name: Clippy
-        run: cargo clippy -- -D warnings
-
+      # Test before clippy: nextest does the full codegen + link, then
+      # clippy reuses those artifacts instead of recompiling workspace
+      # crates from metadata.
       - name: Tests
-        run: cargo test
+        run: cargo nextest run --cargo-profile ci
+
+      - name: Clippy
+        run: cargo clippy --profile ci -- -D warnings
 
       - name: Build
-        run: cargo build
+        run: cargo build --profile ci
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
           name: floe-binary
-          path: target/debug/floe
+          path: target/ci/floe
           retention-days: 1
 
   integration:
