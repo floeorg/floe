@@ -2,3 +2,22 @@
 
 [build]
 target-dir = "/Users/onesc/Code/Projects/floe/target"
+
+# Fast linkers for dev builds. Requires:
+#   macOS: `brew install llvm` (provides lld)
+#   Linux: `apt-get install mold` or equivalent
+[target.aarch64-apple-darwin]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-apple-darwin]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.aarch64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
