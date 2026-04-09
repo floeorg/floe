@@ -44,7 +44,11 @@ glb sub remove <parent> <child> # Remove a sub-issue from a parent
 glb sub list <parent>           # List sub-issues with progress
 ```
 
-Epics use a **shared branch** that sub-issues merge into before going to main:
+**Default: sub-issues branch off `main` and PR into `main`, just like any other issue.** The parent/child relationship is organizational only.
+
+**Only use the epic-branch workflow when the user explicitly asks for it** (e.g. "use an epic branch", "ship this as an epic"). Do NOT create an epic branch on your own just because an issue has sub-issues.
+
+When the user *does* ask for the epic-branch workflow, it looks like this:
 
 ```
 main
@@ -57,7 +61,7 @@ main
 feature/#409.llm-infrastructure -> main            <- one final PR
 ```
 
-**Epic workflow:**
+**Epic workflow (only when explicitly requested):**
 1. Create the epic branch: `git worktree add ../floe-worktrees/<epic-num> -b feature/#<num>.<summary> main`
 2. **Immediately create the epic PR** (even if empty) so progress is visible
 3. Sub-issue worktrees branch off the **epic branch**, not main
