@@ -1,6 +1,6 @@
 kit_version = "0.1.0"
-kit_commit = "662d420"
-last_sync = "2026-04-09T07:01:08Z"
+kit_commit = "51a58b2"
+last_sync = "2026-04-09T07:20:26Z"
 managed = [
     ".claude/rules/worktrees.md",
     ".claude/rules/general.md",
@@ -15,6 +15,7 @@ managed = [
     ".mise/tasks/check/rust",
     ".mise/tasks/fmt/rust",
     ".mise/tasks/clean",
+    ".cargo/config.toml",
     ".claude/rules/monorepo.md",
     ".claude/skills/ship/SKILL.md",
     ".claude/skills/rulify/SKILL.md",
