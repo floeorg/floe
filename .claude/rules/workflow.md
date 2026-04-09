@@ -14,6 +14,8 @@ Use `glb` for ALL task tracking via GitHub Issues + Projects. Do NOT use TodoWri
 glb ready                    # Show unblocked issues
 glb list                     # All open issues
 glb show <num>               # Detailed view with dependencies
+glb path                     # Critical path + high-leverage issues (--by-count, --top N)
+glb next                     # Recommend next batch for parallel agents (--agents N, default 3)
 ```
 
 ### Creating Issues

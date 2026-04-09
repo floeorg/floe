@@ -113,6 +113,8 @@ All state lives in GitHub — no local database.
 | `glb sub remove <parent> <child>` | Remove a sub-issue from a parent |
 | `glb sub list <parent>` | List sub-issues with progress |
 | `glb blocked` | Show all blocked issues |
+| `glb path` | Show critical path + high-leverage issues. `--by-count`, `--top N` |
+| `glb next` | Recommend next batch for parallel agents. `--agents N` (default 3) |
 | `glb search "query"` | Search issues by text |
 | `glb stats` | Show open/closed/blocked/ready counts |
 | `glb init --update-claude-md` | Refresh these agent instructions |
