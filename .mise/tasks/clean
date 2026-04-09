@@ -1,0 +1,6 @@
+#!/bin/bash
+#MISE description="Clean build artifacts (target/)"
+set -euo pipefail
+
+cargo clean
+echo "Cleaned target/"

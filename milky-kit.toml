@@ -9,7 +9,6 @@ languages = ["rust"]
 include = [
     "ship",
     "rulify",
-    "alignify",
     "retrospective",
     "land",
 ]

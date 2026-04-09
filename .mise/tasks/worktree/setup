@@ -12,12 +12,23 @@ DB_NAME="floe_wt_$NUM"
 git worktree add "$WT_DIR" -b "$BRANCH" "$BASE"
 cd "$WT_DIR"
 
-# Per-worktree database (skip if no docker-compose / no DB)
+# Per-worktree database (skip if no DB configured)
 createdb "$DB_NAME" 2>/dev/null || true
 
-# Copy and patch env if it exists
-if [ -f .env.example ]; then
+# Copy ALL .env files from main repo (preserves real API keys, secrets, etc.)
+find "$REPO_ROOT" -name ".env" -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/target/*" | while read -r envfile; do
+  relative="${envfile#$REPO_ROOT/}"
+  mkdir -p "$WT_DIR/$(dirname "$relative")"
+  cp -f "$envfile" "$WT_DIR/$relative"
+done
+
+# Fall back to .env.example if no .env exists at root
+if [ ! -f "$WT_DIR/.env" ] && [ -f .env.example ]; then
   cp -f .env.example .env
+fi
+
+# Patch DATABASE_URL for per-worktree database
+if [ -f "$WT_DIR/.env" ]; then
   sed -i '' "s|DATABASE_URL=.*|DATABASE_URL=postgres://floe:floe@localhost:5432/$DB_NAME|" "$WT_DIR/.env"
 fi
 

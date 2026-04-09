@@ -92,7 +92,18 @@ EOF
 
 Get the issue title from `glb show <num>`. The PR body must start with `closes #<num>` and include a test plan.
 
-## Step 5: CI loop
+## Step 5: Local testing instructions (before CI)
+
+**Immediately after pushing/creating the PR**, tell the user how to test locally so they can verify while CI runs:
+
+1. The exact mise command with worktree number: `mise run dev <worktree-num>`
+2. URL(s) to open
+3. What to do to trigger the feature
+4. What to look for to confirm it works
+
+Do NOT wait for CI to finish before giving these instructions.
+
+## Step 6: CI loop
 
 Each poll iteration, check **both**:
 1. CI status: `gh pr checks <pr-number>`
@@ -104,7 +115,7 @@ Track consecutive failures. **Cap at 3 — after 3 consecutive failures, stop an
 
 ### On CI failure or merge conflict:
 
-1. **Merge conflicts** (`mergeable` is `CONFLICTING`): rebase onto the base branch and resolve conflicts
+1. **Merge conflicts** (`mergeable` is `CONFLICTING`): merge the base branch in and resolve conflicts
 2. **CI failures**: read failure logs and fix the issue
 3. Re-run quality gates (step 2) on affected packages
 4. If the fix involved new logic or structural changes (not just mechanical fixes like missing imports or type annotations), re-run `/simplify` and `/rulify`
@@ -114,7 +125,7 @@ Track consecutive failures. **Cap at 3 — after 3 consecutive failures, stop an
 
 Proceed to step 6.
 
-## Step 6: Mark ready + report
+## Step 7: Mark ready + report
 
 ```bash
 gh pr ready <pr-number>
@@ -123,11 +134,6 @@ gh pr ready <pr-number>
 Tell the user:
 
 1. **PR URL** — always link the PR.
-2. **Local testing instructions**:
-   - How to run the dev server
-   - URL(s) to open
-   - What to do to trigger the feature
-   - What to look for to confirm it works
-3. Tell the user to say "merged" when the PR is merged so `/land` can clean up.
+2. Remind them to say "merged" when the PR is merged so `/land` can clean up.
 
 **Never run `gh pr merge`.**
