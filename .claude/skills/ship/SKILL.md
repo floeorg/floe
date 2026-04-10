@@ -27,7 +27,11 @@ On **re-runs** (PR already exists), skip PR creation — just run quality gates,
 4. Check if this is a sub-issue (branch matches `feature/#<epic>/#<sub>.*`) — if so, the PR base is the epic branch, not main
 5. Check if a PR already exists for this branch: `gh pr view --json number,state 2>/dev/null`
 
-## Step 2: Quality gates
+## Step 2: Verify against issue
+
+Read the issue with `glb show <num>` and check that every requirement, acceptance criterion, or sub-task in the issue body is actually implemented in the diff. If anything is missing, finish it before proceeding to the next step.
+
+## Step 3: Quality gates
 
 Run quality gates **scoped to changed packages only**. Fix issues at each step before proceeding.
 
@@ -39,7 +43,7 @@ Common patterns:
 
 Commit any fixes from this step.
 
-## Step 3: Code review
+## Step 4: Code review
 
 Run self-checks in order:
 
@@ -47,17 +51,17 @@ Run self-checks in order:
 2. **`/rulify`** — cross-check changes against `.claude/rules/`
 
 If any made changes:
-- Re-run quality gates (step 2) on affected packages
+- Re-run quality gates (step 3) on affected packages
 - Commit fixes
 
-## Step 4: PR
+## Step 5: PR
 
 Push the branch:
 ```bash
 git push -u origin $(git branch --show-current)
 ```
 
-**If a PR already exists**, skip to step 5.
+**If a PR already exists**, skip to step 6.
 
 **If no PR exists**, create a draft:
 
@@ -92,7 +96,7 @@ EOF
 
 Get the issue title from `glb show <num>`. The PR body must start with `closes #<num>` and include a test plan.
 
-## Step 5: Local testing instructions (before CI)
+## Step 6: Local testing instructions (before CI)
 
 **Immediately after pushing/creating the PR**, tell the user how to test locally so they can verify while CI runs:
 
@@ -103,7 +107,7 @@ Get the issue title from `glb show <num>`. The PR body must start with `closes #
 
 Do NOT wait for CI to finish before giving these instructions.
 
-## Step 6: CI loop
+## Step 7: CI loop
 
 Each poll iteration, check **both**:
 1. CI status: `gh pr checks <pr-number>`
@@ -117,15 +121,15 @@ Track consecutive failures. **Cap at 3 — after 3 consecutive failures, stop an
 
 1. **Merge conflicts** (`mergeable` is `CONFLICTING`): merge the base branch in and resolve conflicts
 2. **CI failures**: read failure logs and fix the issue
-3. Re-run quality gates (step 2) on affected packages
+3. Re-run quality gates (step 3) on affected packages
 4. If the fix involved new logic or structural changes (not just mechanical fixes like missing imports or type annotations), re-run `/simplify` and `/rulify`
 5. Commit, push, poll again
 
 ### On CI pass AND no conflicts:
 
-Proceed to step 6.
+Proceed to step 8.
 
-## Step 7: Mark ready + report
+## Step 8: Mark ready + report
 
 ```bash
 gh pr ready <pr-number>
