@@ -29,7 +29,13 @@ On **re-runs** (PR already exists), skip PR creation — just run quality gates,
 
 ## Step 2: Verify against issue
 
-Read the issue with `glb show <num>` and check that every requirement, acceptance criterion, or sub-task in the issue body is actually implemented in the diff. If anything is missing, finish it before proceeding to the next step.
+**MANDATORY — produce the checklist below as visible output.** Run `glb show <num>` and list every requirement, acceptance criterion, and sub-task from the issue body. Mark each:
+
+- ✓ `<requirement>` — implemented in `<file:line>`
+- ✗ `<requirement>` — MISSING, implementing now
+- ⊘ `<requirement>` — skipped because `<reason>` (only use when the user explicitly agreed or it's clearly out of scope)
+
+If anything is ✗, finish it before proceeding.
 
 ## Step 3: Quality gates
 

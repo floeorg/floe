@@ -24,6 +24,8 @@ glb next                     # Recommend next batch for parallel agents (--agent
 glb create --title="Summary" --body="Why and what" --priority P2 --status Todo --points 3
 ```
 
+**Issue body must include a `## Tests` section** listing the tests that need to be written to verify the work. Exception: bug-report issues that already reference a failing test, chores with no behavior change (deps, CI, docs).
+
 **No em dashes in titles.** Issue titles and PR titles must not contain em dashes. Use a regular hyphen (-) or rewrite the sentence instead.
 
 Priorities: P0 (critical), P1 (high), P2 (medium/default), P3 (low), P4 (backlog)
