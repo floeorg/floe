@@ -37,9 +37,18 @@ On **re-runs** (PR already exists), skip PR creation — just run quality gates,
 
 If anything is ✗, finish it before proceeding.
 
-## Step 3: Quality gates
+## Step 3: Code review
 
-Run quality gates **scoped to changed packages only**. Fix issues at each step before proceeding.
+Run self-checks in order:
+
+1. **`/simplify`** — review changed code for reuse, quality, and efficiency
+2. **`/rulify`** — cross-check changes against `.claude/rules/`
+
+Commit any fixes from this step.
+
+## Step 4: Quality gates
+
+Run quality gates **scoped to changed packages only** — after code review, since /simplify may have rewritten code that needs re-formatting and re-linting.
 
 Check `.claude/rules/` for the specific quality gate commands for each technology in this project (e.g., Rust formatting/linting/testing, frontend linting/typechecking/testing).
 
@@ -48,17 +57,6 @@ Common patterns:
 - **Frontend**: `cd <app-dir> && pnpm lint:fix`, `cd <app-dir> && pnpm check`
 
 Commit any fixes from this step.
-
-## Step 4: Code review
-
-Run self-checks in order:
-
-1. **`/simplify`** — review changed code for reuse, quality, and efficiency
-2. **`/rulify`** — cross-check changes against `.claude/rules/`
-
-If any made changes:
-- Re-run quality gates (step 3) on affected packages
-- Commit fixes
 
 ## Step 5: PR
 
@@ -127,7 +125,7 @@ Track consecutive failures. **Cap at 3 — after 3 consecutive failures, stop an
 
 1. **Merge conflicts** (`mergeable` is `CONFLICTING`): merge the base branch in and resolve conflicts
 2. **CI failures**: read failure logs and fix the issue
-3. Re-run quality gates (step 3) on affected packages
+3. Re-run quality gates (step 4) on affected packages
 4. If the fix involved new logic or structural changes (not just mechanical fixes like missing imports or type annotations), re-run `/simplify` and `/rulify`
 5. Commit, push, poll again
 
