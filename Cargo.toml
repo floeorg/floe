@@ -31,10 +31,10 @@ anyhow = { version = "1", optional = true }
 ariadne = "0.6"
 clap = { version = "4", features = ["derive"], optional = true }
 notify = { version = "8", optional = true }
-oxc_allocator = "0.123.0"
-oxc_ast = "0.123.0"
-oxc_parser = "0.123.0"
-oxc_span = "0.123.0"
+oxc_allocator = "0.124.0"
+oxc_ast = "0.124.0"
+oxc_parser = "0.124.0"
+oxc_span = "0.124.0"
 rowan = "0.16"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
