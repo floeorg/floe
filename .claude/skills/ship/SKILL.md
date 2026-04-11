@@ -43,6 +43,7 @@ Run self-checks in order:
 
 1. **`/simplify`** — review changed code for reuse, quality, and efficiency
 2. **`/rulify`** — cross-check changes against `.claude/rules/`
+3. **Clean removals, no half-migrations** — scan the diff for legacy debris: dead branches, commented-out blocks, stub/unused functions, backcompat shims, re-exports kept "just in case", `// TODO remove later` markers. Delete them all. If old code was replaced, the old code must be fully gone — no in-between states.
 
 Commit any fixes from this step.
 
