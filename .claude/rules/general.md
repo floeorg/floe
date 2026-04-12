@@ -14,3 +14,4 @@
 - **Always format before pushing.** Run `cargo fmt` (Rust) and `pnpm lint:fix` (frontend) before every `git push`. No exceptions.
 - **Merge, don't rebase.** Use `git merge main` to update branches, not `git rebase`. Rebase rewrites history and requires force push, which can destroy work in multi-agent environments.
 - **Never force push.** No `git push --force`, `git push -f`, or `--force-with-lease`.
+- **Stay focused on your task.** Don't fix unrelated errors that appear during typecheck/lint/CI — only fix what your changes caused. Report pre-existing blockers to the user rather than trying to fix them yourself.
