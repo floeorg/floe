@@ -1,6 +1,6 @@
 kit_version = "0.1.0"
-kit_commit = "baf5b6a"
-last_sync = "2026-04-12T03:31:42Z"
+kit_commit = "1253348"
+last_sync = "2026-04-12T03:38:22Z"
 managed = [
     ".claude/rules/worktrees.md",
     ".claude/rules/general.md",
@@ -11,6 +11,7 @@ managed = [
     ".mise/tasks/worktree/setup",
     ".mise/tasks/worktree/cleanup",
     "AGENTS.md",
+    "opencode.json",
     ".claude/rules/rust-style.md",
     ".claude/rules/clean-architecture.md",
     ".mise/tasks/check/rust",
