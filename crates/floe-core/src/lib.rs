@@ -10,6 +10,7 @@ pub mod lower;
 #[cfg(feature = "cli")]
 pub mod lsp;
 pub mod parser;
+pub mod pretty;
 pub mod resolve;
 pub mod sourcemap;
 pub mod stdlib;
