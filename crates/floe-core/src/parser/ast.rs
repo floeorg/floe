@@ -37,40 +37,97 @@ impl Default for ExprIdGen {
     }
 }
 
+// ── Phase type aliases ──────────────────────────────────────────
+//
+// The AST is parametrized over a phase type `T` that represents the
+// resolved type attached to each `Expr` node. Before type-checking,
+// `T = ()` (zero-sized, no runtime cost) — this is `UntypedExpr`.
+// After type-checking, `T = std::sync::Arc<crate::checker::Type>` —
+// this is `TypedExpr`. Because the phase flows through every struct
+// that transitively holds an `Expr`, codegen's signature (`&TypedExpr`)
+// makes it structurally impossible to emit code for an unchecked tree.
+//
+// Pragmatically, parameter defaults keep existing code compiling
+// unchanged: a plain `Expr` still means `Expr<()>`, and migration from
+// untyped to typed happens one function boundary at a time.
+
+/// An untyped expression tree (the output of `lower.rs`).
+pub type UntypedExpr = Expr<()>;
+
+/// An untyped program (the output of `lower.rs`).
+pub type UntypedProgram = Program<()>;
+
+/// A typed expression tree (the output of the checker).
+pub type TypedExpr = Expr<std::sync::Arc<crate::checker::Type>>;
+
+/// A typed program (the output of the checker, fed to codegen).
+pub type TypedProgram = Program<std::sync::Arc<crate::checker::Type>>;
+
+/// Aliases for every AST node in its typed form. Used throughout
+/// codegen and desugar so signatures don't need
+/// `&Thing<std::sync::Arc<crate::checker::Type>>` everywhere.
+pub type TypedItem = Item<std::sync::Arc<crate::checker::Type>>;
+pub type TypedItemKind = ItemKind<std::sync::Arc<crate::checker::Type>>;
+pub type TypedExprKind = ExprKind<std::sync::Arc<crate::checker::Type>>;
+pub type TypedConstDecl = ConstDecl<std::sync::Arc<crate::checker::Type>>;
+pub type TypedFunctionDecl = FunctionDecl<std::sync::Arc<crate::checker::Type>>;
+pub type TypedParam = Param<std::sync::Arc<crate::checker::Type>>;
+pub type TypedTypeDecl = TypeDecl<std::sync::Arc<crate::checker::Type>>;
+pub type TypedTypeDef = TypeDef<std::sync::Arc<crate::checker::Type>>;
+pub type TypedTypeExpr = TypeExpr<std::sync::Arc<crate::checker::Type>>;
+pub type TypedTypeExprKind = TypeExprKind<std::sync::Arc<crate::checker::Type>>;
+pub type TypedRecordEntry = RecordEntry<std::sync::Arc<crate::checker::Type>>;
+pub type TypedRecordField = RecordField<std::sync::Arc<crate::checker::Type>>;
+pub type TypedRecordSpread = RecordSpread<std::sync::Arc<crate::checker::Type>>;
+pub type TypedVariant = Variant<std::sync::Arc<crate::checker::Type>>;
+pub type TypedVariantField = VariantField<std::sync::Arc<crate::checker::Type>>;
+pub type TypedTraitDecl = TraitDecl<std::sync::Arc<crate::checker::Type>>;
+pub type TypedTraitMethod = TraitMethod<std::sync::Arc<crate::checker::Type>>;
+pub type TypedForBlock = ForBlock<std::sync::Arc<crate::checker::Type>>;
+pub type TypedTestBlock = TestBlock<std::sync::Arc<crate::checker::Type>>;
+pub type TypedTestStatement = TestStatement<std::sync::Arc<crate::checker::Type>>;
+pub type TypedMatchArm = MatchArm<std::sync::Arc<crate::checker::Type>>;
+pub type TypedArg = Arg<std::sync::Arc<crate::checker::Type>>;
+pub type TypedTemplatePart = TemplatePart<std::sync::Arc<crate::checker::Type>>;
+pub type TypedJsxElement = JsxElement<std::sync::Arc<crate::checker::Type>>;
+pub type TypedJsxElementKind = JsxElementKind<std::sync::Arc<crate::checker::Type>>;
+pub type TypedJsxProp = JsxProp<std::sync::Arc<crate::checker::Type>>;
+pub type TypedJsxChild = JsxChild<std::sync::Arc<crate::checker::Type>>;
+
 /// A complete Floe source file.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Program {
-    pub items: Vec<Item>,
+pub struct Program<T = ()> {
+    pub items: Vec<Item<T>>,
     pub span: Span,
 }
 
 /// Top-level items in a Floe file.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Item {
-    pub kind: ItemKind,
+pub struct Item<T = ()> {
+    pub kind: ItemKind<T>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ItemKind {
+pub enum ItemKind<T = ()> {
     /// `import { x, y } from "module"`
     Import(ImportDecl),
     /// `export { x, y } from "module"` — re-export without importing into scope
     ReExport(ReExportDecl),
     /// `const x = expr` or `export const x = expr`
-    Const(ConstDecl),
+    Const(ConstDecl<T>),
     /// `function f(...) { ... }` or `export function f(...) { ... }`
-    Function(FunctionDecl),
+    Function(FunctionDecl<T>),
     /// `type T = ...` or `export type T = ...`
-    TypeDecl(TypeDecl),
+    TypeDecl(TypeDecl<T>),
     /// `for Type { fn ... }` — group functions under a type
-    ForBlock(ForBlock),
+    ForBlock(ForBlock<T>),
     /// `trait Name { fn ... }` — trait declaration
-    TraitDecl(TraitDecl),
+    TraitDecl(TraitDecl<T>),
     /// `test "name" { assert expr ... }` — inline test block
-    TestBlock(TestBlock),
+    TestBlock(TestBlock<T>),
     /// Expression statement (for REPL / scripts)
-    Expr(Expr),
+    Expr(Expr<T>),
 }
 
 // ── Imports ──────────────────────────────────────────────────────
@@ -122,11 +179,11 @@ pub struct ReExportSpecifier {
 // ── Const Declaration ────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ConstDecl {
+pub struct ConstDecl<T = ()> {
     pub exported: bool,
     pub binding: ConstBinding,
-    pub type_ann: Option<TypeExpr>,
-    pub value: Expr,
+    pub type_ann: Option<TypeExpr<T>>,
+    pub value: Expr<T>,
 }
 
 /// A field in an object destructuring pattern, optionally renamed.
@@ -183,21 +240,21 @@ pub struct TypeParam {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FunctionDecl {
+pub struct FunctionDecl<T = ()> {
     pub exported: bool,
     pub async_fn: bool,
     pub name: String,
     pub type_params: Vec<TypeParam>,
-    pub params: Vec<Param>,
-    pub return_type: Option<TypeExpr>,
-    pub body: Box<Expr>,
+    pub params: Vec<Param<T>>,
+    pub return_type: Option<TypeExpr<T>>,
+    pub body: Box<Expr<T>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Param {
+pub struct Param<T = ()> {
     pub name: String,
-    pub type_ann: Option<TypeExpr>,
-    pub default: Option<Expr>,
+    pub type_ann: Option<TypeExpr<T>>,
+    pub default: Option<Expr<T>>,
     /// Destructuring pattern for this parameter: `|{ x, y }| ...`
     /// When present, `name` is a generated identifier and this holds the field names.
     pub destructure: Option<ParamDestructure>,
@@ -205,7 +262,7 @@ pub struct Param {
 }
 
 /// Returns `true` if the first element of `params` is named `self`.
-pub fn params_have_self(params: &[Param]) -> bool {
+pub fn params_have_self<T>(params: &[Param<T>]) -> bool {
     params.first().is_some_and(|p| p.name == "self")
 }
 
@@ -221,57 +278,57 @@ pub enum ParamDestructure {
 // ── Type Declarations ────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TypeDecl {
+pub struct TypeDecl<T = ()> {
     pub exported: bool,
     pub opaque: bool,
     pub name: String,
     pub type_params: Vec<String>,
-    pub def: TypeDef,
+    pub def: TypeDef<T>,
     /// `deriving (Display)` — auto-derive trait implementations for record types.
     pub deriving: Vec<String>,
 }
 
 /// The right-hand side of a type declaration.
 #[derive(Debug, Clone, PartialEq)]
-pub enum TypeDef {
+pub enum TypeDef<T = ()> {
     /// Record type: `{ field: Type, ...OtherType, ... }`
-    Record(Vec<RecordEntry>),
+    Record(Vec<RecordEntry<T>>),
     /// Union type: `| Variant1 | Variant2(field: Type)`
-    Union(Vec<Variant>),
+    Union(Vec<Variant<T>>),
     /// Type alias: `type X = SomeOtherType`
-    Alias(TypeExpr),
+    Alias(TypeExpr<T>),
     /// String literal union: `"GET" | "POST" | "PUT" | "DELETE"`
     StringLiteralUnion(Vec<String>),
 }
 
 /// An entry inside a record type definition — either a regular field or a spread.
 #[derive(Debug, Clone, PartialEq)]
-pub enum RecordEntry {
+pub enum RecordEntry<T = ()> {
     /// A regular field: `name: Type`
-    Field(Box<RecordField>),
+    Field(Box<RecordField<T>>),
     /// A spread: `...OtherType` — includes all fields from the referenced record type
-    Spread(RecordSpread),
+    Spread(RecordSpread<T>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct RecordField {
+pub struct RecordField<T = ()> {
     pub name: String,
-    pub type_ann: TypeExpr,
-    pub default: Option<Expr>,
+    pub type_ann: TypeExpr<T>,
+    pub default: Option<Expr<T>>,
     pub span: Span,
 }
 
 /// A spread entry in a record type: `...TypeName` or `...Generic<T>`
 #[derive(Debug, Clone, PartialEq)]
-pub struct RecordSpread {
+pub struct RecordSpread<T = ()> {
     pub type_name: String,
-    pub type_expr: Option<TypeExpr>,
+    pub type_expr: Option<TypeExpr<T>>,
     pub span: Span,
 }
 
-impl RecordEntry {
+impl<T> RecordEntry<T> {
     /// Returns the field if this is a `RecordEntry::Field`, otherwise `None`.
-    pub fn as_field(&self) -> Option<&RecordField> {
+    pub fn as_field(&self) -> Option<&RecordField<T>> {
         match self {
             RecordEntry::Field(f) => Some(f),
             RecordEntry::Spread(_) => None,
@@ -279,7 +336,7 @@ impl RecordEntry {
     }
 
     /// Returns the spread if this is a `RecordEntry::Spread`, otherwise `None`.
-    pub fn as_spread(&self) -> Option<&RecordSpread> {
+    pub fn as_spread(&self) -> Option<&RecordSpread<T>> {
         match self {
             RecordEntry::Spread(s) => Some(s),
             RecordEntry::Field(_) => None,
@@ -287,9 +344,9 @@ impl RecordEntry {
     }
 }
 
-impl TypeDef {
+impl<T> TypeDef<T> {
     /// Returns only the direct fields (excluding spreads) from a record type definition.
-    pub fn record_fields(&self) -> Vec<&RecordField> {
+    pub fn record_fields(&self) -> Vec<&RecordField<T>> {
         match self {
             TypeDef::Record(entries) => entries.iter().filter_map(RecordEntry::as_field).collect(),
             _ => Vec::new(),
@@ -297,7 +354,7 @@ impl TypeDef {
     }
 
     /// Returns the spread entries from a record type definition.
-    pub fn record_spreads(&self) -> Vec<&RecordSpread> {
+    pub fn record_spreads(&self) -> Vec<&RecordSpread<T>> {
         match self {
             TypeDef::Record(entries) => entries.iter().filter_map(RecordEntry::as_spread).collect(),
             _ => Vec::new(),
@@ -306,16 +363,16 @@ impl TypeDef {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Variant {
+pub struct Variant<T = ()> {
     pub name: String,
-    pub fields: Vec<VariantField>,
+    pub fields: Vec<VariantField<T>>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct VariantField {
+pub struct VariantField<T = ()> {
     pub name: Option<String>,
-    pub type_ann: TypeExpr,
+    pub type_ann: TypeExpr<T>,
     pub span: Span,
 }
 
@@ -323,22 +380,22 @@ pub struct VariantField {
 
 /// `trait Name { fn method(self) -> T ... }` — trait declaration.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TraitDecl {
+pub struct TraitDecl<T = ()> {
     pub exported: bool,
     pub name: String,
     /// Methods declared in the trait (signatures and optional default bodies).
-    pub methods: Vec<TraitMethod>,
+    pub methods: Vec<TraitMethod<T>>,
     pub span: Span,
 }
 
 /// A method in a trait declaration. May have a default body.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TraitMethod {
+pub struct TraitMethod<T = ()> {
     pub name: String,
-    pub params: Vec<Param>,
-    pub return_type: Option<TypeExpr>,
+    pub params: Vec<Param<T>>,
+    pub return_type: Option<TypeExpr<T>>,
     /// If Some, this is a default implementation.
-    pub body: Option<Expr>,
+    pub body: Option<Expr<T>>,
     pub span: Span,
 }
 
@@ -347,11 +404,11 @@ pub struct TraitMethod {
 /// `for Type { fn f(self) -> T { ... } }` — group functions under a type.
 /// `for Type: Trait { fn f(self) -> T { ... } }` — implement a trait for a type.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ForBlock {
-    pub type_name: TypeExpr,
+pub struct ForBlock<T = ()> {
+    pub type_name: TypeExpr<T>,
     /// Optional trait bound: `for User: Display { ... }`
     pub trait_name: Option<String>,
-    pub functions: Vec<FunctionDecl>,
+    pub functions: Vec<FunctionDecl<T>>,
     pub span: Span,
 }
 
@@ -359,53 +416,53 @@ pub struct ForBlock {
 
 /// `test "name" { assert expr ... }` — inline test block.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TestBlock {
+pub struct TestBlock<T = ()> {
     pub name: String,
-    pub body: Vec<TestStatement>,
+    pub body: Vec<TestStatement<T>>,
     pub span: Span,
 }
 
 /// A statement inside a test block.
 #[derive(Debug, Clone, PartialEq)]
-pub enum TestStatement {
+pub enum TestStatement<T = ()> {
     /// `assert expr` — asserts that the expression is truthy
-    Assert(Expr, Span),
+    Assert(Expr<T>, Span),
     /// A regular expression statement (e.g., const bindings, function calls)
-    Expr(Expr),
+    Expr(Expr<T>),
 }
 
 // ── Type Expressions ─────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TypeExpr {
-    pub kind: TypeExprKind,
+pub struct TypeExpr<T = ()> {
+    pub kind: TypeExprKind<T>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TypeExprKind {
+pub enum TypeExprKind<T = ()> {
     /// A named type: `string`, `number`, `User`, `Option<T>`
     Named {
         name: String,
-        type_args: Vec<TypeExpr>,
+        type_args: Vec<TypeExpr<T>>,
         /// Trait bounds on this type parameter: `T: Display + Eq`
         bounds: Vec<String>,
     },
     /// Record type inline: `{ name: string, age: number }`
-    Record(Vec<RecordField>),
+    Record(Vec<RecordField<T>>),
     /// Function type: `(a: number, b: string) -> Result<T, E>`
     Function {
-        params: Vec<TypeExpr>,
-        return_type: Box<TypeExpr>,
+        params: Vec<TypeExpr<T>>,
+        return_type: Box<TypeExpr<T>>,
     },
     /// Array type: `Array<T>`
-    Array(Box<TypeExpr>),
+    Array(Box<TypeExpr<T>>),
     /// Tuple type: `[string, number]`
-    Tuple(Vec<TypeExpr>),
+    Tuple(Vec<TypeExpr<T>>),
     /// `typeof <ident>` — extract the type of a value binding
     TypeOf(String),
     /// `A & B` — intersection type
-    Intersection(Vec<TypeExpr>),
+    Intersection(Vec<TypeExpr<T>>),
     /// String literal type: `"div"`, `"button"` (for npm interop like `ComponentProps<"div">`)
     StringLiteral(String),
 }
@@ -413,36 +470,56 @@ pub enum TypeExprKind {
 // ── Expressions ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Expr {
+pub struct Expr<T = ()> {
     pub id: ExprId,
-    pub kind: ExprKind,
-    /// Resolved type — `Unknown` before type-checking, filled in after.
-    pub ty: crate::checker::Type,
+    pub kind: ExprKind<T>,
+    /// Resolved type — unit `()` before type-checking (zero-sized),
+    /// `Arc<Type>` after checking. Codegen takes `Expr<Arc<Type>>` and
+    /// therefore cannot be called on an unchecked tree.
+    pub ty: T,
     pub span: Span,
 }
 
-impl Expr {
-    /// Create a synthetic `Expr` for codegen-internal use (not from source).
+impl Expr<()> {
+    /// Create a synthetic untyped `Expr` for codegen-internal use.
     /// Uses a sentinel ID — these are never looked up in the type map.
-    pub fn synthetic(kind: ExprKind, span: Span) -> Self {
+    pub fn synthetic(kind: ExprKind<()>, span: Span) -> Self {
         Self {
             id: ExprId::SYNTHETIC,
             kind,
-            ty: crate::checker::Type::Unknown,
+            ty: (),
+            span,
+        }
+    }
+}
+
+impl Expr<std::sync::Arc<crate::checker::Type>> {
+    /// Create a synthetic typed `Expr` for codegen-internal use. Uses a
+    /// sentinel ID and `Type::Unknown` for the type — these nodes are
+    /// never looked up in the type map and never feed type-directed
+    /// decisions downstream.
+    pub fn synthetic_typed(
+        kind: ExprKind<std::sync::Arc<crate::checker::Type>>,
+        span: Span,
+    ) -> Self {
+        Self {
+            id: ExprId::SYNTHETIC,
+            kind,
+            ty: std::sync::Arc::new(crate::checker::Type::Unknown),
             span,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExprKind {
+pub enum ExprKind<T = ()> {
     // -- Literals --
     /// Number literal: `42`, `3.14`
     Number(String),
     /// String literal: `"hello"`
     String(String),
     /// Template literal: `` `hello ${name}` ``
-    TemplateLiteral(Vec<TemplatePart>),
+    TemplateLiteral(Vec<TemplatePart<T>>),
     /// Boolean literal: `true`, `false`
     Bool(bool),
 
@@ -455,66 +532,72 @@ pub enum ExprKind {
     // -- Operators --
     /// Binary operation: `a + b`, `a == b`, `a && b`
     Binary {
-        left: Box<Expr>,
+        left: Box<Expr<T>>,
         op: BinOp,
-        right: Box<Expr>,
+        right: Box<Expr<T>>,
     },
     /// Unary operation: `!x`, `-x`
-    Unary { op: UnaryOp, operand: Box<Expr> },
+    Unary { op: UnaryOp, operand: Box<Expr<T>> },
     /// Pipe: `a |> f(b)`
-    Pipe { left: Box<Expr>, right: Box<Expr> },
+    Pipe {
+        left: Box<Expr<T>>,
+        right: Box<Expr<T>>,
+    },
     /// Unwrap: `expr?`
-    Unwrap(Box<Expr>),
+    Unwrap(Box<Expr<T>>),
 
     // -- Calls & Construction --
     /// Function call: `f(a, b, name: c)` or `f<T>(a, b)`
     Call {
-        callee: Box<Expr>,
-        type_args: Vec<TypeExpr>,
-        args: Vec<Arg>,
+        callee: Box<Expr<T>>,
+        type_args: Vec<TypeExpr<T>>,
+        args: Vec<Arg<T>>,
     },
     /// Type constructor: `User(name: "Ryan", email: e)` or `User(..existing, name: "New")`
     Construct {
         type_name: String,
-        spread: Option<Box<Expr>>,
-        args: Vec<Arg>,
+        spread: Option<Box<Expr<T>>>,
+        args: Vec<Arg<T>>,
     },
     /// Member access: `a.b`
-    Member { object: Box<Expr>, field: String },
+    Member { object: Box<Expr<T>>, field: String },
     /// Index access: `a[0]`
-    Index { object: Box<Expr>, index: Box<Expr> },
+    Index {
+        object: Box<Expr<T>>,
+        index: Box<Expr<T>>,
+    },
 
     // -- Functions --
     /// Arrow function: `(a, b) => a + b`
     Arrow {
         async_fn: bool,
-        params: Vec<Param>,
-        body: Box<Expr>,
+        params: Vec<Param<T>>,
+        body: Box<Expr<T>>,
     },
 
     // -- Control flow --
     /// Match expression: `match x { Pat -> expr, ... }`
     Match {
-        subject: Box<Expr>,
-        arms: Vec<MatchArm>,
+        subject: Box<Expr<T>>,
+        arms: Vec<MatchArm<T>>,
     },
     // -- Built-in constructors --
     /// `Value(expr)` — Settable value present
-    Value(Box<Expr>),
+    Value(Box<Expr<T>>),
     /// `Clear` — Settable value explicitly null
     Clear,
     /// `Unchanged` — Settable value omitted
     Unchanged,
     /// `parse<T>(value)` — compiler built-in for runtime type validation
     Parse {
-        type_arg: TypeExpr,
-        value: Box<Expr>,
+        type_arg: TypeExpr<T>,
+        value: Box<Expr<T>>,
     },
     /// `mock<T>` — compiler built-in for auto-generating test data from types
     /// Optional overrides: `mock<User>(name: "Alice")`
     Mock {
-        type_arg: TypeExpr,
-        overrides: Vec<Arg>,
+        type_arg: TypeExpr<T>,
+        overrides: Vec<Arg<T>>,
     },
     /// `todo` — placeholder that panics at runtime, type `never`
     Todo,
@@ -525,32 +608,32 @@ pub enum ExprKind {
 
     // -- JSX --
     /// JSX element: `<Component prop={value}>children</Component>`
-    Jsx(JsxElement),
+    Jsx(JsxElement<T>),
 
     // -- Blocks --
     /// Block expression: `{ stmt1; stmt2; expr }`
-    Block(Vec<Item>),
+    Block(Vec<Item<T>>),
     /// Collect block: `collect { ... }` — accumulates errors from `?` instead of short-circuiting
-    Collect(Vec<Item>),
+    Collect(Vec<Item<T>>),
 
     // -- Grouping --
     /// Parenthesized expression: `(a + b)`
-    Grouped(Box<Expr>),
+    Grouped(Box<Expr<T>>),
 
     // -- Array --
     /// Array literal: `[1, 2, 3]`
-    Array(Vec<Expr>),
+    Array(Vec<Expr<T>>),
 
     /// Object literal: `{ name: "Alice", age: 30 }`
     /// Fields are (key, value) pairs. Shorthand `{ name }` desugars to `{ name: name }`.
-    Object(Vec<(String, Expr)>),
+    Object(Vec<(String, Expr<T>)>),
 
     /// Tuple literal: `(1, 2)`, `("key", 42, true)`
-    Tuple(Vec<Expr>),
+    Tuple(Vec<Expr<T>>),
 
     // -- Spread --
     /// Spread: `...expr`
-    Spread(Box<Expr>),
+    Spread(Box<Expr<T>>),
 
     // -- Dot shorthand --
     /// Dot shorthand: `.field` or `.field op expr` — creates an implicit lambda
@@ -558,27 +641,27 @@ pub enum ExprKind {
         /// The field name (e.g., `done` in `.done`)
         field: String,
         /// Optional operator and right-hand side (e.g., `== false` in `.done == false`)
-        predicate: Option<(BinOp, Box<Expr>)>,
+        predicate: Option<(BinOp, Box<Expr<T>>)>,
     },
 }
 
 /// Template literal parts for the AST.
 #[derive(Debug, Clone, PartialEq)]
-pub enum TemplatePart {
+pub enum TemplatePart<T = ()> {
     /// Raw string segment.
     Raw(String),
     /// Interpolated expression.
-    Expr(Expr),
+    Expr(Expr<T>),
 }
 
 // ── Arguments ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Arg {
+pub enum Arg<T = ()> {
     /// Positional argument: `expr`
-    Positional(Expr),
+    Positional(Expr<T>),
     /// Named argument: `name: expr`
-    Named { label: String, value: Expr },
+    Named { label: String, value: Expr<T> },
 }
 
 // ── Operators ────────────────────────────────────────────────────
@@ -609,10 +692,10 @@ pub enum UnaryOp {
 // ── Match ────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct MatchArm {
+pub struct MatchArm<T = ()> {
     pub pattern: Pattern,
-    pub guard: Option<Expr>,
-    pub body: Expr,
+    pub guard: Option<Expr<T>>,
+    pub body: Expr<T>,
     pub span: Span,
 }
 
@@ -730,42 +813,42 @@ pub fn parse_string_pattern_segments(s: &str) -> Option<Vec<StringPatternSegment
 // ── JSX ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct JsxElement {
-    pub kind: JsxElementKind,
+pub struct JsxElement<T = ()> {
+    pub kind: JsxElementKind<T>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum JsxElementKind {
+pub enum JsxElementKind<T = ()> {
     /// `<Tag props...>children</Tag>` or `<Tag props... />`
     Element {
         name: String,
-        props: Vec<JsxProp>,
-        children: Vec<JsxChild>,
+        props: Vec<JsxProp<T>>,
+        children: Vec<JsxChild<T>>,
         self_closing: bool,
     },
     /// `<>children</>`
-    Fragment { children: Vec<JsxChild> },
+    Fragment { children: Vec<JsxChild<T>> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum JsxProp {
+pub enum JsxProp<T = ()> {
     /// `name={value}` or `name="string"`
     Named {
         name: String,
-        value: Option<Expr>,
+        value: Option<Expr<T>>,
         span: Span,
     },
     /// `{...expr}`
-    Spread { expr: Expr, span: Span },
+    Spread { expr: Expr<T>, span: Span },
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum JsxChild {
+pub enum JsxChild<T = ()> {
     /// Raw text between tags
     Text(String),
     /// `{expression}`
-    Expr(Expr),
+    Expr(Expr<T>),
     /// Nested JSX element
-    Element(JsxElement),
+    Element(JsxElement<T>),
 }

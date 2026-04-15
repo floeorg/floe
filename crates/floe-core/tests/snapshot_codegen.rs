@@ -13,9 +13,9 @@ fn compile(source: &str) -> String {
         .parse_program()
         .expect("fixture should parse");
     let (_, expr_types) = Checker::new().check_full(&program);
-    checker::annotate_types(&mut program, &expr_types);
     desugar::desugar_program(&mut program, &std::collections::HashMap::new());
-    Codegen::new().generate(&program).code
+    let typed = checker::attach_types(program, &expr_types);
+    Codegen::new().generate(&typed).code
 }
 
 fn compile_fixture(name: &str) -> String {

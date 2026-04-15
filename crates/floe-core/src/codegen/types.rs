@@ -3,7 +3,7 @@ use super::*;
 impl Codegen {
     // ── Type Expressions ─────────────────────────────────────────
 
-    pub(super) fn emit_type_expr(&mut self, type_expr: &TypeExpr) {
+    pub(super) fn emit_type_expr(&mut self, type_expr: &TypedTypeExpr) {
         match &type_expr.kind {
             TypeExprKind::Named {
                 name, type_args, ..

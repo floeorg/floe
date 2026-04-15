@@ -3,7 +3,7 @@ use super::*;
 impl Codegen {
     // ── Items ────────────────────────────────────────────────────
 
-    pub(super) fn emit_item(&mut self, item: &Item) {
+    pub(super) fn emit_item(&mut self, item: &TypedItem) {
         match &item.kind {
             ItemKind::Import(decl) => self.emit_import(decl),
             ItemKind::ReExport(decl) => self.emit_reexport(decl),
@@ -175,7 +175,7 @@ impl Codegen {
 
     // ── Const ────────────────────────────────────────────────────
 
-    fn emit_const(&mut self, decl: &ConstDecl) {
+    fn emit_const(&mut self, decl: &TypedConstDecl) {
         // Handle `const x = expr?` → Result unwrap with early return
         // For chained pipes with `?`: flatten into sequential _rN steps
         if Self::expr_has_unwrap(&decl.value) {
@@ -192,12 +192,15 @@ impl Codegen {
                 // Emit the step expression into a buffer to detect async IIFEs
                 let step_code = if step.is_pipe {
                     let left_expr = if last_had_unwrap {
-                        Expr::synthetic(
+                        TypedExpr::synthetic_typed(
                             ExprKind::Identifier(format!("{last_temp}.value")),
                             step.expr.span,
                         )
                     } else {
-                        Expr::synthetic(ExprKind::Identifier(last_temp.clone()), step.expr.span)
+                        TypedExpr::synthetic_typed(
+                            ExprKind::Identifier(last_temp.clone()),
+                            step.expr.span,
+                        )
                     };
                     let mut sub = self.sub_codegen();
                     sub.emit_pipe(&left_expr, &step.expr);
@@ -324,7 +327,7 @@ impl Codegen {
 
     // ── Function ─────────────────────────────────────────────────
 
-    fn emit_function(&mut self, decl: &FunctionDecl) {
+    fn emit_function(&mut self, decl: &TypedFunctionDecl) {
         // `fn name = expr` — derived function binding, emit as `const name = expr;`
         if decl.params.is_empty()
             && decl.return_type.is_none()
@@ -423,7 +426,7 @@ impl Codegen {
         }
     }
 
-    pub(super) fn emit_params(&mut self, params: &[Param]) {
+    pub(super) fn emit_params(&mut self, params: &[TypedParam]) {
         for (i, param) in params.iter().enumerate() {
             if i > 0 {
                 self.push(", ");
@@ -432,7 +435,7 @@ impl Codegen {
         }
     }
 
-    pub(super) fn emit_param(&mut self, param: &Param) {
+    pub(super) fn emit_param(&mut self, param: &TypedParam) {
         match &param.destructure {
             Some(ParamDestructure::Object(fields)) => {
                 self.push("{ ");
@@ -465,7 +468,7 @@ impl Codegen {
 
     // ── For Blocks ────────────────────────────────────────────────
 
-    pub(super) fn register_for_block_fns(&mut self, block: &ForBlock) {
+    pub(super) fn register_for_block_fns<T: std::fmt::Debug>(&mut self, block: &ForBlock<T>) {
         let type_name = match &block.type_name.kind {
             TypeExprKind::Named { name, .. } => name.clone(),
             _ => return,
@@ -478,7 +481,7 @@ impl Codegen {
         }
     }
 
-    fn emit_for_block(&mut self, block: &ForBlock) {
+    fn emit_for_block(&mut self, block: &TypedForBlock) {
         for (i, func) in block.functions.iter().enumerate() {
             if i > 0 {
                 self.newline();
@@ -507,7 +510,7 @@ impl Codegen {
     ///   return { ...data, create: (input) => DrizzleSnippetRepository__create(data, input) };
     /// }
     /// ```
-    fn emit_trait_impl_factory(&mut self, block: &ForBlock) {
+    fn emit_trait_impl_factory(&mut self, block: &TypedForBlock) {
         let type_name = match &block.type_name.kind {
             TypeExprKind::Named { name, .. } => name.clone(),
             _ => return,
@@ -531,7 +534,7 @@ impl Codegen {
 
         for func in &block.functions {
             // Skip self param — methods only take the non-self params
-            let non_self_params: Vec<&Param> =
+            let non_self_params: Vec<&TypedParam> =
                 func.params.iter().filter(|p| p.name != "self").collect();
             let mangled = for_block_fn_name(&block.type_name, &func.name);
 
@@ -587,7 +590,7 @@ impl Codegen {
 
             for method in &decl.methods {
                 // Skip self — TypeScript interfaces have implicit `this`
-                let non_self_params: Vec<&Param> =
+                let non_self_params: Vec<&TypedParam> =
                     method.params.iter().filter(|p| p.name != "self").collect();
 
                 out.push_str("  ");
@@ -621,7 +624,7 @@ impl Codegen {
         out
     }
 
-    fn emit_for_block_function(&mut self, func: &FunctionDecl, for_type: &TypeExpr) {
+    fn emit_for_block_function(&mut self, func: &TypedFunctionDecl, for_type: &TypedTypeExpr) {
         self.emit_indent();
         if func.exported {
             self.push("export ");
@@ -681,7 +684,7 @@ impl Codegen {
 
     // ── Test Blocks ──────────────────────────────────────────────
 
-    fn emit_test_block(&mut self, block: &TestBlock) {
+    fn emit_test_block(&mut self, block: &TypedTestBlock) {
         // In production mode, skip test blocks entirely
         if !self.test_mode {
             return;
@@ -748,7 +751,7 @@ impl Codegen {
 
     // ── Type Declarations ────────────────────────────────────────
 
-    fn emit_type_decl(&mut self, decl: &TypeDecl) {
+    fn emit_type_decl(&mut self, decl: &TypedTypeDecl) {
         self.emit_indent();
         if decl.exported {
             self.push("export ");
@@ -802,7 +805,7 @@ impl Codegen {
         }
     }
 
-    fn emit_derived_display(&mut self, type_name: &str, fields: &[&RecordField]) {
+    fn emit_derived_display(&mut self, type_name: &str, fields: &[&TypedRecordField]) {
         self.emit_indent();
         self.push(&format!("function display(self: {type_name}): string {{"));
         self.newline();
@@ -824,9 +827,10 @@ impl Codegen {
         self.push("}");
     }
 
-    pub(super) fn emit_record_type_entries(&mut self, entries: &[RecordEntry]) {
-        let spreads: Vec<&RecordSpread> = entries.iter().filter_map(|e| e.as_spread()).collect();
-        let fields: Vec<&RecordField> = entries.iter().filter_map(|e| e.as_field()).collect();
+    pub(super) fn emit_record_type_entries(&mut self, entries: &[TypedRecordEntry]) {
+        let spreads: Vec<&TypedRecordSpread> =
+            entries.iter().filter_map(|e| e.as_spread()).collect();
+        let fields: Vec<&TypedRecordField> = entries.iter().filter_map(|e| e.as_field()).collect();
 
         // Emit spreads as intersection types
         for spread in &spreads {
@@ -845,7 +849,7 @@ impl Codegen {
         }
     }
 
-    fn emit_record_type_fields(&mut self, fields: &[&RecordField]) {
+    fn emit_record_type_fields(&mut self, fields: &[&TypedRecordField]) {
         self.push("{ ");
         for (i, field) in fields.iter().enumerate() {
             if i > 0 {
@@ -861,12 +865,12 @@ impl Codegen {
         self.push(" }");
     }
 
-    pub(super) fn emit_record_type(&mut self, fields: &[RecordField]) {
-        let refs: Vec<&RecordField> = fields.iter().collect();
+    pub(super) fn emit_record_type(&mut self, fields: &[TypedRecordField]) {
+        let refs: Vec<&TypedRecordField> = fields.iter().collect();
         self.emit_record_type_fields(&refs);
     }
 
-    pub(super) fn emit_union_type(&mut self, variants: &[Variant]) {
+    pub(super) fn emit_union_type(&mut self, variants: &[TypedVariant]) {
         for (i, variant) in variants.iter().enumerate() {
             if i > 0 {
                 self.push(" | ");

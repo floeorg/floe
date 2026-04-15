@@ -13,7 +13,12 @@ fn emit(input: &str) -> String {
         )
     });
     desugar::desugar_program(&mut program, &std::collections::HashMap::new());
-    let output = Codegen::new().generate(&program);
+    // Tests that only exercise codegen structure don't need inferred
+    // types — `attach_types` fills every expression's type with
+    // `Arc<Type::Unknown>` when the map is empty, which codegen tolerates
+    // for structural emission paths.
+    let typed = crate::checker::attach_types(program, &crate::checker::ExprTypeMap::new());
+    let output = Codegen::new().generate(&typed);
     output.code.trim().to_string()
 }
 
@@ -564,14 +569,16 @@ fn jsx_fragment() {
 #[test]
 fn jsx_detection() {
     let program = Parser::new("<Button />").parse_program().unwrap();
-    let output = Codegen::new().generate(&program);
+    let typed = crate::checker::attach_types(program, &crate::checker::ExprTypeMap::new());
+    let output = Codegen::new().generate(&typed);
     assert!(output.has_jsx);
 }
 
 #[test]
 fn no_jsx_detection() {
     let program = Parser::new("const x = 42").parse_program().unwrap();
-    let output = Codegen::new().generate(&program);
+    let typed = crate::checker::attach_types(program, &crate::checker::ExprTypeMap::new());
+    let output = Codegen::new().generate(&typed);
     assert!(!output.has_jsx);
 }
 
@@ -1073,10 +1080,10 @@ fn emit_with_types(input: &str) -> String {
     });
     let (_, expr_types) = crate::checker::Checker::new().check_full(&program);
     let mut program = program;
-    crate::checker::annotate_types(&mut program, &expr_types);
     crate::checker::mark_async_functions(&mut program);
     desugar::desugar_program(&mut program, &std::collections::HashMap::new());
-    Codegen::new().generate(&program).code.trim().to_string()
+    let typed = crate::checker::attach_types(program, &expr_types);
+    Codegen::new().generate(&typed).code.trim().to_string()
 }
 
 #[test]
@@ -1368,7 +1375,8 @@ fn emit_test_mode(input: &str) -> String {
                 .join("\n")
         )
     });
-    let output = Codegen::new().with_test_mode().generate(&program);
+    let typed = crate::checker::attach_types(program, &crate::checker::ExprTypeMap::new());
+    let output = Codegen::new().with_test_mode().generate(&typed);
     output.code.trim().to_string()
 }
 

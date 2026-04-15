@@ -44,12 +44,12 @@ struct Lowerer<'src> {
 }
 
 impl<'src> Lowerer<'src> {
-    /// Create an `Expr` with a fresh unique ID.
+    /// Create an untyped `Expr` with a fresh unique ID.
     fn expr(&self, kind: ExprKind, span: Span) -> Expr {
         Expr {
             id: self.id_gen.next(),
             kind,
-            ty: crate::checker::Type::Unknown,
+            ty: (),
             span,
         }
     }

@@ -10,7 +10,6 @@ use floe_core::desugar;
 use floe_core::diagnostic;
 use floe_core::find_project_dir;
 use floe_core::parser::Parser as ZsParser;
-use floe_core::parser::ast::Program;
 use floe_core::resolve::{self, ResolvedImports, TsconfigPaths};
 
 /// Resolve the source directory, project directory, and tsconfig paths for a file.
@@ -113,7 +112,7 @@ fn main() -> Result<()> {
 
 /// Result of parsing, resolving, and type-checking a single source file.
 struct CompileResult {
-    program: Program,
+    program: floe_core::parser::ast::TypedProgram,
     resolved: HashMap<String, ResolvedImports>,
 }
 
@@ -152,10 +151,14 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
         eprintln!("{rendered}");
     }
 
+    // Desugar operates on the still-untyped tree (no `.ty` reads), so we run
+    // it before `attach_types` converts the program into `TypedProgram`.
+    // Codegen then consumes only `TypedProgram` — structurally impossible to
+    // feed an unchecked node to codegen, per the #1106 invariant.
     let mut program = program;
-    checker::annotate_types(&mut program, &expr_types);
     checker::mark_async_functions(&mut program);
     desugar::desugar_program(&mut program, &resolved);
+    let program = checker::attach_types(program, &expr_types);
 
     Ok(CompileResult { program, resolved })
 }
@@ -423,12 +426,12 @@ fn cmd_test(path: &Path) -> Result<()> {
             continue;
         }
 
-        checker::annotate_types(program, &expr_types);
         checker::mark_async_functions(program);
         desugar::desugar_program(program, &resolved);
+        let typed = checker::attach_types(program.clone(), &expr_types);
         let output = Codegen::with_imports(&resolved)
             .with_test_mode()
-            .generate(program);
+            .generate(&typed);
 
         // Write to a temp file and execute with a JS runtime
         let ext = if output.has_jsx { "tsx" } else { "ts" };
