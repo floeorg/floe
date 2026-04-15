@@ -53,7 +53,8 @@ impl Checker {
             && matches!(value_type.option_inner(), Some(Type::Unknown))
             && declared.is_option()
         {
-            self.expr_types.insert(decl.value.id, declared.clone());
+            self.expr_types
+                .insert(decl.value.id, std::sync::Arc::new(declared.clone()));
         }
         let tsgo_type = self.find_and_consume_tsgo_probe(&decl.binding).map(|ty| {
             // The tsgo probe generates the raw call expression without `await`,
@@ -198,7 +199,7 @@ impl Checker {
                 // the return type from the checker's inference of the arrow arg.
                 let checker_ret = Self::find_arrow_arg(value_expr)
                     .and_then(|arrow| self.expr_types.get(&arrow.id))
-                    .and_then(|ty| match ty {
+                    .and_then(|ty| match &**ty {
                         Type::Function { return_type, .. } => Some(return_type.clone()),
                         _ => None,
                     })

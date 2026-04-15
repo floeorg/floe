@@ -9,7 +9,7 @@ impl Codegen {
 
     /// Generate a `.d.ts` declaration stub from the program AST.
     /// Only emits exported type declarations, function signatures, and const declarations.
-    pub(super) fn generate_dts(&self, program: &Program) -> String {
+    pub(super) fn generate_dts(&self, program: &TypedProgram) -> String {
         let mut out = String::new();
         let mut first = true;
 
@@ -183,7 +183,7 @@ impl Codegen {
         }
     }
 
-    fn emit_dts_type_decl(&self, out: &mut String, decl: &TypeDecl) {
+    fn emit_dts_type_decl(&self, out: &mut String, decl: &TypedTypeDecl) {
         // Emit the type declaration only (no derived trait implementations)
         if decl.exported {
             out.push_str("export ");
@@ -229,7 +229,7 @@ impl Codegen {
         }
     }
 
-    fn emit_dts_function(&self, out: &mut String, decl: &FunctionDecl) {
+    fn emit_dts_function(&self, out: &mut String, decl: &TypedFunctionDecl) {
         // `fn name = expr` — derived function binding
         if decl.params.is_empty()
             && decl.return_type.is_none()
@@ -282,7 +282,7 @@ impl Codegen {
         out.push(';');
     }
 
-    fn emit_dts_const(&self, out: &mut String, decl: &ConstDecl) {
+    fn emit_dts_const(&self, out: &mut String, decl: &TypedConstDecl) {
         match &decl.binding {
             ConstBinding::Name(name) => {
                 out.push_str("export declare const ");
@@ -314,8 +314,8 @@ impl Codegen {
     fn emit_dts_for_block_function(
         &self,
         out: &mut String,
-        func: &FunctionDecl,
-        for_type: &TypeExpr,
+        func: &TypedFunctionDecl,
+        for_type: &TypedTypeExpr,
     ) {
         out.push_str("export declare ");
         if func.async_fn {

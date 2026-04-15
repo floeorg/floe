@@ -5,7 +5,7 @@ use super::Codegen;
 impl Codegen {
     // ── JSX ──────────────────────────────────────────────────────
 
-    pub(super) fn emit_jsx(&mut self, element: &JsxElement) {
+    pub(super) fn emit_jsx(&mut self, element: &TypedJsxElement) {
         match &element.kind {
             JsxElementKind::Element {
                 name,
@@ -48,7 +48,7 @@ impl Codegen {
         }
     }
 
-    fn emit_jsx_children(&mut self, children: &[JsxChild]) {
+    fn emit_jsx_children(&mut self, children: &[TypedJsxChild]) {
         for child in children {
             match child {
                 JsxChild::Text(text) => self.push(text),

@@ -22,7 +22,7 @@ use tower_lsp::{Client, LspService, Server};
 use crate::checker::{Checker, Type};
 use crate::diagnostic::{self as floe_diag, Severity};
 use crate::parser::Parser;
-use crate::parser::ast::Program;
+use crate::parser::ast::TypedProgram;
 
 use completion::is_pipe_compatible;
 use resolution::enrich_from_imports;
@@ -30,17 +30,19 @@ use symbols::SymbolIndex;
 
 /// Find the resolved type and span width of the innermost expression at a byte offset.
 /// Returns (span_width, type) of the tightest non-Unknown expression containing the offset.
-fn find_expr_type_at_offset(program: &Program, offset: usize) -> Option<(usize, Type)> {
-    use crate::parser::ast::Expr;
+fn find_expr_type_at_offset(program: &TypedProgram, offset: usize) -> Option<(usize, Type)> {
+    use crate::parser::ast::TypedExpr;
 
     let mut best: Option<(usize, Type)> = None;
 
-    let mut check = |expr: &Expr| {
-        if offset >= expr.span.start && offset <= expr.span.end && !matches!(expr.ty, Type::Unknown)
+    let mut check = |expr: &TypedExpr| {
+        if offset >= expr.span.start
+            && offset <= expr.span.end
+            && !matches!(&*expr.ty, Type::Unknown)
         {
             let width = expr.span.end - expr.span.start;
             if best.as_ref().is_none_or(|(w, _)| width < *w) {
-                best = Some((width, expr.ty.clone()));
+                best = Some((width, (*expr.ty).clone()));
             }
         }
     };
@@ -51,20 +53,20 @@ fn find_expr_type_at_offset(program: &Program, offset: usize) -> Option<(usize, 
 
 /// Find the type of the left-hand side of a pipe expression at the given offset.
 /// Used for hover on `|>` to show what value is being piped.
-fn find_pipe_input_type_at_offset(program: &Program, offset: usize) -> Option<Type> {
-    use crate::parser::ast::{Expr, ExprKind};
+fn find_pipe_input_type_at_offset(program: &TypedProgram, offset: usize) -> Option<Type> {
+    use crate::parser::ast::{ExprKind, TypedExpr};
 
     let mut best: Option<(usize, Type)> = None;
 
-    let mut check = |expr: &Expr| {
+    let mut check = |expr: &TypedExpr| {
         if let ExprKind::Pipe { left, .. } = &expr.kind
             && offset >= expr.span.start
             && offset <= expr.span.end
-            && !matches!(left.ty, Type::Unknown)
+            && !matches!(&*left.ty, Type::Unknown)
         {
             let width = expr.span.end - expr.span.start;
             if best.as_ref().is_none_or(|(w, _)| width < *w) {
-                best = Some((width, left.ty.clone()));
+                best = Some((width, (*left.ty).clone()));
             }
         }
     };
@@ -189,9 +191,9 @@ struct Document {
     /// Type map from the checker: variable/function name -> inferred type display name.
     /// Used for completions, dot-access, and pipe type resolution.
     type_map: HashMap<String, String>,
-    /// Typed AST — every Expr has its resolved type in `expr.ty`.
+    /// Typed AST — every Expr has its resolved `Arc<Type>` in `expr.ty`.
     /// Used as the single source of truth for hover on expressions.
-    typed_program: Option<Program>,
+    typed_program: Option<TypedProgram>,
 }
 
 // ── LSP Protocol Constants ──────────────────────────────────────
@@ -394,9 +396,9 @@ impl FloeLsp {
                 let (mut check_diags, type_map, expr_types) = checker.check_with_types(&program);
                 check_diags.extend(import_diags_early);
 
-                // Annotate the AST with resolved types for hover
-                let mut typed_program = program;
-                crate::checker::annotate_types(&mut typed_program, &expr_types);
+                // Convert the untyped AST into a typed tree so hover and pipe
+                // input lookups read types directly from each node.
+                let mut typed_program = crate::checker::attach_types(program, &expr_types);
                 crate::checker::mark_async_functions(&mut typed_program);
 
                 (

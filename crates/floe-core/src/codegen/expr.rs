@@ -2,7 +2,7 @@ use super::*;
 
 impl Codegen {
     /// Check if a callee targets an untrusted import.
-    fn is_untrusted_call(&self, callee: &Expr) -> bool {
+    fn is_untrusted_call(&self, callee: &TypedExpr) -> bool {
         match &callee.kind {
             ExprKind::Identifier(name) => self.untrusted_imports.contains(name.as_str()),
             ExprKind::Member { object, .. } => {
@@ -18,7 +18,7 @@ impl Codegen {
 
     // ── Expressions ──────────────────────────────────────────────
 
-    pub(super) fn emit_expr(&mut self, expr: &Expr) {
+    pub(super) fn emit_expr(&mut self, expr: &TypedExpr) {
         match &expr.kind {
             ExprKind::Number(n) => self.push(n),
             ExprKind::String(s) => self.push(&format!("\"{}\"", escape_string(s))),
@@ -111,7 +111,7 @@ impl Codegen {
                 // Async calls (Promise<T>): async IIFE → Promise<Result<T, Error>>, caller uses |> await
                 // Sync calls: sync IIFE → Result<T, Error>
                 if self.is_untrusted_call(callee) {
-                    let is_async = matches!(expr.ty, crate::checker::Type::Promise(_));
+                    let is_async = matches!(&*expr.ty, crate::checker::Type::Promise(_));
                     if is_async {
                         self.push(&format!(
                             "(async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: await "
@@ -478,7 +478,7 @@ impl Codegen {
     // ── Stdlib Helpers ─────────────────────────────────────────
 
     /// Emit each argument via a sub-codegen, propagating `needs_deep_equal`, and collect output strings.
-    pub(super) fn emit_arg_strings(&mut self, args: &[Arg]) -> Vec<String> {
+    pub(super) fn emit_arg_strings(&mut self, args: &[TypedArg]) -> Vec<String> {
         let mut arg_strings = Vec::new();
         for arg in args {
             let mut sub = self.sub_codegen();
@@ -498,7 +498,7 @@ impl Codegen {
     }
 
     /// Emit a single expression via a sub-codegen, propagating flags.
-    pub(super) fn emit_expr_string(&mut self, expr: &Expr) -> String {
+    pub(super) fn emit_expr_string(&mut self, expr: &TypedExpr) -> String {
         let mut sub = self.sub_codegen();
         sub.emit_expr(expr);
         if sub.needs_deep_equal {
@@ -545,7 +545,7 @@ impl Codegen {
     }
 
     /// Emit construct fields, mapping positional args to field names from the type definition.
-    fn emit_construct_fields(&mut self, args: &[Arg], field_names: &[String]) {
+    fn emit_construct_fields(&mut self, args: &[TypedArg], field_names: &[String]) {
         for (i, arg) in args.iter().enumerate() {
             if i > 0 {
                 self.push(", ");
@@ -568,7 +568,7 @@ impl Codegen {
         }
     }
 
-    fn emit_named_fields(&mut self, args: &[Arg]) {
+    fn emit_named_fields(&mut self, args: &[TypedArg]) {
         let mut first = true;
         for arg in args {
             // Skip Unchanged args — they should not appear in the output
@@ -595,7 +595,7 @@ impl Codegen {
 
     // ── Arguments (labels erased) ────────────────────────────────
 
-    pub(super) fn emit_args(&mut self, args: &[Arg]) {
+    pub(super) fn emit_args(&mut self, args: &[TypedArg]) {
         for (i, arg) in args.iter().enumerate() {
             if i > 0 {
                 self.push(", ");
@@ -611,7 +611,7 @@ impl Codegen {
     // ── Block ────────────────────────────────────────────────────
 
     /// Like emit_block_expr but adds implicit return to the last expression.
-    pub(super) fn emit_block_expr_with_return(&mut self, expr: &Expr) {
+    pub(super) fn emit_block_expr_with_return(&mut self, expr: &TypedExpr) {
         match &expr.kind {
             ExprKind::Block(items) => {
                 self.push("{");
@@ -651,7 +651,7 @@ impl Codegen {
         }
     }
 
-    pub(super) fn emit_block_expr(&mut self, expr: &Expr) {
+    pub(super) fn emit_block_expr(&mut self, expr: &TypedExpr) {
         match &expr.kind {
             ExprKind::Block(items) => {
                 self.emit_block_items(items);
@@ -671,7 +671,7 @@ impl Codegen {
         }
     }
 
-    fn emit_block_items(&mut self, items: &[Item]) {
+    fn emit_block_items(&mut self, items: &[TypedItem]) {
         self.push("{");
         self.newline();
         self.indent += 1;
@@ -699,7 +699,7 @@ impl Codegen {
     ///     return { ok: true, value: <last_expr> };
     /// })()
     /// ```
-    fn emit_collect_block(&mut self, items: &[Item]) {
+    fn emit_collect_block(&mut self, items: &[TypedItem]) {
         // Check if any item contains await — if so, emit async IIFE
         let has_await = items.iter().any(|item| match &item.kind {
             ItemKind::Expr(e) => expr_contains_await(e),
@@ -760,7 +760,7 @@ impl Codegen {
     /// Emit an item inside a collect block.
     /// Const declarations with `?` get special treatment:
     /// instead of short-circuiting, we accumulate the error.
-    fn emit_collect_item(&mut self, item: &Item, result_counter: &mut usize) {
+    fn emit_collect_item(&mut self, item: &TypedItem, result_counter: &mut usize) {
         match &item.kind {
             ItemKind::Const(decl) => {
                 if let Some(unwrap_inner) = Self::find_unwrap_in_expr(&decl.value) {
@@ -835,7 +835,7 @@ impl Codegen {
     /// Find the inner expression of the outermost `?` in an expression.
     /// For example, in `input.name |> validateName?`, the parser produces
     /// `Unwrap(Pipe { ... })`, and this returns the `Pipe` expression.
-    pub fn find_unwrap_in_expr(expr: &Expr) -> Option<&Expr> {
+    pub fn find_unwrap_in_expr(expr: &TypedExpr) -> Option<&TypedExpr> {
         match &expr.kind {
             ExprKind::Unwrap(inner) => Some(inner),
             _ => None,
@@ -845,7 +845,7 @@ impl Codegen {
 
 /// Check if an expression tree contains a Promise.await stdlib call.
 /// Detects `expr |> Promise.await`, `Promise.await(expr)`, and bare `|> await` patterns.
-pub(super) fn expr_contains_await(expr: &Expr) -> bool {
+pub(super) fn expr_contains_await(expr: &TypedExpr) -> bool {
     match &expr.kind {
         // Direct member access: Promise.await (in pipe target position)
         ExprKind::Member { object, field }

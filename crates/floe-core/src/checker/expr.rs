@@ -76,7 +76,8 @@ fn parse_foreign_generics(s: &str) -> Option<(String, Vec<String>)> {
 impl Checker {
     pub(super) fn check_expr(&mut self, expr: &Expr) -> Type {
         let ty = self.check_expr_inner(expr);
-        self.expr_types.insert(expr.id, ty.clone());
+        self.expr_types
+            .insert(expr.id, std::sync::Arc::new(ty.clone()));
         ty
     }
 
@@ -1065,7 +1066,8 @@ impl Checker {
                                 return_type: Box::new(resolved_ret),
                                 required_params: fn_params.len(),
                             };
-                            self.expr_types.insert(e.id, resolved.clone());
+                            self.expr_types
+                                .insert(e.id, std::sync::Arc::new(resolved.clone()));
                             arg_types[i + param_offset] = resolved;
                         }
                     }
@@ -1469,7 +1471,8 @@ impl Checker {
                             && matches!(arg_ty.option_inner(), Some(Type::Unknown))
                             && expected_ty.is_option()
                         {
-                            self.expr_types.insert(e.id, expected_ty.clone());
+                            self.expr_types
+                                .insert(e.id, std::sync::Arc::new(expected_ty.clone()));
                         }
                     }
                     if let Some(ref field_types) = field_type_map
@@ -1537,7 +1540,12 @@ impl Checker {
                 .iter()
                 .find_map(|a| {
                     if let Arg::Positional(e) = a {
-                        Some(self.expr_types.get(&e.id).cloned().unwrap_or(Type::Unknown))
+                        Some(
+                            self.expr_types
+                                .get(&e.id)
+                                .map(|t| (**t).clone())
+                                .unwrap_or(Type::Unknown),
+                        )
                     } else {
                         None
                     }
@@ -1552,7 +1560,12 @@ impl Checker {
                 .iter()
                 .find_map(|a| {
                     if let Arg::Positional(e) = a {
-                        Some(self.expr_types.get(&e.id).cloned().unwrap_or(Type::Unknown))
+                        Some(
+                            self.expr_types
+                                .get(&e.id)
+                                .map(|t| (**t).clone())
+                                .unwrap_or(Type::Unknown),
+                        )
                     } else {
                         None
                     }
@@ -1569,7 +1582,12 @@ impl Checker {
                 .iter()
                 .find_map(|a| {
                     if let Arg::Positional(e) = a {
-                        Some(self.expr_types.get(&e.id).cloned().unwrap_or(Type::Unknown))
+                        Some(
+                            self.expr_types
+                                .get(&e.id)
+                                .map(|t| (**t).clone())
+                                .unwrap_or(Type::Unknown),
+                        )
                     } else {
                         None
                     }

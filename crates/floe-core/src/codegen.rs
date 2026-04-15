@@ -36,13 +36,13 @@ const THROW_MOCK_FUNCTION: &str = "(() => { throw new Error(\"mock function\"); 
 
 /// Produce a mangled name for a for-block function: `TypeName__funcName`.
 /// Generic types are flattened: `Array<User>` → `Array_User`, `Map<string, number>` → `Map_string_number`.
-pub fn for_block_fn_name(type_expr: &TypeExpr, fn_name: &str) -> String {
+pub fn for_block_fn_name<T>(type_expr: &TypeExpr<T>, fn_name: &str) -> String {
     let type_prefix = mangle_type_name(type_expr);
     format!("{type_prefix}__{fn_name}")
 }
 
 /// Mangle a type expression into a valid identifier fragment.
-fn mangle_type_name(type_expr: &TypeExpr) -> String {
+fn mangle_type_name<T>(type_expr: &TypeExpr<T>) -> String {
     match &type_expr.kind {
         TypeExprKind::Named {
             name, type_args, ..
@@ -59,7 +59,9 @@ fn mangle_type_name(type_expr: &TypeExpr) -> String {
             let parts: Vec<String> = parts.iter().map(mangle_type_name).collect();
             format!("Tuple_{}", parts.join("_"))
         }
-        other => unreachable!("for-block type cannot be mangled: {other:?}"),
+        // The parser only emits `Named`/`Array`/`Tuple` in for-block
+        // receiver position, so anything else is a parser bug.
+        _ => unreachable!("for-block type must be Named, Array, or Tuple"),
     }
 }
 
@@ -76,7 +78,7 @@ struct PipeStep {
     /// The expression for this step.
     /// For the base (first) step, this is the original expression.
     /// For pipe steps, this is the "right" side of the pipe.
-    expr: Expr,
+    expr: TypedExpr,
     /// Whether this step has `?` (needs Result unwrap with early return).
     unwrap: bool,
     /// Whether this step is wrapped in `await`.
@@ -98,7 +100,7 @@ pub struct Codegen {
     /// Maps variant name -> (union_type_name, field_names)
     variant_info: HashMap<String, (String, Vec<String>)>,
     /// Maps type name -> TypeDef for mock<T> codegen
-    type_defs: HashMap<String, TypeDef>,
+    type_defs: HashMap<String, TypedTypeDef>,
     /// Locally defined function/const names - these shadow stdlib in pipe resolution
     local_names: HashSet<String>,
     /// Resolved imports from other .fl files, for expanding bare imports.
@@ -121,7 +123,7 @@ pub struct Codegen {
     untrusted_imports: HashSet<String>,
     /// All trait declarations in the program, keyed by trait name.
     /// Used to emit TypeScript interfaces for trait-bounded generics.
-    trait_decls: HashMap<String, TraitDecl>,
+    trait_decls: HashMap<String, TypedTraitDecl>,
     /// Maps type name -> list of trait names it implements.
     /// Types with trait impls get a factory function emitted from their for-block.
     type_trait_impls: HashMap<String, Vec<String>>,
@@ -187,19 +189,25 @@ impl Codegen {
     pub fn with_imports(resolved: &HashMap<String, ResolvedImports>) -> Self {
         let mut codegen = Self::new();
         codegen.resolved_imports = resolved.clone();
-        // Pre-register union variant info and type defs from imported types
+        // Pre-register union variant info and type defs from imported types.
+        // Imports come from the resolver in untyped form (no type map for their
+        // default expressions), so we run the shallow attach conversion to
+        // hand codegen `TypedTypeDecl` values whose defaults carry
+        // `Arc<Type::Unknown>` — safe because codegen only reads structural
+        // info from these metadata maps, not the defaults' types.
         for imports in resolved.values() {
             for decl in &imports.type_decls {
-                codegen.register_union_variants(decl);
+                let typed = crate::checker::attach_type_decl_shallow(decl);
+                codegen.register_union_variants(&typed);
                 codegen
                     .type_defs
-                    .insert(decl.name.clone(), decl.def.clone());
+                    .insert(typed.name.clone(), typed.def.clone());
             }
         }
         codegen
     }
 
-    fn register_union_variants(&mut self, decl: &TypeDecl) {
+    fn register_union_variants(&mut self, decl: &TypedTypeDecl) {
         if let TypeDef::Union(variants) = &decl.def {
             for variant in variants {
                 let field_names: Vec<String> = variant
@@ -222,7 +230,7 @@ impl Codegen {
     }
 
     /// Generate TypeScript from a Floe program.
-    pub fn generate(mut self, program: &Program) -> CodegenOutput {
+    pub fn generate(mut self, program: &TypedProgram) -> CodegenOutput {
         // Collect names used in value positions for import type detection
         self.value_used_names = collect_value_used_names(program);
         self.constructor_used_names = collect_constructor_names(program);
@@ -337,7 +345,7 @@ impl Codegen {
 
     /// Check if an expression contains `?` (Unwrap) at any level,
     /// and return true if the const should use Result unwrapping.
-    fn expr_has_unwrap(expr: &Expr) -> bool {
+    fn expr_has_unwrap(expr: &TypedExpr) -> bool {
         match &expr.kind {
             ExprKind::Unwrap(_) => true,
             ExprKind::Pipe { left, right } => {
@@ -350,13 +358,13 @@ impl Codegen {
     /// Flatten a chain of `Unwrap(Pipe { left: Unwrap(Pipe { ... }), right })` into
     /// sequential steps. This enables emitting clean `const _rN = ...; if (!_rN.ok) return _rN;`
     /// instead of deeply nested IIFEs.
-    fn flatten_pipe_unwrap_chain(expr: &Expr) -> Vec<PipeStep> {
+    fn flatten_pipe_unwrap_chain(expr: &TypedExpr) -> Vec<PipeStep> {
         let mut steps = Vec::new();
         Self::collect_pipe_steps(expr, &mut steps);
         steps
     }
 
-    fn collect_pipe_steps(expr: &Expr, steps: &mut Vec<PipeStep>) {
+    fn collect_pipe_steps(expr: &TypedExpr, steps: &mut Vec<PipeStep>) {
         match &expr.kind {
             // Unwrap(Pipe { left, right }) → recurse into left, then add right as a pipe step with unwrap
             ExprKind::Unwrap(inner) => match &inner.kind {
@@ -417,7 +425,7 @@ impl Codegen {
         }
     }
 
-    pub(super) fn expr_to_string(&self, expr: &Expr) -> String {
+    pub(super) fn expr_to_string(&self, expr: &TypedExpr) -> String {
         let mut cg = self.sub_codegen();
         cg.emit_expr(expr);
         cg.output
@@ -527,7 +535,7 @@ pub(super) fn escape_string(s: &str) -> String {
         .replace('\t', "\\t")
 }
 
-pub(super) fn has_placeholder_arg(args: &[Arg]) -> bool {
+pub(super) fn has_placeholder_arg(args: &[TypedArg]) -> bool {
     args.iter().any(|a| match a {
         Arg::Positional(expr) => matches!(expr.kind, ExprKind::Placeholder),
         Arg::Named { value, .. } => matches!(value.kind, ExprKind::Placeholder),
@@ -535,7 +543,7 @@ pub(super) fn has_placeholder_arg(args: &[Arg]) -> bool {
 }
 
 /// Collect type names used as constructors (e.g. `User(name: "x")`).
-fn collect_constructor_names(program: &Program) -> HashSet<String> {
+fn collect_constructor_names(program: &TypedProgram) -> HashSet<String> {
     let mut names = HashSet::new();
     for item in &program.items {
         collect_constructors_from_item(item, &mut names);
@@ -543,7 +551,7 @@ fn collect_constructor_names(program: &Program) -> HashSet<String> {
     names
 }
 
-fn collect_constructors_from_expr(expr: &Expr, names: &mut HashSet<String>) {
+fn collect_constructors_from_expr(expr: &TypedExpr, names: &mut HashSet<String>) {
     match &expr.kind {
         ExprKind::Construct {
             type_name,
@@ -602,7 +610,7 @@ fn collect_constructors_from_expr(expr: &Expr, names: &mut HashSet<String>) {
     }
 }
 
-fn collect_constructors_from_jsx(jsx: &JsxElement, names: &mut HashSet<String>) {
+fn collect_constructors_from_jsx(jsx: &TypedJsxElement, names: &mut HashSet<String>) {
     match &jsx.kind {
         JsxElementKind::Element {
             props, children, ..
@@ -636,7 +644,7 @@ fn collect_constructors_from_jsx(jsx: &JsxElement, names: &mut HashSet<String>) 
     }
 }
 
-fn collect_constructors_from_item(item: &Item, names: &mut HashSet<String>) {
+fn collect_constructors_from_item(item: &TypedItem, names: &mut HashSet<String>) {
     match &item.kind {
         ItemKind::Const(decl) => collect_constructors_from_expr(&decl.value, names),
         ItemKind::Function(decl) => collect_constructors_from_expr(&decl.body, names),
@@ -652,7 +660,7 @@ fn collect_constructors_from_item(item: &Item, names: &mut HashSet<String>) {
 
 /// Collect all names used in value positions (expressions, not type annotations).
 /// Used to detect type-only imports for `import type { ... }` codegen.
-fn collect_value_used_names(program: &Program) -> HashSet<String> {
+fn collect_value_used_names(program: &TypedProgram) -> HashSet<String> {
     let mut names = HashSet::new();
     for item in &program.items {
         collect_value_names_from_item(item, &mut names);
@@ -660,7 +668,7 @@ fn collect_value_used_names(program: &Program) -> HashSet<String> {
     names
 }
 
-fn collect_value_names_from_expr(expr: &Expr, names: &mut HashSet<String>) {
+fn collect_value_names_from_expr(expr: &TypedExpr, names: &mut HashSet<String>) {
     match &expr.kind {
         ExprKind::Identifier(name) => {
             names.insert(name.clone());
@@ -749,7 +757,7 @@ fn collect_value_names_from_expr(expr: &Expr, names: &mut HashSet<String>) {
     }
 }
 
-fn collect_value_names_from_jsx(jsx: &JsxElement, names: &mut HashSet<String>) {
+fn collect_value_names_from_jsx(jsx: &TypedJsxElement, names: &mut HashSet<String>) {
     match &jsx.kind {
         JsxElementKind::Element {
             name,
@@ -793,7 +801,7 @@ fn collect_value_names_from_jsx(jsx: &JsxElement, names: &mut HashSet<String>) {
     }
 }
 
-fn collect_value_names_from_item(item: &Item, names: &mut HashSet<String>) {
+fn collect_value_names_from_item(item: &TypedItem, names: &mut HashSet<String>) {
     match &item.kind {
         ItemKind::Const(decl) => collect_value_names_from_expr(&decl.value, names),
         ItemKind::Function(decl) => collect_value_names_from_expr(&decl.body, names),

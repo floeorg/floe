@@ -3,7 +3,7 @@ use super::*;
 impl Codegen {
     // ── Parse<T> Validation Codegen ─────────────────────────────
 
-    pub(super) fn emit_parse(&mut self, type_arg: &TypeExpr, value: &Expr) {
+    pub(super) fn emit_parse(&mut self, type_arg: &TypedTypeExpr, value: &TypedExpr) {
         // Generate: (() => { const __v = <value>; <checks>; return { ok: true, value: __v as T }; })()
         self.push("(() => { const __v = ");
         self.emit_expr(value);
@@ -19,7 +19,7 @@ impl Codegen {
     /// Emit validation checks for a given accessor path against a type expression.
     /// `accessor` is the JS expression to check (e.g., "__v", "(__v as any).name").
     /// `path` is a human-readable path for error messages (e.g., "", "field 'name'").
-    fn emit_parse_checks(&mut self, accessor: &str, type_expr: &TypeExpr, path: &str) {
+    fn emit_parse_checks(&mut self, accessor: &str, type_expr: &TypedTypeExpr, path: &str) {
         match &type_expr.kind {
             TypeExprKind::Named {
                 name, type_args, ..
@@ -152,8 +152,8 @@ impl Codegen {
     /// `overrides` provides named field overrides from `mock<T>(field: value)`.
     pub(super) fn emit_mock(
         &mut self,
-        type_arg: &TypeExpr,
-        overrides: &[Arg],
+        type_arg: &TypedTypeExpr,
+        overrides: &[TypedArg],
         counter: &mut usize,
     ) {
         self.emit_mock_for_type(type_arg, overrides, counter, "");
@@ -161,8 +161,8 @@ impl Codegen {
 
     fn emit_mock_for_type(
         &mut self,
-        type_expr: &TypeExpr,
-        overrides: &[Arg],
+        type_expr: &TypedTypeExpr,
+        overrides: &[TypedArg],
         counter: &mut usize,
         field_name: &str,
     ) {
@@ -270,9 +270,9 @@ impl Codegen {
 
     fn emit_mock_for_typedef(
         &mut self,
-        type_def: &TypeDef,
+        type_def: &TypedTypeDef,
         type_name: &str,
-        overrides: &[Arg],
+        overrides: &[TypedArg],
         counter: &mut usize,
     ) {
         match type_def {

@@ -9,12 +9,12 @@ use super::{Codegen, THROW_NON_EXHAUSTIVE};
 impl Codegen {
     // ── Match Lowering ───────────────────────────────────────────
 
-    pub(super) fn emit_match(&mut self, subject: &Expr, arms: &[MatchArm]) {
+    pub(super) fn emit_match(&mut self, subject: &TypedExpr, arms: &[TypedMatchArm]) {
         // Emit as nested ternary: `subject.tag === "A" ? ... : subject.tag === "B" ? ... : unreachable()`
         self.emit_match_arms(subject, arms, 0);
     }
 
-    fn emit_match_arms(&mut self, subject: &Expr, arms: &[MatchArm], index: usize) {
+    fn emit_match_arms(&mut self, subject: &TypedExpr, arms: &[TypedMatchArm], index: usize) {
         if index >= arms.len() {
             // Should be unreachable if match is exhaustive
             self.push(THROW_NON_EXHAUSTIVE);
@@ -101,7 +101,7 @@ impl Codegen {
         }
     }
 
-    fn emit_pattern_condition(&mut self, subject: &Expr, pattern: &Pattern) {
+    fn emit_pattern_condition(&mut self, subject: &TypedExpr, pattern: &Pattern) {
         match &pattern.kind {
             PatternKind::Literal(lit) => {
                 // Wrap binary/ternary subjects in parens to avoid precedence issues
@@ -154,8 +154,10 @@ impl Codegen {
                             field_names.as_deref(),
                             &subj_str,
                         );
-                        let field_expr =
-                            Expr::synthetic(ExprKind::Identifier(field_access), subject.span);
+                        let field_expr = TypedExpr::synthetic_typed(
+                            ExprKind::Identifier(field_access),
+                            subject.span,
+                        );
                         self.emit_pattern_condition(&field_expr, field_pat);
                     }
                 }
@@ -170,7 +172,7 @@ impl Codegen {
                         self.push(" && ");
                     }
                     first = false;
-                    let field_expr = Expr::synthetic(
+                    let field_expr = TypedExpr::synthetic_typed(
                         ExprKind::Identifier(format!("{}.{}", self.expr_to_string(subject), name)),
                         subject.span,
                     );
@@ -191,7 +193,7 @@ impl Codegen {
                         self.push(" && ");
                     }
                     first = false;
-                    let elem_expr = Expr::synthetic(
+                    let elem_expr = TypedExpr::synthetic_typed(
                         ExprKind::Identifier(format!("{}[{}]", self.expr_to_string(subject), i)),
                         subject.span,
                     );
@@ -229,7 +231,7 @@ impl Codegen {
                     for (i, pat) in elements.iter().enumerate() {
                         if !matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
                             self.push(" && ");
-                            let elem_expr = Expr::synthetic(
+                            let elem_expr = TypedExpr::synthetic_typed(
                                 ExprKind::Identifier(format!("{subj_str}[{i}]")),
                                 subject.span,
                             );
@@ -243,7 +245,7 @@ impl Codegen {
                     for (i, pat) in elements.iter().enumerate() {
                         if !matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
                             self.push(" && ");
-                            let elem_expr = Expr::synthetic(
+                            let elem_expr = TypedExpr::synthetic_typed(
                                 ExprKind::Identifier(format!("{subj_str}[{i}]")),
                                 subject.span,
                             );
@@ -258,7 +260,7 @@ impl Codegen {
         }
     }
 
-    fn emit_match_body(&mut self, subject: &Expr, pattern: &Pattern, body: &Expr) {
+    fn emit_match_body(&mut self, subject: &TypedExpr, pattern: &Pattern, body: &TypedExpr) {
         // String patterns need special handling: extract captures from regex match
         if let PatternKind::StringPattern { segments } = &pattern.kind {
             let captures: Vec<&str> = segments
@@ -376,9 +378,9 @@ impl Codegen {
 
 /// Collect variable bindings from a match pattern.
 pub(super) fn collect_bindings(
-    subject: &Expr,
+    subject: &TypedExpr,
     pattern: &Pattern,
-    expr_to_str: &dyn Fn(&Expr) -> String,
+    expr_to_str: &dyn Fn(&TypedExpr) -> String,
     variant_info: &HashMap<String, (String, Vec<String>)>,
 ) -> Vec<(String, String)> {
     let mut bindings = Vec::new();
@@ -387,9 +389,9 @@ pub(super) fn collect_bindings(
 }
 
 fn collect_bindings_inner(
-    subject: &Expr,
+    subject: &TypedExpr,
     pattern: &Pattern,
-    expr_to_str: &dyn Fn(&Expr) -> String,
+    expr_to_str: &dyn Fn(&TypedExpr) -> String,
     variant_info: &HashMap<String, (String, Vec<String>)>,
     bindings: &mut Vec<(String, String)>,
 ) {
@@ -408,30 +410,36 @@ fn collect_bindings_inner(
                     field_names.map(|v| v.as_slice()),
                     &subj_str,
                 );
-                let field_expr =
-                    Expr::synthetic(ExprKind::Identifier(field_access.clone()), subject.span);
+                let field_expr = TypedExpr::synthetic_typed(
+                    ExprKind::Identifier(field_access.clone()),
+                    subject.span,
+                );
                 collect_bindings_inner(&field_expr, field_pat, expr_to_str, variant_info, bindings);
             }
         }
         PatternKind::Record { fields } => {
             for (name, pat) in fields {
                 let field_access = format!("{}.{}", expr_to_str(subject), name);
-                let field_expr =
-                    Expr::synthetic(ExprKind::Identifier(field_access.clone()), subject.span);
+                let field_expr = TypedExpr::synthetic_typed(
+                    ExprKind::Identifier(field_access.clone()),
+                    subject.span,
+                );
                 collect_bindings_inner(&field_expr, pat, expr_to_str, variant_info, bindings);
             }
         }
         PatternKind::Tuple(patterns) => {
             for (i, pat) in patterns.iter().enumerate() {
                 let elem_access = format!("{}[{}]", expr_to_str(subject), i);
-                let elem_expr = Expr::synthetic(ExprKind::Identifier(elem_access), subject.span);
+                let elem_expr =
+                    TypedExpr::synthetic_typed(ExprKind::Identifier(elem_access), subject.span);
                 collect_bindings_inner(&elem_expr, pat, expr_to_str, variant_info, bindings);
             }
         }
         PatternKind::Array { elements, rest } => {
             for (i, pat) in elements.iter().enumerate() {
                 let elem_access = format!("{}[{}]", expr_to_str(subject), i);
-                let elem_expr = Expr::synthetic(ExprKind::Identifier(elem_access), subject.span);
+                let elem_expr =
+                    TypedExpr::synthetic_typed(ExprKind::Identifier(elem_access), subject.span);
                 collect_bindings_inner(&elem_expr, pat, expr_to_str, variant_info, bindings);
             }
             if let Some(name) = rest

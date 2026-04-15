@@ -3,18 +3,22 @@
 //! Provides `walk_expr_mut` and `walk_item_mut` that handle the structural
 //! recursion into all ExprKind/ItemKind variants. Callers supply a callback
 //! for the action to perform at each expression node.
+//!
+//! Every function is generic over the AST phase type `T` so the same
+//! walker services both `UntypedExpr = Expr<()>` (pre-check) and
+//! `TypedExpr = Expr<Arc<Type>>` (post-check).
 
 use crate::parser::ast::*;
 
 /// Walk all expressions in a program, calling `f` on each one.
 /// The callback receives each `&mut Expr` in pre-order (parent before children).
-pub fn walk_program_mut(program: &mut Program, f: &mut impl FnMut(&mut Expr)) {
+pub fn walk_program_mut<T>(program: &mut Program<T>, f: &mut impl FnMut(&mut Expr<T>)) {
     for item in &mut program.items {
         walk_item_mut(item, f);
     }
 }
 
-pub fn walk_item_mut(item: &mut Item, f: &mut impl FnMut(&mut Expr)) {
+pub fn walk_item_mut<T>(item: &mut Item<T>, f: &mut impl FnMut(&mut Expr<T>)) {
     match &mut item.kind {
         ItemKind::Expr(expr) => walk_expr_mut(expr, f),
         ItemKind::Const(decl) => walk_expr_mut(&mut decl.value, f),
@@ -40,7 +44,7 @@ pub fn walk_item_mut(item: &mut Item, f: &mut impl FnMut(&mut Expr)) {
     }
 }
 
-pub fn walk_function_mut(decl: &mut FunctionDecl, f: &mut impl FnMut(&mut Expr)) {
+pub fn walk_function_mut<T>(decl: &mut FunctionDecl<T>, f: &mut impl FnMut(&mut Expr<T>)) {
     walk_expr_mut(&mut decl.body, f);
     for param in &mut decl.params {
         if let Some(default) = &mut param.default {
@@ -51,14 +55,14 @@ pub fn walk_function_mut(decl: &mut FunctionDecl, f: &mut impl FnMut(&mut Expr))
 
 /// Walk an expression tree, calling `f` on each node in pre-order.
 /// Recurses into all children after calling `f` on the current node.
-pub fn walk_expr_mut(expr: &mut Expr, f: &mut impl FnMut(&mut Expr)) {
+pub fn walk_expr_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Expr<T>)) {
     f(expr);
     walk_expr_children_mut(expr, f);
 }
 
 /// Walk only the children of an expression (not the expression itself).
 /// Useful when the caller needs post-order traversal (children first, then self).
-pub fn walk_expr_children_mut(expr: &mut Expr, f: &mut impl FnMut(&mut Expr)) {
+pub fn walk_expr_children_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Expr<T>)) {
     match &mut expr.kind {
         ExprKind::Binary { left, right, .. } | ExprKind::Pipe { left, right } => {
             walk_expr_mut(left, f);
@@ -156,20 +160,20 @@ pub fn walk_expr_children_mut(expr: &mut Expr, f: &mut impl FnMut(&mut Expr)) {
 // ── Immutable walker (for read-only traversal) ──────────────────
 
 /// Walk an entire program immutably, calling f on every expression.
-pub fn walk_program(program: &Program, f: &mut impl FnMut(&Expr)) {
+pub fn walk_program<T>(program: &Program<T>, f: &mut impl FnMut(&Expr<T>)) {
     for item in &program.items {
         walk_item(item, f);
     }
 }
 
 /// Walk an expression and all its children, calling f on each.
-pub fn walk_expr(expr: &Expr, f: &mut impl FnMut(&Expr)) {
+pub fn walk_expr<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
     f(expr);
     walk_expr_children(expr, f);
 }
 
 /// Walk only the children of an expression (not the expression itself).
-pub fn walk_expr_children(expr: &Expr, f: &mut impl FnMut(&Expr)) {
+pub fn walk_expr_children<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
     match &expr.kind {
         ExprKind::Binary { left, right, .. } | ExprKind::Pipe { left, right } => {
             walk_expr(left, f);
@@ -278,7 +282,7 @@ pub fn walk_expr_children(expr: &Expr, f: &mut impl FnMut(&Expr)) {
     }
 }
 
-pub fn walk_item(item: &Item, f: &mut impl FnMut(&Expr)) {
+pub fn walk_item<T>(item: &Item<T>, f: &mut impl FnMut(&Expr<T>)) {
     match &item.kind {
         ItemKind::Const(decl) => {
             walk_expr(&decl.value, f);
@@ -298,7 +302,7 @@ pub fn walk_item(item: &Item, f: &mut impl FnMut(&Expr)) {
     }
 }
 
-fn walk_jsx_children(element: &JsxElement, f: &mut impl FnMut(&Expr)) {
+fn walk_jsx_children<T>(element: &JsxElement<T>, f: &mut impl FnMut(&Expr<T>)) {
     match &element.kind {
         JsxElementKind::Element {
             props, children, ..
@@ -339,7 +343,7 @@ fn walk_jsx_children(element: &JsxElement, f: &mut impl FnMut(&Expr)) {
     }
 }
 
-fn walk_jsx_mut(element: &mut JsxElement, f: &mut impl FnMut(&mut Expr)) {
+fn walk_jsx_mut<T>(element: &mut JsxElement<T>, f: &mut impl FnMut(&mut Expr<T>)) {
     if let JsxElementKind::Element { props, .. } = &mut element.kind {
         for prop in props {
             match prop {

@@ -4,7 +4,11 @@ impl Codegen {
     // ── Pipe Lowering ────────────────────────────────────────────
 
     /// Try to emit a stdlib call. Returns Some(output) if the callee is a stdlib function.
-    pub(super) fn try_emit_stdlib_call(&mut self, callee: &Expr, args: &[Arg]) -> Option<String> {
+    pub(super) fn try_emit_stdlib_call(
+        &mut self,
+        callee: &TypedExpr,
+        args: &[TypedArg],
+    ) -> Option<String> {
         if let ExprKind::Member { object, field } = &callee.kind
             && let ExprKind::Identifier(module) = &object.kind
             && let Some(stdlib_fn) = self.stdlib.lookup(module, field)
@@ -20,9 +24,9 @@ impl Codegen {
     /// Try to emit a stdlib call in pipe context (piped value is first arg).
     fn try_emit_stdlib_pipe(
         &mut self,
-        left: &Expr,
-        callee: &Expr,
-        extra_args: &[Arg],
+        left: &TypedExpr,
+        callee: &TypedExpr,
+        extra_args: &[TypedArg],
     ) -> Option<String> {
         if let ExprKind::Member { object, field } = &callee.kind
             && let ExprKind::Identifier(module) = &object.kind
@@ -42,10 +46,10 @@ impl Codegen {
     /// `row |> AccentRow.toModel(args)` → `AccentRow__toModel(row, args)`
     fn try_emit_for_block_pipe(
         &mut self,
-        left: &Expr,
+        left: &TypedExpr,
         type_name: &str,
         field: &str,
-        args: &[Arg],
+        args: &[TypedArg],
     ) -> bool {
         if let Some(mangled) = self
             .for_block_fns
@@ -75,9 +79,9 @@ impl Codegen {
     /// e.g., `arr |> length` → left is Array → use Array.length template.
     fn try_emit_bare_stdlib_pipe(
         &mut self,
-        left: &Expr,
-        callee: &Expr,
-        extra_args: &[Arg],
+        left: &TypedExpr,
+        callee: &TypedExpr,
+        extra_args: &[TypedArg],
     ) -> Option<String> {
         if let ExprKind::Identifier(name) = &callee.kind {
             // Don't shadow locally defined functions, unless the name
@@ -111,8 +115,13 @@ impl Codegen {
 
     /// Emit method dispatch for generic-bounded pipe calls.
     /// `repo |> create(input)` where repo: R: SnippetRepository → `repo.create(input)`
-    fn try_emit_trait_bounded_pipe(&mut self, left: &Expr, callee: &Expr, args: &[Arg]) -> bool {
-        let crate::checker::Type::Named(type_param_name) = &left.ty else {
+    fn try_emit_trait_bounded_pipe(
+        &mut self,
+        left: &TypedExpr,
+        callee: &TypedExpr,
+        args: &[TypedArg],
+    ) -> bool {
+        let crate::checker::Type::Named(type_param_name) = &*left.ty else {
             return false;
         };
         let Some(bounds) = self.current_type_param_bounds.get(type_param_name.as_str()) else {
@@ -140,7 +149,7 @@ impl Codegen {
         false
     }
 
-    pub(super) fn emit_pipe(&mut self, left: &Expr, right: &Expr) {
+    pub(super) fn emit_pipe(&mut self, left: &TypedExpr, right: &TypedExpr) {
         match &right.kind {
             // Stdlib pipe: `arr |> Array.sort` or `arr |> Array.map(fn)`
             // Also handles type-directed resolution: `arr |> map(fn)` → stdlib lookup by name
@@ -245,7 +254,7 @@ impl Codegen {
             }
             // `a |> parse<T>` — substitute piped value into parse
             ExprKind::Parse { type_arg, value } if matches!(value.kind, ExprKind::Placeholder) => {
-                let substituted = Expr::synthetic(
+                let substituted = TypedExpr::synthetic_typed(
                     ExprKind::Parse {
                         type_arg: type_arg.clone(),
                         value: Box::new(left.clone()),
@@ -291,7 +300,7 @@ impl Codegen {
 
     // ── Partial Application ──────────────────────────────────────
 
-    pub(super) fn emit_partial_application(&mut self, callee: &Expr, args: &[Arg]) {
+    pub(super) fn emit_partial_application(&mut self, callee: &TypedExpr, args: &[TypedArg]) {
         // `add(10, _)` → `(_x) => add(10, _x)`
         let param_name = "_x";
         self.push(&format!("({param_name}) => "));

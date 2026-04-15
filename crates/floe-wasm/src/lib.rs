@@ -62,7 +62,7 @@ fn compile_inner(source: &str) -> CompileResult {
     };
 
     // Type check
-    let check_diags = Checker::new().check(&program);
+    let (check_diags, expr_types) = Checker::new().check_full(&program);
     let has_errors = check_diags
         .iter()
         .any(|d| d.severity == diagnostic::Severity::Error);
@@ -77,8 +77,9 @@ fn compile_inner(source: &str) -> CompileResult {
         });
     }
 
-    // Generate code (even with type errors, for playground preview)
-    let output = Codegen::new().generate(&program);
+    // Convert to typed AST for codegen (even with type errors, for playground preview).
+    let typed_program = floe_core::checker::attach_types(program, &expr_types);
+    let output = Codegen::new().generate(&typed_program);
 
     CompileResult {
         output: output.code,

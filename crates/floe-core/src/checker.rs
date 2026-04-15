@@ -1,3 +1,4 @@
+mod attach;
 pub mod error_codes;
 mod expr;
 mod imports;
@@ -11,30 +12,27 @@ mod type_registration;
 mod type_resolve;
 mod types;
 
+pub use attach::{
+    attach_trait_decl_shallow, attach_type_decl_shallow, attach_types, lower_to_typed,
+};
 pub use error_codes::ErrorCode;
-pub use types::{Type, TypeDisplay};
+pub use types::{Type, TypeDisplay, UNKNOWN};
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use crate::parser::ast::ExprId;
 
-/// Maps expression IDs to their resolved types.
-pub type ExprTypeMap = HashMap<ExprId, Type>;
-
-/// Annotate every `Expr` in the program with its resolved type from the type map.
-pub fn annotate_types(program: &mut Program, types: &ExprTypeMap) {
-    crate::walk::walk_program_mut(program, &mut |expr| {
-        if let Some(ty) = types.get(&expr.id) {
-            expr.ty = ty.clone();
-        }
-    });
-}
+/// Maps expression IDs to their resolved types. Stored as `Arc<Type>` so
+/// downstream consumers (`attach_types`, LSP hover) can share the same
+/// type instance without deep-cloning the Type tree on every lookup.
+pub type ExprTypeMap = HashMap<ExprId, Arc<Type>>;
 
 /// Walk the AST and set `async_fn = true` on functions/arrows whose bodies
 /// contain `Promise.await` calls or whose return type is `Promise<T>`.
 /// Preserves the parser-set `async_fn` flag (from the `async fn` sugar).
 /// Also collects untrusted import names from the program for detection.
-pub fn mark_async_functions(program: &mut Program) {
+pub fn mark_async_functions<T>(program: &mut Program<T>) {
     for item in &mut program.items {
         match &mut item.kind {
             ItemKind::Function(decl) => {
@@ -68,8 +66,8 @@ pub fn mark_async_functions(program: &mut Program) {
 
 /// Check if an expression body contains a `Promise.await` member access
 /// or bare `await` identifier (shorthand for `Promise.await` in pipes).
-pub(crate) fn body_has_promise_await(expr: &Expr) -> bool {
-    fn walk(expr: &Expr) -> bool {
+pub(crate) fn body_has_promise_await<T>(expr: &Expr<T>) -> bool {
+    fn walk<T>(expr: &Expr<T>) -> bool {
         match &expr.kind {
             // Qualified: `Promise.await`
             ExprKind::Member { object, field }
@@ -535,9 +533,9 @@ impl Checker {
         self.check_full(program).0
     }
 
-    /// Check a program and return (diagnostics, expr_type_map).
-    /// The expr_type_map maps expression spans (start, end) to their resolved types,
-    /// used by codegen for type-directed pipe resolution.
+    /// Check a program and return (diagnostics, expr_type_map). The
+    /// map keys each expression by its `ExprId` and is consumed by
+    /// `attach_types` to produce a `TypedProgram` for codegen.
     pub fn check_full(self, program: &Program) -> (Vec<Diagnostic>, ExprTypeMap) {
         let (diags, _, expr_types) = self.check_all(program);
         (diags, expr_types)
@@ -545,7 +543,7 @@ impl Checker {
 
     /// Check a program and return diagnostics, name_type_map, and expr_type_map.
     /// The name_type_map maps variable/function names to their inferred type display names.
-    /// The expr_type_map maps ExprId to resolved Type (used by annotate_types).
+    /// The expr_type_map maps `ExprId` to `Arc<Type>` and is consumed by `attach_types`.
     pub fn check_with_types(
         self,
         program: &Program,
