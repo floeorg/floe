@@ -1,36 +1,22 @@
 [workspace]
-members = [".", "crates/floe-wasm"]
+members = [
+    "crates/floe-core",
+    "crates/floe-cli",
+    "crates/floe-wasm",
+]
 resolver = "3"
 
-[package]
-name = "floe"
+[workspace.package]
 version = "0.4.7"
 edition = "2024"
-description = "A programming language that compiles to TypeScript + React"
 license = "MIT"
 repository = "https://github.com/floeorg/floe"
-homepage = "https://github.com/floeorg/floe"
-keywords = ["compiler", "typescript", "react", "programming-language"]
-categories = ["compilers", "development-tools"]
-readme = "README.md"
 
-[lib]
-name = "floe"
-path = "src/lib.rs"
-
-[[bin]]
-name = "floe"
-path = "src/main.rs"
-
-[features]
-default = ["cli"]
-cli = ["dep:anyhow", "dep:clap", "dep:notify", "dep:tokio", "dep:tower-lsp", "dep:tempfile"]
-
-[dependencies]
-anyhow = { version = "1", optional = true }
+[workspace.dependencies]
+anyhow = "1"
 ariadne = "0.6"
-clap = { version = "4", features = ["derive"], optional = true }
-notify = { version = "8", optional = true }
+clap = { version = "4", features = ["derive"] }
+notify = "8"
 oxc_allocator = "0.123.0"
 oxc_ast = "0.123.0"
 oxc_parser = "0.123.0"
@@ -38,11 +24,9 @@ oxc_span = "0.123.0"
 rowan = "0.16"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-tempfile = { version = "3.27.0", optional = true }
-tokio = { version = "1.51.0", features = ["full"], optional = true }
-tower-lsp = { version = "0.20.0", optional = true }
-
-[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.51.0", features = ["full"] }
+tower-lsp = "0.20.0"
 insta = "1.47.2"
 
 # CI profile: drop opt-level overrides so compile is fast.

@@ -287,10 +287,18 @@ name = "floe"
 version = "0.4.7"
 dependencies = [
  "anyhow",
- "ariadne",
  "clap",
- "insta",
+ "floe-core",
  "notify",
+ "tokio",
+]
+
+[[package]]
+name = "floe-core"
+version = "0.4.7"
+dependencies = [
+ "ariadne",
+ "insta",
  "oxc_allocator",
  "oxc_ast",
  "oxc_parser",
@@ -307,7 +315,7 @@ dependencies = [
 name = "floe-wasm"
 version = "0.4.7"
 dependencies = [
- "floe",
+ "floe-core",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

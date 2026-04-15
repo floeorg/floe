@@ -1,0 +1,36 @@
+[package]
+name = "floe-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The Floe compiler core: lexer, parser, type checker, codegen"
+publish = false
+
+[lib]
+name = "floe_core"
+path = "src/lib.rs"
+
+[features]
+# Enables the LSP server + tsgo probe (tokio, tower-lsp, tempfile).
+# LSP and probe_run will move to their own crate in #1103; this feature gate
+# is transitional scaffolding for that split. Default-on so `cargo test` picks
+# up tempfile for resolve.rs tests; floe-wasm opts out via default-features=false.
+default = ["cli"]
+cli = ["dep:tokio", "dep:tower-lsp", "dep:tempfile"]
+
+[dependencies]
+ariadne.workspace = true
+oxc_allocator.workspace = true
+oxc_ast.workspace = true
+oxc_parser.workspace = true
+oxc_span.workspace = true
+rowan.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+tower-lsp = { workspace = true, optional = true }
+
+[dev-dependencies]
+insta.workspace = true

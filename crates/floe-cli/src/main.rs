@@ -4,14 +4,14 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 
-use floe::checker::{self, Checker};
-use floe::codegen::Codegen;
-use floe::desugar;
-use floe::diagnostic;
-use floe::find_project_dir;
-use floe::parser::Parser as ZsParser;
-use floe::parser::ast::Program;
-use floe::resolve::{self, ResolvedImports, TsconfigPaths};
+use floe_core::checker::{self, Checker};
+use floe_core::codegen::Codegen;
+use floe_core::desugar;
+use floe_core::diagnostic;
+use floe_core::find_project_dir;
+use floe_core::parser::Parser as ZsParser;
+use floe_core::parser::ast::Program;
+use floe_core::resolve::{self, ResolvedImports, TsconfigPaths};
 
 /// Resolve the source directory, project directory, and tsconfig paths for a file.
 fn resolve_context(file_path: &Path) -> (PathBuf, PathBuf, TsconfigPaths) {
@@ -103,7 +103,7 @@ fn main() -> Result<()> {
         Command::Watch { path, out_dir } => cmd_watch(&path, out_dir.as_deref()),
         Command::Init { path } => cmd_init(path.as_deref()),
         Command::Lsp => {
-            tokio::runtime::Runtime::new()?.block_on(floe::lsp::run_lsp());
+            tokio::runtime::Runtime::new()?.block_on(floe_core::lsp::run_lsp());
             Ok(())
         }
     }
@@ -129,11 +129,11 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
     let (source_dir, project_dir, tsconfig_paths) = resolve_context(file_path);
     let resolved = resolve::resolve_imports(file_path, &program, &tsconfig_paths);
 
-    let mut tsgo_resolver = floe::interop::TsgoResolver::new(&project_dir);
+    let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
     let tsgo_result =
         tsgo_resolver.resolve_imports(&program, &resolved, &source_dir, &tsconfig_paths);
 
-    let ambient = floe::interop::ambient::load_ambient_types(&project_dir);
+    let ambient = floe_core::interop::ambient::load_ambient_types(&project_dir);
     let checker = Checker::from_context(
         resolved.clone(),
         tsgo_result.exports,
@@ -312,7 +312,7 @@ fn cmd_check(path: &Path) -> Result<()> {
                 let (source_dir, project_dir, tsconfig_paths) = resolve_context(file);
                 let resolved = resolve::resolve_imports(file, &program, &tsconfig_paths);
 
-                let mut tsgo_resolver = floe::interop::TsgoResolver::new(&project_dir);
+                let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
                 let tsgo_result = tsgo_resolver.resolve_imports(
                     &program,
                     &resolved,
@@ -320,7 +320,7 @@ fn cmd_check(path: &Path) -> Result<()> {
                     &tsconfig_paths,
                 );
 
-                let ambient = floe::interop::ambient::load_ambient_types(&project_dir);
+                let ambient = floe_core::interop::ambient::load_ambient_types(&project_dir);
                 let check_diags = Checker::from_context(
                     resolved,
                     tsgo_result.exports,
@@ -376,10 +376,9 @@ fn cmd_test(path: &Path) -> Result<()> {
             match ZsParser::new(&source).parse_program() {
                 Ok(program) => {
                     // Check if program has any test blocks
-                    let has_tests = program
-                        .items
-                        .iter()
-                        .any(|item| matches!(item.kind, floe::parser::ast::ItemKind::TestBlock(_)));
+                    let has_tests = program.items.iter().any(|item| {
+                        matches!(item.kind, floe_core::parser::ast::ItemKind::TestBlock(_))
+                    });
                     if has_tests {
                         test_files.push((
                             file.clone(),
@@ -499,7 +498,7 @@ fn cmd_fmt(path: &Path, check_only: bool) -> Result<()> {
     for file in &files {
         let source = read_fl_file(file)?;
 
-        let Some(result) = floe::formatter::format(&source) else {
+        let Some(result) = floe_core::formatter::format(&source) else {
             eprintln!("  skipping {} (parse error)", file.display());
             skipped += 1;
             continue;
