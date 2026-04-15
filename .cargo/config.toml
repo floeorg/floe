@@ -1,18 +1,6 @@
-# managed by milky-kit | DO NOT EDIT — changes will be overwritten on next sync
-
-[build]
-target-dir = "/Users/onesc/Code/Projects/floe/target"
-
-# Fast linkers for dev builds. Requires:
-#   macOS: `brew install llvm` (provides lld)
-#   Linux: `apt-get install mold` or equivalent
-[target.aarch64-apple-darwin]
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
-
-[target.x86_64-apple-darwin]
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+# Local target directory (was previously hardcoded to another user's path).
+# macOS linker overrides removed since they required `brew install llvm` for lld;
+# Linux builds (CI) still use mold for speed.
 
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"

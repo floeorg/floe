@@ -1,10 +1,10 @@
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
-use floe::checker::Checker;
-use floe::codegen::Codegen;
-use floe::diagnostic;
-use floe::parser::Parser;
+use floe_core::checker::Checker;
+use floe_core::codegen::Codegen;
+use floe_core::diagnostic;
+use floe_core::parser::Parser;
 
 /// A diagnostic message returned to JavaScript.
 #[derive(Serialize)]

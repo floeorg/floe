@@ -3,10 +3,10 @@
 //! Each test reads a .fl fixture file, parses + codegen, and compares
 //! against an insta snapshot. Run `cargo insta review` to accept new snapshots.
 
-use floe::checker::{self, Checker};
-use floe::codegen::Codegen;
-use floe::desugar;
-use floe::parser::Parser;
+use floe_core::checker::{self, Checker};
+use floe_core::codegen::Codegen;
+use floe_core::desugar;
+use floe_core::parser::Parser;
 
 fn compile(source: &str) -> String {
     let mut program = Parser::new(source)

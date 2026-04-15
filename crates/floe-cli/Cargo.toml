@@ -1,0 +1,22 @@
+[package]
+name = "floe"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A programming language that compiles to TypeScript + React"
+homepage = "https://github.com/floeorg/floe"
+keywords = ["compiler", "typescript", "react", "programming-language"]
+categories = ["compilers", "development-tools"]
+readme = "../../README.md"
+
+[[bin]]
+name = "floe"
+path = "src/main.rs"
+
+[dependencies]
+floe-core = { path = "../floe-core" }
+anyhow.workspace = true
+clap.workspace = true
+notify.workspace = true
+tokio.workspace = true

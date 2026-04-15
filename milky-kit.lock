@@ -17,7 +17,6 @@ managed = [
     ".mise/tasks/check/rust",
     ".mise/tasks/fmt/rust",
     ".mise/tasks/clean",
-    ".cargo/config.toml",
     ".claude/rules/monorepo.md",
     ".claude/skills/ship/SKILL.md",
     ".claude/skills/rulify/SKILL.md",

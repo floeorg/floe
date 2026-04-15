@@ -1,30 +1,31 @@
 {
   "packages": {
-    ".": {
+    "crates/floe-cli": {
       "release-type": "rust",
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "include-component-in-tag": false,
       "extra-files": [
-        "crates/floe-wasm/Cargo.toml",
+        "../floe-core/Cargo.toml",
+        "../floe-wasm/Cargo.toml",
         {
           "type": "json",
-          "path": "integrations/vite-plugin-floe/package.json",
+          "path": "../../integrations/vite-plugin-floe/package.json",
           "jsonpath": "$.version"
         },
         {
           "type": "json",
-          "path": "integrations/core/package.json",
+          "path": "../../integrations/core/package.json",
           "jsonpath": "$.version"
         },
         {
           "type": "json",
-          "path": "integrations/register/package.json",
+          "path": "../../integrations/register/package.json",
           "jsonpath": "$.version"
         },
         {
           "type": "json",
-          "path": "editors/vscode/package.json",
+          "path": "../../editors/vscode/package.json",
           "jsonpath": "$.version"
         }
       ]

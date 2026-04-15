@@ -3,9 +3,9 @@
 //! Tests that parse errors and type checker diagnostics produce the expected
 //! error output. Run `cargo insta review` to accept new snapshots.
 
-use floe::checker::Checker;
-use floe::diagnostic;
-use floe::parser::Parser;
+use floe_core::checker::Checker;
+use floe_core::diagnostic;
+use floe_core::parser::Parser;
 
 /// Compile a source string and return rendered diagnostics (parse errors or type errors).
 fn get_diagnostics(filename: &str, source: &str) -> String {
