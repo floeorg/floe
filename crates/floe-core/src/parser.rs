@@ -3,10 +3,11 @@ pub mod ast;
 #[cfg(test)]
 mod tests;
 
-use crate::cst::CstParser;
+use crate::cst::{CstError, CstParser, Parse as CstParse};
 use crate::lexer::Lexer;
 use crate::lexer::span::Span;
 use crate::lower::{lower_program, lower_program_lossy};
+use crate::parse::ModuleExtra;
 use ast::*;
 
 /// Classification of parse errors for structured diagnostic handling.
@@ -71,55 +72,70 @@ impl Parser {
 
     /// Parse a complete program using the CST pipeline (lexer -> CST -> lower -> AST).
     pub fn parse(source: &str) -> Result<Program, Vec<ParseError>> {
-        let tokens = Lexer::new(source).tokenize_with_trivia();
-        let cst_parse = CstParser::new(source, tokens).parse();
-
+        let cst_parse = lex_and_cst(source);
         if !cst_parse.errors.is_empty() {
-            return Err(cst_parse
-                .errors
-                .into_iter()
-                .map(|e| {
-                    let kind = ParseErrorKind::classify(&e.message);
-                    ParseError {
-                        message: e.message,
-                        span: e.span,
-                        kind,
-                    }
-                })
-                .collect());
+            return Err(classify_cst_errors(cst_parse.errors));
         }
+        lower_program(&cst_parse.syntax(), source)
+    }
 
-        let root = cst_parse.syntax();
-        lower_program(&root, source)
+    /// Parse a complete module, returning the AST alongside the parse-time
+    /// side channel ([`ModuleExtra`]) that records comments, doc comments, and
+    /// empty line positions. Consumers that don't need the side channel can
+    /// use [`Parser::parse`] instead — it skips the `ModuleExtra` construction
+    /// pass, which matters for compiler hot paths that discard the extras.
+    pub fn parse_module(source: &str) -> Result<(Program, ModuleExtra), Vec<ParseError>> {
+        let (cst_parse, extra) = lex_and_cst_with_extra(source);
+        if !cst_parse.errors.is_empty() {
+            return Err(classify_cst_errors(cst_parse.errors));
+        }
+        lower_program(&cst_parse.syntax(), source).map(|program| (program, extra))
     }
 
     /// Parse on a best-effort basis, returning whatever AST was successfully
     /// built along with any parse errors. Used by the LSP so that a partial
     /// symbol index can be built even when the source has errors.
     pub fn parse_lossy(source: &str) -> (Program, Vec<ParseError>) {
-        let tokens = Lexer::new(source).tokenize_with_trivia();
-        let cst_parse = CstParser::new(source, tokens).parse();
-
-        let cst_errors: Vec<ParseError> = cst_parse
-            .errors
-            .iter()
-            .map(|e| {
-                let kind = ParseErrorKind::classify(&e.message);
-                ParseError {
-                    message: e.message.clone(),
-                    span: e.span,
-                    kind,
-                }
-            })
-            .collect();
-
+        let cst_parse = lex_and_cst(source);
         let root = cst_parse.syntax();
+        let mut errors = classify_cst_errors(cst_parse.errors);
         let (program, lower_errors) = lower_program_lossy(&root, source);
-
-        let mut all_errors = cst_errors;
-        all_errors.extend(lower_errors);
-        (program, all_errors)
+        errors.extend(lower_errors);
+        (program, errors)
     }
+
+    /// Best-effort parse that also returns the [`ModuleExtra`] side channel.
+    pub fn parse_lossy_module(source: &str) -> (Program, ModuleExtra, Vec<ParseError>) {
+        let (cst_parse, extra) = lex_and_cst_with_extra(source);
+        let root = cst_parse.syntax();
+        let mut errors = classify_cst_errors(cst_parse.errors);
+        let (program, lower_errors) = lower_program_lossy(&root, source);
+        errors.extend(lower_errors);
+        (program, extra, errors)
+    }
+}
+
+fn lex_and_cst(source: &str) -> CstParse {
+    let tokens = Lexer::new(source).tokenize_with_trivia();
+    CstParser::new(source, tokens).parse()
+}
+
+fn lex_and_cst_with_extra(source: &str) -> (CstParse, ModuleExtra) {
+    let tokens = Lexer::new(source).tokenize_with_trivia();
+    let extra = ModuleExtra::from_tokens(source, &tokens);
+    let parse = CstParser::new(source, tokens).parse();
+    (parse, extra)
+}
+
+fn classify_cst_errors(errors: Vec<CstError>) -> Vec<ParseError> {
+    errors
+        .into_iter()
+        .map(|e| ParseError {
+            kind: ParseErrorKind::classify(&e.message),
+            message: e.message,
+            span: e.span,
+        })
+        .collect()
 }
 
 /// Handle returned by `Parser::new(source)` that allows calling `parse_program()`.
