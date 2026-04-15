@@ -468,7 +468,7 @@ impl Codegen {
 
     // ── For Blocks ────────────────────────────────────────────────
 
-    pub(super) fn register_for_block_fns<T: std::fmt::Debug>(&mut self, block: &ForBlock<T>) {
+    pub(super) fn register_for_block_fns<T>(&mut self, block: &ForBlock<T>) {
         let type_name = match &block.type_name.kind {
             TypeExprKind::Named { name, .. } => name.clone(),
             _ => return,

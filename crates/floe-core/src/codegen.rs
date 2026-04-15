@@ -36,13 +36,13 @@ const THROW_MOCK_FUNCTION: &str = "(() => { throw new Error(\"mock function\"); 
 
 /// Produce a mangled name for a for-block function: `TypeName__funcName`.
 /// Generic types are flattened: `Array<User>` → `Array_User`, `Map<string, number>` → `Map_string_number`.
-pub fn for_block_fn_name<T: std::fmt::Debug>(type_expr: &TypeExpr<T>, fn_name: &str) -> String {
+pub fn for_block_fn_name<T>(type_expr: &TypeExpr<T>, fn_name: &str) -> String {
     let type_prefix = mangle_type_name(type_expr);
     format!("{type_prefix}__{fn_name}")
 }
 
 /// Mangle a type expression into a valid identifier fragment.
-fn mangle_type_name<T: std::fmt::Debug>(type_expr: &TypeExpr<T>) -> String {
+fn mangle_type_name<T>(type_expr: &TypeExpr<T>) -> String {
     match &type_expr.kind {
         TypeExprKind::Named {
             name, type_args, ..
@@ -59,7 +59,9 @@ fn mangle_type_name<T: std::fmt::Debug>(type_expr: &TypeExpr<T>) -> String {
             let parts: Vec<String> = parts.iter().map(mangle_type_name).collect();
             format!("Tuple_{}", parts.join("_"))
         }
-        other => unreachable!("for-block type cannot be mangled: {other:?}"),
+        // The parser only emits `Named`/`Array`/`Tuple` in for-block
+        // receiver position, so anything else is a parser bug.
+        _ => unreachable!("for-block type must be Named, Array, or Tuple"),
     }
 }
 
@@ -195,7 +197,7 @@ impl Codegen {
         // info from these metadata maps, not the defaults' types.
         for imports in resolved.values() {
             for decl in &imports.type_decls {
-                let typed = crate::checker::attach_type_decl_shallow(decl.clone());
+                let typed = crate::checker::attach_type_decl_shallow(decl);
                 codegen.register_union_variants(&typed);
                 codegen
                     .type_defs

@@ -1,7 +1,14 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::{Arc, LazyLock};
 
 use crate::parser::ast::TypeDef;
+
+/// Shared `Arc<Type::Unknown>` sentinel. Cloning bumps a refcount instead
+/// of allocating — the fallback path in `attach_types` hits this for every
+/// codegen-synthetic node and every post-error subtree, so keeping it
+/// interned matters for compiles with many errors.
+pub static UNKNOWN: LazyLock<Arc<Type>> = LazyLock::new(|| Arc::new(Type::Unknown));
 
 // ── Types ────────────────────────────────────────────────────────
 

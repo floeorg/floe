@@ -1,20 +1,26 @@
 //! Converts an `UntypedProgram` (produced by `lower.rs`) into a
-//! `TypedProgram` (consumed by `desugar` and `codegen`) by deep-cloning
-//! the tree and attaching each expression's resolved `Arc<Type>` from
-//! the checker's `ExprTypeMap`.
+//! `TypedProgram` (consumed by `codegen`) by deep-cloning the tree and
+//! attaching each expression's resolved `Arc<Type>` from the checker's
+//! `ExprTypeMap`.
 //!
-//! This replaces the old in-place `annotate_types` mutator: under the
-//! generic `Expr<T>` AST, `Expr<()>` and `Expr<Arc<Type>>` are
-//! structurally distinct types, so codegen cannot be called on an
+//! Under the generic `Expr<T>` AST, `Expr<()>` and `Expr<Arc<Type>>`
+//! are structurally distinct types, so codegen cannot be called on an
 //! unchecked tree. The conversion runs once after type checking and
-//! exists in one place so that the rest of the compiler doesn't need
-//! to pattern-match `ExprKind` just to carry types forward.
+//! lives in one place so the rest of the compiler doesn't need to
+//! pattern-match `ExprKind` just to carry types forward.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock};
 
 use crate::parser::ast::*;
+use crate::resolve::ResolvedImports;
 
-use super::{ExprTypeMap, Type};
+use super::{ExprTypeMap, Type, UNKNOWN};
+
+/// Shared empty `ExprTypeMap` used by the shallow import converters.
+/// Interned so we don't allocate a fresh `HashMap` per imported decl in
+/// `Codegen::with_imports`, which can see tens of decls per file.
+static EMPTY_TYPES: LazyLock<ExprTypeMap> = LazyLock::new(ExprTypeMap::new);
 
 /// Convert an untyped program into a typed program, attaching each
 /// expression's resolved type from `types`. Expressions missing from
@@ -24,30 +30,51 @@ pub fn attach_types(program: UntypedProgram, types: &ExprTypeMap) -> TypedProgra
     Attacher { types }.program(program)
 }
 
+/// Run the full post-check pipeline in one place so every call site
+/// (the CLI build/check/watch/test paths, the LSP, codegen snapshot
+/// tests, the wasm playground) stays in lockstep. Without this helper
+/// each caller stitches `mark_async_functions` + `desugar_program` +
+/// `attach_types` together by hand and one of them always forgets
+/// `mark_async_functions`, which silently diverges async-marking
+/// between the CLI and the playground.
+///
+/// Ordering: `mark_async_functions` and `desugar` both walk the still
+/// untyped tree (neither reads `.ty`), then `attach_types` converts
+/// the tree into its typed form for codegen.
+pub fn lower_to_typed(
+    mut program: UntypedProgram,
+    expr_types: &ExprTypeMap,
+    resolved: &HashMap<String, ResolvedImports>,
+) -> TypedProgram {
+    crate::checker::mark_async_functions(&mut program);
+    crate::desugar::desugar_program(&mut program, resolved);
+    attach_types(program, expr_types)
+}
+
 /// Convert an untyped `TypeDecl` (e.g. from the resolver's list of
 /// imported type declarations) into its typed equivalent. Used by
-/// codegen to populate `type_defs` / `trait_decls` metadata when the
-/// source is another `.fl` module's exports, where no `ExprTypeMap` is
-/// available for the default expressions inside record fields. Those
-/// defaults fall back to `Arc<Type::Unknown>` which is safe: the
-/// metadata is only consulted for structural info (field names,
-/// variant names, spread sources), not for the default expressions'
-/// types.
-pub fn attach_type_decl_shallow(decl: TypeDecl<()>) -> TypedTypeDecl {
+/// codegen to populate `type_defs` metadata when the source is another
+/// `.fl` module's exports, where no `ExprTypeMap` is available for the
+/// default expressions inside record fields. Defaults fall back to the
+/// shared `UNKNOWN` sentinel — safe because the metadata is only
+/// consulted for structural info (field names, variant names, spread
+/// sources), not for the default expressions' types.
+pub fn attach_type_decl_shallow(decl: &TypeDecl<()>) -> TypedTypeDecl {
     Attacher {
-        types: &ExprTypeMap::new(),
+        types: &EMPTY_TYPES,
     }
-    .type_decl(decl)
+    .type_decl(decl.clone())
 }
 
 /// Convert an untyped `TraitDecl` into its typed equivalent. See
-/// `attach_type_decl_shallow` — defaults inside method bodies get
-/// `Arc<Type::Unknown>` since no type map is available for imports.
-pub fn attach_trait_decl_shallow(decl: TraitDecl<()>) -> TypedTraitDecl {
+/// `attach_type_decl_shallow` — defaults inside method bodies get the
+/// shared `UNKNOWN` sentinel since no type map is available for
+/// imports.
+pub fn attach_trait_decl_shallow(decl: &TraitDecl<()>) -> TypedTraitDecl {
     Attacher {
-        types: &ExprTypeMap::new(),
+        types: &EMPTY_TYPES,
     }
-    .trait_decl(decl)
+    .trait_decl(decl.clone())
 }
 
 struct Attacher<'a> {
@@ -278,11 +305,18 @@ impl Attacher<'_> {
     }
 
     fn expr(&self, expr: UntypedExpr) -> TypedExpr {
-        let ty = self.types.get(&expr.id).cloned().unwrap_or(Type::Unknown);
+        // Cheap: `Arc::clone` bumps a refcount. The fallback path hits the
+        // shared `UNKNOWN` sentinel so codegen-synthetic nodes and
+        // post-error subtrees don't allocate a fresh `Arc` each.
+        let ty = self
+            .types
+            .get(&expr.id)
+            .cloned()
+            .unwrap_or_else(|| Arc::clone(&UNKNOWN));
         Expr {
             id: expr.id,
             kind: self.expr_kind(expr.kind),
-            ty: Arc::new(ty),
+            ty,
             span: expr.span,
         }
     }
@@ -468,5 +502,108 @@ impl Attacher<'_> {
             JsxChild::Expr(e) => JsxChild::Expr(self.expr(e)),
             JsxChild::Element(el) => JsxChild::Element(self.jsx_element(el)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::span::Span;
+
+    fn span() -> Span {
+        Span {
+            start: 0,
+            end: 0,
+            line: 0,
+            column: 0,
+        }
+    }
+
+    #[test]
+    fn empty_program_roundtrips() {
+        let program = Program {
+            items: Vec::new(),
+            span: span(),
+        };
+        let typed = attach_types(program, &ExprTypeMap::new());
+        assert!(typed.items.is_empty());
+    }
+
+    #[test]
+    fn missing_expr_id_falls_back_to_unknown_sentinel() {
+        // An expression whose id is not in the type map must survive
+        // conversion and carry the shared `UNKNOWN` Arc. This is the
+        // codegen-synthetic and post-error subtree path.
+        let expr = Expr {
+            id: ExprId(0),
+            kind: ExprKind::Number("1".to_string()),
+            ty: (),
+            span: span(),
+        };
+        let program = Program {
+            items: vec![Item {
+                kind: ItemKind::Expr(expr),
+                span: span(),
+            }],
+            span: span(),
+        };
+        let typed = attach_types(program, &ExprTypeMap::new());
+        let ItemKind::Expr(e) = &typed.items[0].kind else {
+            panic!("expected Expr item");
+        };
+        assert!(matches!(&*e.ty, Type::Unknown));
+        // Confirm it's the shared sentinel, not a fresh allocation.
+        assert!(Arc::ptr_eq(&e.ty, &*UNKNOWN));
+    }
+
+    #[test]
+    fn resolved_expr_id_gets_mapped_type() {
+        let mut types = ExprTypeMap::new();
+        types.insert(ExprId(0), Arc::new(Type::Number));
+        let expr = Expr {
+            id: ExprId(0),
+            kind: ExprKind::Number("1".to_string()),
+            ty: (),
+            span: span(),
+        };
+        let program = Program {
+            items: vec![Item {
+                kind: ItemKind::Expr(expr),
+                span: span(),
+            }],
+            span: span(),
+        };
+        let typed = attach_types(program, &types);
+        let ItemKind::Expr(e) = &typed.items[0].kind else {
+            panic!("expected Expr item");
+        };
+        assert!(matches!(&*e.ty, Type::Number));
+    }
+
+    #[test]
+    fn attach_type_decl_shallow_preserves_structure() {
+        let decl = TypeDecl::<()> {
+            exported: true,
+            opaque: false,
+            name: "Point".to_string(),
+            type_params: vec![],
+            deriving: vec![],
+            def: TypeDef::Record(vec![RecordEntry::Field(Box::new(RecordField {
+                name: "x".to_string(),
+                type_ann: TypeExpr {
+                    kind: TypeExprKind::Named {
+                        name: "number".to_string(),
+                        type_args: vec![],
+                        bounds: vec![],
+                    },
+                    span: span(),
+                },
+                default: None,
+                span: span(),
+            }))]),
+        };
+        let typed = attach_type_decl_shallow(&decl);
+        assert_eq!(typed.name, "Point");
+        assert_eq!(typed.def.record_fields().len(), 1);
     }
 }

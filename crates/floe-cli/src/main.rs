@@ -6,7 +6,6 @@ use clap::{Parser, Subcommand};
 
 use floe_core::checker::{self, Checker};
 use floe_core::codegen::Codegen;
-use floe_core::desugar;
 use floe_core::diagnostic;
 use floe_core::find_project_dir;
 use floe_core::parser::Parser as ZsParser;
@@ -151,14 +150,11 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
         eprintln!("{rendered}");
     }
 
-    // Desugar operates on the still-untyped tree (no `.ty` reads), so we run
-    // it before `attach_types` converts the program into `TypedProgram`.
-    // Codegen then consumes only `TypedProgram` — structurally impossible to
-    // feed an unchecked node to codegen, per the #1106 invariant.
-    let mut program = program;
-    checker::mark_async_functions(&mut program);
-    desugar::desugar_program(&mut program, &resolved);
-    let program = checker::attach_types(program, &expr_types);
+    // `lower_to_typed` runs mark_async → desugar → attach_types in one
+    // place so every call site (CLI, tests, wasm playground, LSP) stays
+    // in lockstep. Codegen only accepts `TypedProgram`, so this is the
+    // single boundary between untyped and typed.
+    let program = checker::lower_to_typed(program, &expr_types, &resolved);
 
     Ok(CompileResult { program, resolved })
 }
@@ -426,9 +422,7 @@ fn cmd_test(path: &Path) -> Result<()> {
             continue;
         }
 
-        checker::mark_async_functions(program);
-        desugar::desugar_program(program, &resolved);
-        let typed = checker::attach_types(program.clone(), &expr_types);
+        let typed = checker::lower_to_typed(program.clone(), &expr_types, &resolved);
         let output = Codegen::with_imports(&resolved)
             .with_test_mode()
             .generate(&typed);
