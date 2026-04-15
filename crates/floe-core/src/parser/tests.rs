@@ -2112,3 +2112,49 @@ fn type_alias_still_parses_as_alias() {
         other => panic!("expected TypeDecl, got {other:?}"),
     }
 }
+
+#[test]
+fn parse_module_classifies_comment_kinds() {
+    let source = "\
+//// module header
+/// item doc
+// plain
+const x = 1
+";
+    let (program, extra) = Parser::parse_module(source).unwrap();
+    assert_eq!(program.items.len(), 1);
+    assert_eq!(extra.module_comments.len(), 1);
+    assert_eq!(extra.doc_comments.len(), 1);
+    assert_eq!(extra.comments.len(), 1);
+
+    let module_text =
+        &source[extra.module_comments[0].start as usize..extra.module_comments[0].end as usize];
+    assert!(module_text.starts_with("////"));
+
+    let doc_text =
+        &source[extra.doc_comments[0].start as usize..extra.doc_comments[0].end as usize];
+    assert!(doc_text.starts_with("///") && !doc_text.starts_with("////"));
+
+    let comment_text = &source[extra.comments[0].start as usize..extra.comments[0].end as usize];
+    assert!(comment_text.starts_with("//") && !comment_text.starts_with("///"));
+}
+
+#[test]
+fn parse_module_records_empty_lines_between_statements() {
+    let source = "const a = 1\n\nconst b = 2\n";
+    let (_, extra) = Parser::parse_module(source).unwrap();
+    assert_eq!(extra.empty_lines.len(), 1);
+    let offset = extra.empty_lines[0] as usize;
+    assert_eq!(source.as_bytes()[offset], b'\n');
+    assert!(source[..offset].ends_with("const a = 1\n"));
+    assert!(source[offset + 1..].starts_with("const b = 2"));
+}
+
+#[test]
+fn parse_lossy_module_exposes_extra_even_when_errors() {
+    let source = "// leading\nconst = 1\n";
+    let (_, extra, errors) = Parser::parse_lossy_module(source);
+    assert!(!errors.is_empty(), "expected parse errors");
+    assert_eq!(extra.comments.len(), 1);
+    assert!(extra.new_lines.contains(&10));
+}
