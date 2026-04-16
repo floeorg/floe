@@ -4,16 +4,16 @@
 //! - Stdlib module names (Array, String, Option, etc.) showing available functions
 //! - Bare stdlib function names (sort, map, trim, etc.) showing signature and module
 
-use crate::stdlib::StdlibRegistry;
+use floe_core::stdlib::StdlibRegistry;
 
 /// Format a checker Type for stdlib hover/completion display, using readable
 /// type variable names (T, U, V) instead of internal IDs.
-pub(super) fn format_type(ty: &crate::checker::Type) -> String {
+pub(super) fn format_type(ty: &floe_core::checker::Type) -> String {
     ty.display_for_stdlib().to_string()
 }
 
 /// Format a stdlib function's parameter list for display.
-pub(super) fn format_params(f: &crate::stdlib::StdlibFn) -> String {
+pub(super) fn format_params(f: &floe_core::stdlib::StdlibFn) -> String {
     if f.is_variadic() {
         "...args".to_string()
     } else {
@@ -23,7 +23,7 @@ pub(super) fn format_params(f: &crate::stdlib::StdlibFn) -> String {
 }
 
 /// Format a stdlib function signature for display.
-fn format_fn_signature(f: &crate::stdlib::StdlibFn) -> String {
+fn format_fn_signature(f: &floe_core::stdlib::StdlibFn) -> String {
     let ret = format_type(&f.return_type);
     format!("{}.{}({}) -> {}", f.module, f.name, format_params(f), ret)
 }

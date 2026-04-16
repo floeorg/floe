@@ -289,6 +289,7 @@ dependencies = [
  "anyhow",
  "clap",
  "floe-core",
+ "floe-lsp",
  "notify",
  "tokio",
 ]
@@ -307,8 +308,24 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "floe-lsp"
+version = "0.4.7"
+dependencies = [
+ "floe-core",
+ "insta",
+ "serde_json",
  "tokio",
  "tower-lsp",
+]
+
+[[package]]
+name = "floe-test-helpers"
+version = "0.4.7"
+dependencies = [
+ "floe-core",
 ]
 
 [[package]]

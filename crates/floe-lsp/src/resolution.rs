@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::checker::ErrorCode;
-use crate::diagnostic::{self as floe_diag};
-use crate::interop;
-use crate::parser::ast::*;
-use crate::resolve::TsconfigPaths;
+use floe_core::checker::ErrorCode;
+use floe_core::diagnostic::{self as floe_diag};
+use floe_core::interop;
+use floe_core::parser::ast::*;
+use floe_core::resolve::TsconfigPaths;
 
 use super::symbols::SymbolIndex;
 

@@ -6,7 +6,7 @@
 //! 3. Querying tsgo LSP (hover) for richer type resolution
 
 mod probe_gen;
-#[cfg(feature = "cli")]
+#[cfg(feature = "native")]
 mod probe_run;
 mod specifier_map;
 mod typeof_resolve;
@@ -22,9 +22,9 @@ use super::TsType;
 use super::dts::parse_dts_exports_from_str;
 
 use probe_gen::generate_probe;
-#[cfg(feature = "cli")]
+#[cfg(feature = "native")]
 pub use probe_run::is_tsgo_available;
-#[cfg(feature = "cli")]
+#[cfg(feature = "native")]
 use probe_run::{create_probe_dir, run_tsgo};
 use specifier_map::build_specifier_map;
 
@@ -42,7 +42,7 @@ pub struct TsgoResolver {
     project_dir: PathBuf,
     cache: HashMap<u64, Vec<DtsExport>>,
     /// None = not attempted, Some(None) = failed, Some(Some(_)) = ready
-    #[cfg(feature = "cli")]
+    #[cfg(feature = "native")]
     lsp_client: Option<Option<super::tsgo_lsp::TsgoLspClient>>,
 }
 
@@ -51,14 +51,14 @@ impl TsgoResolver {
         Self {
             project_dir: project_dir.to_path_buf(),
             cache: HashMap::new(),
-            #[cfg(feature = "cli")]
+            #[cfg(feature = "native")]
             lsp_client: None,
         }
     }
 
     /// Get or initialize the LSP client lazily. Returns None if tsgo is
     /// unavailable (only attempts initialization once).
-    #[cfg(feature = "cli")]
+    #[cfg(feature = "native")]
     fn lsp_client(&mut self) -> Option<&mut super::tsgo_lsp::TsgoLspClient> {
         if self.lsp_client.is_none() {
             let result = match super::tsgo_lsp::TsgoLspClient::new(&self.project_dir) {
@@ -88,7 +88,7 @@ impl TsgoResolver {
         source_dir: &Path,
         tsconfig_paths: &crate::resolve::TsconfigPaths,
     ) -> TsgoResult {
-        #[cfg(not(feature = "cli"))]
+        #[cfg(not(feature = "native"))]
         {
             let _ = (program, resolved_imports, source_dir, tsconfig_paths);
             return TsgoResult {
@@ -97,7 +97,7 @@ impl TsgoResolver {
             };
         }
 
-        #[cfg(feature = "cli")]
+        #[cfg(feature = "native")]
         {
             let ts_imports =
                 find_relative_ts_imports(program, resolved_imports, source_dir, tsconfig_paths);
@@ -131,7 +131,7 @@ impl TsgoResolver {
     }
 
     /// Run the probe system for call-site type resolution.
-    #[cfg(feature = "cli")]
+    #[cfg(feature = "native")]
     fn run_probe(
         &mut self,
         program: &Program,
@@ -185,7 +185,7 @@ impl TsgoResolver {
     }
 
     /// Enhance probe results with LSP/DTS parsing for better import types.
-    #[cfg(feature = "cli")]
+    #[cfg(feature = "native")]
     fn enhance_import_types(
         &mut self,
         result: &mut HashMap<String, Vec<DtsExport>>,
@@ -243,7 +243,7 @@ impl TsgoResolver {
 
     /// For Named types referenced in probe results, resolve their definitions
     /// via LSP hover so the checker can validate field access.
-    #[cfg(feature = "cli")]
+    #[cfg(feature = "native")]
     fn resolve_foreign_type_definitions(
         &mut self,
         result: &mut HashMap<String, Vec<DtsExport>>,
@@ -327,7 +327,7 @@ impl TsgoResolver {
 
     /// For object destructuring probes that resolved to `any`, resolve the
     /// function's return type via LSP hover and extract per-field types.
-    #[cfg(feature = "cli")]
+    #[cfg(feature = "native")]
     fn enhance_object_destructure_probes(
         &mut self,
         result: &mut HashMap<String, Vec<DtsExport>>,
@@ -505,7 +505,7 @@ impl TsgoResolver {
     }
 
     /// hover at the symbol's declaration site in the source file.
-    #[cfg(feature = "cli")]
+    #[cfg(feature = "native")]
     fn enhance_with_lsp(
         &mut self,
         result: &mut HashMap<String, Vec<DtsExport>>,
@@ -585,7 +585,7 @@ impl TsgoResolver {
 /// Parse a hover text string from the LSP into a TsType.
 /// Best-effort — hover format may vary across tsgo versions.
 /// Currently handles: `function ...`, `type X = ...`, `const x: Type`.
-#[cfg(feature = "cli")]
+#[cfg(feature = "native")]
 fn parse_hover_to_tstype(hover: &str) -> Option<TsType> {
     let hover = hover.trim();
 

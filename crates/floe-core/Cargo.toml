@@ -12,12 +12,11 @@ name = "floe_core"
 path = "src/lib.rs"
 
 [features]
-# Enables the LSP server + tsgo probe (tokio, tower-lsp, tempfile).
-# LSP and probe_run will move to their own crate in #1103; this feature gate
-# is transitional scaffolding for that split. Default-on so `cargo test` picks
-# up tempfile for resolve.rs tests; floe-wasm opts out via default-features=false.
-default = ["cli"]
-cli = ["dep:tokio", "dep:tower-lsp", "dep:tempfile"]
+# Enables native-only functionality: process spawning (tsgo probe), tempfile.
+# Default-on so `cargo test` and CLI builds get full functionality.
+# floe-wasm opts out via default-features=false (WASM can't spawn processes).
+default = ["native"]
+native = ["dep:tempfile"]
 
 [dependencies]
 ariadne.workspace = true
@@ -29,8 +28,6 @@ rowan.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
-tower-lsp = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta.workspace = true

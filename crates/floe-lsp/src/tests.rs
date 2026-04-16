@@ -8,9 +8,9 @@ use super::goto_def::import_path_at_offset;
 use super::symbols::*;
 use super::*;
 
-use crate::diagnostic::{self as floe_diag, Severity};
-use crate::parser::Parser;
-use crate::parser::ast::*;
+use floe_core::diagnostic::{self as floe_diag, Severity};
+use floe_core::parser::Parser;
+use floe_core::parser::ast::*;
 
 #[test]
 fn offset_to_position_first_line() {
@@ -167,7 +167,7 @@ fn type_expr_to_string_named() {
             type_args: vec![],
             bounds: vec![],
         },
-        span: crate::lexer::span::Span::new(0, 0, 1, 1),
+        span: floe_core::lexer::span::Span::new(0, 0, 1, 1),
     };
     assert_eq!(type_expr_to_string(&ty), "string");
 }
@@ -185,7 +185,7 @@ fn type_expr_to_string_generic() {
                         type_args: vec![],
                         bounds: vec![],
                     },
-                    span: crate::lexer::span::Span::new(0, 0, 1, 1),
+                    span: floe_core::lexer::span::Span::new(0, 0, 1, 1),
                 },
                 TypeExpr {
                     kind: TypeExprKind::Named {
@@ -193,11 +193,11 @@ fn type_expr_to_string_generic() {
                         type_args: vec![],
                         bounds: vec![],
                     },
-                    span: crate::lexer::span::Span::new(0, 0, 1, 1),
+                    span: floe_core::lexer::span::Span::new(0, 0, 1, 1),
                 },
             ],
         },
-        span: crate::lexer::span::Span::new(0, 0, 1, 1),
+        span: floe_core::lexer::span::Span::new(0, 0, 1, 1),
     };
     assert_eq!(type_expr_to_string(&ty), "Result<User, Error>");
 }
@@ -352,7 +352,7 @@ export fn Counter() -> JSX.Element {
 fn build_index_and_types(source: &str) -> (SymbolIndex, HashMap<String, String>) {
     let program = Parser::new(source).parse_program().unwrap();
     let index = SymbolIndex::build(&program);
-    let (_, type_map, _, _) = crate::checker::Checker::new().check_with_types(&program);
+    let (_, type_map, _, _) = floe_core::checker::Checker::new().check_with_types(&program);
     (index, type_map)
 }
 
@@ -510,8 +510,11 @@ const x = 5
 const x = 10
 "#;
     let (_index, _type_map) = build_index_and_types(source);
-    let (diags, _, _, _) = crate::checker::Checker::new()
-        .check_with_types(&crate::parser::Parser::new(source).parse_program().unwrap());
+    let (diags, _, _, _) = floe_core::checker::Checker::new().check_with_types(
+        &floe_core::parser::Parser::new(source)
+            .parse_program()
+            .unwrap(),
+    );
     eprintln!(
         "SHADOW DIAGS: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
@@ -779,7 +782,7 @@ fn lambda_event_completions_not_in_normal_lambda() {
 
 #[test]
 fn unresolved_npm_import_diagnostic() {
-    use crate::parser::Parser;
+    use floe_core::parser::Parser;
     use std::path::Path;
 
     let source = r#"import { nonexistent } from "fake-package-12345""#;
@@ -789,7 +792,7 @@ fn unresolved_npm_import_diagnostic() {
     // Use a directory that definitely has no node_modules
     let project_dir = Path::new("/tmp/no-such-project-dir");
     let source_dir = project_dir;
-    let tsconfig_paths = crate::resolve::TsconfigPaths::default();
+    let tsconfig_paths = floe_core::resolve::TsconfigPaths::default();
     let (diags, _) = super::resolution::enrich_from_imports(
         &program,
         project_dir,

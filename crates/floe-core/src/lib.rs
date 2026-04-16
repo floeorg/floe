@@ -8,8 +8,6 @@ pub mod interop;
 pub mod lexer;
 pub mod line_numbers;
 pub mod lower;
-#[cfg(feature = "cli")]
-pub mod lsp;
 pub mod parse;
 pub mod parser;
 pub mod pretty;

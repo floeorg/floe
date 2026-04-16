@@ -2,6 +2,8 @@
 members = [
     "crates/floe-core",
     "crates/floe-cli",
+    "crates/floe-lsp",
+    "crates/floe-test-helpers",
     "crates/floe-wasm",
 ]
 resolver = "3"

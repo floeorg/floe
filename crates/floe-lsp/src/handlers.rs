@@ -200,7 +200,7 @@ impl LanguageServer for FloeLsp {
             return Ok(None);
         };
 
-        let Some(formatted) = crate::formatter::format(&doc.content) else {
+        let Some(formatted) = floe_core::formatter::format(&doc.content) else {
             // Skip formatting if file has parse errors
             return Ok(None);
         };
