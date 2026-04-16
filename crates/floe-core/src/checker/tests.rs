@@ -1539,6 +1539,155 @@ fn test(x: number) -> Result<string, E1> {
     );
 }
 
+// ── 4b. Bidirectional inference for Ok/Err ────────────────
+
+#[test]
+fn ok_infers_err_type_from_const_annotation() {
+    let diags = check(
+        r#"
+fn test() -> () {
+    const _r: Result<number, string> = Ok(42)
+}
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "expected"),
+        "Ok should infer err type from const annotation, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn err_infers_ok_type_from_const_annotation() {
+    let diags = check(
+        r#"
+type MyError { | NotFound }
+fn test() -> () {
+    const _r: Result<number, MyError> = Err(NotFound)
+}
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "expected"),
+        "Err should infer ok type from const annotation, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn ok_infers_err_type_from_function_return() {
+    let diags = check(
+        r#"
+fn test() -> Result<number, string> {
+    Ok(42)
+}
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "expected return type"),
+        "Ok should infer err type from function return, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn err_infers_ok_type_from_function_return() {
+    let diags = check(
+        r#"
+fn test() -> Result<number, string> {
+    Err("bad")
+}
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "expected return type"),
+        "Err should infer ok type from function return, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn ok_err_in_match_without_return_context_unify() {
+    let diags = check(
+        r#"
+fn test() -> () {
+    const _r = match true {
+        true -> Ok(42),
+        false -> Err("bad"),
+    }
+}
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "incompatible"),
+        "Ok and Err in match should unify via merge_types, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn const_annotation_preferred_over_function_return_for_ok_err() {
+    // When both exist, const annotation should take precedence
+    let diags = check(
+        r#"
+fn test() -> () {
+    const _r: Result<number, string> = Ok(42)
+    const _s: Result<string, number> = Err(99)
+}
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "expected"),
+        "const annotation should provide expected type for Ok/Err, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn ok_err_mismatch_with_annotation_still_errors() {
+    // Ok(42) produces Result<number, _> but annotation expects Result<string, _>
+    let diags = check(
+        r#"
+fn test() -> () {
+    const _r: Result<string, string> = Ok(42)
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "expected"),
+        "type mismatch in Ok value should still error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
 // ── 5. If/else is banned (parse-level) ────────────────────
 
 #[test]

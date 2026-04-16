@@ -147,6 +147,9 @@ pub(crate) struct CheckContext {
     pub lambda_param_hints: Vec<Type>,
     /// When inside a pipe, holds the type of the piped (left) value.
     pub pipe_input_type: Option<Type>,
+    /// Expected type from surrounding context (const annotation, function return type, etc.).
+    /// Used by Ok/Err for bidirectional inference to fill missing type parameters.
+    pub expected_type: Option<Type>,
 }
 
 // ── Unused name tracking ────────────────────────────────────────

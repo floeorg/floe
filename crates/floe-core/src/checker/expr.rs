@@ -1561,7 +1561,9 @@ impl Checker {
             return Type::option_of(inner);
         }
 
-        // Result<T, E>: infer T/E from the Ok/Err argument + return type context
+        // Result<T, E>: infer T/E from the Ok/Err argument + expected type context.
+        // Look for expected Result type from: (1) expected_type (const annotation, etc.),
+        // then (2) current_return_type (function return type).
         if type_name == crate::type_layout::VARIANT_OK {
             let ok_ty = args
                 .iter()
@@ -1578,10 +1580,20 @@ impl Checker {
                     }
                 })
                 .unwrap_or(Type::Unknown);
-            let err_ty = match &self.ctx.current_return_type {
-                Some(rt) if rt.is_result() => rt.result_err().cloned().unwrap_or(Type::Unknown),
-                _ => Type::Unknown,
-            };
+            let err_ty = self
+                .ctx
+                .expected_type
+                .as_ref()
+                .filter(|t| t.is_result())
+                .and_then(|t| t.result_err().cloned())
+                .or_else(|| {
+                    self.ctx
+                        .current_return_type
+                        .as_ref()
+                        .filter(|t| t.is_result())
+                        .and_then(|t| t.result_err().cloned())
+                })
+                .unwrap_or(Type::Unknown);
             return Type::result_of(ok_ty, err_ty);
         }
         if type_name == crate::type_layout::VARIANT_ERR {
@@ -1600,10 +1612,20 @@ impl Checker {
                     }
                 })
                 .unwrap_or(Type::Unknown);
-            let ok_ty = match &self.ctx.current_return_type {
-                Some(rt) if rt.is_result() => rt.result_ok().cloned().unwrap_or(Type::Unknown),
-                _ => Type::Unknown,
-            };
+            let ok_ty = self
+                .ctx
+                .expected_type
+                .as_ref()
+                .filter(|t| t.is_result())
+                .and_then(|t| t.result_ok().cloned())
+                .or_else(|| {
+                    self.ctx
+                        .current_return_type
+                        .as_ref()
+                        .filter(|t| t.is_result())
+                        .and_then(|t| t.result_ok().cloned())
+                })
+                .unwrap_or(Type::Unknown);
             return Type::result_of(ok_ty, err_ty);
         }
 
