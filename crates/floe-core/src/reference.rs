@@ -1,19 +1,14 @@
 //! Reference tracking for LSP features.
 //!
 //! `ReferenceTracker` builds a side-table of `(definition_span, reference_span)`
-//! pairs during type checking. Once the checker has finished, LSP features
-//! (go-to-definition, find-references, rename) consult the tracker by span
-//! instead of re-walking the AST for every query.
+//! pairs during type checking. LSP features (go-to-definition,
+//! find-references, rename) consult the tracker by span instead of
+//! re-walking the AST per query.
 //!
 //! The tracker is keyed by `Span` (byte offsets into the source) so lookup
 //! is O(1) and survives the type-checked tree: code that holds a definition's
 //! `Span` can later ask for every reference without touching the AST again.
-//!
-//! Designed to live inside `ModuleInterface` once #1111 lands — until then
-//! it's attached to the checker's output and consumed by the LSP via the
-//! `Checker::references()` accessor.
-//!
-//! Mirrors Gleam's `reference.rs`.
+
 use std::collections::HashMap;
 
 use crate::lexer::span::Span;
@@ -76,21 +71,6 @@ impl ReferenceTracker {
     pub fn definition_for_name(&self, name: &str) -> Option<Span> {
         self.definitions.get(name).copied()
     }
-
-    /// All `(definition_span, references)` pairs currently tracked.
-    pub fn entries(&self) -> impl Iterator<Item = (Span, &Vec<Span>)> {
-        self.refs_by_definition.iter().map(|(k, v)| (*k, v))
-    }
-
-    /// Number of distinct definitions tracked.
-    pub fn definition_count(&self) -> usize {
-        self.refs_by_definition.len()
-    }
-
-    /// Number of recorded references across all definitions.
-    pub fn reference_count(&self) -> usize {
-        self.refs_by_definition.values().map(Vec::len).sum()
-    }
 }
 
 #[cfg(test)]
@@ -145,7 +125,6 @@ mod tests {
         t.register_definition("unused_fn", def);
         assert_eq!(t.find_references(def), Vec::<Span>::new());
         assert_eq!(t.definition_for_name("unused_fn"), Some(def));
-        assert_eq!(t.definition_count(), 1);
     }
 
     #[test]
