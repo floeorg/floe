@@ -250,8 +250,8 @@ impl Checker {
                 Type::Unknown
             }
             // Invalid nodes only appear in the typed tree (post-attach).
-            // If the checker somehow sees one, treat it as an error type.
-            ExprKind::Invalid => Type::Error,
+            // The checker operates on the untyped tree and should never see one.
+            ExprKind::Invalid => unreachable!("ExprKind::Invalid in untyped tree"),
         }
     }
 

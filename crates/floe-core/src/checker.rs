@@ -571,7 +571,6 @@ impl Checker {
 
     /// Internal: run all checks and return all maps.
     #[allow(clippy::type_complexity)]
-    #[allow(clippy::type_complexity)]
     fn check_all(
         mut self,
         program: &Program,
