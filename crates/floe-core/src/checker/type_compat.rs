@@ -158,10 +158,10 @@ impl Checker {
         // Foreign-vs-Foreign is permissive because npm types often have subtype
         // relationships (e.g. SQLiteColumn extends SQLWrapper) that Floe can't verify.
         // TypeScript's own type checker validates the generated code.
-        if let Type::Foreign(_) = expected {
+        if let Type::Foreign { .. } = expected {
             return !actual.is_primitive();
         }
-        if let Type::Foreign(_) = actual {
+        if let Type::Foreign { .. } = actual {
             return !expected.is_primitive();
         }
 
@@ -218,7 +218,7 @@ impl Checker {
         // Variants already handled by early-return guards above are marked unreachable.
         match expected {
             // Caught by early guards above — cannot reach here
-            Type::Error | Type::Unknown | Type::Var(_) | Type::Never | Type::Foreign(_) => {
+            Type::Error | Type::Unknown | Type::Var(_) | Type::Never | Type::Foreign { .. } => {
                 unreachable!("handled by early guards in types_compatible")
             }
 

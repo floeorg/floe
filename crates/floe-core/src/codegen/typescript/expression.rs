@@ -435,17 +435,7 @@ impl<'a> TypeScriptGenerator<'a> {
     // ── Untrusted Call Check ────────────────────────────────────
 
     fn is_untrusted_call(&self, callee: &TypedExpr) -> bool {
-        match &callee.kind {
-            ExprKind::Identifier(name) => self.ctx.untrusted_imports.contains(name.as_str()),
-            ExprKind::Member { object, .. } => {
-                if let ExprKind::Identifier(obj_name) = &object.kind {
-                    self.ctx.untrusted_imports.contains(obj_name.as_str())
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        }
+        callee.ty.is_untrusted_foreign()
     }
 
     // ── Stdlib Helpers ─────────────────────────────────────────

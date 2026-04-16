@@ -597,7 +597,7 @@ impl Checker {
         // resolving fields of imported type declarations
         for resolved in self.resolved_imports.values() {
             for name in &resolved.foreign_type_names {
-                self.env.define(name, Type::Foreign(name.clone()));
+                self.env.define(name, Type::foreign(name.clone()));
             }
         }
         for resolved in self.resolved_imports.values().cloned().collect::<Vec<_>>() {

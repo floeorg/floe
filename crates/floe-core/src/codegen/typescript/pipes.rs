@@ -12,16 +12,35 @@ impl<'a> TypeScriptGenerator<'a> {
         callee: &TypedExpr,
         args: &[TypedArg],
     ) -> Option<String> {
-        if let ExprKind::Member { object, field } = &callee.kind
-            && let ExprKind::Identifier(module) = &object.kind
+        let ExprKind::Member { object, field } = &callee.kind else {
+            return None;
+        };
+
+        // Qualified stdlib call: `Array.map(arr, f)` — module is a bare name
+        // that matches a stdlib module.
+        if let ExprKind::Identifier(module) = &object.kind
             && let Some(stdlib_fn) = self.ctx.stdlib.lookup(module, field)
         {
             let template = stdlib_fn.codegen;
             let arg_strings = self.emit_arg_strings(args);
-            Some(self.apply_stdlib_template(template, &arg_strings))
-        } else {
-            None
+            return Some(self.apply_stdlib_template(template, &arg_strings));
         }
+
+        // Receiver-style stdlib call: `arr.map(f)` where `arr: Array<T>` —
+        // dispatch through the receiver's type. The receiver becomes the
+        // first stdlib argument so the emitted template lines up with the
+        // pipe form.
+        if let Some(module) = crate::type_layout::type_to_stdlib_module(&object.ty)
+            && let Some(stdlib_fn) = self.ctx.stdlib.lookup(module, field)
+        {
+            let template = stdlib_fn.codegen.to_string();
+            let object_str = self.emit_expr_string(object);
+            let mut arg_strings = vec![object_str];
+            arg_strings.extend(self.emit_arg_strings(args));
+            return Some(self.apply_stdlib_template(&template, &arg_strings));
+        }
+
+        None
     }
 
     fn try_emit_stdlib_pipe(

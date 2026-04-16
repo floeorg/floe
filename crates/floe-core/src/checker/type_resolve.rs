@@ -66,7 +66,7 @@ impl Checker {
                     first.unwrap_or_else(|| resolved.into_iter().next().unwrap_or(Type::Unknown))
                 }
             }
-            TypeExprKind::StringLiteral(value) => Type::Foreign(format!("\"{value}\"")),
+            TypeExprKind::StringLiteral(value) => Type::foreign(format!("\"{value}\"")),
             TypeExprKind::TypeOf(name) => {
                 let root = name.split('.').next().unwrap_or(name);
                 self.unused.used_names.insert(root.to_string());
@@ -194,8 +194,8 @@ impl Checker {
                 // Check if this is a known user-defined type or imported name.
                 // Skip validation during type registration (forward references).
                 // If the env has a Foreign type, preserve it.
-                if let Some(Type::Foreign(_)) = self.env.lookup(name) {
-                    Type::Foreign(name.to_string())
+                if let Some(Type::Foreign { .. }) = self.env.lookup(name) {
+                    Type::foreign(name.to_string())
                 } else if self.registering_types
                     || self.env.lookup_type(name).is_some()
                     || name.contains('.')

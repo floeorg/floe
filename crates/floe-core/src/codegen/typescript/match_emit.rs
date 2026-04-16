@@ -138,8 +138,10 @@ impl<'a> TypeScriptGenerator<'a> {
             ]),
             PatternKind::Variant { name, fields } => {
                 let subj_str = self.emit_expr_string(subject);
-                let mut docs = vec![pretty::str(type_layout::variant_discriminant(
-                    name, &subj_str,
+                let mut docs = vec![pretty::str(type_layout::variant_discriminant_for(
+                    &subject.ty,
+                    name,
+                    &subj_str,
                 ))];
 
                 let field_names = self
@@ -153,7 +155,8 @@ impl<'a> TypeScriptGenerator<'a> {
                         PatternKind::Wildcard | PatternKind::Binding(_)
                     ) {
                         docs.push(pretty::str(" && "));
-                        let field_access = type_layout::variant_field_accessor(
+                        let field_access = type_layout::variant_field_accessor_for(
+                            &subject.ty,
                             name,
                             i,
                             fields.len(),

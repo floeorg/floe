@@ -391,7 +391,7 @@ fn parse_function_nullable_return_wraps_to_option() {
         wrapped,
         Type::Function {
             params: vec![Type::String],
-            return_type: Arc::new(Type::option_of(Type::Foreign("Element".to_string()))),
+            return_type: Arc::new(Type::option_of(Type::foreign("Element".to_string()))),
             required_params: 1,
         }
     );

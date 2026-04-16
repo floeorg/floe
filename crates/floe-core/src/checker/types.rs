@@ -26,8 +26,14 @@ pub enum Type {
     /// A named/user-defined type (locally defined in Floe)
     Named(String),
     /// A foreign type from npm imports — structure unknown to Floe,
-    /// but TypeScript validated it at the source
-    Foreign(String),
+    /// but TypeScript validated it at the source. `untrusted` is set for
+    /// imports from non-trusted packages: codegen wraps their calls in
+    /// try/catch and the checker tracks their Result propagation so that
+    /// callers are forced to handle thrown exceptions.
+    Foreign {
+        name: String,
+        untrusted: bool,
+    },
     /// Promise<T> — async return type, unwrapped by `Promise.await`
     Promise(Arc<Type>),
     /// Opaque type: only the defining module can construct/destructure
@@ -101,6 +107,47 @@ impl Type {
     /// Construct a fresh unbound type variable with the given id.
     pub fn unbound(id: u64) -> Type {
         Type::Var(type_var::unbound(id))
+    }
+
+    /// Construct a trusted foreign type (npm imports from trusted packages).
+    pub fn foreign(name: impl Into<String>) -> Type {
+        Type::Foreign {
+            name: name.into(),
+            untrusted: false,
+        }
+    }
+
+    /// Construct an untrusted foreign type (npm imports from non-trusted
+    /// packages whose calls must be wrapped in try/catch at the boundary).
+    pub fn untrusted_foreign(name: impl Into<String>) -> Type {
+        Type::Foreign {
+            name: name.into(),
+            untrusted: true,
+        }
+    }
+
+    /// True if this resolves to any foreign type (trusted or untrusted).
+    pub fn is_foreign(&self) -> bool {
+        matches!(self.resolved(), Type::Foreign { .. })
+    }
+
+    /// True if this resolves to an untrusted foreign type.
+    pub fn is_untrusted_foreign(&self) -> bool {
+        matches!(
+            self.resolved(),
+            Type::Foreign {
+                untrusted: true,
+                ..
+            }
+        )
+    }
+
+    /// The foreign type's name if this resolves to a `Type::Foreign`.
+    pub fn foreign_name(&self) -> Option<String> {
+        match self.resolved() {
+            Type::Foreign { name, .. } => Some(name),
+            _ => None,
+        }
     }
 
     /// Construct a polymorphic (generalized) type variable with the given id.
@@ -317,7 +364,7 @@ impl PartialEq for Type {
             | (Type::Unit, Type::Unit)
             | (Type::Never, Type::Never) => true,
             (Type::Named(a), Type::Named(b)) => a == b,
-            (Type::Foreign(a), Type::Foreign(b)) => a == b,
+            (Type::Foreign { name: a, .. }, Type::Foreign { name: b, .. }) => a == b,
             (Type::Promise(a), Type::Promise(b)) => **a == **b,
             (Type::Opaque { name: na, base: ba }, Type::Opaque { name: nb, base: bb }) => {
                 na == nb && **ba == **bb

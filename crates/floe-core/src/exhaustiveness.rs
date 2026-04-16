@@ -72,7 +72,7 @@ pub fn check_match_exhaustiveness<T>(
     // Resolve Named types to their actual definitions.
     let resolved_ty;
     let subject_ty = match subject_ty {
-        Type::Foreign(_) | Type::Promise(_) => subject_ty,
+        Type::Foreign { .. } | Type::Promise(_) => subject_ty,
         Type::Named(_) => {
             resolved_ty = resolve_named(subject_ty);
             &resolved_ty

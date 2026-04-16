@@ -105,6 +105,82 @@ pub fn variant_layout(name: &str) -> VariantLayout {
     }
 }
 
+/// Type-directed variant classification. When the subject's Floe type is
+/// known to be a specific builtin union (Result / Option), dispatch on the
+/// type instead of on the variant name. This keeps a user-defined
+/// `type Bag { | Ok(Item) | Missing }` from accidentally emitting Result's
+/// `.ok === true` discriminator just because the variant is called `Ok`.
+pub fn variant_layout_for(subject_ty: &crate::checker::Type, name: &str) -> VariantLayout {
+    use crate::checker::Type;
+    let union_name = match subject_ty.resolved() {
+        Type::Union {
+            name: union_name, ..
+        } => Some(union_name),
+        Type::Named(n) => Some(n),
+        _ => None,
+    };
+    match union_name.as_deref() {
+        Some(TYPE_RESULT) => match name {
+            VARIANT_OK => VariantLayout::Ok,
+            VARIANT_ERR => VariantLayout::Err,
+            _ => VariantLayout::Tagged,
+        },
+        Some(TYPE_OPTION) => match name {
+            VARIANT_SOME => VariantLayout::OptionSome,
+            VARIANT_NONE => VariantLayout::OptionNone,
+            _ => VariantLayout::Tagged,
+        },
+        // User-defined union — tagged layout regardless of variant name.
+        Some(_) => VariantLayout::Tagged,
+        // Unknown / Var / Foreign subject — fall back to name-based
+        // classification so inference-in-progress or boundary types still
+        // emit something usable.
+        None => variant_layout(name),
+    }
+}
+
+/// Same as `variant_discriminant` but consults the subject's type so a
+/// user-defined union whose variant names collide with Result/Option
+/// doesn't accidentally inherit those layouts.
+pub fn variant_discriminant_for(
+    subject_ty: &crate::checker::Type,
+    name: &str,
+    subject: &str,
+) -> String {
+    match variant_layout_for(subject_ty, name) {
+        VariantLayout::Ok => format!("{subject}.{OK_FIELD} === true"),
+        VariantLayout::Err => format!("{subject}.{OK_FIELD} === false"),
+        VariantLayout::OptionSome => format!("{subject} != null"),
+        VariantLayout::OptionNone => format!("{subject} == null"),
+        VariantLayout::Tagged => format!("{subject}.{TAG_FIELD} === \"{name}\""),
+    }
+}
+
+/// Same as `variant_field_accessor` but consults the subject's type to pick
+/// the correct layout when variant names collide.
+pub fn variant_field_accessor_for(
+    subject_ty: &crate::checker::Type,
+    name: &str,
+    field_index: usize,
+    total_fields: usize,
+    field_names: Option<&[String]>,
+    subject: &str,
+) -> String {
+    match variant_layout_for(subject_ty, name) {
+        VariantLayout::Ok if total_fields == 1 => format!("{subject}.{VALUE_FIELD}"),
+        VariantLayout::Err if total_fields == 1 => format!("{subject}.{ERROR_FIELD}"),
+        VariantLayout::Ok | VariantLayout::Err => {
+            debug_assert!(false, "Ok/Err variants should have exactly 1 field");
+            format!("{subject}.{VALUE_FIELD}")
+        }
+        VariantLayout::OptionSome if total_fields == 1 => subject.to_string(),
+        VariantLayout::OptionSome | VariantLayout::OptionNone => subject.to_string(),
+        VariantLayout::Tagged => {
+            variant_field_accessor(name, field_index, total_fields, field_names, subject)
+        }
+    }
+}
+
 /// Returns the JS condition string for testing a variant at runtime.
 /// `subject` is the expression string being matched against.
 pub fn variant_discriminant(name: &str, subject: &str) -> String {

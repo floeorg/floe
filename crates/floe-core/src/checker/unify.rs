@@ -108,7 +108,7 @@ pub fn unify(a: &Type, b: &Type) -> Result<(), UnifyError> {
         (Type::StringLiteral(_), Type::String) | (Type::String, Type::StringLiteral(_)) => Ok(()),
 
         (Type::Named(x), Type::Named(y)) if x == y => Ok(()),
-        (Type::Foreign(_), _) | (_, Type::Foreign(_)) => Ok(()),
+        (Type::Foreign { .. }, _) | (_, Type::Foreign { .. }) => Ok(()),
 
         (Type::Promise(x), Type::Promise(y)) => unify(x, y),
         (Type::Array(x), Type::Array(y)) => unify(x, y),

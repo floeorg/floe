@@ -52,7 +52,7 @@ impl Checker {
         match &pattern.kind {
             PatternKind::Wildcard | PatternKind::Range { .. } => {}
             PatternKind::Literal(lit) => {
-                if !matches!(subject_ty, Type::Unknown | Type::Foreign(_)) {
+                if !matches!(subject_ty, Type::Unknown | Type::Foreign { .. }) {
                     let compatible = match lit {
                         LiteralPattern::Bool(_) => matches!(subject_ty, Type::Bool),
                         LiteralPattern::Number(_) => matches!(subject_ty, Type::Number),

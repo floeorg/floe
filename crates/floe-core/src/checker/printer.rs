@@ -49,7 +49,7 @@ pub(crate) fn fmt_type(
         Type::String => f.write_str("string"),
         Type::Bool => f.write_str("boolean"),
         Type::Undefined => f.write_str("undefined"),
-        Type::Named(n) | Type::Foreign(n) => f.write_str(n),
+        Type::Named(n) | Type::Foreign { name: n, .. } => f.write_str(n),
         Type::Promise(inner) => {
             write!(f, "Promise<{}>", TypeDisplay { ty: inner, style })
         }

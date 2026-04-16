@@ -32,7 +32,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
             if name.len() == 1 && name.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
                 Type::Named(name.clone())
             } else {
-                Type::Foreign(name.clone())
+                Type::foreign(name.clone())
             }
         }
 
@@ -66,7 +66,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                         .iter()
                         .map(|a| wrap_boundary_type(a).to_string())
                         .collect();
-                    Type::Foreign(format!("{}<{}>", name, args_str.join(", ")))
+                    Type::foreign(format!("{}<{}>", name, args_str.join(", ")))
                 }
             }
         }
