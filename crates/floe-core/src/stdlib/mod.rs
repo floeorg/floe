@@ -21,6 +21,8 @@ mod result;
 mod set;
 mod string;
 
+use std::sync::Arc;
+
 use crate::checker::Type;
 
 /// A standard library function definition.
@@ -99,7 +101,7 @@ fn tv(n: usize) -> Type {
     Type::Var(n)
 }
 fn array_of(t: Type) -> Type {
-    Type::Array(Box::new(t))
+    Type::Array(Arc::new(t))
 }
 fn option_of(t: Type) -> Type {
     Type::option_of(t)
@@ -109,29 +111,29 @@ fn result_of(ok: Type, err: Type) -> Type {
 }
 fn map_of(k: Type, v: Type) -> Type {
     Type::Map {
-        key: Box::new(k),
-        value: Box::new(v),
+        key: Arc::new(k),
+        value: Arc::new(v),
     }
 }
 fn record_of(k: Type, v: Type) -> Type {
     Type::RecordMap {
-        key: Box::new(k),
-        value: Box::new(v),
+        key: Arc::new(k),
+        value: Arc::new(v),
     }
 }
 fn set_of(t: Type) -> Type {
     Type::Set {
-        element: Box::new(t),
+        element: Arc::new(t),
     }
 }
 fn promise_of(t: Type) -> Type {
-    Type::Promise(Box::new(t))
+    Type::Promise(Arc::new(t))
 }
 fn fun(params: Vec<Type>, ret: Type) -> Type {
     let required_params = params.len();
     Type::Function {
         params,
-        return_type: Box::new(ret),
+        return_type: Arc::new(ret),
         required_params,
     }
 }

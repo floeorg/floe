@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 use crate::type_layout;
 
@@ -142,8 +144,8 @@ impl Checker {
                 let ret = self.check_call(callee, type_args, args, expr.span);
                 if is_untrusted {
                     match &ret {
-                        Type::Promise(inner) => Type::Promise(Box::new(Type::result_of(
-                            *inner.clone(),
+                        Type::Promise(inner) => Type::Promise(Arc::new(Type::result_of(
+                            inner.as_ref().clone(),
                             Type::Named(type_layout::TYPE_ERROR.to_string()),
                         ))),
                         _ => Type::result_of(ret, Type::Named(type_layout::TYPE_ERROR.to_string())),
@@ -192,10 +194,10 @@ impl Checker {
             // Ok/Err/Some/None are handled by check_construct as variant constructors
             ExprKind::Value(inner) => {
                 let inner_ty = self.check_expr(inner);
-                Type::Settable(Box::new(inner_ty))
+                Type::Settable(Arc::new(inner_ty))
             }
-            ExprKind::Clear => Type::Settable(Box::new(Type::Unknown)),
-            ExprKind::Unchanged => Type::Settable(Box::new(Type::Unknown)),
+            ExprKind::Clear => Type::Settable(Arc::new(Type::Unknown)),
+            ExprKind::Unchanged => Type::Settable(Arc::new(Type::Unknown)),
             ExprKind::Todo => {
                 self.emit_warning_with_help(
                     "`todo` is a placeholder that will panic at runtime",
@@ -299,7 +301,7 @@ impl Checker {
                 let required_params = field_types.len();
                 return Type::Function {
                     params: field_types.clone(),
-                    return_type: Box::new(ty),
+                    return_type: Arc::new(ty),
                     required_params,
                 };
             }
@@ -623,7 +625,7 @@ impl Checker {
         let required_params = param_types.len();
         Type::Function {
             params: param_types,
-            return_type: Box::new(return_type),
+            return_type: Arc::new(return_type),
             required_params,
         }
     }
@@ -702,7 +704,7 @@ impl Checker {
         self.env.pop_scope();
 
         let e = err_type.unwrap_or(Type::Unknown);
-        Type::result_of(last_type, Type::Array(Box::new(e)))
+        Type::result_of(last_type, Type::Array(Arc::new(e)))
     }
 
     fn check_array(&mut self, elements: &[Expr]) -> Type {
@@ -722,9 +724,9 @@ impl Checker {
             }
         }
         if mixed {
-            Type::Array(Box::new(Type::Unknown))
+            Type::Array(Arc::new(Type::Unknown))
         } else {
-            Type::Array(Box::new(elem_type.unwrap_or(Type::Unknown)))
+            Type::Array(Arc::new(elem_type.unwrap_or(Type::Unknown)))
         }
     }
 
@@ -994,12 +996,12 @@ impl Checker {
                         Self::infer_generic_params(&generic_params, &params, &arg_types)
                     };
                     if substitutions.is_empty() {
-                        *return_type
+                        return_type.as_ref().clone()
                     } else {
                         Self::substitute_generics(&return_type, &substitutions)
                     }
                 } else {
-                    *return_type
+                    return_type.as_ref().clone()
                 };
 
                 if has_placeholder && piped_ty_was_none {
@@ -1044,7 +1046,7 @@ impl Checker {
                     let required_params = placeholder_param_types.len();
                     Type::Function {
                         params: placeholder_param_types,
-                        return_type: Box::new(return_type),
+                        return_type: Arc::new(return_type),
                         required_params,
                     }
                 } else {
@@ -1074,7 +1076,7 @@ impl Checker {
                             };
                             let resolved = Type::Function {
                                 params: fn_params.clone(),
-                                return_type: Box::new(resolved_ret),
+                                return_type: Arc::new(resolved_ret),
                                 required_params: fn_params.len(),
                             };
                             self.expr_types
@@ -1272,7 +1274,7 @@ impl Checker {
             let required_params = field_types.len();
             return Type::Function {
                 params: field_types.clone(),
-                return_type: Box::new(ty),
+                return_type: Arc::new(ty),
                 required_params,
             };
         }
@@ -1677,7 +1679,7 @@ impl Checker {
         {
             self.unused.used_names.insert(func_name.to_string());
             return match fn_type {
-                Type::Function { return_type, .. } => *return_type.clone(),
+                Type::Function { return_type, .. } => return_type.as_ref().clone(),
                 _ => Type::Unknown,
             };
         }
@@ -1784,7 +1786,7 @@ impl Checker {
                             label,
                         );
                     }
-                    return *return_type;
+                    return return_type.as_ref().clone();
                 }
                 // Unknown/Error types: don't error (not enough info or error already emitted)
                 Type::Unknown | Type::Error | Type::Var(_) => {}
@@ -1857,7 +1859,7 @@ impl Checker {
         // infer it from the lambda's actual return type.
         if infer_from_lambda {
             match &stdlib_fn.return_type {
-                Type::Array(_) => Type::Array(Box::new(lambda_return.unwrap())),
+                Type::Array(_) => Type::Array(Arc::new(lambda_return.unwrap())),
                 ret if ret.is_option() => Type::option_of(lambda_return.unwrap()),
                 _ => Self::substitute_type_vars(&stdlib_fn.return_type, &var_bindings),
             }
@@ -1896,7 +1898,7 @@ impl Checker {
                         if i == 0
                             && let Type::Function { return_type, .. } = &ty
                         {
-                            lambda_return = Some(*return_type.clone());
+                            lambda_return = Some(return_type.as_ref().clone());
                         }
                     }
                 }
@@ -1966,24 +1968,24 @@ impl Checker {
         match ty {
             Type::Var(n) => bindings.get(n).cloned().unwrap_or_else(|| ty.clone()),
             Type::Array(inner) => {
-                Type::Array(Box::new(Self::substitute_type_vars(inner, bindings)))
+                Type::Array(Arc::new(Self::substitute_type_vars(inner, bindings)))
             }
             Type::Promise(inner) => {
-                Type::Promise(Box::new(Self::substitute_type_vars(inner, bindings)))
+                Type::Promise(Arc::new(Self::substitute_type_vars(inner, bindings)))
             }
             Type::Settable(inner) => {
-                Type::Settable(Box::new(Self::substitute_type_vars(inner, bindings)))
+                Type::Settable(Arc::new(Self::substitute_type_vars(inner, bindings)))
             }
             Type::Set { element } => Type::Set {
-                element: Box::new(Self::substitute_type_vars(element, bindings)),
+                element: Arc::new(Self::substitute_type_vars(element, bindings)),
             },
             Type::Map { key, value } => Type::Map {
-                key: Box::new(Self::substitute_type_vars(key, bindings)),
-                value: Box::new(Self::substitute_type_vars(value, bindings)),
+                key: Arc::new(Self::substitute_type_vars(key, bindings)),
+                value: Arc::new(Self::substitute_type_vars(value, bindings)),
             },
             Type::RecordMap { key, value } => Type::RecordMap {
-                key: Box::new(Self::substitute_type_vars(key, bindings)),
-                value: Box::new(Self::substitute_type_vars(value, bindings)),
+                key: Arc::new(Self::substitute_type_vars(key, bindings)),
+                value: Arc::new(Self::substitute_type_vars(value, bindings)),
             },
             Type::Tuple(types) => Type::Tuple(
                 types
@@ -2014,7 +2016,7 @@ impl Checker {
                     .iter()
                     .map(|t| Self::substitute_type_vars(t, bindings))
                     .collect(),
-                return_type: Box::new(Self::substitute_type_vars(return_type, bindings)),
+                return_type: Arc::new(Self::substitute_type_vars(return_type, bindings)),
                 required_params: *required_params,
             },
             other => other.clone(),
@@ -2200,17 +2202,17 @@ impl Checker {
     fn substitute_generics(ty: &Type, subs: &HashMap<String, Type>) -> Type {
         match ty {
             Type::Named(n) if subs.contains_key(n) => subs[n].clone(),
-            Type::Array(inner) => Type::Array(Box::new(Self::substitute_generics(inner, subs))),
+            Type::Array(inner) => Type::Array(Arc::new(Self::substitute_generics(inner, subs))),
             Type::Map { key, value } => Type::Map {
-                key: Box::new(Self::substitute_generics(key, subs)),
-                value: Box::new(Self::substitute_generics(value, subs)),
+                key: Arc::new(Self::substitute_generics(key, subs)),
+                value: Arc::new(Self::substitute_generics(value, subs)),
             },
             Type::RecordMap { key, value } => Type::RecordMap {
-                key: Box::new(Self::substitute_generics(key, subs)),
-                value: Box::new(Self::substitute_generics(value, subs)),
+                key: Arc::new(Self::substitute_generics(key, subs)),
+                value: Arc::new(Self::substitute_generics(value, subs)),
             },
             Type::Set { element } => Type::Set {
-                element: Box::new(Self::substitute_generics(element, subs)),
+                element: Arc::new(Self::substitute_generics(element, subs)),
             },
             _ if ty.is_option() => {
                 if let Some(inner) = ty.option_inner() {
@@ -2234,7 +2236,7 @@ impl Checker {
                     .iter()
                     .map(|t| Self::substitute_generics(t, subs))
                     .collect(),
-                return_type: Box::new(Self::substitute_generics(return_type, subs)),
+                return_type: Arc::new(Self::substitute_generics(return_type, subs)),
                 required_params: *required_params,
             },
             Type::Union { name, variants } => Type::Union {
@@ -2889,7 +2891,7 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
                     .first()
                     .map(simple_resolve_type_expr)
                     .unwrap_or(Type::Unknown);
-                Type::Array(Box::new(inner))
+                Type::Array(Arc::new(inner))
             }
             type_layout::TYPE_OPTION => {
                 let inner = type_args
@@ -2903,7 +2905,7 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
                     .first()
                     .map(simple_resolve_type_expr)
                     .unwrap_or(Type::Unknown);
-                Type::Settable(Box::new(inner))
+                Type::Settable(Arc::new(inner))
             }
             type_layout::TYPE_RESULT => {
                 let ok = type_args
@@ -2918,7 +2920,7 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
             }
             _ => Type::Named(name.to_string()),
         },
-        TypeExprKind::Array(inner) => Type::Array(Box::new(simple_resolve_type_expr(inner))),
+        TypeExprKind::Array(inner) => Type::Array(Arc::new(simple_resolve_type_expr(inner))),
         TypeExprKind::Record(fields) => {
             let field_types: Vec<_> = fields
                 .iter()
@@ -2935,7 +2937,7 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
             let required_params = param_types.len();
             Type::Function {
                 params: param_types,
-                return_type: Box::new(ret),
+                return_type: Arc::new(ret),
                 required_params,
             }
         }

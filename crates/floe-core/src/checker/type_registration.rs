@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 
 impl Checker {
@@ -491,7 +493,7 @@ impl Checker {
                     let self_type = Type::Named(type_name.clone());
                     let fn_type = Type::Function {
                         params: vec![self_type],
-                        return_type: Box::new(Type::String),
+                        return_type: Arc::new(Type::String),
                         required_params: 1,
                     };
                     self.env.define(&fn_name, fn_type);

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 
 /// Returns the span of the last item in a block body, falling back to the body's own span.
@@ -73,7 +75,7 @@ impl Checker {
             if Self::expr_has_promise_await(&decl.value)
                 && let Type::Promise(inner) = ty
             {
-                *inner
+                inner.as_ref().clone()
             } else {
                 ty
             }
@@ -90,8 +92,8 @@ impl Checker {
         // resolved to a concrete unwrapped type, re-wrap so the Result isn't lost.
         if value_type.is_result() && !final_type.is_result() {
             final_type = match final_type {
-                Type::Promise(inner) => Type::Promise(Box::new(Type::result_of(
-                    *inner,
+                Type::Promise(inner) => Type::Promise(Arc::new(Type::result_of(
+                    inner.as_ref().clone(),
                     Type::Named(type_layout::TYPE_ERROR.to_string()),
                 ))),
                 other => Type::result_of(other, Type::Named(type_layout::TYPE_ERROR.to_string())),
@@ -440,7 +442,7 @@ impl Checker {
                 );
                 return_type
             } else {
-                Type::Promise(Box::new(return_type))
+                Type::Promise(Arc::new(return_type))
             }
         } else {
             return_type
@@ -462,7 +464,7 @@ impl Checker {
         let required_params = decl.params.iter().filter(|p| p.default.is_none()).count();
         let fn_type = Type::Function {
             params: param_types.clone(),
-            return_type: Box::new(return_type.clone()),
+            return_type: Arc::new(return_type.clone()),
             required_params,
         };
         self.check_no_redefinition(&decl.name, span);
@@ -491,7 +493,7 @@ impl Checker {
         let prev_expected = self.ctx.expected_type.take();
         // For Promise<T> return types, unwrap so ? sees the inner type
         let effective_return = match &return_type {
-            Type::Promise(inner) => *inner.clone(),
+            Type::Promise(inner) => inner.as_ref().clone(),
             _ => return_type.clone(),
         };
         self.ctx.current_return_type = Some(effective_return.clone());
@@ -539,13 +541,13 @@ impl Checker {
             // If the body uses await, or the function is declared `async`,
             // wrap the inferred return type in Promise<T>
             let inferred_return = if uses_await || decl.async_fn {
-                Type::Promise(Box::new(body_type.clone()))
+                Type::Promise(Arc::new(body_type.clone()))
             } else {
                 body_type.clone()
             };
             let fn_type = Type::Function {
                 params: param_types.clone(),
-                return_type: Box::new(inferred_return),
+                return_type: Arc::new(inferred_return),
                 required_params,
             };
             // Update in the name_types map for hover display
@@ -562,7 +564,7 @@ impl Checker {
         if decl.return_type.is_some() {
             let resolved = if decl.async_fn {
                 match &return_type {
-                    Type::Promise(inner) => *inner.clone(),
+                    Type::Promise(inner) => inner.as_ref().clone(),
                     _ => return_type.clone(),
                 }
             } else {
@@ -684,7 +686,7 @@ impl Checker {
             let required_params = param_types.len();
             let fn_type = Type::Function {
                 params: param_types.clone(),
-                return_type: Box::new(return_type.clone()),
+                return_type: Arc::new(return_type.clone()),
                 required_params,
             };
             // Allow for-block functions with the same name on different types
@@ -731,7 +733,7 @@ impl Checker {
             let prev_expected = self.ctx.expected_type.take();
             // For Promise<T> return types, unwrap so ? sees the inner type
             let effective_return = match &return_type {
-                Type::Promise(inner) => *inner.clone(),
+                Type::Promise(inner) => inner.as_ref().clone(),
                 _ => return_type.clone(),
             };
             self.ctx.current_return_type = Some(effective_return.clone());

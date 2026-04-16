@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 
 impl Checker {
@@ -243,7 +245,7 @@ impl Checker {
 
                     return Some(Type::Function {
                         params: param_types,
-                        return_type: Box::new(return_type),
+                        return_type: Arc::new(return_type),
                         required_params: method.params.len() + 1, // +1 for self
                     });
                 }

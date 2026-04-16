@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 
 impl Checker {
@@ -271,7 +273,7 @@ impl Checker {
             let required_params = param_types.len();
             let fn_type = Type::Function {
                 params: param_types,
-                return_type: Box::new(return_type),
+                return_type: Arc::new(return_type),
                 required_params,
             };
             self.env.define(&func.name, fn_type.clone());

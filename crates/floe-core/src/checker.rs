@@ -278,7 +278,7 @@ impl Checker {
                 "json".to_string(),
                 Type::Function {
                     params: vec![],
-                    return_type: Box::new(Type::Unknown),
+                    return_type: Arc::new(Type::Unknown),
                     required_params: 0,
                 },
             ),
@@ -286,7 +286,7 @@ impl Checker {
                 "text".to_string(),
                 Type::Function {
                     params: vec![],
-                    return_type: Box::new(Type::String),
+                    return_type: Arc::new(Type::String),
                     required_params: 0,
                 },
             ),
@@ -317,7 +317,7 @@ impl Checker {
                 "preventDefault".to_string(),
                 Type::Function {
                     params: vec![],
-                    return_type: Box::new(Type::Unit),
+                    return_type: Arc::new(Type::Unit),
                     required_params: 0,
                 },
             ),
@@ -325,7 +325,7 @@ impl Checker {
                 "stopPropagation".to_string(),
                 Type::Function {
                     params: vec![],
-                    return_type: Box::new(Type::Unit),
+                    return_type: Arc::new(Type::Unit),
                     required_params: 0,
                 },
             ),
@@ -354,7 +354,7 @@ impl Checker {
                 "fetch",
                 Type::Function {
                     params: vec![Type::String],
-                    return_type: Box::new(Type::Promise(Box::new(Type::Named(
+                    return_type: Arc::new(Type::Promise(Arc::new(Type::Named(
                         "Response".to_string(),
                     )))),
                     required_params: 1,
@@ -368,12 +368,12 @@ impl Checker {
                     params: vec![
                         Type::Function {
                             params: vec![],
-                            return_type: Box::new(Type::Unit),
+                            return_type: Arc::new(Type::Unit),
                             required_params: 0,
                         },
                         Type::Number,
                     ],
-                    return_type: Box::new(Type::Number),
+                    return_type: Arc::new(Type::Number),
                     required_params: 2,
                 },
             ),
@@ -383,12 +383,12 @@ impl Checker {
                     params: vec![
                         Type::Function {
                             params: vec![],
-                            return_type: Box::new(Type::Unit),
+                            return_type: Arc::new(Type::Unit),
                             required_params: 0,
                         },
                         Type::Number,
                     ],
-                    return_type: Box::new(Type::Number),
+                    return_type: Arc::new(Type::Number),
                     required_params: 2,
                 },
             ),
@@ -396,7 +396,7 @@ impl Checker {
                 "clearTimeout",
                 Type::Function {
                     params: vec![Type::Number],
-                    return_type: Box::new(Type::Unit),
+                    return_type: Arc::new(Type::Unit),
                     required_params: 1,
                 },
             ),
@@ -404,7 +404,7 @@ impl Checker {
                 "clearInterval",
                 Type::Function {
                     params: vec![Type::Number],
-                    return_type: Box::new(Type::Unit),
+                    return_type: Arc::new(Type::Unit),
                     required_params: 1,
                 },
             ),
@@ -630,7 +630,7 @@ impl Checker {
                 let required_params = func.params.iter().filter(|p| p.default.is_none()).count();
                 let fn_type = Type::Function {
                     params: param_types,
-                    return_type: Box::new(return_type),
+                    return_type: Arc::new(return_type),
                     required_params,
                 };
                 self.env.define(&func.name, fn_type);
@@ -865,7 +865,7 @@ impl Checker {
                 option_type.clone(),
                 Type::Function {
                     params: vec![option_type],
-                    return_type: Box::new(Type::Unit),
+                    return_type: Arc::new(Type::Unit),
                     required_params: 1,
                 },
             ]));
