@@ -65,6 +65,19 @@ impl ReferenceTracker {
         self.definition_by_reference.get(&reference_span).copied()
     }
 
+    /// Find the definition of whatever reference covers `offset`. When
+    /// multiple recorded references enclose the offset (nested
+    /// constructs), the tightest one wins. LSP goto-definition uses
+    /// this so the cursor doesn't need to land on an exact span
+    /// boundary.
+    pub fn definition_at_offset(&self, offset: usize) -> Option<Span> {
+        self.definition_by_reference
+            .iter()
+            .filter(|(use_span, _)| offset >= use_span.start && offset <= use_span.end)
+            .min_by_key(|(use_span, _)| use_span.end - use_span.start)
+            .map(|(_, def_span)| *def_span)
+    }
+
     /// Definition span for a name registered via `register_definition`.
     /// Convenience for callers that only have the name (e.g. rename from
     /// a symbol table key) and need its span to query references.

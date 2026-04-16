@@ -31,6 +31,18 @@ impl FloeLsp {
             return Ok(None);
         }
 
+        // Precise reference-tracker lookup: if the checker recorded the
+        // identifier at this offset as a reference to a known definition,
+        // jump straight there. Falls through to the name-based index
+        // below for cases the tracker doesn't cover yet (imports, member
+        // accesses).
+        if let Some(def_span) = doc.references.definition_at_offset(offset) {
+            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                uri: uri.clone(),
+                range: offset_to_range(&doc.content, def_span.start, def_span.end),
+            })));
+        }
+
         // Search current document
         for sym in doc.index.find_by_name(word) {
             // If this symbol is an import, resolve to the source file.
