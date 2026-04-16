@@ -1,5 +1,5 @@
 /// A source location span tracking where a token appears in the source file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct Span {
     /// Byte offset of the start of this span in the source.
     pub start: usize,

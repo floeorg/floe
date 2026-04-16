@@ -7,7 +7,7 @@ use crate::lexer::span::Span;
 /// A unique identifier for every `Expr` node in the AST.
 /// Assigned during CST-to-AST lowering and used as a stable key
 /// for the checker → codegen type map (replacing span-based keys).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ExprId(pub u32);
 
 impl ExprId {
@@ -95,20 +95,20 @@ pub type TypedJsxProp = JsxProp<std::sync::Arc<crate::checker::Type>>;
 pub type TypedJsxChild = JsxChild<std::sync::Arc<crate::checker::Type>>;
 
 /// A complete Floe source file.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Program<T = ()> {
     pub items: Vec<Item<T>>,
     pub span: Span,
 }
 
 /// Top-level items in a Floe file.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Item<T = ()> {
     pub kind: ItemKind<T>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ItemKind<T = ()> {
     /// `import { x, y } from "module"`
     Import(ImportDecl),
@@ -132,7 +132,7 @@ pub enum ItemKind<T = ()> {
 
 // ── Imports ──────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImportDecl {
     /// Whether the entire import is trusted: `import trusted { ... } from "..."`
     pub trusted: bool,
@@ -144,7 +144,7 @@ pub struct ImportDecl {
     pub source: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImportSpecifier {
     pub name: String,
     pub alias: Option<String>,
@@ -154,7 +154,7 @@ pub struct ImportSpecifier {
 }
 
 /// `for Type` specifier in an import: `import { for User } from "./helpers"`
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ForImportSpecifier {
     /// The type name (base type only, no type params): e.g., "User", "Array"
     pub type_name: String,
@@ -163,13 +163,13 @@ pub struct ForImportSpecifier {
 
 // ── Re-export Declaration ───────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ReExportDecl {
     pub specifiers: Vec<ReExportSpecifier>,
     pub source: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ReExportSpecifier {
     pub name: String,
     pub alias: Option<String>,
@@ -178,7 +178,7 @@ pub struct ReExportSpecifier {
 
 // ── Const Declaration ────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ConstDecl<T = ()> {
     pub exported: bool,
     pub binding: ConstBinding,
@@ -189,7 +189,7 @@ pub struct ConstDecl<T = ()> {
 /// A field in an object destructuring pattern, optionally renamed.
 /// `{ data }` → field="data", alias=None
 /// `{ data: rows }` → field="data", alias=Some("rows")
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectDestructureField {
     pub field: String,
     pub alias: Option<String>,
@@ -202,7 +202,7 @@ impl ObjectDestructureField {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ConstBinding {
     /// Simple name: `const x = ...`
     Name(String),
@@ -232,14 +232,14 @@ impl ConstBinding {
 // ── Function Declaration ─────────────────────────────────────────
 
 /// A generic type parameter with optional trait bounds: `R: SnippetRepository`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TypeParam {
     pub name: String,
     /// Trait names this parameter must implement (e.g. `["SnippetRepository"]`).
     pub bounds: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FunctionDecl<T = ()> {
     pub exported: bool,
     pub async_fn: bool,
@@ -250,7 +250,7 @@ pub struct FunctionDecl<T = ()> {
     pub body: Box<Expr<T>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Param<T = ()> {
     pub name: String,
     pub type_ann: Option<TypeExpr<T>>,
@@ -267,7 +267,7 @@ pub fn params_have_self<T>(params: &[Param<T>]) -> bool {
 }
 
 /// Destructuring pattern for a function/lambda parameter.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ParamDestructure {
     /// Object destructuring: `{ field1, field2 }` or `{ field1: alias1 }`
     Object(Vec<ObjectDestructureField>),
@@ -277,7 +277,7 @@ pub enum ParamDestructure {
 
 // ── Type Declarations ────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TypeDecl<T = ()> {
     pub exported: bool,
     pub opaque: bool,
@@ -289,7 +289,7 @@ pub struct TypeDecl<T = ()> {
 }
 
 /// The right-hand side of a type declaration.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TypeDef<T = ()> {
     /// Record type: `{ field: Type, ...OtherType, ... }`
     Record(Vec<RecordEntry<T>>),
@@ -302,7 +302,7 @@ pub enum TypeDef<T = ()> {
 }
 
 /// An entry inside a record type definition — either a regular field or a spread.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum RecordEntry<T = ()> {
     /// A regular field: `name: Type`
     Field(Box<RecordField<T>>),
@@ -310,7 +310,7 @@ pub enum RecordEntry<T = ()> {
     Spread(RecordSpread<T>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RecordField<T = ()> {
     pub name: String,
     pub type_ann: TypeExpr<T>,
@@ -319,7 +319,7 @@ pub struct RecordField<T = ()> {
 }
 
 /// A spread entry in a record type: `...TypeName` or `...Generic<T>`
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RecordSpread<T = ()> {
     pub type_name: String,
     pub type_expr: Option<TypeExpr<T>>,
@@ -362,14 +362,14 @@ impl<T> TypeDef<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Variant<T = ()> {
     pub name: String,
     pub fields: Vec<VariantField<T>>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VariantField<T = ()> {
     pub name: Option<String>,
     pub type_ann: TypeExpr<T>,
@@ -379,7 +379,7 @@ pub struct VariantField<T = ()> {
 // ── Trait Declarations ──────────────────────────────────────────
 
 /// `trait Name { fn method(self) -> T ... }` — trait declaration.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TraitDecl<T = ()> {
     pub exported: bool,
     pub name: String,
@@ -389,7 +389,7 @@ pub struct TraitDecl<T = ()> {
 }
 
 /// A method in a trait declaration. May have a default body.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TraitMethod<T = ()> {
     pub name: String,
     pub params: Vec<Param<T>>,
@@ -403,7 +403,7 @@ pub struct TraitMethod<T = ()> {
 
 /// `for Type { fn f(self) -> T { ... } }` — group functions under a type.
 /// `for Type: Trait { fn f(self) -> T { ... } }` — implement a trait for a type.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ForBlock<T = ()> {
     pub type_name: TypeExpr<T>,
     /// Optional trait bound: `for User: Display { ... }`
@@ -415,7 +415,7 @@ pub struct ForBlock<T = ()> {
 // ── Test Blocks ─────────────────────────────────────────────────
 
 /// `test "name" { assert expr ... }` — inline test block.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TestBlock<T = ()> {
     pub name: String,
     pub body: Vec<TestStatement<T>>,
@@ -423,7 +423,7 @@ pub struct TestBlock<T = ()> {
 }
 
 /// A statement inside a test block.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TestStatement<T = ()> {
     /// `assert expr` — asserts that the expression is truthy
     Assert(Expr<T>, Span),
@@ -433,13 +433,13 @@ pub enum TestStatement<T = ()> {
 
 // ── Type Expressions ─────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TypeExpr<T = ()> {
     pub kind: TypeExprKind<T>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TypeExprKind<T = ()> {
     /// A named type: `string`, `number`, `User`, `Option<T>`
     Named {
@@ -469,7 +469,7 @@ pub enum TypeExprKind<T = ()> {
 
 // ── Expressions ──────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Expr<T = ()> {
     pub id: ExprId,
     pub kind: ExprKind<T>,
@@ -511,7 +511,7 @@ impl Expr<std::sync::Arc<crate::checker::Type>> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ExprKind<T = ()> {
     // -- Literals --
     /// Number literal: `42`, `3.14`
@@ -654,7 +654,7 @@ pub enum ExprKind<T = ()> {
 }
 
 /// Template literal parts for the AST.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TemplatePart<T = ()> {
     /// Raw string segment.
     Raw(String),
@@ -664,7 +664,7 @@ pub enum TemplatePart<T = ()> {
 
 // ── Arguments ────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Arg<T = ()> {
     /// Positional argument: `expr`
     Positional(Expr<T>),
@@ -674,7 +674,7 @@ pub enum Arg<T = ()> {
 
 // ── Operators ────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BinOp {
     Add,
     Sub,
@@ -691,7 +691,7 @@ pub enum BinOp {
     Or,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum UnaryOp {
     Neg,
     Not,
@@ -699,7 +699,7 @@ pub enum UnaryOp {
 
 // ── Match ────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MatchArm<T = ()> {
     pub pattern: Pattern,
     pub guard: Option<Expr<T>>,
@@ -707,13 +707,13 @@ pub struct MatchArm<T = ()> {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Pattern {
     pub kind: PatternKind,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PatternKind {
     /// Literal pattern: `42`, `"hello"`, `true`
     Literal(LiteralPattern),
@@ -746,7 +746,7 @@ pub enum PatternKind {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum LiteralPattern {
     Number(String),
     String(String),
@@ -754,7 +754,7 @@ pub enum LiteralPattern {
 }
 
 /// A segment in a string pattern — either a literal part or a capture variable.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum StringPatternSegment {
     /// A literal string segment: `"/users/"` in `"/users/{id}"`
     Literal(String),
@@ -820,13 +820,13 @@ pub fn parse_string_pattern_segments(s: &str) -> Option<Vec<StringPatternSegment
 
 // ── JSX ──────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct JsxElement<T = ()> {
     pub kind: JsxElementKind<T>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum JsxElementKind<T = ()> {
     /// `<Tag props...>children</Tag>` or `<Tag props... />`
     Element {
@@ -839,7 +839,7 @@ pub enum JsxElementKind<T = ()> {
     Fragment { children: Vec<JsxChild<T>> },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum JsxProp<T = ()> {
     /// `name={value}` or `name="string"`
     Named {
@@ -851,7 +851,7 @@ pub enum JsxProp<T = ()> {
     Spread { expr: Expr<T>, span: Span },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum JsxChild<T = ()> {
     /// Raw text between tags
     Text(String),

@@ -319,14 +319,16 @@ fn cmd_check(path: &Path) -> Result<()> {
 
     // All files in a check run share the project root, so one compiler
     // instance serves the whole pass — ambient types and tsconfig paths
-    // load once instead of once per file.
+    // load once instead of once per file. The on-disk cache skips
+    // unchanged modules on subsequent runs.
     let first_project_dir = find_project_dir(
         &files[0]
             .parent()
             .and_then(|p| p.canonicalize().ok())
             .unwrap_or_else(|| PathBuf::from(".")),
     );
-    let compiler = PackageCompiler::new(first_project_dir);
+    let cache_dir = first_project_dir.join(".floe").join("cache");
+    let compiler = PackageCompiler::new(first_project_dir).with_cache(cache_dir);
 
     let mut checked = 0;
     let mut errors = 0;
