@@ -294,6 +294,19 @@ pub fn resolve_imports(
     program: &Program,
     tsconfig_paths: &TsconfigPaths,
 ) -> HashMap<String, ResolvedImports> {
+    resolve_imports_with_paths(file_path, program, tsconfig_paths).0
+}
+
+/// Like `resolve_imports` but also returns every `.fl` file path that
+/// was traversed during resolution. The caller (typically the build
+/// cache) uses the path list to fingerprint dependencies for
+/// invalidation — without it, edits to an indirectly-imported file
+/// would be served stale from cache.
+pub fn resolve_imports_with_paths(
+    file_path: &Path,
+    program: &Program,
+    tsconfig_paths: &TsconfigPaths,
+) -> (HashMap<String, ResolvedImports>, HashSet<PathBuf>) {
     let mut results = HashMap::new();
     let mut visited = HashSet::new();
 
@@ -342,7 +355,14 @@ pub fn resolve_imports(
         }
     }
 
-    results
+    // Don't include the root file itself — the caller fingerprints that
+    // separately via the top-level source hash.
+    if let Ok(canonical) = file_path.canonicalize() {
+        visited.remove(&canonical);
+    } else {
+        visited.remove(file_path);
+    }
+    (results, visited)
 }
 
 /// Resolve a single import source to its exported symbols.
