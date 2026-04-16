@@ -599,6 +599,22 @@ impl Checker {
         (diags, self.references)
     }
 
+    /// Check a program and return every side-table the analyse pipeline
+    /// needs: diagnostics, the expression-type map (for `attach_types`),
+    /// the invalid-expr set, and the reference tracker.
+    pub fn check_full_with_references(
+        mut self,
+        program: &Program,
+    ) -> (
+        Vec<Diagnostic>,
+        ExprTypeMap,
+        HashSet<ExprId>,
+        crate::reference::ReferenceTracker,
+    ) {
+        let (diags, _, expr_types, invalid) = self.check_all(program);
+        (diags, expr_types, invalid, self.references)
+    }
+
     /// Internal: run all checks and return all maps. Takes `&mut self` so
     /// callers that need additional state off the checker (references,
     /// traits, etc.) can read it afterward.
