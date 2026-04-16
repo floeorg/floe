@@ -3,6 +3,7 @@ pub mod codegen;
 pub mod cst;
 pub mod desugar;
 pub mod diagnostic;
+pub mod exhaustiveness;
 pub mod formatter;
 pub mod interop;
 pub mod lexer;
