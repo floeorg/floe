@@ -42,6 +42,9 @@ pub struct AnalysedModule {
     pub diagnostics: Vec<Diagnostic>,
     pub references: ReferenceTracker,
     pub resolved_imports: HashMap<String, ResolvedImports>,
+    /// `name → inferred type` display map. LSP completions and record
+    /// field-accessor hovers key off this.
+    pub name_types: HashMap<String, String>,
 }
 
 /// Parse, type-check, and lower a single source file. Parse errors come
@@ -58,6 +61,7 @@ pub fn analyse_module(source: &str, inputs: ModuleInputs) -> AnalysedModule {
             diagnostics: diagnostic::from_parse_errors(&parse_errors),
             references: ReferenceTracker::new(),
             resolved_imports: inputs.resolved_imports,
+            name_types: HashMap::new(),
         },
     }
 }
@@ -69,14 +73,14 @@ pub fn analyse_parsed(
     program: crate::parser::ast::Program,
     inputs: ModuleInputs,
 ) -> AnalysedModule {
-    let checker = Checker::from_context(
+    let mut checker = Checker::from_context(
         inputs.resolved_imports.clone(),
         inputs.externs.dts_imports,
         inputs.externs.ambient,
         inputs.externs.ts_imports_missing_tsgo,
     );
-    let (diagnostics, expr_types, invalid_exprs, references) =
-        checker.check_full_with_references(&program);
+    let (diagnostics, name_types, expr_types, invalid_exprs) = checker.check_all(&program);
+    let references = std::mem::take(&mut checker.references);
     let typed = lower_to_typed(
         program,
         &expr_types,
@@ -88,6 +92,7 @@ pub fn analyse_parsed(
         diagnostics,
         references,
         resolved_imports: inputs.resolved_imports,
+        name_types,
     }
 }
 

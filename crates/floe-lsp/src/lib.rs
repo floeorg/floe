@@ -19,10 +19,12 @@ use tokio::sync::RwLock;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LspService, Server};
 
-use floe_core::checker::{Checker, Type};
+use floe_core::analyse::{self, ExternTypes, ModuleInputs};
+use floe_core::checker::Type;
 use floe_core::diagnostic::{self as floe_diag, Severity};
 use floe_core::parser::Parser;
 use floe_core::parser::ast::TypedProgram;
+use floe_core::reference::ReferenceTracker;
 
 use completion::is_pipe_compatible;
 use resolution::enrich_from_imports;
@@ -194,6 +196,10 @@ struct Document {
     /// Typed AST — every Expr has its resolved `Arc<Type>` in `expr.ty`.
     /// Used as the single source of truth for hover on expressions.
     typed_program: Option<TypedProgram>,
+    /// Per-module reference tracker built by `analyse`. Goto-definition
+    /// consults it for precise definition spans so intra-module jumps
+    /// don't rely on name-based index lookups.
+    references: ReferenceTracker,
 }
 
 // ── LSP Protocol Constants ──────────────────────────────────────
@@ -307,7 +313,7 @@ impl FloeLsp {
 
     /// Parse and type-check a document, update symbol index, publish diagnostics.
     async fn update_document(&self, uri: Url, source: &str) {
-        let (diagnostics, index, type_map, typed_program) = match Parser::new(source)
+        let (diagnostics, index, type_map, typed_program, references) = match Parser::new(source)
             .parse_program()
         {
             Err(_) => {
@@ -316,99 +322,99 @@ impl FloeLsp {
                 let (program, parse_errors) = Parser::parse_lossy(source);
                 let floe_diags = floe_diag::from_parse_errors(&parse_errors);
                 let index = SymbolIndex::build(&program);
-                // Run the checker on the partial AST to populate the type_map
-                // (e.g. __field_ entries for record types, variable types).
-                let (_, type_map, _, _) = Checker::new().check_with_types(&program);
+                let analysed = analyse::analyse_parsed(program, ModuleInputs::default());
+                let mut combined = floe_diags;
+                combined.extend(analysed.diagnostics);
                 (
-                    self.convert_diagnostics(source, &floe_diags),
+                    self.convert_diagnostics(source, &combined),
                     index,
-                    type_map,
-                    None,
+                    analysed.name_types,
+                    Some(analysed.program),
+                    analysed.references,
                 )
             }
             Ok(program) => {
                 let mut index = SymbolIndex::build(&program);
 
-                // Resolve .fl imports for cross-file type checking
-                let (resolved_imports, tsconfig_paths) = if let Ok(source_path) = uri.to_file_path()
+                // Resolve .fl imports for cross-file type checking.
+                let (resolved_imports, project_dir, tsconfig_paths) = if let Ok(source_path) =
+                    uri.to_file_path()
                 {
-                    let source_dir = source_path.parent().unwrap_or(Path::new("."));
-                    let project_dir = find_project_dir(source_dir);
+                    let source_dir = source_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+                    let project_dir = find_project_dir(&source_dir);
                     let paths = floe_core::resolve::TsconfigPaths::from_project_dir(&project_dir);
-
-                    // Log project info once per project directory
                     self.log_project_info(&project_dir, &paths).await;
-
                     let resolved =
                         floe_core::resolve::resolve_imports(&source_path, &program, &paths);
-                    (resolved, paths)
+                    (resolved, Some(project_dir), paths)
                 } else {
-                    (Default::default(), Default::default())
+                    (Default::default(), None, Default::default())
                 };
 
-                // Resolve .d.ts imports BEFORE the checker so it gets npm type info
-                let mut dts_map = HashMap::new();
-                let mut ts_imports_missing_tsgo = HashSet::new();
+                // Resolve .d.ts imports BEFORE analyse so it gets npm type info.
                 let mut import_diags_early = Vec::new();
-                let mut ambient_types = None;
-                if let Ok(source_path) = uri.to_file_path() {
-                    let source_dir = source_path.parent().unwrap_or(Path::new("."));
-                    let project_dir = find_project_dir(source_dir);
-                    let cache = self.dts_cache.read().await.clone();
-                    let (import_diags, new_cache) = enrich_from_imports(
-                        &program,
-                        &project_dir,
-                        source_dir,
-                        &mut index,
-                        &cache,
-                        &tsconfig_paths,
-                    );
-                    import_diags_early = import_diags;
+                let (dts_map, ts_imports_missing_tsgo, ambient) =
+                    if let (Ok(source_path), Some(project_dir)) =
+                        (uri.to_file_path(), project_dir.as_ref())
+                    {
+                        let source_dir = source_path.parent().unwrap_or(Path::new("."));
+                        let cache = self.dts_cache.read().await.clone();
+                        let (import_diags, new_cache) = enrich_from_imports(
+                            &program,
+                            project_dir,
+                            source_dir,
+                            &mut index,
+                            &cache,
+                            &tsconfig_paths,
+                        );
+                        import_diags_early = import_diags;
+                        let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(project_dir);
+                        let tsgo_result = tsgo_resolver.resolve_imports(
+                            &program,
+                            &resolved_imports,
+                            source_dir,
+                            &tsconfig_paths,
+                        );
+                        if !new_cache.is_empty() {
+                            let mut cache_write = self.dts_cache.write().await;
+                            cache_write.extend(new_cache);
+                        }
+                        let ambient = floe_core::interop::ambient::load_ambient_types(project_dir);
+                        (
+                            tsgo_result.exports,
+                            tsgo_result.ts_imports_missing_tsgo,
+                            ambient,
+                        )
+                    } else {
+                        (HashMap::new(), HashSet::new(), None)
+                    };
 
-                    // Use tsgo for fully-resolved types — no fallback
-                    let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
-                    let tsgo_result = tsgo_resolver.resolve_imports(
-                        &program,
-                        &resolved_imports,
-                        source_dir,
-                        &tsconfig_paths,
-                    );
-                    dts_map = tsgo_result.exports;
-                    ts_imports_missing_tsgo = tsgo_result.ts_imports_missing_tsgo;
-
-                    if !new_cache.is_empty() {
-                        let mut cache_write = self.dts_cache.write().await;
-                        cache_write.extend(new_cache);
-                    }
-
-                    // Load ambient types from TypeScript lib definitions
-                    ambient_types = floe_core::interop::ambient::load_ambient_types(&project_dir);
-                }
-
-                // Add imported for-block functions to the symbol index
+                // Add imported for-block functions to the symbol index.
                 index.add_imported_for_blocks(&resolved_imports);
 
-                let checker = Checker::from_context(
-                    resolved_imports,
-                    dts_map,
-                    ambient_types,
-                    ts_imports_missing_tsgo,
+                let analysed = analyse::analyse_parsed(
+                    program,
+                    ModuleInputs {
+                        resolved_imports,
+                        externs: ExternTypes {
+                            dts_imports: dts_map,
+                            ambient,
+                            ts_imports_missing_tsgo,
+                        },
+                    },
                 );
-                let (mut check_diags, type_map, expr_types, invalid_exprs) =
-                    checker.check_with_types(&program);
+                let mut check_diags = analysed.diagnostics;
                 check_diags.extend(import_diags_early);
 
-                // Convert the untyped AST into a typed tree so hover and pipe
-                // input lookups read types directly from each node.
-                let mut typed_program =
-                    floe_core::checker::attach_types(program, &expr_types, &invalid_exprs);
+                let mut typed_program = analysed.program;
                 floe_core::checker::mark_async_functions(&mut typed_program);
 
                 (
                     self.convert_diagnostics(source, &check_diags),
                     index,
-                    type_map,
+                    analysed.name_types,
                     Some(typed_program),
+                    analysed.references,
                 )
             }
         };
@@ -420,6 +426,7 @@ impl FloeLsp {
                 index,
                 type_map,
                 typed_program,
+                references,
             },
         );
 
