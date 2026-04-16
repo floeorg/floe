@@ -58,6 +58,16 @@ pub enum TsType {
     Object(Vec<ObjectField>),
     /// Tuple: `[T, U]`
     Tuple(Vec<TsType>),
+    /// String literal type: `"up"`, `"down"` — preserved so unions of
+    /// literals keep their discriminators at the Floe boundary.
+    StringLiteral(String),
+    /// Numeric literal type: `0`, `404`.
+    NumberLiteral(f64),
+    /// Boolean literal type: `true`, `false`.
+    BooleanLiteral(bool),
+    /// `this` return type — resolved to the enclosing interface/class name
+    /// during conversion so fluent builders keep a usable type.
+    This,
 }
 
 /// Convert a TsType to a human-readable string for display.
@@ -103,6 +113,10 @@ pub fn ts_type_to_string(ty: &TsType) -> String {
             let ps: Vec<String> = parts.iter().map(ts_type_to_string).collect();
             format!("[{}]", ps.join(", "))
         }
+        TsType::StringLiteral(s) => format!("\"{s}\""),
+        TsType::NumberLiteral(n) => n.to_string(),
+        TsType::BooleanLiteral(b) => b.to_string(),
+        TsType::This => "this".to_string(),
     }
 }
 
@@ -200,6 +214,25 @@ pub(super) fn parse_type_str(s: &str) -> TsType {
         return TsType::Object(fields);
     }
 
+    // String literal: "foo" or 'foo'
+    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
+        let inner = &s[1..s.len() - 1];
+        return TsType::StringLiteral(inner.to_string());
+    }
+
+    // Boolean literal
+    if s == "true" {
+        return TsType::BooleanLiteral(true);
+    }
+    if s == "false" {
+        return TsType::BooleanLiteral(false);
+    }
+
+    // Numeric literal
+    if let Ok(n) = s.parse::<f64>() {
+        return TsType::NumberLiteral(n);
+    }
+
     // Primitives and special types
     match s {
         "string" => TsType::Primitive("string".to_string()),
@@ -213,6 +246,7 @@ pub(super) fn parse_type_str(s: &str) -> TsType {
         "undefined" => TsType::Undefined,
         "any" => TsType::Any,
         "unknown" => TsType::Unknown,
+        "this" => TsType::This,
         _ => TsType::Named(s.to_string()),
     }
 }

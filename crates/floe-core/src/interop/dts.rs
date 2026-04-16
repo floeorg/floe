@@ -4,7 +4,8 @@ use std::collections::HashSet;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    Declaration, ExportNamedDeclaration, FormalParameters, PropertyKey, Statement,
+    Class, ClassElement, Declaration, ExportDefaultDeclarationKind, ExportNamedDeclaration,
+    FormalParameters, MethodDefinitionKind, PropertyKey, Statement, TSEnumDeclaration,
     TSModuleDeclarationBody, TSModuleDeclarationName, TSPropertySignature, TSSignature,
     TSTupleElement, TSType as OxcTSType, TSTypeName, VariableDeclarator,
 };
@@ -86,6 +87,8 @@ fn resolve_dts_source(parent_dir: &Path, source: &str) -> Option<PathBuf> {
             (".mjs", ".d.mts"),
             (".cjs", ".d.cts"),
             (".jsx", ".d.ts"),
+            (".tsx", ".d.ts"),
+            (".ts", ".d.ts"),
         ] {
             if let Some(stripped) = base_str.strip_suffix(ext) {
                 let dts_path = PathBuf::from(format!("{stripped}{dts_ext}"));
@@ -96,17 +99,22 @@ fn resolve_dts_source(parent_dir: &Path, source: &str) -> Option<PathBuf> {
         }
     }
 
-    // Try adding .d.ts directly
-    let with_dts = parent_dir.join(format!("{source}.d.ts"));
-    if with_dts.exists() {
-        return Some(with_dts);
+    // Try adding .d.ts / .d.mts / .d.cts directly (barrel exports often
+    // omit extensions entirely).
+    for dts_ext in &[".d.ts", ".d.mts", ".d.cts"] {
+        let with_dts = parent_dir.join(format!("{source}{dts_ext}"));
+        if with_dts.exists() {
+            return Some(with_dts);
+        }
     }
 
-    // Try as directory with index.d.ts
+    // Try as directory with index.d.ts / index.d.mts / index.d.cts
     if base.is_dir() {
-        let index = base.join("index.d.ts");
-        if index.exists() {
-            return Some(index);
+        for idx in &["index.d.ts", "index.d.mts", "index.d.cts"] {
+            let index = base.join(idx);
+            if index.exists() {
+                return Some(index);
+            }
         }
     }
 
@@ -132,47 +140,81 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
     let mut seen_names: HashSet<String> = HashSet::new();
     let mut export_assignment_name: Option<String> = None;
     let mut namespace_exports: HashMap<String, Vec<DtsExport>> = HashMap::new();
-    let mut reexport_sources = Vec::new();
-    // Collect all function declarations for resolving `typeof X` references
-    let mut fn_declarations: HashMap<String, TsType> = HashMap::new();
+    // `/// <reference path="..." />` directives are consumed by the parser
+    // without surfacing — we rescan the raw source to pull them back out.
+    let mut reexport_sources = extract_triple_slash_references(content);
+    // All top-level declarations by name — used to resolve `export default X`,
+    // `export { X as Y }`, and `typeof X` against the declared types.
+    let mut local_types: HashMap<String, TsType> = HashMap::new();
+    let mut aliased_reexports: Vec<(String, String)> = Vec::new();
+    let mut default_export_target: Option<String> = None;
 
-    // First pass: collect all info
     for stmt in &ret.program.body {
-        // `export = X;` - remember the namespace name for later
         if let Statement::TSExportAssignment(assign) = stmt
             && let oxc_ast::ast::Expression::Identifier(ident) = &assign.expression
         {
             export_assignment_name = Some(ident.name.to_string());
         }
 
-        // `export function/const/type/interface ...`
         if let Statement::ExportNamedDeclaration(export_decl) = stmt {
             extract_from_export_named(export_decl, &mut exports, &mut seen_names);
 
-            // Also record function declarations for typeof resolution
-            if let Some(ref decl) = export_decl.declaration
-                && let Declaration::FunctionDeclaration(func) = decl
-                && let Some(ref id) = func.id
-            {
-                let ts_type = convert_function(&func.params, &func.return_type);
-                fn_declarations.insert(id.name.to_string(), ts_type);
+            if let Some(ref decl) = export_decl.declaration {
+                record_local_type(decl, &mut local_types);
+            }
+
+            // `export { X as Y }` without a declaration — collected here,
+            // resolved against local_types once the full file is scanned.
+            if export_decl.declaration.is_none() {
+                for spec in &export_decl.specifiers {
+                    let exported_name = spec.exported.name().to_string();
+                    let local_name = spec.local.name().to_string();
+                    if !exported_name.is_empty()
+                        && !local_name.is_empty()
+                        && exported_name != local_name
+                    {
+                        aliased_reexports.push((exported_name, local_name));
+                    }
+                }
             }
         }
 
-        // Non-exported function declarations (for typeof resolution)
-        if let Statement::FunctionDeclaration(func) = stmt
-            && let Some(ref id) = func.id
-        {
-            let ts_type = convert_function(&func.params, &func.return_type);
-            fn_declarations.insert(id.name.to_string(), ts_type);
+        if let Statement::ExportDefaultDeclaration(default_decl) = stmt {
+            match &default_decl.declaration {
+                ExportDefaultDeclarationKind::Identifier(ident) => {
+                    default_export_target = Some(ident.name.to_string());
+                }
+                ExportDefaultDeclarationKind::FunctionDeclaration(func) => {
+                    let ts_type = convert_function(&func.params, &func.return_type);
+                    if seen_names.insert("default".to_string()) {
+                        exports.push(DtsExport {
+                            name: "default".to_string(),
+                            ts_type,
+                        });
+                    }
+                }
+                ExportDefaultDeclarationKind::ClassDeclaration(class) => {
+                    if let Some(mut export) = convert_class_declaration(class) {
+                        export.name = "default".to_string();
+                        if seen_names.insert(export.name.clone()) {
+                            exports.push(export);
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
 
-        // `export * from "./X.js"`
+        // Non-exported top-level declarations are recorded for `typeof X`,
+        // `export default X`, and `export { X as Y }` resolution.
+        for (name, ts_type) in statement_entries(stmt) {
+            local_types.entry(name).or_insert(ts_type);
+        }
+
         if let Statement::ExportAllDeclaration(export_all) = stmt {
             reexport_sources.push(export_all.source.value.to_string());
         }
 
-        // `declare namespace X { ... }` (top-level)
         if let Statement::TSModuleDeclaration(ns_decl) = stmt {
             let ns_name = match &ns_decl.id {
                 TSModuleDeclarationName::Identifier(ident) => ident.name.to_string(),
@@ -183,6 +225,31 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
                 .entry(ns_name)
                 .or_default()
                 .extend(ns_exports);
+        }
+    }
+
+    // Resolve `export default X` against locally-declared types.
+    if let Some(ref target) = default_export_target
+        && let Some(ts_type) = local_types.get(target)
+        && seen_names.insert("default".to_string())
+    {
+        exports.push(DtsExport {
+            name: "default".to_string(),
+            ts_type: ts_type.clone(),
+        });
+    }
+
+    // Resolve aliased re-exports (`export { X as Y }`) for every declaration kind.
+    for (exported_name, local_name) in &aliased_reexports {
+        if seen_names.contains(exported_name) {
+            continue;
+        }
+        if let Some(ts_type) = local_types.get(local_name) {
+            seen_names.insert(exported_name.clone());
+            exports.push(DtsExport {
+                name: exported_name.clone(),
+                ts_type: ts_type.clone(),
+            });
         }
     }
 
@@ -198,11 +265,13 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
         }
     }
 
-    // Second pass: resolve `typeof X` references against local declarations
+    // Second pass: resolve `typeof X` references against local declarations.
+    // Uses the full `local_types` map so `typeof someConst` works for any
+    // declaration kind, not just functions.
     for export in &mut exports {
         if let TsType::Named(ref s) = export.ts_type
             && let Some(ref_name) = s.strip_prefix("typeof ")
-            && let Some(resolved_type) = fn_declarations.get(ref_name)
+            && let Some(resolved_type) = local_types.get(ref_name)
         {
             export.ts_type = resolved_type.clone();
         }
@@ -306,7 +375,7 @@ pub(super) fn parse_all_types_from_str(content: &str) -> Result<Vec<DtsExport>, 
         if let Statement::TSInterfaceDeclaration(iface) = stmt {
             let name = iface.id.name.to_string();
             if seen_names.insert(name.clone()) {
-                let ts_type = convert_interface_body(&iface.body.body);
+                let ts_type = convert_interface_body_named(&iface.body.body, Some(&name));
                 types.push(DtsExport { name, ts_type });
             }
         }
@@ -325,7 +394,7 @@ pub(super) fn parse_all_types_from_str(content: &str) -> Result<Vec<DtsExport>, 
             if let Declaration::TSInterfaceDeclaration(iface) = decl {
                 let name = iface.id.name.to_string();
                 if seen_names.insert(name.clone()) {
-                    let ts_type = convert_interface_body(&iface.body.body);
+                    let ts_type = convert_interface_body_named(&iface.body.body, Some(&name));
                     types.push(DtsExport { name, ts_type });
                 }
             }
@@ -342,7 +411,7 @@ pub(super) fn parse_all_types_from_str(content: &str) -> Result<Vec<DtsExport>, 
     Ok(types)
 }
 
-/// Extract exports from an `export` declaration (export function/const/type/interface).
+/// Extract exports from an `export` declaration (export function/const/type/interface/class/enum).
 fn extract_from_export_named(
     export_decl: &ExportNamedDeclaration<'_>,
     exports: &mut Vec<DtsExport>,
@@ -351,46 +420,269 @@ fn extract_from_export_named(
     let Some(ref decl) = export_decl.declaration else {
         return;
     };
+    extract_from_declaration(decl, exports, seen_names);
+}
 
-    match decl {
-        Declaration::FunctionDeclaration(func) => {
-            if let Some(ref id) = func.id {
-                let name = id.name.to_string();
-                if seen_names.insert(name.clone()) {
-                    let ts_type = convert_function(&func.params, &func.return_type);
-                    exports.push(DtsExport { name, ts_type });
-                }
-                // Skip overloads (same name already seen)
-            }
+/// Convert a declaration into `DtsExport`s and append unseen names.
+/// Overloaded functions produce duplicates; the first wins.
+fn extract_from_declaration(
+    decl: &Declaration<'_>,
+    exports: &mut Vec<DtsExport>,
+    seen_names: &mut HashSet<String>,
+) {
+    for (name, ts_type) in declaration_entries(decl) {
+        if seen_names.insert(name.clone()) {
+            exports.push(DtsExport { name, ts_type });
         }
-        Declaration::VariableDeclaration(var_decl) => {
-            for declarator in &var_decl.declarations {
-                if let Some(export) = convert_variable_declarator(declarator)
-                    && seen_names.insert(export.name.clone())
-                {
-                    exports.push(export);
-                }
-            }
-        }
-        Declaration::TSTypeAliasDeclaration(type_decl) => {
-            let name = type_decl.id.name.to_string();
-            if seen_names.insert(name.clone()) {
-                let ts_type = convert_oxc_type(&type_decl.type_annotation);
-                exports.push(DtsExport { name, ts_type });
-            }
-        }
-        Declaration::TSInterfaceDeclaration(iface) => {
-            let name = iface.id.name.to_string();
-            if seen_names.insert(name.clone()) {
-                let ts_type = convert_interface_body(&iface.body.body);
-                exports.push(DtsExport { name, ts_type });
-            }
-        }
-        _ => {}
     }
 }
 
-/// Extract function/const/type/interface declarations from inside a namespace body.
+/// Convert a class declaration to an object type whose fields are the
+/// class's public members (methods and properties). A "constructor"
+/// synthetic field, typed as `(args) => Self`, is added when an explicit
+/// constructor is present so callers can `new Foo(x)` through the normal
+/// callable boundary.
+fn convert_class_declaration(class: &Class<'_>) -> Option<DtsExport> {
+    let name = class.id.as_ref()?.name.to_string();
+    let mut fields: Vec<ObjectField> = Vec::new();
+    let mut ctor_params: Option<Vec<FunctionParam>> = None;
+
+    for el in &class.body.body {
+        match el {
+            ClassElement::MethodDefinition(method) => {
+                let field_name = property_key_name(&method.key);
+                match method.kind {
+                    MethodDefinitionKind::Constructor => {
+                        ctor_params = Some(convert_formal_params(&method.value.params));
+                    }
+                    MethodDefinitionKind::Method => {
+                        if let Some(n) = field_name {
+                            let ret = method
+                                .value
+                                .return_type
+                                .as_ref()
+                                .map(|ta| convert_oxc_type(&ta.type_annotation))
+                                .unwrap_or(TsType::Any);
+                            fields.push(ObjectField {
+                                name: n,
+                                ty: TsType::Function {
+                                    params: convert_formal_params(&method.value.params),
+                                    return_type: Box::new(ret),
+                                },
+                                optional: method.optional,
+                            });
+                        }
+                    }
+                    MethodDefinitionKind::Get => {
+                        if let Some(n) = field_name {
+                            let ty = method
+                                .value
+                                .return_type
+                                .as_ref()
+                                .map(|ta| convert_oxc_type(&ta.type_annotation))
+                                .unwrap_or(TsType::Any);
+                            fields.push(ObjectField {
+                                name: n,
+                                ty,
+                                optional: method.optional,
+                            });
+                        }
+                    }
+                    MethodDefinitionKind::Set => {
+                        if let Some(n) = field_name {
+                            let ty = method
+                                .value
+                                .params
+                                .items
+                                .first()
+                                .and_then(|p| p.type_annotation.as_ref())
+                                .map(|ta| convert_oxc_type(&ta.type_annotation))
+                                .unwrap_or(TsType::Any);
+                            // Only add if not already present (getter + setter).
+                            if !fields.iter().any(|f| f.name == n) {
+                                fields.push(ObjectField {
+                                    name: n,
+                                    ty,
+                                    optional: method.optional,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            ClassElement::PropertyDefinition(prop) => {
+                if let Some(n) = property_key_name(&prop.key) {
+                    let ty = prop
+                        .type_annotation
+                        .as_ref()
+                        .map(|ta| convert_oxc_type(&ta.type_annotation))
+                        .unwrap_or(TsType::Any);
+                    fields.push(ObjectField {
+                        name: n,
+                        ty,
+                        optional: prop.optional,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Resolve any `this` return types to the class name.
+    for field in &mut fields {
+        resolve_this_in_type(&mut field.ty, &name);
+    }
+
+    // Synthetic constructor field makes `new Foo(x)` callable through the
+    // normal function boundary.
+    if let Some(params) = ctor_params {
+        fields.push(ObjectField {
+            name: "constructor".to_string(),
+            ty: TsType::Function {
+                params,
+                return_type: Box::new(TsType::Named(name.clone())),
+            },
+            optional: false,
+        });
+    }
+
+    Some(DtsExport {
+        name,
+        ts_type: TsType::Object(fields),
+    })
+}
+
+/// Convert an enum declaration. `enum Color { Red, Green }` becomes a
+/// union of the member names as string literals (`"Red" | "Green"`);
+/// numeric-valued members widen to `number`.
+fn convert_enum_declaration(enum_decl: &TSEnumDeclaration<'_>) -> Option<DtsExport> {
+    let name = enum_decl.id.name.to_string();
+    let mut has_string = false;
+    let mut has_number = false;
+    let mut members: Vec<TsType> = Vec::new();
+
+    for member in &enum_decl.body.members {
+        let member_name = enum_member_name(&member.id)?;
+        match &member.initializer {
+            Some(oxc_ast::ast::Expression::StringLiteral(s)) => {
+                has_string = true;
+                members.push(TsType::StringLiteral(s.value.to_string()));
+            }
+            Some(oxc_ast::ast::Expression::NumericLiteral(n)) => {
+                has_number = true;
+                members.push(TsType::NumberLiteral(n.value));
+            }
+            _ => {
+                // No initializer / computed — default to the member name.
+                members.push(TsType::StringLiteral(member_name));
+            }
+        }
+    }
+
+    let ts_type = if has_number && !has_string {
+        TsType::Primitive("number".to_string())
+    } else if members.len() == 1 {
+        members.into_iter().next().unwrap()
+    } else {
+        TsType::Union(members)
+    };
+
+    Some(DtsExport { name, ts_type })
+}
+
+/// Shared conversion table: for each named top-level declaration we
+/// support, produce an `(ident name, TsType)` pair. Used from every
+/// declaration-site — exported, non-exported top-level, inside a
+/// namespace — so the kind list lives in one place.
+fn declaration_entries(decl: &Declaration<'_>) -> Vec<(String, TsType)> {
+    match decl {
+        Declaration::FunctionDeclaration(func) => func
+            .id
+            .as_ref()
+            .map(|id| {
+                vec![(
+                    id.name.to_string(),
+                    convert_function(&func.params, &func.return_type),
+                )]
+            })
+            .unwrap_or_default(),
+        Declaration::VariableDeclaration(var_decl) => var_decl
+            .declarations
+            .iter()
+            .filter_map(convert_variable_declarator)
+            .map(|e| (e.name, e.ts_type))
+            .collect(),
+        Declaration::TSTypeAliasDeclaration(type_decl) => vec![(
+            type_decl.id.name.to_string(),
+            convert_oxc_type(&type_decl.type_annotation),
+        )],
+        Declaration::TSInterfaceDeclaration(iface) => {
+            let name = iface.id.name.to_string();
+            let ts_type = convert_interface_body_named(&iface.body.body, Some(&name));
+            vec![(name, ts_type)]
+        }
+        Declaration::ClassDeclaration(class) => convert_class_declaration(class)
+            .map(|e| vec![(e.name, e.ts_type)])
+            .unwrap_or_default(),
+        Declaration::TSEnumDeclaration(enum_decl) => convert_enum_declaration(enum_decl)
+            .map(|e| vec![(e.name, e.ts_type)])
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+/// Same as `declaration_entries` but for the Statement-level variants at
+/// the top of a file or namespace body. The payload types differ from
+/// `Declaration`, so dispatch happens here rather than through a shared
+/// projection.
+fn statement_entries(stmt: &Statement<'_>) -> Vec<(String, TsType)> {
+    match stmt {
+        Statement::FunctionDeclaration(func) => func
+            .id
+            .as_ref()
+            .map(|id| {
+                vec![(
+                    id.name.to_string(),
+                    convert_function(&func.params, &func.return_type),
+                )]
+            })
+            .unwrap_or_default(),
+        Statement::VariableDeclaration(var_decl) => var_decl
+            .declarations
+            .iter()
+            .filter_map(convert_variable_declarator)
+            .map(|e| (e.name, e.ts_type))
+            .collect(),
+        Statement::TSTypeAliasDeclaration(type_decl) => vec![(
+            type_decl.id.name.to_string(),
+            convert_oxc_type(&type_decl.type_annotation),
+        )],
+        Statement::TSInterfaceDeclaration(iface) => {
+            let name = iface.id.name.to_string();
+            let ts_type = convert_interface_body_named(&iface.body.body, Some(&name));
+            vec![(name, ts_type)]
+        }
+        Statement::ClassDeclaration(class) => convert_class_declaration(class)
+            .map(|e| vec![(e.name, e.ts_type)])
+            .unwrap_or_default(),
+        Statement::TSEnumDeclaration(enum_decl) => convert_enum_declaration(enum_decl)
+            .map(|e| vec![(e.name, e.ts_type)])
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+/// Record a declaration's type in `local_types` so later passes
+/// (`export default`, aliased re-exports, `typeof X`) can resolve it.
+fn record_local_type(decl: &Declaration<'_>, local_types: &mut HashMap<String, TsType>) {
+    for (name, ts_type) in declaration_entries(decl) {
+        local_types.entry(name).or_insert(ts_type);
+    }
+}
+
+/// Extract function/const/type/interface/class/enum declarations from inside
+/// a namespace body. Recurses into nested namespaces (`declare namespace A.B`)
+/// and nested inner namespaces so their exports bubble up to the parent.
 fn extract_from_namespace_body(body: &Option<TSModuleDeclarationBody<'_>>) -> Vec<DtsExport> {
     let mut exports = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
@@ -399,55 +691,31 @@ fn extract_from_namespace_body(body: &Option<TSModuleDeclarationBody<'_>>) -> Ve
 
     let block = match body {
         TSModuleDeclarationBody::TSModuleBlock(block) => block,
-        TSModuleDeclarationBody::TSModuleDeclaration(_nested) => {
-            // Nested namespace like `declare namespace A.B { ... }` — skip for now
-            return exports;
+        TSModuleDeclarationBody::TSModuleDeclaration(nested) => {
+            // `declare namespace A.B { ... }` parses as nested modules.
+            return extract_from_namespace_body(&nested.body);
         }
     };
 
     for stmt in &block.body {
         match stmt {
-            // Function declarations inside namespace
-            Statement::FunctionDeclaration(func) => {
-                if let Some(ref id) = func.id {
-                    let name = id.name.to_string();
+            Statement::ExportNamedDeclaration(export_decl) => {
+                extract_from_export_named(export_decl, &mut exports, &mut seen_names);
+            }
+            Statement::TSModuleDeclaration(inner) => {
+                for ex in extract_from_namespace_body(&inner.body) {
+                    if seen_names.insert(ex.name.clone()) {
+                        exports.push(ex);
+                    }
+                }
+            }
+            other => {
+                for (name, ts_type) in statement_entries(other) {
                     if seen_names.insert(name.clone()) {
-                        let ts_type = convert_function(&func.params, &func.return_type);
                         exports.push(DtsExport { name, ts_type });
                     }
                 }
             }
-            // Variable declarations inside namespace
-            Statement::VariableDeclaration(var_decl) => {
-                for declarator in &var_decl.declarations {
-                    if let Some(export) = convert_variable_declarator(declarator)
-                        && seen_names.insert(export.name.clone())
-                    {
-                        exports.push(export);
-                    }
-                }
-            }
-            // Type aliases inside namespace
-            Statement::TSTypeAliasDeclaration(type_decl) => {
-                let name = type_decl.id.name.to_string();
-                if seen_names.insert(name.clone()) {
-                    let ts_type = convert_oxc_type(&type_decl.type_annotation);
-                    exports.push(DtsExport { name, ts_type });
-                }
-            }
-            // Interfaces inside namespace
-            Statement::TSInterfaceDeclaration(iface) => {
-                let name = iface.id.name.to_string();
-                if seen_names.insert(name.clone()) {
-                    let ts_type = convert_interface_body(&iface.body.body);
-                    exports.push(DtsExport { name, ts_type });
-                }
-            }
-            // Exported declarations inside namespace
-            Statement::ExportNamedDeclaration(export_decl) => {
-                extract_from_export_named(export_decl, &mut exports, &mut seen_names);
-            }
-            _ => {}
         }
     }
 
@@ -523,15 +791,72 @@ fn convert_property_signature(prop: &TSPropertySignature<'_>) -> Option<ObjectFi
     })
 }
 
-/// Convert interface body members to TsType::Object.
-pub(super) fn convert_interface_body(members: &[TSSignature<'_>]) -> TsType {
-    let fields: Vec<ObjectField> = members
+/// Convert an object-literal / interface body into a `TsType`. Handles
+/// property signatures, method signatures (getters / regular / setters),
+/// construct signatures (`new (...) => T`), call signatures (callable
+/// objects), and index signatures (`[k: K]: V` → `Record<K, V>`). When the
+/// body has no named fields but does carry a call signature, the caller
+/// typically wants to treat the whole thing as a function — we surface
+/// that as `TsType::Function` to match existing behavior.
+fn convert_type_literal(members: &[TSSignature<'_>]) -> TsType {
+    let fields = collect_object_fields(members);
+    if fields.is_empty() {
+        // No named fields: look for a lone call signature and surface as a
+        // function type (common for overloaded builder methods in npm).
+        for sig in members {
+            if let TSSignature::TSCallSignatureDeclaration(call) = sig {
+                return TsType::Function {
+                    params: convert_formal_params(&call.params),
+                    return_type: Box::new(
+                        call.return_type
+                            .as_ref()
+                            .map(|ta| convert_oxc_type(&ta.type_annotation))
+                            .unwrap_or(TsType::Any),
+                    ),
+                };
+            }
+        }
+        // Construct-only signature `new (...)`: treat as its return type so
+        // `new Foo(x)` is usable.
+        for sig in members {
+            if let TSSignature::TSConstructSignatureDeclaration(ctor) = sig {
+                return TsType::Function {
+                    params: convert_formal_params(&ctor.params),
+                    return_type: Box::new(
+                        ctor.return_type
+                            .as_ref()
+                            .map(|ta| convert_oxc_type(&ta.type_annotation))
+                            .unwrap_or(TsType::Any),
+                    ),
+                };
+            }
+        }
+    }
+    // Index signature { [k: K]: V } becomes a Record<K, V> when there are
+    // no other fields; otherwise the caller has a mixed dict-plus-fields
+    // shape that we best-effort as the object so the named fields survive.
+    if fields.is_empty() {
+        for sig in members {
+            if let TSSignature::TSIndexSignature(idx) = sig
+                && let Some((k, v)) = index_signature_kv(idx)
+            {
+                return TsType::Generic {
+                    name: "Record".to_string(),
+                    args: vec![k, v],
+                };
+            }
+        }
+    }
+    TsType::Object(fields)
+}
+
+/// Collect every supported field shape (properties, getters, methods,
+/// setters) from an object-literal / interface body into `ObjectField`s.
+fn collect_object_fields(members: &[TSSignature<'_>]) -> Vec<ObjectField> {
+    members
         .iter()
         .filter_map(|sig| match sig {
             TSSignature::TSPropertySignature(prop) => convert_property_signature(prop),
-            // Treat getter methods (e.g., `get location(): Location`) as property fields
-            // and regular methods (e.g., `writeText(data: string): Promise<void>`) as
-            // function-typed fields. This is critical for lib.dom.d.ts interfaces.
             TSSignature::TSMethodSignature(method) => {
                 let name = property_key_name(&method.key)?;
                 match method.kind {
@@ -539,6 +864,23 @@ pub(super) fn convert_interface_body(members: &[TSSignature<'_>]) -> TsType {
                         let ty = method
                             .return_type
                             .as_ref()
+                            .map(|ta| convert_oxc_type(&ta.type_annotation))
+                            .unwrap_or(TsType::Any);
+                        Some(ObjectField {
+                            name,
+                            ty,
+                            optional: method.optional,
+                        })
+                    }
+                    oxc_ast::ast::TSMethodSignatureKind::Set => {
+                        // Setter: expose the field name with the setter's
+                        // parameter type so consumers can at least read the
+                        // type. Getter + setter pairs merge later.
+                        let ty = method
+                            .params
+                            .items
+                            .first()
+                            .and_then(|p| p.type_annotation.as_ref())
                             .map(|ta| convert_oxc_type(&ta.type_annotation))
                             .unwrap_or(TsType::Any);
                         Some(ObjectField {
@@ -555,18 +897,173 @@ pub(super) fn convert_interface_body(members: &[TSSignature<'_>]) -> TsType {
                             optional: method.optional,
                         })
                     }
-                    _ => None, // skip setters
                 }
             }
             _ => None,
         })
-        .collect();
-    TsType::Object(fields)
+        .collect()
+}
+
+/// Extract `K` and `V` from an index signature `[k: K]: V`.
+fn index_signature_kv(idx: &oxc_ast::ast::TSIndexSignature<'_>) -> Option<(TsType, TsType)> {
+    let key_param = idx.parameters.first()?;
+    let key = convert_oxc_type(&key_param.type_annotation.type_annotation);
+    let value = convert_oxc_type(&idx.type_annotation.type_annotation);
+    Some((key, value))
+}
+
+/// Merge intersection members. Object members' fields are concatenated
+/// (later wins on name collision); non-object members collapse through
+/// the `T & {}` no-op pattern. When only one non-empty member survives,
+/// emit it directly to avoid a spurious union-like wrapper.
+fn merge_intersection(parts: Vec<TsType>) -> TsType {
+    let mut merged_fields: Vec<ObjectField> = Vec::new();
+    let mut field_index: HashMap<String, usize> = HashMap::new();
+    let mut non_object: Vec<TsType> = Vec::new();
+    for part in parts {
+        match part {
+            TsType::Object(fields) if fields.is_empty() => {}
+            TsType::Object(fields) => {
+                for field in fields {
+                    if let Some(&idx) = field_index.get(&field.name) {
+                        merged_fields[idx] = field;
+                    } else {
+                        field_index.insert(field.name.clone(), merged_fields.len());
+                        merged_fields.push(field);
+                    }
+                }
+            }
+            other => non_object.push(other),
+        }
+    }
+    match (merged_fields.is_empty(), non_object.len()) {
+        (true, 0) => TsType::Object(Vec::new()),
+        (true, 1) => non_object.into_iter().next().unwrap(),
+        (false, 0) => TsType::Object(merged_fields),
+        // Mixed: surface the object side (the dominant case for npm patterns
+        // like `SomeClass & { extra: X }`). The non-object halves are
+        // usually opaque class references we can't structurally merge.
+        (false, _) => TsType::Object(merged_fields),
+        (true, _) => non_object.into_iter().next().unwrap(),
+    }
+}
+
+/// `keyof T` — when `T` is a concrete object type, yield the union of its
+/// field names as string literals. For everything else fall back to
+/// `string` (what TypeScript uses when the keys can't be enumerated).
+fn keyof_of(ty: &TsType) -> TsType {
+    if let TsType::Object(fields) = ty {
+        let keys: Vec<TsType> = fields
+            .iter()
+            .map(|f| TsType::StringLiteral(f.name.clone()))
+            .collect();
+        match keys.len() {
+            0 => TsType::Primitive("string".to_string()),
+            1 => keys.into_iter().next().unwrap(),
+            _ => TsType::Union(keys),
+        }
+    } else {
+        TsType::Primitive("string".to_string())
+    }
+}
+
+/// Walk `ty` and replace every `TsType::This` with `TsType::Named(self_name)`.
+/// Used when converting interface / class bodies so fluent-builder return
+/// types stay usable.
+fn resolve_this_in_type(ty: &mut TsType, self_name: &str) {
+    match ty {
+        TsType::This => *ty = TsType::Named(self_name.to_string()),
+        TsType::Union(parts) | TsType::Tuple(parts) => {
+            for p in parts {
+                resolve_this_in_type(p, self_name);
+            }
+        }
+        TsType::Array(inner) => resolve_this_in_type(inner, self_name),
+        TsType::Generic { args, .. } => {
+            for a in args {
+                resolve_this_in_type(a, self_name);
+            }
+        }
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            for p in params {
+                resolve_this_in_type(&mut p.ty, self_name);
+            }
+            resolve_this_in_type(return_type, self_name);
+        }
+        TsType::Object(fields) => {
+            for f in fields {
+                resolve_this_in_type(&mut f.ty, self_name);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Convert interface body members to `TsType::Object`. When `self_name`
+/// is provided, every `this` return type inside the body resolves to that
+/// interface name so fluent / builder chains keep working.
+pub(super) fn convert_interface_body_named(
+    members: &[TSSignature<'_>],
+    self_name: Option<&str>,
+) -> TsType {
+    let fields = collect_object_fields(members);
+    let mut ty = TsType::Object(fields);
+    if let Some(name) = self_name {
+        resolve_this_in_type(&mut ty, name);
+    }
+    ty
+}
+
+/// Scan `.d.ts` content for `/// <reference path="..." />` directives.
+/// These must appear at the top of the file; stop at the first non-
+/// comment, non-blank line.
+pub(super) fn extract_triple_slash_references(content: &str) -> Vec<String> {
+    content
+        .lines()
+        .take_while(|line| is_header_line(line))
+        .filter_map(parse_reference_line)
+        .collect()
+}
+
+/// True for a blank line or a line starting with `///` — i.e. the zone
+/// at the top of a file where reference directives can legally appear.
+fn is_header_line(line: &str) -> bool {
+    let t = line.trim();
+    t.is_empty() || t.starts_with("///")
+}
+
+/// Extract the path from one line if it's a `/// <reference path="..." />`
+/// directive. Returns `None` for blanks, other triple-slash directives,
+/// or malformed syntax.
+fn parse_reference_line(line: &str) -> Option<String> {
+    let body = line.trim().strip_prefix("///")?.trim();
+    let rest = body.strip_prefix("<reference")?;
+    let after_path = rest.split_once("path=").map(|(_, r)| r)?.trim_start();
+    let quote = after_path
+        .chars()
+        .next()
+        .filter(|c| *c == '"' || *c == '\'')?;
+    let inner = &after_path[1..];
+    let end = inner.find(quote)?;
+    Some(inner[..end].to_string())
 }
 
 /// Extract a name from a PropertyKey.
 fn property_key_name(key: &PropertyKey<'_>) -> Option<String> {
     key.name().map(|n| n.to_string())
+}
+
+/// Extract a name from a TSEnumMember's key. Identifier and string-literal
+/// names are supported; computed members return `None`.
+fn enum_member_name(name: &oxc_ast::ast::TSEnumMemberName<'_>) -> Option<String> {
+    match name {
+        oxc_ast::ast::TSEnumMemberName::Identifier(id) => Some(id.name.to_string()),
+        oxc_ast::ast::TSEnumMemberName::String(s) => Some(s.value.to_string()),
+        _ => None,
+    }
 }
 
 /// Shared match arms for converting oxc type variants to `TsType`.
@@ -618,6 +1115,17 @@ macro_rules! convert_shared_type_arms {
                 }
             }
 
+            // Constructor type: `new (params) => ReturnType` — surface as a
+            // regular function type so callers can wire it through the normal
+            // callable boundary.
+            $prefix::TSConstructorType(ctor) => {
+                let ret = convert_oxc_type(&ctor.return_type.type_annotation);
+                TsType::Function {
+                    params: convert_formal_params(&ctor.params),
+                    return_type: Box::new(ret),
+                }
+            }
+
             // Type reference: named type or generic
             $prefix::TSTypeReference(type_ref) => {
                 let name = ts_type_name_to_string(&type_ref.type_name);
@@ -638,69 +1146,48 @@ macro_rules! convert_shared_type_arms {
             }
 
             // Object literal type: { key: Type; ... }
-            // Also handles callable objects: { (params): ReturnType; }
-            $prefix::TSTypeLiteral(lit) => {
-                let fields: Vec<ObjectField> = lit
-                    .members
-                    .iter()
-                    .filter_map(|sig| match sig {
-                        TSSignature::TSPropertySignature(prop) => convert_property_signature(prop),
-                        _ => None,
-                    })
-                    .collect();
-                // If no named fields but has call signatures, extract the first
-                // as a function type (common for overloaded npm builder methods)
-                if fields.is_empty() {
-                    for sig in &lit.members {
-                        if let TSSignature::TSCallSignatureDeclaration(call) = sig {
-                            return TsType::Function {
-                                params: convert_formal_params(&call.params),
-                                return_type: Box::new(
-                                    call.return_type
-                                        .as_ref()
-                                        .map(|ta| convert_oxc_type(&ta.type_annotation))
-                                        .unwrap_or(TsType::Any),
-                                ),
-                            };
-                        }
-                    }
-                }
-                TsType::Object(fields)
-            }
+            // Also handles callable objects: { (params): ReturnType; },
+            // construct signatures `new (...)`, and index signatures `[k: K]: V`.
+            $prefix::TSTypeLiteral(lit) => convert_type_literal(&lit.members),
 
             // Parenthesized type: (T)
             $prefix::TSParenthesizedType(paren) => convert_oxc_type(&paren.type_annotation),
 
-            // Intersection: T & U — use the first non-empty-object type.
-            // The common TS pattern `T & {}` is used for type inference hints and is a no-op.
+            // Intersection: T & U — merge object members rather than
+            // dropping everything after the first, so `{a: number} & {b: string}`
+            // keeps both fields (lib.dom leans on this heavily).
             $prefix::TSIntersectionType(inter) => {
-                let meaningful: Vec<TsType> = inter
-                    .types
-                    .iter()
-                    .map(|t| convert_oxc_type(t))
-                    .filter(|t| !matches!(t, TsType::Object(fields) if fields.is_empty()))
-                    .collect();
-                match meaningful.len() {
-                    0 => TsType::Object(Vec::new()),
-                    _ => meaningful.into_iter().next().unwrap(),
-                }
+                let parts: Vec<TsType> = inter.types.iter().map(|t| convert_oxc_type(t)).collect();
+                merge_intersection(parts)
             }
 
-            // Literal types (string/number/boolean literals)
+            // Literal types (string/number/boolean literals) — preserved so
+            // unions like `"up" | "down"` keep their discriminators. Floe
+            // widens where it makes sense at the boundary (number/boolean).
             $prefix::TSLiteralType(lit) => match &lit.literal {
-                oxc_ast::ast::TSLiteral::StringLiteral(_) => {
-                    TsType::Primitive("string".to_string())
+                oxc_ast::ast::TSLiteral::StringLiteral(s) => {
+                    TsType::StringLiteral(s.value.to_string())
                 }
-                oxc_ast::ast::TSLiteral::NumericLiteral(_) => {
-                    TsType::Primitive("number".to_string())
+                oxc_ast::ast::TSLiteral::NumericLiteral(n) => TsType::NumberLiteral(n.value),
+                oxc_ast::ast::TSLiteral::BooleanLiteral(b) => TsType::BooleanLiteral(b.value),
+                oxc_ast::ast::TSLiteral::BigIntLiteral(_) => {
+                    TsType::Primitive("bigint".to_string())
                 }
-                oxc_ast::ast::TSLiteral::BooleanLiteral(_) => {
-                    TsType::Primitive("boolean".to_string())
+                oxc_ast::ast::TSLiteral::UnaryExpression(u) => {
+                    // Negative numeric literal: `-1` comes in as a UnaryExpression.
+                    if let oxc_ast::ast::Expression::NumericLiteral(n) = &u.argument {
+                        TsType::NumberLiteral(-n.value)
+                    } else {
+                        TsType::Unknown
+                    }
                 }
-                _ => TsType::Named("literal".to_string()),
+                _ => TsType::Unknown,
             },
 
-            // import("module").Name or import("module").Name<Args>
+            // import("module").Name[<Args>] — without a qualifier, the
+            // import points at the module itself (the default export slot),
+            // which at our boundary is just `Unknown` until the target is
+            // resolved.
             $prefix::TSImportType(import_ty) => {
                 if let Some(ref qualifier) = import_ty.qualifier {
                     let name = import_qualifier_to_string(qualifier);
@@ -715,26 +1202,70 @@ macro_rules! convert_shared_type_arms {
                         TsType::Named(name)
                     }
                 } else {
-                    TsType::Named("unknown".to_string())
+                    TsType::Unknown
                 }
             }
 
-            // Type operator: readonly T, keyof T, unique T
-            $prefix::TSTypeOperatorType(op) => convert_oxc_type(&op.type_annotation),
+            // Type operator: readonly T, keyof T, unique T. `keyof` produces
+            // a union of string literal keys; the other operators are erasures
+            // at the type level so we just unwrap them.
+            $prefix::TSTypeOperatorType(op) => match op.operator {
+                oxc_ast::ast::TSTypeOperatorOperator::Keyof => {
+                    keyof_of(&convert_oxc_type(&op.type_annotation))
+                }
+                _ => convert_oxc_type(&op.type_annotation),
+            },
 
-            // typeof expression: typeof useState
+            // typeof expression: typeof useState, typeof React.Component
             $prefix::TSTypeQuery(query) => {
                 let name = match &query.expr_name {
                     oxc_ast::ast::TSTypeQueryExprName::IdentifierReference(ident) => {
                         ident.name.to_string()
+                    }
+                    oxc_ast::ast::TSTypeQueryExprName::QualifiedName(qn) => {
+                        ts_qualified_name_to_string(qn)
                     }
                     _ => "unknown".to_string(),
                 };
                 TsType::Named(format!("typeof {name}"))
             }
 
-            // Everything else
-            _ => TsType::Named("unknown".to_string()),
+            // Conditional type: T extends U ? X : Y — approximate as the
+            // union of the two branches. Real evaluation would require a
+            // full type-level interpreter.
+            $prefix::TSConditionalType(cond) => TsType::Union(vec![
+                convert_oxc_type(&cond.true_type),
+                convert_oxc_type(&cond.false_type),
+            ]),
+
+            // `infer R` inside a conditional — the binder, not useful at
+            // our boundary, but surface it as a fresh Named so downstream
+            // unions (Generic args for ReturnType<T>) remain usable.
+            $prefix::TSInferType(_) => TsType::Unknown,
+
+            // Mapped type: `{ [K in keyof T]: ... }` — without type-level
+            // evaluation we can't materialise the fields, so surface as
+            // Unknown. The common case `{ [K in keyof T]: T[K] }` (Readonly)
+            // then gets treated as a plain object shape by callers that
+            // narrow against the original type.
+            $prefix::TSMappedType(_) => TsType::Unknown,
+
+            // Indexed access: T['k'] — without evaluating the lookup we
+            // can't return the field type. Use the source type so the
+            // surrounding code still typechecks as "something from T".
+            $prefix::TSIndexedAccessType(access) => convert_oxc_type(&access.object_type),
+
+            // Template literal type: `` `prefix.${K}` `` — widen to string.
+            $prefix::TSTemplateLiteralType(_) => TsType::Primitive("string".to_string()),
+
+            // `this` appearing as a type — resolved by the enclosing
+            // interface/class when possible (see `resolve_this_in_type`).
+            $prefix::TSThisType(_) => TsType::This,
+
+            // Everything else: surface as Unknown. `Named("unknown")` is
+            // a string-typed escape hatch that wrapper.rs treats as the
+            // widest TS type — callers should narrow before use.
+            _ => TsType::Unknown,
         }
     };
 }
@@ -748,12 +1279,16 @@ pub(super) fn convert_oxc_type(ty: &OxcTSType<'_>) -> TsType {
 fn ts_type_name_to_string(name: &TSTypeName<'_>) -> String {
     match name {
         TSTypeName::IdentifierReference(ident) => ident.name.to_string(),
-        TSTypeName::QualifiedName(qn) => {
-            let left = ts_type_name_to_string(&qn.left);
-            format!("{}.{}", left, qn.right.name)
-        }
+        TSTypeName::QualifiedName(qn) => ts_qualified_name_to_string(qn),
         TSTypeName::ThisExpression(_) => "this".to_string(),
     }
+}
+
+/// Convert a TSQualifiedName (`A.B.C`) to its dotted string form. Reused
+/// for both named type refs and `typeof X.Y` queries so neither has to
+/// clone the qualified name through a throwaway allocator.
+fn ts_qualified_name_to_string(qn: &oxc_ast::ast::TSQualifiedName<'_>) -> String {
+    format!("{}.{}", ts_type_name_to_string(&qn.left), qn.right.name)
 }
 
 /// Convert a TSImportTypeQualifier to a string.
@@ -932,7 +1467,9 @@ pub(super) fn collect_interface_info(
          bodies: &mut HashMap<String, Vec<ObjectField>>,
          extends: &mut HashMap<String, Vec<String>>| {
             let name = iface.id.name.to_string();
-            if let TsType::Object(fields) = convert_interface_body(&iface.body.body) {
+            if let TsType::Object(fields) =
+                convert_interface_body_named(&iface.body.body, Some(&name))
+            {
                 bodies.entry(name.clone()).or_insert(fields);
             }
 
