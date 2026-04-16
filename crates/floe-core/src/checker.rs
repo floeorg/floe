@@ -248,6 +248,10 @@ pub struct Checker {
     /// variables minted for them. Populated at the top of each fn decl
     /// (see `hydrator::Hydrator`) and cleared when the fn scope pops.
     active_type_params: HashMap<String, Type>,
+    /// Tracks `(definition_span, reference_span)` pairs across the whole
+    /// program. LSP features (go-to-definition, find-references, rename)
+    /// query this side-table instead of re-walking the AST.
+    references: crate::reference::ReferenceTracker,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -453,7 +457,15 @@ impl Checker {
             ambient_types: HashMap::new(),
             ts_imports_missing_tsgo: HashSet::new(),
             active_type_params: HashMap::new(),
+            references: crate::reference::ReferenceTracker::new(),
         }
+    }
+
+    /// Reference-tracking side-table built during checking. LSP features
+    /// consume this via `check_with_types` or the accessor on a returned
+    /// program interface.
+    pub fn references(&self) -> &crate::reference::ReferenceTracker {
+        &self.references
     }
 
     /// Create a checker with pre-resolved imports from other .fl files.
@@ -580,10 +592,57 @@ impl Checker {
         self.check_all(program)
     }
 
-    /// Internal: run all checks and return all maps.
+    /// Check a program and return diagnostics along with the reference
+    /// tracker. LSP features consume the tracker to answer go-to-definition
+    /// and find-references queries without re-walking the AST.
+    pub fn check_with_references(
+        mut self,
+        program: &Program,
+    ) -> (Vec<Diagnostic>, crate::reference::ReferenceTracker) {
+        let (diags, _, _, _) = self.check_all_borrowed(program);
+        let refs = std::mem::take(&mut self.references);
+        (diags, refs)
+    }
+
+    /// `check_all` but without consuming `self` at the end, so callers can
+    /// still read `self.references` afterward. Factored out of `check_all`
+    /// by moving the body here and leaving `check_all` as a thin wrapper
+    /// that destructures.
+    #[allow(clippy::type_complexity)]
+    fn check_all_borrowed(
+        &mut self,
+        program: &Program,
+    ) -> (
+        Vec<Diagnostic>,
+        HashMap<String, String>,
+        ExprTypeMap,
+        HashSet<ExprId>,
+    ) {
+        self.run_all_passes(program)
+    }
+
+    /// Internal: run all checks and return all maps. Takes `self` so the
+    /// top-level public methods can destructure at the end; internal
+    /// callers that need the reference tracker afterwards use
+    /// `check_all_borrowed` / `run_all_passes` instead.
     #[allow(clippy::type_complexity)]
     fn check_all(
         mut self,
+        program: &Program,
+    ) -> (
+        Vec<Diagnostic>,
+        HashMap<String, String>,
+        ExprTypeMap,
+        HashSet<ExprId>,
+    ) {
+        self.run_all_passes(program)
+    }
+
+    /// Internal: the actual checking pipeline. Takes `&mut self` so the
+    /// tracker / diagnostics can be read back from `self` afterward.
+    #[allow(clippy::type_complexity)]
+    fn run_all_passes(
+        &mut self,
         program: &Program,
     ) -> (
         Vec<Diagnostic>,
@@ -769,9 +828,9 @@ impl Checker {
         self.problems.sort();
         (
             self.problems.take(),
-            self.name_types,
-            self.expr_types,
-            self.invalid_exprs,
+            std::mem::take(&mut self.name_types),
+            std::mem::take(&mut self.expr_types),
+            std::mem::take(&mut self.invalid_exprs),
         )
     }
 

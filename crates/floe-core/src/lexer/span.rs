@@ -1,5 +1,5 @@
 /// A source location span tracking where a token appears in the source file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
     /// Byte offset of the start of this span in the source.
     pub start: usize,
