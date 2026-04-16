@@ -117,6 +117,19 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
         }
 
         TsType::Tuple(parts) => Type::Tuple(parts.iter().map(wrap_boundary_type).collect()),
+
+        // String/number/boolean literal types carry discriminator information.
+        // `StringLiteral` maps to Floe's `Type::StringLiteral` so union discrimination
+        // (e.g. `"GET" | "POST"`) survives. Numeric/boolean literals don't have a
+        // dedicated Floe variant — widen to the underlying primitive.
+        TsType::StringLiteral(s) => Type::StringLiteral(s.clone()),
+        TsType::NumberLiteral(_) => Type::Number,
+        TsType::BooleanLiteral(_) => Type::Bool,
+
+        // `this` return inside an unresolved context — the caller-side contextual
+        // resolution should have replaced this with the enclosing interface name
+        // before wrapping. If it survived, fall back to Unknown.
+        TsType::This => Type::Unknown,
     }
 }
 

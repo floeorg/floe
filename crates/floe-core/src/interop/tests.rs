@@ -648,3 +648,260 @@ fn result_union_round_trip_via_oxc() {
     let wrapped = crate::interop::wrap_boundary_type(&exports[0].ts_type);
     assert!(wrapped.is_result(), "expected Result, got {:?}", wrapped);
 }
+
+#[test]
+fn intersection_merges_object_fields() {
+    let dts = "export type T = { a: number } & { b: string };";
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let t = exports.iter().find(|e| e.name == "T").unwrap();
+    match &t.ts_type {
+        TsType::Object(fields) => {
+            let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+            assert!(names.contains(&"a"), "missing `a`, got {names:?}");
+            assert!(names.contains(&"b"), "missing `b`, got {names:?}");
+        }
+        other => panic!("expected Object, got {other:?}"),
+    }
+}
+
+#[test]
+fn string_literal_union_preserves_discriminators() {
+    let dts = r#"export type Dir = "up" | "down";"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let dir = exports.iter().find(|e| e.name == "Dir").unwrap();
+    match &dir.ts_type {
+        TsType::Union(members) => {
+            assert!(matches!(members[0], TsType::StringLiteral(ref s) if s == "up"));
+            assert!(matches!(members[1], TsType::StringLiteral(ref s) if s == "down"));
+        }
+        other => panic!("expected Union, got {other:?}"),
+    }
+}
+
+#[test]
+fn exported_class_surfaces_methods_and_constructor() {
+    let dts = r#"export declare class Foo {
+        constructor(x: number);
+        bar(): void;
+        baz: string;
+    }"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let foo = exports.iter().find(|e| e.name == "Foo").unwrap();
+    match &foo.ts_type {
+        TsType::Object(fields) => {
+            let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+            assert!(names.contains(&"bar"), "missing method `bar` in {names:?}");
+            assert!(names.contains(&"baz"), "missing field `baz` in {names:?}");
+            assert!(
+                names.contains(&"constructor"),
+                "missing synthetic constructor in {names:?}"
+            );
+        }
+        other => panic!("expected Object, got {other:?}"),
+    }
+}
+
+#[test]
+fn string_enum_exports_as_literal_union() {
+    let dts = r#"export enum Color { Red = "r", Green = "g" }"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let color = exports.iter().find(|e| e.name == "Color").unwrap();
+    match &color.ts_type {
+        TsType::Union(members) => {
+            assert!(matches!(members[0], TsType::StringLiteral(ref s) if s == "r"));
+            assert!(matches!(members[1], TsType::StringLiteral(ref s) if s == "g"));
+        }
+        other => panic!("expected Union, got {other:?}"),
+    }
+}
+
+#[test]
+fn numeric_enum_widens_to_number() {
+    let dts = "export enum N { A = 1, B = 2 }";
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let n = exports.iter().find(|e| e.name == "N").unwrap();
+    assert!(matches!(&n.ts_type, TsType::Primitive(p) if p == "number"));
+}
+
+#[test]
+fn export_default_identifier_resolves_against_local_declaration() {
+    let dts = r#"
+        export interface Config { host: string }
+        declare const config: Config;
+        export default config;
+    "#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    assert!(
+        exports.iter().any(|e| e.name == "default"),
+        "missing `default` export"
+    );
+}
+
+#[test]
+fn export_alias_resolves_for_all_declaration_kinds() {
+    let dts = r#"
+        declare function impl(x: number): string;
+        type Internal = { kind: "x" };
+        export { impl as handler, Internal as Public };
+    "#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let names: Vec<&str> = exports.iter().map(|e| e.name.as_str()).collect();
+    assert!(
+        names.contains(&"handler"),
+        "missing aliased fn export, got {names:?}"
+    );
+    assert!(
+        names.contains(&"Public"),
+        "missing aliased type export, got {names:?}"
+    );
+}
+
+#[test]
+fn this_return_inside_interface_resolves_to_interface_name() {
+    let dts = r#"
+        export interface Builder {
+            add(x: number): this;
+        }
+    "#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let builder = exports.iter().find(|e| e.name == "Builder").unwrap();
+    if let TsType::Object(fields) = &builder.ts_type {
+        let add = fields.iter().find(|f| f.name == "add").unwrap();
+        if let TsType::Function { return_type, .. } = &add.ty {
+            assert!(
+                matches!(return_type.as_ref(), TsType::Named(n) if n == "Builder"),
+                "expected Named(Builder), got {:?}",
+                return_type
+            );
+            return;
+        }
+    }
+    panic!("expected Builder to be an Object with `add` method");
+}
+
+#[test]
+fn index_signature_only_produces_record() {
+    let dts = "export type Dict = { [k: string]: number };";
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let dict = exports.iter().find(|e| e.name == "Dict").unwrap();
+    match &dict.ts_type {
+        TsType::Generic { name, args } if name == "Record" && args.len() == 2 => {}
+        other => panic!("expected Record<K, V> generic, got {other:?}"),
+    }
+}
+
+#[test]
+fn keyof_of_concrete_object_yields_string_literal_union() {
+    let dts = "export type Keys = keyof { a: number; b: number };";
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let keys = exports.iter().find(|e| e.name == "Keys").unwrap();
+    match &keys.ts_type {
+        TsType::Union(parts) => {
+            assert_eq!(parts.len(), 2);
+            assert!(matches!(&parts[0], TsType::StringLiteral(s) if s == "a"));
+            assert!(matches!(&parts[1], TsType::StringLiteral(s) if s == "b"));
+        }
+        other => panic!("expected Union, got {other:?}"),
+    }
+}
+
+#[test]
+fn qualified_typeof_keeps_full_path() {
+    let dts = r#"
+        declare const React: { Component: any };
+        export type C = typeof React.Component;
+    "#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let c = exports.iter().find(|e| e.name == "C").unwrap();
+    assert!(
+        matches!(&c.ts_type, TsType::Named(n) if n == "typeof React.Component"),
+        "got {:?}",
+        c.ts_type
+    );
+}
+
+#[test]
+fn construct_signature_surfaces_as_function() {
+    let dts = "export type Ctor = new (x: number) => string;";
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let ctor = exports.iter().find(|e| e.name == "Ctor").unwrap();
+    assert!(
+        matches!(&ctor.ts_type, TsType::Function { .. }),
+        "got {:?}",
+        ctor.ts_type
+    );
+}
+
+#[test]
+fn setter_only_property_is_surfaced() {
+    let dts = r#"
+        export interface Thing {
+            set name(value: string);
+        }
+    "#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let thing = exports.iter().find(|e| e.name == "Thing").unwrap();
+    if let TsType::Object(fields) = &thing.ts_type {
+        assert!(
+            fields.iter().any(|f| f.name == "name"),
+            "setter-only field was dropped"
+        );
+        return;
+    }
+    panic!("expected Object");
+}
+
+#[test]
+fn nested_namespace_exports_surface() {
+    let dts = r#"
+        declare namespace Outer {
+            namespace Inner {
+                export function deep(x: number): string;
+            }
+        }
+        export = Outer;
+    "#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    assert!(
+        exports.iter().any(|e| e.name == "deep"),
+        "nested namespace export missing, got {:?}",
+        exports.iter().map(|e| &e.name).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn bigint_literal_narrows_to_bigint_primitive() {
+    let dts = "export type B = 100n;";
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let b = exports.iter().find(|e| e.name == "B").unwrap();
+    assert!(matches!(&b.ts_type, TsType::Primitive(p) if p == "bigint"));
+}
+
+#[test]
+fn conditional_type_approximates_as_union_of_branches() {
+    let dts = "export type X<T> = T extends string ? number : boolean;";
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let x = exports.iter().find(|e| e.name == "X").unwrap();
+    match &x.ts_type {
+        TsType::Union(parts) => {
+            assert_eq!(parts.len(), 2);
+            assert!(matches!(&parts[0], TsType::Primitive(p) if p == "number"));
+            assert!(matches!(&parts[1], TsType::Primitive(p) if p == "boolean"));
+        }
+        other => panic!("expected Union of branches, got {other:?}"),
+    }
+}
+
+#[test]
+fn triple_slash_reference_is_extracted() {
+    let dts = "/// <reference path=\"./other.d.ts\" />\n";
+    let refs = super::dts::extract_triple_slash_references(dts);
+    assert_eq!(refs, vec!["./other.d.ts".to_string()]);
+}
+
+#[test]
+fn triple_slash_scan_stops_at_first_non_header() {
+    let dts = "/// <reference path=\"./a.d.ts\" />\nexport const x: number;\n/// <reference path=\"./b.d.ts\" />\n";
+    let refs = super::dts::extract_triple_slash_references(dts);
+    assert_eq!(refs, vec!["./a.d.ts".to_string()]);
+}
