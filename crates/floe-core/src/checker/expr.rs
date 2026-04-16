@@ -1109,7 +1109,7 @@ impl Checker {
                 self.check_args_unchecked(args);
                 Type::Foreign("_".into())
             }
-            // Standalone Foreign identifier (trusted import without type info):
+            // Standalone Foreign identifier (npm import without type info):
             // argument types can't be validated. Warn so users know to add .d.ts types.
             // Returns Error to suppress cascading — the warning was already emitted.
             Type::Foreign(foreign_name) => {
@@ -1117,9 +1117,9 @@ impl Checker {
                 self.emit_warning_with_help(
                     format!("`{foreign_name}` has unknown type - arguments are not type-checked"),
                     span,
-                    ErrorCode::UncheckedArguments,
-                    "Type could not be resolved",
-                    "Check that the import source has type declarations",
+                    ErrorCode::UncheckedForeignArguments,
+                    "type could not be resolved",
+                    "check that the import source has type declarations",
                 );
                 Type::Error
             }
@@ -1135,12 +1135,12 @@ impl Checker {
                     ExprKind::Member { field, .. } => field.as_str(),
                     _ => "<expression>",
                 };
-                self.emit_warning_with_help(
+                self.emit_error_with_help(
                     format!("`{callee_name}` has unknown type - arguments are not type-checked"),
                     span,
                     ErrorCode::UncheckedArguments,
-                    "Type could not be resolved",
-                    "Check that the import source has type declarations",
+                    "type could not be resolved",
+                    "check that the import source has type declarations",
                 );
                 Type::Error
             }

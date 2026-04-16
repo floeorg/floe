@@ -474,8 +474,7 @@ const _x = _user |> display
 // ── Untrusted Import Auto-wrapping ───────────────────────────
 
 #[test]
-fn untrusted_import_auto_wraps_to_result() {
-    // Untrusted npm imports auto-wrap return type to Result
+fn untrusted_import_without_types_warns() {
     let diags = check(
         r#"
 import { capitalize } from "some-lib"
@@ -483,14 +482,22 @@ const _x = capitalize("hello")
 "#,
     );
     assert!(
-        diags.iter().all(|d| d.severity != Severity::Error),
-        "untrusted npm import should be callable (auto-wrapped), got: {:?}",
+        has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "calling untyped foreign import should warn, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "foreign callee should produce warning not error, got: {:?}",
+        diags
+            .iter()
+            .map(|d| (&d.severity, &d.message))
+            .collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn trusted_specifier_no_auto_wrap() {
+fn trusted_import_without_types_warns() {
     let diags = check(
         r#"
 import { trusted capitalize } from "some-lib"
@@ -498,14 +505,14 @@ const _x = capitalize("hello")
 "#,
     );
     assert!(
-        diags.iter().all(|d| d.severity != Severity::Error),
-        "trusted import should be callable directly, got: {:?}",
+        has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "calling untyped trusted import should warn, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn trusted_module_no_auto_wrap() {
+fn trusted_module_without_types_warns() {
     let diags = check(
         r#"
 import trusted { capitalize, slugify } from "string-utils"
@@ -514,8 +521,8 @@ const _y = slugify("hello world")
 "#,
     );
     assert!(
-        diags.iter().all(|d| d.severity != Severity::Error),
-        "trusted module import should be callable directly, got: {:?}",
+        has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "calling untyped trusted module import should warn, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -2792,11 +2799,11 @@ fn timer_globals_are_recognized() {
 // ── Unsafe narrowing from unknown ───────────────────────────
 
 #[test]
-fn narrowing_unknown_call_result_does_not_cascade() {
-    // After #1114, calling through an unknown callee returns Type::Error
-    // (the warning was already emitted at the call site). Assigning the
-    // Error-typed result to a `number`-annotated binding should NOT
-    // produce a second "unsafe narrowing" error — that would be cascade.
+fn narrowing_foreign_call_result_does_not_cascade() {
+    // Calling through a foreign callee returns Type::Error (the warning was
+    // already emitted at the call site). Assigning the Error-typed result
+    // to a `number`-annotated binding should NOT produce a second
+    // "unsafe narrowing" error — that would be cascade.
     let diags = check(
         r#"
 import trusted { getData } from "some-lib"
@@ -2805,8 +2812,8 @@ const x: number = data
 "#,
     );
     assert!(
-        has_error(&diags, ErrorCode::UncheckedArguments),
-        "call through unknown callee should warn, got: {:?}",
+        has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "call through foreign callee should warn, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
     assert!(
@@ -2886,10 +2893,10 @@ export fn bad() -> Promise<string> {
 // ── Member access on unknown ────────────────────────────────
 
 #[test]
-fn member_access_on_unknown_call_result_does_not_cascade() {
-    // After #1114, calling getData() returns Type::Error (warning emitted
-    // at call site). Member access on Error silently propagates Error
-    // instead of cascading a second AccessOnUnknown diagnostic.
+fn member_access_on_foreign_call_result_does_not_cascade() {
+    // Calling getData() returns Type::Error (warning emitted at call site).
+    // Member access on Error silently propagates Error instead of cascading
+    // a second AccessOnUnknown diagnostic.
     let diags = check(
         r#"
 import trusted { getData } from "some-lib"
@@ -2898,8 +2905,8 @@ const x = data.name
 "#,
     );
     assert!(
-        has_error(&diags, ErrorCode::UncheckedArguments),
-        "call through unknown callee should warn, got: {:?}",
+        has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "call through foreign callee should warn, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
     assert!(
@@ -2909,7 +2916,7 @@ const x = data.name
 }
 
 #[test]
-fn method_call_on_unknown_call_result_does_not_cascade() {
+fn method_call_on_foreign_call_result_does_not_cascade() {
     let diags = check(
         r#"
 import trusted { getData } from "some-lib"
@@ -2918,8 +2925,8 @@ const x = data.toJSON()
 "#,
     );
     assert!(
-        has_error(&diags, ErrorCode::UncheckedArguments),
-        "call through unknown callee should warn, got: {:?}",
+        has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "call through foreign callee should warn, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
     assert!(
@@ -5975,7 +5982,7 @@ const _result = takesString(x)
 }
 
 #[test]
-fn unknown_callee_emits_warning() {
+fn unknown_callee_emits_error() {
     let diags = check(
         r#"
 fn returnsUnknown() -> unknown { "hello" }
@@ -5984,8 +5991,57 @@ const _result = f(42)
 "#,
     );
     assert!(
-        has_warning_containing(&diags, "unknown type"),
-        "should warn when calling unknown-typed value, got: {diags:?}"
+        has_error(&diags, ErrorCode::UncheckedArguments),
+        "should error when calling unknown-typed value, got: {diags:?}"
+    );
+}
+
+// ── Unknown callee errors (#1115) ────────────────────────────
+
+#[test]
+fn calling_unknown_typed_value_is_error_not_warning() {
+    let diags = check(
+        r#"
+fn returnsUnknown() -> unknown { "hello" }
+const f = returnsUnknown()
+const _result = f("hello", 42)
+"#,
+    );
+    let unchecked_diags: Vec<_> = diags
+        .iter()
+        .filter(|d| d.code.as_deref() == Some("E051"))
+        .collect();
+    assert!(
+        !unchecked_diags.is_empty(),
+        "calling unknown-typed value should produce error (E051), got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        unchecked_diags
+            .iter()
+            .all(|d| d.severity == Severity::Error),
+        "UncheckedArguments should be an error, not a warning"
+    );
+}
+
+#[test]
+fn narrowing_unknown_call_result_does_not_cascade() {
+    let diags = check(
+        r#"
+fn returnsUnknown() -> unknown { "hello" }
+const f = returnsUnknown()
+const _result = f()
+const x: number = _result
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::UncheckedArguments),
+        "call through unknown callee should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UnsafeNarrowing),
+        "should NOT cascade a narrowing error after the call-site error"
     );
 }
 
