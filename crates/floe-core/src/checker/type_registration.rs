@@ -201,7 +201,7 @@ impl Checker {
                     return true;
                 }
                 if let Some(ty) = self.env.lookup(name)
-                    && matches!(ty, Type::Foreign(_))
+                    && matches!(ty, Type::Foreign { .. })
                 {
                     return true;
                 }

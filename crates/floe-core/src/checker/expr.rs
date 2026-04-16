@@ -385,7 +385,7 @@ impl Checker {
 
     fn is_type_untrusted(&self, ty: &Type) -> bool {
         let name = match ty {
-            Type::Foreign(n) | Type::Named(n) => n,
+            Type::Foreign { name: n, .. } | Type::Named(n) => n,
             _ => return false,
         };
         let base = name.split(['<', '.']).next().unwrap_or(name);
@@ -563,7 +563,7 @@ impl Checker {
                     Type::Error
                 }
             }
-            Type::Unknown | Type::Error | Type::Foreign(_) | Type::Never => Type::Error,
+            Type::Unknown | Type::Error | Type::Foreign { .. } | Type::Never => Type::Error,
             Type::Var(_) => Type::Error,
             _ => {
                 if let Type::Named(name) = &obj_ty
@@ -1126,14 +1126,16 @@ impl Checker {
             }
             // Foreign member access (chained call on opaque npm type like
             // `db.insert(snippets).values`): preserve Foreign so chaining works.
-            Type::Foreign(_) if matches!(callee.kind, ExprKind::Member { .. }) => {
+            Type::Foreign { .. } if matches!(callee.kind, ExprKind::Member { .. }) => {
                 self.check_args_unchecked(args);
-                Type::Foreign("_".into())
+                Type::foreign("_")
             }
             // Standalone Foreign identifier (npm import without type info):
             // argument types can't be validated. Warn so users know to add .d.ts types.
             // Returns Error to suppress cascading — the warning was already emitted.
-            Type::Foreign(foreign_name) => {
+            Type::Foreign {
+                name: foreign_name, ..
+            } => {
                 self.check_args_unchecked(args);
                 self.emit_warning_with_help(
                     format!("`{foreign_name}` has unknown type - arguments are not type-checked"),
@@ -1193,7 +1195,7 @@ impl Checker {
         if !concrete.is_boolean()
             && !matches!(
                 concrete,
-                Type::Unknown | Type::Error | Type::Var(_) | Type::Foreign(_)
+                Type::Unknown | Type::Error | Type::Var(_) | Type::Foreign { .. }
             )
         {
             self.emit_error_with_help(
@@ -1920,9 +1922,9 @@ impl Checker {
         // don't collapse to Unknown.
         let resolved_ret = inst_ret.deep_resolved();
         match (&resolved_ret, left_ty) {
-            (_, Type::Foreign(_)) if matches!(resolved_ret, Type::Var(_)) => left_ty.clone(),
+            (_, Type::Foreign { .. }) if matches!(resolved_ret, Type::Var(_)) => left_ty.clone(),
             _ if left_ty.is_result()
-                && matches!(left_ty.result_ok(), Some(Type::Foreign(_)))
+                && matches!(left_ty.result_ok(), Some(Type::Foreign { .. }))
                 && matches!(resolved_ret, Type::Var(_)) =>
             {
                 left_ty.clone()
@@ -1985,7 +1987,7 @@ impl Checker {
                     }
                 }
             }
-            Type::Foreign(s) => {
+            Type::Foreign { name: s, .. } => {
                 // Extract generic params from Foreign strings like "Context<T>"
                 if let Some((_, args)) = parse_foreign_generics(s) {
                     for arg in &args {
@@ -2082,7 +2084,7 @@ impl Checker {
             }
             // Foreign types with matching base names: extract and unify generic args
             // e.g., Foreign("Context<T>") with Foreign("Context<AuthContextValue>")
-            (Type::Foreign(p_str), Type::Foreign(a_str)) => {
+            (Type::Foreign { name: p_str, .. }, Type::Foreign { name: a_str, .. }) => {
                 if let Some((p_base, p_args)) = parse_foreign_generics(p_str)
                     && let Some((a_base, a_args)) = parse_foreign_generics(a_str)
                     && p_base == a_base
@@ -2092,7 +2094,7 @@ impl Checker {
                         // If the param arg is a single uppercase letter (generic), bind it
                         if is_generic_param(p_arg) && generics.contains(p_arg) {
                             subs.entry(p_arg.clone())
-                                .or_insert_with(|| Type::Foreign(a_arg.clone()));
+                                .or_insert_with(|| Type::foreign(a_arg.clone()));
                         }
                     }
                 }
@@ -2175,7 +2177,7 @@ impl Checker {
             return None;
         }
         let dispatch_name = match dispatch_ty {
-            Type::Named(n) | Type::Foreign(n) => n.as_str(),
+            Type::Named(n) | Type::Foreign { name: n, .. } => n.as_str(),
             _ => &dispatch_ty.to_string(),
         };
         let (_, fn_type) = overloads
@@ -2188,7 +2190,7 @@ impl Checker {
     /// Strips the `self` parameter since the object provides it implicitly.
     fn resolve_for_block_method(&self, field: &str, obj_ty: &Type) -> Option<Type> {
         let type_name = match obj_ty {
-            Type::Named(n) | Type::Foreign(n) => n.as_str(),
+            Type::Named(n) | Type::Foreign { name: n, .. } => n.as_str(),
             _ => return None,
         };
         let overloads = self.for_block_overloads.get(field)?;
@@ -2225,7 +2227,7 @@ impl Checker {
         let root_name = &segments[0];
         if let Some(root_type) = self.env.lookup(root_name) {
             let type_name = match root_type {
-                Type::Foreign(name) => Some(name.clone()),
+                Type::Foreign { name, .. } => Some(name.clone()),
                 // Unknown types (not registered locally) and bridge type aliases (= syntax
                 // wrapping a TS type) both use chain probes since resolve_member_type can't
                 // evaluate TypeScript method access for either.
@@ -2253,7 +2255,7 @@ impl Checker {
             if let Some(root_type) = self.env.lookup(root_name) {
                 let member_ty = self.resolve_member_type_silent(root_type, second);
                 let type_name = match &member_ty {
-                    Type::Foreign(name) => Some(name.clone()),
+                    Type::Foreign { name, .. } => Some(name.clone()),
                     Type::Named(name)
                         if self.env.lookup_type(name).is_none()
                             || self
@@ -2352,8 +2354,8 @@ impl Checker {
         {
             return ty.clone();
         }
-        if let Type::Foreign(name) = obj_ty {
-            return Type::Foreign(format!("{name}.{field}"));
+        if let Type::Foreign { name, .. } = obj_ty {
+            return Type::foreign(format!("{name}.{field}"));
         }
         Type::Unknown
     }
@@ -2482,13 +2484,13 @@ impl Checker {
         }
 
         // Foreign types: try to resolve to Record via DTS before allowing blind access
-        if let Type::Foreign(name) = obj_ty {
+        if let Type::Foreign { name, .. } = obj_ty {
             let concrete = self.resolve_type_to_concrete(obj_ty);
             if let Type::Record(fields) = &concrete {
                 return self.check_record_field_access(fields, field, obj_ty, span);
             }
             // Truly opaque: allow member access for chained foreign access
-            return Type::Foreign(format!("{name}.{field}"));
+            return Type::foreign(format!("{name}.{field}"));
         }
 
         // Named type that couldn't resolve to concrete — if no local type definition
@@ -2498,7 +2500,7 @@ impl Checker {
         if let Type::Named(name) = obj_ty {
             let type_info = self.env.lookup_type(name);
             if type_info.is_none() {
-                return Type::Foreign(format!("{name}.{field}"));
+                return Type::foreign(format!("{name}.{field}"));
             }
             // Bridge type alias: resolve through the alias and check if it reaches a
             // foreign/unknown type. If so, propagate member access silently so chain
@@ -2507,10 +2509,13 @@ impl Checker {
                 let resolved = self.resolve_type_to_concrete(obj_ty);
                 match &resolved {
                     Type::Named(resolved_name) if self.env.lookup_type(resolved_name).is_none() => {
-                        return Type::Foreign(format!("{resolved_name}.{field}"));
+                        return Type::foreign(format!("{resolved_name}.{field}"));
                     }
-                    Type::Foreign(resolved_name) => {
-                        return Type::Foreign(format!("{resolved_name}.{field}"));
+                    Type::Foreign {
+                        name: resolved_name,
+                        ..
+                    } => {
+                        return Type::foreign(format!("{resolved_name}.{field}"));
                     }
                     _ => {}
                 }
@@ -2599,7 +2604,7 @@ impl Checker {
         let concrete_ty = self.resolve_type_to_concrete(ty);
         let type_is_unresolved = matches!(
             concrete_ty,
-            Type::Unknown | Type::Var(_) | Type::Named(_) | Type::Foreign(_)
+            Type::Unknown | Type::Var(_) | Type::Named(_) | Type::Foreign { .. }
         );
 
         match destructure {
@@ -2672,7 +2677,7 @@ impl Checker {
         // If still Named or Foreign after type_defs resolution, check if it's a known
         // value (e.g. built-in Response, Error, or TS interface imported via DTS)
         let name = match &resolved {
-            Type::Named(n) | Type::Foreign(n) => Some(n.as_str()),
+            Type::Named(n) | Type::Foreign { name: n, .. } => Some(n.as_str()),
             _ => None,
         };
         if let Some(name) = name {
@@ -2856,7 +2861,7 @@ pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr)
             // Without environment context, typeof can't be resolved
             Type::Unknown
         }
-        TypeExprKind::StringLiteral(value) => Type::Foreign(format!("\"{value}\"")),
+        TypeExprKind::StringLiteral(value) => Type::foreign(format!("\"{value}\"")),
         TypeExprKind::Intersection(types) => {
             let resolved: Vec<Type> = types.iter().map(simple_resolve_type_expr).collect();
             let mut fields = Vec::new();

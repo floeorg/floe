@@ -51,7 +51,6 @@ pub(crate) struct TypeContext {
     pub for_block_fns_by_name: HashMap<String, String>,
     pub for_block_type_names: HashSet<String>,
     pub constructor_used_names: HashSet<String>,
-    pub untrusted_imports: HashSet<String>,
     pub trait_decls: HashMap<String, TypedTraitDecl>,
     pub type_trait_impls: HashMap<String, Vec<String>>,
     pub traits_needing_interface: HashSet<String>,
@@ -78,7 +77,6 @@ impl TypeContext {
             for_block_fns_by_name: HashMap::new(),
             for_block_type_names: HashSet::new(),
             constructor_used_names: collect_constructor_names(program),
-            untrusted_imports: HashSet::new(),
             trait_decls: HashMap::new(),
             type_trait_impls: HashMap::new(),
             traits_needing_interface: HashSet::new(),
@@ -122,11 +120,6 @@ impl TypeContext {
                     for spec in &decl.specifiers {
                         let name = spec.alias.as_ref().unwrap_or(&spec.name);
                         ctx.local_names.insert(name.clone());
-                        let is_npm =
-                            !decl.source.starts_with("./") && !decl.source.starts_with("../");
-                        if is_npm && !decl.trusted && !spec.trusted {
-                            ctx.untrusted_imports.insert(name.clone());
-                        }
                     }
                     if let Some(resolved) = ctx.resolved_imports.get(&decl.source).cloned() {
                         for block in &resolved.for_blocks {

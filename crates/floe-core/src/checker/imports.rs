@@ -22,15 +22,24 @@ impl Checker {
         let dts_exports = self.dts_imports.get(&decl.source).cloned();
 
         // Handle default import: `import X from "module"`
+        // Trust follows the `import` declaration and specifier — trusted unless
+        // the file is an npm source that wasn't explicitly marked `trusted`.
+        let is_npm = !decl.source.starts_with("./") && !decl.source.starts_with("../");
+        let default_untrusted = is_npm && !decl.trusted;
         if let Some(ref default_name) = decl.default_import {
             let ty = if let Some(ref exports) = dts_exports {
                 if let Some(dts_export) = exports.iter().find(|e| e.name == "default") {
-                    interop::wrap_boundary_type(&dts_export.ts_type)
+                    let raw = interop::wrap_boundary_type(&dts_export.ts_type);
+                    mark_foreign_untrusted(raw, default_untrusted)
+                } else if default_untrusted {
+                    Type::untrusted_foreign(default_name.clone())
                 } else {
-                    Type::Foreign(default_name.clone())
+                    Type::foreign(default_name.clone())
                 }
+            } else if default_untrusted {
+                Type::untrusted_foreign(default_name.clone())
             } else {
-                Type::Foreign(default_name.clone())
+                Type::foreign(default_name.clone())
             };
             self.env.define(default_name, ty);
             self.unused.defined_sources.insert(
@@ -50,6 +59,10 @@ impl Checker {
 
         for spec in &decl.specifiers {
             let effective_name = spec.alias.as_deref().unwrap_or(&spec.name);
+            // Per-specifier trust: npm source without a `trusted` marker at
+            // either module or specifier level flows the untrusted bit into
+            // the resulting type.
+            let spec_untrusted = is_npm && !decl.trusted && !spec.trusted;
 
             // Try to find the actual type from resolved imports
             let ty = if let Some(ref resolved) = resolved {
@@ -69,7 +82,6 @@ impl Checker {
                     }
                 }
             } else if let Some(ref exports) = dts_exports {
-                // Look up in .d.ts exports
                 if let Some(dts_export) = exports.iter().find(|e| e.name == spec.name) {
                     if let interop::TsType::Function { params, .. } = &dts_export.ts_type {
                         let required = params.iter().filter(|p| !p.optional).count();
@@ -91,11 +103,16 @@ impl Checker {
                     // should fall back to Foreign. They're at an explicit npm
                     // boundary — Foreign produces a warning on call, while Unknown
                     // would produce an error.
-                    if matches!(ty, Type::Unknown) {
-                        Type::Foreign(spec.name.clone())
+                    let resolved = if matches!(ty, Type::Unknown) {
+                        if spec_untrusted {
+                            Type::untrusted_foreign(spec.name.clone())
+                        } else {
+                            Type::foreign(spec.name.clone())
+                        }
                     } else {
                         ty
-                    }
+                    };
+                    mark_foreign_untrusted(resolved, spec_untrusted)
                 } else {
                     self.emit_error(
                         format!(
@@ -108,9 +125,10 @@ impl Checker {
                     );
                     Type::Error
                 }
+            } else if spec_untrusted {
+                Type::untrusted_foreign(spec.name.clone())
             } else {
-                // No .fl resolution and no .d.ts — type is foreign to Floe
-                Type::Foreign(spec.name.clone())
+                Type::foreign(spec.name.clone())
             };
 
             // Check for duplicate import names (#812). We check imported_names
@@ -138,11 +156,13 @@ impl Checker {
                 .imported_names
                 .push((effective_name.to_string(), spec.span));
 
-            // Track npm imports (resolved.is_none() means not a .fl file).
             if resolved.is_none() {
                 self.npm_imports.insert(effective_name.to_string());
-                // Track untrusted imports (not marked `trusted` at module or specifier level).
-                if !decl.trusted && !spec.trusted {
+                if spec_untrusted {
+                    // The checker side-table is still used for diagnostics
+                    // that identify by name (e.g. detecting chain propagation).
+                    // Codegen no longer reads from here — trust travels on the
+                    // type itself via `Type::Foreign { untrusted }`.
                     self.untrusted_imports.insert(effective_name.to_string());
                 }
             }
@@ -250,7 +270,7 @@ impl Checker {
         // The type may be foreign (from npm/TS, not defined in Floe).
         if !type_name.is_empty() && self.env.lookup(&type_name).is_none() {
             self.env
-                .define(&type_name, Type::Foreign(type_name.clone()));
+                .define(&type_name, Type::foreign(type_name.clone()));
         }
 
         let for_type = self.resolve_type(&block.type_name);
@@ -306,5 +326,20 @@ impl Checker {
                 func.params.iter().map(|p| p.name.clone()).collect(),
             );
         }
+    }
+}
+
+/// If `ty` is a `Type::Foreign`, tag it with the given trust. Non-foreign
+/// types pass through unchanged — trust only applies at the npm boundary.
+fn mark_foreign_untrusted(ty: Type, untrusted: bool) -> Type {
+    if !untrusted {
+        return ty;
+    }
+    match ty {
+        Type::Foreign { name, .. } => Type::Foreign {
+            name,
+            untrusted: true,
+        },
+        other => other,
     }
 }

@@ -105,7 +105,7 @@ pub fn named(name: impl Into<String>) -> Type {
 
 #[inline]
 pub fn foreign(name: impl Into<String>) -> Type {
-    Type::Foreign(name.into())
+    Type::foreign(name.into())
 }
 
 #[cfg(test)]

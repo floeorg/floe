@@ -1020,7 +1020,9 @@ impl Checker {
     /// Skip Foreign, Named (npm types), Unknown, Var, and Option-wrapped versions.
     fn is_jsx_prop_type_checkable(&self, ty: &Type) -> bool {
         match ty {
-            Type::Unknown | Type::Error | Type::Foreign(_) | Type::Named(_) | Type::Var(_) => false,
+            Type::Unknown | Type::Error | Type::Foreign { .. } | Type::Named(_) | Type::Var(_) => {
+                false
+            }
             _ if ty.is_option() => {
                 // Option<T> — check if T is checkable
                 ty.option_inner()

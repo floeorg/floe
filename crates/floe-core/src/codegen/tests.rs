@@ -26,6 +26,26 @@ fn emit(input: &str) -> String {
     output.code.trim().to_string()
 }
 
+/// Run the full pipeline — parse, desugar, check, attach types, codegen —
+/// so `expr.ty` is populated with real inferred types at every node. Use
+/// this for tests that exercise type-directed dispatch.
+fn emit_typed(input: &str) -> String {
+    let mut program = Parser::new(input).parse_program().unwrap_or_else(|errs| {
+        panic!(
+            "parse failed:\n{}",
+            errs.iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
+    let (_diags, expr_types, invalid_exprs) = crate::checker::Checker::new().check_full(&program);
+    let typed = crate::checker::attach_types(program, &expr_types, &invalid_exprs);
+    let output = Codegen::new().generate(&typed);
+    output.code.trim().to_string()
+}
+
 // ── Basic Expressions ────────────────────────────────────────
 
 #[test]
@@ -2083,5 +2103,72 @@ const _f = toChar
     assert!(
         result.contains("Icon__toChar"),
         "bare identifier should use mangled name, got: {result}"
+    );
+}
+
+// ── Type-directed dispatch ────────────────────────────────
+
+#[test]
+fn user_union_named_ok_does_not_inherit_result_dispatch() {
+    // A user-defined union whose variant happens to be called `Ok` must
+    // use tagged (`.kind === "Ok"`) dispatch — not Result's `.ok === true`
+    // — because the subject's type is not `Result`.
+    let result = emit_typed(
+        r#"
+type Bag { | Ok(number) | Missing }
+
+export fn describe(b: Bag) -> string {
+    match b {
+        Ok(n) -> "ok",
+        Missing -> "missing",
+    }
+}
+"#,
+    );
+    assert!(
+        !result.contains(".ok === true"),
+        "user-defined `Ok` variant must not use Result-style dispatch, got: {result}"
+    );
+    assert!(
+        result.contains(r#".tag === "Ok""#),
+        "expected tagged-union dispatch, got: {result}"
+    );
+}
+
+#[test]
+fn real_result_match_uses_ok_field_discriminator() {
+    let result = emit_typed(
+        r#"
+export fn describe(r: Result<number, string>) -> string {
+    match r {
+        Ok(n) -> "ok",
+        Err(e) -> "err",
+    }
+}
+"#,
+    );
+    assert!(
+        result.contains(".ok === true"),
+        "Result match should use `.ok === true`, got: {result}"
+    );
+}
+
+#[test]
+fn untrusted_call_detection_reads_callee_type() {
+    // A call to an untrusted foreign fn must emit the try/catch boundary
+    // wrapper — driven by `callee.ty.is_untrusted_foreign()`, not by a
+    // parallel `untrusted_imports` side-table.
+    let result = emit_typed(
+        r#"
+import { someFn } from "untrusted-pkg"
+
+export fn wrap() -> Result<number, Error> {
+    someFn()
+}
+"#,
+    );
+    assert!(
+        result.contains("try {") && result.contains("catch"),
+        "untrusted call should be wrapped in try/catch, got: {result}"
     );
 }

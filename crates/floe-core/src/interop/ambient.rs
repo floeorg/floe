@@ -467,7 +467,7 @@ mod tests {
         assert_eq!(result.globals[1].0, "document");
 
         assert!(
-            matches!(&result.globals[0].1, Type::Foreign(name) if name == "Window"),
+            matches!(&result.globals[0].1, Type::Foreign { name: name, .. } if name == "Window"),
             "expected Foreign(\"Window\"), got {:?}",
             result.globals[0].1
         );
@@ -551,7 +551,7 @@ mod tests {
         let result = parse_ambient_lib(content);
 
         assert!(
-            matches!(&result.globals[0].1, Type::Foreign(name) if name == "Window"),
+            matches!(&result.globals[0].1, Type::Foreign { name: name, .. } if name == "Window"),
             "expected Foreign(\"Window\"), got {:?}",
             result.globals[0].1
         );

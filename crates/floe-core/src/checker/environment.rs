@@ -108,7 +108,7 @@ impl TypeEnv {
         resolve_type_fn: &dyn Fn(&crate::parser::ast::TypeExpr) -> Type,
     ) -> Type {
         match ty {
-            Type::Named(name) | Type::Foreign(name) => {
+            Type::Named(name) | Type::Foreign { name, .. } => {
                 if let Some(info) = self.lookup_type(name) {
                     self.resolve_type_def(name, info, resolve_type_fn)
                 } else {
