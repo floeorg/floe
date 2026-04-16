@@ -212,7 +212,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 self.emit_expr_string(&step.expr)
             };
 
-            let needs_await = step.is_await || step_code.starts_with("(async ");
+            let needs_await = step_code.starts_with("(async ");
 
             if i > 0 {
                 docs.push(pretty::line());

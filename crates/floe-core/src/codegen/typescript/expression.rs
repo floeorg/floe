@@ -9,7 +9,6 @@ use super::generator::{THROW_NOT_IMPLEMENTED, THROW_UNREACHABLE, TypeScriptGener
 pub(super) struct PipeStep {
     pub expr: TypedExpr,
     pub unwrap: bool,
-    pub is_await: bool,
     pub is_pipe: bool,
 }
 
@@ -830,7 +829,6 @@ impl<'a> TypeScriptGenerator<'a> {
                     steps.push(PipeStep {
                         expr: (**right).clone(),
                         unwrap: true,
-                        is_await: false,
                         is_pipe: true,
                     });
                 }
@@ -838,7 +836,6 @@ impl<'a> TypeScriptGenerator<'a> {
                     steps.push(PipeStep {
                         expr: (**inner).clone(),
                         unwrap: true,
-                        is_await: false,
                         is_pipe: false,
                     });
                 }
@@ -848,7 +845,6 @@ impl<'a> TypeScriptGenerator<'a> {
                 steps.push(PipeStep {
                     expr: (**right).clone(),
                     unwrap: false,
-                    is_await: false,
                     is_pipe: true,
                 });
             }
@@ -856,7 +852,6 @@ impl<'a> TypeScriptGenerator<'a> {
                 steps.push(PipeStep {
                     expr: expr.clone(),
                     unwrap: false,
-                    is_await: false,
                     is_pipe: false,
                 });
             }

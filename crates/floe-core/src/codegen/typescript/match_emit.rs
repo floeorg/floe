@@ -39,17 +39,18 @@ impl<'a> TypeScriptGenerator<'a> {
         }
 
         if let Some(guard) = &arm.guard {
-            let subject_str = self.expr_to_string(subject);
-            let variant_info = self.ctx.variant_info.clone();
-            let bindings = collect_bindings(&subject_str, &arm.pattern, &variant_info);
+            let subject_str = self.emit_expr_string(subject);
+            let bindings = collect_bindings(&subject_str, &arm.pattern, &self.ctx.variant_info);
             let has_bindings = !bindings.is_empty();
 
             if has_bindings {
                 let cond_doc = self.emit_pattern_condition(subject, &arm.pattern);
                 let guard_doc = self.emit_expr(guard);
                 let body_doc = self.emit_expr(&arm.body);
+                // Render the rest of the match once and reuse it for both the
+                // guard-fall-through and the pattern-miss branches — otherwise
+                // this is quadratic in arm count.
                 let next_doc = self.emit_match_arms(subject, arms, index + 1);
-                let next_doc2 = self.emit_match_arms(subject, arms, index + 1);
 
                 let mut binding_strs = String::new();
                 for (name, access) in &bindings {
@@ -59,14 +60,13 @@ impl<'a> TypeScriptGenerator<'a> {
                 let guard_str = Self::doc_to_string(&guard_doc);
                 let body_str = Self::doc_to_string(&body_doc);
                 let next_str = Self::doc_to_string(&next_doc);
-                let next_str2 = Self::doc_to_string(&next_doc2);
 
                 return pretty::concat([
                     cond_doc,
                     pretty::str(format!(
                         " ? (() => {{ {binding_strs}if ({guard_str}) {{ return {body_str}; }} return {next_str}; }})()"
                     )),
-                    pretty::str(format!(" : {next_str2}")),
+                    pretty::str(format!(" : {next_str}")),
                 ]);
             }
 
@@ -137,7 +137,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 pretty::str(")"),
             ]),
             PatternKind::Variant { name, fields } => {
-                let subj_str = self.expr_to_string(subject);
+                let subj_str = self.emit_expr_string(subject);
                 let mut docs = vec![pretty::str(type_layout::variant_discriminant(
                     name, &subj_str,
                 ))];
@@ -181,7 +181,11 @@ impl<'a> TypeScriptGenerator<'a> {
                     }
                     first = false;
                     let field_expr = TypedExpr::synthetic_typed(
-                        ExprKind::Identifier(format!("{}.{}", self.expr_to_string(subject), name)),
+                        ExprKind::Identifier(format!(
+                            "{}.{}",
+                            self.emit_expr_string(subject),
+                            name
+                        )),
                         subject.span,
                     );
                     docs.push(self.emit_pattern_condition(&field_expr, pat));
@@ -204,7 +208,7 @@ impl<'a> TypeScriptGenerator<'a> {
                     }
                     first = false;
                     let elem_expr = TypedExpr::synthetic_typed(
-                        ExprKind::Identifier(format!("{}[{}]", self.expr_to_string(subject), i)),
+                        ExprKind::Identifier(format!("{}[{}]", self.emit_expr_string(subject), i)),
                         subject.span,
                     );
                     docs.push(self.emit_pattern_condition(&elem_expr, pat));
@@ -217,7 +221,7 @@ impl<'a> TypeScriptGenerator<'a> {
             }
             PatternKind::StringPattern { segments } => {
                 let mut s = String::new();
-                let subj_str = self.expr_to_string(subject);
+                let subj_str = self.emit_expr_string(subject);
                 s.push_str(&subj_str);
                 s.push_str(".match(/^");
                 for segment in segments {
@@ -234,7 +238,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 pretty::str(s)
             }
             PatternKind::Array { elements, rest } => {
-                let subj_str = self.expr_to_string(subject);
+                let subj_str = self.emit_expr_string(subject);
                 let mut docs = Vec::new();
 
                 if elements.is_empty() && rest.is_none() {
@@ -296,7 +300,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 return self.emit_expr(body);
             }
 
-            let subj_str = self.expr_to_string(subject);
+            let subj_str = self.emit_expr_string(subject);
             let mut s = format!("(() => {{ const _m = {subj_str}.match(/^");
             for segment in segments {
                 match segment {
@@ -334,9 +338,8 @@ impl<'a> TypeScriptGenerator<'a> {
             return pretty::str(s);
         }
 
-        let subject_str = self.expr_to_string(subject);
-        let variant_info = self.ctx.variant_info.clone();
-        let bindings = collect_bindings(&subject_str, pattern, &variant_info);
+        let subject_str = self.emit_expr_string(subject);
+        let bindings = collect_bindings(&subject_str, pattern, &self.ctx.variant_info);
         let needs_iife = !bindings.is_empty() || matches!(body.kind, ExprKind::Block(_));
         if needs_iife {
             let has_await = expr_contains_await(body);

@@ -46,6 +46,9 @@ pub(crate) struct TypeContext {
     pub test_mode: bool,
     pub value_used_names: HashSet<String>,
     pub for_block_fns: HashMap<(String, String), String>,
+    /// Bare-name index into `for_block_fns`: maps `fn_name` → mangled name.
+    /// Lets pipe/identifier lookup hit a HashMap instead of scanning.
+    pub for_block_fns_by_name: HashMap<String, String>,
     pub for_block_type_names: HashSet<String>,
     pub constructor_used_names: HashSet<String>,
     pub untrusted_imports: HashSet<String>,
@@ -72,6 +75,7 @@ impl TypeContext {
             test_mode,
             value_used_names: collect_value_used_names(program),
             for_block_fns: HashMap::new(),
+            for_block_fns_by_name: HashMap::new(),
             for_block_type_names: HashSet::new(),
             constructor_used_names: collect_constructor_names(program),
             untrusted_imports: HashSet::new(),
@@ -185,7 +189,13 @@ impl TypeContext {
         for func in &block.functions {
             let mangled = for_block_fn_name(&block.type_name, &func.name);
             self.for_block_fns
-                .insert((type_name.clone(), func.name.clone()), mangled);
+                .insert((type_name.clone(), func.name.clone()), mangled.clone());
+            // First registration wins for the bare-name lookup. Method names
+            // are unique across for-blocks in practice because codegen would
+            // emit ambiguous calls otherwise.
+            self.for_block_fns_by_name
+                .entry(func.name.clone())
+                .or_insert(mangled);
         }
     }
 
@@ -195,17 +205,13 @@ impl TypeContext {
         name: &str,
         import_aliases: &HashMap<String, String>,
     ) -> Option<String> {
-        for ((_, fn_name), mangled) in &self.for_block_fns {
-            if fn_name == name {
-                return Some(
-                    import_aliases
-                        .get(mangled)
-                        .cloned()
-                        .unwrap_or_else(|| mangled.clone()),
-                );
-            }
-        }
-        None
+        let mangled = self.for_block_fns_by_name.get(name)?;
+        Some(
+            import_aliases
+                .get(mangled)
+                .cloned()
+                .unwrap_or_else(|| mangled.clone()),
+        )
     }
 
     /// Returns true if the name is used as a for-block type prefix but NOT
@@ -285,13 +291,6 @@ impl<'a> TypeScriptGenerator<'a> {
         doc.pretty_print_to(PRINT_WIDTH, &mut out)
             .expect("String as fmt::Write never fails");
         out
-    }
-
-    /// Emit an expression and render it to a String.
-    /// Used for stdlib template expansion and match binding accessors.
-    pub(super) fn expr_to_string(&mut self, expr: &TypedExpr) -> String {
-        let doc = self.emit_expr(expr);
-        Self::doc_to_string(&doc)
     }
 }
 
