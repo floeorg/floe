@@ -1098,18 +1098,13 @@ impl Checker {
                     return_type
                 }
             }
-            // Foreign types (npm) via member access: the callee is a chained method
-            // on an opaque npm type (e.g. `db.insert(snippets).values`). We can't
-            // validate arguments but the result stays Foreign so subsequent chained
-            // member accesses and calls continue to work.
-            //
-            // Foreign member access (chained call): preserve Foreign type so subsequent
-            // member accesses and calls continue to work.
+            // Foreign member access (chained call on opaque npm type like
+            // `db.insert(snippets).values`): preserve Foreign so chaining works.
             Type::Foreign(_) if matches!(callee.kind, ExprKind::Member { .. }) => {
                 self.check_args_unchecked(args);
                 Type::Foreign("_".into())
             }
-            // Standalone Foreign identifier (trusted import without type info):
+            // Standalone Foreign identifier (npm import without type info):
             // argument types can't be validated. Warn so users know to add .d.ts types.
             // Returns Error to suppress cascading — the warning was already emitted.
             Type::Foreign(foreign_name) => {
@@ -1117,9 +1112,9 @@ impl Checker {
                 self.emit_warning_with_help(
                     format!("`{foreign_name}` has unknown type - arguments are not type-checked"),
                     span,
-                    ErrorCode::UncheckedArguments,
-                    "Type could not be resolved",
-                    "Check that the import source has type declarations",
+                    ErrorCode::UncheckedForeignArguments,
+                    "type could not be resolved",
+                    "check that the import source has type declarations",
                 );
                 Type::Error
             }
@@ -1135,12 +1130,12 @@ impl Checker {
                     ExprKind::Member { field, .. } => field.as_str(),
                     _ => "<expression>",
                 };
-                self.emit_warning_with_help(
+                self.emit_error_with_help(
                     format!("`{callee_name}` has unknown type - arguments are not type-checked"),
                     span,
                     ErrorCode::UncheckedArguments,
-                    "Type could not be resolved",
-                    "Check that the import source has type declarations",
+                    "type could not be resolved",
+                    "ensure the value has a known callable type",
                 );
                 Type::Error
             }

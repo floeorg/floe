@@ -77,13 +77,12 @@ impl Checker {
                         }
                     }
                     let ty = interop::wrap_boundary_type(&dts_export.ts_type);
-                    // Type-only TS exports (interfaces, type aliases) resolve
-                    // to Any/Unknown through the probe since they have no runtime
-                    // value. Treat them as Foreign so they're usable as type
-                    // annotations (e.g. `fn f(x: DropResult)`).
-                    if matches!(ty, Type::Unknown)
-                        && matches!(dts_export.ts_type, interop::TsType::Any)
-                    {
+                    // npm imports that resolve to Unknown (unrecognized primitive,
+                    // type-only exports, overloaded signatures tsgo can't map)
+                    // should fall back to Foreign. They're at an explicit npm
+                    // boundary — Foreign produces a warning on call, while Unknown
+                    // would produce an error.
+                    if matches!(ty, Type::Unknown) {
                         Type::Foreign(spec.name.clone())
                     } else {
                         ty

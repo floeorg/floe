@@ -102,13 +102,17 @@ pub enum ErrorCode {
     /// Literal pattern type mismatch (e.g. `true` on a string).
     LiteralPatternMismatch,
 
+    // ── Call-site errors ───────────────────────────────────────────────
+    /// Callee has unknown type - arguments are not type-checked (error).
+    UncheckedArguments,
+
     // ── Warnings ─────────────────────────────────────────────────────
     /// `todo` placeholder will panic at runtime.
     TodoPlaceholder,
     /// Spread field overwritten by explicit field.
     SpreadFieldOverwritten,
-    /// Callee has unknown type - arguments are not type-checked.
-    UncheckedArguments,
+    /// Foreign callee has unknown type - arguments are not type-checked (warning).
+    UncheckedForeignArguments,
     /// Binding pattern on a finite type (boolean, union) - likely a typo.
     SuspiciousBinding,
     /// Binding resolved to `unknown` type.
@@ -178,7 +182,8 @@ impl ErrorCode {
             Self::LiteralPatternMismatch => "E040",
             Self::TodoPlaceholder => "W002",
             Self::SpreadFieldOverwritten => "W003",
-            Self::UncheckedArguments => "W004",
+            Self::UncheckedForeignArguments => "W004",
+            Self::UncheckedArguments => "E051",
             Self::SuspiciousBinding => "W005",
             Self::UnknownBinding => "W006",
             Self::TryOnFloeFunction => "W007",
