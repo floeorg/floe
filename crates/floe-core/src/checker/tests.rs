@@ -2792,7 +2792,11 @@ fn timer_globals_are_recognized() {
 // ── Unsafe narrowing from unknown ───────────────────────────
 
 #[test]
-fn narrowing_unknown_to_concrete_type_is_error() {
+fn narrowing_unknown_call_result_does_not_cascade() {
+    // After #1114, calling through an unknown callee returns Type::Error
+    // (the warning was already emitted at the call site). Assigning the
+    // Error-typed result to a `number`-annotated binding should NOT
+    // produce a second "unsafe narrowing" error — that would be cascade.
     let diags = check(
         r#"
 import trusted { getData } from "some-lib"
@@ -2801,9 +2805,13 @@ const x: number = data
 "#,
     );
     assert!(
-        has_error(&diags, ErrorCode::UnsafeNarrowing),
-        "narrowing unknown to a concrete type should be an error, got: {:?}",
+        has_error(&diags, ErrorCode::UncheckedArguments),
+        "call through unknown callee should warn, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UnsafeNarrowing),
+        "should NOT cascade a narrowing error after the call-site warning"
     );
 }
 
@@ -2878,7 +2886,10 @@ export fn bad() -> Promise<string> {
 // ── Member access on unknown ────────────────────────────────
 
 #[test]
-fn member_access_on_unknown_is_error() {
+fn member_access_on_unknown_call_result_does_not_cascade() {
+    // After #1114, calling getData() returns Type::Error (warning emitted
+    // at call site). Member access on Error silently propagates Error
+    // instead of cascading a second AccessOnUnknown diagnostic.
     let diags = check(
         r#"
 import trusted { getData } from "some-lib"
@@ -2887,14 +2898,18 @@ const x = data.name
 "#,
     );
     assert!(
-        has_error(&diags, ErrorCode::AccessOnUnknown),
-        "member access on unknown should error, got: {:?}",
+        has_error(&diags, ErrorCode::UncheckedArguments),
+        "call through unknown callee should warn, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::AccessOnUnknown),
+        "should NOT cascade an access-on-unknown error after the call-site warning"
     );
 }
 
 #[test]
-fn method_call_on_unknown_is_error() {
+fn method_call_on_unknown_call_result_does_not_cascade() {
     let diags = check(
         r#"
 import trusted { getData } from "some-lib"
@@ -2903,9 +2918,13 @@ const x = data.toJSON()
 "#,
     );
     assert!(
-        has_error(&diags, ErrorCode::AccessOnUnknown),
-        "method call on unknown should error, got: {:?}",
+        has_error(&diags, ErrorCode::UncheckedArguments),
+        "call through unknown callee should warn, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::AccessOnUnknown),
+        "should NOT cascade an access-on-unknown error after the call-site warning"
     );
 }
 

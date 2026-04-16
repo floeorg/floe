@@ -564,13 +564,13 @@ impl Checker {
                     Type::Error
                 }
             }
-            Type::Unknown | Type::Error | Type::Foreign(_) | Type::Never => Type::Unknown,
-            Type::Var(_) => Type::Unknown,
+            Type::Unknown | Type::Error | Type::Foreign(_) | Type::Never => Type::Error,
+            Type::Var(_) => Type::Error,
             _ => {
                 if let Type::Named(name) = &obj_ty
                     && self.env.lookup_type(name).is_none()
                 {
-                    return Type::Unknown;
+                    return Type::Error;
                 }
                 self.emit_error(
                     format!("cannot use bracket access on type `{}`", obj_ty),
@@ -1111,6 +1111,7 @@ impl Checker {
             }
             // Standalone Foreign identifier (trusted import without type info):
             // argument types can't be validated. Warn so users know to add .d.ts types.
+            // Returns Error to suppress cascading — the warning was already emitted.
             Type::Foreign(foreign_name) => {
                 self.check_args_unchecked(args);
                 self.emit_warning_with_help(
@@ -1120,7 +1121,7 @@ impl Checker {
                     "Type could not be resolved",
                     "Check that the import source has type declarations",
                 );
-                Type::Unknown
+                Type::Error
             }
             Type::Error => {
                 // Error already emitted upstream — suppress cascading diagnostics
@@ -1141,7 +1142,7 @@ impl Checker {
                     "Type could not be resolved",
                     "Check that the import source has type declarations",
                 );
-                Type::Unknown
+                Type::Error
             }
             _ => {
                 self.check_args_unchecked(args);
@@ -2689,7 +2690,7 @@ impl Checker {
                                     ErrorCode::TypeMismatch,
                                     format!("`{}` has no field `{}`", ty, f.field),
                                 );
-                                Type::Unknown
+                                Type::Error
                             });
                         self.env.define(f.bound_name(), field_ty);
                     }
