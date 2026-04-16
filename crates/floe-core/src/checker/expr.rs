@@ -33,10 +33,7 @@ fn extract_chain_key(object: &Expr, field: &str) -> Option<String> {
     }
 }
 
-/// Check if a string is a single uppercase letter (generic type parameter).
-fn is_generic_param(s: &str) -> bool {
-    s.len() == 1 && s.chars().next().is_some_and(|c| c.is_ascii_uppercase())
-}
+use super::hydrator::is_single_uppercase as is_generic_param;
 
 /// When a destructured param's type is unresolved, use heuristics for known field names.
 /// The "error" field maps to Error because Floe's error-handling callbacks (use blocks,
@@ -713,6 +710,20 @@ impl Checker {
         for el in elements {
             let ty = self.check_expr(el);
             if let Some(ref prev) = elem_type {
+                // Unify each element with the running type so unbound vars
+                // get pinned down. `fn bad(x) { [x, bad(x)] }` tries to unify
+                // `x: a` with `bad(x): Array<a>` — the occurs check rejects
+                // the infinite `a = Array<a>` that would result.
+                if let Err(super::unify::UnifyError::InfiniteType) = super::unify::unify(prev, &ty)
+                {
+                    self.emit_error(
+                        "infinite type: a type variable would have to contain itself",
+                        el.span,
+                        ErrorCode::TypeMismatch,
+                        "recursive type has no finite form",
+                    );
+                    return Type::Array(Arc::new(Type::Error));
+                }
                 if !self.types_compatible(prev, &ty)
                     && !ty.is_undetermined()
                     && !prev.is_undetermined()
@@ -726,7 +737,7 @@ impl Checker {
         if mixed {
             Type::Array(Arc::new(Type::Unknown))
         } else {
-            Type::Array(Arc::new(elem_type.unwrap_or(Type::Unknown)))
+            Type::Array(Arc::new(elem_type.unwrap_or(Type::Unknown).deep_resolved()))
         }
     }
 
@@ -744,46 +755,45 @@ impl Checker {
             && let ExprKind::Identifier(module) = &object.kind
             && let Some(stdlib_fn) = self.stdlib.lookup(module, field)
         {
-            let ret = stdlib_fn.return_type.clone();
-            let expected_param_count = stdlib_fn.params.len();
+            let stdlib_params_src = stdlib_fn.params.clone();
+            let stdlib_ret_src = stdlib_fn.return_type.clone();
+            let expected_param_count = stdlib_params_src.len();
             let variadic = stdlib_fn.is_variadic();
-            let stdlib_params = stdlib_fn.params.clone();
             let display = format!("{module}.{field}");
             self.unused.used_names.insert(module.clone());
 
-            // Two-pass argument checking: first check non-arrow args to resolve
-            // type variables, then check arrow args with lambda_param_hints set.
-            // This allows `use x <- Option.guard(opt, default)` to infer the
-            // callback parameter type from the option's inner type.
-            let mut type_var_bindings: HashMap<usize, Type> = HashMap::new();
+            // Instantiate the stdlib signature: turn `Generic(id)` into fresh
+            // `Unbound` vars so each call site specializes independently.
+            let (inst_params, inst_ret) = hydrator::instantiate_signature(
+                &stdlib_params_src,
+                &stdlib_ret_src,
+                &mut self.next_var,
+            );
+
+            // Two-pass argument checking: first check non-arrow args (they
+            // carry concrete types that unify into the fresh vars), then
+            // check arrow args with lambda_param_hints set — by that point
+            // the vars are bound, so hints carry concrete types.
             let mut arg_count = 0;
 
-            // Pass 1: check non-arrow args and collect type var bindings
+            // Pass 1: check non-arrow args and unify each with the matching param.
             let mut non_arrow_args: Vec<(usize, Type, Span)> = Vec::new();
             for (i, arg) in args.iter().enumerate() {
                 let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
                 if !matches!(e.kind, ExprKind::Arrow { .. }) {
                     let actual_ty = self.check_expr(e);
-                    if let Some(param_ty) = stdlib_params.get(i) {
-                        Self::collect_type_var_bindings(
-                            param_ty,
-                            &actual_ty,
-                            &mut type_var_bindings,
-                        );
+                    if let Some(param_ty) = inst_params.get(i) {
+                        let _ = unify::unify(param_ty, &actual_ty);
                     }
                     non_arrow_args.push((i, actual_ty, e.span));
                     arg_count += 1;
                 }
             }
 
-            // Validate non-arrow args against fully-resolved param types
+            // Validate non-arrow args against the now-resolved param types.
             for &(i, ref actual_ty, arg_span) in &non_arrow_args {
-                if let Some(param_ty) = stdlib_params.get(i) {
-                    let resolved_param = if type_var_bindings.is_empty() {
-                        param_ty.clone()
-                    } else {
-                        Self::substitute_type_vars(param_ty, &type_var_bindings)
-                    };
+                if let Some(param_ty) = inst_params.get(i) {
+                    let resolved_param = param_ty.resolved();
                     if !self.types_compatible(&resolved_param, actual_ty) {
                         let (msg, label) = self.type_mismatch_detail(&resolved_param, actual_ty);
                         self.emit_error(
@@ -796,21 +806,20 @@ impl Checker {
                 }
             }
 
-            // Pass 2: check arrow args with resolved lambda_param_hints
+            // Pass 2: check arrow args with lambda_param_hints derived from the
+            // resolved instantiated params.
             for (i, arg) in args.iter().enumerate() {
                 let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
                 if matches!(e.kind, ExprKind::Arrow { .. }) {
-                    if let Some(Type::Function { params, .. }) = stdlib_params.get(i) {
-                        self.ctx.lambda_param_hints = if type_var_bindings.is_empty() {
-                            params.clone()
-                        } else {
-                            params
-                                .iter()
-                                .map(|p| Self::substitute_type_vars(p, &type_var_bindings))
-                                .collect()
-                        };
+                    if let Some(inst_param) = inst_params.get(i)
+                        && let Type::Function { params, .. } = inst_param.resolved()
+                    {
+                        self.ctx.lambda_param_hints = params.iter().map(|p| p.resolved()).collect();
                     }
-                    self.check_expr(e);
+                    let actual_ty = self.check_expr(e);
+                    if let Some(param_ty) = inst_params.get(i) {
+                        let _ = unify::unify(param_ty, &actual_ty);
+                    }
                     self.ctx.lambda_param_hints.clear();
                     arg_count += 1;
                 }
@@ -830,7 +839,7 @@ impl Checker {
                 );
             }
 
-            return ret;
+            return inst_ret.deep_resolved();
         }
 
         // Save pipe context before checking callee (which would consume it)
@@ -911,6 +920,16 @@ impl Checker {
         // to their concrete types so function aliases are callable like bare functions.
         let callee_ty = if let Type::Named(_) = &callee_ty {
             self.resolve_type_to_concrete(&callee_ty)
+        } else {
+            callee_ty
+        };
+
+        // Instantiate the callee's generic type parameters (let-polymorphism):
+        // each call site gets its own fresh `Unbound` vars for the callee's
+        // `Generic` vars so multiple calls to a polymorphic function can use
+        // different types without the first call fixing the second.
+        let callee_ty = if matches!(callee_ty, Type::Function { .. }) {
+            hydrator::instantiate(&callee_ty, &mut self.next_var)
         } else {
             callee_ty
         };
@@ -1085,10 +1104,15 @@ impl Checker {
                         }
                     }
 
-                    // Normal call: check all argument types
+                    // Normal call: unify each arg with its param so the callee's
+                    // instantiated type vars pick up the arg types, then check.
+                    for (arg_ty, param_ty) in arg_types.iter().zip(params.iter()) {
+                        let _ = unify::unify(param_ty, arg_ty);
+                    }
                     for (i, (arg_ty, param_ty)) in arg_types.iter().zip(params.iter()).enumerate() {
-                        if !self.types_compatible(param_ty, arg_ty) {
-                            let (msg, label) = self.type_mismatch_detail(param_ty, arg_ty);
+                        let resolved_param = param_ty.deep_resolved();
+                        if !self.types_compatible(&resolved_param, arg_ty) {
+                            let (msg, label) = self.type_mismatch_detail(&resolved_param, arg_ty);
                             self.emit_error(
                                 format!("argument {} to `{callee_name}`: {}", i + 1, msg),
                                 span,
@@ -1097,7 +1121,7 @@ impl Checker {
                             );
                         }
                     }
-                    return_type
+                    return_type.deep_resolved()
                 }
             }
             // Foreign member access (chained call on opaque npm type like
@@ -1817,209 +1841,93 @@ impl Checker {
         left_ty: &Type,
         right: &Expr,
     ) -> Type {
-        if let Some(first_param) = stdlib_fn.params.first()
-            && !self.types_compatible(first_param, left_ty)
-            && !self.is_untrusted_result_mismatch(first_param, left_ty)
-        {
-            let (msg, label) = self.type_mismatch_detail(first_param, left_ty);
-            self.emit_error(
-                format!("argument 1 to `{display_name}`: {}", msg),
-                right.span,
-                ErrorCode::TypeMismatch,
-                label,
-            );
+        // Instantiate the stdlib signature so Generics become fresh Unbounds.
+        let (inst_params, inst_ret) = hydrator::instantiate_signature(
+            &stdlib_fn.params,
+            &stdlib_fn.return_type,
+            &mut self.next_var,
+        );
+
+        // Unify the first param with the piped-in type so type vars pick up
+        // the piped-in type's shape (e.g. Array<T> unified with Array<Todo>
+        // binds T → Todo).
+        if let Some(first_param) = inst_params.first() {
+            let unified = unify::unify(first_param, left_ty).is_ok();
+            if !unified
+                && !self.types_compatible(&first_param.resolved(), left_ty)
+                && !self.is_untrusted_result_mismatch(&first_param.resolved(), left_ty)
+            {
+                let resolved_first = first_param.resolved();
+                let (msg, label) = self.type_mismatch_detail(&resolved_first, left_ty);
+                self.emit_error(
+                    format!("argument 1 to `{display_name}`: {}", msg),
+                    right.span,
+                    ErrorCode::TypeMismatch,
+                    label,
+                );
+            }
         }
+
+        // Lambda param hints: pull from resolved first param when the piped value
+        // is an array/option so `|> map(x -> ...)` knows x's type.
         if let Type::Array(elem) = left_ty {
             self.ctx.lambda_param_hints = vec![(**elem).clone()];
         } else if let Some(inner) = left_ty.option_inner() {
             self.ctx.lambda_param_hints = vec![inner.clone()];
         }
 
-        // Check lambda args and capture return type for generic inference
-        let lambda_return = self.check_pipe_right_args_with_return(right);
-        self.ctx.lambda_param_hints.clear();
-
-        // Resolve return type: if the stdlib fn's return type uses a different
-        // type var than the input (e.g. map: Array<T> -> Array<U>), infer U
-        // from the lambda's actual return type.
-        let infer_from_lambda = lambda_return.is_some()
-            && match (&stdlib_fn.return_type, stdlib_fn.params.first()) {
-                (Type::Array(ret_elem), Some(Type::Array(in_elem))) => ret_elem != in_elem,
-                (ret, Some(inp)) if ret.is_option() && inp.is_option() => {
-                    ret.option_inner() != inp.option_inner()
-                }
-                _ => false,
-            };
-        // Resolve return type by substituting type variables from the piped input.
-        let mut var_bindings: HashMap<usize, Type> = HashMap::new();
-        if let Some(first_param) = stdlib_fn.params.first() {
-            Self::collect_type_var_bindings(first_param, left_ty, &mut var_bindings);
-        }
-        // If the return type uses a different type var (e.g. map: Array<T> -> Array<U>),
-        // infer it from the lambda's actual return type.
-        if infer_from_lambda {
-            match &stdlib_fn.return_type {
-                Type::Array(_) => Type::Array(Arc::new(lambda_return.unwrap())),
-                ret if ret.is_option() => Type::option_of(lambda_return.unwrap()),
-                _ => Self::substitute_type_vars(&stdlib_fn.return_type, &var_bindings),
-            }
-        } else if !var_bindings.is_empty() {
-            Self::substitute_type_vars(&stdlib_fn.return_type, &var_bindings)
-        } else {
-            // No type var bindings resolved — match concrete types directly
-            match (&stdlib_fn.return_type, left_ty) {
-                (Type::Array(_), Type::Array(elem)) => Type::Array(elem.clone()),
-                (ret, actual) if ret.is_option() && actual.is_option() => actual.clone(),
-                // Foreign input: generics can't be resolved, propagate Foreign
-                // so chained calls like db.insert(...).values(...).returning() |> await
-                // don't collapse to Unknown
-                (_, Type::Foreign(_)) => left_ty.clone(),
-                // Result<Foreign, _> from an untrusted chain (e.g. untrusted db chain
-                // wrapped at each call): propagate the Result as-is so the user can
-                // unwrap and access the Foreign result rather than getting `?T0`.
-                _ if left_ty.is_result()
-                    && matches!(left_ty.result_ok(), Some(Type::Foreign(_))) =>
-                {
-                    left_ty.clone()
-                }
-                _ => stdlib_fn.return_type.clone(),
-            }
-        }
-    }
-
-    /// Check arguments in the right side of a pipe and return the lambda's return type.
-    fn check_pipe_right_args_with_return(&mut self, right: &Expr) -> Option<Type> {
-        let mut lambda_return = None;
+        // Check each right-side arg. The piped-in counts as arg 0, so the
+        // first right-side arg unifies with inst_params[1], etc. Capture the
+        // lambda return (first right-side arg's fn return) and unify it with
+        // the matching instantiated param's return type.
+        let mut lambda_return: Option<Type> = None;
         if let ExprKind::Call { args, .. } = &right.kind {
             for (i, arg) in args.iter().enumerate() {
-                match arg {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                        let ty = self.check_expr(e);
-                        if i == 0
-                            && let Type::Function { return_type, .. } = &ty
-                        {
-                            lambda_return = Some(return_type.as_ref().clone());
-                        }
-                    }
+                let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
+                // Hints for lambda args: if the matching inst param is a
+                // Function, pre-populate lambda_param_hints so the inner
+                // params know their types.
+                let inst_param = inst_params.get(i + 1).cloned();
+                if matches!(e.kind, ExprKind::Arrow { .. })
+                    && let Some(p) = &inst_param
+                    && let Type::Function { params, .. } = p.resolved()
+                {
+                    self.ctx.lambda_param_hints = params.iter().map(|p| p.resolved()).collect();
+                }
+                let actual_ty = self.check_expr(e);
+                self.ctx.lambda_param_hints.clear();
+
+                if i == 0
+                    && let Type::Function { return_type, .. } = &actual_ty
+                {
+                    lambda_return = Some(return_type.as_ref().clone());
+                }
+                if let Some(p) = &inst_param {
+                    let _ = unify::unify(p, &actual_ty);
                 }
             }
         }
-        lambda_return
-    }
 
-    /// Unify a stdlib parameter type against an actual argument type to resolve
-    /// `Type::Var(n)` bindings. E.g. `Option<Var(0)>` unified with `Option<IssueDto>`
-    /// binds `Var(0) → IssueDto`.
-    fn collect_type_var_bindings(
-        param_ty: &Type,
-        actual_ty: &Type,
-        bindings: &mut HashMap<usize, Type>,
-    ) {
-        match (param_ty, actual_ty) {
-            (Type::Var(n), _) if !actual_ty.is_undetermined() => {
-                bindings.insert(*n, actual_ty.clone());
-            }
-            (Type::Array(p), Type::Array(a))
-            | (Type::Promise(p), Type::Promise(a))
-            | (Type::Settable(p), Type::Settable(a))
-            | (Type::Set { element: p }, Type::Set { element: a }) => {
-                Self::collect_type_var_bindings(p, a, bindings);
-            }
-            (Type::Map { key: pk, value: pv }, Type::Map { key: ak, value: av })
-            | (Type::RecordMap { key: pk, value: pv }, Type::RecordMap { key: ak, value: av }) => {
-                Self::collect_type_var_bindings(pk, ak, bindings);
-                Self::collect_type_var_bindings(pv, av, bindings);
-            }
-            (Type::Tuple(ps), Type::Tuple(as_)) if ps.len() == as_.len() => {
-                for (p, a) in ps.iter().zip(as_.iter()) {
-                    Self::collect_type_var_bindings(p, a, bindings);
-                }
-            }
-            (Type::Union { variants: pv, .. }, Type::Union { variants: av, .. }) => {
-                for (pvar, avar) in pv.iter().zip(av.iter()) {
-                    for (p, a) in pvar.1.iter().zip(avar.1.iter()) {
-                        Self::collect_type_var_bindings(p, a, bindings);
-                    }
-                }
-            }
-            (
-                Type::Function {
-                    params: pp,
-                    return_type: pr,
-                    ..
-                },
-                Type::Function {
-                    params: ap,
-                    return_type: ar,
-                    ..
-                },
-            ) => {
-                for (p, a) in pp.iter().zip(ap.iter()) {
-                    Self::collect_type_var_bindings(p, a, bindings);
-                }
-                Self::collect_type_var_bindings(pr, ar, bindings);
-            }
-            _ => {}
+        if let (Some(actual_ret), Some(Type::Function { return_type, .. })) = (
+            lambda_return.as_ref(),
+            inst_params.get(1).map(|p| p.resolved()),
+        ) {
+            let _ = unify::unify(&return_type, actual_ret);
         }
-    }
 
-    /// Substitute `Type::Var(n)` with resolved types from the bindings map.
-    fn substitute_type_vars(ty: &Type, bindings: &HashMap<usize, Type>) -> Type {
-        match ty {
-            Type::Var(n) => bindings.get(n).cloned().unwrap_or_else(|| ty.clone()),
-            Type::Array(inner) => {
-                Type::Array(Arc::new(Self::substitute_type_vars(inner, bindings)))
+        // Foreign input: generics can't be resolved, propagate Foreign
+        // so chained calls like db.insert(...).values(...).returning() |> await
+        // don't collapse to Unknown.
+        let resolved_ret = inst_ret.deep_resolved();
+        match (&resolved_ret, left_ty) {
+            (_, Type::Foreign(_)) if matches!(resolved_ret, Type::Var(_)) => left_ty.clone(),
+            _ if left_ty.is_result()
+                && matches!(left_ty.result_ok(), Some(Type::Foreign(_)))
+                && matches!(resolved_ret, Type::Var(_)) =>
+            {
+                left_ty.clone()
             }
-            Type::Promise(inner) => {
-                Type::Promise(Arc::new(Self::substitute_type_vars(inner, bindings)))
-            }
-            Type::Settable(inner) => {
-                Type::Settable(Arc::new(Self::substitute_type_vars(inner, bindings)))
-            }
-            Type::Set { element } => Type::Set {
-                element: Arc::new(Self::substitute_type_vars(element, bindings)),
-            },
-            Type::Map { key, value } => Type::Map {
-                key: Arc::new(Self::substitute_type_vars(key, bindings)),
-                value: Arc::new(Self::substitute_type_vars(value, bindings)),
-            },
-            Type::RecordMap { key, value } => Type::RecordMap {
-                key: Arc::new(Self::substitute_type_vars(key, bindings)),
-                value: Arc::new(Self::substitute_type_vars(value, bindings)),
-            },
-            Type::Tuple(types) => Type::Tuple(
-                types
-                    .iter()
-                    .map(|t| Self::substitute_type_vars(t, bindings))
-                    .collect(),
-            ),
-            Type::Union { name, variants } => Type::Union {
-                name: name.clone(),
-                variants: variants
-                    .iter()
-                    .map(|(n, ts)| {
-                        (
-                            n.clone(),
-                            ts.iter()
-                                .map(|t| Self::substitute_type_vars(t, bindings))
-                                .collect(),
-                        )
-                    })
-                    .collect(),
-            },
-            Type::Function {
-                params,
-                return_type,
-                required_params,
-            } => Type::Function {
-                params: params
-                    .iter()
-                    .map(|t| Self::substitute_type_vars(t, bindings))
-                    .collect(),
-                return_type: Arc::new(Self::substitute_type_vars(return_type, bindings)),
-                required_params: *required_params,
-            },
-            other => other.clone(),
+            _ => resolved_ret,
         }
     }
 

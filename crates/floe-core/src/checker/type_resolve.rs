@@ -116,6 +116,16 @@ impl Checker {
         let root = name.split('.').next().unwrap_or(name);
         self.unused.used_names.insert(root.to_string());
 
+        // A user-declared generic type parameter (`T`, `U`, …) resolves to
+        // its hydrated `Generic` variable — each occurrence of the same name
+        // inside the signature gets the same Generic, so inference sees them
+        // as tied together.
+        if type_args.is_empty()
+            && let Some(g) = self.active_type_params.get(name)
+        {
+            return g.clone();
+        }
+
         match name {
             type_layout::TYPE_NUMBER => Type::Number,
             type_layout::TYPE_STRING => Type::String,

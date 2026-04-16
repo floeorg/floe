@@ -7487,3 +7487,153 @@ export fn ok() -> Route {
     );
     assert!(!has_error(&diags, ErrorCode::TypeUsedAsValue));
 }
+
+// ── Hindley-Milner inference ────────────────────────────────
+
+#[test]
+fn identity_without_annotations_infers_polymorphic_type() {
+    let diags = check(
+        r#"
+fn id(x) { x }
+const _n = id(42)
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "expected no errors, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn identity_let_polymorphism_allows_different_types() {
+    let diags = check(
+        r#"
+fn id(x) { x }
+const _n = id(42)
+const _s = id("hello")
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "expected let-polymorphism, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn recursive_infinite_type_is_rejected_by_occurs_check() {
+    let diags = check(
+        r#"
+fn bad(x) { [x, bad(x)] }
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "expected occurs-check failure, got no errors"
+    );
+}
+
+#[test]
+fn deep_resolve_follows_links_through_arrays() {
+    use super::types::Type;
+    use std::sync::Arc;
+
+    let v = Type::unbound(0);
+    let arr = Type::Array(Arc::new(v.clone()));
+    super::unify::unify(&v, &Type::Number).unwrap();
+    match &arr.deep_resolved() {
+        Type::Array(inner) => assert_eq!(**inner, Type::Number),
+        other => panic!("expected Array<Number>, got {:?}", other),
+    }
+    assert_eq!(v.resolved(), Type::Number);
+}
+
+#[test]
+fn annotated_generic_fn_matches_inferred_generic_fn() {
+    let diags_annotated = check(
+        r#"
+fn id<T>(x: T) -> T { x }
+const _n = id(1)
+const _s = id("x")
+"#,
+    );
+    let diags_inferred = check(
+        r#"
+fn id(x) { x }
+const _n = id(1)
+const _s = id("x")
+"#,
+    );
+    assert!(!has_error(&diags_annotated, ErrorCode::TypeMismatch));
+    assert!(!has_error(&diags_inferred, ErrorCode::TypeMismatch));
+}
+
+#[test]
+fn inferred_return_type_flows_to_caller() {
+    // After inferring `id : (a) -> a`, `id(42) + 1` must typecheck: the
+    // return type has to resolve to `number` at the call site, not stay
+    // an unbound var that gets accepted permissively.
+    let diags = check(
+        r#"
+fn id(x) { x }
+const _n = id(42) + 1
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "call-site return type failed to resolve, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn polymorphic_return_rejects_concrete_mismatch() {
+    // `id(42)` must resolve to `number` at the call site. Passing that
+    // to a `string`-typed param has to error — the old wildcard hack
+    // swallowed this because Var(_) compared as compatible with anything.
+    let diags = check(
+        r#"
+fn id(x) { x }
+fn takesString(s: string) -> string { s }
+const _x = takesString(id(42))
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "polymorphic return type didn't propagate — the old wildcard path is still live"
+    );
+}
+
+#[test]
+fn occurs_check_fires_inside_tuple() {
+    // Occurs check must catch the cycle through any container, not only
+    // arrays.
+    let diags = check(
+        r#"
+fn bad(x) { (x, bad(x)) }
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "occurs-check through tuple not caught"
+    );
+}
+
+#[test]
+fn stdlib_let_polymorphism_across_element_types() {
+    // `Array.map` in one program used with `number -> string` at one call
+    // site and `string -> number` at another — each call has to get its
+    // own fresh instantiation.
+    let diags = check(
+        r#"
+const _ns = [1, 2, 3] |> Array.map((n) => Number.toString(n))
+const _ls = ["a", "bb", "ccc"] |> Array.map((s) => String.length(s))
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "stdlib let-polymorphism failed, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

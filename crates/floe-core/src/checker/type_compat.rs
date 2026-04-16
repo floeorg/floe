@@ -154,21 +154,6 @@ impl Checker {
             return false;
         }
 
-        // Generic type parameters (single uppercase letter like T, U, E, S)
-        // are wildcards that match any type — used in stdlib function signatures
-        if let Type::Named(n) = expected
-            && n.len() == 1
-            && n.chars().next().is_some_and(|c| c.is_ascii_uppercase())
-        {
-            return true;
-        }
-        if let Type::Named(n) = actual
-            && n.len() == 1
-            && n.chars().next().is_some_and(|c| c.is_ascii_uppercase())
-        {
-            return true;
-        }
-
         // Foreign types: reject primitives, permissive otherwise.
         // Foreign-vs-Foreign is permissive because npm types often have subtype
         // relationships (e.g. SQLiteColumn extends SQLWrapper) that Floe can't verify.
