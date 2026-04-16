@@ -869,3 +869,106 @@ fn idempotent_trait_decl() {
     let formatted = "trait Display {\n    fn display(self) -> string\n}";
     assert_fmt(formatted, formatted);
 }
+
+// ── Comment idempotence ────────────────────────────────
+
+#[test]
+fn idempotent_block_comment_between_record_fields() {
+    assert_idempotent(
+        "type User {\n    id: string,\n    /* the person's name */\n    name: string,\n}",
+    );
+}
+
+#[test]
+fn idempotent_line_comment_between_array_elements() {
+    assert_idempotent("const xs = [\n    1,\n    // skip\n    2,\n    3,\n]");
+}
+
+#[test]
+fn idempotent_block_comment_between_array_elements() {
+    assert_idempotent("const xs = [\n    1,\n    /* skip */\n    2,\n    3,\n]");
+}
+
+#[test]
+fn idempotent_line_comment_between_tuple_elements() {
+    assert_idempotent("const pair = (\n    1,\n    // second\n    2,\n)");
+}
+
+#[test]
+fn idempotent_block_comment_inside_construct_args() {
+    assert_idempotent("User(\n    name: \"a\",\n    /* their age */\n    age: 30,\n)");
+}
+
+#[test]
+fn idempotent_trailing_comment_at_end_of_function() {
+    assert_idempotent("fn f() -> number {\n    const x = 1\n\n    // return the answer\n    x\n}");
+}
+
+#[test]
+fn idempotent_doc_comment_before_const() {
+    assert_idempotent("/// the global counter\nconst count = 0");
+}
+
+#[test]
+fn idempotent_doc_comment_before_function() {
+    assert_idempotent(
+        "/// adds two numbers\nfn add(a: number, b: number) -> number {\n    a + b\n}",
+    );
+}
+
+#[test]
+fn idempotent_doc_comment_before_type() {
+    assert_idempotent("/// a registered user\ntype User {\n    id: string,\n    name: string,\n}");
+}
+
+#[test]
+fn idempotent_module_doc_comment_at_top() {
+    assert_idempotent("//// Todo domain module\n\nconst version = 1");
+}
+
+#[test]
+fn idempotent_module_doc_then_doc_then_plain() {
+    assert_idempotent("//// module header\n/// item doc\n// plain\nconst x = 1");
+}
+
+#[test]
+fn idempotent_blank_lines_between_definitions() {
+    assert_idempotent("const a = 1\n\nconst b = 2\n\nconst c = 3");
+}
+
+#[test]
+fn idempotent_blank_lines_between_functions() {
+    assert_idempotent("fn one() -> number {\n    1\n}\n\nfn two() -> number {\n    2\n}");
+}
+
+#[test]
+fn idempotent_mixed_comment_styles_before_imports() {
+    assert_idempotent(
+        r#"//// module header
+
+// runtime deps
+import { useState } from "react"
+// dom helpers
+import { render } from "react-dom""#,
+    );
+}
+
+#[test]
+fn idempotent_block_comment_between_call_args() {
+    assert_idempotent("f(\n    a,\n    /* middle */\n    b,\n)");
+}
+
+#[test]
+fn idempotent_line_comment_between_function_params() {
+    assert_idempotent(
+        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) -> number {\n    a + b\n}",
+    );
+}
+
+// ── Real-world fixture ────────────────────────────────
+
+#[test]
+fn idempotent_todo_app_todo_fl() {
+    let src = include_str!("../../../../examples/todo-app/src/todo.fl");
+    assert_idempotent(src);
+}
