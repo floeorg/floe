@@ -1,16 +1,7 @@
 ---
-source: tests/snapshot_errors.rs
+source: crates/floe-core/tests/snapshot_errors.rs
 expression: output
 ---
-[31m[E049] Error:[0m `Repo` is a trait, not a type — traits cannot be used in type positions
-    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.fl:12:18 [38;5;246m][0m
-    [38;5;246m│[0m
- [38;5;246m12 │[0m [38;5;249mf[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249md[0m[38;5;249mo[0m[38;5;249mT[0m[38;5;249mh[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249mg[0m[38;5;249m([0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249m:[0m[38;5;249m [0m[31mR[0m[31me[0m[31mp[0m[31mo[0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m-[0m[38;5;249m>[0m[38;5;249m [0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249mr[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249mg[0m[38;5;249m [0m[38;5;249m{[0m
- [38;5;240m   │[0m                  [31m─[0m[31m─[0m[31m┬[0m[31m─[0m  
- [38;5;240m   │[0m                    [31m╰[0m[31m─[0m[31m─[0m[31m─[0m trait, not a type
- [38;5;240m   │[0m 
- [38;5;240m   │[0m [38;5;115mHelp[0m: traits are compile-time contracts and cannot appear as types
-[38;5;246m────╯[0m
 [33m[W001] Warning:[0m unused variable `create`
     [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.fl:8:1 [38;5;246m][0m
     [38;5;246m│[0m
@@ -32,4 +23,13 @@ expression: output
  [38;5;240m   │[0m [33m╰[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m[33m─[0m defined but never used
  [38;5;240m   │[0m     
  [38;5;240m   │[0m     [38;5;115mHelp[0m: prefix with underscore `_doThing` to suppress
+[38;5;246m────╯[0m
+[31m[E049] Error:[0m `Repo` is a trait, not a type — traits cannot be used in type positions
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m test.fl:12:18 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m12 │[0m [38;5;249mf[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249md[0m[38;5;249mo[0m[38;5;249mT[0m[38;5;249mh[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249mg[0m[38;5;249m([0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249m:[0m[38;5;249m [0m[31mR[0m[31me[0m[31mp[0m[31mo[0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m-[0m[38;5;249m>[0m[38;5;249m [0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249mr[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249mg[0m[38;5;249m [0m[38;5;249m{[0m
+ [38;5;240m   │[0m                  [31m─[0m[31m─[0m[31m┬[0m[31m─[0m  
+ [38;5;240m   │[0m                    [31m╰[0m[31m─[0m[31m─[0m[31m─[0m trait, not a type
+ [38;5;240m   │[0m 
+ [38;5;240m   │[0m [38;5;115mHelp[0m: traits are compile-time contracts and cannot appear as types
 [38;5;246m────╯[0m

@@ -434,7 +434,7 @@ const _x = todos
     dts_imports.insert("react".to_string(), vec![use_state_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, types, _) = checker.check_with_types(&program);
+    let (diags, types, _, _) = checker.check_with_types(&program);
 
     assert!(
         !has_error_containing(&diags, "not defined"),
@@ -1565,7 +1565,7 @@ const _hello = match true {
     )
     .parse_program()
     .expect("should parse");
-    let (_diags, types, _) = Checker::new().check_with_types(&program);
+    let (_diags, types, _, _) = Checker::new().check_with_types(&program);
     if let Some(ty) = types.get("_hello") {
         assert_eq!(ty, "()", "void match should infer (), got: {ty}");
     } else {
@@ -1584,7 +1584,7 @@ const _result = log("test")
     )
     .parse_program()
     .expect("should parse");
-    let (_diags, types, _) = Checker::new().check_with_types(&program);
+    let (_diags, types, _, _) = Checker::new().check_with_types(&program);
     if let Some(ty) = types.get("_result") {
         assert_eq!(ty, "()", "void function call should give (), got: {ty}");
     } else {
@@ -1611,7 +1611,7 @@ fn handler() {
     )
     .parse_program()
     .expect("should parse");
-    let (_diags, types, _) = Checker::new().check_with_types(&program);
+    let (_diags, types, _, _) = Checker::new().check_with_types(&program);
     eprintln!("types: {:?}", types);
     // handler calls setTodos which returns () — handler should infer ()
     if let Some(ty) = types.get("handler") {
@@ -1673,7 +1673,7 @@ fn handler() {
     dts_imports.insert("react".to_string(), vec![use_state_export, probe_export]);
 
     let checker = Checker::with_all_imports(std::collections::HashMap::new(), dts_imports);
-    let (_diags, types, _) = checker.check_with_types(&program);
+    let (_diags, types, _, _) = checker.check_with_types(&program);
     eprintln!("types (real dispatch): {:?}", types);
 
     // setTodos should be a function, NOT Named("Dispatch<...>")
@@ -1754,7 +1754,7 @@ fn handler() {
     dts_imports.insert("react".to_string(), vec![use_state_export, probe_export]);
 
     let checker = Checker::with_all_imports(std::collections::HashMap::new(), dts_imports);
-    let (_diags, types, _) = checker.check_with_types(&program);
+    let (_diags, types, _, _) = checker.check_with_types(&program);
     eprintln!("types with dts: {:?}", types);
 
     // setTodos should be a function type, not Named("Dispatch<...>")
@@ -1791,7 +1791,7 @@ fn outer() {
     )
     .parse_program()
     .expect("should parse");
-    let (_diags, types, _) = Checker::new().check_with_types(&program);
+    let (_diags, types, _, _) = Checker::new().check_with_types(&program);
     eprintln!("types: {:?}", types);
     if let Some(ty) = types.get("inner") {
         assert!(
@@ -1820,7 +1820,7 @@ const _y = age
     )
     .parse_program()
     .expect("should parse");
-    let (diags, types, _) = Checker::new().check_with_types(&program);
+    let (diags, types, _, _) = Checker::new().check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -1897,7 +1897,7 @@ const _y = isLoading
     );
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, types, _) = checker.check_with_types(&program);
+    let (diags, types, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -3712,7 +3712,7 @@ const _client = useQueryClient()
     dts_imports.insert("@tanstack/react-query".to_string(), vec![export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     assert!(
         !has_error_containing(&diags, "expects"),
@@ -3756,7 +3756,7 @@ const _x = doStuff("hi", 1, true)
     dts_imports.insert("some-lib".to_string(), vec![export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     assert!(
         has_error_containing(&diags, "expects"),
@@ -3806,7 +3806,7 @@ const _x = format("2024-01-01", "PPpp")
     dts_imports.insert("date-fns".to_string(), vec![export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     assert!(
         !has_error_containing(&diags, "expected"),
@@ -3847,7 +3847,7 @@ const _x = doStuff(true)
     dts_imports.insert("some-lib".to_string(), vec![export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     assert!(
         has_error_containing(&diags, "expected"),
@@ -3910,7 +3910,7 @@ const _y = consume(x)
     );
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     assert!(
         !has_error_containing(&diags, "expected"),
@@ -3950,7 +3950,7 @@ const _x = takesClient("hello")
     dts_imports.insert("some-lib".to_string(), vec![export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     assert!(
         has_error_containing(&diags, "expected"),
@@ -3996,7 +3996,7 @@ const _x = takesClient(client)
     dts_imports.insert("some-lib".to_string(), vec![get_export, takes_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     assert!(
         !has_error_containing(&diags, "expected"),
@@ -4573,7 +4573,7 @@ for AccentRow {
     );
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _types, _) = checker.check_with_types(&program);
+    let (diags, _types, _, _) = checker.check_with_types(&program);
 
     // self.entryId should error because AccentRow has entry_id, not entryId
     assert!(
@@ -4623,7 +4623,7 @@ const _name = row.name
     dts_imports.insert("db".to_string(), vec![user_row_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -4707,7 +4707,7 @@ fn App() -> JSX.Element {
     dts_imports.insert("api".to_string(), vec![transition_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -5069,7 +5069,7 @@ const _result = row |> toModel
     .parse_program()
     .expect("should parse");
 
-    let (diags, types, _) = Checker::new().check_with_types(&program);
+    let (diags, types, _, _) = Checker::new().check_with_types(&program);
     let errors: Vec<_> = diags
         .iter()
         .filter(|d| d.severity == Severity::Error)
@@ -5111,7 +5111,7 @@ const _result = toModel(row)
     .parse_program()
     .expect("should parse");
 
-    let (diags, types, _) = Checker::new().check_with_types(&program);
+    let (diags, types, _, _) = Checker::new().check_with_types(&program);
     let errors: Vec<_> = diags
         .iter()
         .filter(|d| d.severity == Severity::Error)
@@ -5720,7 +5720,7 @@ fn page() {
     );
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, name_types, _) = checker.check_with_types(&program);
+    let (diags, name_types, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -5802,7 +5802,7 @@ fn page() {
     );
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, name_types, _) = checker.check_with_types(&program);
+    let (diags, name_types, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -5877,7 +5877,7 @@ fn page() {
     );
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (_, name_types, _) = checker.check_with_types(&program);
+    let (_, name_types, _, _) = checker.check_with_types(&program);
 
     // provided should be DraggableProvided (Foreign type), not a type var
     if let Some(provided_type) = name_types.get("provided") {
@@ -6169,7 +6169,7 @@ const _r = insert(Row(code: "abc", content: "hello"))
     dts_imports.insert("some-db".to_string(), vec![export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     assert!(
         diags.is_empty(),
@@ -6220,7 +6220,7 @@ const _r = _take(getRow())
     dts_imports.insert("some-db".to_string(), vec![export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     assert!(
         has_error_containing(&diags, "expected"),
@@ -6271,7 +6271,7 @@ const _h = handler
     dts_imports.insert("react".to_string(), vec![use_callback_export, probe]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (_, types, _) = checker.check_with_types(&program);
+    let (_, types, _, _) = checker.check_with_types(&program);
 
     // handler should have () return, not unknown
     if let Some(handler_ty) = types.get("handler") {
@@ -6564,7 +6564,7 @@ fn example() -> () {
     dts_imports.insert("./schema".to_string(), vec![snippets_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -6610,7 +6610,7 @@ fn test() -> () {
     dts_imports.insert("some-lib".to_string(), vec![export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -6699,7 +6699,7 @@ fn example() -> () {
     dts_imports.insert("./schema".to_string(), vec![snippets_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -6789,7 +6789,7 @@ fn example() -> () {
     );
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -6888,7 +6888,7 @@ fn createItem(
     dts_imports.insert("./db".to_string(), vec![chain_values, chain_returning]);
 
     let checker = Checker::with_all_imports(fl_imports, dts_imports);
-    let (diags, _, _) = checker.check_with_types(&program);
+    let (diags, _, _, _) = checker.check_with_types(&program);
 
     let errors: Vec<_> = diags
         .iter()
@@ -7072,7 +7072,7 @@ const _x = expiresAt
     dts_imports.insert("date-fns".to_string(), vec![add_seconds_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (_diags, name_types, _) = checker.check_with_types(&program);
+    let (_diags, name_types, _, _) = checker.check_with_types(&program);
 
     // expiresAt should be Result<Date, Error> — untrusted call wraps the return type
     let expires_type = name_types
@@ -7142,7 +7142,7 @@ fn test() -> () {
     dts_imports.insert("db-lib".to_string(), vec![insert_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (diags, name_types, _) = checker.check_with_types(&program);
+    let (diags, name_types, _, _) = checker.check_with_types(&program);
 
     // name should be Result<string, Error>
     let name_type = name_types
@@ -7211,7 +7211,7 @@ const _x = expiresAt
     dts_imports.insert("date-fns".to_string(), vec![fn_export]);
 
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
-    let (_diags, name_types, _) = checker.check_with_types(&program);
+    let (_diags, name_types, _, _) = checker.check_with_types(&program);
 
     let expires_type = name_types
         .get("expiresAt")

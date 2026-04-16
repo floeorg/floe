@@ -75,7 +75,15 @@ fn parse_foreign_generics(s: &str) -> Option<(String, Vec<String>)> {
 
 impl Checker {
     pub(super) fn check_expr(&mut self, expr: &Expr) -> Type {
+        let diag_count = self.problems.len();
         let ty = self.check_expr_inner(expr);
+        // If new errors were emitted while checking this expression and
+        // the result type is indeterminate, mark it as invalid so
+        // `attach_types` produces `ExprKind::Invalid` and codegen skips
+        // the broken subtree.
+        if self.problems.len() > diag_count && ty.is_undetermined() {
+            self.invalid_exprs.insert(expr.id);
+        }
         self.expr_types
             .insert(expr.id, std::sync::Arc::new(ty.clone()));
         ty
@@ -241,6 +249,9 @@ impl Checker {
                 }
                 Type::Unknown
             }
+            // Invalid nodes only appear in the typed tree (post-attach).
+            // The checker operates on the untyped tree and should never see one.
+            ExprKind::Invalid => unreachable!("ExprKind::Invalid in untyped tree"),
         }
     }
 
@@ -251,7 +262,7 @@ impl Checker {
         // Check for ambiguous bare variant usage
         if let Some(unions) = self.ambiguous_variants.get(name) {
             let union_list = unions.join("` and `");
-            self.diagnostics.push(
+            self.problems.push(
                 Diagnostic::error(
                     format!("variant `{name}` is ambiguous — defined in both `{union_list}`"),
                     span,
@@ -520,7 +531,7 @@ impl Checker {
                         if idx < elements.len() {
                             elements[idx].clone()
                         } else {
-                            self.diagnostics.push(
+                            self.problems.push(
                                 Diagnostic::error(
                                     format!(
                                         "tuple index `{}` out of bounds — tuple has {} element(s)",
@@ -534,7 +545,7 @@ impl Checker {
                             Type::Error
                         }
                     } else {
-                        self.diagnostics.push(
+                        self.problems.push(
                             Diagnostic::error(
                                 format!("tuple index must be a non-negative integer, found `{n}`"),
                                 index.span,
@@ -919,7 +930,7 @@ impl Checker {
                         if let Arg::Named { label, .. } = arg
                             && !param_names.iter().any(|p| p == label)
                         {
-                            self.diagnostics.push(
+                            self.problems.push(
                                 Diagnostic::error(
                                     format!(
                                         "unknown argument `{label}` in call to `{callee_name}`"
@@ -2500,7 +2511,7 @@ impl Checker {
             if idx < elements.len() {
                 return elements[idx].clone();
             }
-            self.diagnostics.push(
+            self.problems.push(
                 Diagnostic::error(
                     format!(
                         "tuple index `{field}` out of bounds — tuple has {} element(s)",

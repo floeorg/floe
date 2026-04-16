@@ -153,7 +153,8 @@ pub fn walk_expr_children_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Exp
         | ExprKind::Unchanged
         | ExprKind::Todo
         | ExprKind::Unreachable
-        | ExprKind::Unit => {}
+        | ExprKind::Unit
+        | ExprKind::Invalid => {}
     }
 }
 
@@ -278,7 +279,8 @@ pub fn walk_expr_children<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
         | ExprKind::Unchanged
         | ExprKind::Todo
         | ExprKind::Unreachable
-        | ExprKind::Unit => {}
+        | ExprKind::Unit
+        | ExprKind::Invalid => {}
     }
 }
 

@@ -9,7 +9,7 @@
 //! lives in one place so the rest of the compiler doesn't need to
 //! pattern-match `ExprKind` just to carry types forward.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock};
 
 use crate::parser::ast::*;
@@ -18,16 +18,28 @@ use crate::resolve::ResolvedImports;
 use super::{ExprTypeMap, Type, UNKNOWN};
 
 /// Shared empty `ExprTypeMap` used by the shallow import converters.
-/// Interned so we don't allocate a fresh `HashMap` per imported decl in
-/// `Codegen::with_imports`, which can see tens of decls per file.
 static EMPTY_TYPES: LazyLock<ExprTypeMap> = LazyLock::new(ExprTypeMap::new);
 
+/// Shared empty invalid-exprs set for shallow import converters.
+static EMPTY_INVALID: LazyLock<HashSet<ExprId>> = LazyLock::new(HashSet::new);
+
 /// Convert an untyped program into a typed program, attaching each
-/// expression's resolved type from `types`. Expressions missing from
-/// the map fall back to `Type::Unknown` (this only happens for
-/// synthetic nodes or unreachable subtrees after an error).
-pub fn attach_types(program: UntypedProgram, types: &ExprTypeMap) -> TypedProgram {
-    Attacher { types }.program(program)
+/// expression's resolved type from `types`. Expressions whose IDs
+/// appear in `invalid_exprs` are replaced with `ExprKind::Invalid`
+/// so codegen and downstream passes skip the broken subtree.
+/// Expressions missing from the type map but NOT in the invalid set
+/// fall back to the shared `UNKNOWN` sentinel (codegen-synthetic
+/// nodes and unreachable subtrees).
+pub fn attach_types(
+    program: UntypedProgram,
+    types: &ExprTypeMap,
+    invalid_exprs: &HashSet<ExprId>,
+) -> TypedProgram {
+    Attacher {
+        types,
+        invalid_exprs,
+    }
+    .program(program)
 }
 
 /// Run the full post-check pipeline in one place so every call site
@@ -44,11 +56,12 @@ pub fn attach_types(program: UntypedProgram, types: &ExprTypeMap) -> TypedProgra
 pub fn lower_to_typed(
     mut program: UntypedProgram,
     expr_types: &ExprTypeMap,
+    invalid_exprs: &HashSet<ExprId>,
     resolved: &HashMap<String, ResolvedImports>,
 ) -> TypedProgram {
     crate::checker::mark_async_functions(&mut program);
     crate::desugar::desugar_program(&mut program, resolved);
-    attach_types(program, expr_types)
+    attach_types(program, expr_types, invalid_exprs)
 }
 
 /// Convert an untyped `TypeDecl` (e.g. from the resolver's list of
@@ -62,6 +75,7 @@ pub fn lower_to_typed(
 pub fn attach_type_decl_shallow(decl: &TypeDecl<()>) -> TypedTypeDecl {
     Attacher {
         types: &EMPTY_TYPES,
+        invalid_exprs: &EMPTY_INVALID,
     }
     .type_decl(decl.clone())
 }
@@ -73,12 +87,14 @@ pub fn attach_type_decl_shallow(decl: &TypeDecl<()>) -> TypedTypeDecl {
 pub fn attach_trait_decl_shallow(decl: &TraitDecl<()>) -> TypedTraitDecl {
     Attacher {
         types: &EMPTY_TYPES,
+        invalid_exprs: &EMPTY_INVALID,
     }
     .trait_decl(decl.clone())
 }
 
 struct Attacher<'a> {
     types: &'a ExprTypeMap,
+    invalid_exprs: &'a HashSet<ExprId>,
 }
 
 impl Attacher<'_> {
@@ -305,6 +321,23 @@ impl Attacher<'_> {
     }
 
     fn expr(&self, expr: UntypedExpr) -> TypedExpr {
+        // If the checker flagged this expression as invalid (type error
+        // was already emitted), replace the whole subtree with Invalid
+        // so codegen doesn't try to emit code for a broken tree.
+        if self.invalid_exprs.contains(&expr.id) {
+            let ty = self
+                .types
+                .get(&expr.id)
+                .cloned()
+                .unwrap_or_else(|| Arc::clone(&UNKNOWN));
+            return Expr {
+                id: expr.id,
+                kind: ExprKind::Invalid,
+                ty,
+                span: expr.span,
+            };
+        }
+
         // Cheap: `Arc::clone` bumps a refcount. The fallback path hits the
         // shared `UNKNOWN` sentinel so codegen-synthetic nodes and
         // post-error subtrees don't allocate a fresh `Arc` each.
@@ -427,6 +460,7 @@ impl Attacher<'_> {
                 field,
                 predicate: predicate.map(|(op, e)| (op, self.boxed_expr(e))),
             },
+            ExprKind::Invalid => ExprKind::Invalid,
         }
     }
 
@@ -525,7 +559,11 @@ mod tests {
             items: Vec::new(),
             span: span(),
         };
-        let typed = attach_types(program, &ExprTypeMap::new());
+        let typed = attach_types(
+            program,
+            &ExprTypeMap::new(),
+            &std::collections::HashSet::new(),
+        );
         assert!(typed.items.is_empty());
     }
 
@@ -547,7 +585,11 @@ mod tests {
             }],
             span: span(),
         };
-        let typed = attach_types(program, &ExprTypeMap::new());
+        let typed = attach_types(
+            program,
+            &ExprTypeMap::new(),
+            &std::collections::HashSet::new(),
+        );
         let ItemKind::Expr(e) = &typed.items[0].kind else {
             panic!("expected Expr item");
         };
@@ -573,7 +615,7 @@ mod tests {
             }],
             span: span(),
         };
-        let typed = attach_types(program, &types);
+        let typed = attach_types(program, &types, &std::collections::HashSet::new());
         let ItemKind::Expr(e) = &typed.items[0].kind else {
             panic!("expected Expr item");
         };

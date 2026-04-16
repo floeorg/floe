@@ -7,6 +7,7 @@ mod items;
 mod match_check;
 pub mod prelude;
 mod printer;
+pub mod problems;
 #[cfg(test)]
 mod tests;
 mod traits;
@@ -21,6 +22,7 @@ pub use attach::{
 pub use error_codes::ErrorCode;
 pub use prelude::UNKNOWN;
 pub use printer::TypeDisplay;
+pub use problems::Problems;
 pub use types::Type;
 
 use std::collections::{HashMap, HashSet};
@@ -117,7 +119,7 @@ pub(crate) fn body_has_promise_await<T>(expr: &Expr<T>) -> bool {
     walk(expr)
 }
 
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::Diagnostic;
 use crate::interop::{self, DtsExport};
 use crate::lexer::span::Span;
 use crate::parser::ast::*;
@@ -178,7 +180,10 @@ pub(crate) struct TraitRegistry {
 /// The Floe type checker.
 pub struct Checker {
     env: TypeEnv,
-    diagnostics: Vec<Diagnostic>,
+    problems: Problems,
+    /// Expressions that produced a type error — `attach_types` converts
+    /// them to `ExprKind::Invalid` so codegen skips broken subtrees.
+    invalid_exprs: HashSet<ExprId>,
     next_var: usize,
     /// Standard library function registry.
     stdlib: StdlibRegistry,
@@ -414,7 +419,8 @@ impl Checker {
 
         Self {
             env,
-            diagnostics: Vec::new(),
+            problems: Problems::new(),
+            invalid_exprs: HashSet::new(),
             next_var: 0,
             stdlib: StdlibRegistry::new(),
             expr_types: HashMap::new(),
@@ -538,21 +544,28 @@ impl Checker {
         self.check_full(program).0
     }
 
-    /// Check a program and return (diagnostics, expr_type_map). The
+    /// Check a program and return (diagnostics, expr_type_map, invalid_exprs). The
     /// map keys each expression by its `ExprId` and is consumed by
-    /// `attach_types` to produce a `TypedProgram` for codegen.
-    pub fn check_full(self, program: &Program) -> (Vec<Diagnostic>, ExprTypeMap) {
-        let (diags, _, expr_types) = self.check_all(program);
-        (diags, expr_types)
+    /// `attach_types` to produce a `TypedProgram` for codegen. Expressions in
+    /// `invalid_exprs` become `ExprKind::Invalid` nodes in the typed tree.
+    pub fn check_full(self, program: &Program) -> (Vec<Diagnostic>, ExprTypeMap, HashSet<ExprId>) {
+        let (diags, _, expr_types, invalid) = self.check_all(program);
+        (diags, expr_types, invalid)
     }
 
-    /// Check a program and return diagnostics, name_type_map, and expr_type_map.
+    /// Check a program and return diagnostics, name_type_map, expr_type_map,
+    /// and invalid_exprs set.
     /// The name_type_map maps variable/function names to their inferred type display names.
     /// The expr_type_map maps `ExprId` to `Arc<Type>` and is consumed by `attach_types`.
     pub fn check_with_types(
         self,
         program: &Program,
-    ) -> (Vec<Diagnostic>, HashMap<String, String>, ExprTypeMap) {
+    ) -> (
+        Vec<Diagnostic>,
+        HashMap<String, String>,
+        ExprTypeMap,
+        HashSet<ExprId>,
+    ) {
         self.check_all(program)
     }
 
@@ -561,7 +574,12 @@ impl Checker {
     fn check_all(
         mut self,
         program: &Program,
-    ) -> (Vec<Diagnostic>, HashMap<String, String>, ExprTypeMap) {
+    ) -> (
+        Vec<Diagnostic>,
+        HashMap<String, String>,
+        ExprTypeMap,
+        HashSet<ExprId>,
+    ) {
         // Pre-register types, traits, and functions from resolved imports
         self.registering_types = true;
         // Register foreign (npm) type names first so they're in scope when
@@ -707,7 +725,7 @@ impl Checker {
         // Check for unused imports
         for (name, span) in &self.unused.imported_names {
             if !self.unused.used_names.contains(name) {
-                self.diagnostics.push(
+                self.problems.push(
                     Diagnostic::error(format!("unused import `{name}`"), *span)
                         .with_label("imported but never used")
                         .with_help("remove this import or use it in the code")
@@ -719,7 +737,7 @@ impl Checker {
         // Check for unused variables
         for (name, span) in &self.unused.defined_names {
             if !name.starts_with('_') && !self.unused.used_names.contains(name) {
-                self.diagnostics.push(
+                self.problems.push(
                     Diagnostic::warning(format!("unused variable `{name}`"), *span)
                         .with_label("defined but never used")
                         .with_help(format!("prefix with underscore `_{name}` to suppress"))
@@ -737,7 +755,13 @@ impl Checker {
             }
         }
 
-        (self.diagnostics, self.name_types, self.expr_types)
+        self.problems.sort();
+        (
+            self.problems.take(),
+            self.name_types,
+            self.expr_types,
+            self.invalid_exprs,
+        )
     }
 
     // ── Diagnostic helpers ────────────────────────────────────────
@@ -749,7 +773,7 @@ impl Checker {
         code: ErrorCode,
         label: impl Into<String>,
     ) {
-        self.diagnostics.push(
+        self.problems.push(
             Diagnostic::error(msg, span)
                 .with_label(label)
                 .with_error_code(code),
@@ -764,7 +788,7 @@ impl Checker {
         label: impl Into<String>,
         help: impl Into<String>,
     ) {
-        self.diagnostics.push(
+        self.problems.push(
             Diagnostic::error(msg, span)
                 .with_label(label)
                 .with_help(help)
@@ -780,7 +804,7 @@ impl Checker {
         label: impl Into<String>,
         help: impl Into<String>,
     ) {
-        self.diagnostics.push(
+        self.problems.push(
             Diagnostic::warning(msg, span)
                 .with_label(label)
                 .with_help(help)
@@ -790,9 +814,7 @@ impl Checker {
 
     /// Returns true if an error diagnostic has already been emitted within the given span.
     fn has_error_within_span(&self, span: Span) -> bool {
-        self.diagnostics
-            .iter()
-            .any(|d| d.severity == Severity::Error && span.contains_span(d.span))
+        self.problems.has_error_within_span(span)
     }
 
     // ── Type helpers ────────────────────────────────────────────────

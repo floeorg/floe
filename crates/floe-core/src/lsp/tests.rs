@@ -352,7 +352,7 @@ export fn Counter() -> JSX.Element {
 fn build_index_and_types(source: &str) -> (SymbolIndex, HashMap<String, String>) {
     let program = Parser::new(source).parse_program().unwrap();
     let index = SymbolIndex::build(&program);
-    let (_, type_map, _) = crate::checker::Checker::new().check_with_types(&program);
+    let (_, type_map, _, _) = crate::checker::Checker::new().check_with_types(&program);
     (index, type_map)
 }
 
@@ -510,7 +510,7 @@ const x = 5
 const x = 10
 "#;
     let (_index, _type_map) = build_index_and_types(source);
-    let (diags, _, _) = crate::checker::Checker::new()
+    let (diags, _, _, _) = crate::checker::Checker::new()
         .check_with_types(&crate::parser::Parser::new(source).parse_program().unwrap());
     eprintln!(
         "SHADOW DIAGS: {:?}",

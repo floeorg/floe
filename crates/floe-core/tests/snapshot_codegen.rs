@@ -12,9 +12,9 @@ fn compile(source: &str) -> String {
     let mut program = Parser::new(source)
         .parse_program()
         .expect("fixture should parse");
-    let (_, expr_types) = Checker::new().check_full(&program);
+    let (_, expr_types, _) = Checker::new().check_full(&program);
     desugar::desugar_program(&mut program, &std::collections::HashMap::new());
-    let typed = checker::attach_types(program, &expr_types);
+    let typed = checker::attach_types(program, &expr_types, &std::collections::HashSet::new());
     Codegen::new().generate(&typed).code
 }
 
