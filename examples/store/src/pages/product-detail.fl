@@ -41,10 +41,12 @@ fn ReviewCard(props: { review: Review }) -> JSX.Element {
 fn ProductDetailContent(
     props: { productId: ProductId, onAddToCart: (Product) -> () },
 ) -> JSX.Element {
-    const { data } = useSuspenseQuery({
+    const { data } = useSuspenseQuery(
+        {
         queryKey: ["product", props.productId],
         queryFn: () => fetchProduct(props.productId),
-    })
+    },
+    )
 
     const (product, reviews) = data |> match {
         Ok(result) -> result,
@@ -89,13 +91,13 @@ fn ProductDetailContent(
                     <span className="text-sm text-zinc-600">{`(${reviews |> Array.length} reviews)`}</span>
                 </div>
                 <div className="mb-4 flex items-baseline gap-3">
-                    <span className="text-3xl font-bold text-indigo-400">
-                        {product |> effectivePrice |> formatPrice}
-                    </span>
+                    <span className="text-3xl font-bold text-indigo-400">{product
+                        |> effectivePrice
+                        |> formatPrice}</span>
                     {match hasDiscount {
-                        true -> <span className="text-lg text-zinc-500 line-through">
-                            {formatPrice(product.price)}
-                        </span>,
+                        true -> <span className="text-lg text-zinc-500 line-through">{formatPrice(
+                            product.price,
+                        )}</span>,
                         false -> <span />,
                     }}
                     {match hasDiscount {
@@ -150,11 +152,10 @@ fn ProductDetailContent(
             <div className="space-y-3">
                 {reviews |> match {
                     [] -> <p className="text-zinc-500">No reviews yet.</p>,
-                    revs -> <div className="space-y-3">
-                        {revs |> Array.map(
-                            (review) => <ReviewCard key={review.reviewerName} review={review} />,
-                        )}
-                    </div>,
+                    revs -> <div className="space-y-3">{revs
+                        |> Array.map(
+                        (review) => <ReviewCard key={review.reviewerName} review={review} />,
+                    )}</div>,
                 }}
             </div>
         </div>

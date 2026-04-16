@@ -358,6 +358,74 @@ fn format_preserves_block_comment_in_block() {
     );
 }
 
+// ── Comments inside parameter / arg / element lists (#1088) ─
+
+#[test]
+fn format_preserves_comment_between_call_args() {
+    assert_fmt(
+        "f(a, /* middle */ b)",
+        "f(\n    a,\n    /* middle */\n    b,\n)",
+    );
+}
+
+#[test]
+fn format_preserves_line_comment_between_call_args() {
+    assert_fmt(
+        "f(\n    a,\n    // explain b\n    b,\n)",
+        "f(\n    a,\n    // explain b\n    b,\n)",
+    );
+}
+
+#[test]
+fn format_preserves_comment_between_construct_args() {
+    assert_fmt(
+        "User(\n    name: \"a\",\n    // their age\n    age: 30,\n)",
+        "User(\n    name: \"a\",\n    // their age\n    age: 30,\n)",
+    );
+}
+
+#[test]
+fn format_preserves_comment_between_array_elements() {
+    assert_fmt(
+        "const xs = [1, /* skip */ 2, 3]",
+        "const xs = [\n    1,\n    /* skip */\n    2,\n    3,\n]",
+    );
+}
+
+#[test]
+fn format_preserves_comment_between_record_fields() {
+    assert_fmt(
+        "type User {\n    id: string,\n    // a person's name\n    name: string,\n}",
+        "type User {\n    id: string,\n    // a person's name\n    name: string,\n}",
+    );
+}
+
+#[test]
+fn format_preserves_comment_between_function_params() {
+    assert_fmt(
+        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) -> number {\n    a + b\n}",
+        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) -> number {\n    a + b\n}",
+    );
+}
+
+#[test]
+fn format_preserves_doc_comment_before_definition() {
+    assert_fmt(
+        "/// the global counter\nconst count = 0",
+        "/// the global counter\n\nconst count = 0",
+    );
+}
+
+#[test]
+fn idempotent_comment_between_call_args() {
+    assert_idempotent("f(a, /* middle */ b)");
+}
+
+#[test]
+fn idempotent_comment_between_record_fields() {
+    assert_idempotent("type User {\n    id: string,\n    // name\n    name: string,\n}");
+}
+
 // ── Idempotency ────────────────────────────────────────
 
 fn assert_idempotent(input: &str) {

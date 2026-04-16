@@ -1,44 +1,46 @@
+use crate::pretty::{self, Document};
 use crate::syntax::{SyntaxKind, SyntaxNode};
 
 use super::Formatter;
 
 impl Formatter<'_> {
-    pub(crate) fn fmt_item(&mut self, node: &SyntaxNode) {
+    pub(crate) fn fmt_item(&mut self, node: &SyntaxNode) -> Document {
         let has_export = node.children_with_tokens().any(|t| {
             t.as_token()
                 .is_some_and(|t| t.kind() == SyntaxKind::KW_EXPORT)
         });
 
+        let mut parts = Vec::new();
         if has_export {
-            self.write("export ");
+            parts.push(pretty::str("export "));
         }
-
         for child in node.children() {
-            self.fmt_node(&child);
+            parts.push(self.fmt_node(&child));
         }
+        pretty::concat(parts)
     }
 
-    pub(crate) fn fmt_expr_item(&mut self, node: &SyntaxNode) {
-        for child in node.children() {
-            self.fmt_node(&child);
+    pub(crate) fn fmt_expr_item(&mut self, node: &SyntaxNode) -> Document {
+        if let Some(child) = node.children().next() {
+            return self.fmt_node(&child);
         }
-        if node.children().next().is_none() {
-            self.fmt_tokens_only(node);
+        if let Some(text) = self.first_content_token(node) {
+            return pretty::str(text);
         }
+        pretty::nil()
     }
 
     // ── Import ──────────────────────────────────────────────────
 
-    pub(crate) fn fmt_import(&mut self, node: &SyntaxNode) {
-        self.write("import ");
+    pub(crate) fn fmt_import(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = vec![pretty::str("import ")];
 
-        // Check for module-level `trusted` keyword
         let has_trusted = node.children_with_tokens().any(|t| {
             t.as_token()
                 .is_some_and(|tok| tok.kind() == SyntaxKind::KW_TRUSTED)
         });
         if has_trusted {
-            self.write("trusted ");
+            parts.push(pretty::str("trusted "));
         }
 
         let specifiers: Vec<_> = node
@@ -50,144 +52,138 @@ impl Formatter<'_> {
             .collect();
 
         if !specifiers.is_empty() {
-            self.write("{ ");
+            parts.push(pretty::str("{ "));
             for (i, spec) in specifiers.iter().enumerate() {
                 if i > 0 {
-                    self.write(", ");
+                    parts.push(pretty::str(", "));
                 }
                 if spec.kind() == SyntaxKind::IMPORT_FOR_SPECIFIER {
-                    self.fmt_import_for_specifier(spec);
+                    parts.push(self.fmt_import_for_specifier(spec));
                 } else {
-                    self.fmt_import_specifier(spec);
+                    parts.push(self.fmt_import_specifier(spec));
                 }
             }
-            self.write(" } ");
+            parts.push(pretty::str(" } "));
         }
 
-        self.write("from ");
+        parts.push(pretty::str("from "));
 
         for t in node.children_with_tokens() {
             if let Some(tok) = t.as_token()
                 && tok.kind() == SyntaxKind::STRING
             {
-                self.write(tok.text());
+                parts.push(pretty::str(tok.text()));
             }
         }
+
+        pretty::concat(parts)
     }
 
-    fn fmt_import_specifier(&mut self, node: &SyntaxNode) {
+    fn fmt_import_specifier(&self, node: &SyntaxNode) -> Document {
         let idents: Vec<_> = node
             .children_with_tokens()
             .filter_map(|t| t.into_token())
             .filter(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::BANNED)
             .collect();
 
-        // Check for per-specifier `trusted` — KW_TRUSTED token before the idents
         let has_trusted = self.has_token(node, SyntaxKind::KW_TRUSTED);
+        let mut parts = Vec::new();
 
         if has_trusted {
-            self.write("trusted ");
-            if let Some(name) = idents.first() {
-                self.write(name.text());
-            }
-            if idents.len() > 1 {
-                self.write(" as ");
-                if let Some(alias) = idents.last() {
-                    self.write(alias.text());
-                }
-            }
-        } else {
-            if let Some(name) = idents.first() {
-                self.write(name.text());
-            }
-            if idents.len() > 1 {
-                self.write(" as ");
-                if let Some(alias) = idents.last() {
-                    self.write(alias.text());
-                }
+            parts.push(pretty::str("trusted "));
+        }
+        if let Some(name) = idents.first() {
+            parts.push(pretty::str(name.text()));
+        }
+        if idents.len() > 1 {
+            parts.push(pretty::str(" as "));
+            if let Some(alias) = idents.last() {
+                parts.push(pretty::str(alias.text()));
             }
         }
+        pretty::concat(parts)
+    }
+
+    fn fmt_import_for_specifier(&self, node: &SyntaxNode) -> Document {
+        let mut parts = vec![pretty::str("for ")];
+        if let Some(name) = self.first_ident(node) {
+            parts.push(pretty::str(name));
+        }
+        pretty::concat(parts)
     }
 
     // ── Re-export ───────────────────────────────────────────────
 
-    pub(crate) fn fmt_reexport(&mut self, node: &SyntaxNode) {
-        // The `export` keyword is emitted by fmt_item
-        self.write("{ ");
+    pub(crate) fn fmt_reexport(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = vec![pretty::str("{ ")];
         let specifiers: Vec<_> = node
             .children()
             .filter(|c| c.kind() == SyntaxKind::REEXPORT_SPECIFIER)
             .collect();
         for (i, spec) in specifiers.iter().enumerate() {
             if i > 0 {
-                self.write(", ");
+                parts.push(pretty::str(", "));
             }
-            self.fmt_reexport_specifier(spec);
+            parts.push(self.fmt_reexport_specifier(spec));
         }
-        self.write(" } ");
-        self.write("from ");
+        parts.push(pretty::str(" } from "));
         for t in node.children_with_tokens() {
             if let Some(tok) = t.as_token()
                 && tok.kind() == SyntaxKind::STRING
             {
-                self.write(tok.text());
+                parts.push(pretty::str(tok.text()));
             }
         }
+        pretty::concat(parts)
     }
 
-    fn fmt_reexport_specifier(&mut self, node: &SyntaxNode) {
+    fn fmt_reexport_specifier(&self, node: &SyntaxNode) -> Document {
         let idents: Vec<_> = node
             .children_with_tokens()
             .filter_map(|t| t.into_token())
             .filter(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::BANNED)
             .collect();
-
+        let mut parts = Vec::new();
         if let Some(name) = idents.first() {
-            self.write(name.text());
+            parts.push(pretty::str(name.text()));
         }
         if idents.len() > 1 {
-            self.write(" as ");
+            parts.push(pretty::str(" as "));
             if let Some(alias) = idents.last() {
-                self.write(alias.text());
+                parts.push(pretty::str(alias.text()));
             }
         }
-    }
-
-    fn fmt_import_for_specifier(&mut self, node: &SyntaxNode) {
-        self.write("for ");
-        if let Some(name) = self.first_ident(node) {
-            self.write(&name);
-        }
+        pretty::concat(parts)
     }
 
     // ── Const ───────────────────────────────────────────────────
 
-    pub(crate) fn fmt_const(&mut self, node: &SyntaxNode) {
-        self.write("const ");
+    pub(crate) fn fmt_const(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = vec![pretty::str("const ")];
 
         let has_lbracket = self.has_token(node, SyntaxKind::L_BRACKET);
         let has_lbrace_before_eq = self.has_brace_destructuring(node);
         let has_lparen_before_eq = self.has_paren_destructuring(node);
 
         if has_lbracket {
-            self.write("[");
+            parts.push(pretty::str("["));
             let idents = self.collect_idents(node);
-            self.write(&idents.join(", "));
-            self.write("]");
+            parts.push(pretty::str(idents.join(", ")));
+            parts.push(pretty::str("]"));
         } else if has_lbrace_before_eq {
-            self.write("{ ");
+            parts.push(pretty::str("{ "));
             let fields = self.collect_destructure_fields(node);
-            self.write(&fields.join(", "));
-            self.write(" }");
+            parts.push(pretty::str(fields.join(", ")));
+            parts.push(pretty::str(" }"));
         } else if has_lparen_before_eq {
-            self.write("(");
+            parts.push(pretty::str("("));
             let idents = self.collect_idents_before_eq(node);
-            self.write(&idents.join(", "));
-            self.write(")");
+            parts.push(pretty::str(idents.join(", ")));
+            parts.push(pretty::str(")"));
         } else {
             let idents = self.collect_idents_before_colon_or_eq(node);
             if let Some(name) = idents.first() {
-                self.write(name);
+                parts.push(pretty::str(name));
             }
         }
 
@@ -196,267 +192,257 @@ impl Formatter<'_> {
             .filter(|c| c.kind() == SyntaxKind::TYPE_EXPR)
             .collect();
         if let Some(type_expr) = type_exprs.first() {
-            self.write(": ");
-            self.fmt_type_expr(type_expr);
+            parts.push(pretty::str(": "));
+            parts.push(self.fmt_type_expr(type_expr));
         }
 
-        self.write(" = ");
+        parts.push(pretty::str(" = "));
+        parts.push(self.fmt_expr_after_eq(node));
 
-        let expr = self.find_expr_after_eq(node);
-        if let Some(expr) = expr {
-            self.fmt_node(&expr);
-        } else {
-            self.fmt_token_expr_after_eq(node);
-        }
+        pretty::concat(parts)
     }
 
     // ── Function ────────────────────────────────────────────────
 
-    pub(crate) fn fmt_function(&mut self, node: &SyntaxNode) {
+    pub(crate) fn fmt_function(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = Vec::new();
+
         if self.has_token(node, SyntaxKind::KW_ASYNC) {
-            self.write("async ");
+            parts.push(pretty::str("async "));
         }
-        self.write("fn ");
+        parts.push(pretty::str("fn "));
 
         if let Some(name) = self.first_ident(node) {
-            self.write(&name);
+            parts.push(pretty::str(name));
         }
 
-        // Emit generic type parameters: <T, R: Trait>
-        self.fmt_type_params(node);
+        parts.push(self.fmt_type_params(node));
 
         let params: Vec<_> = node
             .children()
             .filter(|c| c.kind() == SyntaxKind::PARAM)
             .collect();
-
         let return_type = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR);
+        let block = node.children().find(|c| c.kind() == SyntaxKind::BLOCK_EXPR);
 
-        // Try inline params + return type
-        let inline = self.try_inline(|f| {
-            f.write("(");
-            for (i, param) in params.iter().enumerate() {
+        // Build the signature group: (params) -> ReturnType. Pop any
+        // inter-parameter comments from the side-channel and interleave them.
+        let mut sig = Vec::new();
+        sig.push(pretty::str("("));
+        let mut has_comment = false;
+        if !params.is_empty() {
+            let mut inner = vec![pretty::break_("", "")];
+            let mut prev_end: Option<u32> = None;
+            for (i, p) in params.iter().enumerate() {
+                let p_start: u32 = p.text_range().start().into();
                 if i > 0 {
-                    f.write(", ");
+                    inner.push(pretty::break_(",", ", "));
                 }
-                f.fmt_param(param);
-            }
-            f.write(")");
-            if let Some(rt) = &return_type {
-                f.write(" -> ");
-                f.fmt_type_expr(rt);
-            }
-            f.write(" {");
-        });
-
-        if self.fits_inline(&inline) {
-            // Inline: fn name(a: T, b: U) -> R {
-            self.write("(");
-            for (i, param) in params.iter().enumerate() {
-                if i > 0 {
-                    self.write(", ");
+                if let Some(prev) = prev_end {
+                    let comments = self.pop_comments_in_range(prev, p_start);
+                    for comment_text in comments {
+                        inner.push(pretty::str(comment_text));
+                        inner.push(pretty::line());
+                        has_comment = true;
+                    }
                 }
-                self.fmt_param(param);
+                inner.push(self.fmt_param(p));
+                prev_end = Some(p.text_range().end().into());
             }
-            self.write(")");
+            if has_comment {
+                sig.push(pretty::force_broken(pretty::nil()));
+            }
+            sig.push(pretty::nest(4, pretty::concat(inner)));
+            sig.push(pretty::break_(",", ""));
+        }
+        sig.push(pretty::str(")"));
 
-            if let Some(rt) = &return_type {
-                self.write(" -> ");
-                self.fmt_type_expr(rt);
-            }
-        } else {
-            // Multi-line: fn name(\n    a: T,\n    b: U,\n) -> R
-            self.write("(");
-            self.indent += 1;
-            for param in &params {
-                self.newline();
-                self.write_indent();
-                self.fmt_param(param);
-                self.write(",");
-            }
-            self.indent -= 1;
-            self.newline();
-            self.write_indent();
-            self.write(")");
-
-            if let Some(rt) = &return_type {
-                self.write(" -> ");
-                self.fmt_type_expr(rt);
-            }
+        if let Some(rt) = &return_type {
+            sig.push(pretty::str(" -> "));
+            sig.push(self.fmt_type_expr(rt));
         }
 
-        if let Some(block) = node.children().find(|c| c.kind() == SyntaxKind::BLOCK_EXPR) {
-            self.write(" ");
-            self.fmt_block(&block);
+        parts.push(pretty::group(pretty::concat(sig)));
+
+        if let Some(block) = &block {
+            parts.push(pretty::str(" "));
+            parts.push(self.fmt_block(block));
         }
+
+        pretty::concat(parts)
     }
 
-    /// Emit generic type parameters from a function node: `<T, R: Trait>`.
-    /// Reproduces tokens between `<` and `>` (idents, colons, commas).
-    fn fmt_type_params(&mut self, node: &SyntaxNode) {
+    fn fmt_type_params(&self, node: &SyntaxNode) -> Document {
         let mut in_angle = false;
         let mut started = false;
+        let mut parts = Vec::new();
+
         for token in node.children_with_tokens() {
             if let Some(tok) = token.as_token() {
                 match tok.kind() {
                     SyntaxKind::LESS_THAN => {
-                        self.write("<");
+                        parts.push(pretty::str("<"));
                         in_angle = true;
                         started = true;
                     }
                     SyntaxKind::GREATER_THAN if in_angle => {
-                        self.write(">");
-                        return;
+                        parts.push(pretty::str(">"));
+                        return pretty::concat(parts);
                     }
                     SyntaxKind::IDENT if in_angle => {
-                        self.write(tok.text());
+                        parts.push(pretty::str(tok.text()));
                     }
                     SyntaxKind::COLON if in_angle => {
-                        self.write(": ");
+                        parts.push(pretty::str(": "));
                     }
                     SyntaxKind::COMMA if in_angle => {
-                        self.write(", ");
+                        parts.push(pretty::str(", "));
                     }
                     _ if in_angle => {}
-                    // Stop looking once we've passed the point where `<` would appear
-                    SyntaxKind::L_PAREN if !started => return,
+                    SyntaxKind::L_PAREN if !started => return pretty::nil(),
                     _ => {}
                 }
             }
         }
+        pretty::nil()
     }
 
-    pub(crate) fn fmt_param(&mut self, node: &SyntaxNode) {
+    pub(crate) fn fmt_param(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = Vec::new();
+
         let has_lbrace = self.has_token(node, SyntaxKind::L_BRACE);
         let has_lparen = self.has_paren_destructuring(node);
         let has_underscore = node.children_with_tokens().any(|t| {
             t.as_token()
                 .is_some_and(|tok| tok.kind() == SyntaxKind::UNDERSCORE)
         });
-
         let has_self = self.has_token(node, SyntaxKind::KW_SELF);
 
         if has_self {
-            self.write("self");
+            parts.push(pretty::str("self"));
         } else if has_lbrace {
-            // Destructured param: { name, age }
             let idents = self.collect_idents_before_colon_or_eq(node);
-            self.write("{ ");
-            self.write(&idents.join(", "));
-            self.write(" }");
+            parts.push(pretty::str("{ "));
+            parts.push(pretty::str(idents.join(", ")));
+            parts.push(pretty::str(" }"));
         } else if has_lparen {
-            // Tuple destructured param: (a, b)
             let idents = self.collect_idents_before_colon_or_eq(node);
-            self.write("(");
-            self.write(&idents.join(", "));
-            self.write(")");
+            parts.push(pretty::str("("));
+            parts.push(pretty::str(idents.join(", ")));
+            parts.push(pretty::str(")"));
         } else if has_underscore {
-            self.write("_");
+            parts.push(pretty::str("_"));
         } else if let Some(name) = self.first_ident(node) {
-            self.write(&name);
+            parts.push(pretty::str(name));
         }
 
         if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
-            self.write(": ");
-            self.fmt_type_expr(&type_expr);
+            parts.push(pretty::str(": "));
+            parts.push(self.fmt_type_expr(&type_expr));
         }
 
         if self.has_token(node, SyntaxKind::EQUAL) {
-            self.write(" = ");
-            self.fmt_token_expr_after_eq(node);
+            parts.push(pretty::str(" = "));
+            parts.push(self.fmt_expr_after_eq(node));
         }
+
+        pretty::concat(parts)
     }
 
     // ── Type Declaration ────────────────────────────────────────
 
-    pub(crate) fn fmt_type_decl(&mut self, node: &SyntaxNode) {
+    pub(crate) fn fmt_type_decl(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = Vec::new();
+
         if self.has_token(node, SyntaxKind::KW_OPAQUE) {
-            self.write("opaque ");
+            parts.push(pretty::str("opaque "));
         }
-        self.write("type ");
+        parts.push(pretty::str("type "));
 
-        let idents = self.collect_idents_direct(node);
+        let idents = self.collect_idents(node);
         if let Some(name) = idents.first() {
-            self.write(name);
+            parts.push(pretty::str(name));
         }
-
         if idents.len() > 1 {
-            self.write("<");
-            self.write(&idents[1..].join(", "));
-            self.write(">");
+            parts.push(pretty::str("<"));
+            parts.push(pretty::str(idents[1..].join(", ")));
+            parts.push(pretty::str(">"));
         }
 
         for child in node.children() {
             match child.kind() {
                 SyntaxKind::TYPE_DEF_UNION => {
-                    self.fmt_union(&child);
+                    parts.push(self.fmt_union(&child));
                 }
                 SyntaxKind::TYPE_DEF_RECORD => {
-                    self.write(" ");
-                    self.fmt_record_def(&child);
+                    parts.push(pretty::str(" "));
+                    parts.push(self.fmt_record_def(&child));
                 }
                 SyntaxKind::TYPE_DEF_ALIAS | SyntaxKind::TYPE_DEF_STRING_UNION => {
-                    self.write(" = ");
-                    self.fmt_type_alias_def(&child);
+                    parts.push(pretty::str(" = "));
+                    parts.push(self.fmt_type_alias_def(&child));
                 }
                 SyntaxKind::DERIVING_CLAUSE => {
-                    self.write(" deriving (");
-                    let deriving_idents = self.collect_idents_direct(&child);
-                    self.write(&deriving_idents.join(", "));
-                    self.write(")");
+                    parts.push(pretty::str(" deriving ("));
+                    let deriving_idents = self.collect_idents(&child);
+                    parts.push(pretty::str(deriving_idents.join(", ")));
+                    parts.push(pretty::str(")"));
                 }
                 _ => {}
             }
         }
+
+        pretty::concat(parts)
     }
 
-    pub(crate) fn fmt_union(&mut self, node: &SyntaxNode) {
+    pub(crate) fn fmt_union(&mut self, node: &SyntaxNode) -> Document {
         let variants: Vec<_> = node
             .children()
             .filter(|c| c.kind() == SyntaxKind::VARIANT)
             .collect();
 
-        // Newtype case: no VARIANT children, just VARIANT_FIELD directly
-        // Emit paren syntax: `type UserId(string)`
+        // Newtype case: type UserId(string)
         if variants.is_empty() {
-            self.write("(");
             let fields: Vec<_> = node
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::VARIANT_FIELD)
                 .collect();
+            let mut parts = vec![pretty::str("(")];
             for (i, child) in fields.iter().enumerate() {
                 if i > 0 {
-                    self.write(", ");
+                    parts.push(pretty::str(", "));
                 }
-                self.fmt_variant_field(child);
+                parts.push(self.fmt_variant_field(child));
             }
-            self.write(")");
-            return;
+            parts.push(pretty::str(")"));
+            return pretty::concat(parts);
         }
 
-        self.write(" {");
-        self.indent += 1;
+        let mut inner = Vec::new();
         for variant in &variants {
-            self.newline();
-            self.write_indent();
-            self.write("| ");
-            self.fmt_variant(variant);
+            inner.push(pretty::line());
+            inner.push(pretty::str("| "));
+            inner.push(self.fmt_variant(variant));
         }
-        self.indent -= 1;
-        self.newline();
-        self.write_indent();
-        self.write("}");
+
+        pretty::concat(vec![
+            pretty::str(" {"),
+            pretty::nest(4, pretty::concat(inner)),
+            pretty::line(),
+            pretty::str("}"),
+        ])
     }
 
-    fn fmt_variant(&mut self, node: &SyntaxNode) {
-        // Skip the "|" ident — it's the union separator, not the variant name
+    fn fmt_variant(&mut self, node: &SyntaxNode) -> Document {
         let name = node
             .children_with_tokens()
             .filter_map(|t| t.into_token())
             .find(|t| t.kind() == SyntaxKind::IDENT && t.text() != "|")
             .map(|t| t.text().to_string());
+
+        let mut parts = Vec::new();
         if let Some(name) = name {
-            self.write(&name);
+            parts.push(pretty::str(name));
         }
 
         let fields: Vec<_> = node
@@ -471,33 +457,39 @@ impl Formatter<'_> {
             } else {
                 (" { ", " }")
             };
-            self.write(open);
+            parts.push(pretty::str(open));
             for (i, field) in fields.iter().enumerate() {
                 if i > 0 {
-                    self.write(", ");
+                    parts.push(pretty::str(", "));
                 }
-                self.fmt_variant_field(field);
+                parts.push(self.fmt_variant_field(field));
             }
-            self.write(close);
+            parts.push(pretty::str(close));
         }
+
+        pretty::concat(parts)
     }
 
-    fn fmt_variant_field(&mut self, node: &SyntaxNode) {
+    fn fmt_variant_field(&mut self, node: &SyntaxNode) -> Document {
         let has_colon = self.has_token(node, SyntaxKind::COLON);
         let idents = self.collect_idents(node);
+        let mut parts = Vec::new();
 
-        if has_colon && let Some(name) = idents.first() {
-            self.write(name);
-            self.write(": ");
+        if has_colon {
+            if let Some(name) = idents.first() {
+                parts.push(pretty::str(name));
+                parts.push(pretty::str(": "));
+            }
         }
 
         if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
-            self.fmt_type_expr(&type_expr);
+            parts.push(self.fmt_type_expr(&type_expr));
         }
+
+        pretty::concat(parts)
     }
 
-    pub(crate) fn fmt_record_def(&mut self, node: &SyntaxNode) {
-        // Collect fields and spreads in source order
+    pub(crate) fn fmt_record_def(&mut self, node: &SyntaxNode) -> Document {
         let members: Vec<_> = node
             .children()
             .filter(|c| {
@@ -505,95 +497,107 @@ impl Formatter<'_> {
             })
             .collect();
 
-        self.write("{");
         if members.is_empty() {
-            self.write("}");
-            return;
+            return pretty::str("{}");
         }
 
-        self.indent += 1;
+        let mut inner = Vec::new();
+        let mut prev_end: Option<u32> = None;
         for member in &members {
-            self.newline();
-            self.write_indent();
-            if member.kind() == SyntaxKind::RECORD_SPREAD {
-                self.fmt_record_spread(member);
-            } else {
-                self.fmt_record_field(member);
+            let m_start: u32 = member.text_range().start().into();
+            if let Some(prev) = prev_end {
+                let comments = self.pop_comments_in_range(prev, m_start);
+                for comment_text in comments {
+                    inner.push(pretty::line());
+                    inner.push(pretty::str(comment_text));
+                }
             }
-            self.write(",");
+            inner.push(pretty::line());
+            if member.kind() == SyntaxKind::RECORD_SPREAD {
+                inner.push(self.fmt_record_spread(member));
+            } else {
+                inner.push(self.fmt_record_field(member));
+            }
+            inner.push(pretty::str(","));
+            prev_end = Some(member.text_range().end().into());
         }
-        self.indent -= 1;
-        self.newline();
-        self.write_indent();
-        self.write("}");
+
+        pretty::concat(vec![
+            pretty::str("{"),
+            pretty::nest(4, pretty::concat(inner)),
+            pretty::line(),
+            pretty::str("}"),
+        ])
     }
 
-    fn fmt_record_spread(&mut self, node: &SyntaxNode) {
-        self.write("...");
-        // Look for a TYPE_EXPR child (generic types like Foo<Bar>)
+    fn fmt_record_spread(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = vec![pretty::str("...")];
         if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
-            self.fmt_type_expr(&type_expr);
+            parts.push(self.fmt_type_expr(&type_expr));
         } else if let Some(name) = self.first_ident(node) {
-            self.write(&name);
+            parts.push(pretty::str(name));
         }
+        pretty::concat(parts)
     }
 
-    pub(crate) fn fmt_record_field(&mut self, node: &SyntaxNode) {
+    pub(crate) fn fmt_record_field(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = Vec::new();
         if let Some(name) = self.first_ident(node) {
-            self.write(&name);
+            parts.push(pretty::str(name));
         }
-        self.write(": ");
+        parts.push(pretty::str(": "));
         if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
-            self.fmt_type_expr(&type_expr);
+            parts.push(self.fmt_type_expr(&type_expr));
         }
-
         if self.has_token(node, SyntaxKind::EQUAL) {
-            self.write(" = ");
-            self.fmt_token_expr_after_eq(node);
+            parts.push(pretty::str(" = "));
+            parts.push(self.fmt_expr_after_eq(node));
         }
+        pretty::concat(parts)
     }
 
-    pub(crate) fn fmt_type_alias_def(&mut self, node: &SyntaxNode) {
+    pub(crate) fn fmt_type_alias_def(&mut self, node: &SyntaxNode) -> Document {
         if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
-            self.fmt_type_expr(&type_expr);
+            self.fmt_type_expr(&type_expr)
         } else if node.kind() == SyntaxKind::TYPE_DEF_STRING_UNION {
-            self.fmt_string_union_def(node);
+            self.fmt_string_union_def(node)
         } else {
-            self.fmt_verbatim(node);
+            self.fmt_verbatim(node)
         }
     }
 
-    fn fmt_string_union_def(&mut self, node: &SyntaxNode) {
+    fn fmt_string_union_def(&self, node: &SyntaxNode) -> Document {
+        let mut parts = Vec::new();
         let mut first = true;
         for t in node.children_with_tokens() {
             if let Some(tok) = t.as_token()
                 && tok.kind() == SyntaxKind::STRING
             {
                 if !first {
-                    self.write(" | ");
+                    parts.push(pretty::str(" | "));
                 }
-                self.write(tok.text());
+                parts.push(pretty::str(tok.text()));
                 first = false;
             }
         }
+        pretty::concat(parts)
     }
 
     // ── For Block ───────────────────────────────────────────────
 
-    pub(crate) fn fmt_for_block(&mut self, node: &SyntaxNode) {
-        self.write("for ");
+    pub(crate) fn fmt_for_block(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = vec![pretty::str("for ")];
 
         if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
-            self.fmt_type_expr(&type_expr);
+            parts.push(self.fmt_type_expr(&type_expr));
         }
 
-        // Optional trait bound: `for User: Display`
         if self.has_token(node, SyntaxKind::COLON) {
-            self.write(": ");
-            self.fmt_token_expr_after_keyword(node, SyntaxKind::COLON);
+            parts.push(pretty::str(": "));
+            parts.push(self.fmt_expr_after_keyword(node, SyntaxKind::COLON));
         }
 
-        self.write(" {");
+        parts.push(pretty::str(" {"));
 
         let mut methods: Vec<(bool, SyntaxNode)> = Vec::new();
         let mut next_is_export = false;
@@ -611,19 +615,21 @@ impl Formatter<'_> {
             }
         }
 
-        self.fmt_method_list(&methods);
+        parts.push(self.fmt_method_list(&methods));
+
+        pretty::concat(parts)
     }
 
     // ── Trait Declaration ───────────────────────────────────────
 
-    pub(crate) fn fmt_trait_decl(&mut self, node: &SyntaxNode) {
-        self.write("trait ");
+    pub(crate) fn fmt_trait_decl(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = vec![pretty::str("trait ")];
 
         if let Some(name) = self.first_ident(node) {
-            self.write(&name);
+            parts.push(pretty::str(name));
         }
 
-        self.write(" {");
+        parts.push(pretty::str(" {"));
 
         let methods: Vec<(bool, SyntaxNode)> = node
             .children()
@@ -631,33 +637,36 @@ impl Formatter<'_> {
             .map(|c| (false, c))
             .collect();
 
-        self.fmt_method_list(&methods);
+        parts.push(self.fmt_method_list(&methods));
+
+        pretty::concat(parts)
     }
 
-    /// Format a list of methods inside a block (`for` or `trait`).
-    /// Each entry is `(exported, FUNCTION_DECL node)`.
-    fn fmt_method_list(&mut self, methods: &[(bool, SyntaxNode)]) {
-        self.indent += 1;
+    fn fmt_method_list(&mut self, methods: &[(bool, SyntaxNode)]) -> Document {
+        let mut inner = Vec::new();
         for (i, (exported, func)) in methods.iter().enumerate() {
-            self.newline();
+            inner.push(pretty::line());
             if i > 0 {
-                self.newline();
+                inner.push(pretty::line());
             }
-            self.write_indent();
+            let mut method_parts = Vec::new();
             if *exported {
-                self.write("export ");
+                method_parts.push(pretty::str("export "));
             }
-            self.fmt_function(func);
+            method_parts.push(self.fmt_function(func));
+            inner.push(pretty::concat(method_parts));
         }
-        self.indent -= 1;
-        self.newline();
-        self.write_indent();
-        self.write("}");
+
+        pretty::concat(vec![
+            pretty::nest(4, pretty::concat(inner)),
+            pretty::line(),
+            pretty::str("}"),
+        ])
     }
 
     // ── Type Expressions ────────────────────────────────────────
 
-    pub(crate) fn fmt_type_expr(&mut self, node: &SyntaxNode) {
+    pub(crate) fn fmt_type_expr(&mut self, node: &SyntaxNode) -> Document {
         let idents = self.collect_idents(node);
         let has_fat_arrow = self.has_token(node, SyntaxKind::FAT_ARROW);
         let has_thin_arrow = self.has_token(node, SyntaxKind::THIN_ARROW);
@@ -671,15 +680,14 @@ impl Formatter<'_> {
             .filter(|c| c.kind() == SyntaxKind::TYPE_EXPR)
             .collect();
 
-        // String literal type: "div", "button"
+        // String literal type
         let string_token = node.children_with_tokens().find_map(|t| {
             t.as_token()
                 .filter(|tok| tok.kind() == SyntaxKind::STRING)
                 .map(|tok| tok.text().to_string())
         });
         if let Some(s) = string_token {
-            self.write(&s);
-            return;
+            return pretty::str(s);
         }
 
         // Unit type: ()
@@ -689,8 +697,7 @@ impl Formatter<'_> {
             && !has_thin_arrow
             && child_type_exprs.is_empty()
         {
-            self.write("()");
-            return;
+            return pretty::str("()");
         }
 
         // Tuple type: (T, U)
@@ -700,48 +707,48 @@ impl Formatter<'_> {
             && !child_type_exprs.is_empty()
             && idents.is_empty()
         {
-            self.write("(");
+            let mut parts = vec![pretty::str("(")];
             for (i, te) in child_type_exprs.iter().enumerate() {
                 if i > 0 {
-                    self.write(", ");
+                    parts.push(pretty::str(", "));
                 }
-                self.fmt_type_expr(te);
+                parts.push(self.fmt_type_expr(te));
             }
-            self.write(")");
-            return;
+            parts.push(pretty::str(")"));
+            return pretty::concat(parts);
         }
 
         // Function type: (params) -> ReturnType
         if has_fat_arrow || has_thin_arrow {
-            self.write("(");
+            let mut parts = vec![pretty::str("(")];
             let param_count = child_type_exprs.len().saturating_sub(1);
             for (i, te) in child_type_exprs.iter().enumerate() {
                 if i == param_count {
                     break;
                 }
                 if i > 0 {
-                    self.write(", ");
+                    parts.push(pretty::str(", "));
                 }
-                self.fmt_type_expr(te);
+                parts.push(self.fmt_type_expr(te));
             }
-            self.write(") -> ");
+            parts.push(pretty::str(") -> "));
             if let Some(ret) = child_type_exprs.last() {
-                self.fmt_type_expr(ret);
+                parts.push(self.fmt_type_expr(ret));
             }
-            return;
+            return pretty::concat(parts);
         }
 
-        // Tuple: [T, U]
+        // Array type: [T, U]
         if has_lbracket {
-            self.write("[");
+            let mut parts = vec![pretty::str("[")];
             for (i, te) in child_type_exprs.iter().enumerate() {
                 if i > 0 {
-                    self.write(", ");
+                    parts.push(pretty::str(", "));
                 }
-                self.fmt_type_expr(te);
+                parts.push(self.fmt_type_expr(te));
             }
-            self.write("]");
-            return;
+            parts.push(pretty::str("]"));
+            return pretty::concat(parts);
         }
 
         // Record type
@@ -750,35 +757,32 @@ impl Formatter<'_> {
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::RECORD_FIELD)
                 .collect();
-            self.write("{ ");
+            let mut parts = vec![pretty::str("{ ")];
             for (i, field) in fields.iter().enumerate() {
                 if i > 0 {
-                    self.write(", ");
+                    parts.push(pretty::str(", "));
                 }
-                self.fmt_record_field(field);
+                parts.push(self.fmt_record_field(field));
             }
-            self.write(" }");
-            return;
+            parts.push(pretty::str(" }"));
+            return pretty::concat(parts);
         }
 
-        // Intersection type: A & B & C
-        // The CST nests this as: outer TYPE_EXPR has the LHS tokens + AMP + child TYPE_EXPR(RHS)
+        // Intersection type: A & B
         let has_amp = self.has_token(node, SyntaxKind::AMP);
         if has_amp {
-            // Format the LHS (everything before the &)
+            let mut parts = Vec::new();
             let has_typeof = self.has_token(node, SyntaxKind::KW_TYPEOF);
             if has_typeof {
-                self.write("typeof ");
+                parts.push(pretty::str("typeof "));
             }
             let has_dot = self.has_token(node, SyntaxKind::DOT);
             if has_dot {
-                self.write(&idents.join("."));
+                parts.push(pretty::str(idents.join(".")));
             } else if let Some(name) = idents.first() {
-                self.write(name);
+                parts.push(pretty::str(name));
             }
-            // LHS type args (e.g. Generic<T> & B)
-            // Count child TYPE_EXPRs that are type args (before AMP) vs intersection members (after AMP)
-            // In the CST, the AMP token separates type args from intersection RHS
+
             let amp_position = node
                 .children_with_tokens()
                 .position(|t| t.as_token().is_some_and(|t| t.kind() == SyntaxKind::AMP));
@@ -796,47 +800,49 @@ impl Formatter<'_> {
                 .partition(|(i, _)| amp_position.is_some_and(|ap| *i < ap));
 
             if !type_args.is_empty() {
-                self.write("<");
+                parts.push(pretty::str("<"));
                 for (i, (_, te)) in type_args.iter().enumerate() {
                     if i > 0 {
-                        self.write(", ");
+                        parts.push(pretty::str(", "));
                     }
-                    self.fmt_type_expr(te);
+                    parts.push(self.fmt_type_expr(te));
                 }
-                self.write(">");
+                parts.push(pretty::str(">"));
             }
-            // Format each RHS intersection member
             for (_, te) in &intersection_rhs {
-                self.write(" & ");
-                self.fmt_type_expr(te);
+                parts.push(pretty::str(" & "));
+                parts.push(self.fmt_type_expr(te));
             }
-            return;
+            return pretty::concat(parts);
         }
 
         // typeof type expression
+        let mut parts = Vec::new();
         let has_typeof = self.has_token(node, SyntaxKind::KW_TYPEOF);
         if has_typeof {
-            self.write("typeof ");
+            parts.push(pretty::str("typeof "));
         }
 
         // Named type with dots
         let has_dot = self.has_token(node, SyntaxKind::DOT);
         if has_dot {
-            self.write(&idents.join("."));
+            parts.push(pretty::str(idents.join(".")));
         } else if let Some(name) = idents.first() {
-            self.write(name);
+            parts.push(pretty::str(name));
         }
 
         // Type args
         if !child_type_exprs.is_empty() {
-            self.write("<");
+            parts.push(pretty::str("<"));
             for (i, te) in child_type_exprs.iter().enumerate() {
                 if i > 0 {
-                    self.write(", ");
+                    parts.push(pretty::str(", "));
                 }
-                self.fmt_type_expr(te);
+                parts.push(self.fmt_type_expr(te));
             }
-            self.write(">");
+            parts.push(pretty::str(">"));
         }
+
+        pretty::concat(parts)
     }
 }
