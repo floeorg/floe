@@ -73,14 +73,14 @@ pub fn analyse_parsed(
     program: crate::parser::ast::Program,
     inputs: ModuleInputs,
 ) -> AnalysedModule {
-    let checker = Checker::from_context(
+    let mut checker = Checker::from_context(
         inputs.resolved_imports.clone(),
         inputs.externs.dts_imports,
         inputs.externs.ambient,
         inputs.externs.ts_imports_missing_tsgo,
     );
-    let (diagnostics, name_types, expr_types, invalid_exprs, references) =
-        checker.check_full_with_references(&program);
+    let (diagnostics, name_types, expr_types, invalid_exprs) = checker.check_all(&program);
+    let references = std::mem::take(&mut checker.references);
     let typed = lower_to_typed(
         program,
         &expr_types,

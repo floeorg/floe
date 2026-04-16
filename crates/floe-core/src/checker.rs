@@ -251,7 +251,7 @@ pub struct Checker {
     /// Tracks `(definition_span, reference_span)` pairs across the whole
     /// program. LSP features (go-to-definition, find-references, rename)
     /// query this side-table instead of re-walking the AST.
-    references: crate::reference::ReferenceTracker,
+    pub(crate) references: crate::reference::ReferenceTracker,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -599,29 +599,11 @@ impl Checker {
         (diags, self.references)
     }
 
-    /// Check a program and return every side-table the analyse pipeline
-    /// needs: diagnostics, name-type map (LSP completions), expr-type
-    /// map (attach_types), invalid-expr set, and reference tracker.
+    /// Run all checks and return all maps. Takes `&mut self` so callers
+    /// that need additional state off the checker (references, traits,
+    /// etc.) can read it afterward.
     #[allow(clippy::type_complexity)]
-    pub fn check_full_with_references(
-        mut self,
-        program: &Program,
-    ) -> (
-        Vec<Diagnostic>,
-        HashMap<String, String>,
-        ExprTypeMap,
-        HashSet<ExprId>,
-        crate::reference::ReferenceTracker,
-    ) {
-        let (diags, name_types, expr_types, invalid) = self.check_all(program);
-        (diags, name_types, expr_types, invalid, self.references)
-    }
-
-    /// Internal: run all checks and return all maps. Takes `&mut self` so
-    /// callers that need additional state off the checker (references,
-    /// traits, etc.) can read it afterward.
-    #[allow(clippy::type_complexity)]
-    fn check_all(
+    pub(crate) fn check_all(
         &mut self,
         program: &Program,
     ) -> (

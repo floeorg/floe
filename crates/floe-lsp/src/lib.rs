@@ -20,7 +20,7 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LspService, Server};
 
 use floe_core::analyse::{self, ExternTypes, ModuleInputs};
-use floe_core::checker::{Checker, Type};
+use floe_core::checker::Type;
 use floe_core::diagnostic::{self as floe_diag, Severity};
 use floe_core::parser::Parser;
 use floe_core::parser::ast::TypedProgram;
@@ -322,15 +322,15 @@ impl FloeLsp {
                 let (program, parse_errors) = Parser::parse_lossy(source);
                 let floe_diags = floe_diag::from_parse_errors(&parse_errors);
                 let index = SymbolIndex::build(&program);
-                // Run the checker on the partial AST to populate the type_map
-                // (e.g. __field_ entries for record types, variable types).
-                let (_, type_map, _, _) = Checker::new().check_with_types(&program);
+                let analysed = analyse::analyse_parsed(program, ModuleInputs::default());
+                let mut combined = floe_diags;
+                combined.extend(analysed.diagnostics);
                 (
-                    self.convert_diagnostics(source, &floe_diags),
+                    self.convert_diagnostics(source, &combined),
                     index,
-                    type_map,
-                    None,
-                    ReferenceTracker::new(),
+                    analysed.name_types,
+                    Some(analysed.program),
+                    analysed.references,
                 )
             }
             Ok(program) => {
@@ -392,8 +392,6 @@ impl FloeLsp {
                 // Add imported for-block functions to the symbol index.
                 index.add_imported_for_blocks(&resolved_imports);
 
-                // Single boundary: parse → check → lower → references. The
-                // same pipeline the CLI uses; LSP and CLI stay in lockstep.
                 let analysed = analyse::analyse_parsed(
                     program,
                     ModuleInputs {

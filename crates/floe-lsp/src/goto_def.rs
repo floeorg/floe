@@ -31,11 +31,9 @@ impl FloeLsp {
             return Ok(None);
         }
 
-        // Precise reference-tracker lookup: if the checker recorded the
-        // identifier at this offset as a reference to a known definition,
-        // jump straight there. Falls through to the name-based index
-        // below for cases the tracker doesn't cover yet (imports, member
-        // accesses).
+        // Reference-tracker lookup for intra-module identifiers. Imports
+        // and member accesses fall through to the name-based index below,
+        // which knows how to resolve them.
         if let Some(def_span) = doc.references.definition_at_offset(offset) {
             return Ok(Some(GotoDefinitionResponse::Scalar(Location {
                 uri: uri.clone(),
