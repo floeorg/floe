@@ -1,17 +1,14 @@
 //! Post-parse, pre-codegen orchestration.
 //!
-//! `analyse_module` is the single boundary between "we have source text" and
-//! "we have a fully typed AST with diagnostics and reference data". Every
-//! consumer — CLI `build`/`check`, LSP, tests, wasm playground — goes through
-//! this function instead of wiring parse / resolve / type-check / lower by hand.
-//!
-//! The CLI owns the I/O (reading files, running tsgo, loading ambient types)
-//! and hands the result in as `ModuleInputs`; `analyse_module` stays pure so
-//! LSP can call it on every keystroke without touching disk.
+//! `analyse_module` / `analyse_parsed` is the single boundary between
+//! "we have source text" and "we have a fully typed AST with diagnostics
+//! and reference data". The CLI owns I/O (reading files, running tsgo,
+//! loading ambient types) and hands the result in as `ModuleInputs`;
+//! analyse stays pure so the LSP can call it without touching disk.
 
 use std::collections::{HashMap, HashSet};
 
-use crate::checker::{self, Checker, lower_to_typed};
+use crate::checker::{Checker, lower_to_typed};
 use crate::diagnostic::{self, Diagnostic};
 use crate::interop::DtsExport;
 use crate::interop::ambient::AmbientDeclarations;
@@ -20,20 +17,26 @@ use crate::parser::ast::TypedProgram;
 use crate::reference::ReferenceTracker;
 use crate::resolve::ResolvedImports;
 
-/// Everything `analyse_module` needs beyond the raw source: resolved
-/// imports (for cross-module type lookup), .d.ts exports, ambient types,
-/// and the set of TypeScript imports that couldn't be resolved because
-/// tsgo isn't installed.
+/// Types pulled from outside Floe — TypeScript `.d.ts` exports, ambient
+/// lib declarations, and the set of TS imports tsgo couldn't resolve.
+/// Grouped because they all originate from the tsgo / ambient extern
+/// pass and travel together through analyse.
 #[derive(Debug, Default, Clone)]
-pub struct ModuleInputs {
-    pub resolved_imports: HashMap<String, ResolvedImports>,
+pub struct ExternTypes {
     pub dts_imports: HashMap<String, Vec<DtsExport>>,
     pub ambient: Option<AmbientDeclarations>,
     pub ts_imports_missing_tsgo: HashSet<String>,
 }
 
-/// The result of analysing one module: a fully-typed program plus every
-/// side-table downstream consumers care about.
+/// Everything `analyse_module` needs beyond raw source: resolved `.fl`
+/// imports and the extern-type bundle.
+#[derive(Debug, Default, Clone)]
+pub struct ModuleInputs {
+    pub resolved_imports: HashMap<String, ResolvedImports>,
+    pub externs: ExternTypes,
+}
+
+/// A fully-typed program plus every side-table downstream consumers care about.
 pub struct AnalysedModule {
     pub program: TypedProgram,
     pub diagnostics: Vec<Diagnostic>,
@@ -41,9 +44,9 @@ pub struct AnalysedModule {
     pub resolved_imports: HashMap<String, ResolvedImports>,
 }
 
-/// Parse, type-check, and lower a single source file into an
-/// `AnalysedModule`. Parse errors are returned as diagnostics rather than
-/// an `Err` — they're still diagnostics the caller may want to render.
+/// Parse, type-check, and lower a single source file. Parse errors come
+/// back as diagnostics rather than an `Err` so callers can render
+/// everything through the same path.
 pub fn analyse_module(source: &str, inputs: ModuleInputs) -> AnalysedModule {
     match Parser::new(source).parse_program() {
         Ok(program) => analyse_parsed(program, inputs),
@@ -59,20 +62,21 @@ pub fn analyse_module(source: &str, inputs: ModuleInputs) -> AnalysedModule {
     }
 }
 
-/// Same as `analyse_module` but starts from a parsed `Program`. Useful
-/// for tests that want to hand-build an AST, or callers that already
-/// parsed for another reason.
+/// Start from a parsed `Program`. Callers that need the `Program` for
+/// another reason (e.g. feeding it into `resolve_imports` before calling
+/// analyse) use this to avoid re-parsing.
 pub fn analyse_parsed(
     program: crate::parser::ast::Program,
     inputs: ModuleInputs,
 ) -> AnalysedModule {
     let checker = Checker::from_context(
         inputs.resolved_imports.clone(),
-        inputs.dts_imports,
-        inputs.ambient,
-        inputs.ts_imports_missing_tsgo,
+        inputs.externs.dts_imports,
+        inputs.externs.ambient,
+        inputs.externs.ts_imports_missing_tsgo,
     );
-    let (diagnostics, expr_types, invalid_exprs, references) = check_and_collect(checker, &program);
+    let (diagnostics, expr_types, invalid_exprs, references) =
+        checker.check_full_with_references(&program);
     let typed = lower_to_typed(
         program,
         &expr_types,
@@ -85,23 +89,6 @@ pub fn analyse_parsed(
         references,
         resolved_imports: inputs.resolved_imports,
     }
-}
-
-/// Thin helper that runs the full checker pipeline and returns the four
-/// outputs `analyse_parsed` needs. Wraps `Checker::check_all`'s tuple shape
-/// so we can evolve the internal representation without changing callers.
-fn check_and_collect(
-    checker: Checker,
-    program: &crate::parser::ast::Program,
-) -> (
-    Vec<Diagnostic>,
-    checker::ExprTypeMap,
-    HashSet<crate::parser::ast::ExprId>,
-    ReferenceTracker,
-) {
-    let (diags, refs) = checker.check_full_with_references(program);
-    let (diagnostics, expr_types, invalid_exprs) = diags;
-    (diagnostics, expr_types, invalid_exprs, refs)
 }
 
 #[cfg(test)]

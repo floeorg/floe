@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 
-use floe_core::analyse::{self, ModuleInputs};
+use floe_core::analyse::{self, ExternTypes, ModuleInputs};
+use floe_core::build::PackageCompiler;
 use floe_core::codegen::Codegen;
 use floe_core::diagnostic;
 use floe_core::find_project_dir;
@@ -138,9 +139,11 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
         program,
         ModuleInputs {
             resolved_imports: resolved.clone(),
-            dts_imports: tsgo_result.exports,
-            ambient,
-            ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
+            externs: ExternTypes {
+                dts_imports: tsgo_result.exports,
+                ambient,
+                ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
+            },
         },
     );
 
@@ -224,17 +227,17 @@ fn cmd_build(path: &Path, out_dir: Option<&Path>) -> Result<()> {
         bail!("no .fl files found in {}", path.display());
     }
 
-    // Default output directory: .floe/ at the project root
-    let project_dir =
-        find_project_dir(&std::env::current_dir().context("failed to get current directory")?);
+    let cwd = std::env::current_dir().context("failed to get current directory")?;
+    let project_dir = find_project_dir(&cwd);
     let default_out_dir = project_dir.join(".floe");
     let out_dir = out_dir.unwrap_or(&default_out_dir);
 
+    let compiler = PackageCompiler::new(project_dir);
     let mut compiled = 0;
     let mut errors = 0;
 
     for file in &files {
-        match compile_file(file, out_dir) {
+        match compile_and_write(&compiler, file, out_dir, &cwd) {
             Ok(out_path) => {
                 println!("  compiled {}", out_path.display());
                 compiled += 1;
@@ -254,21 +257,34 @@ fn cmd_build(path: &Path, out_dir: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
-fn compile_file(file: &Path, out_dir: &Path) -> Result<PathBuf> {
+fn compile_and_write(
+    compiler: &PackageCompiler,
+    file: &Path,
+    out_dir: &Path,
+    cwd: &Path,
+) -> Result<PathBuf> {
     let source = read_fl_file(file)?;
+    let compiled = compiler.compile_file(file, source);
 
-    let filename = file.to_string_lossy();
-    let result = compile_source(file, &filename, &source)?;
-    let output = Codegen::with_imports(&result.resolved).generate(&result.program);
-    let ext = if output.has_jsx { "tsx" } else { "ts" };
+    let type_errors: Vec<_> = compiled
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == diagnostic::Severity::Error)
+        .collect();
+    if !type_errors.is_empty() {
+        let rendered = diagnostic::render_diagnostics(
+            &file.to_string_lossy(),
+            &compiled.source,
+            &compiled.diagnostics,
+        );
+        eprintln!("{rendered}");
+    }
 
-    // Mirror source path structure inside out_dir
+    let ext = if compiled.has_jsx { "tsx" } else { "ts" };
     let canonical = file
         .canonicalize()
         .with_context(|| format!("failed to canonicalize {}", file.display()))?;
-    let relative = canonical
-        .strip_prefix(&std::env::current_dir().context("failed to get current directory")?)
-        .unwrap_or(&canonical);
+    let relative = canonical.strip_prefix(cwd).unwrap_or(&canonical);
     let out_path = out_dir.join(relative).with_extension(ext);
 
     if let Some(parent) = out_path.parent() {
@@ -276,18 +292,17 @@ fn compile_file(file: &Path, out_dir: &Path) -> Result<PathBuf> {
             .with_context(|| format!("failed to create output directory {}", parent.display()))?;
     }
 
-    let code_with_header = format!("// @ts-nocheck\n{}", output.code);
+    let code_with_header = format!("// @ts-nocheck\n{}", compiled.code);
     std::fs::write(&out_path, &code_with_header)
         .with_context(|| format!("failed to write {}", out_path.display()))?;
 
-    // Write .d.fl.ts declaration file (TypeScript's allowArbitraryExtensions convention)
-    if !output.dts.is_empty() {
+    if !compiled.dts.is_empty() {
         let dts_name = format!(
             "{}.d.fl.ts",
             relative.file_stem().unwrap_or_default().to_string_lossy()
         );
         let dts_path = out_dir.join(relative).with_file_name(dts_name);
-        std::fs::write(&dts_path, &output.dts)
+        std::fs::write(&dts_path, &compiled.dts)
             .with_context(|| format!("failed to write {}", dts_path.display()))?;
     }
 
@@ -302,51 +317,32 @@ fn cmd_check(path: &Path) -> Result<()> {
         bail!("no .fl files found in {}", path.display());
     }
 
+    // All files in a check run share the project root, so one compiler
+    // instance serves the whole pass — ambient types and tsconfig paths
+    // load once instead of once per file.
+    let first_project_dir = find_project_dir(
+        &files[0]
+            .parent()
+            .and_then(|p| p.canonicalize().ok())
+            .unwrap_or_else(|| PathBuf::from(".")),
+    );
+    let compiler = PackageCompiler::new(first_project_dir);
+
     let mut checked = 0;
     let mut errors = 0;
 
     for file in &files {
         let source = read_fl_file(file)?;
         let filename = file.to_string_lossy();
-        let (source_dir, project_dir, tsconfig_paths) = resolve_context(file);
-
-        let program = match floe_core::parser::Parser::new(&source).parse_program() {
-            Ok(p) => p,
-            Err(errs) => {
-                let diags = diagnostic::from_parse_errors(&errs);
-                let rendered = diagnostic::render_diagnostics(&filename, &source, &diags);
-                eprint!("{rendered}");
-                errors += 1;
-                continue;
-            }
-        };
-
-        let resolved = resolve::resolve_imports(file, &program, &tsconfig_paths);
-        let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
-        let tsgo_result =
-            tsgo_resolver.resolve_imports(&program, &resolved, &source_dir, &tsconfig_paths);
-        let ambient = floe_core::interop::ambient::load_ambient_types(&project_dir);
-
-        let analysed = analyse::analyse_parsed(
-            program,
-            ModuleInputs {
-                resolved_imports: resolved,
-                dts_imports: tsgo_result.exports,
-                ambient,
-                ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
-            },
-        );
-
-        let type_errors: Vec<_> = analysed
-            .diagnostics
+        let diagnostics = compiler.check_file(file, &source);
+        let type_errors: Vec<_> = diagnostics
             .iter()
             .filter(|d| d.severity == diagnostic::Severity::Error)
             .collect();
         if type_errors.is_empty() {
             checked += 1;
         } else {
-            let rendered =
-                diagnostic::render_diagnostics(&filename, &source, &analysed.diagnostics);
+            let rendered = diagnostic::render_diagnostics(&filename, &source, &diagnostics);
             eprint!("{rendered}");
             errors += 1;
         }
@@ -561,6 +557,10 @@ fn cmd_watch(path: &Path, out_dir: Option<&Path>) -> Result<()> {
         eprintln!("{e}");
     }
 
+    let cwd = std::env::current_dir().context("failed to get current directory")?;
+    let project_dir = find_project_dir(&cwd);
+    let compiler = PackageCompiler::new(project_dir);
+
     let (tx, rx) = mpsc::channel();
 
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
@@ -584,7 +584,7 @@ fn cmd_watch(path: &Path, out_dir: Option<&Path>) -> Result<()> {
 
     for changed_file in rx {
         println!("\n  changed: {}", changed_file.display());
-        match compile_file(&changed_file, out_dir) {
+        match compile_and_write(&compiler, &changed_file, out_dir, &cwd) {
             Ok(out_path) => println!("  compiled {}", out_path.display()),
             Err(e) => eprintln!("  error: {e}"),
         }
