@@ -643,6 +643,14 @@ pub enum ExprKind<T = ()> {
         /// Optional operator and right-hand side (e.g., `== false` in `.done == false`)
         predicate: Option<(BinOp, Box<Expr<T>>)>,
     },
+
+    // -- Error recovery --
+    /// A subtree whose type checking failed. The error has already been
+    /// reported via `Problems`; this node exists so codegen and
+    /// downstream passes can skip the broken subtree without crashing.
+    /// Only constructed by `attach_types` when the expression was
+    /// flagged as invalid during checking.
+    Invalid,
 }
 
 /// Template literal parts for the AST.

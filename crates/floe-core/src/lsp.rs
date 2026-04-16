@@ -318,7 +318,7 @@ impl FloeLsp {
                 let index = SymbolIndex::build(&program);
                 // Run the checker on the partial AST to populate the type_map
                 // (e.g. __field_ entries for record types, variable types).
-                let (_, type_map, _) = Checker::new().check_with_types(&program);
+                let (_, type_map, _, _) = Checker::new().check_with_types(&program);
                 (
                     self.convert_diagnostics(source, &floe_diags),
                     index,
@@ -393,12 +393,14 @@ impl FloeLsp {
                     ambient_types,
                     ts_imports_missing_tsgo,
                 );
-                let (mut check_diags, type_map, expr_types) = checker.check_with_types(&program);
+                let (mut check_diags, type_map, expr_types, invalid_exprs) =
+                    checker.check_with_types(&program);
                 check_diags.extend(import_diags_early);
 
                 // Convert the untyped AST into a typed tree so hover and pipe
                 // input lookups read types directly from each node.
-                let mut typed_program = crate::checker::attach_types(program, &expr_types);
+                let mut typed_program =
+                    crate::checker::attach_types(program, &expr_types, &invalid_exprs);
                 crate::checker::mark_async_functions(&mut typed_program);
 
                 (

@@ -138,7 +138,7 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
         ambient,
         tsgo_result.ts_imports_missing_tsgo,
     );
-    let (check_diags, expr_types) = checker.check_full(&program);
+    let (check_diags, expr_types, invalid_exprs) = checker.check_full(&program);
     // Print diagnostics to stderr but don't block compilation
     // (floe check handles strict error reporting separately)
     let type_errors: Vec<_> = check_diags
@@ -154,7 +154,7 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
     // place so every call site (CLI, tests, wasm playground, LSP) stays
     // in lockstep. Codegen only accepts `TypedProgram`, so this is the
     // single boundary between untyped and typed.
-    let program = checker::lower_to_typed(program, &expr_types, &resolved);
+    let program = checker::lower_to_typed(program, &expr_types, &invalid_exprs, &resolved);
 
     Ok(CompileResult { program, resolved })
 }
@@ -410,7 +410,8 @@ fn cmd_test(path: &Path) -> Result<()> {
         let resolved = resolve::resolve_imports(file, program, &tsconfig_paths);
 
         // Type check
-        let (check_diags, expr_types) = Checker::with_imports(resolved.clone()).check_full(program);
+        let (check_diags, expr_types, invalid_exprs) =
+            Checker::with_imports(resolved.clone()).check_full(program);
         let type_errors: Vec<_> = check_diags
             .iter()
             .filter(|d| d.severity == diagnostic::Severity::Error)
@@ -422,7 +423,8 @@ fn cmd_test(path: &Path) -> Result<()> {
             continue;
         }
 
-        let typed = checker::lower_to_typed(program.clone(), &expr_types, &resolved);
+        let typed =
+            checker::lower_to_typed(program.clone(), &expr_types, &invalid_exprs, &resolved);
         let output = Codegen::with_imports(&resolved)
             .with_test_mode()
             .generate(&typed);

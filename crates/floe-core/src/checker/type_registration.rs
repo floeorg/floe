@@ -25,7 +25,7 @@ impl Checker {
                 TypeDef::Union(variants) => {
                     for variant in variants {
                         if variant.name.starts_with(char::is_lowercase) {
-                            self.diagnostics.push(
+                            self.problems.push(
                                 Diagnostic::error(
                                     format!(
                                         "variant name `{}` must start with an uppercase letter",
@@ -73,7 +73,7 @@ impl Checker {
                 _ => None,
             };
             if let Some(help) = bridge_help {
-                self.diagnostics.push(
+                self.problems.push(
                     Diagnostic::error(
                         format!(
                             "bridge type `{}` uses `=` syntax but doesn't reference any TypeScript import",
@@ -267,7 +267,7 @@ impl Checker {
         };
 
         if found {
-            self.diagnostics.push(
+            self.problems.push(
                 Diagnostic::error(
                     "`&` intersection types cannot be used in `{ }` type definitions".to_string(),
                     span,

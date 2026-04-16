@@ -472,6 +472,12 @@ impl Codegen {
                     }
                 }
             }
+
+            ExprKind::Invalid => {
+                // Type error was already reported. Emit undefined as a
+                // safe placeholder so the output parses as valid TS.
+                self.push("undefined /* type error */");
+            }
         }
     }
 
