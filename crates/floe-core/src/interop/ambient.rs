@@ -23,7 +23,7 @@ use super::wrapper::wrap_boundary_type;
 use crate::checker::Type;
 
 /// Ambient declarations parsed from TypeScript lib files.
-#[derive(Default)]
+#[derive(Debug, Default, Clone)]
 pub struct AmbientDeclarations {
     /// Global variables/functions (e.g., `window`, `document`, `navigator`, `fetch`).
     pub globals: Vec<(String, Type)>,

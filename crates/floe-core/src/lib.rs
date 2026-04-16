@@ -1,3 +1,5 @@
+pub mod analyse;
+pub mod build;
 pub mod checker;
 pub mod codegen;
 pub mod cst;

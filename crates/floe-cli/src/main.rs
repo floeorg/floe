@@ -4,11 +4,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 
-use floe_core::checker::{self, Checker};
+use floe_core::analyse::{self, ModuleInputs};
 use floe_core::codegen::Codegen;
 use floe_core::diagnostic;
 use floe_core::find_project_dir;
-use floe_core::parser::Parser as ZsParser;
 use floe_core::resolve::{self, ResolvedImports, TsconfigPaths};
 
 /// Resolve the source directory, project directory, and tsconfig paths for a file.
@@ -118,45 +117,49 @@ struct CompileResult {
 /// Parse, resolve imports, and type-check a single source. Returns an error
 /// string (with rendered diagnostics) on failure.
 fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<CompileResult> {
-    let program = ZsParser::new(source).parse_program().map_err(|errs| {
-        let diags = diagnostic::from_parse_errors(&errs);
-        let rendered = diagnostic::render_diagnostics(filename, source, &diags);
-        anyhow::anyhow!("{rendered}")
-    })?;
-
     let (source_dir, project_dir, tsconfig_paths) = resolve_context(file_path);
-    let resolved = resolve::resolve_imports(file_path, &program, &tsconfig_paths);
+    // Parse once to seed the import resolver — analyse re-parses inside, but
+    // the cost is negligible next to tsgo and ambient loading.
+    let program = floe_core::parser::Parser::new(source)
+        .parse_program()
+        .map_err(|errs| {
+            let diags = diagnostic::from_parse_errors(&errs);
+            let rendered = diagnostic::render_diagnostics(filename, source, &diags);
+            anyhow::anyhow!("{rendered}")
+        })?;
 
+    let resolved = resolve::resolve_imports(file_path, &program, &tsconfig_paths);
     let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
     let tsgo_result =
         tsgo_resolver.resolve_imports(&program, &resolved, &source_dir, &tsconfig_paths);
-
     let ambient = floe_core::interop::ambient::load_ambient_types(&project_dir);
-    let checker = Checker::from_context(
-        resolved.clone(),
-        tsgo_result.exports,
-        ambient,
-        tsgo_result.ts_imports_missing_tsgo,
+
+    let analysed = analyse::analyse_parsed(
+        program,
+        ModuleInputs {
+            resolved_imports: resolved.clone(),
+            dts_imports: tsgo_result.exports,
+            ambient,
+            ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
+        },
     );
-    let (check_diags, expr_types, invalid_exprs) = checker.check_full(&program);
-    // Print diagnostics to stderr but don't block compilation
-    // (floe check handles strict error reporting separately)
-    let type_errors: Vec<_> = check_diags
+
+    // Render errors to stderr so the user sees them even when compilation
+    // continues (strict reporting is `floe check`'s job).
+    let type_errors: Vec<_> = analysed
+        .diagnostics
         .iter()
         .filter(|d| d.severity == diagnostic::Severity::Error)
         .collect();
     if !type_errors.is_empty() {
-        let rendered = diagnostic::render_diagnostics(filename, source, &check_diags);
+        let rendered = diagnostic::render_diagnostics(filename, source, &analysed.diagnostics);
         eprintln!("{rendered}");
     }
 
-    // `lower_to_typed` runs mark_async → desugar → attach_types in one
-    // place so every call site (CLI, tests, wasm playground, LSP) stays
-    // in lockstep. Codegen only accepts `TypedProgram`, so this is the
-    // single boundary between untyped and typed.
-    let program = checker::lower_to_typed(program, &expr_types, &invalid_exprs, &resolved);
-
-    Ok(CompileResult { program, resolved })
+    Ok(CompileResult {
+        program: analysed.program,
+        resolved,
+    })
 }
 
 // ── Build (file -> stdout) ────────────────────────────────────────
@@ -304,47 +307,48 @@ fn cmd_check(path: &Path) -> Result<()> {
 
     for file in &files {
         let source = read_fl_file(file)?;
-
         let filename = file.to_string_lossy();
-        match ZsParser::new(&source).parse_program() {
-            Ok(program) => {
-                let (source_dir, project_dir, tsconfig_paths) = resolve_context(file);
-                let resolved = resolve::resolve_imports(file, &program, &tsconfig_paths);
+        let (source_dir, project_dir, tsconfig_paths) = resolve_context(file);
 
-                let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
-                let tsgo_result = tsgo_resolver.resolve_imports(
-                    &program,
-                    &resolved,
-                    &source_dir,
-                    &tsconfig_paths,
-                );
-
-                let ambient = floe_core::interop::ambient::load_ambient_types(&project_dir);
-                let check_diags = Checker::from_context(
-                    resolved,
-                    tsgo_result.exports,
-                    ambient,
-                    tsgo_result.ts_imports_missing_tsgo,
-                )
-                .check(&program);
-                let type_errors: Vec<_> = check_diags
-                    .iter()
-                    .filter(|d| d.severity == diagnostic::Severity::Error)
-                    .collect();
-                if type_errors.is_empty() {
-                    checked += 1;
-                } else {
-                    let rendered = diagnostic::render_diagnostics(&filename, &source, &check_diags);
-                    eprint!("{rendered}");
-                    errors += 1;
-                }
-            }
+        let program = match floe_core::parser::Parser::new(&source).parse_program() {
+            Ok(p) => p,
             Err(errs) => {
                 let diags = diagnostic::from_parse_errors(&errs);
                 let rendered = diagnostic::render_diagnostics(&filename, &source, &diags);
                 eprint!("{rendered}");
                 errors += 1;
+                continue;
             }
+        };
+
+        let resolved = resolve::resolve_imports(file, &program, &tsconfig_paths);
+        let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
+        let tsgo_result =
+            tsgo_resolver.resolve_imports(&program, &resolved, &source_dir, &tsconfig_paths);
+        let ambient = floe_core::interop::ambient::load_ambient_types(&project_dir);
+
+        let analysed = analyse::analyse_parsed(
+            program,
+            ModuleInputs {
+                resolved_imports: resolved,
+                dts_imports: tsgo_result.exports,
+                ambient,
+                ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
+            },
+        );
+
+        let type_errors: Vec<_> = analysed
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == diagnostic::Severity::Error)
+            .collect();
+        if type_errors.is_empty() {
+            checked += 1;
+        } else {
+            let rendered =
+                diagnostic::render_diagnostics(&filename, &source, &analysed.diagnostics);
+            eprint!("{rendered}");
+            errors += 1;
         }
     }
 
@@ -372,7 +376,7 @@ fn cmd_test(path: &Path) -> Result<()> {
         // Quick check: does the file contain "test " keyword?
         if source.contains("test ") {
             let filename = file.to_string_lossy();
-            match ZsParser::new(&source).parse_program() {
+            match floe_core::parser::Parser::new(&source).parse_program() {
                 Ok(program) => {
                     // Check if program has any test blocks
                     let has_tests = program.items.iter().any(|item| {
@@ -405,29 +409,31 @@ fn cmd_test(path: &Path) -> Result<()> {
     let mut errors = 0;
 
     for (file, source, filename, program) in &mut test_files {
-        // Resolve imports
         let (_source_dir, _project_dir, tsconfig_paths) = resolve_context(file);
         let resolved = resolve::resolve_imports(file, program, &tsconfig_paths);
 
-        // Type check
-        let (check_diags, expr_types, invalid_exprs) =
-            Checker::with_imports(resolved.clone()).check_full(program);
-        let type_errors: Vec<_> = check_diags
+        let analysed = analyse::analyse_parsed(
+            program.clone(),
+            ModuleInputs {
+                resolved_imports: resolved.clone(),
+                ..Default::default()
+            },
+        );
+        let type_errors: Vec<_> = analysed
+            .diagnostics
             .iter()
             .filter(|d| d.severity == diagnostic::Severity::Error)
             .collect();
         if !type_errors.is_empty() {
-            let rendered = diagnostic::render_diagnostics(filename, source, &check_diags);
+            let rendered = diagnostic::render_diagnostics(filename, source, &analysed.diagnostics);
             eprint!("{rendered}");
             errors += 1;
             continue;
         }
 
-        let typed =
-            checker::lower_to_typed(program.clone(), &expr_types, &invalid_exprs, &resolved);
         let output = Codegen::with_imports(&resolved)
             .with_test_mode()
-            .generate(&typed);
+            .generate(&analysed.program);
 
         // Write to a temp file and execute with a JS runtime
         let ext = if output.has_jsx { "tsx" } else { "ts" };
