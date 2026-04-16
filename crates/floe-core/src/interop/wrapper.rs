@@ -1,4 +1,5 @@
 //! Boundary type wrapping: converts TypeScript types to Floe types at the import boundary.
+use std::sync::Arc;
 
 use super::*;
 use crate::type_layout;
@@ -38,24 +39,24 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
         TsType::Generic { name, args } => {
             match name.as_str() {
                 "Array" | "ReadonlyArray" if args.len() == 1 => {
-                    Type::Array(Box::new(wrap_boundary_type(&args[0])))
+                    Type::Array(Arc::new(wrap_boundary_type(&args[0])))
                 }
                 "Promise" if args.len() == 1 => {
-                    Type::Promise(Box::new(wrap_boundary_type(&args[0])))
+                    Type::Promise(Arc::new(wrap_boundary_type(&args[0])))
                 }
                 // FloeOption<T> → Option<T> (our probe wrapper for Option)
                 "FloeOption" if args.len() == 1 => Type::option_of(wrap_boundary_type(&args[0])),
                 // TS Record<K, V> → Floe RecordMap<K, V> (plain-object map)
                 "Record" if args.len() == 2 => Type::RecordMap {
-                    key: Box::new(wrap_boundary_type(&args[0])),
-                    value: Box::new(wrap_boundary_type(&args[1])),
+                    key: Arc::new(wrap_boundary_type(&args[0])),
+                    value: Arc::new(wrap_boundary_type(&args[1])),
                 },
                 // React's Dispatch<SetStateAction<T>> is a function: (T) -> ()
                 "Dispatch" if args.len() == 1 => {
                     let inner = unwrap_set_state_action(&args[0]);
                     Type::Function {
                         params: vec![wrap_boundary_type(inner)],
-                        return_type: Box::new(Type::Unit),
+                        return_type: Arc::new(Type::Unit),
                         required_params: 1,
                     }
                 }
@@ -87,12 +88,12 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
             let wrapped_return = wrap_boundary_type(return_type);
             Type::Function {
                 params: wrapped_params,
-                return_type: Box::new(wrapped_return),
+                return_type: Arc::new(wrapped_return),
                 required_params,
             }
         }
 
-        TsType::Array(inner) => Type::Array(Box::new(wrap_boundary_type(inner))),
+        TsType::Array(inner) => Type::Array(Arc::new(wrap_boundary_type(inner))),
 
         TsType::Object(fields) => {
             let wrapped: Vec<(String, Type)> = fields
@@ -102,7 +103,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                         // x?: T | null → Settable<T>
                         // Wrap the non-null inner type directly, skipping the Option wrapper
                         let inner = wrap_non_null_inner(&f.ty);
-                        Type::Settable(Box::new(inner))
+                        Type::Settable(Arc::new(inner))
                     } else if f.optional {
                         // x?: T → Option<T>
                         Type::option_of(wrap_boundary_type(&f.ty))

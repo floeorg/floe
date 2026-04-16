@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 
 impl Checker {
@@ -76,10 +78,10 @@ impl Checker {
                 Type::option_of(Self::merge_types(&a_inner, &b_inner))
             }
             (Type::Promise(a_inner), Type::Promise(b_inner)) => {
-                Type::Promise(Box::new(Self::merge_types(a_inner, b_inner)))
+                Type::Promise(Arc::new(Self::merge_types(a_inner, b_inner)))
             }
             (Type::Array(a_inner), Type::Array(b_inner)) => {
-                Type::Array(Box::new(Self::merge_types(a_inner, b_inner)))
+                Type::Array(Arc::new(Self::merge_types(a_inner, b_inner)))
             }
             (Type::Tuple(a_elems), Type::Tuple(b_elems)) if a_elems.len() == b_elems.len() => {
                 Type::Tuple(

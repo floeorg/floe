@@ -3,11 +3,17 @@
 //! stack, display formatting, prelude constructors) were split into
 //! `environment.rs`, `printer.rs`, and `prelude.rs` as part of #1107.
 
+use std::sync::Arc;
+
 use super::printer::{TypeDisplay, TypeDisplayStyle};
 
 // ── Types ────────────────────────────────────────────────────────
 
 /// Internal type representation used by the checker.
+///
+/// Sub-types are stored behind `Arc<Type>` for cheap cloning — type trees
+/// are cloned frequently during inference. Arc refcount bumps replace the
+/// deep copies that `Box<Type>` required.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     /// Primitive types: number, string, boolean
@@ -22,41 +28,41 @@ pub enum Type {
     /// but TypeScript validated it at the source
     Foreign(String),
     /// Promise<T> — async return type, unwrapped by `Promise.await`
-    Promise(Box<Type>),
+    Promise(Arc<Type>),
     /// Opaque type: only the defining module can construct/destructure
     Opaque {
         name: String,
-        base: Box<Type>,
+        base: Arc<Type>,
     },
     // Result<T, E> is now represented as Type::Union { name: "Result", variants: [("Ok", [T]), ("Err", [E])] }
     // Use Type::result_of(ok, err) to construct, ty.is_result() / ty.result_ok() / ty.result_err() to inspect.
     // Option<T> is now represented as Type::Union { name: "Option", variants: [("Some", [T]), ("None", [])] }
     // Use Type::option_of(inner) to construct, ty.is_option() / ty.option_inner() to inspect.
     /// Settable<T> = Set(T) | Clear | Unchanged
-    Settable(Box<Type>),
+    Settable(Arc<Type>),
     /// Function type. `required_params` is how many leading params the caller
     /// must provide; trailing params beyond that index have defaults and can be omitted.
     Function {
         params: Vec<Type>,
         required_params: usize,
-        return_type: Box<Type>,
+        return_type: Arc<Type>,
     },
     /// Array type
-    Array(Box<Type>),
+    Array(Arc<Type>),
     /// Map type: Map<K, V> (JS Map at runtime)
     Map {
-        key: Box<Type>,
-        value: Box<Type>,
+        key: Arc<Type>,
+        value: Arc<Type>,
     },
     /// TS Record<K, V> — plain object at runtime, supports Map operations
     /// via bracket access codegen instead of JS Map API
     RecordMap {
-        key: Box<Type>,
-        value: Box<Type>,
+        key: Arc<Type>,
+        value: Arc<Type>,
     },
     /// Set type: Set<T>
     Set {
-        element: Box<Type>,
+        element: Arc<Type>,
     },
     /// Tuple type
     Tuple(Vec<Type>),

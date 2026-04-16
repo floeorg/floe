@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 
 // ── Match Exhaustiveness (delegated to exhaustiveness module) ────
@@ -220,7 +222,7 @@ impl Checker {
                     let rest_ty = if let Type::Array(_) = subject_ty {
                         subject_ty.clone()
                     } else {
-                        Type::Array(Box::new(Type::Unknown))
+                        Type::Array(Arc::new(Type::Unknown))
                     };
                     self.env.define(name, rest_ty.clone());
                     self.name_types.insert(name.clone(), rest_ty.to_string());

@@ -70,17 +70,17 @@ pub fn undefined() -> Type {
 
 #[inline]
 pub fn array_of(inner: Type) -> Type {
-    Type::Array(Box::new(inner))
+    Type::Array(Arc::new(inner))
 }
 
 #[inline]
 pub fn promise_of(inner: Type) -> Type {
-    Type::Promise(Box::new(inner))
+    Type::Promise(Arc::new(inner))
 }
 
 #[inline]
 pub fn settable_of(inner: Type) -> Type {
-    Type::Settable(Box::new(inner))
+    Type::Settable(Arc::new(inner))
 }
 
 #[inline]

@@ -1,4 +1,5 @@
 //! Tests for the interop module.
+use std::sync::Arc;
 
 use super::*;
 
@@ -205,7 +206,7 @@ fn wrap_function_wraps_params_and_return() {
         wrapped,
         Type::Function {
             params: vec![Type::option_of(Type::String)],
-            return_type: Box::new(Type::Unknown),
+            return_type: Arc::new(Type::Unknown),
             required_params: 1,
         }
     );
@@ -232,7 +233,7 @@ fn wrap_function_optional_params_become_option() {
         wrapped,
         Type::Function {
             params: vec![Type::String, Type::option_of(Type::Number)],
-            return_type: Box::new(Type::Unit),
+            return_type: Arc::new(Type::Unit),
             required_params: 1,
         }
     );
@@ -248,7 +249,7 @@ fn wrap_array_wraps_inner() {
     let wrapped = wrap_boundary_type(&ts);
     assert_eq!(
         wrapped,
-        Type::Array(Box::new(Type::option_of(Type::String)))
+        Type::Array(Arc::new(Type::option_of(Type::String)))
     );
 }
 
@@ -289,7 +290,7 @@ fn wrap_optional_nullable_becomes_settable() {
         wrapped,
         Type::Record(vec![(
             "email".to_string(),
-            Type::Settable(Box::new(Type::String))
+            Type::Settable(Arc::new(Type::String))
         ),])
     );
 }
@@ -390,7 +391,7 @@ fn parse_function_nullable_return_wraps_to_option() {
         wrapped,
         Type::Function {
             params: vec![Type::String],
-            return_type: Box::new(Type::option_of(Type::Foreign("Element".to_string()))),
+            return_type: Arc::new(Type::option_of(Type::Foreign("Element".to_string()))),
             required_params: 1,
         }
     );
@@ -404,7 +405,7 @@ fn parse_function_any_param_wraps_to_unknown() {
         wrapped,
         Type::Function {
             params: vec![Type::Unknown],
-            return_type: Box::new(Type::Unit),
+            return_type: Arc::new(Type::Unit),
             required_params: 1,
         }
     );

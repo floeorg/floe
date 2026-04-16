@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 
 impl Checker {
@@ -30,11 +32,11 @@ impl Checker {
                 let required_params = param_types.len();
                 Type::Function {
                     params: param_types,
-                    return_type: Box::new(ret),
+                    return_type: Arc::new(ret),
                     required_params,
                 }
             }
-            TypeExprKind::Array(inner) => Type::Array(Box::new(self.resolve_type(inner))),
+            TypeExprKind::Array(inner) => Type::Array(Arc::new(self.resolve_type(inner))),
             TypeExprKind::Tuple(types) => {
                 Type::Tuple(types.iter().map(|t| self.resolve_type(t)).collect())
             }
@@ -148,7 +150,7 @@ impl Checker {
                     .first()
                     .map(|t| self.resolve_type(t))
                     .unwrap_or(Type::Unknown);
-                Type::Settable(Box::new(inner))
+                Type::Settable(Arc::new(inner))
             }
             type_layout::TYPE_ARRAY => {
                 self.check_type_arg_arity(name, 1, type_args.len(), span);
@@ -156,7 +158,7 @@ impl Checker {
                     .first()
                     .map(|t| self.resolve_type(t))
                     .unwrap_or(Type::Unknown);
-                Type::Array(Box::new(inner))
+                Type::Array(Arc::new(inner))
             }
             type_layout::TYPE_PROMISE => {
                 self.check_type_arg_arity(name, 1, type_args.len(), span);
@@ -164,7 +166,7 @@ impl Checker {
                     .first()
                     .map(|t| self.resolve_type(t))
                     .unwrap_or(Type::Unknown);
-                Type::Promise(Box::new(inner))
+                Type::Promise(Arc::new(inner))
             }
             _ => {
                 // Trait names are not types — always error when used in a type position.
