@@ -1,9 +1,12 @@
 mod attach;
+mod environment;
 pub mod error_codes;
 mod expr;
 mod imports;
 mod items;
 mod match_check;
+pub mod prelude;
+mod printer;
 #[cfg(test)]
 mod tests;
 mod traits;
@@ -16,7 +19,9 @@ pub use attach::{
     attach_trait_decl_shallow, attach_type_decl_shallow, attach_types, lower_to_typed,
 };
 pub use error_codes::ErrorCode;
-pub use types::{Type, TypeDisplay, UNKNOWN};
+pub use prelude::UNKNOWN;
+pub use printer::TypeDisplay;
+pub use types::Type;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -119,7 +124,7 @@ use crate::parser::ast::*;
 use crate::resolve::ResolvedImports;
 use crate::stdlib::StdlibRegistry;
 use crate::type_layout;
-use types::{TypeEnv, TypeInfo};
+use environment::{TypeEnv, TypeInfo};
 
 // ── Context flags ────────────────────────────────────────────────
 
