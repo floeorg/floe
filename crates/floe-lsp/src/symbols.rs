@@ -1,6 +1,6 @@
 use tower_lsp::lsp_types::*;
 
-use crate::parser::ast::*;
+use floe_core::parser::ast::*;
 
 pub(super) fn symbol_kind_to_completion(kind: SymbolKind) -> CompletionItemKind {
     match kind {
@@ -526,7 +526,10 @@ impl SymbolIndex {
     }
 
     /// Walk match patterns to index binding names and literals for hover.
-    fn collect_pattern_bindings(pattern: &crate::parser::ast::Pattern, symbols: &mut Vec<Symbol>) {
+    fn collect_pattern_bindings(
+        pattern: &floe_core::parser::ast::Pattern,
+        symbols: &mut Vec<Symbol>,
+    ) {
         match &pattern.kind {
             PatternKind::Literal(lit) => {
                 let (name, ty) = match lit {
@@ -595,7 +598,7 @@ impl SymbolIndex {
     /// These don't appear in the current file's AST but are defined via cross-file resolution.
     pub(super) fn add_imported_for_blocks(
         &mut self,
-        resolved_imports: &std::collections::HashMap<String, crate::resolve::ResolvedImports>,
+        resolved_imports: &std::collections::HashMap<String, floe_core::resolve::ResolvedImports>,
     ) {
         for (source, resolved) in resolved_imports {
             for block in &resolved.for_blocks {

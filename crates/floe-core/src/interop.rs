@@ -14,7 +14,7 @@ pub mod ambient;
 mod dts;
 mod ts_types;
 pub mod tsgo;
-#[cfg(feature = "cli")]
+#[cfg(feature = "native")]
 pub mod tsgo_lsp;
 mod wrapper;
 

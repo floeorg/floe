@@ -1,7 +1,7 @@
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
-use crate::stdlib::StdlibRegistry;
+use floe_core::stdlib::StdlibRegistry;
 
 const EVENT_HANDLERS: &[&str] = &[
     "onClick",

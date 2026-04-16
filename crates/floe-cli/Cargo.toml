@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 floe-core = { path = "../floe-core" }
+floe-lsp = { path = "../floe-lsp" }
 anyhow.workspace = true
 clap.workspace = true
 notify.workspace = true

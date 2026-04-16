@@ -1,0 +1,21 @@
+[package]
+name = "floe-lsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Floe language server (LSP)"
+publish = false
+
+[lib]
+name = "floe_lsp"
+path = "src/lib.rs"
+
+[dependencies]
+floe-core = { path = "../floe-core" }
+serde_json.workspace = true
+tokio.workspace = true
+tower-lsp.workspace = true
+
+[dev-dependencies]
+insta.workspace = true

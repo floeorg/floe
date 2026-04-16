@@ -1,0 +1,15 @@
+[package]
+name = "floe-test-helpers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared test utilities for Floe compiler crates"
+publish = false
+
+[lib]
+name = "floe_test_helpers"
+path = "src/lib.rs"
+
+[dependencies]
+floe-core = { path = "../floe-core" }

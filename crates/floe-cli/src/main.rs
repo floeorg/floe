@@ -101,7 +101,7 @@ fn main() -> Result<()> {
         Command::Watch { path, out_dir } => cmd_watch(&path, out_dir.as_deref()),
         Command::Init { path } => cmd_init(path.as_deref()),
         Command::Lsp => {
-            tokio::runtime::Runtime::new()?.block_on(floe_core::lsp::run_lsp());
+            tokio::runtime::Runtime::new()?.block_on(floe_lsp::run_lsp());
             Ok(())
         }
     }

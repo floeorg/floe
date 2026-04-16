@@ -19,10 +19,10 @@ use tokio::sync::RwLock;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LspService, Server};
 
-use crate::checker::{Checker, Type};
-use crate::diagnostic::{self as floe_diag, Severity};
-use crate::parser::Parser;
-use crate::parser::ast::TypedProgram;
+use floe_core::checker::{Checker, Type};
+use floe_core::diagnostic::{self as floe_diag, Severity};
+use floe_core::parser::Parser;
+use floe_core::parser::ast::TypedProgram;
 
 use completion::is_pipe_compatible;
 use resolution::enrich_from_imports;
@@ -31,7 +31,7 @@ use symbols::SymbolIndex;
 /// Find the resolved type and span width of the innermost expression at a byte offset.
 /// Returns (span_width, type) of the tightest non-Unknown expression containing the offset.
 fn find_expr_type_at_offset(program: &TypedProgram, offset: usize) -> Option<(usize, Type)> {
-    use crate::parser::ast::TypedExpr;
+    use floe_core::parser::ast::TypedExpr;
 
     let mut best: Option<(usize, Type)> = None;
 
@@ -47,14 +47,14 @@ fn find_expr_type_at_offset(program: &TypedProgram, offset: usize) -> Option<(us
         }
     };
 
-    crate::walk::walk_program(program, &mut check);
+    floe_core::walk::walk_program(program, &mut check);
     best
 }
 
 /// Find the type of the left-hand side of a pipe expression at the given offset.
 /// Used for hover on `|>` to show what value is being piped.
 fn find_pipe_input_type_at_offset(program: &TypedProgram, offset: usize) -> Option<Type> {
-    use crate::parser::ast::{ExprKind, TypedExpr};
+    use floe_core::parser::ast::{ExprKind, TypedExpr};
 
     let mut best: Option<(usize, Type)> = None;
 
@@ -71,7 +71,7 @@ fn find_pipe_input_type_at_offset(program: &TypedProgram, offset: usize) -> Opti
         }
     };
 
-    crate::walk::walk_program(program, &mut check);
+    floe_core::walk::walk_program(program, &mut check);
     best.map(|(_, ty)| ty)
 }
 
@@ -179,7 +179,7 @@ fn is_cursor_on_def_name(source: &str, cursor_offset: usize, sym: &symbols::Symb
     }
 }
 
-use crate::find_project_dir;
+use floe_core::find_project_dir;
 
 // ── Document State ──────────────────────────────────────────────
 
@@ -242,7 +242,7 @@ pub struct FloeLsp {
     client: Client,
     documents: Arc<RwLock<HashMap<Url, Document>>>,
     /// Cache of resolved .d.ts exports per module specifier
-    dts_cache: Arc<RwLock<HashMap<String, Vec<crate::interop::DtsExport>>>>,
+    dts_cache: Arc<RwLock<HashMap<String, Vec<floe_core::interop::DtsExport>>>>,
     /// Project directories we've already logged startup info for
     logged_projects: Arc<RwLock<HashSet<PathBuf>>>,
 }
@@ -261,7 +261,7 @@ impl FloeLsp {
     async fn log_project_info(
         &self,
         project_dir: &Path,
-        tsconfig_paths: &crate::resolve::TsconfigPaths,
+        tsconfig_paths: &floe_core::resolve::TsconfigPaths,
     ) {
         let canonical = project_dir.to_path_buf();
         {
@@ -279,7 +279,7 @@ impl FloeLsp {
             )
             .await;
 
-        let parsed = crate::resolve::ParsedTsconfig::from_project_dir(project_dir);
+        let parsed = floe_core::resolve::ParsedTsconfig::from_project_dir(project_dir);
         match parsed {
             Some(ref ts) => {
                 self.client
@@ -334,12 +334,13 @@ impl FloeLsp {
                 {
                     let source_dir = source_path.parent().unwrap_or(Path::new("."));
                     let project_dir = find_project_dir(source_dir);
-                    let paths = crate::resolve::TsconfigPaths::from_project_dir(&project_dir);
+                    let paths = floe_core::resolve::TsconfigPaths::from_project_dir(&project_dir);
 
                     // Log project info once per project directory
                     self.log_project_info(&project_dir, &paths).await;
 
-                    let resolved = crate::resolve::resolve_imports(&source_path, &program, &paths);
+                    let resolved =
+                        floe_core::resolve::resolve_imports(&source_path, &program, &paths);
                     (resolved, paths)
                 } else {
                     (Default::default(), Default::default())
@@ -365,7 +366,7 @@ impl FloeLsp {
                     import_diags_early = import_diags;
 
                     // Use tsgo for fully-resolved types — no fallback
-                    let mut tsgo_resolver = crate::interop::TsgoResolver::new(&project_dir);
+                    let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
                     let tsgo_result = tsgo_resolver.resolve_imports(
                         &program,
                         &resolved_imports,
@@ -381,7 +382,7 @@ impl FloeLsp {
                     }
 
                     // Load ambient types from TypeScript lib definitions
-                    ambient_types = crate::interop::ambient::load_ambient_types(&project_dir);
+                    ambient_types = floe_core::interop::ambient::load_ambient_types(&project_dir);
                 }
 
                 // Add imported for-block functions to the symbol index
@@ -400,8 +401,8 @@ impl FloeLsp {
                 // Convert the untyped AST into a typed tree so hover and pipe
                 // input lookups read types directly from each node.
                 let mut typed_program =
-                    crate::checker::attach_types(program, &expr_types, &invalid_exprs);
-                crate::checker::mark_async_functions(&mut typed_program);
+                    floe_core::checker::attach_types(program, &expr_types, &invalid_exprs);
+                floe_core::checker::mark_async_functions(&mut typed_program);
 
                 (
                     self.convert_diagnostics(source, &check_diags),
@@ -545,7 +546,7 @@ impl FloeLsp {
 
         // Add stdlib functions to pipe completions using bare names
         // (pipes use type-directed resolution: `|> map(...)` not `|> Array.map(...)`)
-        let stdlib = crate::stdlib::StdlibRegistry::new();
+        let stdlib = floe_core::stdlib::StdlibRegistry::new();
         for f in stdlib.all_functions() {
             if !prefix.is_empty() && !f.name.starts_with(prefix) {
                 continue;
@@ -602,7 +603,7 @@ impl FloeLsp {
             return resolution::resolve_relative_import(specifier, source_dir);
         }
         let project_dir = find_project_dir(source_dir);
-        let tsconfig_paths = crate::resolve::TsconfigPaths::from_project_dir(&project_dir);
+        let tsconfig_paths = floe_core::resolve::TsconfigPaths::from_project_dir(&project_dir);
         if let Some(resolved) = tsconfig_paths.resolve(specifier) {
             return Some(resolved);
         }
