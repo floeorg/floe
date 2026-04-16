@@ -48,8 +48,7 @@ impl Formatter<'_> {
                     if child.kind() == SyntaxKind::ITEM
                         || child.kind() == SyntaxKind::EXPR_ITEM =>
                 {
-                    let trailing_comments = self.trailing_comments_in(&child);
-                    let trailing_blank = self.has_trailing_blank_line(&child);
+                    let (trailing_comments, trailing_blank) = self.trailing_trivia(&child);
                     entries.push(BlockEntry::Item(child, saw_blank));
                     saw_blank = trailing_blank;
                     for comment in trailing_comments {
@@ -107,38 +106,26 @@ impl Formatter<'_> {
         ])
     }
 
-    /// Check if a node has trailing whitespace containing a blank line (2+ newlines).
-    fn has_trailing_blank_line(&self, node: &SyntaxNode) -> bool {
-        let all_tokens: Vec<_> = node
+    /// Single reverse-walk over descendants to extract both trailing comments
+    /// and whether there was a blank line in the trailing trivia. Replaces
+    /// separate `trailing_comments_in` + `has_trailing_blank_line`.
+    fn trailing_trivia(&self, node: &SyntaxNode) -> (Vec<String>, bool) {
+        let mut comments = Vec::new();
+        let mut has_blank = false;
+
+        for tok in node
             .descendants_with_tokens()
             .filter_map(|t| t.into_token())
-            .collect();
-
-        for tok in all_tokens.into_iter().rev() {
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+        {
             match tok.kind() {
                 SyntaxKind::WHITESPACE => {
                     if tok.text().chars().filter(|&c| c == '\n').count() >= 2 {
-                        return true;
+                        has_blank = true;
                     }
                 }
-                k if k.is_trivia() => continue,
-                _ => break,
-            }
-        }
-        false
-    }
-
-    /// Collect trailing comment tokens from a node's descendants
-    /// (comments after the last non-trivia content).
-    fn trailing_comments_in(&self, node: &SyntaxNode) -> Vec<String> {
-        let mut comments = Vec::new();
-        let all_tokens: Vec<_> = node
-            .descendants_with_tokens()
-            .filter_map(|t| t.into_token())
-            .collect();
-
-        for tok in all_tokens.into_iter().rev() {
-            match tok.kind() {
                 SyntaxKind::COMMENT | SyntaxKind::BLOCK_COMMENT => {
                     comments.push(tok.text().to_string());
                 }
@@ -147,7 +134,7 @@ impl Formatter<'_> {
             }
         }
         comments.reverse();
-        comments
+        (comments, has_blank)
     }
 
     // ── Pipe ────────────────────────────────────────────────────
@@ -167,12 +154,10 @@ impl Formatter<'_> {
         let first = self.fmt_pipe_segment(&segments[0]);
         let mut docs = vec![first];
         for i in 1..segments.len() {
+            let op_with_space = if ops[i - 1] == "|>" { "|> " } else { "|>? " };
             docs.push(pretty::nest(
                 4,
-                pretty::concat(vec![
-                    pretty::break_("", " "),
-                    pretty::str(format!("{} ", ops[i - 1])),
-                ]),
+                pretty::concat(vec![pretty::break_("", " "), pretty::str(op_with_space)]),
             ));
             docs.push(self.fmt_pipe_segment(&segments[i]));
         }
@@ -712,9 +697,8 @@ impl Formatter<'_> {
             }
 
             if let Some(prev) = prev_end {
-                let comments = self.pop_comments_in_range(prev, item_start);
-                for comment_text in comments {
-                    inner.push(pretty::str(comment_text));
+                for c in self.pop_comments_in_range(prev, item_start) {
+                    inner.push(pretty::str(c.text));
                     inner.push(pretty::line());
                     has_comment = true;
                 }
@@ -724,16 +708,13 @@ impl Formatter<'_> {
             prev_end = Some(item.text_range().end().into());
         }
 
-        let mut docs = vec![pretty::str(open.to_string())];
-        // ForceBroken marker INSIDE the group when comments are present —
-        // makes the group's fits() return false and thus break. Renders as
-        // nothing.
+        let mut docs = vec![pretty::str(open)];
         if has_comment {
-            docs.push(pretty::force_broken(pretty::nil()));
+            docs.push(pretty::force_break());
         }
         docs.push(pretty::nest(4, pretty::concat(inner)));
         docs.push(pretty::break_(",", ""));
-        docs.push(pretty::str(close.to_string()));
+        docs.push(pretty::str(close));
         pretty::group(pretty::concat(docs))
     }
 
@@ -871,9 +852,8 @@ impl Formatter<'_> {
                 inner.push(pretty::break_(",", ", "));
             }
             if let Some(prev) = prev_end {
-                let comments = self.pop_comments_in_range(prev, arg_start);
-                for comment_text in comments {
-                    inner.push(pretty::str(comment_text));
+                for c in self.pop_comments_in_range(prev, arg_start) {
+                    inner.push(pretty::str(c.text));
                     inner.push(pretty::line());
                     has_comment = true;
                 }
@@ -885,7 +865,7 @@ impl Formatter<'_> {
 
         let mut group_parts = vec![pretty::str("(")];
         if has_comment {
-            group_parts.push(pretty::force_broken(pretty::nil()));
+            group_parts.push(pretty::force_break());
         }
         group_parts.push(pretty::nest(4, pretty::concat(inner)));
         group_parts.push(pretty::break_(",", ""));
@@ -1162,9 +1142,8 @@ impl Formatter<'_> {
                 inner.push(pretty::break_(",", ", "));
             }
             if let Some(prev) = prev_end {
-                let comments = self.pop_comments_in_range(prev, elem.start);
-                for comment_text in comments {
-                    inner.push(pretty::str(comment_text));
+                for c in self.pop_comments_in_range(prev, elem.start) {
+                    inner.push(pretty::str(c.text));
                     inner.push(pretty::line());
                     has_comment = true;
                 }
@@ -1175,7 +1154,7 @@ impl Formatter<'_> {
 
         let mut group_parts = vec![pretty::str("[")];
         if has_comment {
-            group_parts.push(pretty::force_broken(pretty::nil()));
+            group_parts.push(pretty::force_break());
         }
         group_parts.push(pretty::nest(4, pretty::concat(inner)));
         group_parts.push(pretty::break_(",", ""));
@@ -1228,11 +1207,7 @@ impl Formatter<'_> {
     }
 
     pub(crate) fn fmt_wrapper_expr(&mut self, node: &SyntaxNode) -> Document {
-        let keyword = match node.kind() {
-            SyntaxKind::VALUE_EXPR => "Value",
-            _ => unreachable!(),
-        };
-        let mut parts = vec![pretty::str(keyword), pretty::str("(")];
+        let mut parts = vec![pretty::str("Value"), pretty::str("(")];
         if let Some(child) = node.children().next() {
             parts.push(self.fmt_node(&child));
         } else {

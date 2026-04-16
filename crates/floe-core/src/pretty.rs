@@ -259,6 +259,12 @@ pub fn force_broken(doc: Document) -> Document {
     Document::ForceBroken(Box::new(doc))
 }
 
+/// Sentinel that forces the enclosing Group to break without rendering
+/// anything itself. Place inside a Group to unconditionally break it.
+pub fn force_break() -> Document {
+    force_broken(nil())
+}
+
 // -- Tests ------------------------------------------------------------------
 
 #[cfg(test)]

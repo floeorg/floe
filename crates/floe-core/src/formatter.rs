@@ -6,7 +6,7 @@ mod tests;
 
 use crate::cst::CstParser;
 use crate::lexer::Lexer;
-use crate::parse::extra::ModuleExtra;
+use crate::parse::extra::{ModuleExtra, SrcSpan};
 use crate::pretty::{self, Document};
 use crate::syntax::{SyntaxKind, SyntaxNode};
 
@@ -45,22 +45,51 @@ fn strip_trailing_whitespace(s: &str) -> String {
     out
 }
 
+/// A comment popped from the side-channel.
+pub(crate) struct Comment {
+    pub start: u32,
+    pub end: u32,
+    pub text: String,
+}
+
+struct ProgramState {
+    first: bool,
+    prev_kind: Option<SyntaxKind>,
+    prev_was_comment: bool,
+    prev_end: u32,
+}
+
+impl ProgramState {
+    fn new() -> Self {
+        Self {
+            first: true,
+            prev_kind: None,
+            prev_was_comment: false,
+            prev_end: 0,
+        }
+    }
+}
+
 pub(crate) struct Formatter<'src> {
     source: &'src str,
-    extra: ModuleExtra,
-    comment_cursor: usize,
-    doc_comment_cursor: usize,
-    module_comment_cursor: usize,
+    /// Three category lists from `ModuleExtra` merged into one vector sorted
+    /// by `start` so the formatter only has to advance a single cursor.
+    comments: Vec<SrcSpan>,
+    cursor: usize,
+    empty_lines: Vec<u32>,
 }
 
 impl<'src> Formatter<'src> {
     fn new(source: &'src str, extra: ModuleExtra) -> Self {
+        let mut comments = extra.comments;
+        comments.extend(extra.doc_comments);
+        comments.extend(extra.module_comments);
+        comments.sort_by_key(|s| s.start);
         Self {
             source,
-            extra,
-            comment_cursor: 0,
-            doc_comment_cursor: 0,
-            module_comment_cursor: 0,
+            comments,
+            cursor: 0,
+            empty_lines: extra.empty_lines,
         }
     }
 
@@ -111,34 +140,17 @@ impl<'src> Formatter<'src> {
     fn fmt_program(&mut self, node: &SyntaxNode) -> Document {
         let children: Vec<_> = node.children().collect();
         let mut docs = Vec::new();
-        let mut first = true;
-        let mut prev_kind: Option<SyntaxKind> = None;
-        let mut prev_was_comment = false;
-        let mut prev_end: u32 = 0;
+        let mut state = ProgramState::new();
 
         for child in &children {
             let child_start: u32 = child.text_range().start().into();
-
-            // Pop comments before this child from the side-channel
             let comments = self.pop_comments_before(child_start);
-            for (c_start, c_end, comment_text) in &comments {
-                let had_blank_before = self.has_empty_line_between(prev_end, *c_start);
-                if !first && (!prev_was_comment || had_blank_before) {
-                    docs.push(pretty::line());
-                    docs.push(pretty::line());
-                } else if prev_was_comment {
-                    docs.push(pretty::line());
-                }
-                docs.push(pretty::str(comment_text.clone()));
-                first = false;
-                prev_was_comment = true;
-                prev_end = *c_end;
-            }
+            self.emit_program_comments(&mut docs, comments, &mut state);
 
             let child_inner_kind = self.inner_decl_kind(child);
 
-            if !first {
-                if prev_was_comment {
+            if !state.first {
+                if state.prev_was_comment {
                     docs.push(pretty::line());
                     docs.push(pretty::line());
                 } else {
@@ -146,13 +158,11 @@ impl<'src> Formatter<'src> {
                         matches!(k, SyntaxKind::IMPORT_DECL | SyntaxKind::REEXPORT_DECL)
                     };
                     let want_blank = !matches!(
-                        (prev_kind, child_inner_kind),
+                        (state.prev_kind, child_inner_kind),
                         (Some(a), Some(b)) if is_import_like(a) && is_import_like(b)
                     );
+                    docs.push(pretty::line());
                     if want_blank {
-                        docs.push(pretty::line());
-                        docs.push(pretty::line());
-                    } else {
                         docs.push(pretty::line());
                     }
                 }
@@ -160,29 +170,37 @@ impl<'src> Formatter<'src> {
 
             docs.push(self.fmt_node(child));
 
-            prev_was_comment = false;
-            prev_kind = child_inner_kind;
-            prev_end = child.text_range().end().into();
-            first = false;
+            state.prev_was_comment = false;
+            state.prev_kind = child_inner_kind;
+            state.prev_end = child.text_range().end().into();
+            state.first = false;
         }
 
-        // Pop any remaining comments after the last item
         let remaining = self.pop_comments_before(u32::MAX);
-        for (c_start, c_end, comment_text) in &remaining {
-            let had_blank_before = self.has_empty_line_between(prev_end, *c_start);
-            if !first && (!prev_was_comment || had_blank_before) {
-                docs.push(pretty::line());
-                docs.push(pretty::line());
-            } else if prev_was_comment {
-                docs.push(pretty::line());
-            }
-            docs.push(pretty::str(comment_text.clone()));
-            first = false;
-            prev_was_comment = true;
-            prev_end = *c_end;
-        }
+        self.emit_program_comments(&mut docs, remaining, &mut state);
 
         pretty::concat(docs)
+    }
+
+    fn emit_program_comments(
+        &self,
+        docs: &mut Vec<Document>,
+        comments: Vec<Comment>,
+        state: &mut ProgramState,
+    ) {
+        for c in comments {
+            let had_blank_before = self.has_empty_line_between(state.prev_end, c.start);
+            if !state.first && (!state.prev_was_comment || had_blank_before) {
+                docs.push(pretty::line());
+                docs.push(pretty::line());
+            } else if state.prev_was_comment {
+                docs.push(pretty::line());
+            }
+            docs.push(pretty::str(c.text));
+            state.first = false;
+            state.prev_was_comment = true;
+            state.prev_end = c.end;
+        }
     }
 
     fn inner_decl_kind(&self, node: &SyntaxNode) -> Option<SyntaxKind> {
@@ -203,119 +221,46 @@ impl<'src> Formatter<'src> {
 
     // ── Comment handling ────────────────────────────────────────
 
-    /// Pop all unconsumed comments whose start byte < `to`.
-    /// Returns `(start, end, text)` tuples in source order. Advances cursors
-    /// past everything consumed.
-    pub(crate) fn pop_comments_before(&mut self, to: u32) -> Vec<(u32, u32, String)> {
-        let mut results: Vec<(u32, u32, String)> = Vec::new();
-
-        while self.comment_cursor < self.extra.comments.len() {
-            let span = self.extra.comments[self.comment_cursor];
+    /// Drain comments whose `start` lies in `[from, to)`, advancing the
+    /// cursor past `to`. Comments before `from` that the cursor still points
+    /// at are skipped silently — they should have been emitted by an
+    /// enclosing context already (or are inside a node that handles its own
+    /// comments via CST traversal).
+    fn drain_comments(&mut self, from: u32, to: u32) -> Vec<Comment> {
+        let mut results = Vec::new();
+        while self.cursor < self.comments.len() {
+            let span = self.comments[self.cursor];
             if span.start >= to {
                 break;
             }
-            results.push((
-                span.start,
-                span.end,
-                self.source[span.start as usize..span.end as usize].to_string(),
-            ));
-            self.comment_cursor += 1;
-        }
-
-        while self.doc_comment_cursor < self.extra.doc_comments.len() {
-            let span = self.extra.doc_comments[self.doc_comment_cursor];
-            if span.start >= to {
-                break;
+            if span.start >= from {
+                results.push(Comment {
+                    start: span.start,
+                    end: span.end,
+                    text: self.source[span.start as usize..span.end as usize].to_string(),
+                });
             }
-            results.push((
-                span.start,
-                span.end,
-                self.source[span.start as usize..span.end as usize].to_string(),
-            ));
-            self.doc_comment_cursor += 1;
+            self.cursor += 1;
         }
-
-        while self.module_comment_cursor < self.extra.module_comments.len() {
-            let span = self.extra.module_comments[self.module_comment_cursor];
-            if span.start >= to {
-                break;
-            }
-            results.push((
-                span.start,
-                span.end,
-                self.source[span.start as usize..span.end as usize].to_string(),
-            ));
-            self.module_comment_cursor += 1;
-        }
-
-        results.sort_by_key(|(pos, _, _)| *pos);
         results
+    }
+
+    pub(crate) fn pop_comments_before(&mut self, to: u32) -> Vec<Comment> {
+        self.drain_comments(0, to)
+    }
+
+    pub(crate) fn pop_comments_in_range(&mut self, from: u32, to: u32) -> Vec<Comment> {
+        self.drain_comments(from, to)
+    }
+
+    pub(crate) fn advance_comment_cursor_to(&mut self, pos: u32) {
+        let _ = self.drain_comments(0, pos);
     }
 
     /// Check if the source has a blank line in `(from, to)` (exclusive both ends).
     pub(crate) fn has_empty_line_between(&self, from: u32, to: u32) -> bool {
-        self.extra
-            .empty_lines
-            .iter()
-            .any(|&off| off > from && off < to)
-    }
-
-    /// Pop comments whose start is in `[from, to)`, advancing cursors past
-    /// `to`. Comments before `from` that haven't been consumed yet are skipped
-    /// silently — they should have been emitted by enclosing context already.
-    pub(crate) fn pop_comments_in_range(&mut self, from: u32, to: u32) -> Vec<String> {
-        let mut results: Vec<(u32, String)> = Vec::new();
-
-        while self.comment_cursor < self.extra.comments.len() {
-            let span = self.extra.comments[self.comment_cursor];
-            if span.start >= to {
-                break;
-            }
-            if span.start >= from {
-                results.push((
-                    span.start,
-                    self.source[span.start as usize..span.end as usize].to_string(),
-                ));
-            }
-            self.comment_cursor += 1;
-        }
-        while self.doc_comment_cursor < self.extra.doc_comments.len() {
-            let span = self.extra.doc_comments[self.doc_comment_cursor];
-            if span.start >= to {
-                break;
-            }
-            if span.start >= from {
-                results.push((
-                    span.start,
-                    self.source[span.start as usize..span.end as usize].to_string(),
-                ));
-            }
-            self.doc_comment_cursor += 1;
-        }
-
-        results.sort_by_key(|(p, _)| *p);
-        results.into_iter().map(|(_, t)| t).collect()
-    }
-
-    /// Advance all comment cursors past `pos`. Used after recursing into a
-    /// node that handles its own comments via CST traversal, so the program
-    /// loop doesn't re-emit the same comments from the side-channel.
-    pub(crate) fn advance_comment_cursor_to(&mut self, pos: u32) {
-        while self.comment_cursor < self.extra.comments.len()
-            && self.extra.comments[self.comment_cursor].start < pos
-        {
-            self.comment_cursor += 1;
-        }
-        while self.doc_comment_cursor < self.extra.doc_comments.len()
-            && self.extra.doc_comments[self.doc_comment_cursor].start < pos
-        {
-            self.doc_comment_cursor += 1;
-        }
-        while self.module_comment_cursor < self.extra.module_comments.len()
-            && self.extra.module_comments[self.module_comment_cursor].start < pos
-        {
-            self.module_comment_cursor += 1;
-        }
+        let idx = self.empty_lines.partition_point(|&off| off <= from);
+        idx < self.empty_lines.len() && self.empty_lines[idx] < to
     }
 
     // ── CST query helpers ───────────────────────────────────────
