@@ -225,8 +225,6 @@ impl Formatter<'_> {
         let return_type = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR);
         let block = node.children().find(|c| c.kind() == SyntaxKind::BLOCK_EXPR);
 
-        // Build the signature group: (params) -> ReturnType. Pop any
-        // inter-parameter comments from the side-channel and interleave them.
         let mut sig = Vec::new();
         sig.push(pretty::str("("));
         let mut has_comment = false;
@@ -239,9 +237,8 @@ impl Formatter<'_> {
                     inner.push(pretty::break_(",", ", "));
                 }
                 if let Some(prev) = prev_end {
-                    let comments = self.pop_comments_in_range(prev, p_start);
-                    for comment_text in comments {
-                        inner.push(pretty::str(comment_text));
+                    for c in self.pop_comments_in_range(prev, p_start) {
+                        inner.push(pretty::str(c.text));
                         inner.push(pretty::line());
                         has_comment = true;
                     }
@@ -250,7 +247,7 @@ impl Formatter<'_> {
                 prev_end = Some(p.text_range().end().into());
             }
             if has_comment {
-                sig.push(pretty::force_broken(pretty::nil()));
+                sig.push(pretty::force_break());
             }
             sig.push(pretty::nest(4, pretty::concat(inner)));
             sig.push(pretty::break_(",", ""));
@@ -504,10 +501,9 @@ impl Formatter<'_> {
         for member in &members {
             let m_start: u32 = member.text_range().start().into();
             if let Some(prev) = prev_end {
-                let comments = self.pop_comments_in_range(prev, m_start);
-                for comment_text in comments {
+                for c in self.pop_comments_in_range(prev, m_start) {
                     inner.push(pretty::line());
-                    inner.push(pretty::str(comment_text));
+                    inner.push(pretty::str(c.text));
                 }
             }
             inner.push(pretty::line());
