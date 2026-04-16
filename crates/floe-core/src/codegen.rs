@@ -1,38 +1,24 @@
-mod dts;
-mod expr;
-mod items;
-mod jsx;
-mod match_emit;
-mod parse_mock;
-mod pipes;
+//! Codegen dispatcher.
+//!
+//! This module is a thin routing layer: it runs the collection pass to build
+//! a `TypeContext`, then delegates emission to `typescript::TypeScriptGenerator`.
+//! All actual TypeScript emission lives under `codegen/typescript/`, built on
+//! the `pretty::Document` combinator.
+
+mod typescript;
+
 #[cfg(test)]
 mod tests;
-mod types;
 
 use std::collections::{HashMap, HashSet};
 
 use crate::parser::ast::*;
 use crate::resolve::ResolvedImports;
-use crate::stdlib::StdlibRegistry;
-use crate::type_layout;
-use crate::type_layout::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
 
-// ── Runtime codegen constants ───────────────────────────────────
+use typescript::generator::{TypeContext, TypeScriptGenerator};
 
 /// Runtime deep-equality helper function name.
-const DEEP_EQUAL_FN: &str = "__floeEq";
-
-/// `todo` expression — throws "not implemented" at runtime.
-const THROW_NOT_IMPLEMENTED: &str = "(() => { throw new Error(\"not implemented\"); })()";
-
-/// `unreachable` expression — throws "unreachable" at runtime.
-const THROW_UNREACHABLE: &str = "(() => { throw new Error(\"unreachable\"); })()";
-
-/// Fallback for non-exhaustive match — throws at runtime.
-const THROW_NON_EXHAUSTIVE: &str = "(() => { throw new Error(\"non-exhaustive match\"); })()";
-
-/// Mock placeholder for function types — throws when called.
-const THROW_MOCK_FUNCTION: &str = "(() => { throw new Error(\"mock function\"); })";
+pub(crate) const DEEP_EQUAL_FN: &str = "__floeEq";
 
 /// Produce a mangled name for a for-block function: `TypeName__funcName`.
 /// Generic types are flattened: `Array<User>` → `Array_User`, `Map<string, number>` → `Map_string_number`.
@@ -59,8 +45,6 @@ fn mangle_type_name<T>(type_expr: &TypeExpr<T>) -> String {
             let parts: Vec<String> = parts.iter().map(mangle_type_name).collect();
             format!("Tuple_{}", parts.join("_"))
         }
-        // The parser only emits `Named`/`Array`/`Tuple` in for-block
-        // receiver position, so anything else is a parser bug.
         _ => unreachable!("for-block type must be Named, Array, or Tuple"),
     }
 }
@@ -73,93 +57,26 @@ pub struct CodegenOutput {
     pub dts: String,
 }
 
-/// A single step in a flattened pipe+unwrap chain.
-struct PipeStep {
-    /// The expression for this step.
-    /// For the base (first) step, this is the original expression.
-    /// For pipe steps, this is the "right" side of the pipe.
-    expr: TypedExpr,
-    /// Whether this step has `?` (needs Result unwrap with early return).
-    unwrap: bool,
-    /// Whether this step is wrapped in `await`.
-    is_await: bool,
-    /// Whether this is a pipe step (true) or the base expression (false).
-    is_pipe: bool,
-}
-
-/// The Floe code generator. Emits clean, readable TypeScript / TSX.
+/// The Floe code generator. Thin dispatcher that builds a `TypeContext` from
+/// the program, then delegates to the `TypeScriptGenerator` built on `pretty::Document`.
 pub struct Codegen {
-    output: String,
-    indent: usize,
-    has_jsx: bool,
-    needs_deep_equal: bool,
-    unwrap_counter: usize,
-    stdlib: StdlibRegistry,
-    /// Names that are zero-arg union variants (e.g. "All", "Empty")
-    unit_variants: HashSet<String>,
-    /// Maps variant name -> (union_type_name, field_names)
-    variant_info: HashMap<String, (String, Vec<String>)>,
-    /// Maps type name -> TypeDef for mock<T> codegen
-    type_defs: HashMap<String, TypedTypeDef>,
-    /// Locally defined function/const names - these shadow stdlib in pipe resolution
-    local_names: HashSet<String>,
-    /// Resolved imports from other .fl files, for expanding bare imports.
     resolved_imports: HashMap<String, ResolvedImports>,
-    /// Maps original import name -> aliased name for names that conflict with locals.
-    import_aliases: HashMap<String, String>,
-    /// Whether to emit test blocks (true for `floe test`, false for `floe build`).
     test_mode: bool,
-    /// Names used in value positions (expressions). Names only used in type
-    /// positions should be emitted as `import type { ... }`.
-    value_used_names: HashSet<String>,
-    /// Maps (type_name, method_name) → mangled name for for-block functions.
-    /// Used to resolve `Entry.toModel` → `Entry__toModel` in call sites.
-    for_block_fns: HashMap<(String, String), String>,
-    /// Type names that have for-block methods (e.g. "AccentRow" from `for AccentRow { ... }`).
-    for_block_type_names: HashSet<String>,
-    /// Type names used as runtime constructors (e.g. `User(name: "x")`).
-    constructor_used_names: HashSet<String>,
-    /// Names of untrusted npm imports — calls to these get auto-wrapped in try/catch IIFE.
-    untrusted_imports: HashSet<String>,
-    /// All trait declarations in the program, keyed by trait name.
-    /// Used to emit TypeScript interfaces for trait-bounded generics.
-    trait_decls: HashMap<String, TypedTraitDecl>,
-    /// Maps type name -> list of trait names it implements.
-    /// Types with trait impls get a factory function emitted from their for-block.
-    type_trait_impls: HashMap<String, Vec<String>>,
-    /// Type param bounds for the function currently being emitted.
-    /// Maps type param name -> list of trait names. Cleared after each function.
-    current_type_param_bounds: HashMap<String, Vec<String>>,
-    /// Trait names that need to be emitted as TypeScript interfaces.
-    /// Populated during first pass when a trait is used as a generic bound.
-    traits_needing_interface: HashSet<String>,
 }
 
 impl Codegen {
     pub fn new() -> Self {
         Self {
-            output: String::new(),
-            indent: 0,
-            has_jsx: false,
-            needs_deep_equal: false,
-            unwrap_counter: 0,
-            stdlib: StdlibRegistry::new(),
-            unit_variants: HashSet::new(),
-            variant_info: HashMap::new(),
-            type_defs: HashMap::new(),
-            local_names: HashSet::new(),
             resolved_imports: HashMap::new(),
-            import_aliases: HashMap::new(),
             test_mode: false,
-            value_used_names: HashSet::new(),
-            for_block_fns: HashMap::new(),
-            for_block_type_names: HashSet::new(),
-            constructor_used_names: HashSet::new(),
-            untrusted_imports: HashSet::new(),
-            trait_decls: HashMap::new(),
-            type_trait_impls: HashMap::new(),
-            current_type_param_bounds: HashMap::new(),
-            traits_needing_interface: HashSet::new(),
+        }
+    }
+
+    /// Create a codegen with resolved import info.
+    pub fn with_imports(resolved: &HashMap<String, ResolvedImports>) -> Self {
+        Self {
+            resolved_imports: resolved.clone(),
+            test_mode: false,
         }
     }
 
@@ -169,302 +86,11 @@ impl Codegen {
         self
     }
 
-    /// Look up a for-block function by bare name (without type qualifier).
-    /// Returns the mangled name if found (e.g., "toChar" → "Icon__toChar").
-    fn lookup_for_block_fn_by_name(&self, name: &str) -> Option<String> {
-        for ((_, fn_name), mangled) in &self.for_block_fns {
-            if fn_name == name {
-                return Some(
-                    self.import_aliases
-                        .get(mangled)
-                        .cloned()
-                        .unwrap_or_else(|| mangled.clone()),
-                );
-            }
-        }
-        None
-    }
-
-    /// Create a codegen with resolved import info.
-    pub fn with_imports(resolved: &HashMap<String, ResolvedImports>) -> Self {
-        let mut codegen = Self::new();
-        codegen.resolved_imports = resolved.clone();
-        // Pre-register union variant info and type defs from imported types.
-        // Imports come from the resolver in untyped form (no type map for their
-        // default expressions), so we run the shallow attach conversion to
-        // hand codegen `TypedTypeDecl` values whose defaults carry
-        // `Arc<Type::Unknown>` — safe because codegen only reads structural
-        // info from these metadata maps, not the defaults' types.
-        for imports in resolved.values() {
-            for decl in &imports.type_decls {
-                let typed = crate::checker::attach_type_decl_shallow(decl);
-                codegen.register_union_variants(&typed);
-                codegen
-                    .type_defs
-                    .insert(typed.name.clone(), typed.def.clone());
-            }
-        }
-        codegen
-    }
-
-    fn register_union_variants(&mut self, decl: &TypedTypeDecl) {
-        if let TypeDef::Union(variants) = &decl.def {
-            for variant in variants {
-                let field_names: Vec<String> = variant
-                    .fields
-                    .iter()
-                    .enumerate()
-                    .map(|(i, f)| {
-                        f.name.clone().unwrap_or_else(|| {
-                            type_layout::positional_field_name(i, variant.fields.len())
-                        })
-                    })
-                    .collect();
-                if variant.fields.is_empty() {
-                    self.unit_variants.insert(variant.name.clone());
-                }
-                self.variant_info
-                    .insert(variant.name.clone(), (decl.name.clone(), field_names));
-            }
-        }
-    }
-
     /// Generate TypeScript from a Floe program.
-    pub fn generate(mut self, program: &TypedProgram) -> CodegenOutput {
-        // Collect names used in value positions for import type detection
-        self.value_used_names = collect_value_used_names(program);
-        self.constructor_used_names = collect_constructor_names(program);
-
-        // First pass: collect union variant info and local names
-        for item in &program.items {
-            match &item.kind {
-                ItemKind::TypeDecl(decl) => {
-                    self.register_union_variants(decl);
-                    self.type_defs.insert(decl.name.clone(), decl.def.clone());
-                    // Register derived function names as local names
-                    for trait_name in &decl.deriving {
-                        if trait_name.as_str() == "Display" {
-                            self.local_names.insert("display".to_string());
-                        }
-                    }
-                }
-                ItemKind::Function(decl) => {
-                    self.local_names.insert(decl.name.clone());
-                    // Collect traits used as generic bounds — they need TypeScript interfaces
-                    for tp in &decl.type_params {
-                        for bound in &tp.bounds {
-                            self.traits_needing_interface.insert(bound.clone());
-                        }
-                    }
-                }
-                ItemKind::Const(decl) => {
-                    if let ConstBinding::Name(name) = &decl.binding {
-                        self.local_names.insert(name.clone());
-                    }
-                }
-                ItemKind::Import(decl) => {
-                    for spec in &decl.specifiers {
-                        let name = spec.alias.as_ref().unwrap_or(&spec.name);
-                        self.local_names.insert(name.clone());
-                        // Track untrusted imports for auto-wrapping
-                        // npm imports (not .fl files) that aren't marked trusted
-                        let is_npm =
-                            !decl.source.starts_with("./") && !decl.source.starts_with("../");
-                        if is_npm && !decl.trusted && !spec.trusted {
-                            self.untrusted_imports.insert(name.clone());
-                        }
-                    }
-                    // Register for-block functions from imports
-                    if let Some(resolved) = self.resolved_imports.get(&decl.source).cloned() {
-                        for block in &resolved.for_blocks {
-                            self.register_for_block_fns(block);
-                        }
-                    }
-                }
-                ItemKind::ForBlock(block) => {
-                    self.register_for_block_fns(block);
-                    for func in &block.functions {
-                        self.local_names.insert(func.name.clone());
-                    }
-                    // Track types that implement traits so we can emit factory functions
-                    if let Some(trait_name) = &block.trait_name
-                        && let TypeExprKind::Named { name, .. } = &block.type_name.kind
-                    {
-                        self.type_trait_impls
-                            .entry(name.clone())
-                            .or_default()
-                            .push(trait_name.clone());
-                    }
-                }
-                ItemKind::TraitDecl(decl) => {
-                    self.trait_decls.insert(decl.name.clone(), decl.clone());
-                }
-                _ => {}
-            }
-        }
-
-        // Emit TypeScript interfaces for all traits used as generic bounds
-        // These must come first so they're available to all function signatures
-        let interface_output = self.emit_trait_interfaces();
-        if !interface_output.is_empty() {
-            self.output.push_str(&interface_output);
-        }
-
-        for (i, item) in program.items.iter().enumerate() {
-            if i > 0 || !interface_output.is_empty() {
-                self.newline();
-            }
-            self.emit_item(item);
-            self.newline();
-        }
-
-        // Prepend structural equality helper if any == or != was used
-        if self.needs_deep_equal {
-            let helper = concat!(
-                "function __floeEq(a: unknown, b: unknown): boolean {\n",
-                "  if (a === b) return true;\n",
-                "  if (a == null || b == null) return false;\n",
-                "  if (typeof a !== \"object\" || typeof b !== \"object\") return false;\n",
-                "  const ka = Object.keys(a as object);\n",
-                "  const kb = Object.keys(b as object);\n",
-                "  if (ka.length !== kb.length) return false;\n",
-                "  return ka.every((k) => __floeEq((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));\n",
-                "}\n\n",
-            );
-            self.output = format!("{helper}{}", self.output);
-        }
-
-        let dts = self.generate_dts(program);
-
-        CodegenOutput {
-            code: self.output,
-            has_jsx: self.has_jsx,
-            dts,
-        }
-    }
-
-    /// Check if an expression contains `?` (Unwrap) at any level,
-    /// and return true if the const should use Result unwrapping.
-    fn expr_has_unwrap(expr: &TypedExpr) -> bool {
-        match &expr.kind {
-            ExprKind::Unwrap(_) => true,
-            ExprKind::Pipe { left, right } => {
-                Self::expr_has_unwrap(left) || Self::expr_has_unwrap(right)
-            }
-            _ => false,
-        }
-    }
-
-    /// Flatten a chain of `Unwrap(Pipe { left: Unwrap(Pipe { ... }), right })` into
-    /// sequential steps. This enables emitting clean `const _rN = ...; if (!_rN.ok) return _rN;`
-    /// instead of deeply nested IIFEs.
-    fn flatten_pipe_unwrap_chain(expr: &TypedExpr) -> Vec<PipeStep> {
-        let mut steps = Vec::new();
-        Self::collect_pipe_steps(expr, &mut steps);
-        steps
-    }
-
-    fn collect_pipe_steps(expr: &TypedExpr, steps: &mut Vec<PipeStep>) {
-        match &expr.kind {
-            // Unwrap(Pipe { left, right }) → recurse into left, then add right as a pipe step with unwrap
-            ExprKind::Unwrap(inner) => match &inner.kind {
-                ExprKind::Pipe { left, right } => {
-                    Self::collect_pipe_steps(left, steps);
-                    steps.push(PipeStep {
-                        expr: (**right).clone(),
-                        unwrap: true,
-                        is_await: false,
-                        is_pipe: true,
-                    });
-                }
-                _ => {
-                    // Simple unwrap without pipe
-                    steps.push(PipeStep {
-                        expr: (**inner).clone(),
-                        unwrap: true,
-                        is_await: false,
-                        is_pipe: false,
-                    });
-                }
-            },
-            // Pipe without unwrap at this level
-            ExprKind::Pipe { left, right } => {
-                Self::collect_pipe_steps(left, steps);
-                steps.push(PipeStep {
-                    expr: (**right).clone(),
-                    unwrap: false,
-                    is_await: false,
-                    is_pipe: true,
-                });
-            }
-            // Base expression (no pipe, no unwrap)
-            _ => {
-                steps.push(PipeStep {
-                    expr: expr.clone(),
-                    unwrap: false,
-                    is_await: false,
-                    is_pipe: false,
-                });
-            }
-        }
-    }
-
-    // ── Output helpers ───────────────────────────────────────────
-
-    pub(super) fn push(&mut self, s: &str) {
-        self.output.push_str(s);
-    }
-
-    pub(super) fn newline(&mut self) {
-        self.output.push('\n');
-    }
-
-    pub(super) fn emit_indent(&mut self) {
-        for _ in 0..self.indent {
-            self.output.push_str("  ");
-        }
-    }
-
-    pub(super) fn expr_to_string(&self, expr: &TypedExpr) -> String {
-        let mut cg = self.sub_codegen();
-        cg.emit_expr(expr);
-        cg.output
-    }
-
-    /// Create a sub-codegen that shares type info but has its own output buffer.
-    pub(super) fn sub_codegen(&self) -> Codegen {
-        Codegen {
-            output: String::new(),
-            indent: 0,
-            has_jsx: false,
-            needs_deep_equal: false,
-            unwrap_counter: 0,
-            stdlib: StdlibRegistry::new(),
-            unit_variants: self.unit_variants.clone(),
-            variant_info: self.variant_info.clone(),
-            type_defs: self.type_defs.clone(),
-            local_names: self.local_names.clone(),
-            resolved_imports: self.resolved_imports.clone(),
-            import_aliases: self.import_aliases.clone(),
-            test_mode: self.test_mode,
-            value_used_names: self.value_used_names.clone(),
-            for_block_fns: self.for_block_fns.clone(),
-            for_block_type_names: self.for_block_type_names.clone(),
-            constructor_used_names: self.constructor_used_names.clone(),
-            untrusted_imports: self.untrusted_imports.clone(),
-            trait_decls: self.trait_decls.clone(),
-            type_trait_impls: self.type_trait_impls.clone(),
-            current_type_param_bounds: self.current_type_param_bounds.clone(),
-            traits_needing_interface: self.traits_needing_interface.clone(),
-        }
-    }
-
-    /// Returns true if the name is used as a for-block type prefix but NOT
-    /// as a runtime value (constructor, call, etc). For-block type prefixes
-    /// like `AccentRow` in `AccentRow.toModel` are mangled away by codegen,
-    /// but if `AccentRow(...)` also appears, it's still needed at runtime.
-    fn is_for_block_type_only(&self, name: &str) -> bool {
-        self.for_block_type_names.contains(name) && !self.constructor_used_names.contains(name)
+    pub fn generate(self, program: &TypedProgram) -> CodegenOutput {
+        let ctx = TypeContext::from_program(program, &self.resolved_imports, self.test_mode);
+        let mut generator = TypeScriptGenerator::new(&ctx);
+        generator.generate(program)
     }
 }
 
@@ -474,10 +100,10 @@ impl Default for Codegen {
     }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────
+// ── Public Helpers ───────────────────────────────────────────────
 
 /// Expand a codegen template like `$0.map($1)` with actual arg strings.
-pub(super) fn expand_codegen_template(template: &str, args: &[String]) -> String {
+pub(crate) fn expand_codegen_template(template: &str, args: &[String]) -> String {
     let mut result = template.to_string();
     // Replace variadic placeholder ($..) with all args comma-separated
     result = result.replace("$..", &args.join(", "));
@@ -502,7 +128,7 @@ pub(super) fn expand_codegen_template(template: &str, args: &[String]) -> String
     result
 }
 
-pub(super) fn binop_str(op: BinOp) -> &'static str {
+pub(crate) fn binop_str(op: BinOp) -> &'static str {
     match op {
         BinOp::Add => "+",
         BinOp::Sub => "-",
@@ -520,14 +146,14 @@ pub(super) fn binop_str(op: BinOp) -> &'static str {
     }
 }
 
-pub(super) fn unaryop_str(op: UnaryOp) -> &'static str {
+pub(crate) fn unaryop_str(op: UnaryOp) -> &'static str {
     match op {
         UnaryOp::Neg => "-",
         UnaryOp::Not => "!",
     }
 }
 
-pub(super) fn escape_string(s: &str) -> String {
+pub(crate) fn escape_string(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")
@@ -535,15 +161,17 @@ pub(super) fn escape_string(s: &str) -> String {
         .replace('\t', "\\t")
 }
 
-pub(super) fn has_placeholder_arg(args: &[TypedArg]) -> bool {
+pub(crate) fn has_placeholder_arg(args: &[TypedArg]) -> bool {
     args.iter().any(|a| match a {
         Arg::Positional(expr) => matches!(expr.kind, ExprKind::Placeholder),
         Arg::Named { value, .. } => matches!(value.kind, ExprKind::Placeholder),
     })
 }
 
+// ── Name Collection Passes ───────────────────────────────────────
+
 /// Collect type names used as constructors (e.g. `User(name: "x")`).
-fn collect_constructor_names(program: &TypedProgram) -> HashSet<String> {
+pub(crate) fn collect_constructor_names(program: &TypedProgram) -> HashSet<String> {
     let mut names = HashSet::new();
     for item in &program.items {
         collect_constructors_from_item(item, &mut names);
@@ -660,7 +288,7 @@ fn collect_constructors_from_item(item: &TypedItem, names: &mut HashSet<String>)
 
 /// Collect all names used in value positions (expressions, not type annotations).
 /// Used to detect type-only imports for `import type { ... }` codegen.
-fn collect_value_used_names(program: &TypedProgram) -> HashSet<String> {
+pub(crate) fn collect_value_used_names(program: &TypedProgram) -> HashSet<String> {
     let mut names = HashSet::new();
     for item in &program.items {
         collect_value_names_from_item(item, &mut names);

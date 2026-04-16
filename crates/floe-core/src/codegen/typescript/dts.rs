@@ -2,14 +2,14 @@ use std::collections::HashSet;
 
 use crate::parser::ast::*;
 
-use super::{Codegen, for_block_fn_name};
+use super::super::for_block_fn_name;
+use super::generator::TypeScriptGenerator;
 
-impl Codegen {
+impl<'a> TypeScriptGenerator<'a> {
     // ── Declaration Stub Generation (.d.ts) ───────────────────────
 
     /// Generate a `.d.ts` declaration stub from the program AST.
-    /// Only emits exported type declarations, function signatures, and const declarations.
-    pub(super) fn generate_dts(&self, program: &TypedProgram) -> String {
+    pub(super) fn generate_dts(&mut self, program: &TypedProgram) -> String {
         let mut out = String::new();
         let mut first = true;
 
@@ -68,7 +68,6 @@ impl Codegen {
                     first = false;
                     self.emit_dts_reexport(&mut out, decl);
                 }
-                // Traits, tests, and expressions don't produce declarations
                 ItemKind::TraitDecl(_) | ItemKind::TestBlock(_) | ItemKind::Expr(_) => {}
             }
         }
@@ -96,8 +95,7 @@ impl Codegen {
 
     fn emit_dts_import(&self, out: &mut String, decl: &ImportDecl) {
         if decl.specifiers.is_empty() && decl.for_specifiers.is_empty() {
-            // Bare import: expand to type-only named imports if we have resolved exports
-            if let Some(resolved) = self.resolved_imports.get(&decl.source) {
+            if let Some(resolved) = self.ctx.resolved_imports.get(&decl.source) {
                 let mut type_names: Vec<String> = Vec::new();
                 for td in &resolved.type_decls {
                     if td.exported {
@@ -138,9 +136,8 @@ impl Codegen {
                 }
             }
         } else {
-            // Named imports: determine which are type-only
             let type_only_names: HashSet<String> =
-                if let Some(resolved) = self.resolved_imports.get(&decl.source) {
+                if let Some(resolved) = self.ctx.resolved_imports.get(&decl.source) {
                     decl.specifiers
                         .iter()
                         .filter(|spec| {
@@ -170,7 +167,6 @@ impl Codegen {
                     out.push_str(alias);
                 }
             }
-            // Expand `for Type` specifiers
             let for_func_names = self.resolve_for_import_names(decl);
             for name in &for_func_names {
                 if !first {
@@ -183,8 +179,7 @@ impl Codegen {
         }
     }
 
-    fn emit_dts_type_decl(&self, out: &mut String, decl: &TypedTypeDecl) {
-        // Emit the type declaration only (no derived trait implementations)
+    fn emit_dts_type_decl(&mut self, out: &mut String, decl: &TypedTypeDecl) {
         if decl.exported {
             out.push_str("export ");
         }
@@ -204,17 +199,15 @@ impl Codegen {
 
         out.push_str(" = ");
 
-        let mut cg = self.sub_codegen();
-        match &decl.def {
-            TypeDef::Record(entries) => cg.emit_record_type_entries(entries),
-            TypeDef::Union(variants) => cg.emit_union_type(variants),
-            TypeDef::StringLiteralUnion(variants) => cg.emit_string_literal_union_type(variants),
-            TypeDef::Alias(type_expr) => cg.emit_type_expr(type_expr),
-        }
-        out.push_str(&cg.output);
+        let type_doc = match &decl.def {
+            TypeDef::Record(entries) => self.emit_record_type_entries(entries),
+            TypeDef::Union(variants) => self.emit_union_type(variants),
+            TypeDef::StringLiteralUnion(variants) => self.emit_string_literal_union_type(variants),
+            TypeDef::Alias(type_expr) => self.emit_type_expr(type_expr),
+        };
+        out.push_str(&Self::doc_to_string(&type_doc));
         out.push(';');
 
-        // For derived Display on record types, emit the function declaration
         if !decl.deriving.is_empty()
             && let TypeDef::Record(_) = &decl.def
         {
@@ -229,8 +222,7 @@ impl Codegen {
         }
     }
 
-    fn emit_dts_function(&self, out: &mut String, decl: &TypedFunctionDecl) {
-        // `fn name = expr` — derived function binding
+    fn emit_dts_function(&mut self, out: &mut String, decl: &TypedFunctionDecl) {
         if decl.params.is_empty()
             && decl.return_type.is_none()
             && !matches!(decl.body.kind, ExprKind::Block(_))
@@ -260,38 +252,34 @@ impl Codegen {
             out.push('>');
         }
         out.push('(');
-        let mut cg = self.sub_codegen();
-        cg.emit_params(&decl.params);
-        out.push_str(&cg.output);
+        let params_doc = self.emit_params(&decl.params);
+        out.push_str(&Self::doc_to_string(&params_doc));
         out.push(')');
 
         if let Some(ret) = &decl.return_type {
             out.push_str(": ");
             let needs_promise_wrap = decl.async_fn
                 && !matches!(&ret.kind, TypeExprKind::Named { name, type_args, .. } if name == "Promise" && !type_args.is_empty());
-            let mut cg = self.sub_codegen();
-            cg.emit_type_expr(ret);
+            let type_doc = self.emit_type_expr(ret);
+            let type_str = Self::doc_to_string(&type_doc);
             if needs_promise_wrap {
-                out.push_str("Promise<");
-                out.push_str(&cg.output);
-                out.push('>');
+                out.push_str(&format!("Promise<{type_str}>"));
             } else {
-                out.push_str(&cg.output);
+                out.push_str(&type_str);
             }
         }
         out.push(';');
     }
 
-    fn emit_dts_const(&self, out: &mut String, decl: &TypedConstDecl) {
+    fn emit_dts_const(&mut self, out: &mut String, decl: &TypedConstDecl) {
         match &decl.binding {
             ConstBinding::Name(name) => {
                 out.push_str("export declare const ");
                 out.push_str(name);
                 if let Some(type_ann) = &decl.type_ann {
                     out.push_str(": ");
-                    let mut cg = self.sub_codegen();
-                    cg.emit_type_expr(type_ann);
-                    out.push_str(&cg.output);
+                    let type_doc = self.emit_type_expr(type_ann);
+                    out.push_str(&Self::doc_to_string(&type_doc));
                 } else {
                     out.push_str(": any");
                 }
@@ -312,7 +300,7 @@ impl Codegen {
     }
 
     fn emit_dts_for_block_function(
-        &self,
+        &mut self,
         out: &mut String,
         func: &TypedFunctionDecl,
         for_type: &TypedTypeExpr,
@@ -332,14 +320,12 @@ impl Codegen {
             out.push_str(&param.name);
             if param.name == "self" {
                 out.push_str(": ");
-                let mut cg = self.sub_codegen();
-                cg.emit_type_expr(for_type);
-                out.push_str(&cg.output);
+                let type_doc = self.emit_type_expr(for_type);
+                out.push_str(&Self::doc_to_string(&type_doc));
             } else if let Some(type_ann) = &param.type_ann {
                 out.push_str(": ");
-                let mut cg = self.sub_codegen();
-                cg.emit_type_expr(type_ann);
-                out.push_str(&cg.output);
+                let type_doc = self.emit_type_expr(type_ann);
+                out.push_str(&Self::doc_to_string(&type_doc));
             }
         }
 
@@ -349,14 +335,12 @@ impl Codegen {
             out.push_str(": ");
             let needs_promise_wrap = func.async_fn
                 && !matches!(&ret.kind, TypeExprKind::Named { name, type_args, .. } if name == "Promise" && !type_args.is_empty());
-            let mut cg = self.sub_codegen();
-            cg.emit_type_expr(ret);
+            let type_doc = self.emit_type_expr(ret);
+            let type_str = Self::doc_to_string(&type_doc);
             if needs_promise_wrap {
-                out.push_str("Promise<");
-                out.push_str(&cg.output);
-                out.push('>');
+                out.push_str(&format!("Promise<{type_str}>"));
             } else {
-                out.push_str(&cg.output);
+                out.push_str(&type_str);
             }
         }
         out.push(';');
