@@ -5981,21 +5981,6 @@ const _result = takesString(x)
     );
 }
 
-#[test]
-fn unknown_callee_emits_error() {
-    let diags = check(
-        r#"
-fn returnsUnknown() -> unknown { "hello" }
-const f = returnsUnknown()
-const _result = f(42)
-"#,
-    );
-    assert!(
-        has_error(&diags, ErrorCode::UncheckedArguments),
-        "should error when calling unknown-typed value, got: {diags:?}"
-    );
-}
-
 // ── Unknown callee errors (#1115) ────────────────────────────
 
 #[test]

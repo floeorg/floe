@@ -1098,13 +1098,8 @@ impl Checker {
                     return_type
                 }
             }
-            // Foreign types (npm) via member access: the callee is a chained method
-            // on an opaque npm type (e.g. `db.insert(snippets).values`). We can't
-            // validate arguments but the result stays Foreign so subsequent chained
-            // member accesses and calls continue to work.
-            //
-            // Foreign member access (chained call): preserve Foreign type so subsequent
-            // member accesses and calls continue to work.
+            // Foreign member access (chained call on opaque npm type like
+            // `db.insert(snippets).values`): preserve Foreign so chaining works.
             Type::Foreign(_) if matches!(callee.kind, ExprKind::Member { .. }) => {
                 self.check_args_unchecked(args);
                 Type::Foreign("_".into())
@@ -1140,7 +1135,7 @@ impl Checker {
                     span,
                     ErrorCode::UncheckedArguments,
                     "type could not be resolved",
-                    "check that the import source has type declarations",
+                    "ensure the value has a known callable type",
                 );
                 Type::Error
             }
