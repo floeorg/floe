@@ -145,10 +145,10 @@ impl<'src> Formatter<'src> {
                     let is_import_like = |k: SyntaxKind| {
                         matches!(k, SyntaxKind::IMPORT_DECL | SyntaxKind::REEXPORT_DECL)
                     };
-                    let want_blank = match (prev_kind, child_inner_kind) {
-                        (Some(a), Some(b)) if is_import_like(a) && is_import_like(b) => false,
-                        _ => true,
-                    };
+                    let want_blank = !matches!(
+                        (prev_kind, child_inner_kind),
+                        (Some(a), Some(b)) if is_import_like(a) && is_import_like(b)
+                    );
                     if want_blank {
                         docs.push(pretty::line());
                         docs.push(pretty::line());

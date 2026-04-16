@@ -653,10 +653,8 @@ impl Formatter<'_> {
                 }
             }
         }
-        if !wrote_callee {
-            if let Some(text) = self.first_content_token(node) {
-                parts.push(pretty::str(text));
-            }
+        if !wrote_callee && let Some(text) = self.first_content_token(node) {
+            parts.push(pretty::str(text));
         }
 
         let args: Vec<_> = node

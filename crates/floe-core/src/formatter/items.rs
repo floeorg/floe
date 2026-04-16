@@ -475,11 +475,9 @@ impl Formatter<'_> {
         let idents = self.collect_idents(node);
         let mut parts = Vec::new();
 
-        if has_colon {
-            if let Some(name) = idents.first() {
-                parts.push(pretty::str(name));
-                parts.push(pretty::str(": "));
-            }
+        if has_colon && let Some(name) = idents.first() {
+            parts.push(pretty::str(name));
+            parts.push(pretty::str(": "));
         }
 
         if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
