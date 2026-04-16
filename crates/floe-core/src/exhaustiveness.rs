@@ -153,24 +153,23 @@ pub fn check_match_exhaustiveness<T>(
     }
 
     // Option: check Some and None covered
-    if subject_ty.is_option() {
-        if let Some(diag) = check_required_variants(
+    if subject_ty.is_option()
+        && let Some(diag) = check_required_variants(
             type_layout::TYPE_OPTION,
             &[type_layout::VARIANT_SOME, type_layout::VARIANT_NONE],
             arms,
             span,
-        ) {
-            diagnostics.push(diag);
-        }
+        )
+    {
+        diagnostics.push(diag);
     }
 
     // Settable: check Value, Clear, Unchanged covered
-    if subject_ty.is_settable() {
-        if let Some(diag) =
+    if subject_ty.is_settable()
+        && let Some(diag) =
             check_required_variants("Settable", &["Value", "Clear", "Unchanged"], arms, span)
-        {
-            diagnostics.push(diag);
-        }
+    {
+        diagnostics.push(diag);
     }
 
     // Array: check empty + non-empty covered
