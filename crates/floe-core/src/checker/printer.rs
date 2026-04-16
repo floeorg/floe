@@ -7,6 +7,7 @@
 
 use std::fmt;
 
+use super::type_var::{self, TypeVar};
 use super::types::Type;
 
 /// Controls how types are formatted as strings.
@@ -27,7 +28,7 @@ pub struct TypeDisplay<'a> {
 }
 
 /// Pretty-print a type variable index as a letter (0 -> T, 1 -> U, 2 -> V, ...).
-fn type_var_letter(index: usize) -> &'static str {
+fn type_var_letter(index: u64) -> &'static str {
     match index {
         0 => "T",
         1 => "U",
@@ -158,9 +159,12 @@ pub(crate) fn fmt_type(
             Ok(())
         }
         Type::StringLiteral(s) => write!(f, "\"{s}\""),
-        Type::Var(id) => match style {
-            TypeDisplayStyle::Stdlib => f.write_str(type_var_letter(*id)),
-            TypeDisplayStyle::Default => write!(f, "?T{id}"),
+        Type::Var(var) => match type_var::snapshot(var) {
+            TypeVar::Link { type_ } => fmt_type(&type_, style, f),
+            TypeVar::Unbound { id } | TypeVar::Generic { id } => match style {
+                TypeDisplayStyle::Stdlib => f.write_str(type_var_letter(id)),
+                TypeDisplayStyle::Default => write!(f, "?T{id}"),
+            },
         },
         Type::Unknown => f.write_str("unknown"),
         Type::Error => f.write_str("<error>"),

@@ -7487,3 +7487,84 @@ export fn ok() -> Route {
     );
     assert!(!has_error(&diags, ErrorCode::TypeUsedAsValue));
 }
+
+// ── Hindley-Milner inference ────────────────────────────────
+
+#[test]
+fn identity_without_annotations_infers_polymorphic_type() {
+    let diags = check(
+        r#"
+fn id(x) { x }
+const _n = id(42)
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "expected no errors, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn identity_let_polymorphism_allows_different_types() {
+    let diags = check(
+        r#"
+fn id(x) { x }
+const _n = id(42)
+const _s = id("hello")
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "expected let-polymorphism, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn recursive_infinite_type_is_rejected_by_occurs_check() {
+    let diags = check(
+        r#"
+fn bad(x) { [x, bad(x)] }
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "expected occurs-check failure, got no errors"
+    );
+}
+
+#[test]
+fn deep_resolve_follows_links_through_arrays() {
+    use super::types::Type;
+    use std::sync::Arc;
+
+    let v = Type::unbound(0);
+    let arr = Type::Array(Arc::new(v.clone()));
+    super::unify::unify(&v, &Type::Number).unwrap();
+    match &arr.deep_resolved() {
+        Type::Array(inner) => assert_eq!(**inner, Type::Number),
+        other => panic!("expected Array<Number>, got {:?}", other),
+    }
+    assert_eq!(v.resolved(), Type::Number);
+}
+
+#[test]
+fn annotated_generic_fn_matches_inferred_generic_fn() {
+    let diags_annotated = check(
+        r#"
+fn id<T>(x: T) -> T { x }
+const _n = id(1)
+const _s = id("x")
+"#,
+    );
+    let diags_inferred = check(
+        r#"
+fn id(x) { x }
+const _n = id(1)
+const _s = id("x")
+"#,
+    );
+    assert!(!has_error(&diags_annotated, ErrorCode::TypeMismatch));
+    assert!(!has_error(&diags_inferred, ErrorCode::TypeMismatch));
+}

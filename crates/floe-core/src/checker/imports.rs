@@ -78,7 +78,14 @@ impl Checker {
                                 .insert(effective_name.to_string(), required);
                         }
                     }
-                    let ty = interop::wrap_boundary_type(&dts_export.ts_type);
+                    let raw_ty = interop::wrap_boundary_type(&dts_export.ts_type);
+                    // Hydrate single-letter type params (`T`, `S`, …) into Generic
+                    // vars so the imported signature participates in real HM
+                    // unification at call sites instead of string-matching by letter.
+                    let ty = super::hydrator::hydrate_single_letter_generics(
+                        &raw_ty,
+                        &mut self.next_var,
+                    );
                     // npm imports that resolve to Unknown (unrecognized primitive,
                     // type-only exports, overloaded signatures tsgo can't map)
                     // should fall back to Foreign. They're at an explicit npm

@@ -391,6 +391,25 @@ impl Checker {
             );
         }
 
+        // Hydrate the fn's generic type parameters into `Generic` vars. Each
+        // unconstrained name (`T`, `U`, …) becomes a unique Generic variable
+        // shared across every occurrence inside the signature. Trait-bounded
+        // params (`R: Repo`) keep their `Named(name)` resolution so trait
+        // method dispatch and codegen continue to fire on them — the bound
+        // carries structural requirements that current inference doesn't
+        // model, and the static dispatch path relies on the name.
+        let prev_type_params = std::mem::take(&mut self.active_type_params);
+        {
+            let mut hydrator = super::hydrator::Hydrator::new();
+            for tp in &decl.type_params {
+                if !tp.bounds.is_empty() {
+                    continue;
+                }
+                let g = hydrator.generic_for(&tp.name, &mut self.next_var);
+                self.active_type_params.insert(tp.name.clone(), g);
+            }
+        }
+
         // Register generic type parameters so they're recognized during type resolution
         for tp in &decl.type_params {
             self.env.define(&tp.name, Type::Named(tp.name.clone()));
@@ -536,8 +555,36 @@ impl Checker {
         let body_type = self.check_expr(&decl.body);
         let uses_await = super::body_has_promise_await(&decl.body);
 
-        // When no return type annotation, infer from body and update the function type
-        if decl.return_type.is_none() && !body_type.is_undetermined() {
+        // Unify the body type with the declared/fresh return type. This
+        // propagates inference into the return var and triggers the occurs
+        // check on recursive types like `fn bad(x) { [x, bad(x)] }` where
+        // unifying `return_var` with `Array<return_var>` would build an
+        // infinite type.
+        let effective_body_type = if decl.async_fn {
+            Type::Promise(Arc::new(body_type.clone()))
+        } else {
+            body_type.clone()
+        };
+        if let Err(super::unify::UnifyError::InfiniteType) =
+            super::unify::unify(&return_type, &effective_body_type)
+        {
+            self.emit_error(
+                format!(
+                    "function `{}` has an infinite type — a type variable would have to contain itself",
+                    decl.name
+                ),
+                last_expr_span(&decl.body),
+                ErrorCode::TypeMismatch,
+                "recursive type has no finite form",
+            );
+        }
+
+        // When no return type annotation, infer from body and update the function type.
+        // Body type may itself be an unbound type variable (e.g. `fn id(x) { x }`);
+        // we still want to register and generalise in that case so the fn becomes
+        // polymorphic at call sites.
+        let body_is_error = matches!(body_type, Type::Error);
+        if decl.return_type.is_none() && !body_is_error {
             // If the body uses await, or the function is declared `async`,
             // wrap the inferred return type in Promise<T>
             let inferred_return = if uses_await || decl.async_fn {
@@ -545,11 +592,16 @@ impl Checker {
             } else {
                 body_type.clone()
             };
-            let fn_type = Type::Function {
+            // Generalise: any `Unbound` vars still in the signature become
+            // `Generic` so each call site gets its own fresh instantiation
+            // (let-polymorphism). This is what makes `fn id(x) { x }` behave
+            // as `(a) -> a` at multiple call sites with different argument
+            // types.
+            let fn_type = super::hydrator::generalise(&Type::Function {
                 params: param_types.clone(),
                 return_type: Arc::new(inferred_return),
                 required_params,
-            };
+            });
             // Update in the name_types map for hover display
             self.name_types
                 .insert(decl.name.clone(), fn_type.to_string());
@@ -644,6 +696,7 @@ impl Checker {
         self.env.pop_scope();
         self.ctx.current_return_type = prev_return_type;
         self.ctx.expected_type = prev_expected;
+        self.active_type_params = prev_type_params;
     }
 
     pub(crate) fn check_for_block(&mut self, block: &ForBlock, _span: Span) {

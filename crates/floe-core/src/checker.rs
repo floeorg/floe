@@ -2,6 +2,7 @@ mod attach;
 mod environment;
 pub mod error_codes;
 mod expr;
+mod hydrator;
 mod imports;
 mod items;
 mod match_check;
@@ -14,7 +15,9 @@ mod traits;
 mod type_compat;
 mod type_registration;
 mod type_resolve;
+mod type_var;
 mod types;
+mod unify;
 
 pub use attach::{
     attach_trait_decl_shallow, attach_type_decl_shallow, attach_types, lower_to_typed,
@@ -187,7 +190,7 @@ pub struct Checker {
     /// Expressions that produced a type error — `attach_types` converts
     /// them to `ExprKind::Invalid` so codegen skips broken subtrees.
     invalid_exprs: HashSet<ExprId>,
-    next_var: usize,
+    next_var: u64,
     /// Standard library function registry.
     stdlib: StdlibRegistry,
     /// Maps expression IDs to their resolved types.
@@ -241,6 +244,10 @@ pub struct Checker {
     /// Import sources that resolve to `.ts`/`.tsx` files but could not be
     /// resolved because tsgo is not installed.
     ts_imports_missing_tsgo: HashSet<String>,
+    /// User-written generic type parameter names mapped to the `Generic`
+    /// variables minted for them. Populated at the top of each fn decl
+    /// (see `hydrator::Hydrator`) and cleared when the fn scope pops.
+    active_type_params: HashMap<String, Type>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -445,6 +452,7 @@ impl Checker {
             jsx_children_hints: HashMap::new(),
             ambient_types: HashMap::new(),
             ts_imports_missing_tsgo: HashSet::new(),
+            active_type_params: HashMap::new(),
         }
     }
 
@@ -825,7 +833,7 @@ impl Checker {
     fn fresh_type_var(&mut self) -> Type {
         let id = self.next_var;
         self.next_var += 1;
-        Type::Var(id)
+        Type::unbound(id)
     }
 
     /// Emit an error if `name` is already defined in any scope (no shadowing allowed).

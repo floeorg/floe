@@ -96,9 +96,10 @@ impl StdlibRegistry {
     }
 }
 
-/// Type variable helpers for generic signatures.
-fn tv(n: usize) -> Type {
-    Type::Var(n)
+/// Type variable helpers for generic signatures. Produces a `Generic`
+/// variable so each call site specializes via `instantiate`.
+fn tv(n: u64) -> Type {
+    Type::generic(n)
 }
 fn array_of(t: Type) -> Type {
     Type::Array(Arc::new(t))

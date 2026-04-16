@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use super::printer::{TypeDisplay, TypeDisplayStyle};
+use super::type_var::{self, TypeVarRef};
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -14,7 +15,7 @@ use super::printer::{TypeDisplay, TypeDisplayStyle};
 /// Sub-types are stored behind `Arc<Type>` for cheap cloning — type trees
 /// are cloned frequently during inference. Arc refcount bumps replace the
 /// deep copies that `Box<Type>` required.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Type {
     /// Primitive types: number, string, boolean
     Number,
@@ -78,8 +79,10 @@ pub enum Type {
     TsUnion(Vec<Type>),
     /// String literal type: `"GET"`, `"POST"`, etc.
     StringLiteral(String),
-    /// Type variable (for inference)
-    Var(usize),
+    /// Type variable for Hindley-Milner inference. Unbound vars get Linked to
+    /// concrete types by `unify`; Generic vars are polymorphic markers that
+    /// `instantiate` replaces with fresh Unbound vars at each call site.
+    Var(TypeVarRef),
     /// The unknown/any escape hatch — used for genuinely unknown external types
     /// (e.g. npm imports without type probes). Compatible with everything as expected,
     /// but not as actual (same as TypeScript's `unknown`).
@@ -95,6 +98,45 @@ pub enum Type {
 }
 
 impl Type {
+    /// Construct a fresh unbound type variable with the given id.
+    pub fn unbound(id: u64) -> Type {
+        Type::Var(type_var::unbound(id))
+    }
+
+    /// Construct a polymorphic (generalized) type variable with the given id.
+    pub fn generic(id: u64) -> Type {
+        Type::Var(type_var::generic(id))
+    }
+
+    /// Follow any `Link` chain on this type, returning the underlying type.
+    /// Returns the original type when no links exist.
+    pub fn resolved(&self) -> Type {
+        type_var::resolve(self)
+    }
+
+    /// Recursively resolve all `Type::Var` `Link` chains in the tree — use
+    /// when passing a type across a boundary (pattern binding, error message,
+    /// stored type map) so downstream consumers don't walk past unresolved
+    /// links.
+    pub fn deep_resolved(&self) -> Type {
+        type_var::deep_resolve(self)
+    }
+
+    /// Is this an unbound type variable after resolving links?
+    pub fn is_unbound(&self) -> bool {
+        type_var::is_unbound(&self.resolved())
+    }
+
+    /// Is this a generic (polymorphic) type variable after resolving links?
+    pub fn is_generic_var(&self) -> bool {
+        type_var::is_generic(&self.resolved())
+    }
+
+    /// The id of the underlying unbound or generic variable, if this is one.
+    pub fn var_id(&self) -> Option<u64> {
+        type_var::var_id(&self.resolved())
+    }
+
     /// Construct an Option<T> as a Union type.
     pub fn option_of(inner: Type) -> Type {
         Type::Union {
@@ -197,20 +239,21 @@ impl Type {
     /// variable). Guards on this pattern prevent emitting cascading diagnostics when
     /// there is not yet enough type information to report a meaningful error.
     pub(crate) fn is_undetermined(&self) -> bool {
-        matches!(self, Type::Unknown | Type::Error | Type::Var(_))
+        let r = self.resolved();
+        matches!(r, Type::Unknown | Type::Error | Type::Var(_))
     }
 
     pub(crate) fn is_numeric(&self) -> bool {
-        matches!(self, Type::Number)
+        matches!(self.resolved(), Type::Number)
     }
 
     pub(crate) fn is_boolean(&self) -> bool {
-        matches!(self, Type::Bool)
+        matches!(self.resolved(), Type::Bool)
     }
 
     pub(crate) fn is_primitive(&self) -> bool {
         matches!(
-            self,
+            self.resolved(),
             Type::Number
                 | Type::String
                 | Type::Bool
@@ -255,6 +298,66 @@ impl Type {
         TypeDisplay {
             ty: self,
             style: TypeDisplayStyle::Stdlib,
+        }
+    }
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        // Resolve both sides through any `Link` chains before comparing.
+        let a = self.resolved();
+        let b = other.resolved();
+        match (&a, &b) {
+            (Type::Number, Type::Number)
+            | (Type::String, Type::String)
+            | (Type::Bool, Type::Bool)
+            | (Type::Undefined, Type::Undefined)
+            | (Type::Unknown, Type::Unknown)
+            | (Type::Error, Type::Error)
+            | (Type::Unit, Type::Unit)
+            | (Type::Never, Type::Never) => true,
+            (Type::Named(a), Type::Named(b)) => a == b,
+            (Type::Foreign(a), Type::Foreign(b)) => a == b,
+            (Type::Promise(a), Type::Promise(b)) => **a == **b,
+            (Type::Opaque { name: na, base: ba }, Type::Opaque { name: nb, base: bb }) => {
+                na == nb && **ba == **bb
+            }
+            (Type::Settable(a), Type::Settable(b)) => **a == **b,
+            (
+                Type::Function {
+                    params: pa,
+                    required_params: ra,
+                    return_type: rta,
+                },
+                Type::Function {
+                    params: pb,
+                    required_params: rb,
+                    return_type: rtb,
+                },
+            ) => pa == pb && ra == rb && **rta == **rtb,
+            (Type::Array(a), Type::Array(b)) => **a == **b,
+            (Type::Map { key: ka, value: va }, Type::Map { key: kb, value: vb })
+            | (Type::RecordMap { key: ka, value: va }, Type::RecordMap { key: kb, value: vb }) => {
+                **ka == **kb && **va == **vb
+            }
+            (Type::Set { element: a }, Type::Set { element: b }) => **a == **b,
+            (Type::Tuple(a), Type::Tuple(b)) => a == b,
+            (Type::Record(a), Type::Record(b)) => a == b,
+            (
+                Type::Union {
+                    name: na,
+                    variants: va,
+                },
+                Type::Union {
+                    name: nb,
+                    variants: vb,
+                },
+            ) => na == nb && va == vb,
+            (Type::TsUnion(a), Type::TsUnion(b)) => a == b,
+            (Type::StringLiteral(a), Type::StringLiteral(b)) => a == b,
+            // Type variables compare by identity: same Arc means same variable.
+            (Type::Var(a), Type::Var(b)) => Arc::ptr_eq(a, b),
+            _ => false,
         }
     }
 }
