@@ -3,10 +3,6 @@
 //! Operates on typed match expressions as a post-type-check pass.
 //! Takes a subject type and match arms, returns diagnostics for
 //! missing patterns. Does not modify the AST or environment.
-//!
-//! Extracted from `checker/match_check.rs` as part of #1110 so that
-//! exhaustiveness analysis can evolve independently from type inference
-//! (e.g., decision tree compilation for codegen).
 
 use std::collections::HashSet;
 
@@ -285,36 +281,28 @@ fn check_tuple_exhaustiveness<T>(
     arms: &[MatchArm<T>],
     resolve_named: &dyn Fn(&Type) -> Type,
 ) -> bool {
-    // If any arm is a top-level catch-all (wildcard, binding, or tuple of all wildcards/bindings),
-    // the match is exhaustive regardless of element types.
-    let has_catch_all = arms.iter().any(|arm| {
+    // Check for tuple-of-all-wildcards catch-all (top-level wildcard/binding
+    // already handled by the caller's early return).
+    let has_tuple_catchall = arms.iter().any(|arm| {
         if arm.guard.is_some() {
             return false;
         }
-        match &arm.pattern.kind {
-            PatternKind::Wildcard | PatternKind::Binding(_) => true,
-            PatternKind::Tuple(patterns) => patterns
-                .iter()
-                .all(|p| matches!(p.kind, PatternKind::Wildcard | PatternKind::Binding(_))),
-            _ => false,
-        }
+        matches!(&arm.pattern.kind, PatternKind::Tuple(patterns)
+            if patterns.iter().all(|p| matches!(p.kind, PatternKind::Wildcard | PatternKind::Binding(_))))
     });
-    if has_catch_all {
+    if has_tuple_catchall {
         return true;
     }
 
-    // Collect the possible values for each position
-    let possible: Vec<Option<Vec<TupleSlotValue>>> = elem_types
+    // Collect the possible values for each position; return false if any is unbounded
+    let possible: Vec<Vec<TupleSlotValue>> = match elem_types
         .iter()
         .map(|ty| finite_values_for_type(ty, resolve_named))
-        .collect();
-
-    // If any element type is unbounded, we can't prove exhaustiveness without a catch-all
-    if possible.iter().any(|p| p.is_none()) {
-        return false;
-    }
-
-    let possible = possible.into_iter().map(|p| p.unwrap()).collect::<Vec<_>>();
+        .collect::<Option<Vec<_>>>()
+    {
+        Some(p) => p,
+        None => return false,
+    };
 
     // Generate all combinations (product space) and check each is covered
     let mut combo: Vec<usize> = vec![0; elem_types.len()];
@@ -338,7 +326,7 @@ fn check_tuple_exhaustiveness<T>(
         }
 
         // Advance to next combination
-        let mut pos = combo.len();
+        let mut pos = elem_types.len();
         loop {
             if pos == 0 {
                 return true; // all combinations checked
@@ -349,9 +337,6 @@ fn check_tuple_exhaustiveness<T>(
                 break;
             }
             combo[pos] = 0;
-            if pos == 0 {
-                return true; // wrapped around, done
-            }
         }
     }
 }
