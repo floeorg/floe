@@ -7637,3 +7637,67 @@ const _ls = ["a", "bb", "ccc"] |> Array.map((s) => String.length(s))
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Reference tracking ──────────────────────────────────────
+
+#[test]
+fn reference_tracker_records_every_use_of_a_user_function() {
+    let source = r#"
+fn greet(n: string) -> string { n }
+const _a = greet("a")
+const _b = greet("b")
+const _c = greet("c")
+"#;
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let (_diags, refs) = Checker::new().check_with_references(&program);
+    let refs = &refs;
+    let def_span = refs
+        .definition_for_name("greet")
+        .expect("greet definition should be registered");
+    let uses = refs.find_references(def_span);
+    assert_eq!(
+        uses.len(),
+        3,
+        "expected 3 references to greet, found {}: {:?}",
+        uses.len(),
+        uses,
+    );
+}
+
+#[test]
+fn reference_tracker_back_resolves_use_site_to_definition() {
+    let source = r#"
+const x = 42
+const _y = x
+"#;
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let (_diags, refs) = Checker::new().check_with_references(&program);
+    let refs = &refs;
+    let def = refs
+        .definition_for_name("x")
+        .expect("x definition registered");
+    let uses = refs.find_references(def);
+    assert_eq!(uses.len(), 1);
+    // The reverse lookup should land back on the definition.
+    assert_eq!(refs.definition_at(uses[0]), Some(def));
+}
+
+#[test]
+fn reference_tracker_ignores_unused_definitions() {
+    let source = r#"
+fn unused() -> number { 1 }
+"#;
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let (_diags, refs) = Checker::new().check_with_references(&program);
+    let refs = &refs;
+    let def = refs
+        .definition_for_name("unused")
+        .expect("unused definition registered");
+    assert!(refs.find_references(def).is_empty());
+}

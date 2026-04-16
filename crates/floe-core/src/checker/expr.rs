@@ -290,6 +290,11 @@ impl Checker {
             return Type::Error;
         }
         if let Some(ty) = self.env.lookup(name).cloned() {
+            // Record (definition_span, reference_span) when the name has a
+            // known declaration site so LSP find-references picks it up.
+            if let Some(def_span) = self.env.lookup_def_span(name) {
+                self.references.record(def_span, span);
+            }
             // Non-unit variant as bare identifier → constructor function
             if let Type::Union { ref variants, .. } = ty
                 && let Some((_, field_types)) = variants.iter().find(|(v, _)| v == name)

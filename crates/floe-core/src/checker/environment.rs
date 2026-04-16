@@ -18,6 +18,11 @@ use super::types::Type;
 pub(crate) struct TypeEnv {
     /// Stack of scopes (innermost last). Each scope maps names to types.
     pub(crate) scopes: Vec<HashMap<String, Type>>,
+    /// Parallel stack of definition spans — one span per name in the
+    /// matching `scopes` entry. Populated when a name is defined with a
+    /// known span so the reference tracker can wire references back to
+    /// their definitions.
+    def_spans: Vec<HashMap<String, crate::lexer::span::Span>>,
     /// Type declarations: type name -> TypeDef + metadata
     type_defs: HashMap<String, TypeInfo>,
     /// Trait bounds on type parameters: param name -> [trait names]
@@ -37,6 +42,7 @@ impl TypeEnv {
     pub(crate) fn new() -> Self {
         Self {
             scopes: vec![HashMap::new()],
+            def_spans: vec![HashMap::new()],
             type_defs: HashMap::new(),
             type_param_bounds: HashMap::new(),
         }
@@ -44,16 +50,47 @@ impl TypeEnv {
 
     pub(crate) fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
+        self.def_spans.push(HashMap::new());
     }
 
     pub(crate) fn pop_scope(&mut self) {
         self.scopes.pop();
+        self.def_spans.pop();
     }
 
     pub(crate) fn define(&mut self, name: &str, ty: Type) {
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert(name.to_string(), ty);
         }
+    }
+
+    /// Define a name along with the span of its declaration site. LSP
+    /// reference-tracking keys off these spans; definitions without a
+    /// span (stdlib, synthetic helpers) use `define`.
+    pub(crate) fn define_with_span(
+        &mut self,
+        name: &str,
+        ty: Type,
+        span: crate::lexer::span::Span,
+    ) {
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.insert(name.to_string(), ty);
+        }
+        if let Some(spans) = self.def_spans.last_mut() {
+            spans.insert(name.to_string(), span);
+        }
+    }
+
+    /// Look up the definition span for a name, searching outward through
+    /// the scope stack. Returns `None` for names that were defined without
+    /// a span or aren't defined in any live scope.
+    pub(crate) fn lookup_def_span(&self, name: &str) -> Option<crate::lexer::span::Span> {
+        for spans in self.def_spans.iter().rev() {
+            if let Some(span) = spans.get(name) {
+                return Some(*span);
+            }
+        }
+        None
     }
 
     /// Define a name in the parent scope (second-to-last), used to update

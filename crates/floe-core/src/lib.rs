@@ -12,6 +12,7 @@ pub mod lower;
 pub mod parse;
 pub mod parser;
 pub mod pretty;
+pub mod reference;
 pub mod resolve;
 pub mod sourcemap;
 pub mod stdlib;

@@ -95,8 +95,8 @@ impl Problems {
             .sort_by_key(|d| (d.span.line, d.span.column));
     }
 
-    pub fn take(self) -> Vec<Diagnostic> {
-        self.diagnostics
+    pub fn take(&mut self) -> Vec<Diagnostic> {
+        std::mem::take(&mut self.diagnostics)
     }
 
     pub fn errors(&self) -> impl Iterator<Item = &Diagnostic> {

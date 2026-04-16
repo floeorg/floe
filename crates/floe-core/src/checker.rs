@@ -248,6 +248,10 @@ pub struct Checker {
     /// variables minted for them. Populated at the top of each fn decl
     /// (see `hydrator::Hydrator`) and cleared when the fn scope pops.
     active_type_params: HashMap<String, Type>,
+    /// Tracks `(definition_span, reference_span)` pairs across the whole
+    /// program. LSP features (go-to-definition, find-references, rename)
+    /// query this side-table instead of re-walking the AST.
+    references: crate::reference::ReferenceTracker,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -453,6 +457,7 @@ impl Checker {
             ambient_types: HashMap::new(),
             ts_imports_missing_tsgo: HashSet::new(),
             active_type_params: HashMap::new(),
+            references: crate::reference::ReferenceTracker::new(),
         }
     }
 
@@ -559,7 +564,10 @@ impl Checker {
     /// map keys each expression by its `ExprId` and is consumed by
     /// `attach_types` to produce a `TypedProgram` for codegen. Expressions in
     /// `invalid_exprs` become `ExprKind::Invalid` nodes in the typed tree.
-    pub fn check_full(self, program: &Program) -> (Vec<Diagnostic>, ExprTypeMap, HashSet<ExprId>) {
+    pub fn check_full(
+        mut self,
+        program: &Program,
+    ) -> (Vec<Diagnostic>, ExprTypeMap, HashSet<ExprId>) {
         let (diags, _, expr_types, invalid) = self.check_all(program);
         (diags, expr_types, invalid)
     }
@@ -569,7 +577,7 @@ impl Checker {
     /// The name_type_map maps variable/function names to their inferred type display names.
     /// The expr_type_map maps `ExprId` to `Arc<Type>` and is consumed by `attach_types`.
     pub fn check_with_types(
-        self,
+        mut self,
         program: &Program,
     ) -> (
         Vec<Diagnostic>,
@@ -580,10 +588,23 @@ impl Checker {
         self.check_all(program)
     }
 
-    /// Internal: run all checks and return all maps.
+    /// Check a program and return diagnostics along with the reference
+    /// tracker. LSP features consume the tracker to answer go-to-definition
+    /// and find-references queries without re-walking the AST.
+    pub fn check_with_references(
+        mut self,
+        program: &Program,
+    ) -> (Vec<Diagnostic>, crate::reference::ReferenceTracker) {
+        let (diags, _, _, _) = self.check_all(program);
+        (diags, self.references)
+    }
+
+    /// Internal: run all checks and return all maps. Takes `&mut self` so
+    /// callers that need additional state off the checker (references,
+    /// traits, etc.) can read it afterward.
     #[allow(clippy::type_complexity)]
     fn check_all(
-        mut self,
+        &mut self,
         program: &Program,
     ) -> (
         Vec<Diagnostic>,
@@ -769,9 +790,9 @@ impl Checker {
         self.problems.sort();
         (
             self.problems.take(),
-            self.name_types,
-            self.expr_types,
-            self.invalid_exprs,
+            std::mem::take(&mut self.name_types),
+            std::mem::take(&mut self.expr_types),
+            std::mem::take(&mut self.invalid_exprs),
         )
     }
 

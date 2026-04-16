@@ -323,7 +323,8 @@ impl Checker {
             );
         }
         self.name_types.insert(name.to_string(), ty.to_string());
-        self.env.define(name, ty);
+        self.env.define_with_span(name, ty, span);
+        self.references.register_definition(name, span);
         self.unused
             .defined_sources
             .insert(name.to_string(), "const".to_string());
@@ -487,7 +488,8 @@ impl Checker {
             required_params,
         };
         self.check_no_redefinition(&decl.name, span);
-        self.env.define(&decl.name, fn_type);
+        self.env.define_with_span(&decl.name, fn_type, span);
+        self.references.register_definition(&decl.name, span);
         self.unused
             .defined_sources
             .insert(decl.name.clone(), "function".to_string());
