@@ -43,8 +43,18 @@ impl Checker {
     }
 
     pub(crate) fn check_const(&mut self, decl: &ConstDecl, span: Span) {
-        let value_type = self.check_expr(&decl.value);
+        // Resolve the type annotation first so we can use it for bidirectional inference
         let declared_type = decl.type_ann.as_ref().map(|t| self.resolve_type(t));
+
+        // Propagate the declared type as expected_type for Ok/Err inference
+        let prev_expected = self.ctx.expected_type.take();
+        if let Some(ref dt) = declared_type {
+            self.ctx.expected_type = Some(dt.clone());
+        }
+
+        let value_type = self.check_expr(&decl.value);
+
+        self.ctx.expected_type = prev_expected;
 
         // Refine None: if value is Option<Unknown> and declared type is Option<T>,
         // Refine None: record the concrete Option type for hover
@@ -478,12 +488,14 @@ impl Checker {
 
         // Set up scope for function body
         let prev_return_type = self.ctx.current_return_type.take();
+        let prev_expected = self.ctx.expected_type.take();
         // For Promise<T> return types, unwrap so ? sees the inner type
         let effective_return = match &return_type {
             Type::Promise(inner) => *inner.clone(),
             _ => return_type.clone(),
         };
-        self.ctx.current_return_type = Some(effective_return);
+        self.ctx.current_return_type = Some(effective_return.clone());
+        self.ctx.expected_type = Some(effective_return);
 
         self.env.push_scope();
 
@@ -629,6 +641,7 @@ impl Checker {
 
         self.env.pop_scope();
         self.ctx.current_return_type = prev_return_type;
+        self.ctx.expected_type = prev_expected;
     }
 
     pub(crate) fn check_for_block(&mut self, block: &ForBlock, _span: Span) {
@@ -715,12 +728,14 @@ impl Checker {
 
             // Check the function body
             let prev_return_type = self.ctx.current_return_type.take();
+            let prev_expected = self.ctx.expected_type.take();
             // For Promise<T> return types, unwrap so ? sees the inner type
             let effective_return = match &return_type {
                 Type::Promise(inner) => *inner.clone(),
                 _ => return_type.clone(),
             };
-            self.ctx.current_return_type = Some(effective_return);
+            self.ctx.current_return_type = Some(effective_return.clone());
+            self.ctx.expected_type = Some(effective_return);
 
             self.env.push_scope();
 
@@ -789,6 +804,7 @@ impl Checker {
 
             self.env.pop_scope();
             self.ctx.current_return_type = prev_return_type;
+            self.ctx.expected_type = prev_expected;
         }
     }
 
