@@ -36,8 +36,8 @@ importers:
         specifier: ^25.5.2
         version: 25.5.2
       '@types/vscode':
-        specifier: ^1.85.0
-        version: 1.110.0
+        specifier: ^1.116.0
+        version: 1.116.0
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
@@ -1279,8 +1279,8 @@ packages:
     resolution: {integrity: sha512-HVyk8nj2m+jcFRNazzqyVKiZezyhDKrGUA3jlEcg/nZ6Ms+qHwocba1Y/AaVaznJTAM9xpdFSh+ptbNrhOGvZA==}
     deprecated: This is a stub types definition. uuid provides its own type definitions, so you do not need this installed.
 
-  '@types/vscode@1.110.0':
-    resolution: {integrity: sha512-AGuxUEpU4F4mfuQjxPPaQVyuOMhs+VT/xRok1jiHVBubHK7lBRvCuOMZG0LKUwxncrPorJ5qq/uil3IdZBd5lA==}
+  '@types/vscode@1.116.0':
+    resolution: {integrity: sha512-sYHp4MO6BqJ2PD7Hjt0hlIS3tMaYsVPJrd0RUjDJ8HtOYnyJIEej0bLSccM8rE77WrC+Xox/kdBwEFDO8MsxNA==}
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
@@ -3556,7 +3556,7 @@ snapshots:
     dependencies:
       uuid: 13.0.0
 
-  '@types/vscode@1.110.0': {}
+  '@types/vscode@1.116.0': {}
 
   '@ungap/structured-clone@1.3.0': {}
 
