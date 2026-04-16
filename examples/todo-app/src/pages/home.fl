@@ -28,9 +28,9 @@ export fn HomePage() -> JSX.Element {
 
     fn handleToggle(id: string) {
         setTodos(todos |> map((t) => match t.id == id {
-            true -> Todo(..t, done: !t.done),
-            false -> t,
-        }))
+                    true -> Todo(..t, done: !t.done),
+                    false -> t,
+                }))
     }
 
     fn handleDelete(id: string) {

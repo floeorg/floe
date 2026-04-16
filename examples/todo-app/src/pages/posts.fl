@@ -16,14 +16,16 @@ type User {
     company: { name: string },
 }
 
-const queryClient = QueryClient({
+const queryClient = QueryClient(
+    {
     defaultOptions: {
         queries: {
             staleTime: 60_000,
             retry: 1,
         },
     },
-})
+},
+)
 
 async fn fetchUser(userId: number) -> Result<User, Error> {
     Http.get(`https://jsonplaceholder.typicode.com/users/${userId}`)
@@ -38,10 +40,12 @@ async fn fetchPosts(url: string) -> Result<Array<Post>, Error> {
 }
 
 fn PostAuthor(props: { userId: number }) -> JSX.Element {
-    const { data } = useSuspenseQuery({
+    const { data } = useSuspenseQuery(
+        {
         queryKey: ["user", props.userId],
         queryFn: () => fetchUser(props.userId),
-    })
+    },
+    )
 
     <span className="text-indigo-400">
         {match data {
@@ -59,10 +63,12 @@ fn PostList() -> JSX.Element {
         None -> "https://jsonplaceholder.typicode.com/posts?_limit=10",
     }
 
-    const { data } = useSuspenseQuery({
+    const { data } = useSuspenseQuery(
+        {
         queryKey: ["posts", selectedUserId],
         queryFn: () => fetchPosts(url),
-    })
+    },
+    )
 
     const posts = match data {
         Ok(p) -> p,

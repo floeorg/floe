@@ -50,9 +50,9 @@ for Array<CartItem> {
         existing |> match {
             None -> self |> Array.append(CartItem(product:, quantity: qty)),
             Some(_) -> self |> Array.map((item) => match item.product.id == product.id {
-                true -> CartItem(..item, quantity: item.quantity + qty),
-                false -> item,
-            }),
+                    true -> CartItem(..item, quantity: item.quantity + qty),
+                    false -> item,
+                }),
         }
     }
 
@@ -64,20 +64,24 @@ for Array<CartItem> {
         qty |> match {
             0 -> self |> removeItem(productId),
             _ -> self |> Array.map((item) => match item.product.id == productId {
-                true -> CartItem(..item, quantity: qty),
-                false -> item,
-            }),
+                    true -> CartItem(..item, quantity: qty),
+                    false -> item,
+                }),
         }
     }
 
     export fn totals(self) -> (number, number, number) {
-        const subtotal = self |> Array.reduce(
+        const subtotal = self
+            |> Array.reduce(
             (acc: number, item: CartItem) => acc + item.product.price * item.quantity,
             0,
         )
 
-        const discounted = self |> Array.reduce((acc: number, item: CartItem) => acc + (item.product
-            |> effectivePrice) * item.quantity, 0)
+        const discounted = self
+            |> Array.reduce(
+            (acc: number, item: CartItem) => acc + (item.product |> effectivePrice) * item.quantity,
+            0,
+        )
 
         (subtotal, subtotal - discounted, discounted)
     }

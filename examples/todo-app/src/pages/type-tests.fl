@@ -22,23 +22,16 @@ const _name = item.text
 const _done = item.done
 
 // ✓ hover: boolean
-
 // const _bad = item.nonexistent // ✗ uncomment → "type `Todo` has no field `nonexistent`"
-
 // ── Constructor validation ───────────────────────────────
-
 // Wrong field types should error
 
 const _good = Todo(id: "1", text: "hi", done: false)
 
 // ✓
-
 // const _bad1 = Todo(id: 42, text: "hi", done: false)   // ✗ uncomment → field `id`: expected `string`, found `number`
-
 // const _bad2 = Todo(id: "1", text: "hi", done: "yes")  // ✗ uncomment → field `done`: expected `boolean`, found `string`
-
 // ── Match arm consistency ────────────────────────────────
-
 // All arms must return the same type
 
 fn describeFilter(f: Filter) -> string {
@@ -75,15 +68,12 @@ fn double(x: number) -> number {
 const _piped = 5 |> double
 
 // ✓
-
 // const _badPipe = "hi" |> double  // ✗ uncomment → expected `number`, found `string`
-
 // ── Shadowing ────────────────────────────────────────────
 
 const myVal = 5
 
 // const myVal = 10  // ✗ uncomment → already defined and cannot be shadowed
-
 // ── Return type mismatch ─────────────────────────────────
 
 fn greet() -> string {
@@ -91,4 +81,5 @@ fn greet() -> string {
 }
 
 // ✓
+
 // fn badReturn() -> string { 42 }  // ✗ uncomment → return type mismatch

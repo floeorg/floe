@@ -1,9 +1,23 @@
+use crate::pretty::{self, Document};
 use crate::syntax::{SyntaxKind, SyntaxNode};
 
-use super::{Formatter, JsxChildInfo};
+use super::Formatter;
+
+pub(crate) enum JsxChildInfo {
+    Text(String),
+    Expr(SyntaxNode),
+    Element(SyntaxNode),
+    Comment(String),
+}
 
 impl Formatter<'_> {
-    pub(crate) fn fmt_jsx(&mut self, node: &SyntaxNode) {
+    pub(crate) fn fmt_jsx(&mut self, node: &SyntaxNode) -> Document {
+        // JSX comments (`{/* ... */}`) live in the CST and are handled by JSX
+        // formatting. Advance the side-channel cursor past this whole element
+        // so the program loop doesn't re-emit them.
+        let jsx_end: u32 = node.text_range().end().into();
+        self.advance_comment_cursor_to(jsx_end);
+
         let tag_name = self.jsx_tag_name(node);
         let is_fragment = tag_name.is_none();
         let is_self_closing =
@@ -15,105 +29,93 @@ impl Formatter<'_> {
             .collect();
 
         let children = self.jsx_collect_children(node);
+        let multiline_props =
+            !(props.is_empty() || (props.len() <= 3 && self.jsx_props_short(&props)));
 
         if is_fragment {
-            self.write("<>");
+            let mut parts = vec![pretty::str("<>")];
             if children.is_empty() {
-                self.write("</>");
-                return;
+                parts.push(pretty::str("</>"));
+                return pretty::concat(parts);
             }
             let frag_inline = children.len() == 1
                 && match &children[0] {
                     JsxChildInfo::Text(_) | JsxChildInfo::Comment(_) => true,
-                    JsxChildInfo::Expr(node) => !self.jsx_expr_is_multiline(node),
+                    JsxChildInfo::Expr(node) => !self.jsx_expr_is_multiline_node(node),
                     JsxChildInfo::Element(_) => false,
                 };
             if frag_inline {
-                self.fmt_jsx_children_inline(&children);
+                parts.push(self.fmt_jsx_children_inline(&children));
             } else {
-                self.indent += 1;
-                self.fmt_jsx_children(&children);
-                self.indent -= 1;
-                self.newline();
-                self.write_indent();
+                parts.push(pretty::nest(4, self.fmt_jsx_children_block(&children)));
+                parts.push(pretty::line());
             }
-            self.write("</>");
-            return;
+            parts.push(pretty::str("</>"));
+            return pretty::concat(parts);
         }
 
         let name = tag_name.unwrap();
 
         // Opening tag
-        self.write("<");
-        self.write(&name);
-
-        // Props
-        let multiline_props =
-            !(props.is_empty() || props.len() <= 3 && self.jsx_props_short(&props));
+        let mut parts = vec![pretty::str("<"), pretty::str(name.clone())];
 
         if !props.is_empty() {
             if !multiline_props {
                 for prop in &props {
-                    self.write(" ");
-                    self.fmt_jsx_prop(prop);
+                    parts.push(pretty::str(" "));
+                    parts.push(self.fmt_jsx_prop(prop));
                 }
             } else {
-                self.indent += 1;
+                let mut prop_inner = Vec::new();
                 for prop in &props {
-                    self.newline();
-                    self.write_indent();
-                    self.fmt_jsx_prop(prop);
+                    prop_inner.push(pretty::line());
+                    prop_inner.push(self.fmt_jsx_prop(prop));
                 }
-                self.indent -= 1;
-                self.newline();
-                self.write_indent();
+                parts.push(pretty::nest(4, pretty::concat(prop_inner)));
+                parts.push(pretty::line());
             }
         }
 
         if is_self_closing {
-            self.write(" />");
-            return;
+            parts.push(pretty::str(" />"));
+            return pretty::concat(parts);
         }
 
-        self.write(">");
+        parts.push(pretty::str(">"));
 
         if children.is_empty() {
-            self.write("</");
-            self.write(&name);
-            self.write(">");
-            return;
+            parts.push(pretty::str("</"));
+            parts.push(pretty::str(name));
+            parts.push(pretty::str(">"));
+            return pretty::concat(parts);
         }
 
-        // Single text, expr, or comment child → inline, unless:
-        // - The opening tag has multi-line props
-        // - The expr child contains multi-line content (e.g., match expressions)
         let inline = children.len() == 1
             && !multiline_props
             && match &children[0] {
                 JsxChildInfo::Text(_) | JsxChildInfo::Comment(_) => true,
-                JsxChildInfo::Expr(node) => !self.jsx_expr_is_multiline(node),
+                JsxChildInfo::Expr(n) => !self.jsx_expr_is_multiline_node(n),
                 JsxChildInfo::Element(_) => false,
             };
 
         if inline {
-            self.fmt_jsx_children_inline(&children);
+            parts.push(self.fmt_jsx_children_inline(&children));
         } else {
-            self.indent += 1;
-            self.fmt_jsx_children(&children);
-            self.indent -= 1;
-            self.newline();
-            self.write_indent();
+            parts.push(pretty::nest(4, self.fmt_jsx_children_block(&children)));
+            parts.push(pretty::line());
         }
 
-        self.write("</");
-        self.write(&name);
-        self.write(">");
+        parts.push(pretty::str("</"));
+        parts.push(pretty::str(name));
+        parts.push(pretty::str(">"));
+
+        pretty::concat(parts)
     }
 
-    fn fmt_jsx_prop(&mut self, node: &SyntaxNode) {
+    fn fmt_jsx_prop(&mut self, node: &SyntaxNode) -> Document {
         // JSX spread prop: {...expr}
         if node.kind() == SyntaxKind::JSX_SPREAD_PROP {
-            self.write("{...");
+            let mut parts = vec![pretty::str("{...")];
             let mut past_dots = false;
             for child_or_tok in node.children_with_tokens() {
                 if child_or_tok
@@ -132,17 +134,18 @@ impl Formatter<'_> {
                             break;
                         }
                         if !tok.kind().is_trivia() {
-                            self.write(tok.text());
+                            parts.push(pretty::str(tok.text()));
                         }
                     }
-                    rowan::NodeOrToken::Node(child) => self.fmt_node(&child),
+                    rowan::NodeOrToken::Node(child) => parts.push(self.fmt_node(&child)),
                 }
             }
-            self.write("}");
-            return;
+            parts.push(pretty::str("}"));
+            return pretty::concat(parts);
         }
 
-        // JSX prop names can be identifiers, keywords, or hyphenated (e.g., aria-label, data-testid)
+        // JSX prop name: identifier, keyword, or hyphenated (aria-label, data-testid)
+        let mut parts = Vec::new();
         for t in node.children_with_tokens() {
             if let Some(tok) = t.as_token() {
                 let kind = tok.kind();
@@ -153,7 +156,7 @@ impl Formatter<'_> {
                     continue;
                 }
                 if kind == SyntaxKind::MINUS || kind.is_member_name() {
-                    self.write(tok.text());
+                    parts.push(pretty::str(tok.text()));
                 } else {
                     break;
                 }
@@ -162,14 +165,14 @@ impl Formatter<'_> {
 
         let has_eq = self.has_token(node, SyntaxKind::EQUAL);
         if !has_eq {
-            return;
+            return pretty::concat(parts);
         }
 
-        self.write("=");
+        parts.push(pretty::str("="));
 
         let has_lbrace = self.has_token(node, SyntaxKind::L_BRACE);
         if has_lbrace {
-            self.write("{");
+            parts.push(pretty::str("{"));
             let mut inside = false;
             for child_or_tok in node.children_with_tokens() {
                 match child_or_tok {
@@ -182,84 +185,79 @@ impl Formatter<'_> {
                             break;
                         }
                         if inside && !tok.kind().is_trivia() {
-                            self.write(tok.text());
+                            parts.push(pretty::str(tok.text()));
                         }
                     }
                     rowan::NodeOrToken::Node(child) => {
                         if inside {
-                            self.fmt_node(&child);
+                            parts.push(self.fmt_node(&child));
                         }
                     }
                 }
             }
-            self.write("}");
+            parts.push(pretty::str("}"));
         } else {
             for t in node.children_with_tokens() {
                 if let Some(tok) = t.as_token()
                     && tok.kind() == SyntaxKind::STRING
                 {
-                    self.write(tok.text());
+                    parts.push(pretty::str(tok.text()));
                     break;
                 }
             }
         }
+        pretty::concat(parts)
     }
 
-    fn fmt_jsx_children_inline(&mut self, children: &[JsxChildInfo]) {
+    fn fmt_jsx_children_inline(&mut self, children: &[JsxChildInfo]) -> Document {
+        let mut parts = Vec::new();
         for child in children {
             match child {
-                JsxChildInfo::Text(text) => {
-                    self.write(text.trim());
-                }
-                JsxChildInfo::Expr(node) => {
-                    self.fmt_jsx_expr_child(node);
-                }
-                JsxChildInfo::Element(node) => {
-                    self.fmt_jsx(node);
-                }
+                JsxChildInfo::Text(text) => parts.push(pretty::str(text.trim())),
+                JsxChildInfo::Expr(node) => parts.push(self.fmt_jsx_expr_child(node)),
+                JsxChildInfo::Element(node) => parts.push(self.fmt_jsx(node)),
                 JsxChildInfo::Comment(text) => {
-                    self.write("{");
-                    self.write(text);
-                    self.write("}");
+                    parts.push(pretty::str("{"));
+                    parts.push(pretty::str(text.clone()));
+                    parts.push(pretty::str("}"));
                 }
             }
         }
+        pretty::concat(parts)
     }
 
-    fn fmt_jsx_children(&mut self, children: &[JsxChildInfo]) {
+    fn fmt_jsx_children_block(&mut self, children: &[JsxChildInfo]) -> Document {
+        let mut parts = Vec::new();
         for child in children {
             match child {
                 JsxChildInfo::Text(text) => {
                     let trimmed = text.trim();
                     if !trimmed.is_empty() {
-                        self.newline();
-                        self.write_indent();
-                        self.write(trimmed);
+                        parts.push(pretty::line());
+                        parts.push(pretty::str(trimmed));
                     }
                 }
                 JsxChildInfo::Expr(node) => {
-                    self.newline();
-                    self.write_indent();
-                    self.fmt_jsx_expr_child(node);
+                    parts.push(pretty::line());
+                    parts.push(self.fmt_jsx_expr_child(node));
                 }
                 JsxChildInfo::Element(node) => {
-                    self.newline();
-                    self.write_indent();
-                    self.fmt_jsx(node);
+                    parts.push(pretty::line());
+                    parts.push(self.fmt_jsx(node));
                 }
                 JsxChildInfo::Comment(text) => {
-                    self.newline();
-                    self.write_indent();
-                    self.write("{");
-                    self.write(text);
-                    self.write("}");
+                    parts.push(pretty::line());
+                    parts.push(pretty::str("{"));
+                    parts.push(pretty::str(text.clone()));
+                    parts.push(pretty::str("}"));
                 }
             }
         }
+        pretty::concat(parts)
     }
 
-    fn fmt_jsx_expr_child(&mut self, node: &SyntaxNode) {
-        self.write("{");
+    fn fmt_jsx_expr_child(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = vec![pretty::str("{")];
         let mut inside = false;
         for child_or_tok in node.children_with_tokens() {
             match child_or_tok {
@@ -272,17 +270,18 @@ impl Formatter<'_> {
                         break;
                     }
                     if inside && !tok.kind().is_trivia() {
-                        self.write(tok.text());
+                        parts.push(pretty::str(tok.text()));
                     }
                 }
                 rowan::NodeOrToken::Node(child) => {
                     if inside {
-                        self.fmt_node(&child);
+                        parts.push(self.fmt_node(&child));
                     }
                 }
             }
         }
-        self.write("}");
+        parts.push(pretty::str("}"));
+        pretty::concat(parts)
     }
 
     fn jsx_tag_name(&self, node: &SyntaxNode) -> Option<String> {
@@ -324,15 +323,16 @@ impl Formatter<'_> {
         children
     }
 
-    /// Check if a JSX_EXPR_CHILD contains multi-line content (e.g., a match expression,
-    /// or a pipe/call with a multiline arrow body).
-    fn jsx_expr_is_multiline(&self, node: &SyntaxNode) -> bool {
-        let inline = self.try_inline(|f| f.fmt_jsx_expr_child(node));
-        inline.contains('\n')
+    /// Heuristic: an expression child is multiline if it contains a match,
+    /// a block, or a nested JSX element with multiline props.
+    fn jsx_expr_is_multiline_node(&self, node: &SyntaxNode) -> bool {
+        node.descendants().any(|d| match d.kind() {
+            SyntaxKind::MATCH_EXPR | SyntaxKind::BLOCK_EXPR => true,
+            SyntaxKind::JSX_ELEMENT => self.jsx_has_multiline_props(&d),
+            _ => false,
+        })
     }
 
-    /// If a `JSX_EXPR_CHILD` contains only a block comment (no real expression),
-    /// return the comment text (e.g. `/* Desktop */`).
     fn jsx_expr_child_comment(&self, node: &SyntaxNode) -> Option<String> {
         let mut comment = None;
         for child_or_tok in node.children_with_tokens() {
@@ -353,13 +353,12 @@ impl Formatter<'_> {
         comment
     }
 
-    /// Check if a JSX element will be formatted with multi-line props.
     pub(crate) fn jsx_has_multiline_props(&self, node: &SyntaxNode) -> bool {
         let props: Vec<_> = node
             .children()
             .filter(|c| c.kind() == SyntaxKind::JSX_PROP || c.kind() == SyntaxKind::JSX_SPREAD_PROP)
             .collect();
-        !(props.is_empty() || props.len() <= 3 && self.jsx_props_short(&props))
+        !(props.is_empty() || (props.len() <= 3 && self.jsx_props_short(&props)))
     }
 
     fn jsx_props_short(&self, props: &[SyntaxNode]) -> bool {

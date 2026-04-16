@@ -37,13 +37,13 @@ fn ProductCard(props: { product: Product, onAddToCart: (Product) -> () }) -> JSX
             </span>
         </div>
         <div className="mb-2 flex items-center gap-2">
-            <span className="text-lg font-bold text-indigo-400">
-                {product |> effectivePrice |> formatPrice}
-            </span>
+            <span className="text-lg font-bold text-indigo-400">{product
+                |> effectivePrice
+                |> formatPrice}</span>
             {match hasDiscount {
-                true -> <span className="text-sm text-zinc-500 line-through">
-                    {formatPrice(product.price)}
-                </span>,
+                true -> <span className="text-sm text-zinc-500 line-through">{formatPrice(
+                    product.price,
+                )}</span>,
                 false -> <span />,
             }}
             {match hasDiscount {
@@ -189,10 +189,12 @@ fn FilterSidebar(
 fn CategoryList(
     props: { selectedCategory: string, onCategoryChange: (string) -> (), priceRange: PriceRange, onPriceRangeChange: (PriceRange) -> (), sortOrder: SortOrder, onSortChange: (SortOrder) -> () },
 ) -> JSX.Element {
-    const { data } = useSuspenseQuery({
+    const { data } = useSuspenseQuery(
+        {
         queryKey: ["categories"],
         queryFn: () => fetchCategories(),
-    })
+    },
+    )
 
     const categories = data |> match {
         Ok(cats) -> cats,
@@ -215,10 +217,12 @@ fn CategoryList(
 fn ProductGrid(
     props: { category: string, search: string, sortOrder: SortOrder, priceRange: PriceRange, onAddToCart: (Product) -> () },
 ) -> JSX.Element {
-    const { data } = useSuspenseQuery({
+    const { data } = useSuspenseQuery(
+        {
         queryKey: ["products", props.category, props.search],
         queryFn: () => fetchProducts(category: props.category, search: props.search, limit: 30),
-    })
+    },
+    )
 
     const (products, _total) = data |> match {
         Ok(result) -> result,
