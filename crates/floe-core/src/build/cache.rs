@@ -17,11 +17,14 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use xxhash_rust::xxh3::xxh3_64;
 
-/// The frozen, serializable form of a module's analyse output — today
-/// just enough to skip re-checking on a clean rebuild. Future work
-/// (issue follow-up) will extend this with the module's public type /
-/// value signatures so downstream modules can type-check against cached
-/// imports instead of re-parsing them.
+use crate::resolve::ResolvedImports;
+
+/// The frozen, serializable form of a module's analyse output. Carries
+/// fingerprints (for invalidation), the `had_errors` flag (so we never
+/// serve a failing module from cache), and the module's public
+/// interface — type / function / const / for-block / trait declarations
+/// — so downstream modules can type-check against cached imports
+/// instead of re-parsing and re-resolving them.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModuleInterface {
     /// Content fingerprint of the source file this interface was built
@@ -35,6 +38,10 @@ pub struct ModuleInterface {
     /// diagnostic. Freshness checks refuse to serve cached results for
     /// failing modules so the user sees the diagnostics every time.
     pub had_errors: bool,
+    /// The module's public surface — every declaration a downstream
+    /// module could import. Indexed by import-source string (e.g. the
+    /// `./types` in `import { Foo } from "./types"`).
+    pub resolved_imports: HashMap<String, ResolvedImports>,
 }
 
 impl ModuleInterface {
@@ -134,6 +141,7 @@ mod tests {
             source_hash: ModuleInterface::fingerprint(source.as_bytes()),
             dependency_hashes: dep_hashes,
             had_errors,
+            resolved_imports: HashMap::new(),
         }
     }
 
@@ -207,5 +215,50 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let store = CacheStore::new(tmp.path().to_path_buf());
         assert!(store.read(Path::new("nope.fl")).is_none());
+    }
+
+    #[test]
+    fn round_trips_full_resolved_imports_interface() {
+        use crate::parser::Parser;
+        use crate::resolve::{self, TsconfigPaths};
+
+        // Write a tiny `.fl` module with types + fns + consts, parse and
+        // resolve it, then bincode round-trip the resulting interface.
+        let tmp = TempDir::new().unwrap();
+        let src_path = tmp.path().join("lib.fl");
+        std::fs::write(
+            &src_path,
+            "export type Foo { name: string }\nexport fn greet(f: Foo) -> string { f.name }\nexport const MAX: number = 10\n",
+        )
+        .unwrap();
+        let importer_path = tmp.path().join("app.fl");
+        std::fs::write(&importer_path, r#"import { Foo, greet, MAX } from "./lib""#).unwrap();
+        let src = std::fs::read_to_string(&importer_path).unwrap();
+        let program = Parser::new(&src).parse_program().unwrap();
+        let resolved =
+            resolve::resolve_imports(&importer_path, &program, &TsconfigPaths::default());
+
+        let store = CacheStore::new(tmp.path().join("cache"));
+        let interface = ModuleInterface {
+            source_hash: ModuleInterface::fingerprint(src.as_bytes()),
+            dependency_hashes: HashMap::new(),
+            had_errors: false,
+            resolved_imports: resolved.clone(),
+        };
+        store.write(Path::new("app.fl"), &interface).unwrap();
+        let read = store.read(Path::new("app.fl")).unwrap();
+
+        // The deserialized imports should contain the same entries we
+        // resolved pre-serialization.
+        assert_eq!(
+            read.resolved_imports.keys().collect::<Vec<_>>(),
+            resolved.keys().collect::<Vec<_>>()
+        );
+        let lib = read.resolved_imports.get("./lib").unwrap();
+        assert_eq!(lib.type_decls.len(), 1);
+        assert_eq!(lib.type_decls[0].name, "Foo");
+        assert_eq!(lib.function_decls.len(), 1);
+        assert_eq!(lib.function_decls[0].name, "greet");
+        assert!(lib.const_names.iter().any(|n| n == "MAX"));
     }
 }

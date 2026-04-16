@@ -104,12 +104,31 @@ impl PackageCompiler {
             return Vec::new();
         }
         match self.analyse_path(path, source) {
-            Ok((analysed, dep_paths, _resolved)) => {
-                self.write_cache(path, source, &analysed.diagnostics, &dep_paths);
+            Ok((analysed, dep_paths, resolved)) => {
+                self.write_cache(path, source, &analysed.diagnostics, &dep_paths, &resolved);
                 analysed.diagnostics
             }
             Err(parse_errors) => parse_errors,
         }
+    }
+
+    /// Read the cached `ResolvedImports` for a module, if fresh. Used by
+    /// downstream modules to skip re-resolving this one's interface
+    /// during their own analyse pass. `None` means the cache is missing,
+    /// stale, or corrupt — caller should re-resolve.
+    pub fn cached_imports(
+        &self,
+        path: &Path,
+        source: &str,
+    ) -> Option<HashMap<String, ResolvedImports>> {
+        let cache = self.cache.as_ref()?;
+        let relative = self.relative_source(path)?;
+        let interface = cache.read(&relative)?;
+        let dep_sources = read_dep_sources(&interface.dependency_hashes);
+        if !CacheStore::is_fresh(&interface, source, &dep_sources) {
+            return None;
+        }
+        Some(interface.resolved_imports)
     }
 
     /// True when the cache says the module's fingerprints still match.
@@ -138,6 +157,7 @@ impl PackageCompiler {
         source: &str,
         diagnostics: &[Diagnostic],
         dep_paths: &std::collections::HashSet<PathBuf>,
+        resolved: &HashMap<String, ResolvedImports>,
     ) {
         let Some(cache) = &self.cache else { return };
         let Some(relative) = self.relative_source(path) else {
@@ -148,6 +168,7 @@ impl PackageCompiler {
             source_hash: ModuleInterface::fingerprint(source.as_bytes()),
             dependency_hashes: fingerprint_paths(dep_paths),
             had_errors,
+            resolved_imports: resolved.clone(),
         };
         let _ = cache.write(&relative, &interface);
     }

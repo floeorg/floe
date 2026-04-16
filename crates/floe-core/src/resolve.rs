@@ -264,7 +264,7 @@ pub fn find_tsconfig_from(dir: &Path) -> Option<PathBuf> {
 }
 
 /// Symbols exported from a resolved module.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ResolvedImports {
     /// Exported type declarations: name -> TypeDecl
     pub type_decls: Vec<TypeDecl>,
