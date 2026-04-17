@@ -72,7 +72,17 @@ import { Todo, Filter, for Array, for string } from "./todo"
 
 `import { for Type }` brings all exported for-block functions for that type from the imported file. For generic types, use the base type only (no type params) -- `import { for Array }` brings all `for Array<T>` extensions.
 
-Importing a type still auto-imports its for-block functions from the same file. The `import { for Type }` syntax is for cross-file for-blocks.
+The same `for` prefix is required for [traits](/docs/guide/traits/). A trait is behaviour, not data, so it must be imported like a for-block rather than like a type:
+
+```floe
+// ❌ error -- traits require the `for` prefix
+import { SnippetRepository } from "./repositories"
+
+// ✅ correct
+import { for SnippetRepository } from "./repositories"
+```
+
+Importing a type still auto-imports its for-block functions from the same file. The `import { for Type }` syntax is for cross-file for-blocks and trait contracts.
 
 ## Real-World Example
 
@@ -132,6 +142,18 @@ for User {
   }
 }
 ```
+
+Prefix the whole block with `export` to export every method at once. This is the natural shape for trait implementations, where all methods are part of the contract:
+
+```floe
+export for User: Display {
+  fn display(self) -> string {
+    `${self.name} (${self.age})`
+  }
+}
+```
+
+Per-method `export` is useful for plain `for` blocks where only some methods should be public. Block-level `export` keeps trait implementations tidy.
 
 ## Rules
 

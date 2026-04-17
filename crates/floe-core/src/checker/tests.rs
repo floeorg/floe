@@ -2866,20 +2866,13 @@ for User: Greet {
     assert!(has_error_containing(&diags, "has `self`"));
 }
 
-// ── Bug: Cross-file trait resolution ────────────────────────
-// Traits imported from another file should be recognized by the checker
+// ── Traits imported from another file (cross-file + #1090) ────
 
-#[test]
-fn cross_file_trait_resolution() {
+fn resolved_module_with_display_trait() -> ResolvedImports {
     use crate::lexer::span::Span;
     use crate::parser::ast::*;
-    use crate::resolve::ResolvedImports;
-    use std::collections::HashMap;
 
     let dummy_span = Span::new(0, 0, 0, 0);
-
-    // Simulate a resolved import that exports a trait `Display`
-    let mut imports = HashMap::new();
     let mut resolved = ResolvedImports::default();
     resolved.trait_decls.push(TraitDecl {
         exported: true,
@@ -2906,7 +2899,6 @@ fn cross_file_trait_resolution() {
         }],
         span: dummy_span,
     });
-    // Also need to export the type
     resolved.type_decls.push(TypeDecl {
         exported: true,
         opaque: false,
@@ -2927,7 +2919,15 @@ fn cross_file_trait_resolution() {
         }))]),
         deriving: vec![],
     });
-    imports.insert("./types".to_string(), resolved);
+    resolved
+}
+
+#[test]
+fn trait_imported_without_for_errors() {
+    use std::collections::HashMap;
+
+    let mut imports = HashMap::new();
+    imports.insert("./types".to_string(), resolved_module_with_display_trait());
 
     let source = r#"
 import { User, Display } from "./types"
@@ -2944,8 +2944,45 @@ for User: Display {
         .expect("parse should succeed");
     let diags = Checker::with_imports(imports).check(&program);
     assert!(
-        !has_error_containing(&diags, "unknown trait"),
-        "imported trait Display should be recognized, but got errors: {:?}",
+        has_error(&diags, ErrorCode::TraitImportWithoutFor),
+        "expected TraitImportWithoutFor, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(has_error_containing(
+        &diags,
+        "trait `Display` must be imported with `import { for Display }`"
+    ));
+}
+
+#[test]
+fn trait_imported_with_for_accepted() {
+    use std::collections::HashMap;
+
+    let mut imports = HashMap::new();
+    imports.insert("./types".to_string(), resolved_module_with_display_trait());
+
+    let source = r#"
+import { User, for Display } from "./types"
+
+for User: Display {
+    fn display(self) -> string {
+        self.name
+    }
+}
+"#;
+
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let diags = Checker::with_imports(imports).check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::TraitImportWithoutFor),
+        "should not error on trait imported via `for`: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UnknownTrait),
+        "trait should be registered after `for` import: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

@@ -1041,6 +1041,26 @@ mod tests {
         assert_eq!(resolved.for_blocks[0].functions.len(), 1);
     }
 
+    #[test]
+    fn block_level_export_for_exports_all_methods() {
+        // `export for X { ... }` should export every method in the block,
+        // matching per-method `export fn` behavior.
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            (
+                "ext.fl",
+                "export for User {\n    fn greet(self) -> string { self.name }\n    fn shout(self) -> string { self.name }\n}",
+            ),
+        ]);
+        let main_path = base.join("main.fl");
+        let program = parse_program("import { for User } from \"./ext\"");
+        let result = resolve_imports(&main_path, &program, &TsconfigPaths::default());
+        let resolved = result.get("./ext").unwrap();
+        assert_eq!(resolved.for_blocks.len(), 1);
+        assert_eq!(resolved.for_blocks[0].functions.len(), 2);
+        assert!(resolved.for_blocks[0].functions.iter().all(|f| f.exported));
+    }
+
     // ── Missing files handled gracefully ──────────────────────────
 
     #[test]
