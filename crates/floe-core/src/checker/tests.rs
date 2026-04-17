@@ -403,7 +403,7 @@ fn call_site_type_args_infer_return() {
         r#"
 import trusted { useState } from "react"
 type Todo { text: string }
-const [todos, _setTodos] = useState<Array<Todo>>([])
+const (todos, _setTodos) = useState<Array<Todo>>([])
 const _x = todos
 "#,
     )
@@ -1878,7 +1878,7 @@ fn dispatch_generic_converts_to_function() {
         r#"
 import trusted { useState } from "react"
 type Todo { text: string }
-const [todos, setTodos] = useState<Array<Todo>>([])
+const (todos, setTodos) = useState<Array<Todo>>([])
 fn handler() {
     setTodos([])
 }
@@ -1953,7 +1953,7 @@ fn calling_dispatch_type_is_callable() {
         r#"
 import trusted { useState } from "react"
 type Todo { text: string }
-const [todos, setTodos] = useState<Array<Todo>>([])
+const (todos, setTodos) = useState<Array<Todo>>([])
 fn handler() {
     setTodos([])
 }
@@ -7793,8 +7793,6 @@ fn unused() -> number { 1 }
 
 #[test]
 fn array_destructure_on_tuple_value_errors() {
-    // `const [x, y] = (1, 2)` — `[]` destructure in a const binding is
-    // banned. Tuples use `(a, b)`; arrays use `Array.get` or match.
     let diags = check(
         r#"
 const t = (1, 2)
@@ -7815,7 +7813,6 @@ const [x, y] = t
 
 #[test]
 fn array_destructure_on_array_value_also_errors() {
-    // `[a, b]` on an array lies about runtime length — banned too.
     let diags = check(
         r#"
 const arr: Array<number> = [1, 2, 3]
