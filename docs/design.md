@@ -970,6 +970,15 @@ For generic types, use the base type only — no type params in imports. `import
 
 Same-file rule unchanged: importing a type still auto-imports its for-block functions from that file.
 
+The `for` prefix maps to the two kinds of behaviour in the language:
+
+| Syntax | Meaning |
+|---|---|
+| `import { User }` | Data: type, const, or function |
+| `import { for X }` | Behaviour: for-block methods OR a trait contract |
+
+Traits are behaviour, not data, so `import { SnippetRepository }` on a trait is a compile error (E053) — the compiler suggests `import { for SnippetRepository }` instead.
+
 For block rules:
 
 1. `self` is the explicit first parameter — type inferred from the `for` block
@@ -979,6 +988,25 @@ For block rules:
 5. Cross-file `for` blocks use `import { for Type }` syntax
 6. Compiles to standalone functions with `self` explicitly typed
 7. Only block syntax is supported (`for Type { ... }`)
+
+### Exporting For-Block Methods
+
+Methods in a `for` block can be exported individually or as a whole block:
+
+```floe
+// Per-method export — useful when only some methods are public
+for User {
+  export fn display(self) -> string { self.name }
+  fn internalHelper(self) -> string { self.name }
+}
+
+// Block-level export — the natural shape for trait impls
+export for User: Display {
+  fn display(self) -> string { self.name }
+}
+```
+
+`export for X { ... }` is equivalent to prefixing every method inside with `export`. For trait implementations, all methods are part of the contract so the block-level form is preferred.
 
 ### Traits — Type-Directed Behavioral Contracts
 

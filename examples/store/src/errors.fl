@@ -1,9 +1,9 @@
-import { ApiError, Display } from "./types"
+import { ApiError, for Display } from "./types"
 
 // ── Multi-depth match on nested error unions ───────────
 
-for ApiError: Display {
-    export fn display(self) -> string {
+export for ApiError: Display {
+    fn display(self) -> string {
         self |> match {
             Network(Timeout(ms)) -> `Request timed out after ${ms}ms`,
             Network(DnsFailure(host)) -> `Cannot resolve ${host}`,

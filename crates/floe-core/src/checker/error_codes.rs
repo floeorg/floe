@@ -140,6 +140,8 @@ pub enum ErrorCode {
     TraitUsedAsType,
     /// For-block method called via dot syntax — must use pipe syntax.
     DotCallOnForBlockMethod,
+    /// Trait imported without the `for` prefix — must be `import { for Trait }`.
+    TraitImportWithoutFor,
 }
 
 impl ErrorCode {
@@ -202,6 +204,7 @@ impl ErrorCode {
             Self::NotCallable => "E047",
             Self::TraitUsedAsType => "E049",
             Self::DotCallOnForBlockMethod => "E050",
+            Self::TraitImportWithoutFor => "E053",
         }
     }
 }
