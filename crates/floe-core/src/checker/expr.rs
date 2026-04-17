@@ -2612,6 +2612,24 @@ impl Checker {
             return Type::Error;
         }
 
+        // Trait methods reached through a type-parameter bound also require pipe
+        // syntax — otherwise `r.create(x)` slips through when `r: R` and `R: Repo`
+        // because the receiver's type is a bare `Type::Named("R")` that
+        // `resolve_for_block_method` doesn't recognise.
+        if let Type::Named(type_param) = obj_ty
+            && let Some(bounds) = self.env.get_type_param_bounds(type_param.as_str()).cloned()
+            && let Some(trait_name) = self.trait_defining_method_in_bounds(field, &bounds)
+        {
+            self.emit_error_with_help(
+                format!("cannot call trait method `{field}` with dot syntax"),
+                span,
+                ErrorCode::DotCallOnForBlockMethod,
+                format!("`{field}` comes from trait `{trait_name}` and requires pipe syntax"),
+                format!("use `|> {field}(...)` instead of `.{field}(...)`"),
+            );
+            return Type::Error;
+        }
+
         // Foreign types: try to resolve to Record via DTS before allowing blind access
         if let Type::Foreign { name, .. } = obj_ty {
             let concrete = self.resolve_type_to_concrete(obj_ty);
