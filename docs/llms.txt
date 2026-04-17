@@ -521,10 +521,18 @@ const data = fetchData()         // Result<T, Error> — auto-wrapped (untrusted
 // Use ? to unwrap untrusted results
 const parsed = fetchData()?      // unwraps or returns Err early
 
-// Importing for-block extensions
+// Importing for-block extensions and traits
 import { for User } from "./user-helpers"
 import { Todo, Filter, for Array, for string } from "./todo"
+
+// Traits are behaviour — require the `for` prefix just like for-blocks
+import { User, for Display } from "./types"      // OK
+// import { User, Display } from "./types"       // ERROR E053 — use `for Display`
 ```
+
+Rule of thumb:
+- `import { Name }` — data (type / const / function)
+- `import { for Name }` — behaviour (for-block methods OR trait contract)
 
 ## Callback Flattening (use)
 
@@ -596,6 +604,12 @@ for string {
 // Usage in pipes — self is first argument
 todos |> filterBy(Filter.Active)
 "hello" |> validate
+
+// Block-level export — exports every method in the block
+export for User {
+    fn display(self) -> string { self.name }
+    fn shout(self) -> string { self.name |> String.toUpperCase }
+}
 ```
 
 ## Traits
@@ -616,6 +630,14 @@ trait Eq {
 
 // Implement a trait
 for User: Display {
+    fn display(self) -> string {
+        `${self.name} (${self.age})`
+    }
+}
+
+// `export for` exports every method in the block at once — the natural
+// shape for trait impls where all methods are part of the contract
+export for User: Display {
     fn display(self) -> string {
         `${self.name} (${self.age})`
     }

@@ -286,6 +286,24 @@ impl Checker {
             .insert((type_name.to_string(), trait_name.to_string()));
     }
 
+    /// Return the name of the first trait in `bounds` that defines a method
+    /// called `method_name`. Used to diagnose dot-access on trait methods
+    /// reached through a type-parameter bound, which must use pipe syntax.
+    pub(crate) fn trait_defining_method_in_bounds(
+        &self,
+        method_name: &str,
+        bounds: &[String],
+    ) -> Option<String> {
+        for bound_trait in bounds {
+            if let Some(methods) = self.traits.trait_defs.get(bound_trait.as_str())
+                && methods.iter().any(|m| m.name == method_name)
+            {
+                return Some(bound_trait.clone());
+            }
+        }
+        None
+    }
+
     /// Look up a trait method by name across a list of trait bounds.
     /// Returns the method as a `Type::Function` if found.
     pub(crate) fn resolve_trait_method(

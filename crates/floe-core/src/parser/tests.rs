@@ -1405,6 +1405,68 @@ fn for_block_error_non_fn() {
     assert!(result.is_err());
 }
 
+// ── Block-level export on for-blocks (#1089) ─────────────────
+
+#[test]
+fn export_for_block_marks_all_methods_exported() {
+    let input = r#"
+type User { name: string }
+export for User {
+    fn display(self) -> string { self.name }
+    fn shout(self) -> string { self.name }
+}
+"#;
+    let program = parse_ok(input);
+    match &program.items[1].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.functions.len(), 2);
+            assert!(
+                block.functions.iter().all(|f| f.exported),
+                "all methods in `export for` block should be exported",
+            );
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn export_for_trait_impl_marks_all_methods_exported() {
+    let input = r#"
+type User { name: string }
+trait Display { fn display(self) -> string }
+export for User: Display {
+    fn display(self) -> string { self.name }
+}
+"#;
+    let program = parse_ok(input);
+    match &program.items[2].kind {
+        ItemKind::ForBlock(block) => {
+            assert_eq!(block.trait_name.as_deref(), Some("Display"));
+            assert!(block.functions.iter().all(|f| f.exported));
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
+#[test]
+fn per_method_export_still_works_on_for_block() {
+    let input = r#"
+type User { name: string }
+for User {
+    export fn display(self) -> string { self.name }
+    fn helper(self) -> string { self.name }
+}
+"#;
+    let program = parse_ok(input);
+    match &program.items[1].kind {
+        ItemKind::ForBlock(block) => {
+            assert!(block.functions[0].exported);
+            assert!(!block.functions[1].exported);
+        }
+        other => panic!("expected ForBlock, got {other:?}"),
+    }
+}
+
 // (Inline for-declaration tests removed — only block form is supported)
 
 // ── Import { for Type } ────────────────────────────────────

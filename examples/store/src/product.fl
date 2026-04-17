@@ -1,15 +1,15 @@
-import { Product, ProductId, CartItem, SortOrder, PriceRange, Display, Discountable } from "./types"
+import { Product, ProductId, CartItem, SortOrder, PriceRange, for Display, for Discountable } from "./types"
 
 // ── Trait implementations ──────────────────────────────
 
-for Product: Display {
-    export fn display(self) -> string {
+export for Product: Display {
+    fn display(self) -> string {
         `${self.title} - $${self.price}`
     }
 }
 
-for Product: Discountable {
-    export fn effectivePrice(self) -> number {
+export for Product: Discountable {
+    fn effectivePrice(self) -> number {
         self.price * (1 - self.discountPercentage / 100)
     }
 }

@@ -389,12 +389,16 @@ impl Checker {
     }
 
     fn is_type_untrusted(&self, ty: &Type) -> bool {
-        let name = match ty {
-            Type::Foreign { name: n, .. } | Type::Named(n) => n,
-            _ => return false,
-        };
-        let base = name.split(['<', '.']).next().unwrap_or(name);
-        self.untrusted_imports.contains(base)
+        match ty {
+            Type::Foreign {
+                untrusted: true, ..
+            } => true,
+            Type::Foreign { name, .. } | Type::Named(name) => {
+                let base = name.split(['<', '.']).next().unwrap_or(name);
+                self.untrusted_imports.contains(base)
+            }
+            _ => false,
+        }
     }
 
     /// Peek at an object expression's type from the env without running check_expr.
@@ -1983,10 +1987,7 @@ impl Checker {
         // binds T → Todo).
         if let Some(first_param) = inst_params.first() {
             let unified = unify::unify(first_param, left_ty).is_ok();
-            if !unified
-                && !self.types_compatible(&first_param.resolved(), left_ty)
-                && !self.is_untrusted_result_mismatch(&first_param.resolved(), left_ty)
-            {
+            if !unified && !self.types_compatible(&first_param.resolved(), left_ty) {
                 let resolved_first = first_param.resolved();
                 let (msg, label) = self.type_mismatch_detail(&resolved_first, left_ty);
                 self.emit_error(
@@ -2482,8 +2483,8 @@ impl Checker {
         {
             return ty.clone();
         }
-        if let Type::Foreign { name, .. } = obj_ty {
-            return Type::foreign(format!("{name}.{field}"));
+        if let Type::Foreign { name, untrusted } = obj_ty {
+            return Type::foreign_with_trust(format!("{name}.{field}"), *untrusted);
         }
         Type::Unknown
     }
@@ -2606,6 +2607,24 @@ impl Checker {
                 span,
                 ErrorCode::DotCallOnForBlockMethod,
                 "for-block methods require pipe syntax",
+                format!("use `|> {field}(...)` instead of `.{field}(...)`"),
+            );
+            return Type::Error;
+        }
+
+        // Trait methods reached through a type-parameter bound also require pipe
+        // syntax — otherwise `r.create(x)` slips through when `r: R` and `R: Repo`
+        // because the receiver's type is a bare `Type::Named("R")` that
+        // `resolve_for_block_method` doesn't recognise.
+        if let Type::Named(type_param) = obj_ty
+            && let Some(bounds) = self.env.get_type_param_bounds(type_param.as_str()).cloned()
+            && let Some(trait_name) = self.trait_defining_method_in_bounds(field, &bounds)
+        {
+            self.emit_error_with_help(
+                format!("cannot call trait method `{field}` with dot syntax"),
+                span,
+                ErrorCode::DotCallOnForBlockMethod,
+                format!("`{field}` comes from trait `{trait_name}` and requires pipe syntax"),
                 format!("use `|> {field}(...)` instead of `.{field}(...)`"),
             );
             return Type::Error;
@@ -2836,15 +2855,6 @@ impl Checker {
             }
         }
         resolved
-    }
-
-    /// Returns true when the mismatch is caused by an untrusted Result that already
-    /// has an error at the const binding — downstream errors should be suppressed.
-    pub(super) fn is_untrusted_result_mismatch(&self, expected: &Type, found: &Type) -> bool {
-        found.is_result()
-            && found
-                .result_ok()
-                .is_some_and(|ok_ty| self.types_unifiable(expected, ok_ty))
     }
 
     /// Returns extra diagnostic detail when there is a specific explanation for the mismatch.

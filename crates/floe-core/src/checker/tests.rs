@@ -2940,20 +2940,13 @@ for User: Greet {
     assert!(has_error_containing(&diags, "has `self`"));
 }
 
-// ── Bug: Cross-file trait resolution ────────────────────────
-// Traits imported from another file should be recognized by the checker
+// ── Traits imported from another file (cross-file + #1090) ────
 
-#[test]
-fn cross_file_trait_resolution() {
+fn resolved_module_with_display_trait() -> ResolvedImports {
     use crate::lexer::span::Span;
     use crate::parser::ast::*;
-    use crate::resolve::ResolvedImports;
-    use std::collections::HashMap;
 
     let dummy_span = Span::new(0, 0, 0, 0);
-
-    // Simulate a resolved import that exports a trait `Display`
-    let mut imports = HashMap::new();
     let mut resolved = ResolvedImports::default();
     resolved.trait_decls.push(TraitDecl {
         exported: true,
@@ -2980,7 +2973,6 @@ fn cross_file_trait_resolution() {
         }],
         span: dummy_span,
     });
-    // Also need to export the type
     resolved.type_decls.push(TypeDecl {
         exported: true,
         opaque: false,
@@ -3001,7 +2993,15 @@ fn cross_file_trait_resolution() {
         }))]),
         deriving: vec![],
     });
-    imports.insert("./types".to_string(), resolved);
+    resolved
+}
+
+#[test]
+fn trait_imported_without_for_errors() {
+    use std::collections::HashMap;
+
+    let mut imports = HashMap::new();
+    imports.insert("./types".to_string(), resolved_module_with_display_trait());
 
     let source = r#"
 import { User, Display } from "./types"
@@ -3018,8 +3018,45 @@ for User: Display {
         .expect("parse should succeed");
     let diags = Checker::with_imports(imports).check(&program);
     assert!(
-        !has_error_containing(&diags, "unknown trait"),
-        "imported trait Display should be recognized, but got errors: {:?}",
+        has_error(&diags, ErrorCode::TraitImportWithoutFor),
+        "expected TraitImportWithoutFor, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(has_error_containing(
+        &diags,
+        "trait `Display` must be imported with `import { for Display }`"
+    ));
+}
+
+#[test]
+fn trait_imported_with_for_accepted() {
+    use std::collections::HashMap;
+
+    let mut imports = HashMap::new();
+    imports.insert("./types".to_string(), resolved_module_with_display_trait());
+
+    let source = r#"
+import { User, for Display } from "./types"
+
+for User: Display {
+    fn display(self) -> string {
+        self.name
+    }
+}
+"#;
+
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let diags = Checker::with_imports(imports).check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::TraitImportWithoutFor),
+        "should not error on trait imported via `for`: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UnknownTrait),
+        "trait should be registered after `for` import: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -5963,6 +6000,51 @@ const _g: string = u |> greet
     );
 }
 
+#[test]
+fn dot_call_on_trait_method_via_generic_bound_errors() {
+    // #1169: A trait method reached through a trait-bounded type parameter
+    // must still be called via pipe syntax. Previously dot-access slipped
+    // through because the receiver's type (`Type::Named("R")`) wasn't
+    // recognised by `resolve_for_block_method` and the member access fell
+    // through to the foreign/unknown branch.
+    let diags = check(
+        r#"
+trait Repo {
+    fn create(self, value: string) -> string
+}
+
+fn use_repo<R: Repo>(r: R, v: string) -> string {
+    r.create(v)
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::DotCallOnForBlockMethod),
+        "dot-call on trait method via generic bound should error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn pipe_call_on_trait_method_via_generic_bound_allowed() {
+    let diags = check(
+        r#"
+trait Repo {
+    fn create(self, value: string) -> string
+}
+
+fn use_repo<R: Repo>(r: R, v: string) -> string {
+    r |> create(v)
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::DotCallOnForBlockMethod),
+        "pipe syntax for trait method via generic bound should not error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── JSX member expressions ──────────────────────────────────
 
 #[test]
@@ -8015,6 +8097,55 @@ trait Repo {
     assert!(
         has_error_containing(&diags, "self"),
         "trait method with `self` not first should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn pipe_into_stdlib_method_does_not_silently_unwrap_result() {
+    // #1168: piping `Result<T, E>` into a stdlib method expecting `T` must
+    // error — the caller is responsible for unwrapping with `?` or `match`.
+    let diags = check(
+        r#"
+fn arr() -> Result<Array<number>, Error> { Ok([1, 2, 3]) }
+export fn main() -> string {
+    const r = arr() |> Array.at(0)
+    const x: string = r
+    x
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "piping Result<Array<T>, E> into Array.at should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.message.contains("Result") && d.message.contains("Array.at")),
+        "error should flag the Result argument to Array.at, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn pipe_unwrap_then_stdlib_preserves_element_type() {
+    // Once the Result is unwrapped via `?`, the pipe should bind the
+    // element type correctly: Array<number> |> Array.at(0) → Option<number>.
+    let diags = check(
+        r#"
+fn arr() -> Result<Array<number>, Error> { Ok([1, 2, 3]) }
+export fn main() -> Result<Option<number>, Error> {
+    const a = arr()?
+    const r = a |> Array.at(0)
+    Ok(r)
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "unwrapped Array<number> |> Array.at(0) should type-check, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

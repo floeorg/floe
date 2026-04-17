@@ -50,6 +50,34 @@ for User: Eq {
 }
 ```
 
+## Exporting and Importing
+
+Traits and their implementations sit on either side of the `export`/`import` rule for *behaviour*:
+
+```floe
+// Define and export a trait
+export trait Display {
+  fn display(self) -> string
+}
+
+// Export every method in a trait impl at once
+export for User: Display {
+  fn display(self) -> string { self.name }
+}
+```
+
+Import traits with the `for` prefix -- the same syntax used to pull in cross-file for-block methods:
+
+```floe
+import { User, for Display } from "./types"
+
+for User: Display {
+  fn display(self) -> string { self.name }
+}
+```
+
+Writing `import { Display }` for a trait is an error -- the compiler asks you to add the `for` prefix.
+
 ## Multiple Traits
 
 A type can implement multiple traits:

@@ -64,6 +64,26 @@ impl Checker {
             // the resulting type.
             let spec_untrusted = is_npm && !decl.trusted && !spec.trusted;
 
+            // Traits are behaviour, not data — importing them as plain
+            // specifiers silently let them resolve as types. Short-circuit
+            // before `lookup_resolved_symbol` so the user gets one targeted
+            // diagnostic instead of cascading "type-used-as-value" errors.
+            if let Some(ref resolved) = resolved
+                && resolved.trait_decls.iter().any(|t| t.name == spec.name)
+            {
+                self.emit_error_with_help(
+                    format!(
+                        "trait `{}` must be imported with `import {{ for {} }}`",
+                        spec.name, spec.name
+                    ),
+                    spec.span,
+                    ErrorCode::TraitImportWithoutFor,
+                    "traits require the `for` prefix",
+                    format!("change to `for {}`", spec.name),
+                );
+                continue;
+            }
+
             // Try to find the actual type from resolved imports
             let ty = if let Some(ref resolved) = resolved {
                 match self.lookup_resolved_symbol(&spec.name, resolved) {
