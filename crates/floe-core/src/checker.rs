@@ -23,6 +23,7 @@ pub use attach::{
     attach_trait_decl_shallow, attach_type_decl_shallow, attach_types, lower_to_typed,
 };
 pub use error_codes::ErrorCode;
+pub use expr::simple_resolve_type_expr;
 pub use prelude::UNKNOWN;
 pub use printer::TypeDisplay;
 pub use problems::Problems;
@@ -219,6 +220,12 @@ pub struct Checker {
     /// Maps variable/function names to their inferred type display names.
     /// Accumulated as names are defined so inner-scope names aren't lost.
     name_types: HashMap<String, String>,
+    /// Top-level names keyed to their resolved `Type` (in `Arc` so
+    /// callers can share without deep-cloning). Populated from the env
+    /// at the end of `check_all`; consumed by the LSP for typed pipe
+    /// compat. Narrower than `name_types`: only global-scope entries
+    /// land here, not inner-scope shadows.
+    name_type_map: HashMap<String, std::sync::Arc<Type>>,
     /// Variant names that appear in multiple unions: variant name -> list of union names.
     /// Used to detect ambiguous bare variant usage.
     ambiguous_variants: HashMap<String, Vec<String>>,
@@ -448,6 +455,7 @@ impl Checker {
             dts_imports: HashMap::new(),
             probe_consumed: HashSet::new(),
             name_types: HashMap::new(),
+            name_type_map: HashMap::new(),
             ambiguous_variants: HashMap::new(),
             fn_required_params: HashMap::new(),
             fn_param_names: HashMap::new(),
@@ -597,6 +605,11 @@ impl Checker {
     ) -> (Vec<Diagnostic>, crate::reference::ReferenceTracker) {
         let (diags, _, _, _) = self.check_all(program);
         (diags, self.references)
+    }
+
+    /// Take the checker's top-level `name -> Arc<Type>` map.
+    pub fn take_name_type_map(&mut self) -> HashMap<String, std::sync::Arc<Type>> {
+        std::mem::take(&mut self.name_type_map)
     }
 
     /// Run all checks and return all maps. Takes `&mut self` so callers
@@ -778,12 +791,16 @@ impl Checker {
             }
         }
 
-        // Merge any remaining scope entries into name_types
+        // Merge remaining scope entries so top-level names land in both
+        // the display map and the typed map.
         for scope in &self.env.scopes {
             for (name, ty) in scope {
                 self.name_types
                     .entry(name.clone())
                     .or_insert_with(|| ty.to_string());
+                self.name_type_map
+                    .entry(name.clone())
+                    .or_insert_with(|| std::sync::Arc::new(ty.clone()));
             }
         }
 

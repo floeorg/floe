@@ -4,9 +4,9 @@ mod completions;
 mod goto_def;
 mod handlers;
 mod hover;
+mod index;
 mod resolution;
 mod stdlib_hover;
-mod symbols;
 
 #[cfg(test)]
 mod tests;
@@ -26,9 +26,9 @@ use floe_core::parser::Parser;
 use floe_core::parser::ast::TypedProgram;
 use floe_core::reference::ReferenceTracker;
 
-use completion::is_pipe_compatible;
+use completion::is_pipe_compatible_typed;
+use index::SymbolIndex;
 use resolution::enrich_from_imports;
-use symbols::SymbolIndex;
 
 /// Find the resolved type and span width of the innermost expression at a byte offset.
 /// Returns (span_width, type) of the tightest non-Unknown expression containing the offset.
@@ -164,7 +164,7 @@ fn is_word_char(b: u8) -> bool {
 /// function including its body). We only want to skip goto-def when the
 /// cursor is literally on the name token at the definition site, not when
 /// it's on a usage of that name inside the declaration body.
-fn is_cursor_on_def_name(source: &str, cursor_offset: usize, sym: &symbols::Symbol) -> bool {
+fn is_cursor_on_def_name(source: &str, cursor_offset: usize, sym: &index::Symbol) -> bool {
     // The name must appear somewhere near the start of the declaration.
     // Search for the first occurrence of the name within the item span.
     let end = sym.end.min(source.len());
@@ -345,114 +345,131 @@ impl FloeLsp {
         resolved
     }
 
+    /// Resolve `.fl` imports, tsgo exports, and ambient declarations for a
+    /// freshly parsed program. Returns the pieces analyse needs plus the
+    /// filesystem context the LSP reuses for post-analyse enrichment.
+    async fn gather_module_inputs(
+        &self,
+        uri: &Url,
+        program: &floe_core::parser::ast::Program,
+    ) -> (
+        HashMap<String, floe_core::resolve::ResolvedImports>,
+        ExternTypes,
+        Option<PathBuf>,
+        Option<PathBuf>,
+        floe_core::resolve::TsconfigPaths,
+    ) {
+        let Ok(source_path) = uri.to_file_path() else {
+            return (
+                HashMap::new(),
+                ExternTypes::default(),
+                None,
+                None,
+                Default::default(),
+            );
+        };
+        let source_dir = source_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+        let project_dir = find_project_dir(&source_dir);
+        let tsconfig_paths = floe_core::resolve::TsconfigPaths::from_project_dir(&project_dir);
+        self.log_project_info(&project_dir, &tsconfig_paths).await;
+        let resolved_imports = self
+            .resolve_imports_cached(&source_path, program, &tsconfig_paths)
+            .await;
+
+        let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
+        let tsgo_result =
+            tsgo_resolver.resolve_imports(program, &resolved_imports, &source_dir, &tsconfig_paths);
+        let ambient = floe_core::interop::ambient::load_ambient_types(&project_dir);
+
+        let externs = ExternTypes {
+            dts_imports: tsgo_result.exports,
+            ambient,
+            ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
+        };
+
+        (
+            resolved_imports,
+            externs,
+            Some(project_dir),
+            Some(source_dir),
+            tsconfig_paths,
+        )
+    }
+
     /// Parse and type-check a document, update symbol index, publish diagnostics.
     async fn update_document(&self, uri: Url, source: &str) {
-        let (diagnostics, index, type_map, typed_program, references) = match Parser::new(source)
-            .parse_program()
-        {
+        let (program, parse_diags, full_parse_ok) = match Parser::new(source).parse_program() {
+            Ok(program) => (program, Vec::new(), true),
             Err(_) => {
                 // Full parse failed — use lossy parse to get a partial AST so
                 // we can still build a symbol index for completions/hover.
                 let (program, parse_errors) = Parser::parse_lossy(source);
-                let floe_diags = floe_diag::from_parse_errors(&parse_errors);
-                let index = SymbolIndex::build(&program);
-                let analysed = analyse::analyse_parsed(program, ModuleInputs::default());
-                let mut combined = floe_diags;
-                combined.extend(analysed.diagnostics);
-                (
-                    self.convert_diagnostics(source, &combined),
-                    index,
-                    analysed.name_types,
-                    Some(analysed.program),
-                    analysed.references,
-                )
-            }
-            Ok(program) => {
-                let mut index = SymbolIndex::build(&program);
-
-                // Resolve .fl imports for cross-file type checking.
-                let (resolved_imports, project_dir, tsconfig_paths) = if let Ok(source_path) =
-                    uri.to_file_path()
-                {
-                    let source_dir = source_path.parent().unwrap_or(Path::new(".")).to_path_buf();
-                    let project_dir = find_project_dir(&source_dir);
-                    let paths = floe_core::resolve::TsconfigPaths::from_project_dir(&project_dir);
-                    self.log_project_info(&project_dir, &paths).await;
-                    let resolved = self
-                        .resolve_imports_cached(&source_path, &program, &paths)
-                        .await;
-                    (resolved, Some(project_dir), paths)
-                } else {
-                    (Default::default(), None, Default::default())
-                };
-
-                // Resolve .d.ts imports BEFORE analyse so it gets npm type info.
-                let mut import_diags_early = Vec::new();
-                let (dts_map, ts_imports_missing_tsgo, ambient) =
-                    if let (Ok(source_path), Some(project_dir)) =
-                        (uri.to_file_path(), project_dir.as_ref())
-                    {
-                        let source_dir = source_path.parent().unwrap_or(Path::new("."));
-                        let cache = self.dts_cache.read().await.clone();
-                        let (import_diags, new_cache) = enrich_from_imports(
-                            &program,
-                            project_dir,
-                            source_dir,
-                            &mut index,
-                            &cache,
-                            &tsconfig_paths,
-                        );
-                        import_diags_early = import_diags;
-                        let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(project_dir);
-                        let tsgo_result = tsgo_resolver.resolve_imports(
-                            &program,
-                            &resolved_imports,
-                            source_dir,
-                            &tsconfig_paths,
-                        );
-                        if !new_cache.is_empty() {
-                            let mut cache_write = self.dts_cache.write().await;
-                            cache_write.extend(new_cache);
-                        }
-                        let ambient = floe_core::interop::ambient::load_ambient_types(project_dir);
-                        (
-                            tsgo_result.exports,
-                            tsgo_result.ts_imports_missing_tsgo,
-                            ambient,
-                        )
-                    } else {
-                        (HashMap::new(), HashSet::new(), None)
-                    };
-
-                // Add imported for-block functions to the symbol index.
-                index.add_imported_for_blocks(&resolved_imports);
-
-                let analysed = analyse::analyse_parsed(
-                    program,
-                    ModuleInputs {
-                        resolved_imports,
-                        externs: ExternTypes {
-                            dts_imports: dts_map,
-                            ambient,
-                            ts_imports_missing_tsgo,
-                        },
-                    },
-                );
-                let mut check_diags = analysed.diagnostics;
-                check_diags.extend(import_diags_early);
-
-                let mut typed_program = analysed.program;
-                floe_core::checker::mark_async_functions(&mut typed_program);
-
-                (
-                    self.convert_diagnostics(source, &check_diags),
-                    index,
-                    analysed.name_types,
-                    Some(typed_program),
-                    analysed.references,
-                )
+                let diags = floe_diag::from_parse_errors(&parse_errors);
+                (program, diags, false)
             }
         };
+
+        // Partial trees from lossy parses skip import/extern resolution
+        // since the module inputs may be incomplete.
+        let (resolved_imports, externs, project_dir, source_dir, tsconfig_paths) = if full_parse_ok
+        {
+            self.gather_module_inputs(&uri, &program).await
+        } else {
+            (
+                HashMap::new(),
+                ExternTypes::default(),
+                None,
+                None,
+                Default::default(),
+            )
+        };
+
+        let analysed = analyse::analyse_parsed(
+            program,
+            ModuleInputs {
+                resolved_imports,
+                externs,
+            },
+        );
+
+        let mut typed_program = analysed.program;
+        floe_core::checker::mark_async_functions(&mut typed_program);
+
+        let mut index = SymbolIndex::build(
+            &typed_program,
+            &analysed.name_types,
+            &analysed.name_type_map,
+        );
+
+        // Enrich imported symbols from .d.ts and validate relative imports.
+        let mut import_diags = Vec::new();
+        if let (Some(project_dir), Some(source_dir)) = (project_dir.as_ref(), source_dir.as_ref()) {
+            let cache = self.dts_cache.read().await.clone();
+            let (diags, new_cache) = enrich_from_imports(
+                &typed_program,
+                project_dir,
+                source_dir,
+                &mut index,
+                &cache,
+                &tsconfig_paths,
+            );
+            import_diags = diags;
+            if !new_cache.is_empty() {
+                let mut cache_write = self.dts_cache.write().await;
+                cache_write.extend(new_cache);
+            }
+        }
+
+        // Add imported for-block functions to the symbol index.
+        index.add_imported_for_blocks(&analysed.resolved_imports);
+
+        let mut combined = parse_diags;
+        combined.extend(analysed.diagnostics);
+        combined.extend(import_diags);
+        let diagnostics = self.convert_diagnostics(source, &combined);
+        let type_map = analysed.name_types;
+        let references = analysed.references;
+        let typed_program = Some(typed_program);
 
         self.documents.write().await.insert(
             uri.clone(),
@@ -524,9 +541,9 @@ impl FloeLsp {
                     continue;
                 }
                 // Must have at least one parameter to be pipe-compatible
-                if sym.first_param_type.is_none() {
+                let Some(first_param) = sym.first_param_type.as_deref() else {
                     continue;
-                }
+                };
                 // Filter by prefix
                 if !prefix.is_empty() && !sym.name.starts_with(prefix) {
                     continue;
@@ -536,9 +553,8 @@ impl FloeLsp {
                     continue;
                 }
 
-                let compatible = piped_type
-                    .zip(sym.first_param_type.as_deref())
-                    .is_some_and(|(pt, fpt)| is_pipe_compatible(fpt, pt));
+                let compatible =
+                    piped_type.is_some_and(|pt| is_pipe_compatible_typed(first_param, pt));
 
                 let sort_prefix = if compatible { "0" } else { "1" };
 

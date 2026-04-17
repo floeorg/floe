@@ -7,8 +7,9 @@
 //! analyse stays pure so the LSP can call it without touching disk.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
-use crate::checker::{Checker, lower_to_typed};
+use crate::checker::{Checker, Type, lower_to_typed};
 use crate::diagnostic::{self, Diagnostic};
 use crate::interop::DtsExport;
 use crate::interop::ambient::AmbientDeclarations;
@@ -45,6 +46,9 @@ pub struct AnalysedModule {
     /// `name → inferred type` display map. LSP completions and record
     /// field-accessor hovers key off this.
     pub name_types: HashMap<String, String>,
+    /// Top-level `name → Arc<Type>`. Structured form of `name_types` for
+    /// consumers that need `Type` rather than its display string.
+    pub name_type_map: HashMap<String, Arc<Type>>,
 }
 
 /// Parse, type-check, and lower a single source file. Parse errors come
@@ -62,6 +66,7 @@ pub fn analyse_module(source: &str, inputs: ModuleInputs) -> AnalysedModule {
             references: ReferenceTracker::new(),
             resolved_imports: inputs.resolved_imports,
             name_types: HashMap::new(),
+            name_type_map: HashMap::new(),
         },
     }
 }
@@ -80,6 +85,7 @@ pub fn analyse_parsed(
         inputs.externs.ts_imports_missing_tsgo,
     );
     let (diagnostics, name_types, expr_types, invalid_exprs) = checker.check_all(&program);
+    let name_type_map = checker.take_name_type_map();
     let references = std::mem::take(&mut checker.references);
     let typed = lower_to_typed(
         program,
@@ -93,6 +99,7 @@ pub fn analyse_parsed(
         references,
         resolved_imports: inputs.resolved_imports,
         name_types,
+        name_type_map,
     }
 }
 

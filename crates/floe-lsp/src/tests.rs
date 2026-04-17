@@ -5,12 +5,26 @@ use super::completions::{
     detect_match_context, is_in_jsx_tag, jsx_attribute_completions, lambda_event_completions,
 };
 use super::goto_def::import_path_at_offset;
-use super::symbols::*;
+use super::index::*;
 use super::*;
 
+use floe_core::analyse::{self, ModuleInputs};
 use floe_core::diagnostic::{self as floe_diag, Severity};
 use floe_core::parser::Parser;
 use floe_core::parser::ast::*;
+
+/// Run analyse on a source string and return a SymbolIndex built off the
+/// typed program. Tests use this instead of `SymbolIndex::build(&program)`
+/// now that the index walks the typed AST.
+fn build_index(source: &str) -> SymbolIndex {
+    let program = Parser::new(source).parse_program().unwrap();
+    let analysed = analyse::analyse_parsed(program, ModuleInputs::default());
+    SymbolIndex::build(
+        &analysed.program,
+        &analysed.name_types,
+        &analysed.name_type_map,
+    )
+}
 
 #[test]
 fn offset_to_position_first_line() {
@@ -84,8 +98,7 @@ fn banned_keyword_produces_parse_error() {
 #[test]
 fn symbol_index_function() {
     let source = "fn add(a: number, b: number) -> number { a + b }";
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
+    let index = build_index(source);
     let syms = index.find_by_name("add");
     assert_eq!(syms.len(), 1);
     assert_eq!(syms[0].kind, SymbolKind::FUNCTION);
@@ -98,21 +111,19 @@ fn symbol_index_function() {
 #[test]
 fn symbol_index_function_no_return_type() {
     let source = "fn greet(name: string) { Console.log(name) }";
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
+    let index = build_index(source);
     let syms = index.find_by_name("greet");
     assert_eq!(syms.len(), 1);
     assert_eq!(
-        syms[0].detail, "fn greet(name: string)",
-        "function without return type should not have -> or :"
+        syms[0].detail, "fn greet(name: string) -> ()",
+        "function without return type should show the checker's inferred return"
     );
 }
 
 #[test]
 fn symbol_index_exported_function() {
     let source = "export fn hello() -> string { \"hi\" }";
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
+    let index = build_index(source);
     let syms = index.find_by_name("hello");
     assert_eq!(syms.len(), 1);
     assert_eq!(syms[0].detail, "export fn hello() -> string",);
@@ -121,8 +132,7 @@ fn symbol_index_exported_function() {
 #[test]
 fn symbol_index_const() {
     let source = "const x = 42";
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
+    let index = build_index(source);
     let syms = index.find_by_name("x");
     assert_eq!(syms.len(), 1);
     assert_eq!(syms[0].kind, SymbolKind::CONSTANT);
@@ -131,8 +141,7 @@ fn symbol_index_const() {
 #[test]
 fn symbol_index_type() {
     let source = "type User { name: string, age: number }";
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
+    let index = build_index(source);
     let syms = index.find_by_name("User");
     assert_eq!(syms.len(), 1);
     assert_eq!(syms[0].kind, SymbolKind::TYPE_PARAMETER);
@@ -141,8 +150,7 @@ fn symbol_index_type() {
 #[test]
 fn symbol_index_import() {
     let source = r#"import { useState } from "react""#;
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
+    let index = build_index(source);
     let syms = index.find_by_name("useState");
     assert_eq!(syms.len(), 1);
     assert_eq!(syms[0].import_source.as_deref(), Some("react"));
@@ -151,8 +159,7 @@ fn symbol_index_import() {
 #[test]
 fn symbol_index_union_variants() {
     let source = "type Color { | Red | Green | Blue }";
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
+    let index = build_index(source);
     assert_eq!(index.find_by_name("Color").len(), 1);
     assert_eq!(index.find_by_name("Red").len(), 1);
     assert_eq!(index.find_by_name("Green").len(), 1);
@@ -161,7 +168,7 @@ fn symbol_index_union_variants() {
 
 #[test]
 fn type_expr_to_string_named() {
-    let ty = TypeExpr {
+    let ty: TypeExpr = TypeExpr {
         kind: TypeExprKind::Named {
             name: "string".to_string(),
             type_args: vec![],
@@ -174,7 +181,7 @@ fn type_expr_to_string_named() {
 
 #[test]
 fn type_expr_to_string_generic() {
-    let ty = TypeExpr {
+    let ty: TypeExpr = TypeExpr {
         kind: TypeExprKind::Named {
             name: "Result".to_string(),
             bounds: vec![],
@@ -325,13 +332,17 @@ fn resolve_piped_type_with_unwrap() {
 
 #[test]
 fn function_symbol_stores_first_param_type() {
-    let source = "fn filter(arr: Array<T>, pred: (T) -> boolean) -> Array<T> { arr }";
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
-    let syms = index.find_by_name("filter");
+    // Concrete types only — the index sources `first_param_type` from the
+    // checker's resolved signature, so unbound generics like `T` without a
+    // declared type parameter would surface as `<error>`.
+    let source = "fn head(arr: Array<number>) -> number { 0 }";
+    let index = build_index(source);
+    let syms = index.find_by_name("head");
     assert_eq!(syms.len(), 1);
-    assert_eq!(syms[0].first_param_type.as_deref(), Some("Array<T>"));
-    assert_eq!(syms[0].return_type_str.as_deref(), Some("Array<T>"));
+    assert_eq!(
+        syms[0].first_param_type.as_deref().map(|t| t.to_string()),
+        Some("Array<number>".to_string())
+    );
 }
 
 // ── Integration tests on jsx_component.fl ──────────────
@@ -351,9 +362,13 @@ export fn Counter() -> JSX.Element {
 
 fn build_index_and_types(source: &str) -> (SymbolIndex, HashMap<String, String>) {
     let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
-    let (_, type_map, _, _) = floe_core::checker::Checker::new().check_with_types(&program);
-    (index, type_map)
+    let analysed = analyse::analyse_parsed(program, ModuleInputs::default());
+    let index = SymbolIndex::build(
+        &analysed.program,
+        &analysed.name_types,
+        &analysed.name_type_map,
+    );
+    (index, analysed.name_types)
 }
 
 #[test]
@@ -456,15 +471,12 @@ fn jsx_fixture_type_map_has_counter() {
 
 // ── Hover type display tests (#180) ─────────────────────────
 
-use super::hover::enrich_hover_detail;
-
-/// Simulate hover: look up symbol by name, then build the hover detail
-/// using the same enrich_hover_detail function the LSP handler uses.
+/// Simulate hover: look up symbol by name and read the pre-enriched
+/// `Symbol.detail` — the same string the LSP handler renders.
 fn simulate_hover(source: &str, name: &str) -> Option<String> {
-    let (index, type_map) = build_index_and_types(source);
+    let (index, _) = build_index_and_types(source);
     let syms = index.find_by_name(name);
-    let sym = syms.first()?;
-    Some(enrich_hover_detail(sym, &type_map))
+    syms.first().map(|s| s.detail.clone())
 }
 
 #[test]
@@ -627,18 +639,16 @@ fn hover_fn_without_return_type_skips_unresolved() {
 }
 
 #[test]
-fn hover_const_without_annotation_detail_lacks_type_before_fix() {
-    // This test documents that the raw symbol detail for unannotated consts
-    // does NOT include the inferred type - which is what the hover handler
-    // currently returns. The fix should enrich this with type_map data.
+fn unannotated_const_detail_includes_inferred_type() {
+    // Symbol detail is enriched with the checker's inferred type at build
+    // time so hover renders `Symbol.detail` directly without a separate
+    // enrichment pass.
     let source = "const x = 42";
-    let (index, _type_map) = build_index_and_types(source);
+    let (index, type_map) = build_index_and_types(source);
     let syms = index.find_by_name("x");
     assert_eq!(syms.len(), 1);
-    // The raw detail is just "const x" with no type
-    assert_eq!(syms[0].detail, "const x");
-    // But the type_map has the inferred type
-    assert_eq!(_type_map.get("x").map(|s| s.as_str()), Some("number"));
+    assert_eq!(syms[0].detail, "const x: number");
+    assert_eq!(type_map.get("x").map(|s| s.as_str()), Some("number"));
 }
 
 #[test]
@@ -787,14 +797,19 @@ fn unresolved_npm_import_diagnostic() {
 
     let source = r#"import { nonexistent } from "fake-package-12345""#;
     let program = Parser::new(source).parse_program().unwrap();
-    let mut index = SymbolIndex::build(&program);
+    let analysed = analyse::analyse_parsed(program, ModuleInputs::default());
+    let mut index = SymbolIndex::build(
+        &analysed.program,
+        &analysed.name_types,
+        &analysed.name_type_map,
+    );
     let cache = HashMap::new();
     // Use a directory that definitely has no node_modules
     let project_dir = Path::new("/tmp/no-such-project-dir");
     let source_dir = project_dir;
     let tsconfig_paths = floe_core::resolve::TsconfigPaths::default();
     let (diags, _) = super::resolution::enrich_from_imports(
-        &program,
+        &analysed.program,
         project_dir,
         source_dir,
         &mut index,
@@ -883,8 +898,7 @@ for Array<Todo> {
     export fn remaining(self) -> number { 0 }
 }
 "#;
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
+    let index = build_index(source);
     let syms = index.find_by_name("remaining");
     assert!(!syms.is_empty());
     assert_eq!(
@@ -928,8 +942,7 @@ export fn outer() -> () {
 /// find the word under cursor, look it up in the index, and
 /// return the definition's (start, end) if found.
 fn simulate_goto_def(source: &str, cursor_offset: usize) -> Option<(usize, usize)> {
-    let program = Parser::new(source).parse_program().unwrap();
-    let index = SymbolIndex::build(&program);
+    let index = build_index(source);
     let word = word_at_offset(source, cursor_offset);
     eprintln!("GOTO_DEF: cursor_offset={cursor_offset}, word={word:?}");
     if word.is_empty() {

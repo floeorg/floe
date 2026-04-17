@@ -2793,7 +2793,7 @@ impl Checker {
 /// Simple type expression resolver for concrete type resolution.
 /// Handles Named, Array, Record, and Function type expressions without
 /// needing mutable access to the checker (no self parameter).
-pub(crate) fn simple_resolve_type_expr(type_expr: &crate::parser::ast::TypeExpr) -> Type {
+pub fn simple_resolve_type_expr<T>(type_expr: &crate::parser::ast::TypeExpr<T>) -> Type {
     use crate::parser::ast::TypeExprKind;
     match &type_expr.kind {
         TypeExprKind::Named {
