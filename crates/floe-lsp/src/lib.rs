@@ -326,13 +326,22 @@ impl FloeLsp {
         program: &floe_core::parser::ast::Program,
         tsconfig_paths: &floe_core::resolve::TsconfigPaths,
     ) -> HashMap<String, floe_core::resolve::ResolvedImports> {
-        let mut cache = self.resolve_cache.write().await;
+        // Snapshot the cache under a read lock so concurrent LSP
+        // handlers don't block on each other. The resolve function
+        // writes fresh entries into the snapshot; we merge them back
+        // under a write lock only if there were misses.
+        let snapshot = self.resolve_cache.read().await.clone();
+        let mut working = snapshot;
         let (resolved, _dep_paths) = floe_core::resolve::resolve_imports_cached(
             source_path,
             program,
             tsconfig_paths,
-            &mut cache,
+            &mut working,
         );
+        // Write back only if the cache grew (at least one miss).
+        if working.len() > self.resolve_cache.read().await.len() {
+            *self.resolve_cache.write().await = working;
+        }
         resolved
     }
 

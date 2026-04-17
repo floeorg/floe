@@ -418,8 +418,10 @@ fn resolve_single_cached(
                     visited.insert(canonical);
                     return Some(cached_imports.clone());
                 }
-                // Cache miss — resolve normally and cache the result.
-                let resolved = resolve_single_import(base_dir, source, visited, tsconfig_paths)?;
+                // Cache miss — parse the already-read bytes (no second read).
+                let source_code = String::from_utf8(dep_bytes).ok()?;
+                let resolved =
+                    resolve_from_source(&dep_path, &source_code, visited, tsconfig_paths)?;
                 cache.insert(canonical, (hash, resolved.clone()));
                 return Some(resolved);
             }
@@ -442,13 +444,24 @@ fn resolve_single_import(
         .canonicalize()
         .unwrap_or(resolved_path.clone());
     if visited.contains(&canonical) {
-        // Circular import — return empty to avoid infinite recursion
         return Some(ResolvedImports::default());
     }
     visited.insert(canonical);
 
     let source_code = std::fs::read_to_string(&resolved_path).ok()?;
-    let program = Parser::new(&source_code).parse_program().ok()?;
+    resolve_from_source(&resolved_path, &source_code, visited, tsconfig_paths)
+}
+
+/// Core: given a dep's path and already-read source, parse and extract
+/// its exported symbols. Shared by `resolve_single_import` (reads from
+/// disk) and `resolve_single_cached` (reuses already-hashed bytes).
+fn resolve_from_source(
+    resolved_path: &Path,
+    source_code: &str,
+    visited: &mut HashSet<PathBuf>,
+    tsconfig_paths: &TsconfigPaths,
+) -> Option<ResolvedImports> {
+    let program = Parser::new(source_code).parse_program().ok()?;
 
     let mut imports = ResolvedImports::default();
 
