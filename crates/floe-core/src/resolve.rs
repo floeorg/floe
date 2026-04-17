@@ -302,10 +302,35 @@ pub fn resolve_imports(
 /// cache) uses the path list to fingerprint dependencies for
 /// invalidation — without it, edits to an indirectly-imported file
 /// would be served stale from cache.
+/// Per-file cache of resolved exports keyed by (canonical_path, source_hash).
+/// Pass to `resolve_imports_cached` to skip re-parsing unchanged deps.
+pub type ResolveCache = HashMap<PathBuf, (u64, ResolvedImports)>;
+
+/// Like `resolve_imports_with_paths` but checks `cache` before parsing
+/// each dependency. Unchanged deps skip re-parsing entirely. The cache
+/// is updated with fresh entries for deps that were re-parsed.
+pub fn resolve_imports_cached(
+    file_path: &Path,
+    program: &Program,
+    tsconfig_paths: &TsconfigPaths,
+    cache: &mut ResolveCache,
+) -> (HashMap<String, ResolvedImports>, HashSet<PathBuf>) {
+    resolve_imports_inner_with_cache(file_path, program, tsconfig_paths, Some(cache))
+}
+
 pub fn resolve_imports_with_paths(
     file_path: &Path,
     program: &Program,
     tsconfig_paths: &TsconfigPaths,
+) -> (HashMap<String, ResolvedImports>, HashSet<PathBuf>) {
+    resolve_imports_inner_with_cache(file_path, program, tsconfig_paths, None)
+}
+
+fn resolve_imports_inner_with_cache(
+    file_path: &Path,
+    program: &Program,
+    tsconfig_paths: &TsconfigPaths,
+    mut cache: Option<&mut ResolveCache>,
 ) -> (HashMap<String, ResolvedImports>, HashSet<PathBuf>) {
     let mut results = HashMap::new();
     let mut visited = HashSet::new();
@@ -329,9 +354,13 @@ pub fn resolve_imports_with_paths(
             let is_relative = decl.source.starts_with('.');
 
             if is_relative {
-                if let Some(resolved) =
-                    resolve_single_import(base_dir, &decl.source, &mut visited, tsconfig_paths)
-                {
+                if let Some(resolved) = resolve_single_cached(
+                    base_dir,
+                    &decl.source,
+                    &mut visited,
+                    tsconfig_paths,
+                    cache.as_deref_mut(),
+                ) {
                     results.insert(decl.source.clone(), resolved);
                 }
             } else if let Some(resolved_path) = tsconfig_paths.resolve(&decl.source) {
@@ -341,11 +370,12 @@ pub fn resolve_imports_with_paths(
                 {
                     let alias_dir = resolved_path.parent().unwrap_or(Path::new("."));
                     let relative_source = format!("./{}", stem.to_string_lossy());
-                    if let Some(resolved) = resolve_single_import(
+                    if let Some(resolved) = resolve_single_cached(
                         alias_dir,
                         &relative_source,
                         &mut visited,
                         tsconfig_paths,
+                        cache.as_deref_mut(),
                     ) {
                         results.insert(decl.source.clone(), resolved);
                     }
@@ -363,6 +393,39 @@ pub fn resolve_imports_with_paths(
         visited.remove(file_path);
     }
     (results, visited)
+}
+
+/// Try the cache before falling through to `resolve_single_import`.
+/// Reads the dep file, hashes it, and returns the cached exports when
+/// the hash matches. On a miss, delegates to the full resolve and writes
+/// the fresh result back into the cache.
+fn resolve_single_cached(
+    base_dir: &Path,
+    source: &str,
+    visited: &mut HashSet<PathBuf>,
+    tsconfig_paths: &TsconfigPaths,
+    cache: Option<&mut ResolveCache>,
+) -> Option<ResolvedImports> {
+    if let Some(cache) = cache {
+        // Resolve the path without parsing to check the cache.
+        if let Some(dep_path) = resolve_path(base_dir, source) {
+            let canonical = dep_path.canonicalize().unwrap_or(dep_path.clone());
+            if let Ok(dep_bytes) = std::fs::read(&canonical) {
+                let hash = crate::build::cache::ModuleInterface::fingerprint(&dep_bytes);
+                if let Some((cached_hash, cached_imports)) = cache.get(&canonical)
+                    && *cached_hash == hash
+                {
+                    visited.insert(canonical);
+                    return Some(cached_imports.clone());
+                }
+                // Cache miss — resolve normally and cache the result.
+                let resolved = resolve_single_import(base_dir, source, visited, tsconfig_paths)?;
+                cache.insert(canonical, (hash, resolved.clone()));
+                return Some(resolved);
+            }
+        }
+    }
+    resolve_single_import(base_dir, source, visited, tsconfig_paths)
 }
 
 /// Resolve a single import source to its exported symbols.

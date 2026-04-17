@@ -251,6 +251,12 @@ pub struct FloeLsp {
     dts_cache: Arc<RwLock<HashMap<String, Vec<floe_core::interop::DtsExport>>>>,
     /// Project directories we've already logged startup info for
     logged_projects: Arc<RwLock<HashSet<PathBuf>>>,
+    /// Per-file cache of .fl import resolution. Keyed by the
+    /// dep file's canonical path; stores (source_hash, exports).
+    /// When the dep's source matches the cached hash, its exports
+    /// are reused without re-parsing. Avoids re-walking every
+    /// imported `.fl` module on each keystroke.
+    resolve_cache: Arc<RwLock<HashMap<PathBuf, (u64, floe_core::resolve::ResolvedImports)>>>,
 }
 
 impl FloeLsp {
@@ -260,6 +266,7 @@ impl FloeLsp {
             documents: Arc::new(RwLock::new(HashMap::new())),
             dts_cache: Arc::new(RwLock::new(HashMap::new())),
             logged_projects: Arc::new(RwLock::new(HashSet::new())),
+            resolve_cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -311,6 +318,24 @@ impl FloeLsp {
             .await;
     }
 
+    /// Resolve imports with per-dep caching. Unchanged deps skip
+    /// re-parsing — only deps whose source hash changed are re-walked.
+    async fn resolve_imports_cached(
+        &self,
+        source_path: &Path,
+        program: &floe_core::parser::ast::Program,
+        tsconfig_paths: &floe_core::resolve::TsconfigPaths,
+    ) -> HashMap<String, floe_core::resolve::ResolvedImports> {
+        let mut cache = self.resolve_cache.write().await;
+        let (resolved, _dep_paths) = floe_core::resolve::resolve_imports_cached(
+            source_path,
+            program,
+            tsconfig_paths,
+            &mut cache,
+        );
+        resolved
+    }
+
     /// Parse and type-check a document, update symbol index, publish diagnostics.
     async fn update_document(&self, uri: Url, source: &str) {
         let (diagnostics, index, type_map, typed_program, references) = match Parser::new(source)
@@ -344,8 +369,9 @@ impl FloeLsp {
                     let project_dir = find_project_dir(&source_dir);
                     let paths = floe_core::resolve::TsconfigPaths::from_project_dir(&project_dir);
                     self.log_project_info(&project_dir, &paths).await;
-                    let resolved =
-                        floe_core::resolve::resolve_imports(&source_path, &program, &paths);
+                    let resolved = self
+                        .resolve_imports_cached(&source_path, &program, &paths)
+                        .await;
                     (resolved, Some(project_dir), paths)
                 } else {
                     (Default::default(), None, Default::default())
