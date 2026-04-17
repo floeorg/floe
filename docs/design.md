@@ -846,6 +846,14 @@ createUser(name: "Ryan", email: Email("r@test.com"), role: Admin)
 // Mix: positional first, then named
 createUser("Ryan", role: Admin, email: Email("r@test.com"))
 
+// Call rules (enforced by the checker):
+//   1. Positional must precede named
+//   2. Named may appear in any order — reordered to match declaration
+//   3. Every required param must be provided (positional or named)
+//   4. No slot may be covered twice
+//   5. Defaulted params must be passed by name, not positionally
+//      — prevents silent slot-shifts when a default is skipped
+
 // --- Default Values ---
 
 // On record types
