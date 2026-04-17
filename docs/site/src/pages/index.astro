@@ -476,7 +476,7 @@ type Status {
 }
 
 export fn Dashboard() -> JSX.Element {
-  const [status, setStatus] = useState<Status>(Loading)
+  const (status, setStatus) = useState<Status>(Loading)
 
   status |> match {
     Loading -> <Spinner />,
@@ -514,20 +514,20 @@ type User = {
 };
 
 type Status =
-  | { tag: "Loading" }
-  | { tag: "Failed"; message: string }
-  | { tag: "Ready"; users: User[] };
+  | { __tag: "Loading" }
+  | { __tag: "Failed"; message: string }
+  | { __tag: "Ready"; users: User[] };
 
 export function Dashboard(): JSX.Element {
   const [status, setStatus] = useState<Status>(
-    { tag: "Loading" }
+    { __tag: "Loading" }
   );
 
-  if (status.tag === "Loading") {
+  if (status.__tag === "Loading") {
     return <Spinner />;
   }
 
-  if (status.tag === "Failed") {
+  if (status.__tag === "Failed") {
     return <Alert message={status.message} />;
   }
 

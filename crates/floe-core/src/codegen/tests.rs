@@ -1247,7 +1247,7 @@ type Filter { | All | Active | Completed }
 const _f = Filter.All
 "#,
     );
-    assert!(result.contains(r#"{ tag: "All" }"#));
+    assert!(result.contains(r#"{ __tag: "All" }"#));
 }
 
 #[test]
@@ -1272,7 +1272,7 @@ const _f = Validation
 "#,
     );
     assert!(
-        result.contains(r#"(errors) => ({ tag: "Validation", errors })"#),
+        result.contains(r#"(errors) => ({ __tag: "Validation", errors })"#),
         "got: {result}"
     );
 }
@@ -1285,7 +1285,7 @@ type Filter { | All | Active | Completed }
 const _f = All
 "#,
     );
-    assert!(result.contains(r#"{ tag: "All" }"#), "got: {result}");
+    assert!(result.contains(r#"{ __tag: "All" }"#), "got: {result}");
     assert!(
         !result.contains("=>"),
         "should not emit arrow function, got: {result}"
@@ -1305,7 +1305,7 @@ const _f = SaveError.Validation
 "#,
     );
     assert!(
-        result.contains(r#"(errors) => ({ tag: "Validation", errors })"#),
+        result.contains(r#"(errors) => ({ __tag: "Validation", errors })"#),
         "got: {result}"
     );
 }
@@ -1323,7 +1323,7 @@ const _e = Validation(message: "bad")
 "#,
     );
     assert!(
-        result.contains(r#"{ tag: "Validation", message: "bad" }"#),
+        result.contains(r#"{ __tag: "Validation", message: "bad" }"#),
         "got: {result}"
     );
 }
@@ -1341,7 +1341,7 @@ const _f = Rect
 "#,
     );
     assert!(
-        result.contains(r#"(width, height) => ({ tag: "Rect", width, height })"#),
+        result.contains(r#"(width, height) => ({ __tag: "Rect", width, height })"#),
         "got: {result}"
     );
 }
@@ -2232,7 +2232,7 @@ export fn describe(b: Bag) -> string {
         "user-defined `Ok` variant must not use Result-style dispatch, got: {result}"
     );
     assert!(
-        result.contains(r#".tag === "Ok""#),
+        result.contains(r#".__tag === "Ok""#),
         "expected tagged-union dispatch, got: {result}"
     );
 }
@@ -2252,6 +2252,37 @@ export fn describe(r: Result<number, string>) -> string {
     assert!(
         result.contains(".ok === true"),
         "Result match should use `.ok === true`, got: {result}"
+    );
+}
+
+#[test]
+fn user_record_tag_field_does_not_collide_with_union_discriminator() {
+    // The discriminator is `__tag` so user records can keep a `tag`
+    // field (HTML attributes, git tag IDs, etc.) without colliding with
+    // the compiler's emitted union shape.
+    let result = emit_typed(
+        r#"
+type Button = { tag: string, label: string }
+type Route { | Home | Profile(id: string) }
+
+const btn = Button(tag: "nav-button", label: "Home")
+const r = Home
+"#,
+    );
+    // User's `tag` field survives as-is.
+    assert!(
+        result.contains(r#"tag: "nav-button""#),
+        "user-defined `tag` should still appear, got:\n{result}"
+    );
+    // Discriminator is emitted as `__tag`.
+    assert!(
+        result.contains(r#"__tag: "Home""#),
+        "union discriminator should use `__tag`, got:\n{result}"
+    );
+    // And they don't collide — the Button literal shouldn't sprout a `__tag`.
+    assert!(
+        !result.contains(r#"{ __tag: "nav-button""#),
+        "user record should not get a discriminator, got:\n{result}"
     );
 }
 

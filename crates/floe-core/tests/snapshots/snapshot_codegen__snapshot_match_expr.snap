@@ -1,18 +1,18 @@
 ---
-source: tests/snapshot_codegen.rs
+source: crates/floe-core/tests/snapshot_codegen.rs
 expression: output
 ---
-type Route = { tag: "Home" } | { tag: "Profile"; id: string } | { tag: "NotFound" };
+type Route = { __tag: "Home" } | { __tag: "Profile"; id: string } | { __tag: "NotFound" };
 
-const route = { tag: "Home" };
+const route = { __tag: "Home" };
 
-const _page = route.tag === "Home" ? "home" : route.tag === "Profile" ? (() => { const id = route.id; return id; })() : route.tag === "NotFound" ? "404" : (() => { throw new Error("non-exhaustive match"); })();
+const _page = route.__tag === "Home" ? "home" : route.__tag === "Profile" ? (() => { const id = route.id; return id; })() : route.__tag === "NotFound" ? "404" : (() => { throw new Error("non-exhaustive match"); })();
 
-type User = { tag: "Adult"; age: number } | { tag: "Child"; age: number };
+type User = { __tag: "Adult"; age: number } | { __tag: "Child"; age: number };
 
-const user = { tag: "Adult", age: 25 };
+const user = { __tag: "Adult", age: 25 };
 
-const _label = user.tag === "Adult" ? (() => { const age = user.age; if (age >= 65) { return "senior"; } return user.tag === "Adult" ? (() => { const age = user.age; return "adult"; })() : user.tag === "Child" ? (() => { const age = user.age; if (age < 5) { return "toddler"; } return user.tag === "Child" ? (() => { const age = user.age; return "child"; })() : (() => { throw new Error("non-exhaustive match"); })(); })() : user.tag === "Child" ? (() => { const age = user.age; return "child"; })() : (() => { throw new Error("non-exhaustive match"); })(); })() : user.tag === "Adult" ? (() => { const age = user.age; return "adult"; })() : user.tag === "Child" ? (() => { const age = user.age; if (age < 5) { return "toddler"; } return user.tag === "Child" ? (() => { const age = user.age; return "child"; })() : (() => { throw new Error("non-exhaustive match"); })(); })() : user.tag === "Child" ? (() => { const age = user.age; return "child"; })() : (() => { throw new Error("non-exhaustive match"); })();
+const _label = user.__tag === "Adult" ? (() => { const age = user.age; if (age >= 65) { return "senior"; } return user.__tag === "Adult" ? (() => { const age = user.age; return "adult"; })() : user.__tag === "Child" ? (() => { const age = user.age; if (age < 5) { return "toddler"; } return user.__tag === "Child" ? (() => { const age = user.age; return "child"; })() : (() => { throw new Error("non-exhaustive match"); })(); })() : user.__tag === "Child" ? (() => { const age = user.age; return "child"; })() : (() => { throw new Error("non-exhaustive match"); })(); })() : user.__tag === "Adult" ? (() => { const age = user.age; return "adult"; })() : user.__tag === "Child" ? (() => { const age = user.age; if (age < 5) { return "toddler"; } return user.__tag === "Child" ? (() => { const age = user.age; return "child"; })() : (() => { throw new Error("non-exhaustive match"); })(); })() : user.__tag === "Child" ? (() => { const age = user.age; return "child"; })() : (() => { throw new Error("non-exhaustive match"); })();
 
 const n = 42;
 

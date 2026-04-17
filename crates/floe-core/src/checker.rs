@@ -874,52 +874,6 @@ impl Checker {
         Type::unbound(id)
     }
 
-    /// Emit an error if `name` is already defined in any scope (no shadowing allowed).
-    /// When tsgo loses Option<T> through useState type inference (because TS
-    /// collapses FloeOption<T> to T), reconstruct the correct types from the
-    /// original call's type arguments.
-    fn correct_usestate_option_type(&mut self, tsgo_type: &Type, value: &Expr) -> Option<Type> {
-        // Only applies to Tuple types from array destructuring
-        let Type::Tuple(tsgo_elems) = tsgo_type else {
-            return None;
-        };
-        if tsgo_elems.len() != 2 {
-            return None;
-        }
-
-        // Check if the value is a call with Option<T> type arg
-        let ExprKind::Call { type_args, .. } = &value.kind else {
-            return None;
-        };
-        if type_args.len() != 1 {
-            return None;
-        }
-
-        // Check if the type arg is Option<T>
-        let type_arg = &type_args[0];
-        if let TypeExprKind::Named {
-            name,
-            type_args: inner_args,
-            ..
-        } = &type_arg.kind
-            && name == type_layout::TYPE_OPTION
-            && inner_args.len() == 1
-        {
-            let option_type = self.resolve_type(type_arg);
-            // Replace: [T, (T) -> ()] → [Option<T>, (Option<T>) -> ()]
-            return Some(Type::Tuple(vec![
-                option_type.clone(),
-                Type::Function {
-                    params: vec![option_type],
-                    return_type: Arc::new(Type::Unit),
-                    required_params: 1,
-                },
-            ]));
-        }
-
-        None
-    }
-
     fn check_no_redefinition(&mut self, name: &str, span: Span) {
         // Allow shadowing from outer scopes (like Rust/Gleam) — only reject
         // duplicate definitions within the same scope.

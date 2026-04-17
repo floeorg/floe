@@ -132,9 +132,9 @@ Compiles to TypeScript discriminated union:
 
 ```typescript
 type Shape =
-  | { tag: "Circle"; value: number }
-  | { tag: "Rectangle"; width: number; height: number }
-  | { tag: "Point" };
+  | { __tag: "Circle"; value: number }
+  | { __tag: "Rectangle"; width: number; height: number }
+  | { __tag: "Point" };
 ```
 
 Positional: single field uses `value`, multiple use `_0`, `_1`. Named fields keep their names.

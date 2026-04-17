@@ -6,8 +6,12 @@
 
 // ── Runtime field names ──────────────────────────────────────────
 
-/// Discriminant field for tagged union variants: `{ tag: "VariantName", ... }`
-pub const TAG_FIELD: &str = "tag";
+/// Discriminant field for tagged union variants: `{ __tag: "VariantName", ... }`.
+/// Prefixed with `__` so it (1) doesn't collide with user-defined record
+/// fields named `tag`, and (2) visually marks the field as Floe-generated
+/// in the emitted TypeScript — matching the `__` convention Floe already
+/// uses for for-block method mangling (`User__display`).
+pub const TAG_FIELD: &str = "__tag";
 /// Discriminant field for Result/Option types: `{ ok: true/false, ... }`
 pub const OK_FIELD: &str = "ok";
 /// Value field for Ok/Some: `{ ok: true, value: ... }`
