@@ -469,6 +469,25 @@ impl Checker {
     }
 
     fn check_member(&mut self, object: &Expr, field: &str, span: Span) -> Type {
+        // Trait names don't live in the value namespace — `TraitName.method(...)`
+        // calls a trait like a module and must be rejected.
+        if let ExprKind::Identifier(name) = &object.kind
+            && self.traits.trait_defs.contains_key(name)
+        {
+            self.emit_error_with_help(
+                format!(
+                    "cannot access `{field}` on trait `{name}` — traits are not values"
+                ),
+                object.span,
+                ErrorCode::TraitUsedAsType,
+                "trait used in expression position",
+                format!(
+                    "implement `{name}` for a type via `for MyType: {name} {{ ... }}`, then call the method on an instance"
+                ),
+            );
+            return Type::Error;
+        }
+
         let obj_ty = self.check_expr(object);
 
         // Check for npm member access via tsgo probes (e.g. z.object, z.string)

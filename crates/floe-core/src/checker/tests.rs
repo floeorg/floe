@@ -7845,3 +7845,102 @@ const (x, y) = t
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Trait / for-block validation (#1085, #1086, #1087) ────────────
+
+#[test]
+fn trait_name_used_as_value_errors() {
+    // #1085: `TraitName.method(...)` calls a trait in value position —
+    // should error. Traits are contracts, not callable modules.
+    let diags = check(
+        r#"
+trait SnippetRepository {
+    fn create(self, input: string) -> string
+}
+
+const _r = SnippetRepository.create("hello")
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "trait")
+            && diags
+                .iter()
+                .any(|d| d.message.contains("SnippetRepository")),
+        "trait-as-value should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trait_method_untyped_param_errors() {
+    // #1086: trait method params (other than `self`) must have explicit types.
+    let diags = check(
+        r#"
+trait Repo {
+    fn create(self, shit, snippet: string) -> string
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "type annotation")
+            || has_error_containing(&diags, "must have a type"),
+        "untyped trait method param should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn for_block_fn_untyped_param_errors() {
+    // #1086: for-block method params (other than `self`) must have explicit types.
+    let diags = check(
+        r#"
+type MyRepo {}
+
+for MyRepo {
+    fn create(self, shit) -> string {
+        "hi"
+    }
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "type annotation")
+            || has_error_containing(&diags, "must have a type"),
+        "untyped for-block param should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trait_method_without_self_errors() {
+    // #1087: trait methods must have `self` as the first parameter.
+    let diags = check(
+        r#"
+trait Repo {
+    fn create(input: string) -> string
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "self"),
+        "trait method without `self` should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trait_method_self_not_first_errors() {
+    // #1087: `self` in a non-first position is also rejected.
+    let diags = check(
+        r#"
+trait Repo {
+    fn create(input: string, self) -> string
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "self"),
+        "trait method with `self` not first should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
