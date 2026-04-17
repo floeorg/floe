@@ -1244,9 +1244,6 @@ impl Checker {
                     } else if positional_index >= required_params
                         && positional_index < param_names.len()
                     {
-                        // Rule: defaulted params must be passed by name so
-                        // skipping earlier defaults can't silently shift
-                        // values into the wrong slot.
                         let name = &param_names[positional_index];
                         self.emit_error_with_help(
                             format!(

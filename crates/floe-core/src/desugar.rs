@@ -17,32 +17,28 @@ use crate::walk;
 
 /// Run the desugar pass over a program, transforming it in place.
 pub fn desugar_program(program: &mut Program, resolved: &HashMap<String, ResolvedImports>) {
-    // Collect type definitions for default field expansion
+    // Gather per-module metadata the transforms need. Nested functions
+    // that shadow a top-level name lose the insertion race, but shadowing
+    // top-level names is rare enough not to matter in practice.
     let mut type_defs: HashMap<String, TypeDef> = HashMap::new();
-    // Local types
-    for item in &program.items {
-        if let ItemKind::TypeDecl(decl) = &item.kind {
-            type_defs.insert(decl.name.clone(), decl.def.clone());
-        }
-    }
-    // Imported types
-    for imports in resolved.values() {
-        for decl in &imports.type_decls {
-            type_defs.insert(decl.name.clone(), decl.def.clone());
-        }
-    }
-
-    // Function signatures keyed by name. Nested functions with the same
-    // name as an outer binding lose the insertion race, but nested
-    // shadowing of a top-level name is rare and doesn't reproduce the
-    // reorder bug in practice.
     let mut fn_signatures: HashMap<String, Vec<Param>> = HashMap::new();
     for item in &program.items {
-        if let ItemKind::Function(decl) = &item.kind {
-            fn_signatures.insert(decl.name.clone(), decl.params.clone());
+        match &item.kind {
+            ItemKind::TypeDecl(decl) => {
+                type_defs.insert(decl.name.clone(), decl.def.clone());
+            }
+            ItemKind::Function(decl) => {
+                fn_signatures.insert(decl.name.clone(), decl.params.clone());
+            }
+            _ => {}
         }
     }
     for imports in resolved.values() {
+        for decl in &imports.type_decls {
+            type_defs
+                .entry(decl.name.clone())
+                .or_insert_with(|| decl.def.clone());
+        }
         for decl in &imports.function_decls {
             fn_signatures
                 .entry(decl.name.clone())
