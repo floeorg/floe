@@ -476,7 +476,7 @@ type Status {
 }
 
 export fn Dashboard() -> JSX.Element {
-  const [status, setStatus] = useState<Status>(Loading)
+  const (status, setStatus) = useState<Status>(Loading)
 
   status |> match {
     Loading -> <Spinner />,

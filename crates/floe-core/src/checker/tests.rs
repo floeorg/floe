@@ -403,7 +403,7 @@ fn call_site_type_args_infer_return() {
         r#"
 import trusted { useState } from "react"
 type Todo { text: string }
-const [todos, _setTodos] = useState<Array<Todo>>([])
+const (todos, _setTodos) = useState<Array<Todo>>([])
 const _x = todos
 "#,
     )
@@ -1878,7 +1878,7 @@ fn dispatch_generic_converts_to_function() {
         r#"
 import trusted { useState } from "react"
 type Todo { text: string }
-const [todos, setTodos] = useState<Array<Todo>>([])
+const (todos, setTodos) = useState<Array<Todo>>([])
 fn handler() {
     setTodos([])
 }
@@ -1953,7 +1953,7 @@ fn calling_dispatch_type_is_callable() {
         r#"
 import trusted { useState } from "react"
 type Todo { text: string }
-const [todos, setTodos] = useState<Array<Todo>>([])
+const (todos, setTodos) = useState<Array<Todo>>([])
 fn handler() {
     setTodos([])
 }
@@ -4915,7 +4915,7 @@ import trusted { Transition } from "api"
 fn test(id: string) -> () { () }
 
 fn App() -> JSX.Element {
-    const [transitions, _setTransitions] = useState<Array<Transition>>([])
+    const (transitions, _setTransitions) = useState<Array<Transition>>([])
     const _r = transitions |> map((t) => test(t.id))
 
     <div />
@@ -7789,4 +7789,59 @@ fn unused() -> number { 1 }
         .definition_for_name("unused")
         .expect("unused definition registered");
     assert!(refs.find_references(def).is_empty());
+}
+
+#[test]
+fn array_destructure_on_tuple_value_errors() {
+    let diags = check(
+        r#"
+const t = (1, 2)
+const [x, y] = t
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "array destructuring"),
+        "expected array-destructure diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let help = diags.iter().find_map(|d| d.help.as_deref()).unwrap_or("");
+    assert!(
+        help.contains("tuple"),
+        "help text should point at the tuple form, got: {help:?}"
+    );
+}
+
+#[test]
+fn array_destructure_on_array_value_also_errors() {
+    let diags = check(
+        r#"
+const arr: Array<number> = [1, 2, 3]
+const [a, b] = arr
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "array destructuring"),
+        "expected array-destructure diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let help = diags.iter().find_map(|d| d.help.as_deref()).unwrap_or("");
+    assert!(
+        help.contains("Array.get") || help.contains("match"),
+        "help text should point at `Array.get` / match, got: {help:?}"
+    );
+}
+
+#[test]
+fn tuple_destructure_on_tuple_value_succeeds() {
+    let diags = check(
+        r#"
+const t = (1, 2)
+const (x, y) = t
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "tuple destructure on tuple value should succeed, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }

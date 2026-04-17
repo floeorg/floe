@@ -168,7 +168,7 @@ import { parseYaml } from "yaml-lib"                // untrusted (default)
 const data = parseYaml(input)?                       // Result<T, Error>, ? unwraps
 
 import trusted { useState } from "react"             // trusted = direct call
-const [count, setCount] = useState(0)
+const (count, setCount) = useState(0)
 ```
 
 This means npm libraries work transparently with Floe's type system.

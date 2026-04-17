@@ -191,7 +191,7 @@ JSX_COMPONENT = """\
 import trusted { useState } from "react"
 
 export fn Counter() -> JSX.Element {
-    const [count, setCount] = useState(0)
+    const (count, setCount) = useState(0)
 
     fn handleClick() {
         setCount(count + 1)
@@ -340,7 +340,7 @@ DEEPLY_NESTED_JSX = """\
 import trusted { useState } from "react"
 
 export fn App() -> JSX.Element {
-    const [items, setItems] = useState<Array<string>>([])
+    const (items, setItems) = useState<Array<string>>([])
 
     <div className="container">
         <div className="header">

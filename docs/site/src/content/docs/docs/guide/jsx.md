@@ -10,7 +10,7 @@ Floe supports JSX natively. Write React components with Floe's type system.
 import { useState } from "react"
 
 export fn Counter() -> JSX.Element {
-  const [count, setCount] = useState(0)
+  const (count, setCount) = useState(0)
 
   <div>
     <h1>Count: {count}</h1>
