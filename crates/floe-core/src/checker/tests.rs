@@ -750,7 +750,11 @@ fn add(a: number, b: number) -> number { a + b }
 const _r = add(1)
 "#,
     );
-    assert!(has_error_containing(&diags, "expects 2 arguments, found 1"));
+    assert!(
+        has_error_containing(&diags, "missing required argument `b`"),
+        "expected missing-required diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -761,7 +765,75 @@ fn greet(name: string) -> string { name }
 const _r = greet("Alice", "Bob")
 "#,
     );
-    assert!(has_error_containing(&diags, "expects 1 argument, found 2"));
+    assert!(
+        has_error_containing(&diags, "at most 1 argument, found 2"),
+        "expected too-many-args diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn duplicate_named_argument_errors() {
+    let diags = check(
+        r#"
+fn f(a: number, b: number) -> number { a + b }
+const _r = f(a: 1, a: 2)
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "already provided"),
+        "duplicate label should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn positional_and_named_cover_same_slot_errors() {
+    // `f(1, a: 2)` covers slot `a` both positionally and by name.
+    let diags = check(
+        r#"
+fn f(a: number, b: number) -> number { a + b }
+const _r = f(1, a: 2)
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "already provided"),
+        "slot covered twice should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn positional_after_named_errors() {
+    let diags = check(
+        r#"
+fn f(a: number, b: number) -> number { a + b }
+const _r = f(a: 1, 2)
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "positional argument after named"),
+        "positional-after-named should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn missing_required_slot_via_default_adjacent_named_errors() {
+    // `f(1, c: 3)` with `[a, b required, c default]` looks fine by arity
+    // (2 args provided, 2 required) but `b` is unprovided. Without the
+    // slot-coverage check the `3` would silently land in b's slot.
+    let diags = check(
+        r#"
+fn f(a: number, b: number, c: number = 0) -> number { a + b + c }
+const _r = f(1, c: 3)
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "missing required argument `b`"),
+        "missing required slot should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -3799,7 +3871,7 @@ const x = make()
 "#,
     );
     assert!(
-        has_error_containing(&diags, "expects"),
+        has_error_containing(&diags, "missing required argument `a`"),
         "missing required param should error, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );

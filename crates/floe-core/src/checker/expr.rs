@@ -950,44 +950,48 @@ impl Checker {
                     _ => "<anonymous>",
                 };
 
-                // Validate named argument labels
-                if let Some(param_names) = self.fn_param_names.get(callee_name) {
-                    for arg in args.iter() {
-                        if let Arg::Named { label, .. } = arg
-                            && !param_names.iter().any(|p| p == label)
-                        {
-                            self.problems.push(
-                                Diagnostic::error(
-                                    format!(
-                                        "unknown argument `{label}` in call to `{callee_name}`"
-                                    ),
-                                    span,
-                                )
-                                .with_label(format!(
-                                    "`{label}` is not a parameter of `{callee_name}`"
-                                ))
-                                .with_help(format!(
-                                    "expected one of: {}",
-                                    param_names
-                                        .iter()
-                                        .map(|n| format!("`{n}`"))
-                                        .collect::<Vec<_>>()
-                                        .join(", ")
-                                ))
-                                .with_error_code(ErrorCode::UnknownField),
-                            );
-                        }
-                    }
-                }
-
                 let required_params = self
                     .fn_required_params
                     .get(callee_name)
                     .copied()
                     .unwrap_or(type_required_params);
 
-                // Validate argument count
-                if arg_types.len() < required_params || arg_types.len() > params.len() {
+                // Slot-coverage validation: catches unknown labels,
+                // positional-after-named, duplicate coverage (same slot
+                // filled by both position and name, or two named args
+                // with the same label), and missing required slots that
+                // the raw arity check would miss when a later slot is
+                // supplied by name.
+                // A pipe call inserts the piped value at slot 0, so from
+                // the user's args' perspective slot 0 is already filled
+                // and positional args start filling from slot 1.
+                let piped_prefix = if !piped_ty_was_none && !has_placeholder {
+                    1
+                } else {
+                    0
+                };
+
+                let param_names_opt = self.fn_param_names.get(callee_name).cloned();
+                let slot_check_ran = if let Some(param_names) = &param_names_opt {
+                    self.validate_arg_slots(
+                        callee_name,
+                        param_names,
+                        required_params,
+                        args,
+                        piped_prefix,
+                        span,
+                    );
+                    true
+                } else {
+                    false
+                };
+
+                // Fall back to the raw arity check when param names are
+                // unknown (anonymous callees, local let-bindings) — the
+                // slot check subsumes it when names are known.
+                if !slot_check_ran
+                    && (arg_types.len() < required_params || arg_types.len() > params.len())
+                {
                     let expected_msg = if required_params == params.len() {
                         format!(
                             "{} argument{}",
@@ -1005,6 +1009,19 @@ impl Checker {
                         span,
                         ErrorCode::TypeMismatch,
                         "wrong number of arguments",
+                    );
+                } else if slot_check_ran && arg_types.len() > params.len() {
+                    // Slot check doesn't report "too many"; catch it here.
+                    self.emit_error(
+                        format!(
+                            "`{callee_name}` expects at most {} argument{}, found {}",
+                            params.len(),
+                            if params.len() == 1 { "" } else { "s" },
+                            arg_types.len()
+                        ),
+                        span,
+                        ErrorCode::TypeMismatch,
+                        "too many arguments",
                     );
                 }
 
@@ -1192,6 +1209,109 @@ impl Checker {
                 Arg::Positional(e) | Arg::Named { value: e, .. } => {
                     self.check_expr(e);
                 }
+            }
+        }
+    }
+
+    /// Walk each call's arguments and pin them to declared-parameter
+    /// slots. Reports unknown labels, positional-after-named, duplicate
+    /// coverage (position+name or two named with the same label), and
+    /// missing required slots. Only runs when param names are known —
+    /// anonymous callees fall back to the raw arity check.
+    fn validate_arg_slots(
+        &mut self,
+        callee_name: &str,
+        param_names: &[String],
+        required_params: usize,
+        args: &[Arg],
+        piped_prefix: usize,
+        call_span: Span,
+    ) {
+        let mut covered: Vec<bool> = vec![false; param_names.len()];
+        for i in 0..piped_prefix.min(covered.len()) {
+            covered[i] = true;
+        }
+        let mut positional_index = piped_prefix;
+        let mut hit_named = false;
+
+        for arg in args {
+            match arg {
+                Arg::Positional(e) => {
+                    if hit_named {
+                        self.problems.push(
+                            Diagnostic::error("positional argument after named argument", e.span)
+                                .with_label("positional args must precede named args")
+                                .with_help(format!(
+                                    "add the label `{}`, or move this before the named args",
+                                    param_names
+                                        .get(positional_index)
+                                        .map(String::as_str)
+                                        .unwrap_or("..."),
+                                ))
+                                .with_error_code(ErrorCode::TypeMismatch),
+                        );
+                        // Still consume the slot so duplicate detection
+                        // remains meaningful if more args follow.
+                        if positional_index < covered.len() {
+                            covered[positional_index] = true;
+                        }
+                        positional_index += 1;
+                        continue;
+                    }
+                    if positional_index < covered.len() {
+                        covered[positional_index] = true;
+                    }
+                    positional_index += 1;
+                }
+                Arg::Named { label, value } => {
+                    hit_named = true;
+                    let Some(slot) = param_names.iter().position(|n| n == label) else {
+                        self.problems.push(
+                            Diagnostic::error(
+                                format!("unknown argument `{label}` in call to `{callee_name}`"),
+                                value.span,
+                            )
+                            .with_label(format!("`{label}` is not a parameter of `{callee_name}`"))
+                            .with_help(format!(
+                                "expected one of: {}",
+                                param_names
+                                    .iter()
+                                    .map(|n| format!("`{n}`"))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ))
+                            .with_error_code(ErrorCode::UnknownField),
+                        );
+                        continue;
+                    };
+                    if covered[slot] {
+                        self.problems.push(
+                            Diagnostic::error(
+                                format!(
+                                    "parameter `{label}` of `{callee_name}` was already provided"
+                                ),
+                                value.span,
+                            )
+                            .with_label("duplicate argument")
+                            .with_error_code(ErrorCode::DuplicateDefinition),
+                        );
+                        continue;
+                    }
+                    covered[slot] = true;
+                }
+            }
+        }
+
+        for (i, name) in param_names.iter().enumerate() {
+            if !covered[i] && i < required_params {
+                self.problems.push(
+                    Diagnostic::error(
+                        format!("missing required argument `{name}` in call to `{callee_name}`"),
+                        call_span,
+                    )
+                    .with_label(format!("parameter `{name}` was not provided"))
+                    .with_error_code(ErrorCode::TypeMismatch),
+                );
             }
         }
     }
