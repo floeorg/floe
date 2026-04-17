@@ -22,8 +22,9 @@ const count: number = 42
 ### Destructuring
 
 ```floe
-const [first, second] = getItems()
-const { name, age } = getUser()
+const [first, second] = getItems()   // `[]` — value must be Array<T>
+const (left, right) = getPair()      // `()` — value must be a tuple
+const { name, age } = getUser()      // `{}` — value must be a record
 ```
 
 ## Functions

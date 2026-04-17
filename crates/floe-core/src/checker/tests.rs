@@ -4915,7 +4915,7 @@ import trusted { Transition } from "api"
 fn test(id: string) -> () { () }
 
 fn App() -> JSX.Element {
-    const [transitions, _setTransitions] = useState<Array<Transition>>([])
+    const (transitions, _setTransitions) = useState<Array<Transition>>([])
     const _r = transitions |> map((t) => test(t.id))
 
     <div />
@@ -7789,4 +7789,53 @@ fn unused() -> number { 1 }
         .definition_for_name("unused")
         .expect("unused definition registered");
     assert!(refs.find_references(def).is_empty());
+}
+
+#[test]
+fn array_destructure_on_tuple_value_errors() {
+    // `const [x, y] = (1, 2)` is wrong — `[]` is for arrays, `()` is for
+    // tuples. The old lenient check accepted this; now it errors with a
+    // clear fix.
+    let diags = check(
+        r#"
+const t = (1, 2)
+const [x, y] = t
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "array destructuring")
+            || has_error_containing(&diags, "tuple"),
+        "expected array-destructure-on-tuple diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn tuple_destructure_on_tuple_value_succeeds() {
+    let diags = check(
+        r#"
+const t = (1, 2)
+const (x, y) = t
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "tuple destructure on tuple value should succeed, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn array_destructure_on_array_value_succeeds() {
+    let diags = check(
+        r#"
+const arr: Array<number> = [1, 2, 3]
+const [a, b] = arr
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "array destructure on array value should still work, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }

@@ -322,7 +322,7 @@ const result = parseYaml(input)   // Result<T, Error> — auto-wrapped
 
 // trusted imports — safe to call directly, no wrapping
 import trusted { useState } from "react"
-const [count, setCount] = useState(0)
+const (count, setCount) = useState(0)
 
 // Per-function trusted
 import { trusted capitalize, fetchData } from "some-lib"

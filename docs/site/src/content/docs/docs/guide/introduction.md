@@ -29,7 +29,7 @@ type Todo {
 }
 
 export fn App() -> JSX.Element {
-  const [todos, setTodos] = useState<Array<Todo>>([])
+  const (todos, setTodos) = useState<Array<Todo>>([])
 
   const completedCount = todos
     |> filter(.done)

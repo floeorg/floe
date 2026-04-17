@@ -506,7 +506,7 @@ const user = fetchUser("id")     // Result<User, Error> — auto-wrapped
 // trusted imports — safe to call directly, no wrapping
 import trusted { useState, useEffect } from "react"
 import { clsx } from "clsx"      // untrusted by default
-const [count, setCount] = useState(0)  // direct call (trusted)
+const (count, setCount) = useState(0)  // useState returns a tuple — use `()` not `[]`
 
 // Per-function trusted
 import { trusted capitalize, fetchData } from "some-lib"
@@ -636,8 +636,8 @@ type Todo {
 }
 
 export fn App() -> JSX.Element {
-    const [todos, setTodos] = useState<Array<Todo>>([])
-    const [input, setInput] = useState("")
+    const (todos, setTodos) = useState<Array<Todo>>([])
+    const (input, setInput) = useState("")
 
     fn handleAdd() {
         setTodos(todos |> append(Todo(id: "1", text: input, done: false)))
@@ -798,3 +798,4 @@ floe lsp                     # start language server (used by editors)
 13. **Implicit returns** — last expression in a block is the return value; no `return` keyword
 14. **Blank line before final expression** — `floe fmt` inserts a blank line before the last expression in multi-statement blocks (2+ statements) to visually separate the return value
 15. **Call argument rules** — positional must precede named; named may be in any order (reordered at compile time); every required param must be covered; no slot can be covered twice; defaulted params must be passed by name, not positionally
+16. **Destructure matches the shape** — `[x, y]` destructures `Array<T>` values, `(x, y)` destructures tuples. `useState(0)` returns a tuple `(T, (T) -> ())`, so write `const (count, setCount) = useState(0)` — `[count, setCount]` is rejected

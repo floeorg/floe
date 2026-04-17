@@ -105,6 +105,8 @@ pub enum ErrorCode {
     // ── Call-site errors ───────────────────────────────────────────────
     /// Callee has unknown type - arguments are not type-checked (error).
     UncheckedArguments,
+    /// Array-destructure pattern `[a, b]` used on a tuple value — must be `(a, b)`.
+    ArrayDestructureOnTuple,
 
     // ── Warnings ─────────────────────────────────────────────────────
     /// `todo` placeholder will panic at runtime.
@@ -184,6 +186,7 @@ impl ErrorCode {
             Self::SpreadFieldOverwritten => "W003",
             Self::UncheckedForeignArguments => "W004",
             Self::UncheckedArguments => "E051",
+            Self::ArrayDestructureOnTuple => "E052",
             Self::SuspiciousBinding => "W005",
             Self::UnknownBinding => "W006",
             Self::TryOnFloeFunction => "W007",

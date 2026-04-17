@@ -108,6 +108,23 @@ impl Checker {
                 let corrected_type = self.correct_usestate_option_type(&final_type, &decl.value);
                 let effective_type = corrected_type.as_ref().unwrap_or(&final_type);
 
+                // Array pattern `[a, b]` is for `Array<T>` values only.
+                // Tuples must use `(a, b)` so destructuring reflects the
+                // underlying shape and LSP hover shows the right type.
+                if matches!(effective_type, Type::Tuple(_)) {
+                    self.emit_error_with_help(
+                        "array destructuring `[...]` cannot be used on a tuple value",
+                        span,
+                        ErrorCode::ArrayDestructureOnTuple,
+                        "tuple values require tuple destructuring",
+                        format!(
+                            "use `({})` instead of `[{}]`",
+                            names.join(", "),
+                            names.join(", ")
+                        ),
+                    );
+                }
+
                 for (i, name) in names.iter().enumerate() {
                     let elem_ty = Self::array_element_type(effective_type, i);
                     self.define_const_binding(name, elem_ty, false, span);
