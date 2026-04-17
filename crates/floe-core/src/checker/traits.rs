@@ -3,6 +3,13 @@ use std::sync::Arc;
 use super::*;
 
 impl Checker {
+    /// Whether `name` refers to a registered trait. Traits don't live
+    /// in the value namespace, so callers that resolve identifiers
+    /// check this before letting them show up in expression position.
+    pub(crate) fn is_trait(&self, name: &str) -> bool {
+        self.traits.trait_defs.contains_key(name)
+    }
+
     pub(crate) fn register_trait_decl(&mut self, decl: &TraitDecl) {
         let methods: Vec<TraitMethodSig> = decl
             .methods
@@ -26,6 +33,9 @@ impl Checker {
     pub(crate) fn check_trait_decl(&mut self, decl: &TraitDecl) {
         // Validate method signatures (return types, param types)
         for method in &decl.methods {
+            self.validate_self_receiver(&method.params, "trait method", &method.name, method.span);
+            self.validate_non_self_params_have_types(&method.params, "trait method", &method.name);
+
             if let Some(ref rt) = method.return_type {
                 self.resolve_type(rt);
             }
@@ -41,6 +51,67 @@ impl Checker {
 
         if decl.exported {
             self.unused.used_names.insert(decl.name.clone());
+        }
+    }
+
+    /// Enforce that `self` is present and is the first parameter.
+    /// Used by both trait methods and for-block methods — the rules are
+    /// identical in both contexts.
+    pub(crate) fn validate_self_receiver(
+        &mut self,
+        params: &[Param],
+        kind: &str,
+        method_name: &str,
+        span: Span,
+    ) {
+        let self_index = params.iter().position(|p| p.name == "self");
+        match self_index {
+            None => self.emit_error_with_help(
+                format!("{kind} `{method_name}` must take `self` as its first parameter"),
+                span,
+                ErrorCode::TraitMethodSignatureMismatch,
+                "missing `self` parameter",
+                "add `self` as the first parameter",
+            ),
+            Some(i) if i > 0 => {
+                let self_param = &params[i];
+                self.emit_error_with_help(
+                    format!("`self` must be the first parameter of {kind} `{method_name}`"),
+                    self_param.span,
+                    ErrorCode::TraitMethodSignatureMismatch,
+                    "move `self` to the first position",
+                    "rewrite as `(self, ...)`",
+                );
+            }
+            _ => {}
+        }
+    }
+
+    /// Every non-`self` parameter on a trait method or for-block method
+    /// must carry an explicit type annotation — these signatures are
+    /// public contracts and inference is not available.
+    pub(crate) fn validate_non_self_params_have_types(
+        &mut self,
+        params: &[Param],
+        kind: &str,
+        method_name: &str,
+    ) {
+        for param in params {
+            if param.name == "self" {
+                continue;
+            }
+            if param.type_ann.is_none() {
+                self.emit_error_with_help(
+                    format!(
+                        "parameter `{}` of {kind} `{method_name}` must have a type annotation",
+                        param.name
+                    ),
+                    param.span,
+                    ErrorCode::TraitMethodSignatureMismatch,
+                    "missing type annotation",
+                    format!("write `{}: Type`", param.name),
+                );
+            }
         }
     }
 

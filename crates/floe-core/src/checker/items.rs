@@ -718,6 +718,10 @@ impl Checker {
         }
 
         for func in &block.functions {
+            // For-block methods carry the same public-contract rules as
+            // trait methods: `self` receiver + typed non-`self` params.
+            self.validate_non_self_params_have_types(&func.params, "for-block method", &func.name);
+
             // Check each function, injecting `self` type for self params
             let return_type = func
                 .return_type
