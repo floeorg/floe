@@ -17,24 +17,39 @@ use crate::walk;
 
 /// Run the desugar pass over a program, transforming it in place.
 pub fn desugar_program(program: &mut Program, resolved: &HashMap<String, ResolvedImports>) {
-    // Collect type definitions for default field expansion
+    // Gather per-module metadata the transforms need. Nested functions
+    // that shadow a top-level name lose the insertion race, but shadowing
+    // top-level names is rare enough not to matter in practice.
     let mut type_defs: HashMap<String, TypeDef> = HashMap::new();
-    // Local types
+    let mut fn_signatures: HashMap<String, Vec<Param>> = HashMap::new();
     for item in &program.items {
-        if let ItemKind::TypeDecl(decl) = &item.kind {
-            type_defs.insert(decl.name.clone(), decl.def.clone());
+        match &item.kind {
+            ItemKind::TypeDecl(decl) => {
+                type_defs.insert(decl.name.clone(), decl.def.clone());
+            }
+            ItemKind::Function(decl) => {
+                fn_signatures.insert(decl.name.clone(), decl.params.clone());
+            }
+            _ => {}
         }
     }
-    // Imported types
     for imports in resolved.values() {
         for decl in &imports.type_decls {
-            type_defs.insert(decl.name.clone(), decl.def.clone());
+            type_defs
+                .entry(decl.name.clone())
+                .or_insert_with(|| decl.def.clone());
+        }
+        for decl in &imports.function_decls {
+            fn_signatures
+                .entry(decl.name.clone())
+                .or_insert_with(|| decl.params.clone());
         }
     }
 
     walk::walk_program_mut(program, &mut |expr| {
         desugar_expr(expr);
         expand_construct_defaults(expr, &type_defs);
+        reorder_call_named_args(expr, &fn_signatures);
     });
 }
 
@@ -83,6 +98,56 @@ fn desugar_expr(expr: &mut Expr) {
         // in the Construct branch (emitting `as const` for TS discriminated unions).
         _ => {}
     }
+}
+
+/// Reorder a `Call`'s named arguments into declared-parameter order and
+/// splice defaults for omitted slots so codegen can keep its label-
+/// erasing emit. Sibling of `expand_construct_defaults`.
+fn reorder_call_named_args(expr: &mut Expr, fn_signatures: &HashMap<String, Vec<Param>>) {
+    let ExprKind::Call { callee, args, .. } = &mut expr.kind else {
+        return;
+    };
+    let ExprKind::Identifier(name) = &callee.kind else {
+        return;
+    };
+    let Some(params) = fn_signatures.get(name) else {
+        return;
+    };
+
+    let has_named = args.iter().any(|a| matches!(a, Arg::Named { .. }));
+    if !has_named {
+        return;
+    }
+
+    let original = std::mem::take(args);
+    let mut positional: Vec<Arg> = Vec::new();
+    let mut named: Vec<(String, Arg)> = Vec::new();
+    for arg in original {
+        match arg {
+            Arg::Positional(_) if named.is_empty() => positional.push(arg),
+            Arg::Named { ref label, .. } => named.push((label.clone(), arg)),
+            // Positional after named is a checker error; drop the arg
+            // since any codegen output for this call is already invalid.
+            Arg::Positional(_) => {}
+        }
+    }
+
+    let mut reordered = positional;
+    for param in params.iter().skip(reordered.len()) {
+        if let Some(pos) = named.iter().position(|(l, _)| l == &param.name) {
+            reordered.push(named.remove(pos).1);
+        } else if let Some(default) = &param.default {
+            reordered.push(Arg::Named {
+                label: param.name.clone(),
+                value: default.clone(),
+            });
+        }
+    }
+    // Unknown labels / duplicates stay in source order so the checker's
+    // diagnostics anchor to their original spans.
+    reordered.extend(named.into_iter().map(|(_, a)| a));
+
+    *args = reordered;
 }
 
 /// For record constructors with omitted fields that have defaults,

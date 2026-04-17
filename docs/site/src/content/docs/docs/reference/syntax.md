@@ -219,10 +219,19 @@ Patterns: literals (`42`, `"hello"`, `true`), ranges (`1..10`), variants (`Ok(x)
 
 ```floe
 f(a, b)
-f(name: value)     // named argument
-Constructor(a: 1)  // record constructor
+f(name: value)                 // named argument
+f(a, b: 2, c: 3)               // positional first, then named
+Constructor(a: 1)              // record constructor
 Constructor(..existing, a: 2)  // spread + update
 ```
+
+Call rules:
+
+- Positional arguments must precede named ones.
+- Named arguments may appear in any order — the compiler reorders them to match the declaration.
+- Every required parameter must be provided, either positionally or by name.
+- A slot cannot be covered twice (positional + name for the same slot, or two named args with the same label).
+- Defaulted parameters must be passed by name (not positionally) so a skipped default cannot silently shift a later value into the wrong slot.
 
 ### Collect Block
 

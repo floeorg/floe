@@ -94,6 +94,108 @@ fn named_arg_punning_erased() {
 }
 
 #[test]
+fn named_args_reorder_to_declared_order() {
+    // Bug #1134: named args must be reordered to match the declared
+    // parameter order before labels are erased. Without the fix, the
+    // emitted call has values in source order which silently swaps
+    // arguments at runtime.
+    let source = r#"
+fn safeDivide(a: number, b: number) -> number { a / b }
+safeDivide(b: 1, a: 2)
+"#;
+    let output = emit_typed(source);
+    assert!(
+        output.contains("safeDivide(2, 1)"),
+        "named args should reorder to declared order (a=2, b=1); got:\n{output}"
+    );
+}
+
+#[test]
+fn named_args_in_declared_order_unchanged() {
+    let source = r#"
+fn safeDivide(a: number, b: number) -> number { a / b }
+safeDivide(a: 2, b: 1)
+"#;
+    let output = emit_typed(source);
+    assert!(
+        output.contains("safeDivide(2, 1)"),
+        "named args already in declared order should stay; got:\n{output}"
+    );
+}
+
+#[test]
+fn mixed_positional_and_named_args_reorder() {
+    let source = r#"
+fn f(a: number, b: number, c: number) -> number { a + b + c }
+f(10, c: 30, b: 20)
+"#;
+    let output = emit_typed(source);
+    assert!(
+        output.contains("f(10, 20, 30)"),
+        "positional fills leading slot, named reorder to declared; got:\n{output}"
+    );
+}
+
+#[test]
+fn named_args_fully_reversed_three_params() {
+    let source = r#"
+fn f(a: number, b: number, c: number) -> number { a + b + c }
+f(c: 30, b: 20, a: 10)
+"#;
+    let output = emit_typed(source);
+    assert!(
+        output.contains("f(10, 20, 30)"),
+        "fully reversed 3-arg named call should reorder; got:\n{output}"
+    );
+}
+
+#[test]
+fn named_args_splice_multiple_defaults() {
+    let source = r#"
+fn g(a: number, b: number = 2, c: number = 3, d: number) -> number { a + b + c + d }
+g(d: 40, a: 10)
+"#;
+    let output = emit_typed(source);
+    assert!(
+        output.contains("g(10, 2, 3, 40)"),
+        "two defaults spliced between named args; got:\n{output}"
+    );
+}
+
+#[test]
+fn named_args_default_spliced_in_missing_slot() {
+    // A named call that omits a defaulted parameter gets the default
+    // spliced into the reordered slot so codegen emits it positionally.
+    let source = r#"
+fn greet(name: string, greeting: string = "hello") -> string { greeting }
+greet(name: "world")
+"#;
+    let output = emit_typed(source);
+    assert!(
+        output.contains(r#"greet("world", "hello")"#),
+        "missing default param should splice default into slot; got:\n{output}"
+    );
+}
+
+#[test]
+fn named_args_unknown_label_emits_error() {
+    use crate::diagnostic::Severity;
+    let source = r#"
+fn f(a: number) -> number { a }
+f(nonexistent: 1)
+"#;
+    let program = crate::parser::Parser::new(source).parse_program().unwrap();
+    let (diags, _, _, _) = crate::checker::Checker::new().check_with_types(&program);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.severity == Severity::Error && d.message.contains("nonexistent")),
+        "unknown named label should surface as a checker error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn template_literal() {
     assert_eq!(emit("`hello ${name}`"), "`hello ${name}`;");
 }
