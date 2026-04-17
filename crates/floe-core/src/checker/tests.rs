@@ -7944,3 +7944,52 @@ trait Repo {
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn pipe_into_stdlib_method_does_not_silently_unwrap_result() {
+    // #1168: piping `Result<T, E>` into a stdlib method expecting `T` must
+    // error — the caller is responsible for unwrapping with `?` or `match`.
+    let diags = check(
+        r#"
+fn arr() -> Result<Array<number>, Error> { Ok([1, 2, 3]) }
+export fn main() -> string {
+    const r = arr() |> Array.at(0)
+    const x: string = r
+    x
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "piping Result<Array<T>, E> into Array.at should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.message.contains("Result") && d.message.contains("Array.at")),
+        "error should flag the Result argument to Array.at, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn pipe_unwrap_then_stdlib_preserves_element_type() {
+    // Once the Result is unwrapped via `?`, the pipe should bind the
+    // element type correctly: Array<number> |> Array.at(0) → Option<number>.
+    let diags = check(
+        r#"
+fn arr() -> Result<Array<number>, Error> { Ok([1, 2, 3]) }
+export fn main() -> Result<Option<number>, Error> {
+    const a = arr()?
+    const r = a |> Array.at(0)
+    Ok(r)
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "unwrapped Array<number> |> Array.at(0) should type-check, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

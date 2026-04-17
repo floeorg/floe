@@ -126,6 +126,14 @@ impl Type {
         }
     }
 
+    /// Construct a foreign type preserving a dynamic trust flag.
+    pub fn foreign_with_trust(name: impl Into<String>, untrusted: bool) -> Type {
+        Type::Foreign {
+            name: name.into(),
+            untrusted,
+        }
+    }
+
     /// True if this resolves to any foreign type (trusted or untrusted).
     pub fn is_foreign(&self) -> bool {
         matches!(self.resolved(), Type::Foreign { .. })
