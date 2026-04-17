@@ -50,7 +50,7 @@ Create `src/Counter.fl`:
 import { useState } from "react"
 
 export fn Counter() -> JSX.Element {
-  const [count, setCount] = useState(0)
+  const (count, setCount) = useState(0)
 
   <div>
     <p>Count: {count}</p>

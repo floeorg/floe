@@ -56,7 +56,7 @@ fn PostAuthor(props: { userId: number }) -> JSX.Element {
 }
 
 fn PostList() -> JSX.Element {
-    const [selectedUserId, setSelectedUserId] = useState<Option<number>>(None)
+    const (selectedUserId, setSelectedUserId) = useState<Option<number>>(None)
 
     const url = match selectedUserId {
         Some(uid) -> `https://jsonplaceholder.typicode.com/posts?userId=${uid}`,

@@ -105,13 +105,26 @@ impl Checker {
                 self.define_const_binding(name, final_type, decl.exported, span);
             }
             ConstBinding::Array(names) => {
-                let corrected_type = self.correct_usestate_option_type(&final_type, &decl.value);
-                let effective_type = corrected_type.as_ref().unwrap_or(&final_type);
-
-                for (i, name) in names.iter().enumerate() {
-                    let elem_ty = Self::array_element_type(effective_type, i);
-                    self.define_const_binding(name, elem_ty, false, span);
-                }
+                // `[a, b]` in a const binding is banned: on arrays it
+                // lies about element presence (runtime length isn't in
+                // the type), on tuples it hides the real shape. The
+                // help text picks the right fix based on the value's
+                // actual shape.
+                let help = if matches!(final_type, Type::Tuple(_)) {
+                    format!("use `({0})` — the value is a tuple", names.join(", "))
+                } else {
+                    "use `Array.get(arr, i)` (returns `Option<T>`) or `match arr { [a, b, ..] -> ..., _ -> ... }`".to_string()
+                };
+                self.emit_error_with_help(
+                    "array destructuring `[...]` is not allowed in a const binding",
+                    span,
+                    ErrorCode::ArrayDestructureInConst,
+                    "`[a, b]` lies about runtime length",
+                    help,
+                );
+                // Binding names are left undefined — cascade "undefined
+                // name" errors are the same root cause and resolve once
+                // the user switches to `(a, b)` or `Array.get`.
             }
             ConstBinding::Tuple(names) => {
                 for (i, name) in names.iter().enumerate() {
@@ -283,17 +296,6 @@ impl Checker {
         matches!(&expr.kind, ExprKind::Member { object, field }
             if field == "await" && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise"))
             || matches!(&expr.kind, ExprKind::Identifier(name) if name == "await")
-    }
-
-    /// Infer the type of an element from an array/tuple destructuring at a given index.
-    fn array_element_type(effective_type: &Type, i: usize) -> Type {
-        match effective_type {
-            Type::Tuple(types) => types.get(i).cloned().unwrap_or(Type::Unknown),
-            Type::Array(elem) => (**elem).clone(),
-            Type::Unknown | Type::Error | Type::Var(_) => Type::Unknown,
-            other if i == 0 => other.clone(),
-            _ => Type::Unknown,
-        }
     }
 
     /// Infer the type of a tuple element at a given index.

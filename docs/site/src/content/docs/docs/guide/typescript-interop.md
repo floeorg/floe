@@ -44,7 +44,7 @@ For npm functions known to be safe (like React hooks, utility libraries), mark t
 ```floe
 import trusted { useState, useEffect } from "react"
 
-const [count, setCount] = useState(0)  // direct call, no wrapping
+const (count, setCount) = useState(0)  // direct call, no wrapping
 ```
 
 You can mark individual functions as trusted from a module:
@@ -139,7 +139,7 @@ React hooks work directly:
 import { useState, useEffect, useCallback } from "react"
 
 export fn Counter() -> JSX.Element {
-  const [count, setCount] = useState(0)
+  const (count, setCount) = useState(0)
 
   useEffect(() => {
     Console.log("count changed:", count)
@@ -159,7 +159,7 @@ Third-party React components work as regular JSX:
 import { Button, Dialog } from "@radix-ui/react"
 
 export fn MyPage() -> JSX.Element {
-  const [open, setOpen] = useState(false)
+  const (open, setOpen) = useState(false)
 
   <div>
     <Button onClick={() => setOpen(true)}>Open</Button>

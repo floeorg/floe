@@ -284,10 +284,10 @@ fn SidebarSkeleton() -> JSX.Element {
 // Uses `use` to flatten Suspense/ErrorBoundary nesting.
 
 export fn CatalogPage(props: { onAddToCart: (Product) -> () }) -> JSX.Element {
-    const [category, setCategory] = useState("")
-    const [search, setSearch] = useState("")
-    const [sortOrder, setSortOrder] = useState<SortOrder>(Rating)
-    const [priceRange, setPriceRange] = useState<PriceRange>(Any)
+    const (category, setCategory) = useState("")
+    const (search, setSearch) = useState("")
+    const (sortOrder, setSortOrder) = useState<SortOrder>(Rating)
+    const (priceRange, setPriceRange) = useState<PriceRange>(Any)
 
     <div>
         <div className="mb-6 flex items-center gap-4">
