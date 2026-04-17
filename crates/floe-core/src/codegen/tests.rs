@@ -2287,6 +2287,39 @@ const r = Home
 }
 
 #[test]
+fn pipe_unwrap_emits_early_return_on_none() {
+    // `x |>? f` pipes into `f`, then early-returns on `None`/`Err` the
+    // same way `(x |> f)?` does — identical runtime semantics.
+    let result = emit_typed(
+        r#"
+fn half(n: number) -> Option<number> {
+    match n % 2 {
+        0 -> Some(n / 2),
+        _ -> None,
+    }
+}
+
+fn run() -> Option<number> {
+    const x = 10 |>? half
+    Some(x + 1)
+}
+"#,
+    );
+    assert!(
+        result.contains("half("),
+        "pipe target should be called, got:\n{result}"
+    );
+    assert!(
+        result.contains("return") && result.contains(".ok"),
+        "pipe-unwrap should emit an early-return check, got:\n{result}"
+    );
+    assert!(
+        result.contains("x + 1"),
+        "body after the unwrap should use the unwrapped value, got:\n{result}"
+    );
+}
+
+#[test]
 fn untrusted_call_detection_reads_callee_type() {
     // A call to an untrusted foreign fn must emit the try/catch boundary
     // wrapper — driven by `callee.ty.is_untrusted_foreign()`, not by a

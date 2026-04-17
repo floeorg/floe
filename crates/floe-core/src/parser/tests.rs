@@ -222,6 +222,22 @@ fn pipe_chain_then_unwrap() {
     }
 }
 
+#[test]
+fn pipe_unwrap_operator_parses_as_unwrap_of_pipe() {
+    // `x |>? f` is sugar for `(x |> f)?`: pipe into f, then unwrap.
+    let expr = first_expr("x |>? f");
+    match &expr {
+        ExprKind::Unwrap(inner) => {
+            assert!(
+                matches!(inner.kind, ExprKind::Pipe { .. }),
+                "expected Unwrap(Pipe), got Unwrap({:?})",
+                inner.kind
+            );
+        }
+        _ => panic!("expected Unwrap, got {expr:?}"),
+    }
+}
+
 // ── Function Calls ───────────────────────────────────────────
 
 #[test]
