@@ -450,11 +450,14 @@ impl<'src> CstParser<'src> {
                 self.builder.start_node(SyntaxKind::ERROR.into());
                 let kind = self.current_kind().unwrap();
                 if let TokenKind::Banned(banned) = kind {
-                    self.error(&format!(
-                        "banned keyword '{}': {}",
-                        banned.as_str(),
-                        banned.help_message()
-                    ));
+                    self.error_kind(
+                        &format!(
+                            "banned keyword '{}': {}",
+                            banned.as_str(),
+                            banned.help_message()
+                        ),
+                        super::CstErrorKind::BannedKeyword,
+                    );
                 }
                 self.bump();
                 self.builder.finish_node();

@@ -24,6 +24,21 @@ impl Parse {
 pub struct CstError {
     pub message: String,
     pub span: Span,
+    pub kind: CstErrorKind,
+}
+
+/// What kind of CST error, tagged at creation time so downstream
+/// classification doesn't substring-match on the message string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CstErrorKind {
+    /// A banned keyword was used (e.g. `let`, `var`).
+    BannedKeyword,
+    /// An expected token was missing.
+    UnexpectedToken,
+    /// A JSX closing tag did not match the opening tag.
+    MismatchedTag,
+    /// Anything else.
+    General,
 }
 
 /// CST parser: builds a lossless green tree from a token stream (including trivia).
@@ -457,11 +472,10 @@ impl<'src> CstParser<'src> {
         if self.at(kind.clone()) {
             self.bump();
         } else {
-            self.error(&format!(
-                "expected {:?}, found {:?}",
-                kind,
-                self.current_kind()
-            ));
+            self.error_kind(
+                &format!("expected {:?}, found {:?}", kind, self.current_kind()),
+                CstErrorKind::UnexpectedToken,
+            );
         }
     }
 
@@ -469,11 +483,10 @@ impl<'src> CstParser<'src> {
         if self.at(kind.clone()) {
             self.bump();
         } else {
-            self.error(&format!(
-                "expected {:?}, found {:?}",
-                kind,
-                self.current_kind()
-            ));
+            self.error_kind(
+                &format!("expected {:?}, found {:?}", kind, self.current_kind()),
+                CstErrorKind::UnexpectedToken,
+            );
         }
     }
 
@@ -481,10 +494,10 @@ impl<'src> CstParser<'src> {
         if self.is_ident() {
             self.bump();
         } else {
-            self.error(&format!(
-                "expected identifier, found {:?}",
-                self.current_kind()
-            ));
+            self.error_kind(
+                &format!("expected identifier, found {:?}", self.current_kind()),
+                CstErrorKind::UnexpectedToken,
+            );
         }
     }
 
@@ -516,9 +529,14 @@ impl<'src> CstParser<'src> {
     }
 
     fn error(&mut self, message: &str) {
+        self.error_kind(message, CstErrorKind::General);
+    }
+
+    fn error_kind(&mut self, message: &str, kind: CstErrorKind) {
         self.errors.push(CstError {
             message: message.to_string(),
             span: self.current_span(),
+            kind,
         });
     }
 

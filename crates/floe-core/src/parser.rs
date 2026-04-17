@@ -10,33 +10,7 @@ use crate::lower::{lower_program, lower_program_lossy};
 use crate::parse::ModuleExtra;
 use ast::*;
 
-/// Classification of parse errors for structured diagnostic handling.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ParseErrorKind {
-    /// A banned keyword was used (e.g. `let`, `var`).
-    BannedKeyword,
-    /// An unexpected token was encountered.
-    UnexpectedToken,
-    /// A JSX closing tag did not match the opening tag.
-    MismatchedTag,
-    /// General parse error (default).
-    General,
-}
-
-impl ParseErrorKind {
-    /// Classify a parse error message into a kind.
-    pub fn classify(message: &str) -> Self {
-        if message.contains("banned keyword") {
-            Self::BannedKeyword
-        } else if message.contains("expected") {
-            Self::UnexpectedToken
-        } else if message.contains("mismatched closing tag") {
-            Self::MismatchedTag
-        } else {
-            Self::General
-        }
-    }
-}
+pub use crate::cst::CstErrorKind as ParseErrorKind;
 
 /// A parse error with location and message.
 #[derive(Debug, Clone, PartialEq)]
@@ -131,7 +105,7 @@ fn classify_cst_errors(errors: Vec<CstError>) -> Vec<ParseError> {
     errors
         .into_iter()
         .map(|e| ParseError {
-            kind: ParseErrorKind::classify(&e.message),
+            kind: e.kind,
             message: e.message,
             span: e.span,
         })

@@ -1,5 +1,6 @@
 ---
-source: tests/snapshot_errors.rs
+source: crates/floe-core/tests/snapshot_errors.rs
+assertion_line: 39
 expression: output
 ---
 [31mError:[0m banned keyword 'let': Use `const` - all bindings are immutable in Floe
@@ -16,5 +17,5 @@ expression: output
    [38;5;246m│[0m
  [38;5;246m1 │[0m [38;5;249ml[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mx[0m[38;5;249m [0m[31m=[0m[38;5;249m [0m[38;5;249m4[0m[38;5;249m2[0m
  [38;5;240m  │[0m       [31m┬[0m  
- [38;5;240m  │[0m       [31m╰[0m[31m─[0m[31m─[0m unexpected token here
+ [38;5;240m  │[0m       [31m╰[0m[31m─[0m[31m─[0m unexpected token: Equal
 [38;5;246m───╯[0m
