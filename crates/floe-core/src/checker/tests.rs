@@ -5889,6 +5889,51 @@ const _g: string = u |> greet
     );
 }
 
+#[test]
+fn dot_call_on_trait_method_via_generic_bound_errors() {
+    // #1169: A trait method reached through a trait-bounded type parameter
+    // must still be called via pipe syntax. Previously dot-access slipped
+    // through because the receiver's type (`Type::Named("R")`) wasn't
+    // recognised by `resolve_for_block_method` and the member access fell
+    // through to the foreign/unknown branch.
+    let diags = check(
+        r#"
+trait Repo {
+    fn create(self, value: string) -> string
+}
+
+fn use_repo<R: Repo>(r: R, v: string) -> string {
+    r.create(v)
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::DotCallOnForBlockMethod),
+        "dot-call on trait method via generic bound should error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn pipe_call_on_trait_method_via_generic_bound_allowed() {
+    let diags = check(
+        r#"
+trait Repo {
+    fn create(self, value: string) -> string
+}
+
+fn use_repo<R: Repo>(r: R, v: string) -> string {
+    r |> create(v)
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::DotCallOnForBlockMethod),
+        "pipe syntax for trait method via generic bound should not error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── JSX member expressions ──────────────────────────────────
 
 #[test]
