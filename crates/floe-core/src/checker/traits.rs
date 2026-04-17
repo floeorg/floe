@@ -3,6 +3,13 @@ use std::sync::Arc;
 use super::*;
 
 impl Checker {
+    /// Whether `name` refers to a registered trait. Traits don't live
+    /// in the value namespace, so callers that resolve identifiers
+    /// check this before letting them show up in expression position.
+    pub(crate) fn is_trait(&self, name: &str) -> bool {
+        self.traits.trait_defs.contains_key(name)
+    }
+
     pub(crate) fn register_trait_decl(&mut self, decl: &TraitDecl) {
         let methods: Vec<TraitMethodSig> = decl
             .methods

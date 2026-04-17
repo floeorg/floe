@@ -472,7 +472,7 @@ impl Checker {
         // Trait names don't live in the value namespace — `TraitName.method(...)`
         // calls a trait like a module and must be rejected.
         if let ExprKind::Identifier(name) = &object.kind
-            && self.traits.trait_defs.contains_key(name)
+            && self.is_trait(name)
         {
             self.emit_error_with_help(
                 format!(
