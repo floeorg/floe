@@ -21,8 +21,8 @@ use super::completion::{
     dot_access_completions, identifier_before_dot, import_path_completions, is_in_comment,
     is_in_import_string, is_in_string_literal, is_pipe_context, resolve_piped_type,
 };
+use super::index::{SymbolIndex, symbol_kind_to_completion};
 use super::stdlib_hover;
-use super::symbols::{SymbolIndex, symbol_kind_to_completion};
 use super::{BUILTINS, FloeLsp, KEYWORDS, position_to_offset, word_prefix_at_offset};
 
 impl FloeLsp {

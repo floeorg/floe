@@ -1,10 +1,7 @@
-use std::collections::HashMap;
-
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
 use super::stdlib_hover;
-use super::symbols::Symbol;
 use super::{FloeLsp, find_expr_type_at_offset, position_to_offset, word_at_offset};
 
 impl FloeLsp {
@@ -90,11 +87,10 @@ impl FloeLsp {
                 }));
             }
 
-            let detail = enrich_hover_detail(sym, &doc.type_map);
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,
-                    value: format!("```floe\n{detail}\n```"),
+                    value: format!("```floe\n{}\n```", sym.detail),
                 }),
                 range: None,
             }));
@@ -248,53 +244,4 @@ impl FloeLsp {
             range: None,
         }))
     }
-}
-
-// ── Hover enrichment ─────────────────────────────────────────────
-
-/// Enrich a symbol's hover detail with the inferred type from the checker's
-/// type_map when the symbol doesn't already have a type annotation.
-pub(super) fn enrich_hover_detail(sym: &Symbol, type_map: &HashMap<String, String>) -> String {
-    let detail = &sym.detail;
-
-    // For imports, show the resolved type if available (TS-like hover)
-    if sym.import_source.is_some() {
-        let source = sym.import_source.as_deref().unwrap_or("unknown");
-        if let Some(inferred) = type_map.get(&sym.name)
-            && !inferred.contains("?T")
-            && inferred != "unknown"
-        {
-            // Skip circular display where inferred type equals the name
-            if inferred != &sym.name {
-                return format!("(import) {}: {inferred}\nfrom \"{source}\"", sym.name);
-            }
-        }
-        // For type-only imports, show (type) prefix
-        return format!("(type) {}\nfrom \"{source}\"", sym.name);
-    }
-
-    // For consts/variables, always show the resolved type
-    if sym.kind == SymbolKind::CONSTANT || sym.kind == SymbolKind::VARIABLE {
-        if let Some(inferred) = type_map.get(&sym.name)
-            && !inferred.contains("?T")
-        {
-            if detail.contains(':') {
-                return detail.clone();
-            }
-            return format!("{detail}: {inferred}");
-        }
-        return detail.clone();
-    }
-
-    // For functions without return type annotation, show the inferred return type
-    if sym.kind == SymbolKind::FUNCTION
-        && !detail.contains("->")
-        && let Some(inferred) = type_map.get(&sym.name)
-        && let Some((_, ret)) = inferred.rsplit_once(" -> ")
-        && !ret.contains("?T")
-    {
-        return format!("{detail} -> {ret}");
-    }
-
-    detail.clone()
 }

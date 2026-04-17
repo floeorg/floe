@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use tower_lsp::lsp_types::*;
 
-use super::symbols::SymbolIndex;
+use floe_core::checker::Type;
+
+use super::index::SymbolIndex;
 
 /// Detect if the cursor is inside a comment (// or /* */).
 pub(super) fn is_in_comment(source: &str, offset: usize) -> bool {
@@ -465,26 +467,57 @@ fn split_top_level(s: &str, delim: char) -> Vec<&str> {
     parts
 }
 
-/// Check if a function's first parameter type is compatible with the piped type.
-/// Uses base type name matching: "Array<User>" matches "Array<T>", etc.
+/// Base-name compatibility: `Array<User>` matches `Array<T>`, single-letter
+/// type vars match anything.
 pub(super) fn is_pipe_compatible(fn_first_param: &str, piped_type: &str) -> bool {
-    let fn_base = base_type_name(fn_first_param);
-    let piped_base = base_type_name(piped_type);
+    is_base_name_compatible(base_type_name(fn_first_param), base_type_name(piped_type))
+}
 
-    // Exact base type match
+/// Typed variant — avoids per-keystroke `.to_string()` on the symbol's
+/// `Arc<Type>` since pipe completions iterate every function in every
+/// open document.
+pub(super) fn is_pipe_compatible_typed(fn_first_param: &Type, piped_type: &str) -> bool {
+    is_base_name_compatible(type_base_name(fn_first_param), base_type_name(piped_type))
+}
+
+fn is_base_name_compatible(fn_base: &str, piped_base: &str) -> bool {
     if fn_base == piped_base {
         return true;
     }
-
-    // Generic type parameter (single uppercase letter like T, U, A) matches anything
-    if fn_base.len() == 1
+    // Single uppercase letter (T, U, A…) acts as a generic type var.
+    fn_base.len() == 1
         && fn_base
             .chars()
             .next()
             .is_some_and(|c| c.is_ascii_uppercase())
-    {
-        return true;
-    }
+}
 
-    false
+/// Base name of a `Type` for pipe compat without allocating.
+fn type_base_name(ty: &Type) -> &str {
+    match ty {
+        Type::Number => "number",
+        Type::String => "string",
+        Type::Bool => "boolean",
+        Type::Unit => "()",
+        Type::Undefined => "undefined",
+        Type::Never => "never",
+        Type::Unknown => "unknown",
+        Type::Array(_) => "Array",
+        Type::Map { .. } => "Map",
+        Type::RecordMap { .. } => "Record",
+        Type::Set { .. } => "Set",
+        Type::Promise(_) => "Promise",
+        Type::Settable(_) => "Settable",
+        Type::Tuple(_) => "tuple",
+        Type::Record(_) => "record",
+        Type::Function { .. } => "function",
+        Type::TsUnion(_) => "union",
+        Type::StringLiteral(_) => "string",
+        Type::Named(name)
+        | Type::Foreign { name, .. }
+        | Type::Opaque { name, .. }
+        | Type::Union { name, .. } => name,
+        Type::Var(_) => "",
+        Type::Error => "<error>",
+    }
 }

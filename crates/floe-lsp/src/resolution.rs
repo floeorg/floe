@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use floe_core::checker::ErrorCode;
 use floe_core::diagnostic::{self as floe_diag};
@@ -7,7 +8,7 @@ use floe_core::interop;
 use floe_core::parser::ast::*;
 use floe_core::resolve::TsconfigPaths;
 
-use super::symbols::SymbolIndex;
+use super::index::SymbolIndex;
 
 /// Resolve an npm package specifier to its .d.ts file path.
 /// Walks node_modules looking for package.json types/typings field.
@@ -74,8 +75,8 @@ pub(super) fn resolve_relative_import(specifier: &str, source_dir: &Path) -> Opt
 
 /// Enrich a symbol index with type info from resolved .d.ts files.
 /// Also returns diagnostics for unresolvable relative imports.
-pub(super) fn enrich_from_imports(
-    program: &Program,
+pub(super) fn enrich_from_imports<T>(
+    program: &Program<T>,
     project_dir: &Path,
     source_dir: &Path,
     index: &mut SymbolIndex,
@@ -152,27 +153,24 @@ pub(super) fn enrich_from_imports(
 
         new_cache.insert(specifier.clone(), exports.clone());
 
-        // Enrich imported symbols with type info from .d.ts
+        // Enrich imported symbols with type info from .d.ts. Detail
+        // format mirrors `SymbolIndex::build`'s import rendering so
+        // hover reads `Symbol.detail` directly.
         for sym in &mut index.symbols {
             if sym.import_source.as_deref() != Some(specifier) {
                 continue;
             }
-            // Find matching export
-            if let Some(dts_export) = exports.iter().find(|e| e.name == sym.name) {
-                let type_str = interop::ts_type_to_string(&dts_export.ts_type);
-                sym.detail = format!("{} (from \"{}\")", type_str, specifier);
+            let Some(dts_export) = exports.iter().find(|e| e.name == sym.name) else {
+                continue;
+            };
+            let type_str = interop::ts_type_to_string(&dts_export.ts_type);
+            sym.detail = format!("(import) {}: {type_str}\nfrom \"{specifier}\"", sym.name);
 
-                // If it's a function export, extract first param and return type
-                if let interop::TsType::Function {
-                    params,
-                    return_type,
-                } = &dts_export.ts_type
-                {
-                    sym.kind = tower_lsp::lsp_types::SymbolKind::FUNCTION;
-                    sym.first_param_type =
-                        params.first().map(|p| interop::ts_type_to_string(&p.ty));
-                    sym.return_type_str = Some(interop::ts_type_to_string(return_type));
-                }
+            if let interop::TsType::Function { params, .. } = &dts_export.ts_type {
+                sym.kind = tower_lsp::lsp_types::SymbolKind::FUNCTION;
+                sym.first_param_type = params
+                    .first()
+                    .map(|p| Arc::new(interop::wrap_boundary_type(&p.ty)));
             }
         }
     }
