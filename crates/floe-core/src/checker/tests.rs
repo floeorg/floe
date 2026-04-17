@@ -837,6 +837,23 @@ const _r = f(1, c: 3)
 }
 
 #[test]
+fn positional_for_defaulted_slot_errors() {
+    // A defaulted parameter must be passed by name so skipping earlier
+    // defaults can't silently land a value in the wrong slot.
+    let diags = check(
+        r#"
+fn send(to: string, body: string, subject: string = "no subject") -> string { body }
+const _r = send("a@b", "body", "override")
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "defaulted parameter `subject`"),
+        "positional for defaulted slot should error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn pipe_call_accounts_for_implicit_arg() {
     let diags = check(
         r#"
@@ -3833,7 +3850,7 @@ fn default_params_some_defaults_omitted() {
 fn make(a: string, b: string = "x", c: number = 0) -> string {
     `${a}${b}`
 }
-const x = make("hello", "world")
+const x = make("hello", b: "world")
 "#,
     );
     assert!(
@@ -3850,7 +3867,7 @@ fn default_params_all_explicit() {
 fn make(a: string, b: string = "x", c: number = 0) -> string {
     `${a}${b}`
 }
-const x = make("hello", "world", 42)
+const x = make("hello", b: "world", c: 42)
 "#,
     );
     assert!(

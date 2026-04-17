@@ -32,11 +32,10 @@ pub fn desugar_program(program: &mut Program, resolved: &HashMap<String, Resolve
         }
     }
 
-    // Collect function signatures so `Call` reorder can consult the
-    // declared parameter list. Keyed by function name — nested functions
-    // with the same name as an outer function shadow in the checker but
-    // here we'd use whichever was inserted last; the bug only reproduces
-    // for top-level calls so this is good enough.
+    // Function signatures keyed by name. Nested functions with the same
+    // name as an outer binding lose the insertion race, but nested
+    // shadowing of a top-level name is rare and doesn't reproduce the
+    // reorder bug in practice.
     let mut fn_signatures: HashMap<String, Vec<Param>> = HashMap::new();
     for item in &program.items {
         if let ItemKind::Function(decl) = &item.kind {
@@ -105,15 +104,9 @@ fn desugar_expr(expr: &mut Expr) {
     }
 }
 
-/// Reorder a `Call`'s named arguments into declared-parameter order so
-/// codegen can keep its label-erasing behavior (labels drop, values emit
-/// in source order) while still producing the call semantics the user
-/// wrote. Without this pass, `f(b: 1, a: 2)` compiles to `f(1, 2)`,
-/// silently swapping argument values.
-///
-/// Defaulted parameters omitted from a named call get their default
-/// expression spliced into the matching slot — the same idea as
-/// `expand_construct_defaults` but for function calls.
+/// Reorder a `Call`'s named arguments into declared-parameter order and
+/// splice defaults for omitted slots so codegen can keep its label-
+/// erasing emit. Sibling of `expand_construct_defaults`.
 fn reorder_call_named_args(expr: &mut Expr, fn_signatures: &HashMap<String, Vec<Param>>) {
     let ExprKind::Call { callee, args, .. } = &mut expr.kind else {
         return;
@@ -125,9 +118,6 @@ fn reorder_call_named_args(expr: &mut Expr, fn_signatures: &HashMap<String, Vec<
         return;
     };
 
-    // Skip when all args are positional — no reorder possible and no
-    // defaults need splicing (positional calls either match the arity or
-    // hit a checker error).
     let has_named = args.iter().any(|a| matches!(a, Arg::Named { .. }));
     if !has_named {
         return;
@@ -136,17 +126,13 @@ fn reorder_call_named_args(expr: &mut Expr, fn_signatures: &HashMap<String, Vec<
     let original = std::mem::take(args);
     let mut positional: Vec<Arg> = Vec::new();
     let mut named: Vec<(String, Arg)> = Vec::new();
-    let mut hit_named = false;
     for arg in original {
         match arg {
-            Arg::Positional(_) if !hit_named => positional.push(arg),
-            Arg::Named { ref label, .. } => {
-                hit_named = true;
-                named.push((label.clone(), arg));
-            }
-            // Positional after named is malformed; preserve it so the
-            // checker's diagnostic fires on something recognizable.
-            Arg::Positional(_) => named.push((String::new(), arg)),
+            Arg::Positional(_) if named.is_empty() => positional.push(arg),
+            Arg::Named { ref label, .. } => named.push((label.clone(), arg)),
+            // Positional after named is a checker error; drop the arg
+            // since any codegen output for this call is already invalid.
+            Arg::Positional(_) => {}
         }
     }
 
@@ -161,9 +147,8 @@ fn reorder_call_named_args(expr: &mut Expr, fn_signatures: &HashMap<String, Vec<
             });
         }
     }
-    // Anything left — unknown labels, duplicates, stray positionals —
-    // keeps source order so the checker's diagnostics still anchor to
-    // the user's original spans.
+    // Unknown labels / duplicates stay in source order so the checker's
+    // diagnostics anchor to their original spans.
     reordered.extend(named.into_iter().map(|(_, a)| a));
 
     *args = reordered;

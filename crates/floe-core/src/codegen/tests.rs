@@ -137,6 +137,32 @@ f(10, c: 30, b: 20)
 }
 
 #[test]
+fn named_args_fully_reversed_three_params() {
+    let source = r#"
+fn f(a: number, b: number, c: number) -> number { a + b + c }
+f(c: 30, b: 20, a: 10)
+"#;
+    let output = emit_typed(source);
+    assert!(
+        output.contains("f(10, 20, 30)"),
+        "fully reversed 3-arg named call should reorder; got:\n{output}"
+    );
+}
+
+#[test]
+fn named_args_splice_multiple_defaults() {
+    let source = r#"
+fn g(a: number, b: number = 2, c: number = 3, d: number) -> number { a + b + c + d }
+g(d: 40, a: 10)
+"#;
+    let output = emit_typed(source);
+    assert!(
+        output.contains("g(10, 2, 3, 40)"),
+        "two defaults spliced between named args; got:\n{output}"
+    );
+}
+
+#[test]
 fn named_args_default_spliced_in_missing_slot() {
     // A named call that omits a defaulted parameter gets the default
     // spliced into the reordered slot so codegen emits it positionally.

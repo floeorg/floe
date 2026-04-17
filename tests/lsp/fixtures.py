@@ -566,7 +566,7 @@ fn greet(name: string, greeting: string = "Hello") -> string {
 }
 
 const a = greet("Alice")
-const b = greet("Bob", "Hi")
+const b = greet("Bob", greeting: "Hi")
 """
 
 WHEN_GUARD = """\
