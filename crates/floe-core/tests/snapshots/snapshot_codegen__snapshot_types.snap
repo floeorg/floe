@@ -1,10 +1,9 @@
 ---
-source: tests/snapshot_codegen.rs
-assertion_line: 65
+source: crates/floe-core/tests/snapshot_codegen.rs
 expression: output
 ---
 type User = { id: string; name: string; email: string };
 
-type Status = { tag: "Active" } | { tag: "Inactive"; reason: string } | { tag: "Suspended"; value: string } | { tag: "Error"; _0: number; _1: string };
+type Status = { __tag: "Active" } | { __tag: "Inactive"; reason: string } | { __tag: "Suspended"; value: string } | { __tag: "Error"; _0: number; _1: string };
 
-type UserId = { tag: "UserId"; value: string };
+type UserId = { __tag: "UserId"; value: string };

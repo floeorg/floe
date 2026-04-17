@@ -1,26 +1,25 @@
 ---
-source: tests/snapshot_codegen.rs
-assertion_line: 71
+source: crates/floe-core/tests/snapshot_codegen.rs
 expression: output
 ---
-type Shape = { tag: "Circle"; value: number } | { tag: "Rect"; _0: number; _1: number } | { tag: "Point" };
+type Shape = { __tag: "Circle"; value: number } | { __tag: "Rect"; _0: number; _1: number } | { __tag: "Point" };
 
-const c = { tag: "Circle", value: 5 };
+const c = { __tag: "Circle", value: 5 };
 
-const r = { tag: "Rect", _0: 10, _1: 20 };
+const r = { __tag: "Rect", _0: 10, _1: 20 };
 
-const p = { tag: "Point" };
+const p = { __tag: "Point" };
 
 function describe(s: Shape): string {
-  return s.tag === "Circle" ? (() => { const radius = s.value; return `circle r=${radius}`; })() : s.tag === "Rect" ? (() => { const w = s._0; const h = s._1; return `rect ${w}x${h}`; })() : s.tag === "Point" ? "point" : (() => { throw new Error("non-exhaustive match"); })();
+  return s.__tag === "Circle" ? (() => { const radius = s.value; return `circle r=${radius}`; })() : s.__tag === "Rect" ? (() => { const w = s._0; const h = s._1; return `rect ${w}x${h}`; })() : s.__tag === "Point" ? "point" : (() => { throw new Error("non-exhaustive match"); })();
 }
 
 const _d = describe(c);
 
-type Result2 = { tag: "Ok2"; value: string } | { tag: "Err2"; code: number; message: string };
+type Result2 = { __tag: "Ok2"; value: string } | { __tag: "Err2"; code: number; message: string };
 
-const _ok = { tag: "Ok2", value: "hello" };
+const _ok = { __tag: "Ok2", value: "hello" };
 
-const _err = { tag: "Err2", code: 404, message: "not found" };
+const _err = { __tag: "Err2", code: 404, message: "not found" };
 
-const _msg = _ok.tag === "Ok2" ? (() => { const val = _ok.value; return val; })() : _ok.tag === "Err2" ? (() => { const code = _ok.code; const message = _ok.message; return `${code}: ${message}`; })() : (() => { throw new Error("non-exhaustive match"); })();
+const _msg = _ok.__tag === "Ok2" ? (() => { const val = _ok.value; return val; })() : _ok.__tag === "Err2" ? (() => { const code = _ok.code; const message = _ok.message; return `${code}: ${message}`; })() : (() => { throw new Error("non-exhaustive match"); })();
