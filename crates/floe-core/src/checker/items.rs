@@ -108,22 +108,23 @@ impl Checker {
                 let corrected_type = self.correct_usestate_option_type(&final_type, &decl.value);
                 let effective_type = corrected_type.as_ref().unwrap_or(&final_type);
 
-                // Array pattern `[a, b]` is for `Array<T>` values only.
-                // Tuples must use `(a, b)` so destructuring reflects the
-                // underlying shape and LSP hover shows the right type.
-                if matches!(effective_type, Type::Tuple(_)) {
-                    self.emit_error_with_help(
-                        "array destructuring `[...]` cannot be used on a tuple value",
-                        span,
-                        ErrorCode::ArrayDestructureOnTuple,
-                        "tuple values require tuple destructuring",
-                        format!(
-                            "use `({})` instead of `[{}]`",
-                            names.join(", "),
-                            names.join(", ")
-                        ),
-                    );
-                }
+                // `[a, b]` in a const binding is banned: on arrays it
+                // lies about element presence (runtime length isn't in
+                // the type), on tuples it hides the real shape. Users
+                // destructure tuples with `(a, b)` and unpack arrays
+                // with `Array.get` or match patterns.
+                let help = if matches!(effective_type, Type::Tuple(_)) {
+                    format!("use `({0})` — the value is a tuple", names.join(", "))
+                } else {
+                    "use `Array.get(arr, i)` (returns `Option<T>`) or `match arr { [a, b, ..] -> ..., _ -> ... }`".to_string()
+                };
+                self.emit_error_with_help(
+                    "array destructuring `[...]` is not allowed in a const binding",
+                    span,
+                    ErrorCode::ArrayDestructureInConst,
+                    "`[a, b]` lies about runtime length",
+                    help,
+                );
 
                 for (i, name) in names.iter().enumerate() {
                     let elem_ty = Self::array_element_type(effective_type, i);

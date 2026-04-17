@@ -21,8 +21,8 @@ export const PI = 3.14159
 
 // Destructuring
 const (a, b) = pair             // tuple
-const [first, second] = items   // array
 const { name, age } = user      // record
+// (array destructuring not allowed in `const`; use `Array.get` or a match pattern)
 ```
 
 ### Function

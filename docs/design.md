@@ -85,7 +85,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Structural equality | `==` on objects compares by value | deep equality check |
 | Unit type | `()` as return type, usable in generics | `undefined` / `void` in TS |
 | Tuple types | `(number, string)`, `(1, "a")` | `readonly [number, string]`, `[1, "a"] as const` |
-| Tuple destructuring | `const (x, y) = pair` — `[x, y]` is for arrays, not tuples | `const [x, y] = pair` |
+| Tuple destructuring | `const (x, y) = pair` — array destructure `[x, y]` is rejected in `const`; use `Array.get` or match | `const [x, y] = pair` |
 | Tuple match patterns | `(0, _) -> ...` | index-based match conditions |
 | Array match patterns | `[first, ..rest] -> ...` | length check + index/slice access |
 | `use` callback flattening | `use x <- f(arg)` | `f(arg, (x) => { rest })` (Gleam-style) |

@@ -7793,9 +7793,8 @@ fn unused() -> number { 1 }
 
 #[test]
 fn array_destructure_on_tuple_value_errors() {
-    // `const [x, y] = (1, 2)` is wrong — `[]` is for arrays, `()` is for
-    // tuples. The old lenient check accepted this; now it errors with a
-    // clear fix.
+    // `const [x, y] = (1, 2)` — `[]` destructure in a const binding is
+    // banned. Tuples use `(a, b)`; arrays use `Array.get` or match.
     let diags = check(
         r#"
 const t = (1, 2)
@@ -7803,10 +7802,35 @@ const [x, y] = t
 "#,
     );
     assert!(
-        has_error_containing(&diags, "array destructuring")
-            || has_error_containing(&diags, "tuple"),
-        "expected array-destructure-on-tuple diagnostic, got: {:?}",
+        has_error_containing(&diags, "array destructuring"),
+        "expected array-destructure diagnostic, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let help = diags.iter().find_map(|d| d.help.as_deref()).unwrap_or("");
+    assert!(
+        help.contains("tuple"),
+        "help text should point at the tuple form, got: {help:?}"
+    );
+}
+
+#[test]
+fn array_destructure_on_array_value_also_errors() {
+    // `[a, b]` on an array lies about runtime length — banned too.
+    let diags = check(
+        r#"
+const arr: Array<number> = [1, 2, 3]
+const [a, b] = arr
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "array destructuring"),
+        "expected array-destructure diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let help = diags.iter().find_map(|d| d.help.as_deref()).unwrap_or("");
+    assert!(
+        help.contains("Array.get") || help.contains("match"),
+        "help text should point at `Array.get` / match, got: {help:?}"
     );
 }
 
@@ -7821,21 +7845,6 @@ const (x, y) = t
     assert!(
         diags.iter().all(|d| d.severity != Severity::Error),
         "tuple destructure on tuple value should succeed, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn array_destructure_on_array_value_succeeds() {
-    let diags = check(
-        r#"
-const arr: Array<number> = [1, 2, 3]
-const [a, b] = arr
-"#,
-    );
-    assert!(
-        diags.iter().all(|d| d.severity != Severity::Error),
-        "array destructure on array value should still work, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

@@ -22,9 +22,19 @@ const count: number = 42
 ### Destructuring
 
 ```floe
-const [first, second] = getItems()   // `[]` — value must be Array<T>
-const (left, right) = getPair()      // `()` — value must be a tuple
-const { name, age } = getUser()      // `{}` — value must be a record
+const (left, right) = getPair()      // `()` — tuple
+const { name, age } = getUser()      // `{}` — record
+```
+
+Array destructuring (`const [a, b] = arr`) is rejected in `const`
+bindings — it lies about runtime length. Use `Array.get(arr, i) ->
+Option<T>` or a match pattern:
+
+```floe
+match arr {
+  [first, ..rest] -> ...,
+  _ -> ...,
+}
 ```
 
 ## Functions
