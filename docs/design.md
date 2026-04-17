@@ -78,8 +78,9 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Closures | `(x) => x + 1` | `(x) => x + 1` |
 | Dot shorthand | `.name` in callback position | `(x) => x.name` |
 | Dot shorthand (predicate) | `.id != id` in callback position | `(x) => x.id != id` |
-| Qualified variant | `Type.Variant` for disambiguation | `{ tag: "Variant" }` (same as bare) |
-| Variant as function | `Validation` (bare, non-unit) | `(errors) => ({ tag: "Validation", errors })` |
+| Qualified variant | `Type.Variant` for disambiguation | `{ __tag: "Variant" }` (same as bare) |
+| Variant as function | `Validation` (bare, non-unit) | `(errors) => ({ __tag: "Validation", errors })` |
+| Tagged union discriminator | implicit — users write `match x { Home -> ... }` | `__tag` field (double-underscore is Floe's fingerprint — also used for for-block mangling like `User__display`; leaves the name `tag` free for user records) |
 | Generic functions | `fn identity<T>(x: T) -> T { x }` | `function identity<T>(x: T): T { return x; }` |
 | Default values | `fn f(x: number = 10)` | caller can omit, compiler fills in |
 | Structural equality | `==` on objects compares by value | deep equality check |
@@ -1654,12 +1655,12 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `(x) => x + 1` | `(x) => x + 1` |
 | `.name` (in callback) | `(x) => x.name` |
 | `.id != id` (in callback) | `(x) => x.id != id` |
-| `Type.Variant` (qualified) | `{ tag: "Variant" }` (same as bare) |
+| `Type.Variant` (qualified) | `{ __tag: "Variant" }` (same as bare) |
 | `fn f(x: T) -> U { ... }` | `function f(x: T): U { ... }` |
 | `fn f<T>(x: T) -> T { ... }` | `function f<T>(x: T): T { ... }` |
 | untrusted npm call (e.g. `parseYaml(input)`) | `(() => { try { return { ok: true, value: parseYaml(input) }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
-| `match x { A -> ..., B -> ... }` | `x.tag === "A" ? ... : x.tag === "B" ? ... : absurd(x)` |
-| `match x { A(v) when v > 0 -> ... }` | `x.tag === "A" ? (() => { const v = x.value; if (v > 0) { return ...; } ... })()` |
+| `match x { A -> ..., B -> ... }` | `x.__tag === "A" ? ... : x.__tag === "B" ? ... : absurd(x)` |
+| `match x { A(v) when v > 0 -> ... }` | `x.__tag === "A" ? (() => { const v = x.value; if (v > 0) { return ...; } ... })()` |
 | `match url { "/users/{id}" -> f(id) }` | `url.match(/^\/users\/([^/]+)$/) ? (() => { const _m = url.match(...); const id = _m![1]; return f(id); })() : ...` |
 | `fetchUser(id)?` | `const _r = fetchUser(id); if (!_r.ok) return _r; const val = _r.value;` |
 | `Ok(value)` | `{ ok: true, value }` |

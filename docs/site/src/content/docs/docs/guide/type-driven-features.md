@@ -178,7 +178,7 @@ const testOrder = mock<Order>
 // {
 //   id: "mock-id-1",
 //   items: [{ productId: "mock-productId-2", quantity: 3 }],
-//   status: { tag: "Pending" }
+//   status: { __tag: "Pending" }
 // }
 ```
 

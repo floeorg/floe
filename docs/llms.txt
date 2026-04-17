@@ -186,8 +186,8 @@ const c = Color.Red     // OK — qualified
 
 // Non-unit variants as functions (constructor-as-function):
 // A non-unit variant name used without args becomes an arrow function
-const toValidation = Validation  // (errors) => ({ tag: "Validation", errors })
-const toApi = SaveError.Api      // (message) => ({ tag: "Api", message })
+const toValidation = Validation  // (errors) => ({ __tag: "Validation", errors })
+const toApi = SaveError.Api      // (message) => ({ __tag: "Api", message })
 // Useful with mapErr:
 result |> Result.mapErr(Validation)  // instead of Result.mapErr(fn(e) Validation(e))
 ```
@@ -799,3 +799,4 @@ floe lsp                     # start language server (used by editors)
 14. **Blank line before final expression** — `floe fmt` inserts a blank line before the last expression in multi-statement blocks (2+ statements) to visually separate the return value
 15. **Call argument rules** — positional must precede named; named may be in any order (reordered at compile time); every required param must be covered; no slot can be covered twice; defaulted params must be passed by name, not positionally
 16. **No array destructure in `const`** — `[a, b]` lies about runtime length on arrays and hides shape on tuples. Tuples: `const (a, b) = pair`. Arrays: `Array.get(arr, i)` (returns `Option<T>`) or `match arr { [a, b, ..] -> ..., _ -> ... }`. `useState(0)` returns a tuple, so `const (count, setCount) = useState(0)`
+17. **`__` is Floe's fingerprint in emitted TypeScript** — tagged-union discriminators compile to `__tag`, for-block methods mangle to `Type__method`. User records are free to use a plain `tag` field without colliding
