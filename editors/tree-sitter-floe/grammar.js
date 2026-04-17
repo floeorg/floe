@@ -189,14 +189,19 @@ module.exports = grammar({
       prec.right(1, seq(
         field("name", $.type_identifier),
         optional(choice(
+          // Named-field variants: `{ field: Type, ... }`
           seq("{", commaSep1($.variant_field), "}"),
+          // Positional variants: `(Type, ...)` — no field names
           seq("(", commaSep1($._type_expression), ")"),
         )),
       )),
 
+    // Named field inside a brace-form variant. The name is required — the
+    // Floe parser rejects type-only fields inside `{ ... }` variants.
     variant_field: ($) =>
       seq(
-        optional(seq(field("name", $.identifier), ":")),
+        field("name", $.identifier),
+        ":",
         field("type", $._type_expression),
       ),
 
@@ -464,7 +469,18 @@ module.exports = grammar({
     variant_pattern: ($) =>
       seq(
         field("name", $.type_identifier),
-        optional(seq("(", commaSep1($._pattern), ")")),
+        optional(choice(
+          // Positional: `Variant(pat, ...)`
+          seq("(", commaSep1($._pattern), ")"),
+          // Named: `Variant { field, field: pat, ... }`
+          seq("{", commaSep1($.variant_field_pattern), "}"),
+        )),
+      ),
+
+    variant_field_pattern: ($) =>
+      seq(
+        field("name", $.identifier),
+        optional(seq(":", field("pattern", $._pattern))),
       ),
 
     literal_pattern: ($) =>

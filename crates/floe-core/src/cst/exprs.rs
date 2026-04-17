@@ -783,6 +783,15 @@ impl<'src> CstParser<'src> {
                         self.eat_trivia();
                         self.parse_comma_separated(Self::parse_pattern, TokenKind::RightParen);
                         self.expect(TokenKind::RightParen);
+                    } else if self.at(TokenKind::LeftBrace) {
+                        // Named-field variant pattern: `Rectangle { width, height: h }`
+                        self.bump(); // {
+                        self.eat_trivia();
+                        self.parse_comma_separated(
+                            Self::parse_named_variant_pattern_field,
+                            TokenKind::RightBrace,
+                        );
+                        self.expect(TokenKind::RightBrace);
                     }
                 } else {
                     self.bump();
@@ -810,6 +819,21 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
             self.parse_pattern();
         }
+    }
+
+    /// Parse a named-field entry inside a brace-form variant pattern:
+    /// `width` (shorthand binding) or `width: h` (rename) or `width: 0` (nested).
+    fn parse_named_variant_pattern_field(&mut self) {
+        self.builder
+            .start_node(SyntaxKind::VARIANT_FIELD_PATTERN.into());
+        self.expect_ident();
+        self.eat_trivia();
+        if self.at(TokenKind::Colon) {
+            self.bump();
+            self.eat_trivia();
+            self.parse_pattern();
+        }
+        self.builder.finish_node();
     }
 
     // ── Object Literal ───────────────────────────────────────────

@@ -149,26 +149,31 @@ impl<'a> TypeScriptGenerator<'a> {
                     .variant_info
                     .get(name.as_str())
                     .map(|(_, names)| names.clone());
-                for (i, field_pat) in fields.iter().enumerate() {
-                    if !matches!(
+                let total = fields.len();
+                for (i, field_name, field_pat) in fields.entries() {
+                    if matches!(
                         field_pat.kind,
                         PatternKind::Wildcard | PatternKind::Binding(_)
                     ) {
-                        docs.push(pretty::str(" && "));
-                        let field_access = type_layout::variant_field_accessor_for(
+                        continue;
+                    }
+                    docs.push(pretty::str(" && "));
+                    let field_access = match field_name {
+                        Some(fname) => format!("{subj_str}.{fname}"),
+                        None => type_layout::variant_field_accessor_for(
                             &subject.ty,
                             name,
                             i,
-                            fields.len(),
+                            total,
                             field_names.as_deref(),
                             &subj_str,
-                        );
-                        let field_expr = TypedExpr::synthetic_typed(
-                            ExprKind::Identifier(field_access),
-                            subject.span,
-                        );
-                        docs.push(self.emit_pattern_condition(&field_expr, field_pat));
-                    }
+                        ),
+                    };
+                    let field_expr = TypedExpr::synthetic_typed(
+                        ExprKind::Identifier(field_access),
+                        subject.span,
+                    );
+                    docs.push(self.emit_pattern_condition(&field_expr, field_pat));
                 }
                 pretty::concat(docs)
             }
@@ -415,14 +420,18 @@ fn collect_bindings_inner(
         }
         PatternKind::Variant { name, fields } => {
             let field_names = variant_info.get(name.as_str()).map(|(_, names)| names);
-            for (i, field_pat) in fields.iter().enumerate() {
-                let field_access = type_layout::variant_field_accessor(
-                    name,
-                    i,
-                    fields.len(),
-                    field_names.map(|v| v.as_slice()),
-                    subject_str,
-                );
+            let total = fields.len();
+            for (i, field_name, field_pat) in fields.entries() {
+                let field_access = match field_name {
+                    Some(fname) => format!("{subject_str}.{fname}"),
+                    None => type_layout::variant_field_accessor(
+                        name,
+                        i,
+                        total,
+                        field_names.map(|v| v.as_slice()),
+                        subject_str,
+                    ),
+                };
                 collect_bindings_inner(&field_access, field_pat, variant_info, bindings);
             }
         }

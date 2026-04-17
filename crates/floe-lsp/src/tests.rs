@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use super::completion::*;
 use super::completions::{
     detect_match_context, is_in_jsx_tag, jsx_attribute_completions, lambda_event_completions,
+    match_arm_snippet,
 };
 use super::goto_def::import_path_at_offset;
 use super::index::*;
@@ -700,7 +701,7 @@ fn match_context_detects_variants() {
     let offset = editor_source.len();
     let variants = detect_match_context(editor_source, offset, &index);
     assert!(variants.is_some(), "should detect match context");
-    let names = variants.unwrap();
+    let names: Vec<_> = variants.unwrap().into_iter().map(|(n, _)| n).collect();
     assert!(names.contains(&"Red".to_string()));
     assert!(names.contains(&"Green".to_string()));
     assert!(names.contains(&"Blue".to_string()));
@@ -717,6 +718,38 @@ fn match_context_not_detected_outside_match() {
     assert!(
         variants.is_none(),
         "should not detect match context outside match block"
+    );
+}
+
+#[test]
+fn match_context_emits_shape_aware_snippets() {
+    let source = r#"
+type Shape {
+    | Unit
+    | Circle(number)
+    | Rect(number, number)
+    | Rectangle { width: number, height: number }
+}
+"#;
+    let (index, _) = build_index_and_types(source);
+    let editor_source = format!("{source}match s {{\n    ");
+    let offset = editor_source.len();
+    let variants: Vec<_> = detect_match_context(&editor_source, offset, &index)
+        .expect("match context")
+        .into_iter()
+        .collect();
+
+    let by_name = |name: &str| {
+        let (n, shape) = variants.iter().find(|(n, _)| n == name).expect(name);
+        match_arm_snippet(n, shape.as_ref())
+    };
+
+    assert_eq!(by_name("Unit"), "Unit -> $0,");
+    assert_eq!(by_name("Circle"), "Circle($1) -> $0,");
+    assert_eq!(by_name("Rect"), "Rect($1, $2) -> $0,");
+    assert_eq!(
+        by_name("Rectangle"),
+        "Rectangle { width: $1, height: $2 } -> $0,"
     );
 }
 

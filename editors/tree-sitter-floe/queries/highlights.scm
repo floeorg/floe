@@ -94,8 +94,14 @@
 (variant
   name: (type_identifier) @constructor)
 
+(variant_field
+  name: (identifier) @property)
+
 (variant_pattern
   name: (type_identifier) @constructor)
+
+(variant_field_pattern
+  name: (identifier) @property)
 
 (variant_expression
   variant: (type_identifier) @constructor)

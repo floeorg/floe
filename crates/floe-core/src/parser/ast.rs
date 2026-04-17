@@ -293,7 +293,7 @@ pub struct TypeDecl<T = ()> {
 pub enum TypeDef<T = ()> {
     /// Record type: `{ field: Type, ...OtherType, ... }`
     Record(Vec<RecordEntry<T>>),
-    /// Union type: `| Variant1 | Variant2(field: Type)`
+    /// Union type: `| Unit | Positional(Type) | Named { field: Type }`
     Union(Vec<Variant<T>>),
     /// Type alias: `type X = SomeOtherType`
     Alias(TypeExpr<T>),
@@ -722,8 +722,13 @@ pub enum PatternKind {
         start: LiteralPattern,
         end: LiteralPattern,
     },
-    /// Variant/constructor pattern: `Ok(x)`, `Network(Timeout(ms))`
-    Variant { name: String, fields: Vec<Pattern> },
+    /// Variant/constructor pattern: `Ok(x)`, `Rectangle { width, height: h }`.
+    /// The field list is either positional (parens) or named (braces) — it
+    /// must match the shape of the variant's declaration.
+    Variant {
+        name: String,
+        fields: VariantPatternFields,
+    },
     /// Record destructuring pattern: `{ x, y }` or `{ ctrl: true }`
     Record { fields: Vec<(String, Pattern)> },
     /// String pattern with captures: `"/users/{id}"` or `"/users/{id}/posts"`
@@ -744,6 +749,100 @@ pub enum PatternKind {
         /// Optional rest binding: `..rest` captures the remaining tail
         rest: Option<String>,
     },
+}
+
+/// Field list shape for a variant pattern — mirrors the declaration.
+/// Parser + checker enforce that `Positional` patterns only match variants
+/// declared as `Variant(Type, ...)` and `Named` patterns only match variants
+/// declared as `Variant { field: Type, ... }`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum VariantPatternFields {
+    /// `Ok(x)`, `Rect(w, h)` — positional field patterns.
+    Positional(Vec<Pattern>),
+    /// `Rectangle { width, height: h }` — named field patterns. Each entry is
+    /// `(field_name, nested_pattern)`. Shorthand like `{ width }` lowers to
+    /// `("width", PatternKind::Binding("width"))`.
+    Named(Vec<(String, Pattern)>),
+}
+
+impl VariantPatternFields {
+    /// Total number of fields in the pattern, regardless of shape.
+    pub fn len(&self) -> usize {
+        match self {
+            VariantPatternFields::Positional(pats) => pats.len(),
+            VariantPatternFields::Named(fields) => fields.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Iterate over the nested patterns without the field name.
+    pub fn patterns(&self) -> impl Iterator<Item = &Pattern> {
+        VariantPatternIter::Patterns(self.entries())
+    }
+
+    /// Iterate over `(index, Option<field_name>, pattern)` entries. `Some` name
+    /// is yielded for named-shape patterns, `None` for positional. Used by
+    /// codegen to pick the runtime field accessor.
+    pub fn entries(&self) -> VariantPatternEntries<'_> {
+        match self {
+            VariantPatternFields::Positional(pats) => VariantPatternEntries::Positional {
+                inner: pats.iter().enumerate(),
+            },
+            VariantPatternFields::Named(fields) => VariantPatternEntries::Named {
+                inner: fields.iter().enumerate(),
+            },
+        }
+    }
+
+    /// Human-readable name of the shape — for error messages.
+    pub fn shape_name(&self) -> &'static str {
+        match self {
+            VariantPatternFields::Positional(_) => "positional",
+            VariantPatternFields::Named(_) => "named",
+        }
+    }
+}
+
+/// Enum-based iterator over variant pattern fields. Avoids the heap
+/// allocation a `Box<dyn Iterator>` would incur in codegen / LSP hot paths.
+pub enum VariantPatternEntries<'a> {
+    Positional {
+        inner: std::iter::Enumerate<std::slice::Iter<'a, Pattern>>,
+    },
+    Named {
+        inner: std::iter::Enumerate<std::slice::Iter<'a, (String, Pattern)>>,
+    },
+}
+
+impl<'a> Iterator for VariantPatternEntries<'a> {
+    type Item = (usize, Option<&'a str>, &'a Pattern);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            VariantPatternEntries::Positional { inner } => inner.next().map(|(i, p)| (i, None, p)),
+            VariantPatternEntries::Named { inner } => inner
+                .next()
+                .map(|(i, (name, p))| (i, Some(name.as_str()), p)),
+        }
+    }
+}
+
+/// Bare-pattern iterator that drops the index and field name. Thin wrapper
+/// around `VariantPatternEntries` so callers that only care about the nested
+/// pattern don't need to destructure the tuple.
+enum VariantPatternIter<'a> {
+    Patterns(VariantPatternEntries<'a>),
+}
+
+impl<'a> Iterator for VariantPatternIter<'a> {
+    type Item = &'a Pattern;
+    fn next(&mut self) -> Option<Self::Item> {
+        let VariantPatternIter::Patterns(entries) = self;
+        entries.next().map(|(_, _, p)| p)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

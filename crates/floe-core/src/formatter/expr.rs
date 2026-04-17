@@ -405,7 +405,20 @@ impl Formatter<'_> {
                         let name = tok.text().to_string();
                         if name.starts_with(char::is_uppercase) {
                             let mut parts = vec![pretty::str(name)];
-                            if !sub_patterns.is_empty() {
+                            let named_fields: Vec<_> = node
+                                .children()
+                                .filter(|c| c.kind() == SyntaxKind::VARIANT_FIELD_PATTERN)
+                                .collect();
+                            if !named_fields.is_empty() {
+                                parts.push(pretty::str(" { "));
+                                for (i, field) in named_fields.iter().enumerate() {
+                                    if i > 0 {
+                                        parts.push(pretty::str(", "));
+                                    }
+                                    parts.push(self.fmt_variant_field_pattern(field));
+                                }
+                                parts.push(pretty::str(" }"));
+                            } else if !sub_patterns.is_empty() {
                                 parts.push(pretty::str("("));
                                 for (i, p) in sub_patterns.iter().enumerate() {
                                     if i > 0 {
@@ -491,6 +504,26 @@ impl Formatter<'_> {
             }
         }
         pretty::nil()
+    }
+
+    /// Format one field in a brace-form variant pattern: either shorthand
+    /// (`width`) or a rename/nested pattern (`width: pat`).
+    fn fmt_variant_field_pattern(&mut self, node: &SyntaxNode) -> Document {
+        let name = node
+            .children_with_tokens()
+            .filter_map(|t| t.into_token())
+            .find(|t| t.kind() == SyntaxKind::IDENT)
+            .map(|t| t.text().to_string())
+            .unwrap_or_default();
+        let nested = node.children().find(|c| c.kind() == SyntaxKind::PATTERN);
+        match nested {
+            Some(p) => pretty::concat(vec![
+                pretty::str(name),
+                pretty::str(": "),
+                self.fmt_pattern(&p),
+            ]),
+            None => pretty::str(name),
+        }
     }
 
     // ── Binary / Unary ──────────────────────────────────────────

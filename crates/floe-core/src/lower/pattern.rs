@@ -183,11 +183,24 @@ impl<'src> Lowerer<'src> {
                             } else {
                                 name
                             };
-                            let fields: Vec<Pattern> = node
+                            let fields = if node
                                 .children()
-                                .filter(|c| c.kind() == SyntaxKind::PATTERN)
-                                .filter_map(|c| self.lower_pattern(&c))
-                                .collect();
+                                .any(|c| c.kind() == SyntaxKind::VARIANT_FIELD_PATTERN)
+                            {
+                                VariantPatternFields::Named(
+                                    node.children()
+                                        .filter(|c| c.kind() == SyntaxKind::VARIANT_FIELD_PATTERN)
+                                        .filter_map(|c| self.lower_variant_field_pattern(&c))
+                                        .collect(),
+                                )
+                            } else {
+                                VariantPatternFields::Positional(
+                                    node.children()
+                                        .filter(|c| c.kind() == SyntaxKind::PATTERN)
+                                        .filter_map(|c| self.lower_pattern(&c))
+                                        .collect(),
+                                )
+                            };
                             return Some(Pattern {
                                 kind: PatternKind::Variant {
                                     name: variant_name,
@@ -274,6 +287,24 @@ impl<'src> Lowerer<'src> {
         }
 
         None
+    }
+
+    /// Lower a `VARIANT_FIELD_PATTERN` node: `field` (shorthand) or
+    /// `field: pattern`. Shorthand lowers to a binding pattern on the field name.
+    fn lower_variant_field_pattern(&mut self, node: &SyntaxNode) -> Option<(String, Pattern)> {
+        let span = self.node_span(node);
+        let name = self.collect_idents_direct(node).first()?.clone();
+
+        let nested = node
+            .children()
+            .find(|c| c.kind() == SyntaxKind::PATTERN)
+            .and_then(|c| self.lower_pattern(&c))
+            .unwrap_or_else(|| Pattern {
+                kind: PatternKind::Binding(name.clone()),
+                span,
+            });
+
+        Some((name, nested))
     }
 
     pub(super) fn lower_record_pattern_fields(

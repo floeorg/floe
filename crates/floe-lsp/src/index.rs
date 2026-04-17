@@ -44,6 +44,22 @@ pub(super) struct Symbol {
     pub(super) first_param_type: Option<Arc<Type>>,
     /// For properties: the parent type name (e.g., "User" for User.name)
     pub(super) owner_type: Option<String>,
+    /// For `ENUM_MEMBER` variants: shape of the declared field list. Drives
+    /// match-arm completion to insert the right snippet — `Variant`, `Variant(..)`,
+    /// or `Variant { .. }` — instead of always plain `Variant`.
+    pub(super) variant_shape: Option<VariantShapeHint>,
+}
+
+/// Summary of a variant declaration's field list, used by LSP completion.
+#[derive(Debug, Clone)]
+pub(super) enum VariantShapeHint {
+    /// Unit variant: no fields — `Variant`.
+    Unit,
+    /// Positional fields: `Variant(Type1, Type2)` — suggests `Variant($1, $2)`.
+    Positional(usize),
+    /// Named fields: `Variant { f1: Type1, f2: Type2 }` — suggests
+    /// `Variant { f1, f2 }`.
+    Named(Vec<String>),
 }
 
 /// Index of all symbols in a document.
@@ -115,6 +131,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                         detail: format!("import {{ {} }} from \"{}\"", spec.name, decl.source),
                         first_param_type: None,
                         owner_type: None,
+                        variant_shape: None,
                     });
                 }
             }
@@ -152,6 +169,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     detail: format!("{vis}const {name}{type_ann}"),
                     first_param_type: None,
                     owner_type: None,
+                    variant_shape: None,
                 });
 
                 // Also index destructured names
@@ -167,6 +185,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                                 detail: format!("const {{ {n} }}"),
                                 first_param_type: None,
                                 owner_type: None,
+                                variant_shape: None,
                             });
                         }
                     }
@@ -182,6 +201,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                                 detail: format!("const {{ {n} }}"),
                                 first_param_type: None,
                                 owner_type: None,
+                                variant_shape: None,
                             });
                         }
                     }
@@ -230,6 +250,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     ),
                     first_param_type: None,
                     owner_type: None,
+                    variant_shape: None,
                 });
 
                 for param in &decl.params {
@@ -319,6 +340,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     detail: format!("{vis}{opaque}type {}{type_params}{body}", decl.name),
                     first_param_type: None,
                     owner_type: None,
+                    variant_shape: None,
                 });
 
                 // Index record fields
@@ -338,6 +360,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                                 ),
                                 first_param_type: None,
                                 owner_type: Some(decl.name.clone()),
+                                variant_shape: None,
                             });
                         }
                     }
@@ -355,6 +378,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                             detail: format!("{}.{}", decl.name, variant.name),
                             first_param_type: None,
                             owner_type: None,
+                            variant_shape: Some(variant_shape_from_decl(&variant.fields)),
                         });
                     }
                 }
@@ -382,6 +406,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                                 detail: format!("self: {type_str}"),
                                 first_param_type: None,
                                 owner_type: None,
+                                variant_shape: None,
                             });
                         } else {
                             push_param_symbol(param, symbols);
@@ -402,6 +427,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     detail: format!("{vis}trait {}", decl.name),
                     first_param_type: None,
                     owner_type: None,
+                    variant_shape: None,
                 });
 
                 // Index trait methods
@@ -437,6 +463,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                         ),
                         first_param_type: None,
                         owner_type: None,
+                        variant_shape: None,
                     });
 
                     // Recurse into default method bodies
@@ -534,6 +561,7 @@ fn collect_pattern_bindings(pattern: &floe_core::parser::ast::Pattern, symbols: 
                 detail: format!("(pattern) {ty}"),
                 first_param_type: None,
                 owner_type: None,
+                variant_shape: None,
             });
         }
         PatternKind::Binding(name) if name != "_" => {
@@ -546,10 +574,11 @@ fn collect_pattern_bindings(pattern: &floe_core::parser::ast::Pattern, symbols: 
                 detail: format!("binding {name}"),
                 first_param_type: None,
                 owner_type: None,
+                variant_shape: None,
             });
         }
         PatternKind::Variant { fields, .. } => {
-            for field in fields {
+            for field in fields.patterns() {
                 collect_pattern_bindings(field, symbols);
             }
         }
@@ -572,6 +601,7 @@ fn collect_pattern_bindings(pattern: &floe_core::parser::ast::Pattern, symbols: 
                     detail: format!("binding {rest_name}"),
                     first_param_type: None,
                     owner_type: None,
+                    variant_shape: None,
                 });
             }
         }
@@ -629,6 +659,7 @@ fn push_param_symbol(param: &TypedParam, symbols: &mut Vec<Symbol>) {
         detail: format!("parameter {}{type_ann}", param.name),
         first_param_type: None,
         owner_type: None,
+        variant_shape: None,
     });
 }
 
@@ -769,6 +800,7 @@ fn for_block_function_symbol<T>(
         ),
         first_param_type,
         owner_type: None,
+        variant_shape: None,
     }
 }
 
@@ -815,5 +847,21 @@ fn enrich_symbol(
         && let Type::Function { params, .. } = ty.as_ref()
     {
         sym.first_param_type = params.first().cloned().map(Arc::new);
+    }
+}
+
+/// Summarize a variant's declared fields into a shape hint. Empty field list
+/// is a unit variant; all-named means a brace-form variant; otherwise
+/// positional. The parser rejects mixed forms, so we don't have to handle
+/// that case here.
+fn variant_shape_from_decl<T>(fields: &[VariantField<T>]) -> VariantShapeHint {
+    if fields.is_empty() {
+        return VariantShapeHint::Unit;
+    }
+    let names: Vec<String> = fields.iter().filter_map(|f| f.name.clone()).collect();
+    if names.len() == fields.len() {
+        VariantShapeHint::Named(names)
+    } else {
+        VariantShapeHint::Positional(fields.len())
     }
 }

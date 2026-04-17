@@ -125,6 +125,10 @@ pub enum SyntaxKind {
     RECORD_SPREAD,
     VARIANT,
     VARIANT_FIELD,
+    /// Field pattern inside a brace-form variant pattern:
+    /// `Rectangle { width, height: h }` → one `VARIANT_FIELD_PATTERN` per
+    /// field, each wrapping an `IDENT` and an optional `COLON PATTERN`.
+    VARIANT_FIELD_PATTERN,
     TYPE_EXPR,
     TYPE_EXPR_FUNCTION,
     TYPE_EXPR_RECORD,
