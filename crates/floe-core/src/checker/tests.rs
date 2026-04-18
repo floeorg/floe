@@ -8407,3 +8407,58 @@ fn handle(_r: Router<Env>) -> Response { Response("ok") }
         errors.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn bare_identifier_pipe_solves_generic_from_piped_type() {
+    // `a |> f` where `f` is a generic bare function used to return a raw
+    // unsolved type variable because `check_pipe_right` read `return_type`
+    // straight off the Function without instantiating generics or unifying
+    // with the piped-in type. The stdlib pipe path already did both —
+    // the non-stdlib bare-identifier path now mirrors it.
+    let program = crate::parser::Parser::new(
+        r#"
+type Bindings { name: string }
+
+fn identity<T>(x: T) -> T { x }
+fn tap<T>(x: T) -> T { x }
+fn chain<T>(x: T, _extra: string) -> T { x }
+
+const _bindings = Bindings(name: "x")
+const _direct = identity<Bindings>(_bindings)
+const _piped_bare = identity<Bindings>(_bindings) |> tap
+const _piped_call = identity<Bindings>(_bindings) |> chain("extra")
+const _piped_chain = identity<Bindings>(_bindings) |> chain("a") |> chain("b")
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+    let (diags, types, _, _) = Checker::new().check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "generic pipe should type-check, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+
+    let direct = types.get("_direct").map(String::as_str);
+    let piped_bare = types.get("_piped_bare").map(String::as_str);
+    let piped_call = types.get("_piped_call").map(String::as_str);
+    let piped_chain = types.get("_piped_chain").map(String::as_str);
+
+    assert_eq!(direct, Some("Bindings"), "direct call baseline");
+    assert_eq!(
+        piped_bare,
+        Some("Bindings"),
+        "bare-identifier pipe must resolve T to Bindings"
+    );
+    assert_eq!(piped_call, Some("Bindings"), "call-form pipe baseline");
+    assert_eq!(
+        piped_chain,
+        Some("Bindings"),
+        "chained call-form pipe baseline"
+    );
+}
