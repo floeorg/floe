@@ -8,6 +8,9 @@ export interface FloeOptions {
   compiler?: string;
 }
 
+const JS_TS_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"] as const;
+const COMPILED_EXTENSIONS = ["tsx", "ts"] as const;
+
 /**
  * esbuild plugin for Floe.
  *
@@ -36,39 +39,45 @@ export default function floe(options: FloeOptions = {}): Plugin {
   return {
     name: "floe",
     setup(build) {
+      const rootCache = new Map<string, string | null>();
+      const findRoot = (flFile: string): string | null => {
+        const key = dirname(flFile);
+        const cached = rootCache.get(key);
+        if (cached !== undefined) return cached;
+        const found = findProjectRoot(flFile);
+        rootCache.set(key, found);
+        return found;
+      };
+
       build.onResolve({ filter: /^\.\.?\// }, (args) => {
         const basePath = resolve(args.resolveDir, args.path);
 
-        // If the import explicitly references a .fl file, take it.
         if (basePath.endsWith(".fl") && existsSync(basePath)) {
           return { path: basePath };
         }
 
-        // For extensionless imports, prefer `.fl` when nothing with a
-        // conventional extension exists at the target — Floe-native
-        // modules don't have `.ts` siblings in `src/`.
+        // Floe-native modules don't have `.ts` siblings — prefer `.fl` only
+        // when no conventional extension matches, so mixed projects with
+        // handwritten `.ts` keep working.
         if (!basePath.endsWith(".fl")) {
-          for (const ext of [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]) {
+          for (const ext of JS_TS_EXTENSIONS) {
             if (existsSync(basePath + ext)) return;
           }
           const flPath = basePath + ".fl";
-          if (existsSync(flPath)) {
-            return { path: flPath };
-          }
+          if (existsSync(flPath)) return { path: flPath };
         }
-
-        return;
       });
 
       build.onLoad({ filter: /\.fl$/ }, (args) => {
-        const cached = readCachedOutput(args.path);
+        const resolveDir = dirname(args.path);
+        const projectRoot = findRoot(args.path);
+        const cached = projectRoot ? readCachedOutput(args.path, projectRoot) : null;
         if (cached !== null) {
-          return { contents: cached, loader: "ts", resolveDir: dirname(args.path) };
+          return { contents: cached, loader: "ts", resolveDir };
         }
 
         try {
-          const compiled = compileFloe(compiler, args.path);
-          return { contents: compiled, loader: "ts", resolveDir: dirname(args.path) };
+          return { contents: compileFloe(compiler, args.path), loader: "ts", resolveDir };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           return {
@@ -87,13 +96,10 @@ export default function floe(options: FloeOptions = {}): Plugin {
 
 /**
  * Read pre-compiled `.ts`/`.tsx` output from the `.floe/` mirror if it's
- * fresher than the source `.fl`. Returns null if the mirror is missing,
- * stale, or the project root can't be located.
+ * fresher than the source `.fl`. Returns null if the mirror is missing
+ * or stale.
  */
-function readCachedOutput(flFile: string): string | null {
-  const projectRoot = findProjectRoot(flFile);
-  if (!projectRoot) return null;
-
+function readCachedOutput(flFile: string, projectRoot: string): string | null {
   let sourceMtime: number;
   try {
     sourceMtime = statSync(flFile).mtimeMs;
@@ -104,7 +110,7 @@ function readCachedOutput(flFile: string): string | null {
   const rel = relative(projectRoot, flFile);
   const floeDir = join(projectRoot, ".floe");
 
-  for (const ext of ["tsx", "ts"]) {
+  for (const ext of COMPILED_EXTENSIONS) {
     const outPath = join(floeDir, rel).replace(/\.fl$/, `.${ext}`);
     try {
       if (statSync(outPath).mtimeMs >= sourceMtime) {
@@ -118,7 +124,6 @@ function readCachedOutput(flFile: string): string | null {
   return null;
 }
 
-/** Walk up from `start` looking for a directory that contains `package.json`. */
 function findProjectRoot(start: string): string | null {
   let dir = isAbsolute(start) ? dirname(start) : resolve(start);
   while (true) {
