@@ -5,6 +5,62 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.8](https://github.com/floeorg/floe/compare/v0.4.7...v0.4.8) (2026-04-18)
+
+
+### Features
+
+* [[#1051](https://github.com/floeorg/floe/issues/1051)] Add |&gt;? pipe-unwrap operator ([#1053](https://github.com/floeorg/floe/issues/1053)) ([4620cad](https://github.com/floeorg/floe/commit/4620cadd80a0218ab5032b828ec2aaf8110f2477))
+* [[#1052](https://github.com/floeorg/floe/issues/1052)] Add async fn sugar to hide Promise&lt;T&gt; return type ([#1056](https://github.com/floeorg/floe/issues/1056)) ([29e342f](https://github.com/floeorg/floe/commit/29e342f6489068899a8944c75d74eea1b89b41bd))
+* [[#1055](https://github.com/floeorg/floe/issues/1055)] Load ambient types from tsconfig (lib, types, @types/*) ([#1081](https://github.com/floeorg/floe/issues/1081)) ([3b4ffea](https://github.com/floeorg/floe/commit/3b4ffeae78c14fe75731bdec397525f37dcd3a01))
+* [[#1068](https://github.com/floeorg/floe/issues/1068)] Nominal typing for Floe-defined types, structural at foreign boundaries ([#1070](https://github.com/floeorg/floe/issues/1070)) ([52fb843](https://github.com/floeorg/floe/commit/52fb843659e78468d600b9603ac28a0b28edb70c))
+* [[#1072](https://github.com/floeorg/floe/issues/1072)] Add trait-constrained generics for dependency injection ([#1083](https://github.com/floeorg/floe/issues/1083)) ([ad2b76b](https://github.com/floeorg/floe/commit/ad2b76baf212a3593b16a6b348ac701ee2487ebf))
+* [[#1104](https://github.com/floeorg/floe/issues/1104)] add pretty.rs Document combinator pretty-printer ([#1128](https://github.com/floeorg/floe/issues/1128)) ([db5a425](https://github.com/floeorg/floe/commit/db5a42533603f1f04e02c52958687f3df8582ea4))
+* [[#1105](https://github.com/floeorg/floe/issues/1105)] add parse time infrastructure (line_numbers + ModuleExtra) ([#1129](https://github.com/floeorg/floe/issues/1129)) ([ac4242e](https://github.com/floeorg/floe/commit/ac4242e39463449198e1dd3f4a70a37e20642fac))
+* [[#1111](https://github.com/floeorg/floe/issues/1111)] add ModuleInterface fingerprint cache for incremental check ([#1156](https://github.com/floeorg/floe/issues/1156)) ([83d8a4c](https://github.com/floeorg/floe/commit/83d8a4cdc79ff63618c488abad7bbd5c0a5dc7ff))
+* [[#1113](https://github.com/floeorg/floe/issues/1113)] add Problems accumulator, ExprKind::Invalid, diagnostic sorting ([#1136](https://github.com/floeorg/floe/issues/1136)) ([0824caf](https://github.com/floeorg/floe/commit/0824cafa8bc483d76ab4bfb4690c4a5c2428266e))
+* [[#1118](https://github.com/floeorg/floe/issues/1118)] add Hindley Milner unification with hydrator and typed vars ([#1150](https://github.com/floeorg/floe/issues/1150)) ([28fa334](https://github.com/floeorg/floe/commit/28fa334a41bd705aff6c06eea8188b2042f61fd4))
+* [[#1158](https://github.com/floeorg/floe/issues/1158)] thread per-dep resolve cache through LSP import resolution ([#1161](https://github.com/floeorg/floe/issues/1161)) ([a2cc5bf](https://github.com/floeorg/floe/commit/a2cc5bffad12abbef3060c9fc9d98beb2dca7360))
+* [[#1177](https://github.com/floeorg/floe/issues/1177)] recognize TS built-in utility types in bridge aliases ([#1190](https://github.com/floeorg/floe/issues/1190)) ([496d258](https://github.com/floeorg/floe/commit/496d25850a52f307fda043f084dd8de8ee895fd0))
+* [[#1178](https://github.com/floeorg/floe/issues/1178)] support tagged template literals ([#1191](https://github.com/floeorg/floe/issues/1191)) ([e6cacd0](https://github.com/floeorg/floe/commit/e6cacd0b18fb92ed66b73b2d9cdda2e869a14948))
+* [[#1179](https://github.com/floeorg/floe/issues/1179)] ship @floeorg/hono shim and fix pipe resolution precedence ([#1184](https://github.com/floeorg/floe/issues/1184)) ([9210f76](https://github.com/floeorg/floe/commit/9210f76f7df682a12209e3ffd6919d372d9d0af6))
+* require import { for Trait } and support block-level export for ([#1090](https://github.com/floeorg/floe/issues/1090), [#1089](https://github.com/floeorg/floe/issues/1089)) ([#1172](https://github.com/floeorg/floe/issues/1172)) ([de34ed2](https://github.com/floeorg/floe/commit/de34ed2132c57f5285e250cd49e70c13483ee406))
+
+
+### Bug Fixes
+
+* [[#1039](https://github.com/floeorg/floe/issues/1039)] Scope return type mismatch error to last expression instead of whole function ([#1040](https://github.com/floeorg/floe/issues/1040)) ([614b54e](https://github.com/floeorg/floe/commit/614b54e251658acd5b847531cf881d666d876c8f))
+* [[#1042](https://github.com/floeorg/floe/issues/1042)] Show only mismatched fields when object type arguments mismatch ([#1043](https://github.com/floeorg/floe/issues/1043)) ([355a3b1](https://github.com/floeorg/floe/commit/355a3b188d5ae56dc7dc8811553e3df03a57a2db))
+* [[#1044](https://github.com/floeorg/floe/issues/1044)] Hint when untrusted import result is used without unwrapping ([#1045](https://github.com/floeorg/floe/issues/1045)) ([b39d459](https://github.com/floeorg/floe/commit/b39d4593322eced05caa6482e6282384b4041c4a))
+* [[#1046](https://github.com/floeorg/floe/issues/1046)] Show normal type mismatch for untrusted Results ([#1047](https://github.com/floeorg/floe/issues/1047)) ([1ed9f9b](https://github.com/floeorg/floe/commit/1ed9f9bc75b98981e1f7a9885d0c5a5cfb376adb))
+* [[#1054](https://github.com/floeorg/floe/issues/1054)] reject bare type name used as value expression ([#1057](https://github.com/floeorg/floe/issues/1057)) ([c43ba1f](https://github.com/floeorg/floe/commit/c43ba1f71d61c1c9203d04da1f4e20965a4fbe88))
+* [[#1059](https://github.com/floeorg/floe/issues/1059)] Split Type::Unknown into Type::Error and Type::Unknown ([#1063](https://github.com/floeorg/floe/issues/1063)) ([6ff3d53](https://github.com/floeorg/floe/commit/6ff3d532f257dd4f5bde5272fae4c54c8970d149))
+* [[#1060](https://github.com/floeorg/floe/issues/1060)] Separate value and type namespaces in checker environment ([#1064](https://github.com/floeorg/floe/issues/1064)) ([b157cd2](https://github.com/floeorg/floe/commit/b157cd2fd6c7918b49e070c7dc0bf168f5f25902))
+* [[#1061](https://github.com/floeorg/floe/issues/1061)] Default-deny in checker for unhandled expressions and items ([#1065](https://github.com/floeorg/floe/issues/1065)) ([469514c](https://github.com/floeorg/floe/commit/469514c0d5c6c436e0b555e053d8d1c669de27a0))
+* [[#1067](https://github.com/floeorg/floe/issues/1067)] Validate trait method parameter types and return types in checker ([#1069](https://github.com/floeorg/floe/issues/1069)) ([1fa2359](https://github.com/floeorg/floe/commit/1fa23593c742018d5cfa6a4ab91ff3ce46968335))
+* [[#1071](https://github.com/floeorg/floe/issues/1071)] Validate self parameter presence in trait method implementations ([#1077](https://github.com/floeorg/floe/issues/1077)) ([60e85cf](https://github.com/floeorg/floe/commit/60e85cf58a933d261f549d13eaf2f0d4afd9e7e0))
+* [[#1073](https://github.com/floeorg/floe/issues/1073)] Error when trait name is used in a type position ([#1078](https://github.com/floeorg/floe/issues/1078)) ([2a9ac32](https://github.com/floeorg/floe/commit/2a9ac32c6bd9b5e14713b3cf83a64048b6187c1d))
+* [[#1074](https://github.com/floeorg/floe/issues/1074)] Remove dot-call syntax for for-block methods ([#1079](https://github.com/floeorg/floe/issues/1079)) ([d50d390](https://github.com/floeorg/floe/commit/d50d3906fcced9f5d3aa71dd23791049ad1aab7c))
+* [[#1076](https://github.com/floeorg/floe/issues/1076)] Add snapshot tests for Unknown type propagation errors ([#1080](https://github.com/floeorg/floe/issues/1080)) ([68d934a](https://github.com/floeorg/floe/commit/68d934a5205ac7879e5f85fc03fdd6028680269e))
+* [[#1114](https://github.com/floeorg/floe/issues/1114)] return Type::Error instead of Type::Unknown after diagnostics ([#1137](https://github.com/floeorg/floe/issues/1137)) ([424e443](https://github.com/floeorg/floe/commit/424e4437a47409a09265a189477aa3842c8aa17d))
+* [[#1115](https://github.com/floeorg/floe/issues/1115)] error on calls through Unknown typed callee ([#1138](https://github.com/floeorg/floe/issues/1138)) ([d714380](https://github.com/floeorg/floe/commit/d71438023409082d790cfe3009e5928c758e3e53))
+* [[#1127](https://github.com/floeorg/floe/issues/1127)] reject array destructuring on tuple values ([#1164](https://github.com/floeorg/floe/issues/1164)) ([204c19b](https://github.com/floeorg/floe/commit/204c19b41354faab5f66120ac5a653214984615e))
+* [[#1133](https://github.com/floeorg/floe/issues/1133)] rename tagged-union discriminator from `tag` to `__tag` ([#1165](https://github.com/floeorg/floe/issues/1165)) ([2636c19](https://github.com/floeorg/floe/commit/2636c19e57ddeba8436309213ada4b63ba22cdb9))
+* [[#1134](https://github.com/floeorg/floe/issues/1134)] reorder named arguments into declared parameter order ([#1163](https://github.com/floeorg/floe/issues/1163)) ([8770b43](https://github.com/floeorg/floe/commit/8770b4373323d6e02e42cd5db9c9826a30789303))
+* [[#1135](https://github.com/floeorg/floe/issues/1135)] enforce positional vs named variant fields ([#1173](https://github.com/floeorg/floe/issues/1173)) ([010dabd](https://github.com/floeorg/floe/commit/010dabd4a32c9bf02bdaa4f671e42f07ac4cde39))
+* [[#1148](https://github.com/floeorg/floe/issues/1148)] remove .. paths from release-please config ([#1149](https://github.com/floeorg/floe/issues/1149)) ([cd23d7f](https://github.com/floeorg/floe/commit/cd23d7f91a678fb5140886de535f8bdcb8f79cb2))
+* [[#1168](https://github.com/floeorg/floe/issues/1168)] stop silently unwrapping Result when piped into stdlib ([#1171](https://github.com/floeorg/floe/issues/1171)) ([ef43384](https://github.com/floeorg/floe/commit/ef433842aedbd5afb65215bc6f9225dd8f2e2a05))
+* [[#1169](https://github.com/floeorg/floe/issues/1169)] reject dot-access on trait methods via generic bound ([#1170](https://github.com/floeorg/floe/issues/1170)) ([d1dcbf5](https://github.com/floeorg/floe/commit/d1dcbf5f1032a0e227f223ef6b00bbb5c6e3c2e5))
+* [[#1174](https://github.com/floeorg/floe/issues/1174)] allow PascalCase field names in record type declarations ([#1180](https://github.com/floeorg/floe/issues/1180)) ([8e2e9a6](https://github.com/floeorg/floe/commit/8e2e9a6a689dd2c03d123fee2e4515a58693d16a))
+* [[#1175](https://github.com/floeorg/floe/issues/1175)] accept inline object-type literals as type arguments ([#1181](https://github.com/floeorg/floe/issues/1181)) ([8eeea1d](https://github.com/floeorg/floe/commit/8eeea1dbd4b58fb02238c16d918e9ea049303201))
+* [[#632](https://github.com/floeorg/floe/issues/632)] bidirectional type inference for Ok/Err from function return type ([#1141](https://github.com/floeorg/floe/issues/1141)) ([f0b1359](https://github.com/floeorg/floe/commit/f0b135982335069ed6d98f2d354f255478395661))
+* tighten trait and for-block method validation ([#1085](https://github.com/floeorg/floe/issues/1085), [#1086](https://github.com/floeorg/floe/issues/1086), [#1087](https://github.com/floeorg/floe/issues/1087)) ([#1167](https://github.com/floeorg/floe/issues/1167)) ([7e247ab](https://github.com/floeorg/floe/commit/7e247abb4840aebc29b1d26b5bed03711c67f01a))
+
+
+### Performance Improvements
+
+* [[#1108](https://github.com/floeorg/floe/issues/1108)] migrate Type to Arc&lt;Type&gt; ([#1142](https://github.com/floeorg/floe/issues/1142)) ([02bb0a4](https://github.com/floeorg/floe/commit/02bb0a4e5961bdf177cbd5fbbd534f4b60468ba9))
+
 ## [0.4.7](https://github.com/floeorg/floe/compare/v0.4.6...v0.4.7) (2026-04-04)
 
 
