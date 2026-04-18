@@ -13,9 +13,7 @@ fn echo(_c: unknown) -> Response {
 }
 
 export fn build() -> Router<Env> {
-    router<Env>()
-        |> get("/hello", hello)
-        |> post("/echo", echo)
+    router<Env>() |> get("/hello", hello) |> post("/echo", echo)
 }
 
 export fn serve(request: Request, env: Env) -> unknown {
