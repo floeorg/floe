@@ -496,9 +496,10 @@ fn match_nested_variant() {
         ExprKind::Match { arms, .. } => match &arms[0].pattern.kind {
             PatternKind::Variant { name, fields } => {
                 assert_eq!(name, "Network");
-                assert_eq!(fields.len(), 1);
+                let pats: Vec<&Pattern> = fields.patterns().collect();
+                assert_eq!(pats.len(), 1);
                 assert!(
-                    matches!(&fields[0].kind, PatternKind::Variant { name, .. } if name == "Timeout")
+                    matches!(&pats[0].kind, PatternKind::Variant { name, .. } if name == "Timeout")
                 );
             }
             _ => panic!("expected variant pattern"),
@@ -524,8 +525,9 @@ fn match_record_destructure() {
     match expr {
         ExprKind::Match { arms, .. } => match &arms[0].pattern.kind {
             PatternKind::Variant { fields, .. } => {
-                assert_eq!(fields.len(), 2);
-                assert!(matches!(&fields[1].kind, PatternKind::Record { .. }));
+                let pats: Vec<&Pattern> = fields.patterns().collect();
+                assert_eq!(pats.len(), 2);
+                assert!(matches!(&pats[1].kind, PatternKind::Record { .. }));
             }
             _ => panic!("expected variant"),
         },
@@ -988,6 +990,79 @@ fn opaque_type() {
             assert_eq!(decl.name, "HashedPassword");
         }
         other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
+fn variant_named_field_in_parens_is_error() {
+    let errs = parse("type Shape { | Circle(radius: number) }").unwrap_err();
+    assert!(
+        errs.iter().any(|e| e
+            .message
+            .contains("named fields are not allowed in `(...)` variants")),
+        "expected targeted error about named-in-parens, got: {errs:?}"
+    );
+}
+
+#[test]
+fn variant_positional_field_in_braces_is_error() {
+    let errs = parse("type Shape { | Rectangle { number, number } }").unwrap_err();
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("`{...}` variants require named fields")),
+        "expected targeted error about positional-in-braces, got: {errs:?}"
+    );
+}
+
+#[test]
+fn newtype_paren_rejects_named_field() {
+    let errs = parse("type UserId(id: string)").unwrap_err();
+    assert!(
+        errs.iter().any(|e| e
+            .message
+            .contains("named fields are not allowed in `(...)` variants")),
+        "expected targeted error for named-in-parens newtype, got: {errs:?}"
+    );
+}
+
+#[test]
+fn named_variant_pattern_parses() {
+    let expr = first_expr("match r { Rect { width, height: h } -> width + h, _ -> 0 }");
+    match expr {
+        ExprKind::Match { arms, .. } => match &arms[0].pattern.kind {
+            PatternKind::Variant { name, fields } => {
+                assert_eq!(name, "Rect");
+                match fields {
+                    VariantPatternFields::Named(named) => {
+                        assert_eq!(named.len(), 2);
+                        assert_eq!(named[0].0, "width");
+                        assert!(
+                            matches!(&named[0].1.kind, PatternKind::Binding(n) if n == "width")
+                        );
+                        assert_eq!(named[1].0, "height");
+                        assert!(matches!(&named[1].1.kind, PatternKind::Binding(n) if n == "h"));
+                    }
+                    other => panic!("expected named fields, got {other:?}"),
+                }
+            }
+            other => panic!("expected variant pattern, got {other:?}"),
+        },
+        other => panic!("expected match, got {other:?}"),
+    }
+}
+
+#[test]
+fn positional_variant_pattern_parses() {
+    let expr = first_expr("match c { Circle(r) -> r, _ -> 0 }");
+    match expr {
+        ExprKind::Match { arms, .. } => match &arms[0].pattern.kind {
+            PatternKind::Variant { name, fields } => {
+                assert_eq!(name, "Circle");
+                assert!(matches!(fields, VariantPatternFields::Positional(_)));
+            }
+            other => panic!("expected variant pattern, got {other:?}"),
+        },
+        other => panic!("expected match, got {other:?}"),
     }
 }
 

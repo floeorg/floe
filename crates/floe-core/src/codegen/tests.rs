@@ -2263,7 +2263,7 @@ fn user_record_tag_field_does_not_collide_with_union_discriminator() {
     let result = emit_typed(
         r#"
 type Button = { tag: string, label: string }
-type Route { | Home | Profile(id: string) }
+type Route { | Home | Profile { id: string } }
 
 const btn = Button(tag: "nav-button", label: "Home")
 const r = Home

@@ -2355,6 +2355,80 @@ fn variant_pattern_correct_arity() {
     );
 }
 
+// ── Variant pattern shape (positional vs named) ──────────────
+
+#[test]
+fn named_variant_rejects_positional_pattern() {
+    let source = r#"
+        type Shape { | Rectangle { width: number, height: number } }
+        const _r: Shape = Rectangle(width: 1, height: 2)
+        match _r {
+            Rectangle(w, h) -> w + h,
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_error_containing(&diags, "has named fields"),
+        "positional pattern on named variant should produce a shape mismatch error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn positional_variant_rejects_named_pattern() {
+    let source = r#"
+        type Shape { | Circle(number) }
+        const _c: Shape = Circle(5)
+        match _c {
+            Circle { value: r } -> r,
+        }
+    "#;
+    let diags = check(source);
+    assert!(
+        has_error_containing(&diags, "has positional fields"),
+        "named pattern on positional variant should produce a shape mismatch error, got: {diags:?}"
+    );
+}
+
+#[test]
+fn named_variant_accepts_named_pattern() {
+    let source = r#"
+        type Shape { | Rectangle { width: number, height: number } }
+        const _r: Shape = Rectangle(width: 1, height: 2)
+        const _area = match _r {
+            Rectangle { width, height } -> width * height,
+        }
+    "#;
+    let diags = check(source);
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "named pattern on named variant should type-check cleanly: {errors:?}"
+    );
+}
+
+#[test]
+fn named_variant_accepts_named_pattern_with_rename() {
+    let source = r#"
+        type Shape { | Rectangle { width: number, height: number } }
+        const _r: Shape = Rectangle(width: 1, height: 2)
+        const _area = match _r {
+            Rectangle { width: w, height: h } -> w * h,
+        }
+    "#;
+    let diags = check(source);
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "named pattern with rename should type-check cleanly: {errors:?}"
+    );
+}
+
 // ── Literal pattern type checking ────────────────────────────
 
 #[test]

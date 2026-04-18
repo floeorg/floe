@@ -68,7 +68,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `?` operator | `fetchUser(id)?` | early return on Err/None |
 | Newtypes | `type UserId(string)` | `string` at runtime (single-variant wrapper) |
 | Opaque types | `opaque type HashedPw(string)` | `string`, but only the defining module can create/read |
-| Tagged unions | `type Route { \| Home \| Profile(string) }` | discriminated union (positional or named fields) |
+| Tagged unions | `type Route { \| Home \| Profile(string) \| Settings { tab: string } }` | discriminated union. `(Type, ...)` variants are positional; `{ name: Type, ... }` variants are named. Mixing the two forms in one variant is a parse error. |
 | String literal unions | `type Method = "GET" \| "POST" \| "PUT"` | `"GET" \| "POST" \| "PUT"` (pass-through for npm interop) |
 | Nested unions | `type ApiError { \| Network(NetworkError) \| NotFound }` | nested discriminated union (compiler generates tags) |
 | Multi-depth match | `Network(Timeout(ms)) -> ...` | nested if/else with tag checks |
@@ -617,42 +617,44 @@ type AppError {
 Match at any depth in one expression. Mix shallow and deep arms freely.
 
 ```floe
-// Level 1 — broad categories
+// Level 1 — broad categories. Named variants still need to use `{ ... }` even
+// when destructuring is unneeded; fields bind to wildcards.
 match error {
-  Network(_)        -> "Connection problem"
-  Validation(_)     -> "Invalid input"
-  Auth(_)           -> "Access denied"
-  NotFound          -> "Not found"
-  ServerError(_, _) -> "Server broke"
+  Network(_)                          -> "Connection problem"
+  Validation(_)                       -> "Invalid input"
+  Auth(_)                             -> "Access denied"
+  NotFound                            -> "Not found"
+  ServerError { status: _, body: _ }  -> "Server broke"
 }
 
-// Level 2 — drill into sub-variants
+// Level 2 — drill into sub-variants. Pattern shape follows the declaration:
+// `Network(NetworkError)` is positional; `Timeout { ms: number }` is named.
 match error {
-  Network(Timeout(ms))         -> `Timed out after ${ms}ms`
-  Network(DnsFailure(host))    -> `Can't resolve ${host}`
-  Network(ConnectionRefused(_)) -> "Server not running"
-  Auth(TokenExpired(_))        -> "Session expired, please log in again"
-  Auth(_)                      -> "Access denied"
-  Validation(e)                -> describeValidation(e)
-  NotFound                     -> "Not found"
-  ServerError(s, _)            -> `Server error ${s}`
+  Network(Timeout { ms })         -> `Timed out after ${ms}ms`
+  Network(DnsFailure { host })    -> `Can't resolve ${host}`
+  Network(ConnectionRefused(_))   -> "Server not running"
+  Auth(TokenExpired(_))           -> "Session expired, please log in again"
+  Auth(_)                         -> "Access denied"
+  Validation(e)                   -> describeValidation(e)
+  NotFound                        -> "Not found"
+  ServerError { status, body }    -> `Server error ${status}: ${body}`
 }
 
 // Level 3+ — deep nested matching
 match appError {
-  User(Http(Network(Timeout(ms)))) ->
+  User(Http(Network(Timeout { ms }))) ->
     `User fetch timed out after ${ms}ms`
 
-  User(Http(Decode(MissingField(f)))) ->
+  User(Http(Decode(MissingField { name: f }))) ->
     `API response missing field: ${f}`
 
-  Payment(InsufficientFunds(needed, have)) ->
-    `Need $${needed} but only have $${have}`
+  Payment(InsufficientFunds { needed, available }) ->
+    `Need $${needed} but only have $${available}`
 
-  Payment(CardDeclined(reason)) ->
+  Payment(CardDeclined { reason }) ->
     `Card declined: ${reason}`
 
-  Auth(TokenExpired(_)) ->
+  Auth(TokenExpired { expiredAt: _ }) ->
     refreshToken()
 
   _ -> showGenericError(appError)

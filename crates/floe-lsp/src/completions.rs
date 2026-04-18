@@ -21,7 +21,7 @@ use super::completion::{
     dot_access_completions, identifier_before_dot, import_path_completions, is_in_comment,
     is_in_import_string, is_in_string_literal, is_pipe_context, resolve_piped_type,
 };
-use super::index::{SymbolIndex, symbol_kind_to_completion};
+use super::index::{SymbolIndex, VariantShapeHint, symbol_kind_to_completion};
 use super::stdlib_hover;
 use super::{BUILTINS, FloeLsp, KEYWORDS, position_to_offset, word_prefix_at_offset};
 
@@ -112,12 +112,12 @@ impl FloeLsp {
         if let Some(variants) = detect_match_context(&doc.content, offset, &doc.index) {
             let items: Vec<CompletionItem> = variants
                 .into_iter()
-                .filter(|v| prefix.is_empty() || v.starts_with(&prefix))
-                .map(|name| CompletionItem {
+                .filter(|(name, _)| prefix.is_empty() || name.starts_with(&prefix))
+                .map(|(name, shape)| CompletionItem {
                     label: name.clone(),
                     kind: Some(CompletionItemKind::ENUM_MEMBER),
                     detail: Some("match variant".to_string()),
-                    insert_text: Some(format!("{name} -> $0,")),
+                    insert_text: Some(match_arm_snippet(&name, shape.as_ref())),
                     insert_text_format: Some(InsertTextFormat::SNIPPET),
                     ..Default::default()
                 })
@@ -251,13 +251,14 @@ fn stdlib_module_prefix(source: &str, offset: usize, registry: &StdlibRegistry) 
     }
 }
 
-/// Detect if cursor is inside a `match expr { ... }` block.
-/// If so, look up the matched expression's type and return its variant names.
+/// Detect if cursor is inside a `match expr { ... }` block. Returns each
+/// variant name alongside its shape hint — callers use the hint to build
+/// the correct insert-snippet (`Variant`, `Variant(..)`, `Variant { .. }`).
 pub(super) fn detect_match_context(
     source: &str,
     offset: usize,
     index: &SymbolIndex,
-) -> Option<Vec<String>> {
+) -> Option<Vec<(String, Option<VariantShapeHint>)>> {
     let before = &source[..offset];
 
     // Find the innermost unclosed `match ... {` before the cursor
@@ -295,9 +296,36 @@ pub(super) fn detect_match_context(
     None
 }
 
+/// Build the match-arm insert snippet for a variant, keyed off its declared
+/// shape. Unknown shape falls back to bare `Name -> $0,`.
+pub(super) fn match_arm_snippet(name: &str, shape: Option<&VariantShapeHint>) -> String {
+    match shape {
+        Some(VariantShapeHint::Unit) | None => format!("{name} -> $0,"),
+        Some(VariantShapeHint::Positional(arity)) => {
+            let placeholders = (1..=*arity)
+                .map(|i| format!("${i}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{name}({placeholders}) -> $0,")
+        }
+        Some(VariantShapeHint::Named(fields)) => {
+            let entries = fields
+                .iter()
+                .enumerate()
+                .map(|(i, f)| format!("{f}: ${}", i + 1))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{name} {{ {entries} }} -> $0,")
+        }
+    }
+}
+
 /// Given a match expression text, try to find variant names for it.
 /// Looks up the expression as a type name in the symbol index.
-fn find_variants_for_expr(expr: &str, index: &SymbolIndex) -> Vec<String> {
+fn find_variants_for_expr(
+    expr: &str,
+    index: &SymbolIndex,
+) -> Vec<(String, Option<VariantShapeHint>)> {
     // The expr could be a variable name; look for a type with the same name
     // or look for a type whose variants are in the index
     let expr = expr.trim();
@@ -307,12 +335,12 @@ fn find_variants_for_expr(expr: &str, index: &SymbolIndex) -> Vec<String> {
     for sym in &type_syms {
         if sym.kind == SymbolKind::TYPE_PARAMETER {
             // Found a type — collect its variants from the index
-            let prefix = format!("{}.", expr);
-            let variants: Vec<String> = index
+            let type_prefix = format!("{}.", expr);
+            let variants: Vec<_> = index
                 .symbols
                 .iter()
-                .filter(|s| s.kind == SymbolKind::ENUM_MEMBER && s.detail.starts_with(&prefix))
-                .map(|s| s.name.clone())
+                .filter(|s| s.kind == SymbolKind::ENUM_MEMBER && s.detail.starts_with(&type_prefix))
+                .map(|s| (s.name.clone(), s.variant_shape.clone()))
                 .collect();
             if !variants.is_empty() {
                 return variants;
@@ -322,11 +350,11 @@ fn find_variants_for_expr(expr: &str, index: &SymbolIndex) -> Vec<String> {
 
     // Strategy 2: the expr might be a variable — look for all ENUM_MEMBER symbols
     // This is a best-effort fallback
-    let all_variants: Vec<String> = index
+    let all_variants: Vec<_> = index
         .symbols
         .iter()
         .filter(|s| s.kind == SymbolKind::ENUM_MEMBER)
-        .map(|s| s.name.clone())
+        .map(|s| (s.name.clone(), s.variant_shape.clone()))
         .collect();
 
     // Only return if there are some variants to suggest

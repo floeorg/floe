@@ -82,6 +82,8 @@ type UpdateUser {
 
 // Union type (discriminated)
 // Positional fields use ( ), named fields use { }
+// Variant fields: `(Type, ...)` is positional-only (no field names);
+// `{ name: Type, ... }` is named-only. Mixing the two forms is a parse error.
 type Route {
     | Home
     | Profile(string)
@@ -243,11 +245,14 @@ const data = input |>? JSON.parse                // pipe parse, unwrap Result
 ## Match Expressions
 
 ```floe
-// Match on union types (exhaustive)
+// Variant pattern shape must match declaration:
+//   `Variant(...)` variants → `Variant(pat, ...)` patterns
+//   `Variant { ... }` variants → `Variant { field, ... }` or `{ field: pat }` patterns
+// Mixing is a compile error.
 match route {
     Home -> <HomePage />,
-    Profile(id) -> <ProfilePage id={id} />,
-    Settings(tab) -> <SettingsPage tab={tab} />,
+    Profile(id) -> <ProfilePage id={id} />,        // Profile(string) — positional
+    Settings { tab } -> <SettingsPage tab={tab} />, // Settings { tab: string } — named
     NotFound -> <NotFoundPage />,
 }
 

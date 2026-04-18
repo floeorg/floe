@@ -409,11 +409,12 @@ impl<'src> CstParser<'src> {
         if self.at(TokenKind::LeftBrace) {
             self.parse_type_body_in_braces();
         } else if self.at(TokenKind::LeftParen) {
-            // Newtype with paren syntax: `type UserId(string)`
+            // Newtype with paren syntax: `type UserId(string)`. Fields are
+            // positional — reject `type UserId(name: string)`.
             self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
             self.bump(); // (
             self.eat_trivia();
-            self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightParen);
+            self.parse_comma_separated(Self::parse_positional_variant_field, TokenKind::RightParen);
             self.expect(TokenKind::RightParen);
             self.builder.finish_node();
         } else {
@@ -555,17 +556,22 @@ impl<'src> CstParser<'src> {
             self.expect_ident();
             self.eat_trivia();
 
-            // Variant fields: { named } or (positional)
+            // Variant fields: `{ name: Type, ... }` (named) or `(Type, ...)` (positional).
+            // Each bracket style accepts exactly one field form — mixing them is a
+            // parse error so there is a single canonical way to write each variant.
             if self.at(TokenKind::LeftBrace) {
                 self.bump(); // {
                 self.eat_trivia();
-                self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightBrace);
+                self.parse_comma_separated(Self::parse_named_variant_field, TokenKind::RightBrace);
                 self.expect(TokenKind::RightBrace);
                 self.eat_trivia();
             } else if self.at(TokenKind::LeftParen) {
                 self.bump(); // (
                 self.eat_trivia();
-                self.parse_comma_separated(Self::parse_variant_field, TokenKind::RightParen);
+                self.parse_comma_separated(
+                    Self::parse_positional_variant_field,
+                    TokenKind::RightParen,
+                );
                 self.expect(TokenKind::RightParen);
                 self.eat_trivia();
             }
@@ -598,19 +604,46 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
-    fn parse_variant_field(&mut self) {
+    /// Parse a positional variant field: a type with no name. Used inside
+    /// `(...)` variant declarations. If a `name:` prefix is present the user
+    /// meant a named variant, so emit a targeted error but still consume the
+    /// tokens so downstream lowering stays valid.
+    fn parse_positional_variant_field(&mut self) {
         self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
 
-        // Check if this is a named field: `name: Type`
+        if self.is_ident() && self.peek_is(TokenKind::Colon) {
+            self.error(
+                "named fields are not allowed in `(...)` variants; \
+                 use `(Type)` for positional fields or `{ name: Type }` for named fields",
+            );
+            self.bump(); // name
+            self.eat_trivia();
+            self.bump(); // :
+            self.eat_trivia();
+        }
+        self.parse_type_expr();
+
+        self.builder.finish_node();
+    }
+
+    /// Parse a named variant field: `name: Type`. Used inside `{...}` variant
+    /// declarations. If the `name:` prefix is missing the user meant a
+    /// positional variant, so emit a targeted error.
+    fn parse_named_variant_field(&mut self) {
+        self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
+
         if self.is_ident() && self.peek_is(TokenKind::Colon) {
             self.bump(); // name
             self.eat_trivia();
             self.bump(); // :
             self.eat_trivia();
-            self.parse_type_expr();
         } else {
-            self.parse_type_expr();
+            self.error(
+                "`{...}` variants require named fields; \
+                 use `{ name: Type, ... }` or switch to `(Type, ...)` for positional fields",
+            );
         }
+        self.parse_type_expr();
 
         self.builder.finish_node();
     }

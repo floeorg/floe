@@ -23,3 +23,5 @@ const _ok = { __tag: "Ok2", value: "hello" };
 const _err = { __tag: "Err2", code: 404, message: "not found" };
 
 const _msg = _ok.__tag === "Ok2" ? (() => { const val = _ok.value; return val; })() : _ok.__tag === "Err2" ? (() => { const code = _ok.code; const message = _ok.message; return `${code}: ${message}`; })() : (() => { throw new Error("non-exhaustive match"); })();
+
+const _msg2 = _err.__tag === "Ok2" ? (() => { const val = _err.value; return val; })() : _err.__tag === "Err2" ? (() => { const c = _err.code; const m = _err.message; return `${c}: ${m}`; })() : (() => { throw new Error("non-exhaustive match"); })();

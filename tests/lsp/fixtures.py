@@ -31,7 +31,7 @@ fn describeColor(c: Color) -> string {
     match c {
         Red -> "red",
         Green -> "green",
-        Blue(hex) -> `blue: ${hex}`,
+        Blue { hex } -> `blue: ${hex}`,
     }
 }
 """
@@ -110,7 +110,7 @@ type Product {
 
 type Status {
     | Active
-    | Inactive(reason: string)
+    | Inactive { reason: string }
 }
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
@@ -151,8 +151,8 @@ const (name, age) = getPair()
 
 HOVER_MATCH_BINDING = """\
 type Shape {
-    | Circle(radius: number)
-    | Rect(width: number, height: number)
+    | Circle(number)
+    | Rect(number, number)
 }
 
 fn area(s: Shape) -> number {
@@ -221,8 +221,8 @@ type Inner {
 
 fn describe(o: Outer) -> string {
     match o {
-        A(inner) -> match inner {
-            X(val) -> `x: ${val}`,
+        A { inner } -> match inner {
+            X { val } -> `x: ${val}`,
             Y -> "y",
         },
         B -> "b",
@@ -755,14 +755,14 @@ type NetworkError {
 }
 
 type ApiError {
-    | Network { NetworkError }
+    | Network(NetworkError)
     | NotFound
 }
 
 fn describe(e: ApiError) -> string {
     match e {
-        Network(Timeout(ms)) -> `timeout: ${ms}`,
-        Network(DnsFailure(host)) -> `dns: ${host}`,
+        Network(Timeout { ms }) -> `timeout: ${ms}`,
+        Network(DnsFailure { host }) -> `dns: ${host}`,
         NotFound -> "not found",
     }
 }
@@ -782,7 +782,7 @@ fn describe(c: Color) -> string {
     match c {
         Red -> "red",
         Green -> "green",
-        Blue(hex) -> `blue: ${hex}`,
+        Blue { hex } -> `blue: ${hex}`,
     }
 }
 """

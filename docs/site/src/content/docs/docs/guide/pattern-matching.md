@@ -36,11 +36,35 @@ match findItem(id) {
 
 ## Union Types
 
+A variant's field shape — `(...)` for positional, `{ ... }` for named — is part of its contract. Pattern matching must use the same shape.
+
+### Named-field variants
+
 ```floe
 type Shape {
   | Circle { radius: number }
   | Rectangle { width: number, height: number }
   | Triangle { base: number, height: number }
+}
+
+fn area(shape: Shape) -> number {
+  match shape {
+    Circle { radius } -> 3.14159 * radius * radius,
+    Rectangle { width, height } -> width * height,
+    Triangle { base, height: h } -> 0.5 * base * h,
+  }
+}
+```
+
+Inside a named pattern, `{ width }` is shorthand for `{ width: width }`. Use `{ width: w }` to rebind under a different name.
+
+### Positional-field variants
+
+```floe
+type Shape {
+  | Circle(number)
+  | Rectangle(number, number)
+  | Triangle(number, number)
 }
 
 fn area(shape: Shape) -> number {
@@ -52,7 +76,9 @@ fn area(shape: Shape) -> number {
 }
 ```
 
-Adding a new variant to `Shape` without updating the `match` is a compile error.
+Pick the shape based on whether the fields carry meaningful names. Using the wrong pattern shape — `Circle { radius: r }` on a positional variant, or `Rectangle(w, h)` on a named variant — is a compile error.
+
+Adding a new variant to `Shape` without updating the `match` is also a compile error.
 
 ## Range Patterns
 

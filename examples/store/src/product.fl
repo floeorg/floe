@@ -120,9 +120,9 @@ export fn matchesPrice(product: Product, range: PriceRange) -> boolean {
         p when range == Under(25) -> p < 25,
         p -> match range {
             Any -> true,
-            Under(max) -> p < max,
-            Between(min, max) -> p >= min && p < max,
-            Over(min) -> p >= min,
+            Under { max } -> p < max,
+            Between { min, max } -> p >= min && p < max,
+            Over { min } -> p >= min,
         },
     }
 }

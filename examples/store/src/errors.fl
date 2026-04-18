@@ -5,16 +5,16 @@ import { ApiError, for Display } from "./types"
 export for ApiError: Display {
     fn display(self) -> string {
         self |> match {
-            Network(Timeout(ms)) -> `Request timed out after ${ms}ms`,
-            Network(DnsFailure(host)) -> `Cannot resolve ${host}`,
+            Network(Timeout { ms }) -> `Request timed out after ${ms}ms`,
+            Network(DnsFailure { host }) -> `Cannot resolve ${host}`,
             Network(ConnectionRefused) -> "Server is not responding",
-            NotFound(id) -> `Product #${id} not found`,
-            BadResponse(status, _) -> status |> match {
+            NotFound { id } -> `Product #${id} not found`,
+            BadResponse { status, body: _ } -> status |> match {
                 400..499 -> `Client error (${status})`,
                 500..599 -> `Server error (${status})`,
                 s -> `Unexpected status ${s}`,
             },
-            ParseError(msg) -> `Invalid response: ${msg}`,
+            ParseError { message } -> `Invalid response: ${message}`,
         }
     }
 }
@@ -23,7 +23,7 @@ for ApiError {
     export fn isRetryable(self) -> boolean {
         self |> match {
             Network(_) -> true,
-            BadResponse(status, _) -> status |> match {
+            BadResponse { status, body: _ } -> status |> match {
                 429 -> true,
                 500..599 -> true,
                 _ -> false,
