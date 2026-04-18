@@ -221,6 +221,15 @@ impl Checker {
                     // Accept ambient type names from TypeScript lib definitions
                     // (e.g., Date, RegExp, URL, HTMLElement) as valid type annotations.
                     Type::Named(name.to_string())
+                } else if type_layout::is_ts_utility_type(name) {
+                    // TS built-in utility types (ReturnType, Parameters, Partial, ...)
+                    // have no Floe runtime representation. Resolve the type args so
+                    // inner references are marked used, then pass through as a Named
+                    // type. Codegen emits `Name<Args...>` unchanged and TS resolves it.
+                    for arg in type_args {
+                        self.resolve_type(arg);
+                    }
+                    Type::Named(name.to_string())
                 } else {
                     self.emit_error_with_help(
                         format!("unknown type `{name}`"),

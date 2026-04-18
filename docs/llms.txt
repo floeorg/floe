@@ -160,6 +160,21 @@ type Props {
 }
 // Compiles to: type Props = VariantProps<typeof variants> & { className: string };
 
+// TS built-in utility types (usable in bridge `= type` aliases, no import needed)
+// Recognized: ReturnType, Parameters, ConstructorParameters, Awaited,
+//             Partial, Required, Readonly, Pick, Omit, NonNullable,
+//             Record, Extract, Exclude, InstanceType,
+//             Uppercase, Lowercase, Capitalize, Uncapitalize
+fn createDb(id: string) -> string { id }
+type Database = ReturnType<typeof createDb>
+type DbArgs = Parameters<typeof createDb>
+
+type User { name: string, email: string }
+type PartialUser = Partial<User>
+type ReadOnlyUser = Readonly<User>
+// These pass through to TS unchanged. Standalone `type X = typeof value`
+// (without a utility-type wrapper) still errors — use ReturnType/Parameters/etc.
+
 // Tuples
 const point: (number, number) = (10, 20)
 const (x, y) = point

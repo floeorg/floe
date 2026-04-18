@@ -200,6 +200,9 @@ impl Checker {
                 if self.is_dts_export_name(name) {
                     return true;
                 }
+                if crate::type_layout::is_ts_utility_type(name) {
+                    return true;
+                }
                 if let Some(ty) = self.env.lookup(name)
                     && matches!(ty, Type::Foreign { .. })
                 {
