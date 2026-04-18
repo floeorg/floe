@@ -193,9 +193,33 @@ impl Checker {
 
                 // Check if this is a known user-defined type or imported name.
                 // Skip validation during type registration (forward references).
-                // If the env has a Foreign type, preserve it.
+                // If the env has a Foreign type, preserve it — and encode any
+                // concrete type arguments into the name so `Router<Bindings>`
+                // doesn't collapse to `Router` (which would make `Router<A>`
+                // and `Router<B>` indistinguishable). Encoding is skipped when
+                // any argument is a generic type parameter because Type::Generic
+                // isn't substituted through Foreign name strings: baking "E"
+                // into a Foreign name would leak the unresolved placeholder
+                // past instantiation sites.
                 if let Some(Type::Foreign { .. }) = self.env.lookup(name) {
-                    Type::foreign(name.to_string())
+                    if type_args.is_empty() {
+                        Type::foreign(name.to_string())
+                    } else {
+                        let resolved_args: Vec<Type> =
+                            type_args.iter().map(|t| self.resolve_type(t)).collect();
+                        let any_generic = resolved_args.iter().any(|t| {
+                            matches!(t, Type::Var(_))
+                                || matches!(t, Type::Named(n)
+                                    if self.active_type_params.contains_key(n.as_str()))
+                        });
+                        if any_generic {
+                            Type::foreign(name.to_string())
+                        } else {
+                            let args_str: Vec<String> =
+                                resolved_args.iter().map(|t| t.to_string()).collect();
+                            Type::foreign(format!("{}<{}>", name, args_str.join(", ")))
+                        }
+                    }
                 } else if self.registering_types
                     || self.env.lookup_type(name).is_some()
                     || name.contains('.')
