@@ -2,6 +2,10 @@
 title: Introduction
 ---
 
+:::caution[Experimental]
+Floe is pre-1.0 and under active development. Expect bugs, rough edges, and breaking changes to the syntax, compiler output, and public APIs between releases. It is not yet recommended for production use. Pin your version and check the [changelog](https://github.com/floeorg/floe/blob/main/CHANGELOG.md) before upgrading.
+:::
+
 Floe is a programming language that compiles to TypeScript. It's designed for TypeScript and React developers who want stronger guarantees without leaving their ecosystem.
 
 ## Why Floe?

@@ -1,5 +1,7 @@
 # Floe — Design Decisions
 
+> **Status: Experimental.** Floe is pre-1.0 and under active development. The language, compiler output, and public APIs are unstable and may change between releases without deprecation. This document describes the current intended design; behavior may lag behind, and some sections describe target state rather than what the compiler actually does today.
+
 ## Vision
 
 A Gleam-inspired language that compiles to vanilla TypeScript + React. Familiar syntax for TS/React developers, but with pipes, exhaustive matching, no escape hatches, and compile-time safety that eliminates entire categories of bugs. Zero runtime dependencies — the compiler does all the work, the output is boring `.tsx`.
