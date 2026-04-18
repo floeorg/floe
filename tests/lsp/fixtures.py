@@ -649,10 +649,10 @@ const id = ProductId(42)
 """
 
 OPAQUE_TYPE = """\
-opaque type HashedPassword = HashedPassword(string)
+opaque type HashedPassword = string
 
 fn hash(pw: string) => HashedPassword {
-    HashedPassword(pw)
+    pw
 }
 """
 
