@@ -1982,19 +1982,27 @@ impl Checker {
                     return_type,
                     ..
                 } => {
-                    // Validate the piped value as the first (and only) argument
-                    if let Some(first_param) = params.first()
-                        && !self.types_compatible(first_param, left_ty)
-                    {
-                        let (msg, label) = self.type_mismatch_detail(first_param, left_ty);
-                        self.emit_error(
-                            format!("argument 1 to `{name}`: {}", msg),
-                            right.span,
-                            ErrorCode::TypeMismatch,
-                            label,
-                        );
+                    // Instantiate Generic vars as fresh Unbound, then unify
+                    // the first param with the piped-in type so the callee's
+                    // type parameters pick up `left_ty`'s shape. Without this,
+                    // `a |> genericFn` leaves the generic vars unsolved and
+                    // the return type comes back as a bare `?T1`.
+                    let (inst_params, inst_ret) =
+                        hydrator::instantiate_signature(&params, &return_type, &mut self.next_var);
+                    if let Some(first_param) = inst_params.first() {
+                        let unified = unify::unify(first_param, left_ty).is_ok();
+                        let resolved_first = first_param.resolved();
+                        if !unified && !self.types_compatible(&resolved_first, left_ty) {
+                            let (msg, label) = self.type_mismatch_detail(&resolved_first, left_ty);
+                            self.emit_error(
+                                format!("argument 1 to `{name}`: {}", msg),
+                                right.span,
+                                ErrorCode::TypeMismatch,
+                                label,
+                            );
+                        }
                     }
-                    return return_type.as_ref().clone();
+                    return inst_ret.deep_resolved();
                 }
                 // Unknown/Error types: don't error (not enough info or error already emitted)
                 Type::Unknown | Type::Error | Type::Var(_) => {}
