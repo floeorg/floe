@@ -221,6 +221,13 @@ impl Checker {
                     // Accept ambient type names from TypeScript lib definitions
                     // (e.g., Date, RegExp, URL, HTMLElement) as valid type annotations.
                     Type::Named(name.to_string())
+                } else if type_layout::is_ts_utility_type(name) {
+                    // Resolve args so inner references are marked used; TS resolves
+                    // the utility-type semantics at its own compile time.
+                    for arg in type_args {
+                        self.resolve_type(arg);
+                    }
+                    Type::Named(name.to_string())
                 } else {
                     self.emit_error_with_help(
                         format!("unknown type `{name}`"),

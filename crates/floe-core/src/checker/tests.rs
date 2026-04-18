@@ -5739,6 +5739,71 @@ fn string_literal_union_always_errors() {
     );
 }
 
+// ── TypeScript utility types ─────────────────────────────────
+
+fn assert_utility_type_accepted(src: &str) {
+    let diags = check(src);
+    assert!(
+        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport)
+            && !has_error(&diags, ErrorCode::UndefinedName),
+        "utility-type alias rejected: {diags:?}"
+    );
+}
+
+#[test]
+fn bridge_alias_with_return_type_and_typeof_local_is_ok() {
+    assert_utility_type_accepted(
+        "fn createDb(id: string) -> string { id }
+type Database = ReturnType<typeof createDb>",
+    );
+}
+
+#[test]
+fn bridge_alias_with_parameters_is_ok() {
+    assert_utility_type_accepted(
+        "fn createDb(id: string) -> string { id }
+type DbArgs = Parameters<typeof createDb>",
+    );
+}
+
+#[test]
+fn bridge_alias_with_partial_over_local_record_is_ok() {
+    assert_utility_type_accepted(
+        "type User { name: string, email: string, age: number }
+type PartialUser = Partial<User>",
+    );
+}
+
+#[test]
+fn bridge_alias_with_readonly_and_non_nullable_is_ok() {
+    assert_utility_type_accepted(
+        "type User { name: string }
+type ReadOnlyUser = Readonly<User>
+type NonNullableUser = NonNullable<User>",
+    );
+}
+
+#[test]
+fn bare_typeof_local_still_errors() {
+    let diags = check(
+        "fn createDb(id: string) -> string { id }
+type Identity = typeof createDb",
+    );
+    assert!(
+        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn unknown_utility_like_name_still_errors() {
+    let diags = check(
+        "type User { name: string }
+type Wat = MyCustomUtility<User>",
+    );
+    assert!(has_error(&diags, ErrorCode::UndefinedName), "{diags:?}");
+}
+
 // ── Intersection restriction ─────────────────────────────────
 
 #[test]
