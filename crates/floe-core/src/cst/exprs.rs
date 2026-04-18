@@ -230,6 +230,16 @@ impl<'src> CstParser<'src> {
                     self.expect(TokenKind::RightParen);
                     self.builder.finish_node();
                 }
+                Some(TokenKind::TemplateLiteral(_)) => {
+                    // A template on its own line is a standalone expression, not a tag.
+                    if self.preceded_by_newline() {
+                        break;
+                    }
+                    self.builder
+                        .start_node_at(checkpoint, SyntaxKind::TAGGED_TEMPLATE_EXPR.into());
+                    self.bump();
+                    self.builder.finish_node();
+                }
                 _ => break,
             }
         }

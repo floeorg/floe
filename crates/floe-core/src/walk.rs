@@ -138,6 +138,14 @@ pub fn walk_expr_children_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Exp
                 }
             }
         }
+        ExprKind::TaggedTemplate { tag, parts } => {
+            walk_expr_mut(tag, f);
+            for part in parts {
+                if let TemplatePart::Expr(e) = part {
+                    walk_expr_mut(e, f);
+                }
+            }
+        }
         ExprKind::DotShorthand { predicate, .. } => {
             if let Some((_, rhs)) = predicate {
                 walk_expr_mut(rhs, f);
@@ -259,6 +267,14 @@ pub fn walk_expr_children<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
             }
         }
         ExprKind::TemplateLiteral(parts) => {
+            for part in parts {
+                if let TemplatePart::Expr(e) = part {
+                    walk_expr(e, f);
+                }
+            }
+        }
+        ExprKind::TaggedTemplate { tag, parts } => {
+            walk_expr(tag, f);
             for part in parts {
                 if let TemplatePart::Expr(e) = part {
                     walk_expr(e, f);

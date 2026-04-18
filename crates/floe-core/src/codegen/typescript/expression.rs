@@ -19,21 +19,8 @@ impl<'a> TypeScriptGenerator<'a> {
         match &expr.kind {
             ExprKind::Number(n) => pretty::str(n),
             ExprKind::String(s) => pretty::str(format!("\"{}\"", escape_string(s))),
-            ExprKind::TemplateLiteral(parts) => {
-                let mut docs = vec![pretty::str("`")];
-                for part in parts {
-                    match part {
-                        TemplatePart::Raw(s) => docs.push(pretty::str(s)),
-                        TemplatePart::Expr(e) => {
-                            docs.push(pretty::str("${"));
-                            docs.push(self.emit_expr(e));
-                            docs.push(pretty::str("}"));
-                        }
-                    }
-                }
-                docs.push(pretty::str("`"));
-                pretty::concat(docs)
-            }
+            ExprKind::TemplateLiteral(parts) => self.emit_template(None, parts),
+            ExprKind::TaggedTemplate { tag, parts } => self.emit_template(Some(tag), parts),
             ExprKind::Bool(b) => pretty::str(if *b { "true" } else { "false" }),
             ExprKind::Identifier(name) => {
                 if self.ctx.unit_variants.contains(name.as_str()) {
@@ -455,6 +442,26 @@ impl<'a> TypeScriptGenerator<'a> {
     pub(super) fn emit_expr_string(&mut self, expr: &TypedExpr) -> String {
         let doc = self.emit_expr(expr);
         Self::doc_to_string(&doc)
+    }
+
+    fn emit_template(&mut self, tag: Option<&TypedExpr>, parts: &[TypedTemplatePart]) -> Document {
+        let mut docs = Vec::with_capacity(parts.len() * 3 + 3);
+        if let Some(tag) = tag {
+            docs.push(self.emit_expr(tag));
+        }
+        docs.push(pretty::str("`"));
+        for part in parts {
+            match part {
+                TemplatePart::Raw(s) => docs.push(pretty::str(s)),
+                TemplatePart::Expr(e) => {
+                    docs.push(pretty::str("${"));
+                    docs.push(self.emit_expr(e));
+                    docs.push(pretty::str("}"));
+                }
+            }
+        }
+        docs.push(pretty::str("`"));
+        pretty::concat(docs)
     }
 
     pub(super) fn apply_stdlib_template(

@@ -10,18 +10,21 @@ module.exports = grammar({
   conflicts: ($) => [
     [$.expression_statement, $.binary_expression],
     [$.expression_statement, $.call_expression],
+    [$.expression_statement, $.tagged_template_expression],
     [$.expression_statement, $.member_expression],
     [$.expression_statement, $.index_expression],
     [$._type_expression, $.generic_type],
     [$._type_expression, $.qualified_type],
     [$.const_declaration, $.binary_expression],
     [$.const_declaration, $.call_expression],
+    [$.const_declaration, $.tagged_template_expression],
     [$.const_declaration, $.member_expression],
     [$.const_declaration, $.index_expression],
     [$.primary_expression, $.construct_expression],
     [$.primary_expression, $.construct_expression, $.variant_expression],
     [$.for_block],
     [$.assert_statement, $.call_expression],
+    [$.assert_statement, $.tagged_template_expression],
     [$.assert_statement, $.member_expression],
     [$.assert_statement, $.binary_expression],
     [$.assert_statement, $.index_expression],
@@ -290,6 +293,7 @@ module.exports = grammar({
         $.unwrap_expression,
         $.match_expression,
         $.call_expression,
+        $.tagged_template_expression,
         $.member_expression,
         $.index_expression,
         $.construct_expression,
@@ -508,6 +512,12 @@ module.exports = grammar({
       prec.left(
         "call",
         seq(field("function", $._expression), $.argument_list),
+      ),
+
+    tagged_template_expression: ($) =>
+      prec.left(
+        "call",
+        seq(field("tag", $._expression), field("template", $.template_literal)),
       ),
 
     argument_list: ($) =>

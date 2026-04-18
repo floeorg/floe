@@ -170,12 +170,15 @@ test "addition works" {
 0xFF_FF         // hex with separators
 "hello"         // string
 `hello ${name}` // template literal
+tag`a ${x} b`   // tagged template literal — `tag` receives the strings and interpolated values
 true            // boolean
 false           // boolean
 [1, 2, 3]      // array
 ```
 
 Underscores in number literals are purely visual — they are stripped during compilation. They can appear between any two digits but not at the start, end, or adjacent to a decimal point.
+
+Tagged template literals compile to byte-identical TypeScript, so they interoperate cleanly with npm libraries that expose a `` tag`...` `` API (Drizzle's `sql`, styled-components, emotion, graphql-tag). The tag must be a callable value; the runtime values at `${}` are passed as the variadic `...values` arguments.
 
 ### Operators
 

@@ -68,6 +68,71 @@ fn placeholder() {
     assert_eq!(first_expr("_"), ExprKind::Placeholder);
 }
 
+// ── Tagged template literals ─────────────────────────────────
+
+#[test]
+fn tagged_template_no_interpolation() {
+    let expr = first_expr("tag`hello`");
+    let ExprKind::TaggedTemplate { tag, parts } = expr else {
+        panic!("expected tagged template, got {expr:?}");
+    };
+    assert_eq!(tag.kind, ExprKind::Identifier("tag".to_string()));
+    assert_eq!(parts, vec![TemplatePart::Raw("hello".to_string())]);
+}
+
+#[test]
+fn tagged_template_with_interpolation() {
+    let expr = first_expr("tag`a ${x} b`");
+    let ExprKind::TaggedTemplate { tag, parts } = expr else {
+        panic!("expected tagged template, got {expr:?}");
+    };
+    assert_eq!(tag.kind, ExprKind::Identifier("tag".to_string()));
+    assert_eq!(parts.len(), 3);
+    assert_eq!(parts[0], TemplatePart::Raw("a ".to_string()));
+    assert!(
+        matches!(&parts[1], TemplatePart::Expr(e) if matches!(&e.kind, ExprKind::Identifier(n) if n == "x"))
+    );
+    assert_eq!(parts[2], TemplatePart::Raw(" b".to_string()));
+}
+
+#[test]
+fn tagged_template_nested_template_in_interpolation() {
+    let expr = first_expr("tag`outer ${`inner ${x}`} end`");
+    let ExprKind::TaggedTemplate { parts, .. } = expr else {
+        panic!("expected tagged template");
+    };
+    assert_eq!(parts.len(), 3);
+    let TemplatePart::Expr(inner) = &parts[1] else {
+        panic!("expected interpolation")
+    };
+    assert!(matches!(&inner.kind, ExprKind::TemplateLiteral(_)));
+}
+
+#[test]
+fn tagged_template_member_tag() {
+    let expr = first_expr("db.sql`select 1`");
+    let ExprKind::TaggedTemplate { tag, .. } = expr else {
+        panic!("expected tagged template, got {expr:?}");
+    };
+    assert!(matches!(&tag.kind, ExprKind::Member { field, .. } if field == "sql"));
+}
+
+#[test]
+fn plain_template_literal_still_works() {
+    assert_eq!(
+        first_expr("`hello`"),
+        ExprKind::TemplateLiteral(vec![TemplatePart::Raw("hello".to_string())])
+    );
+}
+
+#[test]
+fn template_on_new_line_is_not_tag() {
+    // A template literal on a new line after an identifier must be a
+    // separate expression, not a tagged-template for the preceding ident.
+    let program = parse_ok("tag\n`hello`");
+    assert_eq!(program.items.len(), 2);
+}
+
 // ── Identifiers ──────────────────────────────────────────────
 
 #[test]

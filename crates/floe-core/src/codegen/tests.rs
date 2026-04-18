@@ -223,6 +223,34 @@ fn template_literal_no_interpolation() {
     assert_eq!(emit("`hello world`"), "`hello world`;");
 }
 
+#[test]
+fn tagged_template_no_interpolation() {
+    assert_eq!(emit("tag`hello`"), "tag`hello`;");
+}
+
+#[test]
+fn tagged_template_with_interpolation() {
+    assert_eq!(emit("tag`a ${x} b`"), "tag`a ${x} b`;");
+}
+
+#[test]
+fn tagged_template_multiple_interpolations() {
+    assert_eq!(emit("sql`${col} + ${delta}`"), "sql`${col} + ${delta}`;");
+}
+
+#[test]
+fn tagged_template_member_tag() {
+    assert_eq!(emit("db.sql`select 1`"), "db.sql`select 1`;");
+}
+
+#[test]
+fn tagged_template_nested_template_in_interpolation() {
+    assert_eq!(
+        emit("tag`outer ${`inner ${x}`} end`"),
+        "tag`outer ${`inner ${x}`} end`;",
+    );
+}
+
 // ── Declarations ─────────────────────────────────────────────
 
 #[test]

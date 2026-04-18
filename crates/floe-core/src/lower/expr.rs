@@ -238,6 +238,22 @@ impl<'src> Lowerer<'src> {
                 ))
             }
 
+            SyntaxKind::TAGGED_TEMPLATE_EXPR => {
+                let tag = self.lower_first_expr(node)?;
+                let template = node
+                    .children_with_tokens()
+                    .filter_map(|ct| ct.into_token())
+                    .find(|t| t.kind() == SyntaxKind::TEMPLATE_LITERAL)?;
+                let parts = self.lower_template_literal(template.text());
+                Some(self.expr(
+                    ExprKind::TaggedTemplate {
+                        tag: Box::new(tag),
+                        parts,
+                    },
+                    span,
+                ))
+            }
+
             SyntaxKind::CONSTRUCT_EXPR => {
                 // For qualified variants like Route.Profile(...), there are multiple
                 // idents before '('. We want the last one (the variant name).

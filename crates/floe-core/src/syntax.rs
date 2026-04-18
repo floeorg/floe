@@ -143,6 +143,7 @@ pub enum SyntaxKind {
     UNARY_EXPR,
     PIPE_EXPR,
     CALL_EXPR,
+    TAGGED_TEMPLATE_EXPR,
     CONSTRUCT_EXPR,
     MEMBER_EXPR,
     INDEX_EXPR,

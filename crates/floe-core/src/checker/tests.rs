@@ -3327,6 +3327,36 @@ fn calling_record_is_error() {
 }
 
 #[test]
+fn tagged_template_with_non_callable_is_error() {
+    let diags = check(
+        r#"
+        const n = 42
+        const x = n`hello`
+    "#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::NotCallable),
+        "tagging a non-function should error E047, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn tagged_template_with_function_tag_is_ok() {
+    let diags = check(
+        r#"
+        fn tag(strings: Array<string>, values: Array<string>) -> string { "" }
+        const x = tag`hello ${name}`
+    "#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::NotCallable),
+        "tagging a function should not error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn calling_function_alias_works() {
     let diags = check(
         r#"

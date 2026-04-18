@@ -392,6 +392,10 @@ impl Attacher<'_> {
                 type_args: type_args.into_iter().map(|t| self.type_expr(t)).collect(),
                 args: args.into_iter().map(|a| self.arg(a)).collect(),
             },
+            ExprKind::TaggedTemplate { tag, parts } => ExprKind::TaggedTemplate {
+                tag: self.boxed_expr(tag),
+                parts: parts.into_iter().map(|p| self.template_part(p)).collect(),
+            },
             ExprKind::Construct {
                 type_name,
                 spread,

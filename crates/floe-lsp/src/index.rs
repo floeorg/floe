@@ -504,6 +504,14 @@ fn collect_expr(expr: &TypedExpr, symbols: &mut Vec<Symbol>) {
             collect_expr(callee, symbols);
             collect_args(args, symbols);
         }
+        ExprKind::TaggedTemplate { tag, parts } => {
+            collect_expr(tag, symbols);
+            for part in parts {
+                if let floe_core::parser::ast::TemplatePart::Expr(e) = part {
+                    collect_expr(e, symbols);
+                }
+            }
+        }
         ExprKind::Construct { args, .. }
         | ExprKind::Mock {
             overrides: args, ..
