@@ -17,6 +17,7 @@
 "when" @keyword
 "collect" @keyword
 "deriving" @keyword
+"use" @keyword
 
 ; ── Self ────────────────────────────────────────────────
 (self) @variable.builtin

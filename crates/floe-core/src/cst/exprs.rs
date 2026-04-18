@@ -176,7 +176,6 @@ impl<'src> CstParser<'src> {
                                 | Some(TokenKind::Unreachable)
                                 | Some(TokenKind::Mock)
                                 | Some(TokenKind::Assert)
-                                | Some(TokenKind::Use)
                                 | Some(TokenKind::Typeof)
                                 | Some(TokenKind::Opaque)
                                 | Some(TokenKind::Trusted)

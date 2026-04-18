@@ -20,6 +20,11 @@ module.exports = grammar({
     [$.const_declaration, $.tagged_template_expression],
     [$.const_declaration, $.member_expression],
     [$.const_declaration, $.index_expression],
+    [$.use_declaration, $.binary_expression],
+    [$.use_declaration, $.call_expression],
+    [$.use_declaration, $.tagged_template_expression],
+    [$.use_declaration, $.member_expression],
+    [$.use_declaration, $.index_expression],
     [$.primary_expression, $.construct_expression],
     [$.primary_expression, $.construct_expression, $.variant_expression],
     [$.for_block],
@@ -62,6 +67,7 @@ module.exports = grammar({
         $.for_block,
         $.trait_declaration,
         $.test_block,
+        $.use_declaration,
         $.expression_statement,
       ),
 
@@ -279,6 +285,26 @@ module.exports = grammar({
 
     object_pattern: ($) =>
       seq("{", commaSep1($.identifier), "}"),
+
+    // ── Use (callback flattening) ───────────────────────────
+
+    use_declaration: ($) =>
+      seq(
+        "use",
+        optional(
+          choice(
+            field("binding", $.identifier),
+            seq(
+              "(",
+              commaSep1(field("binding", $.identifier)),
+              ")",
+            ),
+            field("binding", $.object_pattern),
+          ),
+        ),
+        "<-",
+        field("call", $._expression),
+      ),
 
     // ── Expressions ─────────────────────────────────────────
 

@@ -72,7 +72,7 @@ impl<'src> CstParser<'src> {
                 self.parse_trait_decl();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Use) if !exported => {
+            _ if !exported && self.is_use_bind_start() => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_use_decl();
@@ -259,17 +259,20 @@ impl<'src> CstParser<'src> {
 
     fn parse_use_decl(&mut self) {
         self.builder.start_node(SyntaxKind::USE_DECL.into());
-        self.expect(TokenKind::Use);
+        self.bump_remap(SyntaxKind::KW_USE);
         self.eat_trivia();
 
-        // Optional binding: `use x <- expr` or `use (a, b) <- expr` or `use <- expr`
         if !self.at(TokenKind::LeftArrow) {
             if self.at(TokenKind::LeftParen) {
-                // Tuple destructuring: `use (a, b) <- expr`
                 self.bump();
                 self.eat_trivia();
                 self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightParen);
                 self.expect(TokenKind::RightParen);
+            } else if self.at(TokenKind::LeftBrace) {
+                self.bump();
+                self.eat_trivia();
+                self.parse_comma_separated(Self::parse_destructure_field, TokenKind::RightBrace);
+                self.expect(TokenKind::RightBrace);
             } else {
                 self.expect_ident();
             }

@@ -111,6 +111,59 @@ impl<'src> CstParser<'src> {
         matches!(self.current_kind(), Some(TokenKind::Identifier(n)) if n == name)
     }
 
+    /// True when `use` at the current position opens a bind statement rather
+    /// than an identifier expression. Distinguishes `use <ident>? <-`,
+    /// `use ( ... ) <-`, `use { ... } <-` from `use(promise)` (React's hook).
+    fn is_use_bind_start(&self) -> bool {
+        if !self.at_identifier("use") {
+            return false;
+        }
+        let mut i = self.pos + 1;
+        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+            i += 1;
+        }
+        match self.tokens.get(i).map(|t| &t.kind) {
+            Some(TokenKind::LeftArrow) => return true,
+            Some(TokenKind::Identifier(_)) => i += 1,
+            Some(TokenKind::LeftParen) => {
+                i = self.skip_balanced(i + 1, |k| match k {
+                    TokenKind::LeftParen => 1,
+                    TokenKind::RightParen => -1,
+                    _ => 0,
+                });
+            }
+            Some(TokenKind::LeftBrace) => {
+                i = self.skip_balanced(i + 1, |k| match k {
+                    TokenKind::LeftBrace => 1,
+                    TokenKind::RightBrace => -1,
+                    _ => 0,
+                });
+            }
+            _ => return false,
+        }
+        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+            i += 1;
+        }
+        matches!(
+            self.tokens.get(i).map(|t| &t.kind),
+            Some(TokenKind::LeftArrow)
+        )
+    }
+
+    /// Scan forward from `start` (just past an opening bracket) until the
+    /// matching close token balances to depth 0. `delta` maps a token kind to
+    /// `+1` for open, `-1` for close, `0` otherwise. Returns the index after
+    /// the matching close (or `tokens.len()` on unbalanced input).
+    fn skip_balanced(&self, start: usize, delta: impl Fn(&TokenKind) -> i32) -> usize {
+        let mut depth = 1_i32;
+        let mut i = start;
+        while i < self.tokens.len() && depth > 0 {
+            depth += delta(&self.tokens[i].kind);
+            i += 1;
+        }
+        i
+    }
+
     fn peek_is_string(&self) -> bool {
         // Look ahead past trivia to find the next non-trivia token
         let mut i = self.pos + 1;
@@ -468,6 +521,17 @@ impl<'src> CstParser<'src> {
             self.builder.token(syntax_kind.into(), text);
             self.pos += 1;
         }
+    }
+
+    /// Consume the current token, recording it in the green tree as
+    /// `syntax_kind` regardless of its lexer kind. Used for contextual
+    /// keywords like `use` that lex as identifiers.
+    fn bump_remap(&mut self, syntax_kind: SyntaxKind) {
+        debug_assert!(self.pos < self.tokens.len(), "bump_remap past EOF");
+        let token = &self.tokens[self.pos];
+        let text = &self.source[token.span.start..token.span.end];
+        self.builder.token(syntax_kind.into(), text);
+        self.pos += 1;
     }
 
     /// Consume trivia tokens (whitespace, comments).
