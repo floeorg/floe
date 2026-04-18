@@ -7,7 +7,7 @@ import { Product, ProductId, Review, ApiError } from "./types"
 
 // ── Response types for parsing ─────────────────────────
 
-type ProductDetailResponse {
+type ProductDetailResponse = {
     id: number,
     title: string,
     description: string,
@@ -23,19 +23,19 @@ type ProductDetailResponse {
     reviews: Array<Review>,
 }
 
-type ProductListResponse {
+type ProductListResponse = {
     products: Array<Product>,
     total: number,
 }
 
-export type CategoryResponse {
+export type CategoryResponse = {
     slug: string,
     name: string,
 }
 
 // ── Single product fetch ───────────────────────────────
 
-export async fn fetchProduct(id: ProductId) -> Result<(Product, Array<Review>), ApiError> {
+export async fn fetchProduct(id: ProductId) => Result<(Product, Array<Review>), ApiError> {
     const data = Http.get(`https://dummyjson.com/products/${id}`)
         |> Promise.await?
         |> Http.json
@@ -67,7 +67,7 @@ export async fn fetchProducts(
     search: string = "",
     limit: number = 20,
     skip: number = 0,
-) -> Result<(Array<Product>, number), ApiError> {
+) => Result<(Array<Product>, number), ApiError> {
     const url = (category, search) |> match {
         ("", "") -> `https://dummyjson.com/products?limit=${limit}&skip=${skip}`,
         (cat, "") when cat != "" -> `https://dummyjson.com/products/category/${cat}?limit=${limit}&skip=${skip}`,
@@ -85,7 +85,7 @@ export async fn fetchProducts(
 
 // ── Categories ─────────────────────────────────────────
 
-export async fn fetchCategories() -> Result<Array<CategoryResponse>, ApiError> {
+export async fn fetchCategories() => Result<Array<CategoryResponse>, ApiError> {
     const data = Http.get("https://dummyjson.com/products/categories")
         |> Promise.await?
         |> Http.json
@@ -99,7 +99,7 @@ export async fn fetchCategories() -> Result<Array<CategoryResponse>, ApiError> {
 
 export async fn fetchStoreDashboard(
     category: string = "",
-) -> Result<(Array<Product>, Array<CategoryResponse>), Array<ApiError>> {
+) => Result<(Array<Product>, Array<CategoryResponse>), Array<ApiError>> {
     collect {
         const (products, _total) = fetchProducts(category: category) |> Promise.await?
         const categories = fetchCategories() |> Promise.await?

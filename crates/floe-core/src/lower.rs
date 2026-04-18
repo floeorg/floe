@@ -774,7 +774,7 @@ mod tests {
 
     #[test]
     fn function_with_params_and_return() {
-        let item = first_item("fn add(a: number, b: number) -> number { a + b }");
+        let item = first_item("fn add(a: number, b: number) => number { a + b }");
         let ItemKind::Function(decl) = item else {
             panic!("expected Function")
         };
@@ -901,7 +901,7 @@ mod tests {
 
     #[test]
     fn type_record() {
-        let item = first_item("type User { name: string, age: number }");
+        let item = first_item("type User = { name: string, age: number }");
         let ItemKind::TypeDecl(decl) = item else {
             panic!("expected TypeDecl")
         };
@@ -911,7 +911,7 @@ mod tests {
 
     #[test]
     fn type_union() {
-        let item = first_item("type Color { | Red | Green | Blue }");
+        let item = first_item("type Color = | Red | Green | Blue");
         let ItemKind::TypeDecl(decl) = item else {
             panic!("expected TypeDecl")
         };
@@ -1083,7 +1083,7 @@ mod tests {
 
     #[test]
     fn for_block_basic() {
-        let item = first_item("for User { fn greet(self) -> string { self.name } }");
+        let item = first_item("for User { fn greet(self) => string { self.name } }");
         let ItemKind::ForBlock(block) = item else {
             panic!("expected ForBlock")
         };
@@ -1122,7 +1122,7 @@ mod tests {
     #[test]
     fn use_desugars_to_callback() {
         // `use x <- f(1)` followed by `x` should desugar to `f(1, fn(x) { x })`
-        let prog = lower("fn _test() -> number {\n    use x <- f(1)\n    x\n}");
+        let prog = lower("fn _test() => number {\n    use x <- f(1)\n    x\n}");
         let ItemKind::Function(decl) = &prog.items[0].kind else {
             panic!("expected Function")
         };
@@ -1146,7 +1146,7 @@ mod tests {
     #[test]
     fn use_zero_binding() {
         // `use <- f()` followed by `g()` should desugar to `f(fn() { g() })`
-        let prog = lower("fn _test() -> () {\n    use <- f()\n    g()\n}");
+        let prog = lower("fn _test() => () {\n    use <- f()\n    g()\n}");
         let ItemKind::Function(decl) = &prog.items[0].kind else {
             panic!("expected Function")
         };
@@ -1175,7 +1175,7 @@ mod tests {
     #[test]
     fn use_chained() {
         // Two chained `use` statements should produce nested calls
-        let prog = lower("fn _test() -> () {\n    use x <- f()\n    use y <- g(x)\n    h(y)\n}");
+        let prog = lower("fn _test() => () {\n    use x <- f()\n    use y <- g(x)\n    h(y)\n}");
         let ItemKind::Function(decl) = &prog.items[0].kind else {
             panic!("expected Function")
         };

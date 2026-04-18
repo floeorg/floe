@@ -100,7 +100,7 @@ fn named_args_reorder_to_declared_order() {
     // emitted call has values in source order which silently swaps
     // arguments at runtime.
     let source = r#"
-fn safeDivide(a: number, b: number) -> number { a / b }
+fn safeDivide(a: number, b: number) => number { a / b }
 safeDivide(b: 1, a: 2)
 "#;
     let output = emit_typed(source);
@@ -113,7 +113,7 @@ safeDivide(b: 1, a: 2)
 #[test]
 fn named_args_in_declared_order_unchanged() {
     let source = r#"
-fn safeDivide(a: number, b: number) -> number { a / b }
+fn safeDivide(a: number, b: number) => number { a / b }
 safeDivide(a: 2, b: 1)
 "#;
     let output = emit_typed(source);
@@ -126,7 +126,7 @@ safeDivide(a: 2, b: 1)
 #[test]
 fn mixed_positional_and_named_args_reorder() {
     let source = r#"
-fn f(a: number, b: number, c: number) -> number { a + b + c }
+fn f(a: number, b: number, c: number) => number { a + b + c }
 f(10, c: 30, b: 20)
 "#;
     let output = emit_typed(source);
@@ -139,7 +139,7 @@ f(10, c: 30, b: 20)
 #[test]
 fn named_args_fully_reversed_three_params() {
     let source = r#"
-fn f(a: number, b: number, c: number) -> number { a + b + c }
+fn f(a: number, b: number, c: number) => number { a + b + c }
 f(c: 30, b: 20, a: 10)
 "#;
     let output = emit_typed(source);
@@ -152,7 +152,7 @@ f(c: 30, b: 20, a: 10)
 #[test]
 fn named_args_splice_multiple_defaults() {
     let source = r#"
-fn g(a: number, b: number = 2, c: number = 3, d: number) -> number { a + b + c + d }
+fn g(a: number, b: number = 2, c: number = 3, d: number) => number { a + b + c + d }
 g(d: 40, a: 10)
 "#;
     let output = emit_typed(source);
@@ -167,7 +167,7 @@ fn named_args_default_spliced_in_missing_slot() {
     // A named call that omits a defaulted parameter gets the default
     // spliced into the reordered slot so codegen emits it positionally.
     let source = r#"
-fn greet(name: string, greeting: string = "hello") -> string { greeting }
+fn greet(name: string, greeting: string = "hello") => string { greeting }
 greet(name: "world")
 "#;
     let output = emit_typed(source);
@@ -181,7 +181,7 @@ greet(name: "world")
 fn named_args_unknown_label_emits_error() {
     use crate::diagnostic::Severity;
     let source = r#"
-fn f(a: number) -> number { a }
+fn f(a: number) => number { a }
 f(nonexistent: 1)
 "#;
     let program = crate::parser::Parser::new(source).parse_program().unwrap();
@@ -275,7 +275,7 @@ fn const_array_destructure() {
 
 #[test]
 fn function_decl() {
-    let result = emit("fn add(a: number, b: number) -> number { a + b }");
+    let result = emit("fn add(a: number, b: number) => number { a + b }");
     assert_eq!(
         result,
         "function add(a: number, b: number): number {\n  return a + b;\n}"
@@ -290,7 +290,7 @@ fn export_function() {
 
 #[test]
 fn promise_await_emits_async_function() {
-    let result = emit_with_types("fn fetch() -> Promise<string> { getData() |> Promise.await }");
+    let result = emit_with_types("fn fetch() => Promise<string> { getData() |> Promise.await }");
     assert!(result.starts_with("async function fetch()"));
     assert!(result.contains("await getData()"));
 }
@@ -298,7 +298,7 @@ fn promise_await_emits_async_function() {
 #[test]
 fn async_fn_sugar_wraps_return_type_in_promise() {
     // `async fn f() -> T` should emit `async function f(): Promise<T>`
-    let result = emit_with_types("async fn fetch() -> string { \"hi\" }");
+    let result = emit_with_types("async fn fetch() => string { \"hi\" }");
     assert!(
         result.starts_with("async function fetch(): Promise<string>"),
         "expected async + Promise wrap, got: {result}"
@@ -308,7 +308,7 @@ fn async_fn_sugar_wraps_return_type_in_promise() {
 #[test]
 fn async_fn_sugar_with_await_body() {
     let result =
-        emit_with_types("async fn fetch() -> string { const x = getData() |> Promise.await\n x }");
+        emit_with_types("async fn fetch() => string { const x = getData() |> Promise.await\n x }");
     assert!(
         result.starts_with("async function fetch(): Promise<string>"),
         "expected async + Promise wrap, got: {result}"
@@ -381,7 +381,7 @@ fn pipe_local_fn_shadows_stdlib_template() {
     // Imports feed the same `local_names` set, so this also covers trusted
     // imports — the unit test avoids the npm resolver round-trip.
     let src = r#"
-fn map(arr: Array<number>, f: (number) -> number) -> Array<number> { arr }
+fn map(arr: Array<number>, f: (number) => number) => Array<number> { arr }
 const _items = [1, 2, 3] |> map((x) => x + 1)
 "#;
     let out = emit_typed(src);
@@ -401,8 +401,8 @@ fn pipe_local_fn_named_get_shadows_record_get() {
     // imports (Record.get / Map.get / Http.get). A local definition must
     // still win.
     let src = r#"
-type Router { path: string }
-fn get(r: Router, path: string) -> Router { Router(path: path) }
+type Router = { path: string }
+fn get(r: Router, path: string) => Router { Router(path: path) }
 const _r = Router(path: "/") |> get("/hello")
 "#;
     let out = emit_typed(src);
@@ -521,7 +521,7 @@ fn constructor_with_spread() {
 fn constructor_with_defaults_omitted() {
     let result = emit(
         r#"
-        type Config { baseUrl: string, timeout: number = 5000, retries: number = 3 }
+        type Config = { baseUrl: string, timeout: number = 5000, retries: number = 3 }
         const c = Config(baseUrl: "https://api.com")
         "#,
     );
@@ -532,7 +532,7 @@ fn constructor_with_defaults_omitted() {
 fn constructor_with_defaults_overridden() {
     let result = emit(
         r#"
-        type Config { baseUrl: string, timeout: number = 5000, retries: number = 3 }
+        type Config = { baseUrl: string, timeout: number = 5000, retries: number = 3 }
         const c = Config(baseUrl: "https://api.com", timeout: 10000)
         "#,
     );
@@ -543,7 +543,7 @@ fn constructor_with_defaults_overridden() {
 fn constructor_all_defaults() {
     let result = emit(
         r#"
-        type Options { timeout: number = 5000, retries: number = 3 }
+        type Options = { timeout: number = 5000, retries: number = 3 }
         const o = Options()
         "#,
     );
@@ -556,7 +556,7 @@ fn constructor_all_defaults() {
 fn record_type_default_fields_are_optional() {
     let result = emit(
         r#"
-        type Config { baseUrl: string, timeout: number = 5000, retries: number = 3 }
+        type Config = { baseUrl: string, timeout: number = 5000, retries: number = 3 }
         const c = Config(baseUrl: "https://api.com")
         "#,
     );
@@ -578,7 +578,7 @@ fn record_type_default_fields_are_optional() {
 fn settable_value_emits_value() {
     let result = emit(
         r#"
-        type Dto { name: Settable<string> = Unchanged }
+        type Dto = { name: Settable<string> = Unchanged }
         const d = Dto(name: Value("Ryan"))
         "#,
     );
@@ -589,7 +589,7 @@ fn settable_value_emits_value() {
 fn settable_clear_emits_null() {
     let result = emit(
         r#"
-        type Dto { name: Settable<string> = Unchanged }
+        type Dto = { name: Settable<string> = Unchanged }
         const d = Dto(name: Clear)
         "#,
     );
@@ -600,7 +600,7 @@ fn settable_clear_emits_null() {
 fn settable_unchanged_omits_field() {
     let result = emit(
         r#"
-        type Dto { name: Settable<string> = Unchanged, age: Settable<number> = Unchanged }
+        type Dto = { name: Settable<string> = Unchanged, age: Settable<number> = Unchanged }
         const d = Dto(name: Value("Ryan"))
         "#,
     );
@@ -614,7 +614,7 @@ fn settable_unchanged_omits_field() {
 fn settable_all_unchanged_empty_object() {
     let result = emit(
         r#"
-        type Dto { name: Settable<string> = Unchanged }
+        type Dto = { name: Settable<string> = Unchanged }
         const d = Dto()
         "#,
     );
@@ -625,7 +625,7 @@ fn settable_all_unchanged_empty_object() {
 fn settable_type_emits_nullable() {
     let result = emit(
         r#"
-        type Dto { name: Settable<string> = Unchanged }
+        type Dto = { name: Settable<string> = Unchanged }
         "#,
     );
     assert!(result.contains("string | null | undefined"));
@@ -682,13 +682,13 @@ fn match_guard_with_binding() {
 
 #[test]
 fn type_record() {
-    let result = emit("type User { id: string, name: string }");
+    let result = emit("type User = { id: string, name: string }");
     assert_eq!(result, "type User = { id: string; name: string };");
 }
 
 #[test]
 fn type_union() {
-    let result = emit("type Route { | Home | Profile { id: string } | NotFound }");
+    let result = emit("type Route = | Home | Profile { id: string } | NotFound");
     assert!(result.contains("tag: \"Home\""));
     assert!(result.contains("tag: \"Profile\""));
     assert!(result.contains("tag: \"NotFound\""));
@@ -710,7 +710,7 @@ fn opaque_type_erased() {
 #[test]
 fn newtype_erased() {
     // type UserId { string } -> erased at runtime
-    let result = emit("type UserId { string }");
+    let result = emit("type UserId = UserId(string)");
     assert!(result.contains("UserId"));
 }
 
@@ -790,7 +790,7 @@ fn no_jsx_detection() {
 #[test]
 fn generic_function_codegen() {
     assert_eq!(
-        emit("fn identity<T>(x: T) -> T { x }"),
+        emit("fn identity<T>(x: T) => T { x }"),
         "function identity<T>(x: T): T {\n  return x;\n}"
     );
 }
@@ -798,7 +798,7 @@ fn generic_function_codegen() {
 #[test]
 fn generic_function_multi_params_codegen() {
     assert_eq!(
-        emit("fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }"),
+        emit("fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) }"),
         "function pair<A, B>(a: A, b: B): readonly [A, B] {\n  return [a, b];\n}"
     );
 }
@@ -820,7 +820,7 @@ fn lambda_multi_arg() {
 #[test]
 fn fn_binding_partial_application() {
     assert_eq!(
-        emit("fn add(a: number, b: number) -> number { a + b }\nfn inc = add(1, _)"),
+        emit("fn add(a: number, b: number) => number { a + b }\nfn inc = add(1, _)"),
         "function add(a: number, b: number): number {\n  return a + b;\n}\n\nconst inc = (_x) => add(1, _x);"
     );
 }
@@ -910,7 +910,7 @@ fn promise_await_pipe() {
 
 #[test]
 fn bare_await_shorthand_emits_async_function() {
-    let result = emit_with_types("fn fetch() -> Promise<string> { getData() |> await }");
+    let result = emit_with_types("fn fetch() => Promise<string> { getData() |> await }");
     assert!(
         result.starts_with("async function fetch()"),
         "bare `|> await` should infer async on enclosing function, got: {result}"
@@ -965,19 +965,19 @@ fn match_arm_block_iife_returns_last_expr() {
 
 #[test]
 fn implicit_return_single_expr() {
-    let result = emit("fn f() -> number { 42 }");
+    let result = emit("fn f() => number { 42 }");
     assert!(result.contains("return 42"));
 }
 
 #[test]
 fn implicit_return_multi_statement() {
-    let result = emit("fn f() -> number { const x = 1\nx + 1 }");
+    let result = emit("fn f() => number { const x = 1\nx + 1 }");
     assert!(result.contains("return x + 1"));
 }
 
 #[test]
 fn unit_function_no_return() {
-    let result = emit("fn f() -> () { Console.log(\"hi\") }");
+    let result = emit("fn f() => () { Console.log(\"hi\") }");
     assert!(!result.contains("return"));
 }
 
@@ -1312,7 +1312,7 @@ fn type_directed_array_filter() {
 fn union_variant_dot_access() {
     let result = emit(
         r#"
-type Filter { | All | Active | Completed }
+type Filter = | All | Active | Completed
 const _f = Filter.All
 "#,
     );
@@ -1332,10 +1332,8 @@ fn union_variant_dot_access_non_union_passthrough() {
 fn non_unit_variant_as_function() {
     let result = emit(
         r#"
-type SaveError {
-    | Validation { errors: Array<string> }
+type SaveError = | Validation { errors: Array<string> }
     | Api { message: string }
-}
 
 const _f = Validation
 "#,
@@ -1350,7 +1348,7 @@ const _f = Validation
 fn unit_variant_unchanged_as_value() {
     let result = emit(
         r#"
-type Filter { | All | Active | Completed }
+type Filter = | All | Active | Completed
 const _f = All
 "#,
     );
@@ -1365,10 +1363,8 @@ const _f = All
 fn qualified_non_unit_variant_as_function() {
     let result = emit(
         r#"
-type SaveError {
-    | Validation { errors: Array<string> }
+type SaveError = | Validation { errors: Array<string> }
     | Api { message: string }
-}
 
 const _f = SaveError.Validation
 "#,
@@ -1383,10 +1379,8 @@ const _f = SaveError.Validation
 fn variant_construct_with_args_unchanged() {
     let result = emit(
         r#"
-type MyError {
-    | Validation { message: string }
+type MyError = | Validation { message: string }
     | NotFound
-}
 
 const _e = Validation(message: "bad")
 "#,
@@ -1401,10 +1395,8 @@ const _e = Validation(message: "bad")
 fn multi_field_variant_as_function() {
     let result = emit(
         r#"
-type Shape {
-    | Circle { radius: number }
+type Shape = | Circle { radius: number }
     | Rect { width: number, height: number }
-}
 
 const _f = Rect
 "#,
@@ -1442,7 +1434,7 @@ fn tuple_type_annotation() {
 
 #[test]
 fn tuple_return_type() {
-    let result = emit("fn f(a: number) -> (number, string) { (a, \"x\") }");
+    let result = emit("fn f(a: number) => (number, string) { (a, \"x\") }");
     assert!(result.contains("readonly [number, string]"));
 }
 
@@ -1592,7 +1584,7 @@ fn emit_test_mode(input: &str) -> String {
 fn test_block_stripped_in_production() {
     let result = emit(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 
 test "addition" {
     assert add(1, 2) == 3
@@ -1645,7 +1637,7 @@ fn string_literal_union_match() {
         r#"
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
-fn describe(method: HttpMethod) -> string {
+fn describe(method: HttpMethod) => string {
     match method {
         "GET" -> "fetching",
         "POST" -> "creating",
@@ -1674,7 +1666,7 @@ fn string_literal_union_match_with_wildcard() {
     let result = emit(
         r#"
 type Status = "ok" | "error"
-fn handle(s: Status) -> number {
+fn handle(s: Status) => number {
     match s {
         "ok" -> 1,
         _ -> 0,
@@ -1811,8 +1803,8 @@ fn match_array_literal_element() {
 fn collect_basic_structure() {
     let result = emit(
         r#"
-fn validate(x: number) -> Result<number, string> { Ok(x) }
-fn f() -> Result<number, Array<string>> {
+fn validate(x: number) => Result<number, string> { Ok(x) }
+fn f() => Result<number, Array<string>> {
     collect {
         const a = validate(1)?
         const b = validate(2)?
@@ -1841,7 +1833,7 @@ fn collect_no_unwrap() {
     // collect with no ? just wraps in Ok
     let result = emit(
         r#"
-fn f() -> Result<number, Array<string>> {
+fn f() => Result<number, Array<string>> {
     collect {
         42
     }
@@ -1860,7 +1852,7 @@ fn f() -> Result<number, Array<string>> {
 fn deriving_display_generates_string() {
     let result = emit(
         r#"
-type User {
+type User = {
   name: string,
   age: number,
 } deriving (Display)
@@ -1969,7 +1961,7 @@ fn parse_in_pipe() {
 #[test]
 fn use_basic() {
     let result = emit(
-        r#"fn _test() -> string {
+        r#"fn _test() => string {
     use x <- doSomething(42)
     x
 }"#,
@@ -1983,7 +1975,7 @@ fn use_basic() {
 #[test]
 fn use_zero_binding() {
     let result = emit(
-        r#"fn _test() -> () {
+        r#"fn _test() => () {
     use <- delay(1000)
     Console.log("done")
 }"#,
@@ -1997,7 +1989,7 @@ fn use_zero_binding() {
 #[test]
 fn use_chained() {
     let result = emit(
-        r#"fn _test() -> string {
+        r#"fn _test() => string {
     use a <- first(1)
     use b <- second(a)
     b
@@ -2016,7 +2008,7 @@ fn use_chained() {
 #[test]
 fn use_callback_block_returns_last_expr() {
     let result = emit(
-        r#"fn _test() -> number {
+        r#"fn _test() => number {
     use x <- doSomething(42)
     const y = x + 1
     y + 2
@@ -2031,7 +2023,7 @@ fn use_callback_block_returns_last_expr() {
 #[test]
 fn use_as_function_call_identifier() {
     let result = emit(
-        r#"fn _test(promise: Promise<number>) -> number {
+        r#"fn _test(promise: Promise<number>) => number {
     const value = use(promise)
     value
 }"#,
@@ -2045,7 +2037,7 @@ fn use_as_function_call_identifier() {
 #[test]
 fn use_as_member_access_identifier() {
     let result = emit(
-        r#"fn _test(m: { use: string }) -> string {
+        r#"fn _test(m: { use: string }) => string {
     m.use
 }"#,
     );
@@ -2058,7 +2050,7 @@ fn use_as_member_access_identifier() {
 #[test]
 fn use_bind_adjacent_to_use_call() {
     let result = emit(
-        r#"fn _test(promise: Promise<number>) -> number {
+        r#"fn _test(promise: Promise<number>) => number {
     use x <- doSomething(42)
     const fromHook = use(promise)
     x + fromHook
@@ -2077,7 +2069,7 @@ fn use_bind_adjacent_to_use_call() {
 #[test]
 fn use_bind_object_destructure() {
     let result = emit(
-        r#"fn _test() -> number {
+        r#"fn _test() => number {
     use { a, b } <- provideValues()
     a + b
 }"#,
@@ -2091,7 +2083,7 @@ fn use_bind_object_destructure() {
 #[test]
 fn use_bind_object_destructure_with_rename() {
     let result = emit(
-        r#"fn _test() -> number {
+        r#"fn _test() => number {
     use { a: x, b: y } <- provideValues()
     x + y
 }"#,
@@ -2147,7 +2139,7 @@ fn mock_record_type() {
 #[test]
 fn mock_named_record() {
     let result = emit(
-        "type User { name: string, age: number }
+        "type User = { name: string, age: number }
 const u = mock<User>",
     );
     assert!(
@@ -2163,7 +2155,7 @@ const u = mock<User>",
 #[test]
 fn mock_with_override() {
     let result = emit(
-        "type User { name: string, age: number }
+        "type User = { name: string, age: number }
 const u = mock<User>(name: \"Alice\")",
     );
     assert!(
@@ -2188,7 +2180,7 @@ fn mock_array_type() {
 #[test]
 fn mock_union_type() {
     let result = emit(
-        "type Status { | Active | Inactive }
+        "type Status = | Active | Inactive
 const s = mock<Status>",
     );
     assert!(
@@ -2202,7 +2194,7 @@ const s = mock<Status>",
 #[test]
 fn typeof_function_alias() {
     let result = emit(
-        "fn greet(name: string) -> string { `Hello, ${name}!` }
+        "fn greet(name: string) => string { `Hello, ${name}!` }
 type Greeter = typeof greet",
     );
     assert!(
@@ -2214,7 +2206,7 @@ type Greeter = typeof greet",
 #[test]
 fn typeof_const_alias() {
     let result = emit(
-        "type Config { baseUrl: string }
+        "type Config = { baseUrl: string }
 const config = Config(baseUrl: \"https://api.com\")
 type MyConfig = typeof config",
     );
@@ -2229,8 +2221,8 @@ type MyConfig = typeof config",
 #[test]
 fn intersection_two_types() {
     let result = emit(
-        "type A { x: number }
-type B { y: string }
+        "type A = { x: number }
+type B = { y: string }
 type C = A & B",
     );
     assert!(
@@ -2242,8 +2234,8 @@ type C = A & B",
 #[test]
 fn intersection_three_types() {
     let result = emit(
-        "type A { x: number }
-type B { y: string }
+        "type A = { x: number }
+type B = { y: string }
 type D = A & B & { z: boolean }",
     );
     assert!(
@@ -2255,8 +2247,8 @@ type D = A & B & { z: boolean }",
 #[test]
 fn intersection_after_generic_type() {
     let result = emit(
-        "type A { x: number }
-type B { y: string }
+        "type A = { x: number }
+type B = { y: string }
 type C = Array<A> & B",
     );
     assert!(
@@ -2268,8 +2260,8 @@ type C = Array<A> & B",
 #[test]
 fn record_spread_emits_intersection() {
     let result = emit(
-        "type A { x: number }
-type B {
+        "type A = { x: number }
+type B = {
     ...A,
     y: string,
 }",
@@ -2292,8 +2284,8 @@ fn string_literal_type_arg() {
 #[test]
 fn jsx_spread_prop() {
     let result = emit(
-        "type Props { x: number }
-fn _test(props: Props) -> JSX.Element {
+        "type Props = { x: number }
+fn _test(props: Props) => JSX.Element {
     <div {...props} />
 }",
     );
@@ -2309,10 +2301,10 @@ fn _test(props: Props) -> JSX.Element {
 fn for_block_bare_pipe_uses_mangled_name() {
     let result = emit(
         r#"
-type Icon { | Grid | Columns }
+type Icon = | Grid | Columns
 
 for Icon {
-    fn toChar(self) -> string {
+    fn toChar(self) => string {
         match self { Grid -> "G", Columns -> "C" }
     }
 }
@@ -2334,10 +2326,10 @@ const _x = Grid |> toChar
 fn for_block_bare_identifier_uses_mangled_name() {
     let result = emit(
         r#"
-type Icon { | Grid | Columns }
+type Icon = | Grid | Columns
 
 for Icon {
-    fn toChar(self) -> string {
+    fn toChar(self) => string {
         match self { Grid -> "G", Columns -> "C" }
     }
 }
@@ -2360,9 +2352,9 @@ fn user_union_named_ok_does_not_inherit_result_dispatch() {
     // — because the subject's type is not `Result`.
     let result = emit_typed(
         r#"
-type Bag { | Ok(number) | Missing }
+type Bag = | Ok(number) | Missing
 
-export fn describe(b: Bag) -> string {
+export fn describe(b: Bag) => string {
     match b {
         Ok(n) -> "ok",
         Missing -> "missing",
@@ -2384,7 +2376,7 @@ export fn describe(b: Bag) -> string {
 fn real_result_match_uses_ok_field_discriminator() {
     let result = emit_typed(
         r#"
-export fn describe(r: Result<number, string>) -> string {
+export fn describe(r: Result<number, string>) => string {
     match r {
         Ok(n) -> "ok",
         Err(e) -> "err",
@@ -2406,7 +2398,7 @@ fn user_record_tag_field_does_not_collide_with_union_discriminator() {
     let result = emit_typed(
         r#"
 type Button = { tag: string, label: string }
-type Route { | Home | Profile { id: string } }
+type Route = | Home | Profile { id: string }
 
 const btn = Button(tag: "nav-button", label: "Home")
 const r = Home
@@ -2435,14 +2427,14 @@ fn pipe_unwrap_emits_early_return_on_none() {
     // same way `(x |> f)?` does — identical runtime semantics.
     let result = emit_typed(
         r#"
-fn half(n: number) -> Option<number> {
+fn half(n: number) => Option<number> {
     match n % 2 {
         0 -> Some(n / 2),
         _ -> None,
     }
 }
 
-fn run() -> Option<number> {
+fn run() => Option<number> {
     const x = 10 |>? half
     Some(x + 1)
 }
@@ -2471,7 +2463,7 @@ fn untrusted_call_detection_reads_callee_type() {
         r#"
 import { someFn } from "untrusted-pkg"
 
-export fn wrap() -> Result<number, Error> {
+export fn wrap() => Result<number, Error> {
     someFn()
 }
 "#,

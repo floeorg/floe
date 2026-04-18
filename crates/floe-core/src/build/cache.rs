@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn is_fresh_rejects_changed_dependency() {
         let dep_path = PathBuf::from("dep.fl");
-        let dep_source = "type A {}";
+        let dep_source = "type A = {}";
         let mut dep_hashes = HashMap::new();
         dep_hashes.insert(
             dep_path.clone(),
@@ -182,7 +182,7 @@ mod tests {
         let i = iface("const x = 42", dep_hashes, false);
         let mut current_deps = HashMap::new();
         // Dep now has different content.
-        current_deps.insert(dep_path, "type A { b: number }".to_string());
+        current_deps.insert(dep_path, "type A = { b: number }".to_string());
         assert!(!CacheStore::is_fresh(&i, "const x = 42", &current_deps));
     }
 
@@ -228,7 +228,7 @@ mod tests {
         let src_path = tmp.path().join("lib.fl");
         std::fs::write(
             &src_path,
-            "export type Foo { name: string }\nexport fn greet(f: Foo) -> string { f.name }\nexport const MAX: number = 10\n",
+            "export type Foo = { name: string }\nexport fn greet(f: Foo) => string { f.name }\nexport const MAX: number = 10\n",
         )
         .unwrap();
         let importer_path = tmp.path().join("app.fl");

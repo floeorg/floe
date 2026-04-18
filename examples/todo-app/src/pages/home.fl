@@ -3,7 +3,7 @@ import trusted { v4 } from "uuid"
 import { Todo, Filter, Validation } from "../types"
 import { for string, for Array } from "../todo"
 
-export fn HomePage() -> JSX.Element {
+export fn HomePage() => JSX.Element {
     const (todos, setTodos) = useState<Array<Todo>>([])
     const (input, setInput) = useState("")
     const (filter, setFilter) = useState<Filter>(All)

@@ -1,4 +1,4 @@
-export fn AboutPage() -> JSX.Element {
+export fn AboutPage() => JSX.Element {
     const features = [
         "Pipe operator (|>) for data transformation",
         "Exhaustive match expressions",

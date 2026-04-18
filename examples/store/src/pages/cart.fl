@@ -2,11 +2,29 @@ import trusted { useState } from "react"
 import { CartItem, Product, ProductId, OrderStatus, OrderId } from "../types"
 import { for Array, formatPrice } from "../product"
 
+// ── Prop types ─────────────────────────────────────────
+
+type CartItemRowProps = {
+    item: CartItem,
+    onUpdateQty: (ProductId, number) => (),
+    onRemove: (ProductId) => (),
+}
+
+type OrderSummaryProps = {
+    cart: Array<CartItem>,
+    orderStatus: OrderStatus,
+    onCheckout: () => (),
+}
+
+type CartPageProps = {
+    cart: Array<CartItem>,
+    onUpdateQty: (ProductId, number) => (),
+    onRemove: (ProductId) => (),
+}
+
 // ── Cart item row ──────────────────────────────────────
 
-fn CartItemRow(
-    props: { item: CartItem, onUpdateQty: (ProductId, number) -> (), onRemove: (ProductId) -> () },
-) -> JSX.Element {
+fn CartItemRow(props: CartItemRowProps) => JSX.Element {
     const item = props.item
     const product = item.product
     const lineTotal = (product.price * (1 - product.discountPercentage / 100)) * item.quantity
@@ -53,9 +71,7 @@ fn CartItemRow(
 
 // ── Order summary with tuple destructuring ─────────────
 
-fn OrderSummary(
-    props: { cart: Array<CartItem>, orderStatus: OrderStatus, onCheckout: () -> () },
-) -> JSX.Element {
+fn OrderSummary(props: OrderSummaryProps) => JSX.Element {
     const (subtotal, discount, total) = props.cart |> totals
 
     <div
@@ -103,9 +119,7 @@ fn OrderSummary(
 
 // ── Cart page ──────────────────────────────────────────
 
-export fn CartPage(
-    props: { cart: Array<CartItem>, onUpdateQty: (ProductId, number) -> (), onRemove: (ProductId) -> () },
-) -> JSX.Element {
+export fn CartPage(props: CartPageProps) => JSX.Element {
     const (orderStatus, setOrderStatus) = useState<OrderStatus>(Pending)
 
     fn handleCheckout() {

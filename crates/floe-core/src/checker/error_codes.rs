@@ -126,8 +126,6 @@ pub enum ErrorCode {
     TryOnFloeFunction,
     /// Function uses `await` but return type is not `Promise<T>`.
     MissingPromiseReturn,
-    /// Bridge type syntax (`= ...`) used without referencing any TypeScript import.
-    BridgeTypeWithoutImport,
     /// tsgo is required to resolve TypeScript imports but is not installed.
     TsgoNotFound,
     /// Wrong number of type arguments for a generic type.
@@ -142,6 +140,10 @@ pub enum ErrorCode {
     DotCallOnForBlockMethod,
     /// Trait imported without the `for` prefix — must be `import { for Trait }`.
     TraitImportWithoutFor,
+    /// Bare `|` with string literals — use `OneOf<...>` for TS-style unions.
+    BareStringLiteralUnion,
+    /// Inline record type in function signature — declare a named type first.
+    InlineRecordTypeInSignature,
 }
 
 impl ErrorCode {
@@ -196,7 +198,6 @@ impl ErrorCode {
             Self::UnknownBinding => "W006",
             Self::TryOnFloeFunction => "W007",
             Self::MissingPromiseReturn => "E041",
-            Self::BridgeTypeWithoutImport => "E042",
             Self::TsgoNotFound => "E043",
             Self::ExportNotFound => "E044",
             Self::TypeArgumentArity => "E045",
@@ -205,6 +206,8 @@ impl ErrorCode {
             Self::TraitUsedAsType => "E049",
             Self::DotCallOnForBlockMethod => "E050",
             Self::TraitImportWithoutFor => "E053",
+            Self::BareStringLiteralUnion => "E201",
+            Self::InlineRecordTypeInSignature => "E202",
         }
     }
 }

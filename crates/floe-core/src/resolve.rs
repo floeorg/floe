@@ -279,8 +279,9 @@ pub struct ResolvedImports {
     /// npm type names referenced in exported signatures (transitively needed)
     pub foreign_type_names: Vec<String>,
     /// npm/external import declarations from the resolved .fl file.
-    /// Used by probe_gen to emit the imports needed to resolve bridge type aliases
-    /// (e.g. `type Database = DrizzleD1Database<Schema>` needs `drizzle-orm` imported).
+    /// Used by probe_gen to emit the imports needed to resolve structural type
+    /// aliases (e.g. `type Database = DrizzleD1Database<Schema>` needs
+    /// `drizzle-orm` imported).
     pub npm_imports: Vec<ImportDecl>,
 }
 
@@ -594,7 +595,7 @@ fn resolve_from_source(
     }
 
     // Collect npm/external import declarations so probe_gen can emit them when
-    // resolving bridge type aliases (e.g. `type Database = DrizzleD1Database<Schema>`
+    // resolving structural type aliases (e.g. `type Database = DrizzleD1Database<Schema>`
     // needs the drizzle-orm import to be available in the TypeScript probe).
     for item in &program.items {
         if let ItemKind::Import(decl) = &item.kind {
@@ -1029,7 +1030,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "ext.fl",
-                "for User { export fn greet(self) -> string { self.name } }",
+                "for User { export fn greet(self) => string { self.name } }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1049,7 +1050,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "ext.fl",
-                "export for User {\n    fn greet(self) -> string { self.name }\n    fn shout(self) -> string { self.name }\n}",
+                "export for User {\n    fn greet(self) => string { self.name }\n    fn shout(self) => string { self.name }\n}",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1090,7 +1091,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "traits.fl",
-                "export trait Display { fn show(self) -> string }",
+                "export trait Display { fn show(self) => string }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1124,7 +1125,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "types.fl",
-                "type WithRating { rating: number }\nexport type Product { ...WithRating, title: string }",
+                "type WithRating = { rating: number }\nexport type Product = { ...WithRating, title: string }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1172,7 +1173,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "types.fl",
-                "type A { x: number }\ntype B { ...A, y: string }\nexport type C { ...B, z: boolean }",
+                "type A = { x: number }\ntype B = { ...A, y: string }\nexport type C = { ...B, z: boolean }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1252,7 +1253,7 @@ mod tests {
         // and resolve_ts_path should find .ts — but the resolver
         // only calls resolve_ts_path when .fl resolution fails.
         let (_dir, base) = setup_files(&[
-            ("types.fl", "export type X { y: number }"),
+            ("types.fl", "export type X = { y: number }"),
             ("types.ts", "export type X = { y: number }"),
         ]);
         let fl_result = resolve_path(&base, "./types");

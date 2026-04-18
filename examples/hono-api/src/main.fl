@@ -1,23 +1,21 @@
 import trusted { router, get, post, handle, Router } from "@floeorg/hono"
 
-type Env {
+type Env = {
     greeting: string,
 }
 
-fn hello(_c: unknown) -> Response {
+fn hello(_c: unknown) => Response {
     Response("hello")
 }
 
-fn echo(_c: unknown) -> Response {
+fn echo(_c: unknown) => Response {
     Response("echo")
 }
 
-export fn build() -> Router<Env> {
-    router<Env>()
-        |> get("/hello", hello)
-        |> post("/echo", echo)
+export fn build() => Router<Env> {
+    router<Env>() |> get("/hello", hello) |> post("/echo", echo)
 }
 
-export fn serve(request: Request, env: Env) -> unknown {
+export fn serve(request: Request, env: Env) => unknown {
     handle(build(), request, env)
 }

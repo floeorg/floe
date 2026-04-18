@@ -78,7 +78,7 @@ The `?` operator unwraps `Ok(value)` or `Some(value)`, and returns early with `E
 |----------|---------|---------|
 | `(x) =>` | Closures | `(x) => x + 1` |
 | `.field` | Dot shorthand | `.name` (implicit field-access closure) |
-| `->` | Match arms, return types, function types | `Ok(x) -> x`, `fn add(a) -> number`, `(string) -> number` |
+| `->` | Match arms, return types, function types | `Ok(x) => x`, `fn add(a) => number`, `(string) => number` |
 | `\|>` | Pipes | `data \|> transform` |
 
 ## Precedence (high to low)

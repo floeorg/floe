@@ -7,7 +7,7 @@ Floe replaces exceptions with `Result<T, E>` and replaces null checks with `Opti
 ## Result
 
 ```floe
-fn divide(a: number, b: number) -> Result<number, string> {
+fn divide(a: number, b: number) => Result<number, string> {
   match b {
     0 -> Err("division by zero"),
     _ -> Ok(a / b),
@@ -36,7 +36,7 @@ divide(10, 3)
 Propagate errors early instead of nesting matches:
 
 ```floe
-fn processOrder(id: string) -> Result<Receipt, Error> {
+fn processOrder(id: string) => Result<Receipt, Error> {
   const order = fetchOrder(id)?       // returns Err early if it fails
   const payment = chargeCard(order)?  // same here
   Ok(Receipt(order, payment))
@@ -54,7 +54,7 @@ Using `?` outside a function that returns `Result` is a compile error.
 Normally, `?` short-circuits on the first error. But sometimes you want **all** errors at once -- form validation, batch processing, config parsing. The `collect` block changes `?` from short-circuiting to accumulating:
 
 ```floe
-fn validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> {
+fn validateForm(input: FormInput) => Result<ValidForm, Array<ValidationError>> {
     collect {
         const name = input.name |> validateName?
         const email = input.email |> validateEmail?
@@ -96,7 +96,7 @@ type ApiConfig {
     timeout: number,
 }
 
-fn loadConfig(env: Env) -> Result<ApiConfig, Array<ConfigError>> {
+fn loadConfig(env: Env) => Result<ApiConfig, Array<ConfigError>> {
     collect {
         const baseUrl = env |> requireEnv("API_BASE_URL")?
         const apiKey = env |> requireEnv("API_KEY")?
@@ -118,7 +118,7 @@ type AppError {
     | Api { message: string }
 }
 
-fn saveTodo(text: string, id: string) -> Result<Todo, AppError> {
+fn saveTodo(text: string, id: string) => Result<Todo, AppError> {
     const todo = validateTodo(text, id) |> Result.mapErr(Validation)?
     const saved = apiSave(todo) |> Result.mapErr(Api)?
     Ok(saved)
@@ -130,7 +130,7 @@ fn saveTodo(text: string, id: string) -> Result<Todo, AppError> {
 ## Option
 
 ```floe
-fn findUser(id: string) -> Option<User> {
+fn findUser(id: string) => Option<User> {
   match users |> find(.id == id) {
     Some(user) -> Some(user),
     None -> None,
@@ -154,7 +154,7 @@ When importing from npm packages, Floe automatically wraps nullable types:
 ```floe
 import { getElementById } from "some-dom-lib"
 // .d.ts says: getElementById(id: string): Element | null
-// Floe sees: getElementById(id: string) -> Option<Element>
+// Floe sees: getElementById(id: string) => Option<Element>
 ```
 
 The boundary wrapping also converts:
@@ -182,7 +182,7 @@ Floe provides two built-in expressions for common development patterns:
 Use `todo` as a placeholder in unfinished code. It type-checks as `never`, so it satisfies any return type. The compiler emits a warning to remind you to replace it.
 
 ```floe
-fn processPayment(order: Order) -> Result<Receipt, Error> {
+fn processPayment(order: Order) => Result<Receipt, Error> {
   todo  // warning: placeholder that will panic at runtime
 }
 ```
@@ -194,7 +194,7 @@ At runtime, `todo` throws `Error("not implemented")`.
 Use `unreachable` to assert that a code path should never execute. Like `todo`, it has type `never`, but unlike `todo`, it does not emit a warning.
 
 ```floe
-fn direction(key: string) -> string {
+fn direction(key: string) => string {
   match key {
     "w" -> "up",
     "s" -> "down",

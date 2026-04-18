@@ -380,7 +380,7 @@
               "members": [
                 {
                   "type": "STRING",
-                  "value": "->"
+                  "value": "=>"
                 },
                 {
                   "type": "FIELD",
@@ -571,7 +571,7 @@
               "members": [
                 {
                   "type": "STRING",
-                  "value": "->"
+                  "value": "=>"
                 },
                 {
                   "type": "FIELD",
@@ -747,16 +747,8 @@
           ]
         },
         {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "STRING",
-              "value": "="
-            },
-            {
-              "type": "BLANK"
-            }
-          ]
+          "type": "STRING",
+          "value": "="
         },
         {
           "type": "FIELD",
@@ -847,6 +839,14 @@
       "type": "SEQ",
       "members": [
         {
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "SYMBOL",
+            "name": "type_identifier"
+          }
+        },
+        {
           "type": "STRING",
           "value": "("
         },
@@ -888,15 +888,23 @@
         "type": "SEQ",
         "members": [
           {
-            "type": "STRING",
-            "value": "|"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "|"
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
           },
           {
             "type": "SYMBOL",
             "name": "variant"
           },
           {
-            "type": "REPEAT",
+            "type": "REPEAT1",
             "content": {
               "type": "SEQ",
               "members": [
@@ -1325,8 +1333,16 @@
       "type": "SEQ",
       "members": [
         {
-          "type": "STRING",
-          "value": "fn"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "fn"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         },
         {
           "type": "STRING",
@@ -1371,7 +1387,7 @@
         },
         {
           "type": "STRING",
-          "value": "->"
+          "value": "=>"
         },
         {
           "type": "SYMBOL",

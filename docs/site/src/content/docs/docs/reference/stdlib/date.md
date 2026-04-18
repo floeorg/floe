@@ -10,7 +10,7 @@ Date construction and accessors. Floe has no `new` keyword, so the `Date` module
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Date.now` | `() -> Date` | Current date and time |
+| `Date.now` | `() => Date` | Current date and time |
 | `Date.from` | `string -> Date` | Parse a date string |
 | `Date.fromMillis` | `number -> Date` | Create from Unix milliseconds |
 | `Date.year` | `Date -> number` | Full year (e.g. 2024) |

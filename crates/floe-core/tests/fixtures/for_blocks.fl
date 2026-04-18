@@ -1,25 +1,25 @@
-type User {
+type User = {
   name: string,
   age: number,
   active: boolean
 }
 
 for User {
-  fn display(self) -> string {
+  fn display(self) => string {
     `${self.name} (${self.age})`
   }
 
-  fn isAdult(self) -> boolean {
+  fn isAdult(self) => boolean {
     self.age >= 18
   }
 
-  fn greet(self, greeting: string) -> string {
+  fn greet(self, greeting: string) => string {
     `${greeting}, ${self.name}!`
   }
 }
 
 for Array<User> {
-  fn adults(self) -> Array<User> {
+  fn adults(self) => Array<User> {
     self |> filter(.age >= 18)
   }
 }

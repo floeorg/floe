@@ -24,8 +24,8 @@ fn format_const_typed() {
 #[test]
 fn format_function() {
     assert_fmt(
-        "fn  add( a:number,b:number ) -> number{a+b}",
-        "fn add(a: number, b: number) -> number {\n    a + b\n}",
+        "fn  add( a:number,b:number ) => number{a+b}",
+        "fn add(a: number, b: number) => number {\n    a + b\n}",
     );
 }
 
@@ -40,8 +40,8 @@ fn format_import() {
 #[test]
 fn format_export() {
     assert_fmt(
-        "export fn add(a:number,b:number) -> number{a+b}",
-        "export fn add(a: number, b: number) -> number {\n    a + b\n}",
+        "export fn add(a:number,b:number) => number{a+b}",
+        "export fn add(a: number, b: number) => number {\n    a + b\n}",
     );
 }
 
@@ -50,16 +50,16 @@ fn format_export() {
 #[test]
 fn format_type_record() {
     assert_fmt(
-        "type User {id:string,name:string}",
-        "type User {\n    id: string,\n    name: string,\n}",
+        "type User = {id:string,name:string}",
+        "type User = {\n    id: string,\n    name: string,\n}",
     );
 }
 
 #[test]
 fn format_type_union() {
     assert_fmt(
-        "type Route {|Home|Profile{id:string}|NotFound}",
-        "type Route {\n    | Home\n    | Profile { id: string }\n    | NotFound\n}",
+        "type Route = |Home|Profile{id:string}|NotFound",
+        "type Route =\n    | Home\n    | Profile { id: string }\n    | NotFound",
     );
 }
 
@@ -163,16 +163,16 @@ fn format_jsx_comment_only_child() {
 #[test]
 fn format_blank_line_before_final_expr_in_multi_stmt_fn() {
     assert_fmt(
-        "fn load(id: string) -> number {\n    const x = fetch(id)\n    const y = process(x)\n    x + y\n}",
-        "fn load(id: string) -> number {\n    const x = fetch(id)\n    const y = process(x)\n\n    x + y\n}",
+        "fn load(id: string) => number {\n    const x = fetch(id)\n    const y = process(x)\n    x + y\n}",
+        "fn load(id: string) => number {\n    const x = fetch(id)\n    const y = process(x)\n\n    x + y\n}",
     );
 }
 
 #[test]
 fn format_single_expr_fn_no_blank_line() {
     assert_fmt(
-        "fn add(a: number, b: number) -> number { a + b }",
-        "fn add(a: number, b: number) -> number {\n    a + b\n}",
+        "fn add(a: number, b: number) => number { a + b }",
+        "fn add(a: number, b: number) => number {\n    a + b\n}",
     );
 }
 
@@ -181,16 +181,16 @@ fn format_already_has_blank_line_no_double() {
     // Even if the input doesn't have one, the formatter always produces
     // the canonical output with exactly one blank line before the last expr
     assert_fmt(
-        "fn f() -> number {\n    const x = 1\n\n    x\n}",
-        "fn f() -> number {\n    const x = 1\n\n    x\n}",
+        "fn f() => number {\n    const x = 1\n\n    x\n}",
+        "fn f() => number {\n    const x = 1\n\n    x\n}",
     );
 }
 
 #[test]
 fn format_two_statement_block_gets_blank_line() {
     assert_fmt(
-        "fn f() -> number {\n    const x = 1\n    x\n}",
-        "fn f() -> number {\n    const x = 1\n\n    x\n}",
+        "fn f() => number {\n    const x = 1\n    x\n}",
+        "fn f() => number {\n    const x = 1\n\n    x\n}",
     );
 }
 
@@ -232,14 +232,14 @@ fn format_named_arg_punning_already_punned() {
 #[test]
 fn format_tuple_type() {
     assert_fmt(
-        "fn f() -> Result<(string, number), Error> {}",
-        "fn f() -> Result<(string, number), Error> {}",
+        "fn f() => Result<(string, number), Error> {}",
+        "fn f() => Result<(string, number), Error> {}",
     );
 }
 
 #[test]
 fn format_unit_type() {
-    assert_fmt("fn f() -> () {}", "fn f() -> () {}");
+    assert_fmt("fn f() => () {}", "fn f() => () {}");
 }
 
 // ── Tuple expressions ──────────────────────────────────
@@ -395,16 +395,16 @@ fn format_preserves_comment_between_array_elements() {
 #[test]
 fn format_preserves_comment_between_record_fields() {
     assert_fmt(
-        "type User {\n    id: string,\n    // a person's name\n    name: string,\n}",
-        "type User {\n    id: string,\n    // a person's name\n    name: string,\n}",
+        "type User = {\n    id: string,\n    // a person's name\n    name: string,\n}",
+        "type User = {\n    id: string,\n    // a person's name\n    name: string,\n}",
     );
 }
 
 #[test]
 fn format_preserves_comment_between_function_params() {
     assert_fmt(
-        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) -> number {\n    a + b\n}",
-        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) -> number {\n    a + b\n}",
+        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) => number {\n    a + b\n}",
+        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) => number {\n    a + b\n}",
     );
 }
 
@@ -423,7 +423,7 @@ fn idempotent_comment_between_call_args() {
 
 #[test]
 fn idempotent_comment_between_record_fields() {
-    assert_idempotent("type User {\n    id: string,\n    // name\n    name: string,\n}");
+    assert_idempotent("type User = {\n    id: string,\n    // name\n    name: string,\n}");
 }
 
 // ── Tagged template literals ───────────────────────────
@@ -459,7 +459,7 @@ fn assert_idempotent(input: &str) {
 
 #[test]
 fn idempotent_tuple_type_in_result() {
-    assert_idempotent("fn f(id: Id) -> Result<(Product, Array<Review>), Error> { Ok((p, r)) }");
+    assert_idempotent("fn f(id: Id) => Result<(Product, Array<Review>), Error> { Ok((p, r)) }");
 }
 
 #[test]
@@ -479,8 +479,8 @@ fn idempotent_generic_call() {
 #[test]
 fn format_record_spread() {
     assert_fmt(
-        "type A { x: number, ...B, y: string }",
-        "type A {\n    x: number,\n    ...B,\n    y: string,\n}",
+        "type A = { x: number, ...B, y: string }",
+        "type A = {\n    x: number,\n    ...B,\n    y: string,\n}",
     );
 }
 
@@ -534,16 +534,16 @@ fn format_short_pipe_stays_inline() {
 #[test]
 fn format_long_fn_params_go_multiline() {
     assert_fmt(
-        "fn fetchProducts(category: string = \"\", search: string = \"\", limit: number = 20, skip: number = 0) -> Result<number, Error> {}",
-        "fn fetchProducts(\n    category: string = \"\",\n    search: string = \"\",\n    limit: number = 20,\n    skip: number = 0,\n) -> Result<number, Error> {}",
+        "fn fetchProducts(category: string = \"\", search: string = \"\", limit: number = 20, skip: number = 0) => Result<number, Error> {}",
+        "fn fetchProducts(\n    category: string = \"\",\n    search: string = \"\",\n    limit: number = 20,\n    skip: number = 0,\n) => Result<number, Error> {}",
     );
 }
 
 #[test]
 fn format_short_fn_params_stay_inline() {
     assert_fmt(
-        "fn add(a: number, b: number) -> number { a + b }",
-        "fn add(a: number, b: number) -> number {\n    a + b\n}",
+        "fn add(a: number, b: number) => number { a + b }",
+        "fn add(a: number, b: number) => number {\n    a + b\n}",
     );
 }
 
@@ -629,8 +629,8 @@ fn format_destructured_arrow_param() {
 #[test]
 fn format_underscore_param() {
     assert_fmt(
-        "fn f(_:number) -> number {\n    42\n}",
-        "fn f(_: number) -> number {\n    42\n}",
+        "fn f(_:number) => number {\n    42\n}",
+        "fn f(_: number) => number {\n    42\n}",
     );
 }
 
@@ -825,68 +825,68 @@ fn format_object_destructure_mixed() {
 #[test]
 fn format_for_block_basic() {
     assert_fmt(
-        "for User {\n  fn display(self) -> string {\n  `${self.name}`\n}\n}",
-        "for User {\n    fn display(self) -> string {\n        `${self.name}`\n    }\n}",
+        "for User {\n  fn display(self) => string {\n  `${self.name}`\n}\n}",
+        "for User {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_with_trait() {
     assert_fmt(
-        "for  User :  Display  {\nfn display(self) -> string {\n`${self.name}`\n}\n}",
-        "for User: Display {\n    fn display(self) -> string {\n        `${self.name}`\n    }\n}",
+        "for  User :  Display  {\nfn display(self) => string {\n`${self.name}`\n}\n}",
+        "for User: Display {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_with_export() {
     assert_fmt(
-        "for User {\n  export fn display(self) -> string {\n  `${self.name}`\n}\n}",
-        "for User {\n    export fn display(self) -> string {\n        `${self.name}`\n    }\n}",
+        "for User {\n  export fn display(self) => string {\n  `${self.name}`\n}\n}",
+        "for User {\n    export fn display(self) => string {\n        `${self.name}`\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_multiple_methods() {
     assert_fmt(
-        "for User {\nfn name(self) -> string { self.name }\nfn age(self) -> number { self.age }\n}",
-        "for User {\n    fn name(self) -> string {\n        self.name\n    }\n\n    fn age(self) -> number {\n        self.age\n    }\n}",
+        "for User {\nfn name(self) => string { self.name }\nfn age(self) => number { self.age }\n}",
+        "for User {\n    fn name(self) => string {\n        self.name\n    }\n\n    fn age(self) => number {\n        self.age\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_generic_type() {
     assert_fmt(
-        "for Array<Todo> {\nexport fn remaining(self) -> number {\nself |> filter(.done == false) |> length\n}\n}",
-        "for Array<Todo> {\n    export fn remaining(self) -> number {\n        self |> filter(.done == false) |> length\n    }\n}",
+        "for Array<Todo> {\nexport fn remaining(self) => number {\nself |> filter(.done == false) |> length\n}\n}",
+        "for Array<Todo> {\n    export fn remaining(self) => number {\n        self |> filter(.done == false) |> length\n    }\n}",
     );
 }
 
 #[test]
 fn format_trait_decl_basic() {
     assert_fmt(
-        "trait Display {\nfn display(self) -> string\n}",
-        "trait Display {\n    fn display(self) -> string\n}",
+        "trait Display {\nfn display(self) => string\n}",
+        "trait Display {\n    fn display(self) => string\n}",
     );
 }
 
 #[test]
 fn format_trait_decl_with_default_impl() {
     assert_fmt(
-        "trait Eq {\nfn eq(self,other:Self) -> boolean\nfn neq(self,other:Self) -> boolean {\n!(self |> eq(other))\n}\n}",
-        "trait Eq {\n    fn eq(self, other: Self) -> boolean\n\n    fn neq(self, other: Self) -> boolean {\n        !(self |> eq(other))\n    }\n}",
+        "trait Eq {\nfn eq(self,other:Self) => boolean\nfn neq(self,other:Self) => boolean {\n!(self |> eq(other))\n}\n}",
+        "trait Eq {\n    fn eq(self, other: Self) => boolean\n\n    fn neq(self, other: Self) => boolean {\n        !(self |> eq(other))\n    }\n}",
     );
 }
 
 #[test]
 fn idempotent_for_block() {
-    let formatted = "for User: Display {\n    export fn display(self) -> string {\n        `${self.name}`\n    }\n}";
+    let formatted = "for User: Display {\n    export fn display(self) => string {\n        `${self.name}`\n    }\n}";
     assert_fmt(formatted, formatted);
 }
 
 #[test]
 fn idempotent_trait_decl() {
-    let formatted = "trait Display {\n    fn display(self) -> string\n}";
+    let formatted = "trait Display {\n    fn display(self) => string\n}";
     assert_fmt(formatted, formatted);
 }
 
@@ -895,7 +895,7 @@ fn idempotent_trait_decl() {
 #[test]
 fn idempotent_block_comment_between_record_fields() {
     assert_idempotent(
-        "type User {\n    id: string,\n    /* the person's name */\n    name: string,\n}",
+        "type User = {\n    id: string,\n    /* the person's name */\n    name: string,\n}",
     );
 }
 
@@ -921,7 +921,7 @@ fn idempotent_block_comment_inside_construct_args() {
 
 #[test]
 fn idempotent_trailing_comment_at_end_of_function() {
-    assert_idempotent("fn f() -> number {\n    const x = 1\n\n    // return the answer\n    x\n}");
+    assert_idempotent("fn f() => number {\n    const x = 1\n\n    // return the answer\n    x\n}");
 }
 
 #[test]
@@ -932,13 +932,15 @@ fn idempotent_doc_comment_before_const() {
 #[test]
 fn idempotent_doc_comment_before_function() {
     assert_idempotent(
-        "/// adds two numbers\nfn add(a: number, b: number) -> number {\n    a + b\n}",
+        "/// adds two numbers\nfn add(a: number, b: number) => number {\n    a + b\n}",
     );
 }
 
 #[test]
 fn idempotent_doc_comment_before_type() {
-    assert_idempotent("/// a registered user\ntype User {\n    id: string,\n    name: string,\n}");
+    assert_idempotent(
+        "/// a registered user\ntype User = {\n    id: string,\n    name: string,\n}",
+    );
 }
 
 #[test]
@@ -958,7 +960,7 @@ fn idempotent_blank_lines_between_definitions() {
 
 #[test]
 fn idempotent_blank_lines_between_functions() {
-    assert_idempotent("fn one() -> number {\n    1\n}\n\nfn two() -> number {\n    2\n}");
+    assert_idempotent("fn one() => number {\n    1\n}\n\nfn two() => number {\n    2\n}");
 }
 
 #[test]
@@ -981,7 +983,7 @@ fn idempotent_block_comment_between_call_args() {
 #[test]
 fn idempotent_line_comment_between_function_params() {
     assert_idempotent(
-        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) -> number {\n    a + b\n}",
+        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) => number {\n    a + b\n}",
     );
 }
 

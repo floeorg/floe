@@ -325,7 +325,7 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
 
             // Optional return type
-            if self.at(TokenKind::ThinArrow) {
+            if self.at(TokenKind::FatArrow) {
                 self.bump();
                 self.eat_trivia();
                 self.parse_type_expr();
@@ -406,25 +406,9 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        // New syntax: `type Name { ... }` for records/unions/newtypes
-        //            `type Name(Type)` for newtypes with paren syntax
-        // Old syntax: `type Name = ...` for aliases and string literal unions
-        if self.at(TokenKind::LeftBrace) {
-            self.parse_type_body_in_braces();
-        } else if self.at(TokenKind::LeftParen) {
-            // Newtype with paren syntax: `type UserId(string)`. Fields are
-            // positional — reject `type UserId(name: string)`.
-            self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
-            self.bump(); // (
-            self.eat_trivia();
-            self.parse_comma_separated(Self::parse_positional_variant_field, TokenKind::RightParen);
-            self.expect(TokenKind::RightParen);
-            self.builder.finish_node();
-        } else {
-            self.expect(TokenKind::Equal);
-            self.eat_trivia();
-            self.parse_type_def_after_eq();
-        }
+        self.expect(TokenKind::Equal);
+        self.eat_trivia();
+        self.parse_type_def_after_eq();
 
         // Optional deriving clause: `deriving (Display)`
         self.eat_trivia();
@@ -442,146 +426,123 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
-    /// Parse type body inside `{ }`: disambiguate between record, union, and newtype.
-    fn parse_type_body_in_braces(&mut self) {
-        // Peek at first non-trivia token inside `{` to disambiguate:
-        // - `|` → union variants
-        // - lowercase ident + `:` → record fields
-        // - `...` → record fields (spread)
-        // - `}` → empty record
-        // - anything else → newtype wrapper
-        let first_inside = self.peek_inside_brace();
-
-        match first_inside {
-            Some(TokenKind::VerticalBar) => {
-                self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
-                self.bump(); // {
-                self.eat_trivia();
-                self.parse_union_variants_inner();
-                self.expect(TokenKind::RightBrace);
-                self.builder.finish_node();
-            }
-            Some(TokenKind::DotDotDot) => {
-                // Record with spread
-                self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
-                self.parse_record_fields();
-                self.builder.finish_node();
-            }
-            Some(TokenKind::Identifier(_))
-                if self.peek_inside_brace_second() == Some(TokenKind::Colon) =>
-            {
-                // Record field: `name: Type`, regardless of case. PascalCase
-                // field names are common in TS interop (Hono's `Bindings`,
-                // React props forwarded by name, etc.).
-                self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
-                self.parse_record_fields();
-                self.builder.finish_node();
-            }
-            Some(TokenKind::Identifier(name)) if name.starts_with(char::is_lowercase) => {
-                // Newtype wrapping a lowercase type like `number`, `string`, `boolean`
-                self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
-                self.bump(); // {
-                self.eat_trivia();
-                self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
-                self.parse_type_expr();
-                self.builder.finish_node();
-                self.eat_trivia();
-                self.expect(TokenKind::RightBrace);
-                self.builder.finish_node();
-            }
-            Some(TokenKind::RightBrace) => {
-                // Empty record: `type Foo {}`
-                self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
-                self.parse_record_fields();
-                self.builder.finish_node();
-            }
-            _ => {
-                // Newtype: `type OrderId { number }`
-                // Parse as single-variant union matching the type name
-                self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
-                self.bump(); // {
-                self.eat_trivia();
-                // Synthesize a variant with the type's name — the lowerer
-                // will pick up the inner type expression as a variant field
-                self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
-                self.parse_type_expr();
-                self.builder.finish_node();
-                self.eat_trivia();
-                self.expect(TokenKind::RightBrace);
-                self.builder.finish_node();
-            }
-        }
-    }
-
-    /// Peek at the first non-trivia token after the current `{`.
-    fn peek_inside_brace(&self) -> Option<TokenKind> {
-        let mut i = self.pos + 1;
-        while i < self.tokens.len() {
-            if !self.tokens[i].kind.is_trivia() {
-                return Some(self.tokens[i].kind.clone());
-            }
-            i += 1;
-        }
-        None
-    }
-
-    /// Peek at the second non-trivia token after the current `{`.
-    fn peek_inside_brace_second(&self) -> Option<TokenKind> {
-        let mut i = self.pos + 1;
-        let mut count = 0;
-        while i < self.tokens.len() {
-            if !self.tokens[i].kind.is_trivia() {
-                count += 1;
-                if count == 2 {
-                    return Some(self.tokens[i].kind.clone());
-                }
-            }
-            i += 1;
-        }
-        None
-    }
-
-    /// Parse after `=`: aliases and string literal unions only.
     fn parse_type_def_after_eq(&mut self) {
+        if self.at(TokenKind::LeftBrace) {
+            self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
+            self.parse_record_fields();
+            self.builder.finish_node();
+            return;
+        }
+
+        if self.at(TokenKind::VerticalBar) {
+            self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
+            self.parse_union_variants_inner();
+            self.builder.finish_node();
+            return;
+        }
+
+        if self.is_ident() && self.looks_like_nominal_sum_or_newtype() {
+            self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
+            self.parse_union_variants_inner();
+            self.builder.finish_node();
+            return;
+        }
+
         if self.at_string_literal_union() {
             self.parse_string_literal_union();
-        } else {
-            self.builder.start_node(SyntaxKind::TYPE_DEF_ALIAS.into());
-            self.parse_type_expr();
-            self.builder.finish_node();
+            return;
+        }
+
+        self.builder.start_node(SyntaxKind::TYPE_DEF_ALIAS.into());
+        self.parse_type_expr();
+        self.builder.finish_node();
+    }
+
+    fn looks_like_nominal_sum_or_newtype(&self) -> bool {
+        let Some(TokenKind::Identifier(name)) = self.current_kind() else {
+            return false;
+        };
+        if !name.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+            return false;
+        }
+
+        let mut i = self.pos + 1;
+        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+            i += 1;
+        }
+        let Some(tok) = self.tokens.get(i).map(|t| t.kind.clone()) else {
+            return false;
+        };
+
+        match tok {
+            TokenKind::VerticalBar => true,
+            TokenKind::LeftParen => true,
+            TokenKind::LeftBrace => {
+                let after = self.skip_balanced(i + 1, |k| match k {
+                    TokenKind::LeftBrace => 1,
+                    TokenKind::RightBrace => -1,
+                    _ => 0,
+                });
+                let mut j = after;
+                while j < self.tokens.len() && self.tokens[j].kind.is_trivia() {
+                    j += 1;
+                }
+                matches!(
+                    self.tokens.get(j).map(|t| t.kind.clone()),
+                    Some(TokenKind::VerticalBar)
+                )
+            }
+            _ => false,
         }
     }
 
-    /// Parse union variants inside `{ }`. The `{` is already consumed, `}` is consumed by caller.
     fn parse_union_variants_inner(&mut self) {
+        if self.at_pipe_in_union() {
+            self.parse_single_variant();
+        } else if self.is_ident() {
+            self.parse_single_variant_no_pipe();
+        } else {
+            return;
+        }
+
         while self.at_pipe_in_union() {
-            self.builder.start_node(SyntaxKind::VARIANT.into());
-            self.bump(); // |
-            self.eat_trivia();
-            self.expect_ident();
-            self.eat_trivia();
+            self.parse_single_variant();
+        }
+    }
 
-            // Variant fields: `{ name: Type, ... }` (named) or `(Type, ...)` (positional).
-            // Each bracket style accepts exactly one field form — mixing them is a
-            // parse error so there is a single canonical way to write each variant.
-            if self.at(TokenKind::LeftBrace) {
-                self.bump(); // {
-                self.eat_trivia();
-                self.parse_comma_separated(Self::parse_named_variant_field, TokenKind::RightBrace);
-                self.expect(TokenKind::RightBrace);
-                self.eat_trivia();
-            } else if self.at(TokenKind::LeftParen) {
-                self.bump(); // (
-                self.eat_trivia();
-                self.parse_comma_separated(
-                    Self::parse_positional_variant_field,
-                    TokenKind::RightParen,
-                );
-                self.expect(TokenKind::RightParen);
-                self.eat_trivia();
-            }
+    fn parse_single_variant(&mut self) {
+        self.builder.start_node(SyntaxKind::VARIANT.into());
+        self.bump(); // |
+        self.eat_trivia();
+        self.parse_variant_after_pipe();
+        self.builder.finish_node();
+    }
 
-            self.builder.finish_node();
+    fn parse_single_variant_no_pipe(&mut self) {
+        self.builder.start_node(SyntaxKind::VARIANT.into());
+        self.parse_variant_after_pipe();
+        self.builder.finish_node();
+    }
+
+    fn parse_variant_after_pipe(&mut self) {
+        self.expect_ident();
+        self.eat_trivia();
+
+        // Variant fields: `{ name: Type, ... }` (named) or `(Type, ...)` (positional).
+        // Each bracket style accepts exactly one field form — mixing them is a
+        // parse error so there is a single canonical way to write each variant.
+        if self.at(TokenKind::LeftBrace) {
+            self.bump(); // {
+            self.eat_trivia();
+            self.parse_comma_separated(Self::parse_named_variant_field, TokenKind::RightBrace);
+            self.expect(TokenKind::RightBrace);
+            self.eat_trivia();
+        } else if self.at(TokenKind::LeftParen) {
+            self.bump(); // (
+            self.eat_trivia();
+            self.parse_comma_separated(Self::parse_positional_variant_field, TokenKind::RightParen);
+            self.expect(TokenKind::RightParen);
+            self.eat_trivia();
         }
     }
 
@@ -783,7 +744,7 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Optional return type
-        if self.at(TokenKind::ThinArrow) {
+        if self.at(TokenKind::FatArrow) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();
@@ -819,7 +780,7 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Optional return type
-        if self.at(TokenKind::ThinArrow) {
+        if self.at(TokenKind::FatArrow) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();

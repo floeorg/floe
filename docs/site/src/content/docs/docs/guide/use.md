@@ -73,7 +73,7 @@ type AdminPageProps {
     data: Result<Data, AppError>,
 }
 
-export fn AdminPage(props: AdminPageProps) -> JSX.Element {
+export fn AdminPage(props: AdminPageProps) => JSX.Element {
     use <- Bool.guard(props.auth.isAdmin, <Forbidden />)
     use <- Bool.guard(props.auth.isVerified, <VerifyPrompt />)
     use user <- Option.guard(props.maybeUser, <LoginPage />)
@@ -101,7 +101,7 @@ use <- Bool.guard(condition, fallbackValue)
 ```floe
 type PremiumContentProps { isPaid: boolean }
 
-export fn PremiumContent(props: PremiumContentProps) -> JSX.Element {
+export fn PremiumContent(props: PremiumContentProps) => JSX.Element {
     use <- Bool.guard(props.isPaid, <UpgradePage />)
 
     <PremiumDashboard />
@@ -120,7 +120,7 @@ use value <- Option.guard(optionValue, fallbackValue)
 ```floe
 type ProfileProps { maybeUser: Option<User> }
 
-export fn Profile(props: ProfileProps) -> JSX.Element {
+export fn Profile(props: ProfileProps) => JSX.Element {
     use user <- Option.guard(props.maybeUser, <LoginPrompt />)
 
     <ProfileCard name={user.name} />
@@ -139,7 +139,7 @@ use value <- Result.guard(resultValue, (err) => fallbackValue)
 ```floe
 type DataPageProps { result: Result<Data, ApiError> }
 
-export fn DataPage(props: DataPageProps) -> JSX.Element {
+export fn DataPage(props: DataPageProps) => JSX.Element {
     use data <- Result.guard(props.result, (e) => <ErrorBanner error={e} />)
 
     <DataTable rows={data.rows} />
@@ -157,7 +157,7 @@ type OrderPageProps {
     paymentResult: Result<Payment, PaymentError>,
 }
 
-export fn OrderPage(props: OrderPageProps) -> JSX.Element {
+export fn OrderPage(props: OrderPageProps) => JSX.Element {
     use <- Bool.guard(props.auth.isLoggedIn, <LoginPage />)
     use order <- Option.guard(props.maybeOrder, <p>Order not found</p>)
     use payment <- Result.guard(props.paymentResult, (e) =>
@@ -173,7 +173,7 @@ export fn OrderPage(props: OrderPageProps) -> JSX.Element {
 Guards are just stdlib functions -- no new syntax. `Bool.guard` has this signature:
 
 ```
-Bool.guard(condition: boolean, fallback: T, continuation: () -> T) -> T
+Bool.guard(condition: boolean, fallback: T, continuation: () => T) => T
 ```
 
 When you write `use <- Bool.guard(cond, fallback)`, the `use` keyword takes everything after that line and passes it as the `continuation` callback. If `cond` is false, `fallback` is returned without calling the continuation.
@@ -226,7 +226,7 @@ Note the distinction between the two parenthesised forms:
 ```floe
 import { use } from "react"
 
-export fn AsyncLabel(props: { promise: Promise<string> }) -> JSX.Element {
+export fn AsyncLabel(props: { promise: Promise<string> }) => JSX.Element {
     const label = use(props.promise)
     <span>{label}</span>
 }

@@ -38,6 +38,22 @@ impl<'a> TypeScriptGenerator<'a> {
                     return pretty::str("void");
                 }
 
+                if name == type_layout::TYPE_ONE_OF {
+                    return if type_args.is_empty() {
+                        pretty::str("never")
+                    } else {
+                        self.emit_type_joined(type_args, " | ")
+                    };
+                }
+
+                if name == type_layout::TYPE_INTERSECT {
+                    return if type_args.is_empty() {
+                        pretty::str("unknown")
+                    } else {
+                        self.emit_type_joined(type_args, " & ")
+                    };
+                }
+
                 if type_args.is_empty() {
                     pretty::str(name)
                 } else {
@@ -84,17 +100,19 @@ impl<'a> TypeScriptGenerator<'a> {
                 pretty::concat(docs)
             }
             TypeExprKind::TypeOf(name) => pretty::str(format!("typeof {name}")),
-            TypeExprKind::Intersection(types) => {
-                let mut docs = Vec::new();
-                for (i, ty) in types.iter().enumerate() {
-                    if i > 0 {
-                        docs.push(pretty::str(" & "));
-                    }
-                    docs.push(self.emit_type_expr(ty));
-                }
-                pretty::concat(docs)
-            }
+            TypeExprKind::Intersection(types) => self.emit_type_joined(types, " & "),
             TypeExprKind::StringLiteral(value) => pretty::str(format!("\"{value}\"")),
         }
+    }
+
+    fn emit_type_joined(&mut self, types: &[TypedTypeExpr], sep: &str) -> Document {
+        let mut docs = Vec::with_capacity(types.len() * 2);
+        for (i, ty) in types.iter().enumerate() {
+            if i > 0 {
+                docs.push(pretty::str(sep.to_string()));
+            }
+            docs.push(self.emit_type_expr(ty));
+        }
+        pretty::concat(docs)
     }
 }

@@ -1,10 +1,8 @@
 // Positional variant fields — parens syntax
 
-type Shape {
-    | Circle(number)
+type Shape = | Circle(number)
     | Rect(number, number)
     | Point
-}
 
 // Construction
 
@@ -16,7 +14,7 @@ const p = Point
 
 // Pattern matching
 
-fn describe(s: Shape) -> string {
+fn describe(s: Shape) => string {
     match s {
         Circle(radius) -> `circle r=${radius}`,
         Rect(w, h) -> `rect ${w}x${h}`,
@@ -28,10 +26,8 @@ const _d = describe(c)
 
 // Mixed: positional and named in same union
 
-type Result2 {
-    | Ok2(string)
+type Result2 = | Ok2(string)
     | Err2 { code: number, message: string }
-}
 
 const _ok = Ok2("hello")
 

@@ -47,7 +47,7 @@ type Shape {
   | Triangle { base: number, height: number }
 }
 
-fn area(shape: Shape) -> number {
+fn area(shape: Shape) => number {
   match shape {
     Circle { radius } -> 3.14159 * radius * radius,
     Rectangle { width, height } -> width * height,
@@ -67,7 +67,7 @@ type Shape {
   | Triangle(number, number)
 }
 
-fn area(shape: Shape) -> number {
+fn area(shape: Shape) => number {
   match shape {
     Circle(r) -> 3.14159 * r * r,
     Rectangle(w, h) -> w * h,
@@ -118,7 +118,7 @@ match result {
 Match strings with `{name}` captures to extract parts:
 
 ```floe
-fn route(url: string) -> Page {
+fn route(url: string) => Page {
   match url {
     "/users/{id}" -> fetchUser(id),
     "/users/{id}/posts/{postId}" -> fetchPost(id, postId),

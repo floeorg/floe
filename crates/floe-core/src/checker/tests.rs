@@ -53,8 +53,8 @@ fn undeclared_variable() {
 fn newtype_comparison_different_types() {
     let diags = check(
         r#"
-type UserId { string }
-type Email { string }
+type UserId = UserId(string)
+type Email = Email(string)
 const a = UserId("abc")
 const b = Email("test@test.com")
 const result = a == b
@@ -97,7 +97,7 @@ const y = match x {
 fn unwrap_in_result_function() {
     let diags = check(
         r#"
-fn tryFetch(url: string) -> Result<string, string> {
+fn tryFetch(url: string) => Result<string, string> {
     const result = Ok("data")
     const value = result?
     Ok(value)
@@ -118,7 +118,7 @@ fn tryFetch(url: string) -> Result<string, string> {
 fn unwrap_not_on_result_or_option() {
     let diags = check(
         r#"
-fn process() -> Result<number, string> {
+fn process() => Result<number, string> {
     const x = 42
     const y = x?
     Ok(y)
@@ -206,7 +206,7 @@ fn exported_function_needs_return_type() {
 
 #[test]
 fn exported_function_with_return_type_ok() {
-    let diags = check("export fn add(a: number, b: number) -> number { a }");
+    let diags = check("export fn add(a: number, b: number) => number { a }");
     assert!(!has_error(&diags, ErrorCode::MissingReturnType));
 }
 
@@ -216,7 +216,7 @@ fn exported_function_with_return_type_ok() {
 fn return_type_mismatch_errors() {
     let diags = check(
         r#"
-fn greet() -> string { 42 }
+fn greet() => string { 42 }
 "#,
     );
     assert!(
@@ -230,7 +230,7 @@ fn greet() -> string { 42 }
 fn return_type_match_ok() {
     let diags = check(
         r#"
-fn greet() -> string { "hello" }
+fn greet() => string { "hello" }
 "#,
     );
     assert!(!has_error_containing(&diags, "expected return type"),);
@@ -309,9 +309,9 @@ const _x = HashedPassword("abc")
 fn opaque_type_allows_underlying_type_in_defining_module() {
     let diags = check(
         r#"
-opaque type HashedPassword { string }
+opaque type HashedPassword = HashedPassword(string)
 
-fn hash(pw: string) -> HashedPassword {
+fn hash(pw: string) => HashedPassword {
     pw
 }
 "#,
@@ -327,9 +327,9 @@ fn hash(pw: string) -> HashedPassword {
 fn opaque_type_rejects_wrong_type() {
     let diags = check(
         r#"
-opaque type HashedPassword { string }
+opaque type HashedPassword = HashedPassword(string)
 
-fn hash(pw: number) -> HashedPassword {
+fn hash(pw: number) => HashedPassword {
     pw
 }
 "#,
@@ -355,9 +355,9 @@ fn floating_result_error() {
 fn for_block_registers_function() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 for User {
-    fn display(self) -> string { self.name }
+    fn display(self) => string { self.name }
 }
 const _x = display(User(name: "Ryan"))
 "#,
@@ -370,9 +370,9 @@ const _x = display(User(name: "Ryan"))
 fn for_block_self_gets_type() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 for User {
-    fn getName(self) -> string { self.name }
+    fn getName(self) => string { self.name }
 }
 "#,
     );
@@ -384,9 +384,9 @@ for User {
 fn for_block_multiple_params() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 for User {
-    fn greet(self, greeting: string) -> string { greeting }
+    fn greet(self, greeting: string) => string { greeting }
 }
 const _x = greet(User(name: "Ryan"), "Hello")
 "#,
@@ -402,7 +402,7 @@ fn call_site_type_args_infer_return() {
     let program = crate::parser::Parser::new(
         r#"
 import trusted { useState } from "react"
-type Todo { text: string }
+type Todo = { text: string }
 const (todos, _setTodos) = useState<Array<Todo>>([])
 const _x = todos
 "#,
@@ -448,7 +448,7 @@ const _x = todos
     // _setTodos should be a function (second element of the substituted tuple)
     if let Some(ty) = types.get("_setTodos") {
         assert!(
-            ty.contains("->"),
+            ty.contains("=>"),
             "expected function type for setter, got: {ty}"
         );
     }
@@ -458,9 +458,9 @@ const _x = todos
 fn for_block_with_pipe() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 for User {
-    fn display(self) -> string { self.name }
+    fn display(self) => string { self.name }
 }
 const _user = User(name: "Ryan")
 const _x = _user |> display
@@ -533,7 +533,7 @@ const _y = slugify("hello world")
 fn constructor_unknown_field_error() {
     let diags = check(
         r#"
-type Todo {
+type Todo = {
     id: string,
     text: string,
     done: bool,
@@ -549,7 +549,7 @@ const _t = Todo(id: "1", textt: "hello", done: false)
 fn constructor_valid_fields_no_error() {
     let diags = check(
         r#"
-type Todo {
+type Todo = {
     id: string,
     text: string,
     done: bool,
@@ -565,7 +565,7 @@ const _t = Todo(id: "1", text: "hello", done: false)
 fn constructor_missing_required_field() {
     let diags = check(
         r#"
-type Todo {
+type Todo = {
     id: string,
     text: string,
     done: bool,
@@ -584,7 +584,7 @@ const _t = Todo(id: "1", text: "hello")
 fn constructor_missing_field_with_default_ok() {
     let diags = check(
         r#"
-type Config {
+type Config = {
     host: string,
     port: number = 3000,
 }
@@ -598,7 +598,7 @@ const _c = Config(host: "localhost")
 fn constructor_spread_skips_missing_check() {
     let diags = check(
         r#"
-type Todo {
+type Todo = {
     id: string,
     text: string,
     done: bool,
@@ -614,11 +614,9 @@ const _t = Todo(..original, text: "updated")
 fn union_variant_unknown_field_error() {
     let diags = check(
         r#"
-type Validation {
-    | Valid { text: string }
+type Validation = | Valid { text: string }
     | TooShort
     | Empty
-}
 
 const _v = Valid(texxt: "hello")
 "#,
@@ -631,11 +629,9 @@ const _v = Valid(texxt: "hello")
 fn union_variant_valid_field_no_error() {
     let diags = check(
         r#"
-type Validation {
-    | Valid { text: string }
+type Validation = | Valid { text: string }
     | TooShort
     | Empty
-}
 
 const _v = Valid(text: "hello")
 "#,
@@ -649,7 +645,7 @@ const _v = Valid(text: "hello")
 fn unknown_type_in_record_field() {
     let diags = check(
         r#"
-type Todo {
+type Todo = {
     id: string,
     text: string,
     done: asojSIDJA,
@@ -667,13 +663,13 @@ fn unknown_type_in_const_annotation() {
 
 #[test]
 fn unknown_type_in_function_param() {
-    let diags = check("fn foo(x: BadType) -> () {}");
+    let diags = check("fn foo(x: BadType) => () {}");
     assert!(has_error_containing(&diags, "unknown type `BadType`"));
 }
 
 #[test]
 fn unknown_type_in_function_return() {
-    let diags = check("fn foo() -> BadReturn { 42 }");
+    let diags = check("fn foo() => BadReturn { 42 }");
     assert!(has_error_containing(&diags, "unknown type `BadReturn`"));
 }
 
@@ -681,7 +677,7 @@ fn unknown_type_in_function_return() {
 fn known_type_no_error() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 const _u: User = User(name: "Alice")
 "#,
     );
@@ -704,8 +700,8 @@ const _c: boolean = true
 fn forward_reference_in_union_no_error() {
     let diags = check(
         r#"
-type Container { item: Item }
-type Item { name: string }
+type Container = { item: Item }
+type Item = { name: string }
 "#,
     );
     assert!(!has_error_containing(&diags, "unknown type `Item`"));
@@ -717,7 +713,7 @@ type Item { name: string }
 fn function_call_wrong_arg_type() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const _r = add("hello", true)
 "#,
     );
@@ -735,7 +731,7 @@ const _r = add("hello", true)
 fn function_call_correct_types_no_error() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const _r = add(1, 2)
 "#,
     );
@@ -746,7 +742,7 @@ const _r = add(1, 2)
 fn function_call_wrong_arg_count() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const _r = add(1)
 "#,
     );
@@ -761,7 +757,7 @@ const _r = add(1)
 fn function_call_too_many_args() {
     let diags = check(
         r#"
-fn greet(name: string) -> string { name }
+fn greet(name: string) => string { name }
 const _r = greet("Alice", "Bob")
 "#,
     );
@@ -776,7 +772,7 @@ const _r = greet("Alice", "Bob")
 fn duplicate_named_argument_errors() {
     let diags = check(
         r#"
-fn f(a: number, b: number) -> number { a + b }
+fn f(a: number, b: number) => number { a + b }
 const _r = f(a: 1, a: 2)
 "#,
     );
@@ -792,7 +788,7 @@ fn positional_and_named_cover_same_slot_errors() {
     // `f(1, a: 2)` covers slot `a` both positionally and by name.
     let diags = check(
         r#"
-fn f(a: number, b: number) -> number { a + b }
+fn f(a: number, b: number) => number { a + b }
 const _r = f(1, a: 2)
 "#,
     );
@@ -807,7 +803,7 @@ const _r = f(1, a: 2)
 fn positional_after_named_errors() {
     let diags = check(
         r#"
-fn f(a: number, b: number) -> number { a + b }
+fn f(a: number, b: number) => number { a + b }
 const _r = f(a: 1, 2)
 "#,
     );
@@ -825,7 +821,7 @@ fn missing_required_slot_via_default_adjacent_named_errors() {
     // slot-coverage check the `3` would silently land in b's slot.
     let diags = check(
         r#"
-fn f(a: number, b: number, c: number = 0) -> number { a + b + c }
+fn f(a: number, b: number, c: number = 0) => number { a + b + c }
 const _r = f(1, c: 3)
 "#,
     );
@@ -842,7 +838,7 @@ fn positional_for_defaulted_slot_errors() {
     // defaults can't silently land a value in the wrong slot.
     let diags = check(
         r#"
-fn send(to: string, body: string, subject: string = "no subject") -> string { body }
+fn send(to: string, body: string, subject: string = "no subject") => string { body }
 const _r = send("a@b", "body", "override")
 "#,
     );
@@ -857,7 +853,7 @@ const _r = send("a@b", "body", "override")
 fn pipe_call_accounts_for_implicit_arg() {
     let diags = check(
         r#"
-fn double(x: number) -> number { x + x }
+fn double(x: number) => number { x + x }
 const _r = 5 |> double
 "#,
     );
@@ -868,7 +864,7 @@ const _r = 5 |> double
 fn pipe_call_with_extra_args_no_false_positive() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const _r = 5 |> add(3)
 "#,
     );
@@ -879,7 +875,7 @@ const _r = 5 |> add(3)
 fn pipe_call_wrong_type() {
     let diags = check(
         r#"
-fn double(x: number) -> number { x + x }
+fn double(x: number) => number { x + x }
 const _r = "hello" |> double
 "#,
     );
@@ -957,7 +953,7 @@ fn shadow_const_shadows_function_errors() {
     // A const shadowing a function name should error
     let diags = check(
         r#"
-fn double(x: number) -> number { x * 2 }
+fn double(x: number) => number { x * 2 }
 const double = 42
 "#,
     );
@@ -969,9 +965,9 @@ fn shadow_const_shadows_for_block_fn_errors() {
     // A const shadowing a for-block function should error
     let diags = check(
         r#"
-type Todo { text: string, done: boolean }
+type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export fn remaining(self) => number { 0 }
 }
 const remaining = 5
 "#,
@@ -984,8 +980,8 @@ fn shadow_function_redefinition_errors() {
     // Defining two functions with the same name should error
     let diags = check(
         r#"
-fn foo() -> number { 1 }
-fn foo() -> string { "hi" }
+fn foo() => number { 1 }
+fn foo() => string { "hi" }
 "#,
     );
     assert!(has_error_containing(&diags, "already defined"));
@@ -997,7 +993,7 @@ fn shadow_allowed_in_inner_scope() {
     let diags = check(
         r#"
 const x = 5
-fn double(x: number) -> number { x * 2 }
+fn double(x: number) => number { x * 2 }
 "#,
     );
     assert!(
@@ -1012,11 +1008,11 @@ fn shadow_inner_scope_const_shadows_for_block_fn() {
     // A const INSIDE a function body can shadow a for-block function
     let diags = check(
         r#"
-type Todo { text: string, done: boolean }
+type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export fn remaining(self) => number { 0 }
 }
-fn test() -> number {
+fn test() => number {
     const remaining = 5
     remaining
 }
@@ -1035,7 +1031,7 @@ fn shadow_inner_scope_const_shadows_outer_const() {
     let diags = check(
         r#"
 const x = 5
-fn test() -> number {
+fn test() => number {
     const x = 10
     x
 }
@@ -1053,11 +1049,11 @@ fn shadow_for_block_pipe_then_shadow_allowed() {
     // Real-world case: piping into for-block fn then shadowing its name in inner scope
     let diags = check(
         r#"
-type Todo { text: string, done: boolean }
+type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export fn remaining(self) => number { 0 }
 }
-fn test() -> number {
+fn test() => number {
     const _todos: Array<Todo> = []
     const remaining = _todos |> remaining
     remaining
@@ -1092,7 +1088,7 @@ const x = 10
 fn same_scope_redefinition_function_then_const() {
     let diags = check(
         r#"
-fn double(x: number) -> number { x * 2 }
+fn double(x: number) => number { x * 2 }
 const double = 42
 "#,
     );
@@ -1107,9 +1103,9 @@ const double = 42
 fn same_scope_redefinition_for_block_then_const() {
     let diags = check(
         r#"
-type Todo { text: string, done: boolean }
+type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export fn remaining(self) => number { 0 }
 }
 const remaining = 5
 "#,
@@ -1404,7 +1400,7 @@ const _x = items |> count
 fn pipe_into_function_ok() {
     let diags = check(
         r#"
-fn double(x: number) -> number { x * 2 }
+fn double(x: number) => number { x * 2 }
 const _r = 5 |> double
 "#,
     );
@@ -1423,7 +1419,7 @@ const _r = 5 |> double
 fn member_access_on_record_type_resolves_field() {
     let diags = check(
         r#"
-type User { name: string, age: number }
+type User = { name: string, age: number }
 const u = User(name: "hi", age: 21)
 const _n = u.name
 "#,
@@ -1449,7 +1445,7 @@ const _n = u.name
 fn member_access_unknown_field_errors() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 const u = User(name: "hi")
 const _n = u.nonexistent
 "#,
@@ -1480,7 +1476,7 @@ const _n = x.name
 fn member_access_on_function_type_errors() {
     let diags = check(
         r#"
-fn myFunc(x: number) -> string { "hi" }
+fn myFunc(x: number) => string { "hi" }
 const _n = myFunc.name
 "#,
     );
@@ -1497,7 +1493,7 @@ const _n = myFunc.name
 fn constructor_wrong_field_type_errors() {
     let diags = check(
         r#"
-type User { name: string, age: number }
+type User = { name: string, age: number }
 const _u = User(name: 42, age: "old")
 "#,
     );
@@ -1512,7 +1508,7 @@ const _u = User(name: 42, age: "old")
 fn constructor_correct_types_ok() {
     let diags = check(
         r#"
-type User { name: string, age: number }
+type User = { name: string, age: number }
 const _u = User(name: "hi", age: 21)
 "#,
     );
@@ -1533,7 +1529,7 @@ fn constructor_missing_field_errors_phase1() {
     // but let's add one that specifically tests the two-field case)
     let diags = check(
         r#"
-type User { name: string, age: number }
+type User = { name: string, age: number }
 const _u = User(name: "hi")
 "#,
     );
@@ -1586,8 +1582,8 @@ const _y = match x {
 fn match_arms_unify_result_with_unknown_params() {
     let diags = check(
         r#"
-type MyError { message: string }
-fn fallible(x: number) -> Result<string, MyError> {
+type MyError = { message: string }
+fn fallible(x: number) => Result<string, MyError> {
     match x {
         0 -> Err(MyError(message: "zero")),
         _ -> Ok("ok"),
@@ -1611,9 +1607,9 @@ fn fallible(x: number) -> Result<string, MyError> {
 fn match_arms_truly_incompatible_result_still_errors() {
     let diags = check(
         r#"
-type E1 { a: string }
-type E2 { b: number }
-fn test(x: number) -> Result<string, E1> {
+type E1 = { a: string }
+type E2 = { b: number }
+fn test(x: number) => Result<string, E1> {
     match x {
         0 -> Err(E1(a: "x")),
         _ -> Err(E2(b: 1)),
@@ -1634,7 +1630,7 @@ fn test(x: number) -> Result<string, E1> {
 fn ok_infers_err_type_from_const_annotation() {
     let diags = check(
         r#"
-fn test() -> () {
+fn test() => () {
     const _r: Result<number, string> = Ok(42)
 }
 "#,
@@ -1654,8 +1650,8 @@ fn test() -> () {
 fn err_infers_ok_type_from_const_annotation() {
     let diags = check(
         r#"
-type MyError { | NotFound }
-fn test() -> () {
+type MyError = | NotFound
+fn test() => () {
     const _r: Result<number, MyError> = Err(NotFound)
 }
 "#,
@@ -1675,7 +1671,7 @@ fn test() -> () {
 fn ok_infers_err_type_from_function_return() {
     let diags = check(
         r#"
-fn test() -> Result<number, string> {
+fn test() => Result<number, string> {
     Ok(42)
 }
 "#,
@@ -1695,7 +1691,7 @@ fn test() -> Result<number, string> {
 fn err_infers_ok_type_from_function_return() {
     let diags = check(
         r#"
-fn test() -> Result<number, string> {
+fn test() => Result<number, string> {
     Err("bad")
 }
 "#,
@@ -1715,7 +1711,7 @@ fn test() -> Result<number, string> {
 fn ok_err_in_match_without_return_context_unify() {
     let diags = check(
         r#"
-fn test() -> () {
+fn test() => () {
     const _r = match true {
         true -> Ok(42),
         false -> Err("bad"),
@@ -1739,7 +1735,7 @@ fn const_annotation_preferred_over_function_return_for_ok_err() {
     // When both exist, const annotation should take precedence
     let diags = check(
         r#"
-fn test() -> () {
+fn test() => () {
     const _r: Result<number, string> = Ok(42)
     const _s: Result<string, number> = Err(99)
 }
@@ -1761,7 +1757,7 @@ fn ok_err_mismatch_with_annotation_still_errors() {
     // Ok(42) produces Result<number, _> but annotation expects Result<string, _>
     let diags = check(
         r#"
-fn test() -> () {
+fn test() => () {
     const _r: Result<string, string> = Ok(42)
 }
 "#,
@@ -1847,8 +1843,8 @@ fn calling_named_function_type_returns_its_return_type() {
     // (which is what Dispatch<SetStateAction<Array<Todo>>> resolves to)
     let program = crate::parser::Parser::new(
         r#"
-type Todo { text: string }
-fn setTodos(value: Array<Todo>) -> () { () }
+type Todo = { text: string }
+fn setTodos(value: Array<Todo>) => () { () }
 fn handler() {
     setTodos([])
 }
@@ -1877,7 +1873,7 @@ fn dispatch_generic_converts_to_function() {
     let program = crate::parser::Parser::new(
         r#"
 import trusted { useState } from "react"
-type Todo { text: string }
+type Todo = { text: string }
 const (todos, setTodos) = useState<Array<Todo>>([])
 fn handler() {
     setTodos([])
@@ -1924,7 +1920,7 @@ fn handler() {
     // setTodos should be a function, NOT Named("Dispatch<...>")
     if let Some(ty) = types.get("setTodos") {
         assert!(
-            ty.contains("->"),
+            ty.contains("=>"),
             "setTodos with Dispatch<SetStateAction> should be a function, got: {ty}"
         );
     } else {
@@ -1952,7 +1948,7 @@ fn calling_dispatch_type_is_callable() {
     let program = crate::parser::Parser::new(
         r#"
 import trusted { useState } from "react"
-type Todo { text: string }
+type Todo = { text: string }
 const (todos, setTodos) = useState<Array<Todo>>([])
 fn handler() {
     setTodos([])
@@ -2056,7 +2052,7 @@ fn outer() {
 fn object_destructuring_gets_field_types() {
     let program = crate::parser::Parser::new(
         r#"
-type User { name: string, age: number }
+type User = { name: string, age: number }
 const user = User(name: "hi", age: 21)
 const { name, age } = user
 const _x = name
@@ -2212,7 +2208,7 @@ fn tuple_destructuring_infers_types() {
 #[test]
 fn tuple_in_function_return() {
     let source = r#"
-        export fn divmod(a: number, b: number) -> (number, number) {
+        export fn divmod(a: number, b: number) => (number, number) {
             (a / b, a % b)
         }
     "#;
@@ -2236,7 +2232,7 @@ fn tuple_three_elements() {
 fn tuple_return_from_block_inline() {
     // Tuples work inline with function params
     let source = r#"
-        export fn test(a: number, b: number) -> (number, number) {
+        export fn test(a: number, b: number) => (number, number) {
             (a + 1, b + 1)
         }
     "#;
@@ -2303,7 +2299,7 @@ fn tuple_pattern_correct_arity() {
 #[test]
 fn variant_pattern_too_few_fields() {
     let source = r#"
-        type Pair { | Both(number, string) | Neither }
+        type Pair = | Both(number, string) | Neither
         const _p: Pair = Both(1, "a")
         match _p {
             Both(x) -> x
@@ -2320,7 +2316,7 @@ fn variant_pattern_too_few_fields() {
 #[test]
 fn variant_pattern_too_many_fields() {
     let source = r#"
-        type Shape { | Circle(number) | Square(number) }
+        type Shape = | Circle(number) | Square(number)
         const _s: Shape = Circle(5)
         match _s {
             Circle(r, extra) -> r
@@ -2337,7 +2333,7 @@ fn variant_pattern_too_many_fields() {
 #[test]
 fn variant_pattern_correct_arity() {
     let source = r#"
-        type Shape { | Circle(number) | Square(number) }
+        type Shape = | Circle(number) | Square(number)
         const _s: Shape = Circle(5)
         match _s {
             Circle(r) -> r
@@ -2360,7 +2356,7 @@ fn variant_pattern_correct_arity() {
 #[test]
 fn named_variant_rejects_positional_pattern() {
     let source = r#"
-        type Shape { | Rectangle { width: number, height: number } }
+        type Shape = | Rectangle { width: number, height: number }
         const _r: Shape = Rectangle(width: 1, height: 2)
         match _r {
             Rectangle(w, h) -> w + h,
@@ -2376,7 +2372,7 @@ fn named_variant_rejects_positional_pattern() {
 #[test]
 fn positional_variant_rejects_named_pattern() {
     let source = r#"
-        type Shape { | Circle(number) }
+        type Shape = | Circle(number)
         const _c: Shape = Circle(5)
         match _c {
             Circle { value: r } -> r,
@@ -2392,7 +2388,7 @@ fn positional_variant_rejects_named_pattern() {
 #[test]
 fn named_variant_accepts_named_pattern() {
     let source = r#"
-        type Shape { | Rectangle { width: number, height: number } }
+        type Shape = | Rectangle { width: number, height: number }
         const _r: Shape = Rectangle(width: 1, height: 2)
         const _area = match _r {
             Rectangle { width, height } -> width * height,
@@ -2412,7 +2408,7 @@ fn named_variant_accepts_named_pattern() {
 #[test]
 fn named_variant_accepts_named_pattern_with_rename() {
     let source = r#"
-        type Shape { | Rectangle { width: number, height: number } }
+        type Shape = | Rectangle { width: number, height: number }
         const _r: Shape = Rectangle(width: 1, height: 2)
         const _area = match _r {
             Rectangle { width: w, height: h } -> w * h,
@@ -2539,7 +2535,7 @@ fn binding_on_boolean_warns() {
 #[test]
 fn binding_on_union_warns() {
     let source = r#"
-        type Shape { | Circle(number) | Square(number) }
+        type Shape = | Circle(number) | Square(number)
         const _s: Shape = Circle(5)
         match _s {
             x -> 0,
@@ -2622,7 +2618,7 @@ fn trait_basic_definition() {
     let diags = check(
         r#"
 trait Display {
-  fn display(self) -> string
+  fn display(self) => string
 }
 "#,
     );
@@ -2642,11 +2638,11 @@ fn trait_impl_valid() {
     let diags = check(
         r#"
 trait Display {
-  fn display(self) -> string
+  fn display(self) => string
 }
-type User { name: string }
+type User = { name: string }
 for User: Display {
-  fn display(self) -> string {
+  fn display(self) => string {
     self.name
   }
 }
@@ -2668,11 +2664,11 @@ fn trait_impl_missing_method() {
     let diags = check(
         r#"
 trait Display {
-  fn display(self) -> string
+  fn display(self) => string
 }
-type User { name: string }
+type User = { name: string }
 for User: Display {
-  fn toString(self) -> string {
+  fn toString(self) => string {
     "wrong"
   }
 }
@@ -2689,9 +2685,9 @@ for User: Display {
 fn trait_unknown_trait() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 for User: NonExistent {
-  fn display(self) -> string {
+  fn display(self) => string {
     self.name
   }
 }
@@ -2710,7 +2706,7 @@ for User: NonExistent {
 fn test_block_type_checks_body() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 
 test "addition" {
     assert add(1, 2) == 3
@@ -2794,14 +2790,14 @@ fn trait_default_method_not_required() {
     let diags = check(
         r#"
 trait Eq {
-  fn eq(self, other: string) -> boolean
-  fn neq(self, other: string) -> boolean {
+  fn eq(self, other: string) => boolean
+  fn neq(self, other: string) => boolean {
     !(self |> eq(other))
   }
 }
-type User { name: string }
+type User = { name: string }
 for User: Eq {
-  fn eq(self, other: string) -> boolean {
+  fn eq(self, other: string) => boolean {
     self.name == other
   }
 }
@@ -2822,9 +2818,9 @@ for User: Eq {
 fn trait_for_block_without_trait_still_works() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 for User {
-  fn greet(self) -> string {
+  fn greet(self) => string {
     self.name
   }
 }
@@ -2846,15 +2842,15 @@ fn trait_impl_all_required_methods() {
     let diags = check(
         r#"
 trait Printable {
-  fn print(self) -> string
-  fn prettyPrint(self) -> string
+  fn print(self) => string
+  fn prettyPrint(self) => string
 }
-type User { name: string }
+type User = { name: string }
 for User: Printable {
-  fn print(self) -> string {
+  fn print(self) => string {
     self.name
   }
-  fn prettyPrint(self) -> string {
+  fn prettyPrint(self) => string {
     self.name
   }
 }
@@ -2876,12 +2872,12 @@ fn trait_impl_missing_one_of_two() {
     let diags = check(
         r#"
 trait Printable {
-  fn print(self) -> string
-  fn prettyPrint(self) -> string
+  fn print(self) => string
+  fn prettyPrint(self) => string
 }
-type User { name: string }
+type User = { name: string }
 for User: Printable {
-  fn print(self) -> string {
+  fn print(self) => string {
     self.name
   }
 }
@@ -2899,11 +2895,11 @@ fn trait_impl_missing_self_when_trait_requires_it() {
     let diags = check(
         r#"
 trait Display {
-  fn display(self) -> string
+  fn display(self) => string
 }
-type User { name: string }
+type User = { name: string }
 for User: Display {
-  fn display() -> string {
+  fn display() => string {
     "hello"
   }
 }
@@ -2922,11 +2918,11 @@ fn trait_impl_has_self_when_trait_does_not() {
     let diags = check(
         r#"
 trait Greet {
-  fn greet(name: string) -> string
+  fn greet(name: string) => string
 }
-type User {}
+type User = {}
 for User: Greet {
-  fn greet(self, name: string) -> string {
+  fn greet(self, name: string) => string {
     name
   }
 }
@@ -3007,7 +3003,7 @@ fn trait_imported_without_for_errors() {
 import { User, Display } from "./types"
 
 for User: Display {
-    fn display(self) -> string {
+    fn display(self) => string {
         self.name
     }
 }
@@ -3039,7 +3035,7 @@ fn trait_imported_with_for_accepted() {
 import { User, for Display } from "./types"
 
 for User: Display {
-    fn display(self) -> string {
+    fn display(self) => string {
         self.name
     }
 }
@@ -3192,7 +3188,7 @@ const x: unknown = data
 fn promise_return_type_matches_body() {
     let diags = check(
         r#"
-export fn getName() -> Promise<string> {
+export fn getName() => Promise<string> {
     "hello"
 }
 "#,
@@ -3208,7 +3204,7 @@ export fn getName() -> Promise<string> {
 fn promise_option_return_type_matches() {
     let diags = check(
         r#"
-export fn maybeGet(x: number) -> Promise<Option<string>> {
+export fn maybeGet(x: number) => Promise<Option<string>> {
     match x {
         0 -> None,
         _ -> Some("found"),
@@ -3227,7 +3223,7 @@ export fn maybeGet(x: number) -> Promise<Option<string>> {
 fn promise_return_type_mismatch_still_errors() {
     let diags = check(
         r#"
-export fn bad() -> Promise<string> {
+export fn bad() => Promise<string> {
     42
 }
 "#,
@@ -3314,7 +3310,7 @@ fn calling_non_function_is_error() {
 fn calling_record_is_error() {
     let diags = check(
         r#"
-        type User { name: string }
+        type User = { name: string }
         const u = User(name: "Alice")
         const x = u()
     "#,
@@ -3345,7 +3341,7 @@ fn tagged_template_with_non_callable_is_error() {
 fn tagged_template_with_function_tag_is_ok() {
     let diags = check(
         r#"
-        fn tag(strings: Array<string>, values: Array<string>) -> string { "" }
+        fn tag(strings: Array<string>, values: Array<string>) => string { "" }
         const x = tag`hello ${name}`
     "#,
     );
@@ -3360,8 +3356,8 @@ fn tagged_template_with_function_tag_is_ok() {
 fn calling_function_alias_works() {
     let diags = check(
         r#"
-        fn greet(name: string) -> string { "hello " + name }
-        const f: (string) -> string = greet
+        fn greet(name: string) => string { "hello " + name }
+        const f: (string) => string = greet
         const x = f("Alice")
     "#,
     );
@@ -3378,8 +3374,8 @@ fn calling_function_alias_works() {
 fn await_without_promise_return_type_errors() {
     let diags = check(
         r#"
-fn getData() -> Promise<string> { "hello" }
-fn bad() -> string { getData() |> Promise.await }
+fn getData() => Promise<string> { "hello" }
+fn bad() => string { getData() |> Promise.await }
 "#,
     );
     assert!(
@@ -3393,8 +3389,8 @@ fn bad() -> string { getData() |> Promise.await }
 fn await_with_promise_return_type_ok() {
     let diags = check(
         r#"
-fn getData() -> Promise<string> { "hello" }
-fn good() -> Promise<string> { getData() |> Promise.await }
+fn getData() => Promise<string> { "hello" }
+fn good() => Promise<string> { getData() |> Promise.await }
 "#,
     );
     assert!(
@@ -3408,8 +3404,8 @@ fn good() -> Promise<string> { getData() |> Promise.await }
 fn bare_await_without_promise_return_type_errors() {
     let diags = check(
         r#"
-fn getData() -> Promise<string> { "hello" }
-fn bad() -> string { getData() |> await }
+fn getData() => Promise<string> { "hello" }
+fn bad() => string { getData() |> await }
 "#,
     );
     assert!(
@@ -3423,7 +3419,7 @@ fn bad() -> string { getData() |> await }
 fn await_inferred_return_type_is_promise() {
     let diags = check(
         r#"
-fn getData() -> Promise<string> { "hello" }
+fn getData() => Promise<string> { "hello" }
 fn inferred() { getData() |> Promise.await }
 "#,
     );
@@ -3439,7 +3435,7 @@ fn promise_return_type_unwrap() {
     // Promise<T> return type should accept T as body type
     let diags = check(
         r#"
-export fn asyncOp() -> Promise<string> { "hello" }
+export fn asyncOp() => Promise<string> { "hello" }
 "#,
     );
     assert!(
@@ -3453,8 +3449,8 @@ export fn asyncOp() -> Promise<string> { "hello" }
 fn result_match_works() {
     let diags = check(
         r#"
-fn getData() -> Result<string, Error> { Ok("hello") }
-fn test() -> Result<string, Error> {
+fn getData() => Result<string, Error> { Ok("hello") }
+fn test() => Result<string, Error> {
     const res = getData()
     const val = match res {
         Ok(data) -> data,
@@ -3483,7 +3479,7 @@ fn string_literal_union_exhaustive_match() {
         r#"
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
-fn _describe(method: HttpMethod) -> string {
+fn _describe(method: HttpMethod) => string {
     match method {
         "GET" -> "fetching",
         "POST" -> "creating",
@@ -3506,7 +3502,7 @@ fn string_literal_union_missing_variant() {
         r#"
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
-fn _describe(method: HttpMethod) -> string {
+fn _describe(method: HttpMethod) => string {
     match method {
         "GET" -> "fetching",
         "POST" -> "creating",
@@ -3527,7 +3523,7 @@ fn string_literal_union_with_wildcard() {
         r#"
 type Status = "ok" | "error" | "pending"
 
-fn _handle(s: Status) -> number {
+fn _handle(s: Status) => number {
     match s {
         "ok" -> 1,
         _ -> 0,
@@ -3548,14 +3544,14 @@ fn _handle(s: Status) -> number {
 fn record_spread_basic() {
     let diags = check(
         r#"
-type BaseProps {
+type BaseProps = {
     className: string,
     disabled: boolean,
 }
 
-type ButtonProps {
+type ButtonProps = {
     ...BaseProps,
-    onClick: () -> (),
+    onClick: () => (),
     label: string,
 }
 
@@ -3573,15 +3569,15 @@ const btn = ButtonProps(className: "btn", disabled: false, onClick: () => (), la
 fn record_spread_multiple() {
     let diags = check(
         r#"
-type A {
+type A = {
     x: number,
 }
 
-type B {
+type B = {
     y: string,
 }
 
-type C {
+type C = {
     ...A,
     ...B,
     z: boolean,
@@ -3601,11 +3597,11 @@ const c = C(x: 1, y: "hello", z: true)
 fn record_spread_conflict_error() {
     let diags = check(
         r#"
-type A {
+type A = {
     name: string,
 }
 
-type B {
+type B = {
     ...A,
     name: number,
 }
@@ -3622,9 +3618,9 @@ type B {
 fn record_spread_union_error() {
     let diags = check(
         r#"
-type Status { | Active | Inactive }
+type Status = | Active | Inactive
 
-type Bad {
+type Bad = {
     ...Status,
     extra: string,
 }
@@ -3641,16 +3637,16 @@ type Bad {
 fn record_spread_nested() {
     let diags = check(
         r#"
-type A {
+type A = {
     x: number,
 }
 
-type B {
+type B = {
     ...A,
     y: string,
 }
 
-type C {
+type C = {
     ...B,
     z: boolean,
 }
@@ -3669,15 +3665,15 @@ const c = C(x: 1, y: "hello", z: true)
 fn record_spread_conflict_between_spreads() {
     let diags = check(
         r#"
-type A {
+type A = {
     name: string,
 }
 
-type B {
+type B = {
     name: string,
 }
 
-type C {
+type C = {
     ...A,
     ...B,
 }
@@ -3772,8 +3768,8 @@ fn collect_allows_question_without_result_return() {
     // ? inside collect doesn't require the enclosing function to return Result
     let diags = check(
         r#"
-fn validate(x: number) -> Result<number, string> { Ok(x) }
-fn f() -> Result<number, Array<string>> {
+fn validate(x: number) => Result<number, string> { Ok(x) }
+fn f() => Result<number, Array<string>> {
     collect {
         const a = validate(1)?
         const b = validate(2)?
@@ -3796,7 +3792,7 @@ fn f() -> Result<number, Array<string>> {
 fn collect_question_on_non_result_still_errors() {
     let diags = check(
         r#"
-fn f() -> Result<number, Array<string>> {
+fn f() => Result<number, Array<string>> {
     collect {
         const a = (42)?
         a
@@ -3816,7 +3812,7 @@ fn f() -> Result<number, Array<string>> {
 fn deriving_eq_is_error() {
     let diags = check(
         r#"
-type Point {
+type Point = {
   x: number,
   y: number,
 } deriving (Eq)
@@ -3833,7 +3829,7 @@ type Point {
 fn deriving_display_on_record_type() {
     let diags = check(
         r#"
-type User {
+type User = {
   name: string,
   age: number,
 } deriving (Display)
@@ -3850,7 +3846,7 @@ type User {
 fn deriving_eq_and_display_errors_on_eq() {
     let diags = check(
         r#"
-type User {
+type User = {
   name: string,
   age: number,
 } deriving (Eq, Display)
@@ -3867,7 +3863,7 @@ type User {
 fn deriving_on_union_type_is_error() {
     let diags = check(
         r#"
-type Shape { | Circle { radius: number } | Square { side: number } } deriving (Display)
+type Shape = | Circle { radius: number } | Square { side: number } deriving (Display)
 "#,
     );
     assert!(
@@ -3881,7 +3877,7 @@ type Shape { | Circle { radius: number } | Square { side: number } } deriving (D
 fn deriving_unknown_trait_is_error() {
     let diags = check(
         r#"
-type Point {
+type Point = {
   x: number,
   y: number,
 } deriving (Hash)
@@ -3898,7 +3894,7 @@ type Point {
 
 #[test]
 fn newtype_with_number() {
-    let diags = check("type ProductId { number }");
+    let diags = check("type ProductId = ProductId(number)");
     assert!(
         !has_error_containing(&diags, "is not defined"),
         "ProductId(number) should parse as a newtype, got: {:?}",
@@ -3908,7 +3904,7 @@ fn newtype_with_number() {
 
 #[test]
 fn newtype_with_string() {
-    let diags = check("type Email { string }");
+    let diags = check("type Email = Email(string)");
     assert!(
         !has_error_containing(&diags, "is not defined"),
         "Email(string) should parse as a newtype, got: {:?}",
@@ -3918,7 +3914,7 @@ fn newtype_with_string() {
 
 #[test]
 fn newtype_with_boolean() {
-    let diags = check("type Flag { boolean }");
+    let diags = check("type Flag = Flag(boolean)");
     assert!(
         !has_error_containing(&diags, "is not defined"),
         "Flag(boolean) should parse as a newtype, got: {:?}",
@@ -3928,7 +3924,7 @@ fn newtype_with_boolean() {
 
 #[test]
 fn newtype_with_named_field() {
-    let diags = check("type UserId { value: number }");
+    let diags = check("type UserId = { value: number }");
     assert!(
         !has_error_containing(&diags, "is not defined"),
         "UserId(value: number) should parse as a newtype, got: {:?}",
@@ -3940,12 +3936,10 @@ fn newtype_with_named_field() {
 fn newtype_coexists_with_regular_unions() {
     let diags = check(
         r#"
-type ProductId { number }
-type Route {
-  | Home
+type ProductId = ProductId(number)
+type Route = | Home
   | Profile { id: string }
   | NotFound
-}
 "#,
     );
     assert!(
@@ -3958,11 +3952,17 @@ type Route {
 #[test]
 fn type_alias_without_ts_import_is_error() {
     let diags = check("type Name = string");
-    assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "type alias without TS import should error: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "type alias without TS import should error:, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 // ── Default parameter values ────────────────────────────────
@@ -3971,7 +3971,7 @@ fn type_alias_without_ts_import_is_error() {
 fn default_params_all_defaults_omitted() {
     let diags = check(
         r#"
-fn greet(name: string, greeting: string = "Hello") -> string {
+fn greet(name: string, greeting: string = "Hello") => string {
     `${greeting}, ${name}!`
 }
 const x = greet("Ryan")
@@ -3988,7 +3988,7 @@ const x = greet("Ryan")
 fn default_params_some_defaults_omitted() {
     let diags = check(
         r#"
-fn make(a: string, b: string = "x", c: number = 0) -> string {
+fn make(a: string, b: string = "x", c: number = 0) => string {
     `${a}${b}`
 }
 const x = make("hello", b: "world")
@@ -4005,7 +4005,7 @@ const x = make("hello", b: "world")
 fn default_params_all_explicit() {
     let diags = check(
         r#"
-fn make(a: string, b: string = "x", c: number = 0) -> string {
+fn make(a: string, b: string = "x", c: number = 0) => string {
     `${a}${b}`
 }
 const x = make("hello", b: "world", c: 42)
@@ -4022,7 +4022,7 @@ const x = make("hello", b: "world", c: 42)
 fn default_params_too_few_args_error() {
     let diags = check(
         r#"
-fn make(a: string, b: string = "x", c: number = 0) -> string {
+fn make(a: string, b: string = "x", c: number = 0) => string {
     `${a}${b}`
 }
 const x = make()
@@ -4039,7 +4039,7 @@ const x = make()
 fn default_params_too_many_args_error() {
     let diags = check(
         r#"
-fn make(a: string, b: string = "x") -> string {
+fn make(a: string, b: string = "x") => string {
     `${a}${b}`
 }
 const x = make("a", "b", "c")
@@ -4056,7 +4056,7 @@ const x = make("a", "b", "c")
 fn default_params_type_mismatch_error() {
     let diags = check(
         r#"
-fn greet(name: string, count: number = "oops") -> string {
+fn greet(name: string, count: number = "oops") => string {
     name
 }
 "#,
@@ -4072,7 +4072,7 @@ fn greet(name: string, count: number = "oops") -> string {
 fn default_params_only_required_param() {
     let diags = check(
         r#"
-fn greet(name: string, greeting: string = "Hello") -> string {
+fn greet(name: string, greeting: string = "Hello") => string {
     `${greeting}, ${name}!`
 }
 const x = greet("Ryan")
@@ -4471,7 +4471,7 @@ fn _test() {
 fn partial_application_no_error() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const _addTen = add(10, _)
 "#,
     );
@@ -4488,7 +4488,7 @@ fn partial_application_returns_function_type() {
     // so calling it with a number should be fine
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const addTen = add(10, _)
 const _result = addTen(5)
 "#,
@@ -4504,7 +4504,7 @@ const _result = addTen(5)
 fn partial_application_wrong_type_errors() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const _addTen = add("hello", _)
 "#,
     );
@@ -4518,7 +4518,7 @@ const _addTen = add("hello", _)
 fn pipe_with_placeholder_no_error() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const _result = 5 |> add(3, _)
 "#,
     );
@@ -4533,7 +4533,7 @@ const _result = 5 |> add(3, _)
 fn pipe_with_placeholder_wrong_type() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const _result = "hello" |> add(3, _)
 "#,
     );
@@ -4547,7 +4547,7 @@ const _result = "hello" |> add(3, _)
 fn multiple_placeholders_error() {
     let diags = check(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 const _f = add(_, _)
 "#,
     );
@@ -4563,7 +4563,7 @@ fn partial_application_first_arg() {
     // `concat(_, "!")` should work — placeholder in first position
     let diags = check(
         r#"
-fn concat(a: string, b: string) -> string { a }
+fn concat(a: string, b: string) => string { a }
 const _addBang = concat(_, "!")
 "#,
     );
@@ -4580,12 +4580,10 @@ const _addBang = concat(_, "!")
 fn variant_constructor_as_function_no_error() {
     let diags = check(
         r#"
-type SaveError {
-    | Validation { errors: Array<string> }
+type SaveError = | Validation { errors: Array<string> }
     | Api { message: string }
-}
 
-fn apply(f: (Array<string>) -> SaveError) -> SaveError {
+fn apply(f: (Array<string>) => SaveError) => SaveError {
     f(["error"])
 }
 
@@ -4599,11 +4597,9 @@ const _result = apply(Validation)
 fn unit_variant_not_treated_as_function() {
     let diags = check(
         r#"
-type Filter {
-    | All
+type Filter = | All
     | Active
     | Completed
-}
 
 const _f: Filter = All
 "#,
@@ -4615,12 +4611,10 @@ const _f: Filter = All
 fn variant_constructor_type_mismatch() {
     let diags = check(
         r#"
-type MyError {
-    | Validation { errors: Array<string> }
+type MyError = | Validation { errors: Array<string> }
     | Api { message: string }
-}
 
-fn apply(f: (number) -> MyError) -> MyError {
+fn apply(f: (number) => MyError) => MyError {
     f(42)
 }
 
@@ -4636,11 +4630,9 @@ const _result = apply(Validation)
 fn positional_variant_construction_no_error() {
     let diags = check(
         r#"
-type Shape {
-    | Circle(number)
+type Shape = | Circle(number)
     | Rect(number, number)
     | Point
-}
 
 const _c = Circle(5)
 const _r = Rect(10, 20)
@@ -4654,9 +4646,7 @@ const _p = Point
 fn positional_variant_type_mismatch() {
     let diags = check(
         r#"
-type Shape {
-    | Circle(number)
-}
+type Shape = | Circle(number)
 
 const _c = Circle("hello")
 "#,
@@ -4668,9 +4658,7 @@ const _c = Circle("hello")
 fn positional_variant_wrong_arg_count() {
     let diags = check(
         r#"
-type Shape {
-    | Rect(number, number)
-}
+type Shape = | Rect(number, number)
 
 const _r = Rect(10)
 "#,
@@ -4682,12 +4670,10 @@ const _r = Rect(10)
 fn positional_variant_pattern_matching() {
     let diags = check(
         r#"
-type Shape {
-    | Circle(number)
+type Shape = | Circle(number)
     | Point
-}
 
-fn describe(s: Shape) -> string {
+fn describe(s: Shape) => string {
     match s {
         Circle(r) -> `r=${r}`,
         Point -> "point",
@@ -4706,7 +4692,7 @@ const _d = describe(Circle(5))
 fn generic_function_no_error() {
     let diags = check(
         r#"
-fn identity<T>(x: T) -> T { x }
+fn identity<T>(x: T) => T { x }
 const _n = identity(42)
 const _s = identity("hello")
 "#,
@@ -4722,7 +4708,7 @@ const _s = identity("hello")
 fn generic_function_pair() {
     let diags = check(
         r#"
-fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }
+fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) }
 const _p = pair(1, "hello")
 "#,
     );
@@ -4737,8 +4723,8 @@ const _p = pair(1, "hello")
 fn generic_function_with_callback() {
     let diags = check(
         r#"
-fn apply<T, U>(x: T, f: (T) -> U) -> U { f(x) }
-fn double(n: number) -> number { n * 2 }
+fn apply<T, U>(x: T, f: (T) => U) => U { f(x) }
+fn double(n: number) => number { n * 2 }
 const _r = apply(5, double)
 "#,
     );
@@ -4752,7 +4738,7 @@ const _r = apply(5, double)
 
 #[test]
 fn lowercase_type_name_error() {
-    let diags = check("type color { | Red | Green }");
+    let diags = check("type color = Red | Green");
     assert!(has_error(&diags, ErrorCode::TypeNameCase));
     assert!(has_error_containing(
         &diags,
@@ -4762,13 +4748,13 @@ fn lowercase_type_name_error() {
 
 #[test]
 fn uppercase_type_name_ok() {
-    let diags = check("type Color { | Red | Green }");
+    let diags = check("type Color = | Red | Green");
     assert!(!has_error(&diags, ErrorCode::TypeNameCase));
 }
 
 #[test]
 fn lowercase_variant_name_error() {
-    let diags = check("type Color { | red | Green }");
+    let diags = check("type Color = | red | Green");
     assert!(has_error(&diags, ErrorCode::TypeNameCase));
     assert!(has_error_containing(
         &diags,
@@ -4778,7 +4764,7 @@ fn lowercase_variant_name_error() {
 
 #[test]
 fn uppercase_variant_name_ok() {
-    let diags = check("type Color { | Red | Green }");
+    let diags = check("type Color = | Red | Green");
     assert!(!has_error(&diags, ErrorCode::TypeNameCase));
 }
 
@@ -4875,13 +4861,13 @@ fn for_block_same_fn_name_different_types_no_conflict() {
     let source = r#"
 import { Accent } from "./accent"
 
-type Entry {
+type Entry = {
     id: number,
     accents: Array<Accent>,
 }
 
 for Entry {
-    export fn fromRow() -> Entry {
+    export fn fromRow() => Entry {
         Entry(id: 0, accents: [])
     }
 }
@@ -4903,12 +4889,12 @@ fn for_block_same_fn_name_same_type_still_errors() {
     // Two for-blocks on the SAME type with the same function name SHOULD error.
     let diags = check(
         r#"
-type Todo { text: string }
+type Todo = { text: string }
 for Todo {
-    fn format(self) -> string { self.text }
+    fn format(self) => string { self.text }
 }
 for Todo {
-    fn format(self) -> string { self.text }
+    fn format(self) => string { self.text }
 }
 "#,
     );
@@ -4930,14 +4916,14 @@ fn member_access_on_imported_type_validates_fields() {
         r#"
 import { AccentRow } from "../services/supabase/row-dto"
 
-type Accent {
+type Accent = {
     id: number,
     accent: string,
     entryId: number,
 }
 
 for AccentRow {
-    export fn toModel(self) -> Accent {
+    export fn toModel(self) => Accent {
         Accent(
             id: self.id,
             accent: self.accent,
@@ -5053,9 +5039,9 @@ fn foreign_type_member_access_resolves_via_record_definition() {
 import trusted { useState } from "react"
 import trusted { Transition } from "api"
 
-fn test(id: string) -> () { () }
+fn test(id: string) => () { () }
 
-fn App() -> JSX.Element {
+fn App() => JSX.Element {
     const (transitions, _setTransitions) = useState<Array<Transition>>([])
     const _r = transitions |> map((t) => test(t.id))
 
@@ -5131,10 +5117,10 @@ fn member_access_on_unresolved_named_type_errors() {
     // field access should error rather than silently returning Unknown.
     let diags = check(
         r#"
-type Wrapper { inner: number }
+type Wrapper = { inner: number }
 
 for Wrapper {
-    fn test(self) -> number {
+    fn test(self) => number {
         self.nonexistent
     }
 }
@@ -5161,10 +5147,10 @@ fn member_access_on_imported_for_block_type_no_silent_pass() {
         r#"
 import { AccentRow } from "../services/supabase/row-dto"
 
-type Accent { id: number, entryId: number }
+type Accent = { id: number, entryId: number }
 
 for AccentRow {
-    export fn toModel(self) -> Accent {
+    export fn toModel(self) => Accent {
         Accent(
             id: self.id,
             entryId: self.entryId,
@@ -5195,7 +5181,7 @@ for AccentRow {
 #[test]
 fn console_log_variadic_no_error() {
     let src = r#"
-        fn main() -> () {
+        fn main() => () {
             Console.log("label:", 42)
             Console.log("a", "b", "c")
             Console.warn("warn:", 1, 2)
@@ -5419,7 +5405,7 @@ fn stdlib_implicit_some_wrapping_still_works_for_concrete_option_params() {
     // Functions that take Option<concrete_type> should still accept bare values
     let diags = check(
         r#"
-        fn foo(x: Option<number>) -> Option<number> { x }
+        fn foo(x: Option<number>) => Option<number> { x }
         const _x = foo(42)
     "#,
     );
@@ -5454,17 +5440,17 @@ fn stdlib_string_split_rejects_wrong_type() {
 fn for_block_overload_resolves_correct_return_type_in_pipe() {
     let program = crate::parser::Parser::new(
         r#"
-type AccentRow { id: number }
-type EntryRow { id: number }
-type Accent { id: number }
-type Entry { id: number }
+type AccentRow = { id: number }
+type EntryRow = { id: number }
+type Accent = { id: number }
+type Entry = { id: number }
 
 for AccentRow {
-    fn toModel(self) -> Accent { Accent(id: self.id) }
+    fn toModel(self) => Accent { Accent(id: self.id) }
 }
 
 for EntryRow {
-    fn toModel(self) -> Entry { Entry(id: self.id) }
+    fn toModel(self) => Entry { Entry(id: self.id) }
 }
 
 const row = AccentRow(id: 1)
@@ -5496,17 +5482,17 @@ const _result = row |> toModel
 fn for_block_overload_resolves_correct_return_type_in_call() {
     let program = crate::parser::Parser::new(
         r#"
-type AccentRow { id: number }
-type EntryRow { id: number }
-type Accent { id: number }
-type Entry { id: number }
+type AccentRow = { id: number }
+type EntryRow = { id: number }
+type Accent = { id: number }
+type Entry = { id: number }
 
 for AccentRow {
-    fn toModel(self) -> Accent { Accent(id: self.id) }
+    fn toModel(self) => Accent { Accent(id: self.id) }
 }
 
 for EntryRow {
-    fn toModel(self) -> Entry { Entry(id: self.id) }
+    fn toModel(self) => Entry { Entry(id: self.id) }
 }
 
 const row = AccentRow(id: 1)
@@ -5537,28 +5523,42 @@ const _result = toModel(row)
 // ── typeof operator ────────────────────────────────────────
 
 #[test]
-fn typeof_local_binding_is_bridge_error() {
+fn typeof_local_binding_is_ok() {
     let diags = check(
-        "fn greet(name: string) -> string { `Hello, ${name}!` }
+        "fn greet(name: string) => string { `Hello, ${name}!` }
 type Greeter = typeof greet",
     );
-    assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "typeof on local binding should error as bridge type: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "typeof on local binding should be a valid alias, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
-fn typeof_local_record_binding_is_bridge_error() {
+fn typeof_local_record_binding_is_ok() {
     let diags = check(
-        "type Config { baseUrl: string, timeout: number }
+        "type Config = { baseUrl: string, timeout: number }
 const config = Config(baseUrl: \"https://api.com\", timeout: 5000)
 type MyConfig = typeof config",
     );
-    assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "typeof on local record binding should error as bridge type: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "typeof on local record binding should be a valid alias, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
@@ -5576,7 +5576,7 @@ fn typeof_forward_reference_errors() {
     // until the second pass, after type registration)
     let diags = check(
         "type Greeter = typeof greet
-fn greet(name: string) -> string { `Hello, ${name}!` }",
+fn greet(name: string) => string { `Hello, ${name}!` }",
     );
     assert!(
         has_error_containing(&diags, "undefined binding"),
@@ -5619,66 +5619,94 @@ fn array_assignable_to_option_array() {
 // ── intersection types ─────────────────────────────────────
 
 #[test]
-fn intersection_local_types_is_bridge_error() {
+fn intersection_local_types_is_ok() {
     let diags = check(
-        "type A { x: number }
-type B { y: string }
+        "type A = { x: number }
+type B = { y: string }
 type C = A & B",
     );
-    assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "intersection of local types should error as bridge type: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "intersection of local types should be a valid alias, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
-fn intersection_three_local_types_is_bridge_error() {
+fn intersection_three_local_types_is_ok() {
     let diags = check(
-        "type A { x: number }
-type B { y: string }
+        "type A = { x: number }
+type B = { y: string }
 type D = A & B & { z: boolean }",
     );
-    assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "three-way local intersection should error as bridge type: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "three-way local intersection should be a valid alias, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
-fn intersection_with_local_typeof_is_bridge_error() {
+fn intersection_with_local_typeof_is_ok() {
     let diags = check(
-        "type Config { baseUrl: string }
+        "type Config = { baseUrl: string }
 const config = Config(baseUrl: \"https://api.com\")
 type Extended = typeof config & { timeout: number }",
     );
-    assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "typeof & local record intersection should error as bridge type: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "typeof & local record intersection should be a valid alias, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
-fn intersection_local_generic_is_bridge_error() {
+fn intersection_local_generic_is_ok() {
     let diags = check(
-        "type A { x: number }
-type B { y: string }
+        "type A = { x: number }
+type B = { y: string }
 type C = Array<A> & B",
     );
-    assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "intersection with local generic should error as bridge type: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "intersection with local generic should be a valid alias, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
 fn record_spread_field_access() {
     let diags = check(
-        "type A { x: number }
-type B {
+        "type A = { x: number }
+type B = {
     ...A,
     y: string,
 }
-fn _test(b: B) -> number { b.x }",
+fn _test(b: B) => number { b.x }",
     );
     assert!(
         diags.is_empty(),
@@ -5687,21 +5715,28 @@ fn _test(b: B) -> number { b.x }",
 }
 
 #[test]
-fn alias_with_local_type_is_bridge_error() {
+fn alias_with_local_type_is_ok() {
     let diags = check(
-        "type A { x: number }
+        "type A = { x: number }
 type B = Array<\"div\">",
     );
-    assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "alias referencing only local types should error as bridge type: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "alias referencing only local types should be accepted, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
-// ── Bridge type with npm import (positive) ──────────────────
+// ── Alias with npm import (positive) ──────────────────
 
 #[test]
-fn bridge_alias_with_npm_import_is_ok() {
+fn alias_with_npm_import_is_ok() {
     use crate::interop::{DtsExport, TsType};
     use std::collections::HashMap;
 
@@ -5724,14 +5759,21 @@ type DivProps = ComponentProps<"div">
     );
 
     let diags = Checker::with_all_imports(HashMap::new(), dts_imports).check(&program);
-    assert!(
-        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "bridge type referencing npm import should not error: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "alias referencing npm import should not error, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
-fn bridge_intersection_with_npm_import_is_ok() {
+fn intersection_with_npm_import_is_ok() {
     use crate::interop::{DtsExport, TsType};
     use std::collections::HashMap;
 
@@ -5754,18 +5796,33 @@ type CardProps = VariantProps & { className: string }
     );
 
     let diags = Checker::with_all_imports(HashMap::new(), dts_imports).check(&program);
-    assert!(
-        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "bridge intersection with npm import should not error: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "intersection with npm import should not error: {diags:?}, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
-fn string_literal_union_always_errors() {
+fn string_literal_union_errors_with_oneof_fix_it() {
     let diags = check(r#"type ButtonVariant = "outline" | "ghost""#);
     assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "string literal union should always error in Floe source: {diags:?}"
+        has_error(&diags, ErrorCode::BareStringLiteralUnion),
+        "bare string-literal union should fire E201: {diags:?}"
+    );
+    let help = diags
+        .iter()
+        .find_map(|d| d.help.clone())
+        .unwrap_or_default();
+    assert!(
+        help.contains(r#"OneOf<"outline", "ghost">"#),
+        "E201 help should suggest OneOf<>, got: {help}"
     );
 }
 
@@ -5773,41 +5830,47 @@ fn string_literal_union_always_errors() {
 
 fn assert_utility_type_accepted(src: &str) {
     let diags = check(src);
-    assert!(
-        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport)
-            && !has_error(&diags, ErrorCode::UndefinedName),
-        "utility-type alias rejected: {diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "utility-type alias rejected: {diags:?}, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
-fn bridge_alias_with_return_type_and_typeof_local_is_ok() {
+fn alias_with_return_type_and_typeof_local_is_ok() {
     assert_utility_type_accepted(
-        "fn createDb(id: string) -> string { id }
+        "fn createDb(id: string) => string { id }
 type Database = ReturnType<typeof createDb>",
     );
 }
 
 #[test]
-fn bridge_alias_with_parameters_is_ok() {
+fn alias_with_parameters_is_ok() {
     assert_utility_type_accepted(
-        "fn createDb(id: string) -> string { id }
+        "fn createDb(id: string) => string { id }
 type DbArgs = Parameters<typeof createDb>",
     );
 }
 
 #[test]
-fn bridge_alias_with_partial_over_local_record_is_ok() {
+fn alias_with_partial_over_local_record_is_ok() {
     assert_utility_type_accepted(
-        "type User { name: string, email: string, age: number }
+        "type User = { name: string, email: string, age: number }
 type PartialUser = Partial<User>",
     );
 }
 
 #[test]
-fn bridge_alias_with_readonly_and_non_nullable_is_ok() {
+fn alias_with_readonly_and_non_nullable_is_ok() {
     assert_utility_type_accepted(
-        "type User { name: string }
+        "type User = { name: string }
 type ReadOnlyUser = Readonly<User>
 type NonNullableUser = NonNullable<User>",
     );
@@ -5816,19 +5879,26 @@ type NonNullableUser = NonNullable<User>",
 #[test]
 fn bare_typeof_local_still_errors() {
     let diags = check(
-        "fn createDb(id: string) -> string { id }
+        "fn createDb(id: string) => string { id }
 type Identity = typeof createDb",
     );
-    assert!(
-        has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "{diags:?}"
-    );
+    {
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "{diags:?}, got: {:?}",
+            errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
 fn unknown_utility_like_name_still_errors() {
     let diags = check(
-        "type User { name: string }
+        "type User = { name: string }
 type Wat = MyCustomUtility<User>",
     );
     assert!(has_error(&diags, ErrorCode::UndefinedName), "{diags:?}");
@@ -5840,7 +5910,7 @@ type Wat = MyCustomUtility<User>",
 fn intersection_in_record_type_is_error() {
     let diags = check(
         r#"
-type Props {
+type Props = {
     value: string & { extra: number },
 }
 "#,
@@ -5924,7 +5994,7 @@ const x = n[0]
 fn bracket_access_on_record_errors() {
     let diags = check(
         r#"
-type User { name: string, age: number }
+type User = { name: string, age: number }
 const u = User(name: "Alice", age: 30)
 const x = u[0]
 "#,
@@ -5982,11 +6052,11 @@ const x = pair[i]
 fn pipe_qualified_for_block_resolves_return_type() {
     let diags = check(
         r#"
-type Out { value: number }
-type In { x: number }
+type Out = { value: number }
+type In = { x: number }
 
 for In {
-    fn convert(self) -> Out {
+    fn convert(self) => Out {
         Out(value: self.x)
     }
 }
@@ -6011,10 +6081,10 @@ const _result: Out = input |> In.convert
 fn dot_call_on_for_block_method_errors() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 
 for User {
-    fn greet(self) -> string { `Hello, ${self.name}` }
+    fn greet(self) => string { `Hello, ${self.name}` }
 }
 
 const u = User(name: "Ryan")
@@ -6031,16 +6101,16 @@ const _g = u.greet()
 fn dot_call_on_for_block_method_via_record_field_errors() {
     let diags = check(
         r#"
-type AccentRow { id: number, entryId: number }
-type Accent { id: number, entryId: number }
+type AccentRow = { id: number, entryId: number }
+type Accent = { id: number, entryId: number }
 
 for AccentRow {
-    fn toModel(self) -> Accent {
+    fn toModel(self) => Accent {
         Accent(id: self.id, entryId: self.entryId)
     }
 }
 
-fn convert(row: AccentRow) -> Accent {
+fn convert(row: AccentRow) => Accent {
     row.toModel()
 }
 "#,
@@ -6055,16 +6125,16 @@ fn convert(row: AccentRow) -> Accent {
 fn dot_call_on_for_block_method_in_closure_errors() {
     let diags = check(
         r#"
-type AccentRow { id: number, entryId: number }
-type Accent { id: number, entryId: number }
+type AccentRow = { id: number, entryId: number }
+type Accent = { id: number, entryId: number }
 
 for AccentRow {
-    fn toModel(self) -> Accent {
+    fn toModel(self) => Accent {
         Accent(id: self.id, entryId: self.entryId)
     }
 }
 
-fn convertAll(rows: Array<AccentRow>) -> Array<Accent> {
+fn convertAll(rows: Array<AccentRow>) => Array<Accent> {
     rows |> Array.map((a) => a.toModel())
 }
 "#,
@@ -6079,10 +6149,10 @@ fn convertAll(rows: Array<AccentRow>) -> Array<Accent> {
 fn pipe_call_on_for_block_method_allowed() {
     let diags = check(
         r#"
-type User { name: string }
+type User = { name: string }
 
 for User {
-    fn greet(self) -> string { `Hello, ${self.name}` }
+    fn greet(self) => string { `Hello, ${self.name}` }
 }
 
 const u = User(name: "Ryan")
@@ -6105,10 +6175,10 @@ fn dot_call_on_trait_method_via_generic_bound_errors() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(self, value: string) -> string
+    fn create(self, value: string) => string
 }
 
-fn use_repo<R: Repo>(r: R, v: string) -> string {
+fn use_repo<R: Repo>(r: R, v: string) => string {
     r.create(v)
 }
 "#,
@@ -6125,10 +6195,10 @@ fn pipe_call_on_trait_method_via_generic_bound_allowed() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(self, value: string) -> string
+    fn create(self, value: string) => string
 }
 
-fn use_repo<R: Repo>(r: R, v: string) -> string {
+fn use_repo<R: Repo>(r: R, v: string) => string {
     r |> create(v)
 }
 "#,
@@ -6148,9 +6218,9 @@ fn jsx_member_expression_no_error() {
         r#"
 import trusted { JSX } from "react"
 
-fn Select(_props: { children: JSX.Element }) -> JSX.Element { <div /> }
+fn Select(_props: { children: JSX.Element }) => JSX.Element { <div /> }
 
-fn App() -> JSX.Element {
+fn App() => JSX.Element {
     <div>
         <Select.Trigger>Open</Select.Trigger>
         <Select.Value />
@@ -6172,7 +6242,7 @@ fn jsx_member_expression_marks_root_used() {
 import trusted { JSX } from "react"
 import trusted { Select } from "ui"
 
-fn App() -> JSX.Element {
+fn App() => JSX.Element {
     <Select.Trigger />
 }
 "#,
@@ -6411,9 +6481,9 @@ fn page() {
 fn jsx_prop_type_mismatch_errors() {
     let diags = check(
         r#"
-type Props { name: string, count: number }
-fn Card(props: Props) -> JSX.Element { <div /> }
-fn page() -> JSX.Element {
+type Props = { name: string, count: number }
+fn Card(props: Props) => JSX.Element { <div /> }
+fn page() => JSX.Element {
     <Card name={42} count={"hello"} />
 }
 "#,
@@ -6434,9 +6504,9 @@ fn page() -> JSX.Element {
 fn jsx_prop_correct_types_no_error() {
     let diags = check(
         r#"
-type Props { name: string, count: number }
-fn Card(props: Props) -> JSX.Element { <div /> }
-fn page() -> JSX.Element {
+type Props = { name: string, count: number }
+fn Card(props: Props) => JSX.Element { <div /> }
+fn page() => JSX.Element {
     <Card name={"hello"} count={42} />
 }
 "#,
@@ -6458,8 +6528,8 @@ fn page() -> JSX.Element {
 fn unknown_arg_rejected_for_concrete_param() {
     let diags = check(
         r#"
-fn takesString(s: string) -> string { s }
-fn returnsUnknown() -> unknown { "hello" }
+fn takesString(s: string) => string { s }
+fn returnsUnknown() => unknown { "hello" }
 const x = returnsUnknown()
 const _result = takesString(x)
 "#,
@@ -6476,7 +6546,7 @@ const _result = takesString(x)
 fn calling_unknown_typed_value_is_error_not_warning() {
     let diags = check(
         r#"
-fn returnsUnknown() -> unknown { "hello" }
+fn returnsUnknown() => unknown { "hello" }
 const f = returnsUnknown()
 const _result = f("hello", 42)
 "#,
@@ -6502,7 +6572,7 @@ const _result = f("hello", 42)
 fn narrowing_unknown_call_result_does_not_cascade() {
     let diags = check(
         r#"
-fn returnsUnknown() -> unknown { "hello" }
+fn returnsUnknown() => unknown { "hello" }
 const f = returnsUnknown()
 const _result = f()
 const x: number = _result
@@ -6525,8 +6595,8 @@ const x: number = _result
 fn dot_shorthand_as_function_argument() {
     let diags = check(
         r#"
-type Store { sidebarOpen: boolean, name: string }
-fn select(store: Store, f: (Store) -> boolean) -> boolean { f(store) }
+type Store = { sidebarOpen: boolean, name: string }
+fn select(store: Store, f: (Store) => boolean) => boolean { f(store) }
 const store = Store(sidebarOpen: true, name: "test")
 const _r = select(store, .sidebarOpen)
 "#,
@@ -6538,8 +6608,8 @@ const _r = select(store, .sidebarOpen)
 fn dot_shorthand_predicate_as_function_argument() {
     let diags = check(
         r#"
-type User { name: string, active: boolean }
-fn find(users: Array<User>, f: (User) -> boolean) -> Array<User> {
+type User = { name: string, active: boolean }
+fn find(users: Array<User>, f: (User) => boolean) => Array<User> {
     users |> filter(f)
 }
 const users = [User(name: "a", active: true)]
@@ -6553,8 +6623,8 @@ const _r = find(users, .name == "a")
 fn dot_shorthand_predicate_with_captured_variable() {
     let diags = check(
         r#"
-type Column { id: string }
-type Issue { status_name: string }
+type Column = { id: string }
+type Issue = { status_name: string }
 const columns: Array<Column> = [Column(id: "todo")]
 const issue = Issue(status_name: "todo")
 const _r = columns |> Array.find(.id == issue.status_name)
@@ -6571,8 +6641,8 @@ const _r = columns |> Array.find(.id == issue.status_name)
 fn dot_shorthand_predicate_with_function_call_rhs() {
     let diags = check(
         r#"
-type User { name: string, active: boolean }
-fn getName() -> string { "alice" }
+type User = { name: string, active: boolean }
+fn getName() => string { "alice" }
 const users: Array<User> = [User(name: "alice", active: true)]
 const _r = users |> Array.find(.name == getName())
 "#,
@@ -6591,7 +6661,7 @@ fn option_fields_can_be_omitted() {
     // Option fields in a record constructor should allow omission (default to None)
     let diags = check(
         r#"
-type Config { name: string, nickname: Option<string> }
+type Config = { name: string, nickname: Option<string> }
 fn _take(c: Config) { c }
 const _x = _take(Config(name: "Alice"))
 "#,
@@ -6607,7 +6677,7 @@ const _x = _take(Config(name: "Alice"))
 fn required_fields_cannot_be_omitted() {
     let diags = check(
         r#"
-type Config { name: string, email: string }
+type Config = { name: string, email: string }
 fn _take(c: Config) { c }
 const _x = _take({ name: "Alice" })
 "#,
@@ -6626,9 +6696,9 @@ fn different_named_types_with_same_shape_are_incompatible() {
     // Two Floe types with identical fields must not be interchangeable (nominal)
     let diags = check(
         r#"
-type Point { x: number, y: number }
-type Vec2  { x: number, y: number }
-fn _move(v: Vec2) -> Vec2 { v }
+type Point = { x: number, y: number }
+type Vec2 = { x: number, y: number }
+fn _move(v: Vec2) => Vec2 { v }
 const p = Point(x: 1, y: 2)
 const _r = _move(p)
 "#,
@@ -6645,8 +6715,8 @@ fn inline_object_literal_is_not_assignable_to_named_type() {
     // An inline record literal must not satisfy a Floe Named type (use the constructor)
     let diags = check(
         r#"
-type Vec2 { x: number, y: number }
-fn _move(v: Vec2) -> Vec2 { v }
+type Vec2 = { x: number, y: number }
+fn _move(v: Vec2) => Vec2 { v }
 const _r = _move({ x: 1, y: 2 })
 "#,
     );
@@ -6658,20 +6728,16 @@ const _r = _move({ x: 1, y: 2 })
 }
 
 #[test]
-fn named_type_satisfies_inline_record_annotation() {
-    // A Floe Named type can be passed to a function expecting an anonymous record
-    // (inline type annotation), as long as its fields are compatible.
+fn inline_record_annotation_in_signature_errors() {
     let diags = check(
         r#"
-type Point { x: number, y: number }
-fn _draw(p: { x: number, y: number }) -> () { () }
-const pt = Point(x: 3, y: 4)
-const _r = _draw(pt)
+type Point = { x: number, y: number }
+fn _draw(p: { x: number, y: number }) => () { () }
 "#,
     );
     assert!(
-        diags.is_empty(),
-        "Named type should satisfy an inline record annotation, got: {:?}",
+        has_error(&diags, ErrorCode::InlineRecordTypeInSignature),
+        "inline record type in signature should fire E202, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -6686,7 +6752,7 @@ fn named_type_satisfies_foreign_object_param() {
     let program = crate::parser::Parser::new(
         r#"
 import trusted { insert } from "some-db"
-type Row { code: string, content: string }
+type Row = { code: string, content: string }
 const _r = insert(Row(code: "abc", content: "hello"))
 "#,
     )
@@ -6739,8 +6805,8 @@ fn foreign_record_return_is_not_auto_coerced_to_named_type() {
     let program = crate::parser::Parser::new(
         r#"
 import trusted { getRow } from "some-db"
-type Row { code: string, content: string }
-fn _take(r: Row) -> () { () }
+type Row = { code: string, content: string }
+fn _take(r: Row) => () { () }
 const _r = _take(getRow())
 "#,
     )
@@ -6790,7 +6856,7 @@ fn tsgo_function_with_unknown_return_uses_checker_return() {
     let program = crate::parser::Parser::new(
         r#"
 import trusted { useCallback } from "react"
-type Item { id: string }
+type Item = { id: string }
 const handler = useCallback((item: Item) => {
     const _x = item.id
 }, [])
@@ -7079,7 +7145,7 @@ fn chained_method_calls_on_foreign_type_propagate_without_error() {
 import trusted { db } from "drizzle"
 import trusted { snippets } from "./schema"
 
-fn example() -> () {
+fn example() => () {
     const _result = db.insert(snippets).values(snippets).returning()
     ()
 }
@@ -7137,7 +7203,7 @@ fn calling_foreign_type_returns_foreign_not_unknown() {
         r#"
 import trusted { createBuilder } from "some-lib"
 
-fn test() -> () {
+fn test() => () {
     const builder = createBuilder()
     const _result = builder.step1().step2().finish()
     ()
@@ -7185,7 +7251,7 @@ fn chain_probe_resolves_real_types_for_builder_pattern() {
 import trusted { db } from "drizzle"
 import trusted { snippets } from "./schema"
 
-fn example() -> () {
+fn example() => () {
     const _result = db.insert(snippets).values(snippets).returning()
     ()
 }
@@ -7271,7 +7337,7 @@ fn chain_probe_deep_chain_resolves() {
         r#"
 import trusted { query } from "query-builder"
 
-fn example() -> () {
+fn example() => () {
     const _result = query.select(query).from(query).where(query).limit(query)
     ()
 }
@@ -7367,9 +7433,9 @@ fn chain_call_probe_resolves_overloaded_method_return_type() {
         r#"
 import trusted { Context } from "hono"
 
-fn needsString(s: string) -> string { s }
+fn needsString(s: string) => string { s }
 
-export fn handler(c: Context<unknown>) -> string {
+export fn handler(c: Context<unknown>) => string {
     match c.req.param("code") {
         None -> "missing",
         Some(v) -> needsString(v),
@@ -7414,8 +7480,8 @@ export fn handler(c: Context<unknown>) -> string {
 }
 
 #[test]
-fn chain_probe_resolves_for_fl_bridge_type_param() {
-    // When a function parameter is typed as a Floe bridge type alias (e.g. db: Database
+fn chain_probe_resolves_for_fl_alias_type_param() {
+    // When a function parameter is typed as a Floe type alias (e.g. db: Database
     // where `type Database = DrizzleType`), chain probes keyed by type name should resolve
     // even though the checker knows the type definition.
     use crate::interop::{DtsExport, FunctionParam, TsType};
@@ -7431,10 +7497,11 @@ fn chain_probe_resolves_for_fl_bridge_type_param() {
 import { Database } from "./db"
 import { snippetsTable } from "./schema"
 
-fn createItem(
-    db: Database,
-    input: { content: string },
-) -> Promise<Array<string>> {
+type CreateItemInput = {
+    content: string,
+}
+
+fn createItem(db: Database, input: CreateItemInput) => Promise<Array<string>> {
     const rows = db.insert(snippetsTable).values(snippetsTable).returning() |> await
     rows
 }
@@ -7443,7 +7510,7 @@ fn createItem(
     .parse_program()
     .expect("should parse");
 
-    // Database is defined as a bridge type alias in a .fl module
+    // Database is defined as a type alias in a .fl module
     let database_type_decl = TypeDecl {
         exported: true,
         opaque: false,
@@ -7507,7 +7574,7 @@ fn createItem(
         .collect();
     assert!(
         errors.is_empty(),
-        "chain probes should resolve for fl bridge type parameters, got: {:?}",
+        "chain probes should resolve for fl alias type parameters, got: {:?}",
         errors.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -7578,7 +7645,7 @@ const x: Result<string> = Ok("hi")
 #[test]
 fn promise_with_too_many_type_args_errors() {
     let source = r#"
-fn foo() -> Promise<string, number> {
+fn foo() => Promise<string, number> {
     "hi"
 }
 "#;
@@ -7619,7 +7686,7 @@ fn correct_type_arg_arity_no_error() {
 const a: Option<string> = None
 const b: Result<string, number> = Ok("hi")
 const c: Array<number> = []
-fn foo() -> Promise<string> { "hi" }
+fn foo() => Promise<string> { "hi" }
 "#;
     let diags = check(source);
     assert!(
@@ -7713,7 +7780,7 @@ fn untrusted_import_field_mismatch_shows_hint() {
 import { transform } from "some-lib"
 import trusted { insert } from "db-lib"
 
-fn test() -> () {
+fn test() => () {
     const name = transform("hello")
     insert({ name: name })
     ()
@@ -7840,8 +7907,8 @@ const _x = expiresAt
 fn record_type_name_as_bare_value_errors() {
     let diags = check(
         r#"
-type Foo { a: string }
-export fn bad() -> number {
+type Foo = { a: string }
+export fn bad() => number {
     const x = Foo
     42
 }
@@ -7855,8 +7922,8 @@ export fn bad() -> number {
 fn union_type_name_as_bare_value_errors() {
     let diags = check(
         r#"
-type Route { | Home | Profile(string) }
-export fn bad() -> Route {
+type Route = | Home | Profile(string)
+export fn bad() => Route {
     Route
 }
 "#,
@@ -7868,8 +7935,8 @@ export fn bad() -> Route {
 fn qualified_variant_access_still_works() {
     let diags = check(
         r#"
-type Route { | Home | Profile(string) }
-export fn ok() -> Route {
+type Route = | Home | Profile(string)
+export fn ok() => Route {
     Route.Home
 }
 "#,
@@ -7881,8 +7948,8 @@ export fn ok() -> Route {
 fn bare_nullary_variant_still_works() {
     let diags = check(
         r#"
-type Route { | Home | Profile(string) }
-export fn ok() -> Route {
+type Route = | Home | Profile(string)
+export fn ok() => Route {
     Home
 }
 "#,
@@ -7955,7 +8022,7 @@ fn deep_resolve_follows_links_through_arrays() {
 fn annotated_generic_fn_matches_inferred_generic_fn() {
     let diags_annotated = check(
         r#"
-fn id<T>(x: T) -> T { x }
+fn id<T>(x: T) => T { x }
 const _n = id(1)
 const _s = id("x")
 "#,
@@ -7997,7 +8064,7 @@ fn polymorphic_return_rejects_concrete_mismatch() {
     let diags = check(
         r#"
 fn id(x) { x }
-fn takesString(s: string) -> string { s }
+fn takesString(s: string) => string { s }
 const _x = takesString(id(42))
 "#,
     );
@@ -8045,7 +8112,7 @@ const _ls = ["a", "bb", "ccc"] |> Array.map((s) => String.length(s))
 #[test]
 fn reference_tracker_records_every_use_of_a_user_function() {
     let source = r#"
-fn greet(n: string) -> string { n }
+fn greet(n: string) => string { n }
 const _a = greet("a")
 const _b = greet("b")
 const _c = greet("c")
@@ -8091,7 +8158,7 @@ const _y = x
 #[test]
 fn reference_tracker_ignores_unused_definitions() {
     let source = r#"
-fn unused() -> number { 1 }
+fn unused() => number { 1 }
 "#;
     let program = Parser::new(source)
         .parse_program()
@@ -8168,7 +8235,7 @@ fn trait_name_used_as_value_errors() {
     let diags = check(
         r#"
 trait SnippetRepository {
-    fn create(self, input: string) -> string
+    fn create(self, input: string) => string
 }
 
 const _r = SnippetRepository.create("hello")
@@ -8190,7 +8257,7 @@ fn trait_method_untyped_param_errors() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(self, shit, snippet: string) -> string
+    fn create(self, shit, snippet: string) => string
 }
 "#,
     );
@@ -8207,10 +8274,10 @@ fn for_block_fn_untyped_param_errors() {
     // #1086: for-block method params (other than `self`) must have explicit types.
     let diags = check(
         r#"
-type MyRepo {}
+type MyRepo = {}
 
 for MyRepo {
-    fn create(self, shit) -> string {
+    fn create(self, shit) => string {
         "hi"
     }
 }
@@ -8230,7 +8297,7 @@ fn trait_method_without_self_errors() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(input: string) -> string
+    fn create(input: string) => string
 }
 "#,
     );
@@ -8247,7 +8314,7 @@ fn trait_method_self_not_first_errors() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(input: string, self) -> string
+    fn create(input: string, self) => string
 }
 "#,
     );
@@ -8264,8 +8331,8 @@ fn pipe_into_stdlib_method_does_not_silently_unwrap_result() {
     // error — the caller is responsible for unwrapping with `?` or `match`.
     let diags = check(
         r#"
-fn arr() -> Result<Array<number>, Error> { Ok([1, 2, 3]) }
-export fn main() -> string {
+fn arr() => Result<Array<number>, Error> { Ok([1, 2, 3]) }
+export fn main() => string {
     const r = arr() |> Array.at(0)
     const x: string = r
     x
@@ -8292,8 +8359,8 @@ fn pipe_unwrap_then_stdlib_preserves_element_type() {
     // element type correctly: Array<number> |> Array.at(0) → Option<number>.
     let diags = check(
         r#"
-fn arr() -> Result<Array<number>, Error> { Ok([1, 2, 3]) }
-export fn main() -> Result<Option<number>, Error> {
+fn arr() => Result<Array<number>, Error> { Ok([1, 2, 3]) }
+export fn main() => Result<Option<number>, Error> {
     const a = arr()?
     const r = a |> Array.at(0)
     Ok(r)

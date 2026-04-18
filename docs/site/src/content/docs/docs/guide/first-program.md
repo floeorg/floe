@@ -49,7 +49,7 @@ Create `src/Counter.fl`:
 ```floe
 import { useState } from "react"
 
-export fn Counter() -> JSX.Element {
+export fn Counter() => JSX.Element {
   const (count, setCount) = useState(0)
 
   <div>

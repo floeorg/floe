@@ -10,10 +10,29 @@ const age: number = 30
 const active: boolean = true
 ```
 
-## Record Types
+## Declaring Types
+
+Every type declaration looks like this:
 
 ```floe
-type User {
+type Name = RHS
+```
+
+The RHS picks what kind of type you get:
+
+| RHS | Kind |
+|---|---|
+| `{ ... }` | Record |
+| `A \| B \| ...` | Tagged sum |
+| `Name(T)` | Newtype |
+| `(Args) => Ret` | Function-type alias |
+| `OneOf<"a", "b">` | Structural string-literal union |
+| `Intersect<A, B>` | Structural intersection |
+
+## Records
+
+```floe
+type User = {
   name: string,
   email: string,
   age: number,
@@ -39,7 +58,7 @@ Two types with identical fields are NOT interchangeable. `User` is not `Product`
 Fields with defaults can be omitted when constructing:
 
 ```floe
-type Config {
+type Config = {
   baseUrl: string,
   timeout: number = 5000,
   retries: number = 3,
@@ -58,14 +77,14 @@ Rules:
 Include fields from other record types using spread syntax:
 
 ```floe
-type BaseProps {
+type BaseProps = {
   className: string,
   disabled: boolean,
 }
 
-type ButtonProps {
+type ButtonProps = {
   ...BaseProps,
-  onClick: () -> (),
+  onClick: () => (),
   label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -74,9 +93,9 @@ type ButtonProps {
 Multiple spreads are allowed:
 
 ```floe
-type A { x: number }
-type B { y: string }
-type C { ...A, ...B, z: boolean }
+type A = { x: number }
+type B = { y: string }
+type C = { ...A, ...B, z: boolean }
 ```
 
 Spreads work with generic types and `typeof`, including npm imports:
@@ -86,7 +105,7 @@ import { tv, VariantProps } from "tailwind-variants"
 
 const cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
 
-type CardProps {
+type CardProps = {
   ...VariantProps<typeof cardVariants>,
   className: string,
 }
@@ -97,42 +116,39 @@ Rules:
 - Field name conflicts between spreads or with direct fields are compile errors
 - The resulting type compiles to a TypeScript intersection
 
-## Union Types
+## Tagged Sums
 
-Discriminated unions with variants. Positional fields use `( )`, named fields use `{ }`:
+Discriminated unions with nominal variants. The leading `|` is optional. Positional fields use `( )`, named fields use `{ }`:
 
 ```floe
-type Color {
+type Color =
   | Red
   | Green
   | Blue
   | Custom { r: number, g: number, b: number }
-}
 
-type Shape {
-  | Circle(number)
-  | Rect(number, number)
-  | Point
-}
+type Shape = Circle(number) | Rect(number, number) | Point
 ```
+
+`|` at the top level of a `type` declaration always declares fresh constructors. If you want a structural string union instead, use `OneOf<>`.
 
 ### Qualified Variants
 
-Use `Type.Variant` to qualify which union a variant belongs to:
+Use `Type.Variant` to qualify which sum a variant belongs to:
 
 ```floe
-type Filter { | All | Active | Completed }
+type Filter = All | Active | Completed
 
 const f = Filter.All
 const g = Filter.Active
 setFilter(Filter.Completed)
 ```
 
-When two unions share a variant name, the compiler requires qualification:
+When two sums share a variant name, the compiler requires qualification:
 
 ```floe
-type Color { | Red | Green | Blue }
-type Light { | Red | Yellow | Green }
+type Color = Red | Green | Blue
+type Light = Red | Yellow | Green
 
 const c = Red
 // Error: variant `Red` is ambiguous — defined in both `Color` and `Light`
@@ -157,10 +173,9 @@ match filter {
 Non-unit variants (variants with fields) can be used as function values by referencing them without arguments:
 
 ```floe
-type SaveError {
+type SaveError =
     | Validation { errors: Array<string> }
     | Api { message: string }
-}
 
 // Bare variant name becomes an arrow function
 const toValidation = Validation
@@ -171,18 +186,17 @@ const toApi = SaveError.Api
 
 // Most useful with higher-order functions like mapErr:
 result |> Result.mapErr(Validation)
-// Instead of: result |> Result.mapErr(fn(e) Validation(e))
 ```
 
 Unit variants (no fields) are values, not functions.
 
 ## Result and Option
 
-`Result` and `Option` are built-in union types with positional variants:
+`Result` and `Option` are built-in tagged sums:
 
 ```floe
-// Equivalent to:  type Option<T> { | Some(T) | None }
-// Equivalent to:  type Result<T, E> { | Ok(T) | Err(E) }
+// Equivalent to:  type Option<T> = Some(T) | None
+// Equivalent to:  type Result<T, E> = Ok(T) | Err(E)
 ```
 
 ### Result
@@ -205,20 +219,16 @@ const missing = None
 
 ### Settable
 
-`Settable<T>` is a three-state type for partial updates. This is the problem it solves: in a PATCH API, you need to distinguish between "set this field to a value", "clear this field to null", and "don't touch this field". TypeScript's `Partial<T>` can't tell the difference between "set to undefined" and "not provided".
+`Settable<T>` is a three-state type for partial updates. In a PATCH API, you need to distinguish between "set this field to a value", "clear this field to null", and "don't touch this field". TypeScript's `Partial<T>` can't tell the difference between "set to undefined" and "not provided".
 
 ```floe
-type Settable<T> {
-  | Value(T)
-  | Clear
-  | Unchanged
-}
+type Settable<T> = Value(T) | Clear | Unchanged
 ```
 
 Use it with default field values so callers only specify what they're changing:
 
 ```floe
-type UpdateUser {
+type UpdateUser = {
   name: Settable<string> = Unchanged,
   email: Settable<string> = Unchanged,
   avatar: Settable<string> = Unchanged,
@@ -240,34 +250,12 @@ const patch = UpdateUser(name: Value("Ryan"), avatar: Clear)
 
 So `UpdateUser(name: Value("Ryan"), avatar: Clear)` compiles to `{ name: "Ryan", avatar: null }` -- no `email` key at all.
 
-#### Real-world example: PATCH endpoint
-
-```floe
-fn updateProfile(id: string, patch: UpdateUser) -> Result<User, ApiError> {
-    const response = Http.put("/api/users/{id}", patch) |> Promise.await?
-    response |> Http.json? |> parse<User>
-}
-
-// Only update what changed
-updateProfile("123", UpdateUser(
-    name: Value("New Name"),
-))
-// Sends: { name: "New Name" } — email and avatar untouched
-```
-
-#### Comparison with TypeScript
-
-| Approach | "set to value" | "clear to null" | "don't change" |
-|----------|---------------|-----------------|-----------------|
-| TS `Partial<T>` | `{ name: "x" }` | `{ name: null }` | `{ }` or `{ name: undefined }` (ambiguous!) |
-| Floe `Settable<T>` | `Value("x")` | `Clear` | `Unchanged` (omitted from output) |
-
 ### The `?` Operator
 
 Propagate errors concisely:
 
 ```floe
-fn getUsername(id: string) -> Result<string, Error> {
+fn getUsername(id: string) => Result<string, Error> {
   const user = fetchUser(id)?   // returns Err early if it fails
   Ok(user.name)
 }
@@ -278,21 +266,39 @@ fn getUsername(id: string) -> Result<string, Error> {
 Single-variant wrappers that are distinct at compile time but erase at runtime:
 
 ```floe
-type UserId(string)
-type PostId(string)
+type UserId = UserId(string)
+type PostId = PostId(string)
 
 // Both strings at runtime, but can't be mixed up at compile time
 ```
+
+The constructor name typically matches the type name — that is the idiomatic form.
 
 ## Opaque Types
 
 Types where only the defining module can see the internal structure:
 
 ```floe
-opaque type Email { string }
+opaque type Email = Email(string)
 
 // Only this module can construct/destructure Email values
 ```
+
+## Function-Type Aliases
+
+Name a function type to use it in records or generics:
+
+```floe
+type Handler = (Request) => Promise<Response>
+type Predicate<T> = (T) => boolean
+
+type Button = {
+  label: string,
+  onClick: () => (),
+}
+```
+
+Function types use `=>`. The `->` arrow is reserved for match arms and the return type of an `fn` declaration.
 
 ## Tuple Types
 
@@ -301,7 +307,7 @@ Anonymous lightweight product types:
 ```floe
 const point: (number, number) = (10, 20)
 
-fn divmod(a: number, b: number) -> (number, number) {
+fn divmod(a: number, b: number) => (number, number) {
   (a / b, a % b)
 }
 
@@ -310,20 +316,29 @@ const (q, r) = divmod(10, 3)
 
 Tuples compile to TypeScript readonly tuples: `(number, string)` becomes `readonly [number, string]`.
 
-## TypeScript Bridge Types
+## Structural TypeScript Types
 
-When working with npm libraries, use `type Name = ...` to alias existing TypeScript types:
+When bridging to TypeScript libraries, two utility types cover the structural operators TS uses that have no nominal equivalent in Floe:
 
 ```floe
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
-type DivProps = ComponentProps<"div">
-type CardProps = VariantProps<typeof cardVariants> & { className: string }
+type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
+type CardProps = Intersect<VariantProps<typeof cardVariants>, { className: string }>
 ```
 
-String literal unions work with exhaustive matching:
+- `OneOf<A, B, ...>` compiles to `A | B | ...`
+- `Intersect<A, B, ...>` compiles to `A & B & ...`
+
+Alias existing TypeScript types with plain `=`:
 
 ```floe
-fn describe(method: HttpMethod) -> string {
+type DivProps = ComponentProps<"div">
+type PartialUser = Partial<User>
+```
+
+String-literal unions work with exhaustive matching:
+
+```floe
+fn describe(method: HttpMethod) => string {
     match method {
         "GET" -> "fetching",
         "POST" -> "creating",
@@ -333,7 +348,14 @@ fn describe(method: HttpMethod) -> string {
 }
 ```
 
-For your own data, prefer union types (`type Method { | Get | Post }`) over string literals. Use `=` only when bridging to TypeScript libraries.
+For your own data, prefer tagged sums (`type Method = Get | Post`). Reach for `OneOf<>` and `Intersect<>` when you need the structural shapes TypeScript libraries hand you.
+
+## Common Errors
+
+| Code | Trigger | Fix |
+|---|---|---|
+| `E201` | Bare string-literal union (`type M = "a" \| "b"`) | Use `OneOf<"a", "b">` |
+| `E202` | Inline record in a function signature | Name the type: `type Arg = { ... }` then `fn f(x: Arg)` |
 
 ## Differences from TypeScript
 
@@ -341,5 +363,8 @@ For your own data, prefer union types (`type Method { | Get | Post }`) over stri
 |------------|----------------|
 | `any` | `unknown` + narrowing |
 | `null`, `undefined` | `Option<T>` |
-| `enum` | Union types |
+| `enum` | Tagged sums |
 | `interface` | `type` |
+| `"a" \| "b"` | `OneOf<"a", "b">` |
+| `A & B` | `Intersect<A, B>` (or record spread) |
+| `(x: T) => U` (in types) | `(T) => U` |

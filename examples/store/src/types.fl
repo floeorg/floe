@@ -1,21 +1,23 @@
 // ── Newtype wrappers ───────────────────────────────────
-// Single-variant unions as newtypes (Gleam/Rust style).
+// Single-variant sums carry nominal identity (Gleam/Rust style).
 
-export type ProductId(number)
+export type ProductId =
+    | ProductId(number)
 
-export type OrderId(number)
+export type OrderId =
+    | OrderId(number)
 
 // ── Shared field groups ────────────────────────────────
 
 // Record type composition with spread.
 
-type WithRating {
+type WithRating = {
     rating: number,
 }
 
 // ── Product (from DummyJSON API) ───────────────────────
 
-export type Product {
+export type Product = {
     id: ProductId,
     title: string,
     description: string,
@@ -30,7 +32,7 @@ export type Product {
     images: Array<string>,
 } deriving (Display)
 
-export type Review {
+export type Review = {
     ...WithRating,
     comment: string,
     date: string,
@@ -39,61 +41,55 @@ export type Review {
 
 // ── Cart ───────────────────────────────────────────────
 
-export type CartItem {
+export type CartItem = {
     product: Product,
     quantity: number,
 }
 
-// ── Nested error unions ────────────────────────────────
+// ── Nested error sums ──────────────────────────────────
 
-export type NetworkError {
+export type NetworkError =
     | Timeout { ms: number }
     | DnsFailure { host: string }
     | ConnectionRefused
-}
 
-export type ApiError {
+export type ApiError =
     | Network(NetworkError)
     | NotFound { id: ProductId }
     | BadResponse { status: number, body: string }
     | ParseError { message: string }
-}
 
 // ── Sort + Filter ──────────────────────────────────────
 
-export type SortOrder {
+export type SortOrder =
     | PriceLow
     | PriceHigh
     | Rating
     | Name
-}
 
-export type PriceRange {
+export type PriceRange =
     | Any
     | Under { max: number }
     | Between { min: number, max: number }
     | Over { min: number }
-}
 
 // ── Order ──────────────────────────────────────────────
 
-export type OrderStatus {
+export type OrderStatus =
     | Pending
     | Confirmed { orderId: OrderId }
     | Shipped { tracking: string }
     | Failed { reason: string }
-}
 
 // ── Checkout validation ────────────────────────────────
 
-export type CheckoutError {
+export type CheckoutError =
     | EmptyCart
     | InvalidEmail { email: string }
     | InvalidPhone { phone: string }
     | OutOfStock { productId: ProductId }
-}
 
-export type ShippingInfo {
+export type ShippingInfo = {
     name: string,
     email: string,
     phone: string,
@@ -104,7 +100,7 @@ export type ShippingInfo {
 
 // Value(x) = set to x, Clear = set to null, Unchanged = omit from update.
 
-export type ShippingUpdate {
+export type ShippingUpdate = {
     name: Settable<string> = Unchanged,
     email: Settable<string> = Unchanged,
     phone: Settable<string> = Unchanged,
@@ -114,9 +110,9 @@ export type ShippingUpdate {
 // ── Traits ─────────────────────────────────────────────
 
 export trait Display {
-    fn display(self) -> string
+    fn display(self) => string
 }
 
 export trait Discountable {
-    fn effectivePrice(self) -> number
+    fn effectivePrice(self) => number
 }

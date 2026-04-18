@@ -1,23 +1,23 @@
-type BaseProps {
+type BaseProps = {
     className: string,
     disabled: boolean,
 }
 
-type ButtonProps {
+type ButtonProps = {
     ...BaseProps,
-    onClick: () -> (),
+    onClick: () => (),
     label: string,
 }
 
-type A {
+type A = {
     x: number,
 }
 
-type B {
+type B = {
     y: string,
 }
 
-type C {
+type C = {
     ...A,
     ...B,
     z: boolean,

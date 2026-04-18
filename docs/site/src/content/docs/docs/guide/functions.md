@@ -27,7 +27,7 @@ const { name, age } = getUser()      // `{}` — record
 ```
 
 Array destructuring (`const [a, b] = arr`) is rejected in `const`
-bindings — it lies about runtime length. Use `Array.get(arr, i) ->
+bindings — it lies about runtime length. Use `Array.get(arr, i) =>
 Option<T>` or a match pattern:
 
 ```floe
@@ -40,7 +40,7 @@ match arr {
 ## Functions
 
 ```floe
-fn add(a: number, b: number) -> number {
+fn add(a: number, b: number) => number {
   a + b
 }
 ```
@@ -50,7 +50,7 @@ The last expression in a function body is the return value. The `return` keyword
 In multi-statement functions, `floe fmt` adds a blank line before the final expression to visually separate the return value:
 
 ```floe
-fn loadProfile(id: string) -> Result<Profile, ApiError> {
+fn loadProfile(id: string) => Result<Profile, ApiError> {
     const user = fetchUser(id)?
     const posts = fetchPosts(user.id)?
     const stats = computeStats(posts)
@@ -62,7 +62,7 @@ fn loadProfile(id: string) -> Result<Profile, ApiError> {
 Exported functions **must** have return type annotations:
 
 ```floe
-export fn greet(name: string) -> string {
+export fn greet(name: string) => string {
   `Hello, ${name}!`
 }
 ```
@@ -72,11 +72,11 @@ export fn greet(name: string) -> string {
 Functions can declare type parameters using angle brackets after the function name:
 
 ```floe
-fn identity<T>(x: T) -> T { x }
+fn identity<T>(x: T) => T { x }
 
-fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }
+fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) }
 
-fn mapResult<T, U, E>(r: Result<T, E>, f: (T) -> U) -> Result<U, E> {
+fn mapResult<T, U, E>(r: Result<T, E>, f: (T) => U) => Result<U, E> {
     match r {
         Ok(value) -> Ok(f(value)),
         Err(e) -> Err(e),
@@ -94,7 +94,7 @@ function pair<A, B>(a: A, b: B): readonly [A, B] { return [a, b] as const; }
 ### Default Parameters
 
 ```floe
-fn greet(name: string = "world") -> string {
+fn greet(name: string = "world") => string {
   `Hello, ${name}!`
 }
 ```
@@ -124,7 +124,7 @@ users |> Array.sortBy(.name)
 const double = (x) => x * 2
 
 // correct
-fn double(x: number) -> number { x * 2 }
+fn double(x: number) => number { x * 2 }
 ```
 
 ### Function Types
@@ -132,9 +132,9 @@ fn double(x: number) -> number { x * 2 }
 Use `->` to describe function types:
 
 ```floe
-type Transform = (string) -> number
-type Predicate = (Todo) -> boolean
-type Callback = () -> ()
+type Transform = (string) => number
+type Predicate = (Todo) => boolean
+type Callback = () => ()
 ```
 
 ### Async Functions
@@ -142,7 +142,7 @@ type Callback = () -> ()
 A function is async when its body uses `|> await` (or `|> Promise.await`). The return type must be `Promise<T>` -- the compiler enforces this, just like `?` requires `Result<T, E>`:
 
 ```floe
-fn fetchUser(id: string) -> Promise<User> {
+fn fetchUser(id: string) => Promise<User> {
   const response = fetch(`/api/users/${id}`) |> await
   response.json() |> await
 }
@@ -150,16 +150,16 @@ fn fetchUser(id: string) -> Promise<User> {
 
 For functions without a return type annotation, the compiler infers `Promise<T>` automatically.
 
-**`async fn` sugar.** When the return type is verbose (e.g. `Promise<Result<Option<T>, Error>>`), use `async fn f() -> T` to write the inner type directly. The compiler wraps it in `Promise<>`:
+**`async fn` sugar.** When the return type is verbose (e.g. `Promise<Result<Option<T>, Error>>`), use `async fn f() => T` to write the inner type directly. The compiler wraps it in `Promise<>`:
 
 ```floe
 // Verbose
-fn findUser(id: string) -> Promise<Result<Option<User>, Error>> {
+fn findUser(id: string) => Promise<Result<Option<User>, Error>> {
   // ...
 }
 
 // Sugar — the Promise<> wrapper is implied
-async fn findUser(id: string) -> Result<Option<User>, Error> {
+async fn findUser(id: string) => Result<Option<User>, Error> {
   // ...
 }
 ```
@@ -201,7 +201,7 @@ Console.log("done")
 - **No `class`** - use functions and records
 - **No `this`** - functions are pure by default
 - **No `function*` generators** - use arrays and pipes
-- **No `=>` at the statement level** - `(x) => expr` is only for inline anonymous functions; `->` is used for function types like `(T) -> U`
+- **No `=>` at the statement level** - `(x) => expr` is only for inline anonymous functions; `->` is used for function types like `(T) => U`
 - **No `function` keyword** - use `fn` for named functions
 
 These are removed intentionally. See the [introduction](/docs/guide/introduction) for the reasoning.

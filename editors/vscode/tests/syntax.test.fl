@@ -1,6 +1,6 @@
 // SYNTAX TEST "source.floe"
 
-fn validate(text: string) -> Validation {
+fn validate(text: string) => Validation {
 // <-- storage.type.floe
 // ^^^^^^^^ entity.name.function.floe
 //                ^^^^^^ support.type.primitive.floe

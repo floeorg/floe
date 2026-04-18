@@ -99,14 +99,14 @@ fn banned_keyword_produces_parse_error() {
 
 #[test]
 fn symbol_index_function() {
-    let source = "fn add(a: number, b: number) -> number { a + b }";
+    let source = "fn add(a: number, b: number) => number { a + b }";
     let index = build_index(source);
     let syms = index.find_by_name("add");
     assert_eq!(syms.len(), 1);
     assert_eq!(syms[0].kind, SymbolKind::FUNCTION);
     assert_eq!(
-        syms[0].detail, "fn add(a: number, b: number) -> number",
-        "function detail should use -> for return type, not :"
+        syms[0].detail, "fn add(a: number, b: number) => number",
+        "function detail should use => for return type, not :"
     );
 }
 
@@ -117,18 +117,18 @@ fn symbol_index_function_no_return_type() {
     let syms = index.find_by_name("greet");
     assert_eq!(syms.len(), 1);
     assert_eq!(
-        syms[0].detail, "fn greet(name: string) -> ()",
+        syms[0].detail, "fn greet(name: string) => ()",
         "function without return type should show the checker's inferred return"
     );
 }
 
 #[test]
 fn symbol_index_exported_function() {
-    let source = "export fn hello() -> string { \"hi\" }";
+    let source = "export fn hello() => string { \"hi\" }";
     let index = build_index(source);
     let syms = index.find_by_name("hello");
     assert_eq!(syms.len(), 1);
-    assert_eq!(syms[0].detail, "export fn hello() -> string",);
+    assert_eq!(syms[0].detail, "export fn hello() => string",);
 }
 
 #[test]
@@ -142,7 +142,7 @@ fn symbol_index_const() {
 
 #[test]
 fn symbol_index_type() {
-    let source = "type User { name: string, age: number }";
+    let source = "type User = { name: string, age: number }";
     let index = build_index(source);
     let syms = index.find_by_name("User");
     assert_eq!(syms.len(), 1);
@@ -160,7 +160,7 @@ fn symbol_index_import() {
 
 #[test]
 fn symbol_index_union_variants() {
-    let source = "type Color { | Red | Green | Blue }";
+    let source = "type Color = | Red | Green | Blue";
     let index = build_index(source);
     assert_eq!(index.find_by_name("Color").len(), 1);
     assert_eq!(index.find_by_name("Red").len(), 1);
@@ -323,7 +323,7 @@ fn resolve_piped_type_with_unwrap() {
     let mut type_map = HashMap::new();
     type_map.insert(
         "fetchUser".to_string(),
-        "(number) -> Result<User, Error>".to_string(),
+        "(number) => Result<User, Error>".to_string(),
     );
     let source = "result? |> ";
     let mut tm = HashMap::new();
@@ -337,7 +337,7 @@ fn function_symbol_stores_first_param_type() {
     // Concrete types only — the index sources `first_param_type` from the
     // checker's resolved signature, so unbound generics like `T` without a
     // declared type parameter would surface as `<error>`.
-    let source = "fn head(arr: Array<number>) -> number { 0 }";
+    let source = "fn head(arr: Array<number>) => number { 0 }";
     let index = build_index(source);
     let syms = index.find_by_name("head");
     assert_eq!(syms.len(), 1);
@@ -352,7 +352,7 @@ fn function_symbol_stores_first_param_type() {
 fn jsx_component_source() -> &'static str {
     r#"import { useState, JSX } from "react"
 
-export fn Counter() -> JSX.Element {
+export fn Counter() => JSX.Element {
     const [_count, setCount] = useState(0)
 
     <div>
@@ -485,7 +485,7 @@ fn simulate_hover(source: &str, name: &str) -> Option<String> {
 fn hover_destructured_const_shows_type() {
     let source = r#"
 import { useState } from "react"
-export fn App() -> JSX.Element {
+export fn App() => JSX.Element {
     const [input, setInput] = useState("")
     <div>{input}</div>
 }
@@ -587,7 +587,7 @@ fn hover_const_bool_shows_type() {
 
 #[test]
 fn hover_function_shows_signature() {
-    let hover = simulate_hover("fn add(a: number, b: number) -> number { a + b }", "add");
+    let hover = simulate_hover("fn add(a: number, b: number) => number { a + b }", "add");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
@@ -604,7 +604,7 @@ fn hover_function_shows_signature() {
 fn hover_const_function_value_shows_type() {
     // A const assigned to a function call should show the inferred return type
     let source = r#"
-fn getNum() -> number { 42 }
+fn getNum() => number { 42 }
 const result = getNum()
 "#;
     let hover = simulate_hover(source, "result");
@@ -619,11 +619,11 @@ const result = getNum()
 #[test]
 fn hover_fn_with_return_type_shows_it() {
     // A function with explicit return type should show it
-    let hover = simulate_hover("fn double(x: number) -> number { x * 2 }", "double");
+    let hover = simulate_hover("fn double(x: number) => number { x * 2 }", "double");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
-        detail.contains("-> number"),
+        detail.contains("=> number"),
         "hover for fn with return type should show it, got: {detail}"
     );
 }
@@ -694,11 +694,11 @@ fn outer() {
 #[test]
 fn match_context_detects_variants() {
     // Build the index from valid source with the type declaration
-    let valid_source = "type Color { | Red | Green | Blue }";
+    let valid_source = "type Color = | Red | Green | Blue";
     let (index, _) = build_index_and_types(valid_source);
 
     // Simulate incomplete source as it would appear in the editor
-    let editor_source = "type Color { | Red | Green | Blue }\nmatch Color {\n    ";
+    let editor_source = "type Color = | Red | Green | Blue\nmatch Color {\n    ";
     let offset = editor_source.len();
     let variants = detect_match_context(editor_source, offset, &index);
     assert!(variants.is_some(), "should detect match context");
@@ -710,10 +710,10 @@ fn match_context_detects_variants() {
 
 #[test]
 fn match_context_not_detected_outside_match() {
-    let valid_source = "type Color { | Red | Green | Blue }";
+    let valid_source = "type Color = | Red | Green | Blue";
     let (index, _) = build_index_and_types(valid_source);
 
-    let editor_source = "type Color { | Red | Green | Blue }\nconst x = ";
+    let editor_source = "type Color = | Red | Green | Blue\nconst x = ";
     let offset = editor_source.len();
     let variants = detect_match_context(editor_source, offset, &index);
     assert!(
@@ -725,12 +725,10 @@ fn match_context_not_detected_outside_match() {
 #[test]
 fn match_context_emits_shape_aware_snippets() {
     let source = r#"
-type Shape {
-    | Unit
+type Shape = | Unit
     | Circle(number)
     | Rect(number, number)
     | Rectangle { width: number, height: number }
-}
 "#;
     let (index, _) = build_index_and_types(source);
     let editor_source = format!("{source}match s {{\n    ");
@@ -927,16 +925,16 @@ fn import_path_at_offset_single_quotes() {
 #[test]
 fn symbol_index_for_block_function_detail() {
     let source = r#"
-type Todo { text: string, done: boolean }
+type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export fn remaining(self) => number { 0 }
 }
 "#;
     let index = build_index(source);
     let syms = index.find_by_name("remaining");
     assert!(!syms.is_empty());
     assert_eq!(
-        syms[0].detail, "fn remaining(self: Array<Todo>) -> number",
+        syms[0].detail, "fn remaining(self: Array<Todo>) => number",
         "for-block function should show clean signature, not wrapped in for {{ }}"
     );
 }
@@ -953,7 +951,7 @@ fn import_path_at_offset_bare_import() {
 #[test]
 fn hover_inner_function_shows_unit_return() {
     let source = r#"
-export fn outer() -> () {
+export fn outer() => () {
     fn handleAdd() {
         Console.log("hi")
     }
@@ -965,8 +963,8 @@ export fn outer() -> () {
     let detail = hover.unwrap();
     eprintln!("HOVER handleAdd: {detail}");
     assert!(
-        detail.contains("-> ()"),
-        "handleAdd hover should show -> (), got: {detail}"
+        detail.contains("=> ()"),
+        "handleAdd hover should show => (), got: {detail}"
     );
 }
 
@@ -1006,7 +1004,7 @@ fn simulate_goto_def(source: &str, cursor_offset: usize) -> Option<(usize, usize
 
 #[test]
 fn goto_def_type_usage_in_annotation() {
-    let source = "type Color { | Red | Green | Blue }\nfn pick(c: Color) -> string { \"ok\" }\n";
+    let source = "type Color = | Red | Green | Blue\nfn pick(c: Color) => string { \"ok\" }\n";
     // Find "Color" in fn pick(c: Color)
     let usage_offset = source.find("fn pick(c: Color)").unwrap() + "fn pick(c: ".len();
     eprintln!(
@@ -1022,7 +1020,7 @@ fn goto_def_type_usage_in_annotation() {
 
 #[test]
 fn goto_def_const_variable_usage() {
-    let source = "fn first(x: number) -> number { x + 1 }\nfn second(x: number) -> number { x + 2 }\n\nconst a = first(1)\nconst b = second(a)\n";
+    let source = "fn first(x: number) => number { x + 1 }\nfn second(x: number) => number { x + 2 }\n\nconst a = first(1)\nconst b = second(a)\n";
     // Find "a" in second(a)
     let usage_offset = source.find("second(a)").unwrap() + "second(".len();
     eprintln!(
@@ -1038,7 +1036,7 @@ fn goto_def_const_variable_usage() {
 
 #[test]
 fn goto_def_union_variant_in_match() {
-    let source = "type Color { | Red | Green | Blue }\nfn describe(c: Color) -> string {\n    match c {\n        Red -> \"red\",\n        Green -> \"green\",\n        Blue -> \"blue\",\n    }\n}\n";
+    let source = "type Color = | Red | Green | Blue\nfn describe(c: Color) => string {\n    match c {\n        Red -> \"red\",\n        Green -> \"green\",\n        Blue -> \"blue\",\n    }\n}\n";
     // Find "Red" in match arm
     let usage_offset = source.find("Red -> \"red\"").unwrap();
     eprintln!(
@@ -1055,7 +1053,7 @@ fn goto_def_union_variant_in_match() {
 #[test]
 fn type_map_has_field_entries_for_records() {
     let source = r#"
-type User { name: string, age: number }
+type User = { name: string, age: number }
 const u = User(name: "a", age: 1)
 "#;
     let (_, type_map) = build_index_and_types(source);
@@ -1079,7 +1077,7 @@ const u = User(name: "a", age: 1)
 #[test]
 fn dot_access_completions_for_record_type() {
     let source = r#"
-type User { name: string, age: number }
+type User = { name: string, age: number }
 const u = User(name: "a", age: 1)
 "#;
     let (index, type_map) = build_index_and_types(source);

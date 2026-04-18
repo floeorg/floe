@@ -466,8 +466,8 @@ const y = match x {
     fn union_all_variants_exhaustive() {
         let diags = check(
             r#"
-type Color { | Red | Green | Blue }
-fn _f(c: Color) -> string {
+type Color = | Red | Green | Blue
+fn _f(c: Color) => string {
     match c {
         Red -> "r",
         Green -> "g",
@@ -483,7 +483,7 @@ fn _f(c: Color) -> string {
     fn option_both_variants_exhaustive() {
         let diags = check(
             r#"
-fn _f(x: Option<number>) -> number {
+fn _f(x: Option<number>) => number {
     match x {
         Some(n) -> n,
         None -> 0,
@@ -499,7 +499,7 @@ fn _f(x: Option<number>) -> number {
         let diags = check(
             r#"
 type Method = "GET" | "POST" | "PUT"
-fn _f(m: Method) -> string {
+fn _f(m: Method) => string {
     match m {
         "GET" -> "get",
         "POST" -> "post",
@@ -515,7 +515,7 @@ fn _f(m: Method) -> string {
     fn array_empty_and_nonempty_exhaustive() {
         let diags = check(
             r#"
-fn _f(xs: Array<number>) -> number {
+fn _f(xs: Array<number>) => number {
     match xs {
         [] -> 0,
         [first, ..rest] -> first,
@@ -545,8 +545,8 @@ const y = match x {
     fn union_missing_variant() {
         let diags = check(
             r#"
-type Color { | Red | Green | Blue }
-fn _f(c: Color) -> string {
+type Color = | Red | Green | Blue
+fn _f(c: Color) => string {
     match c {
         Red -> "r",
         Green -> "g",
@@ -589,7 +589,7 @@ const y = match x {
         let diags = check(
             r#"
 type Method = "GET" | "POST" | "PUT" | "DELETE"
-fn _f(m: Method) -> string {
+fn _f(m: Method) => string {
     match m {
         "GET" -> "get",
         "POST" -> "post",
@@ -605,7 +605,7 @@ fn _f(m: Method) -> string {
         let diags = check(
             r#"
 type Status = "ok" | "error" | "pending"
-fn _f(s: Status) -> number {
+fn _f(s: Status) => number {
     match s {
         "ok" -> 1,
         _ -> 0,
@@ -620,7 +620,7 @@ fn _f(s: Status) -> number {
     fn array_missing_empty_case() {
         let diags = check(
             r#"
-fn _f(xs: Array<number>) -> number {
+fn _f(xs: Array<number>) => number {
     match xs {
         [first, ..rest] -> first,
     }
@@ -634,7 +634,7 @@ fn _f(xs: Array<number>) -> number {
     fn array_missing_nonempty_case() {
         let diags = check(
             r#"
-fn _f(xs: Array<number>) -> number {
+fn _f(xs: Array<number>) => number {
     match xs {
         [] -> 0,
     }

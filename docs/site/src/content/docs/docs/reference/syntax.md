@@ -28,29 +28,29 @@ const { name, age } = user      // record
 ### Function
 
 ```floe
-fn name(param: Type) -> ReturnType {
+fn name(param: Type) => ReturnType {
   body
 }
 
 // Generic function — type parameters after the name
-fn name<T>(param: T) -> T {
+fn name<T>(param: T) => T {
   body
 }
 
-fn name<A, B>(a: A, b: B) -> (A, B) {
+fn name<A, B>(a: A, b: B) => (A, B) {
   body
 }
 
-export fn name(param: Type) -> ReturnType {
+export fn name(param: Type) => ReturnType {
   body
 }
 
-fn name() -> Promise<T> {
+fn name() => Promise<T> {
   expr |> Promise.await
 }
 
-// async fn sugar — `async fn f() -> T` means `fn f() -> Promise<T>`
-async fn name() -> T {
+// async fn sugar — `async fn f() => T` means `fn f() => Promise<T>`
+async fn name() => T {
   expr |> await
 }
 ```
@@ -114,13 +114,13 @@ result(b)
 
 ```floe
 for Type {
-  fn method(self) -> ReturnType {
+  fn method(self) => ReturnType {
     body
   }
 }
 
 for Array<User> {
-  fn adults(self) -> Array<User> {
+  fn adults(self) => Array<User> {
     self |> Array.filter(.age >= 18)
   }
 }
@@ -130,20 +130,20 @@ for Array<User> {
 
 ```floe
 trait Display {
-  fn display(self) -> string
+  fn display(self) => string
 }
 
 // Trait with default implementation
 trait Eq {
-  fn eq(self, other: Self) -> boolean
-  fn neq(self, other: Self) -> boolean {
+  fn eq(self, other: Self) => boolean
+  fn neq(self, other: Self) => boolean {
     !(self |> eq(other))
   }
 }
 
 // Implement a trait
 for User: Display {
-  fn display(self) -> string {
+  fn display(self) => string {
     `${self.name} (${self.age})`
   }
 }
@@ -298,9 +298,9 @@ Dot shorthand for field access:
 ### Function Types
 
 ```floe
-() -> ()                    // takes nothing, returns nothing
-(string) -> number          // takes string, returns number
-(number, number) -> boolean    // takes two numbers, returns boolean
+() => ()                    // takes nothing, returns nothing
+(string) => number          // takes string, returns number
+(number, number) => boolean    // takes two numbers, returns boolean
 ```
 
 ### JSX

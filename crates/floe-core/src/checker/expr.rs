@@ -2401,9 +2401,9 @@ impl Checker {
         if let Some(root_type) = self.env.lookup(root_name) {
             let type_name = match root_type {
                 Type::Foreign { name, .. } => Some(name.clone()),
-                // Unknown types (not registered locally) and bridge type aliases (= syntax
-                // wrapping a TS type) both use chain probes since resolve_member_type can't
-                // evaluate TypeScript method access for either.
+                // Unknown types (not registered locally) and structural type aliases
+                // (wrapping a TS type) both use chain probes since resolve_member_type
+                // can't evaluate TypeScript method access for either.
                 Type::Named(name)
                     if self.env.lookup_type(name).is_none()
                         || self
@@ -2697,13 +2697,13 @@ impl Checker {
         // Named type that couldn't resolve to concrete — if no local type definition
         // exists, treat as foreign (the type came from npm through cross-file propagation).
         // If it HAS a local definition, it's a genuine error (missing field) UNLESS the
-        // definition is a bridge type alias (= syntax) wrapping a foreign TS type.
+        // definition is a structural type alias wrapping a foreign TS type.
         if let Type::Named(name) = obj_ty {
             let type_info = self.env.lookup_type(name);
             if type_info.is_none() {
                 return Type::foreign(format!("{name}.{field}"));
             }
-            // Bridge type alias: resolve through the alias and check if it reaches a
+            // Structural alias: resolve through the alias and check if it reaches a
             // foreign/unknown type. If so, propagate member access silently so chain
             // probes at deeper levels (depth ≥ 3) can resolve the full chain type.
             if type_info.is_some_and(|info| matches!(info.def, TypeDef::Alias(_))) {
