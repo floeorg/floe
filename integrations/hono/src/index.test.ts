@@ -12,6 +12,13 @@ describe("@floeorg/hono shim", () => {
     assert.equal(typeof r.__inner.fetch, "function");
   });
 
+  it("router() exposes fetch at the top level so it works as a Workers default export", async () => {
+    const app = get(router<TestEnv>(), "/ping", () => new Response("pong"));
+    assert.equal(typeof app.fetch, "function");
+    const res = await app.fetch(new Request("http://local/ping"), { greeting: "unused" });
+    assert.equal(await res.text(), "pong");
+  });
+
   it("get + post register routes and handle() dispatches by method and path", async () => {
     const app = post(
       get(router<TestEnv>(), "/hello", (c) => new Response(c.env.greeting)),
