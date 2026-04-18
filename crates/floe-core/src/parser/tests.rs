@@ -1327,6 +1327,72 @@ fn generic_type() {
     }
 }
 
+// ── Generic Call: object-type literal as type argument ──────
+
+#[test]
+fn generic_call_with_object_type_literal() {
+    // Regression for #1175: `foo<{ field: T }>()` was parsed as comparison
+    // (`foo < { field: T } > ()`) because `is_generic_call` bailed on any `{`.
+    let expr = first_expr("foo<{ bindings: Env }>()");
+    match expr {
+        ExprKind::Call {
+            type_args, args, ..
+        } => {
+            assert_eq!(type_args.len(), 1);
+            assert!(
+                matches!(type_args[0].kind, TypeExprKind::Record { .. }),
+                "expected record type arg, got {:?}",
+                type_args[0].kind,
+            );
+            assert!(args.is_empty());
+        }
+        other => panic!("expected Call, got {other:?}"),
+    }
+}
+
+#[test]
+fn generic_call_with_nested_object_type_literal() {
+    let expr = first_expr("foo<{ outer: { inner: number } }>()");
+    assert!(matches!(expr, ExprKind::Call { .. }));
+}
+
+#[test]
+fn generic_call_with_multiple_type_args_including_object() {
+    let expr = first_expr(r#"foo<string, { k: number }>()"#);
+    match expr {
+        ExprKind::Call { type_args, .. } => {
+            assert_eq!(type_args.len(), 2);
+            assert!(matches!(type_args[1].kind, TypeExprKind::Record { .. }));
+        }
+        other => panic!("expected Call, got {other:?}"),
+    }
+}
+
+#[test]
+fn generic_call_with_named_type_arg_still_works() {
+    let expr = first_expr("foo<Env>()");
+    match expr {
+        ExprKind::Call { type_args, .. } => {
+            assert_eq!(type_args.len(), 1);
+            assert!(matches!(type_args[0].kind, TypeExprKind::Named { .. }));
+        }
+        other => panic!("expected Call, got {other:?}"),
+    }
+}
+
+#[test]
+fn comparison_followed_by_block_is_not_generic_call() {
+    // `f < x > { ... }` is not a generic call — no `(` after the `>`.
+    // The `{` after `>` disambiguates.
+    let input = r#"
+fn check() -> boolean {
+    const r = f < x
+    r
+}
+"#;
+    parse_ok(input);
+}
+
 // ── Full program ─────────────────────────────────────────────
 
 #[test]
