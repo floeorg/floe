@@ -8306,3 +8306,104 @@ export fn main() -> Result<Option<number>, Error> {
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn foreign_generic_args_distinguish_parameterizations() {
+    // Floe signatures referencing a Foreign type with generic args like
+    // `Router<Alpha>` used to collapse to bare `Foreign("Router")`, so
+    // `Router<Alpha>` and `Router<Beta>` were indistinguishable and a
+    // mismatched call silently succeeded. The resolver now encodes the
+    // args into the Foreign name, and `types_compatible` rejects
+    // same-base-name Foreigns whose full names differ — except when either
+    // side carries a single-letter type-parameter placeholder (covered by
+    // the sibling test below).
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Router } from "@floeorg/hono"
+
+type Alpha { foo: string }
+type Beta { bar: number }
+
+fn takesAlpha(r: Router<Alpha>) -> Router<Alpha> { r }
+fn takesBeta(r: Router<Beta>) -> Router<Beta> { r }
+
+fn mkAlpha() -> Router<Alpha> { takesAlpha(mkAlpha()) }
+
+const _bad = takesBeta(mkAlpha())
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let router_export = DtsExport {
+        name: "Router".to_string(),
+        ts_type: TsType::Any,
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("@floeorg/hono".to_string(), vec![router_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("Router<Alpha>") && d.message.contains("Router<Beta>")),
+        "expected a Router<Alpha> vs Router<Beta> mismatch error, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn foreign_with_type_param_arg_stays_permissive() {
+    // Imported TS generic signatures like `get<E>(...)->Router<E>` wrap to
+    // `Foreign("Router<E>")` with `E` as an unresolved type parameter
+    // placeholder. Until inference substitutes `E` through the call chain
+    // (tracked separately as #1209), `Router<E>` must stay compatible with
+    // `Router<Env>` / `Router<Bindings>` / etc., or the pre-#1211
+    // user-level behavior regresses.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Router } from "@floeorg/hono"
+
+type Env { greeting: string }
+
+// Simulate a hono-style signature whose body just returns a fresh value:
+// the point is that `handle`'s annotated Router<Env> input must accept
+// `Router<E>` produced by imported generic functions.
+fn handle(_r: Router<Env>) -> Response { Response("ok") }
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let router_export = DtsExport {
+        name: "Router".to_string(),
+        ts_type: TsType::Any,
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("@floeorg/hono".to_string(), vec![router_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Router<Env> declaration should not error, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

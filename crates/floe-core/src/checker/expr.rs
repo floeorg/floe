@@ -35,6 +35,12 @@ fn extract_chain_key(object: &Expr, field: &str) -> Option<String> {
 
 use super::hydrator::is_single_uppercase as is_generic_param;
 
+/// Strip generic arguments from a Foreign type name for chain-probe lookup.
+/// `Context<unknown>` -> `Context`, `Router<A, B>` -> `Router`, `Foo` -> `Foo`.
+fn foreign_base(name: &str) -> &str {
+    name.split('<').next().unwrap_or(name)
+}
+
 /// When a destructured param's type is unresolved, use heuristics for known field names.
 /// The "error" field maps to Error because Floe's error-handling callbacks (use blocks,
 /// fallbackRender) destructure `{ error }`.
@@ -2400,7 +2406,9 @@ impl Checker {
         let root_name = &segments[0];
         if let Some(root_type) = self.env.lookup(root_name) {
             let type_name = match root_type {
-                Type::Foreign { name, .. } => Some(name.clone()),
+                // Probes are keyed by the base type name (no generic args), so
+                // `Context<unknown>` must lookup as `Context$...`.
+                Type::Foreign { name, .. } => Some(foreign_base(name).to_string()),
                 // Unknown types (not registered locally) and bridge type aliases (= syntax
                 // wrapping a TS type) both use chain probes since resolve_member_type can't
                 // evaluate TypeScript method access for either.
@@ -2428,7 +2436,7 @@ impl Checker {
             if let Some(root_type) = self.env.lookup(root_name) {
                 let member_ty = self.resolve_member_type_silent(root_type, second);
                 let type_name = match &member_ty {
-                    Type::Foreign { name, .. } => Some(name.clone()),
+                    Type::Foreign { name, .. } => Some(foreign_base(name).to_string()),
                     Type::Named(name)
                         if self.env.lookup_type(name).is_none()
                             || self
