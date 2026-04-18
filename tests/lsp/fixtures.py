@@ -15,15 +15,9 @@ export fn greet(name: string) => string {
 """
 
 TYPES = """\
-type Color = | Red
-    | Green
-    | Blue { hex: string }
+type Color = Red | Green | Blue { hex: string }
 
-type User = {
-    id: string,
-    name: string,
-    age: number,
-}
+type User = { id: string, name: string, age: number }
 
 fn describeColor(c: Color) => string {
     match c {
@@ -210,11 +204,9 @@ EMPTY_FILE = ""
 SINGLE_COMMENT = "// just a comment\n"
 
 NESTED_MATCH = """\
-type Outer = | A { inner: Inner }
-    | B
+type Outer = A { inner: Inner } | B
 
-type Inner = | X { val: number }
-    | Y
+type Inner = X { val: number } | Y
 
 fn describe(o: Outer) => string {
     match o {
@@ -643,8 +635,8 @@ fn label(temp: number) => string {
 """
 
 NEWTYPE_WRAPPER = """\
-type UserId = { string }
-type OrderId = { string }
+type UserId = UserId(string)
+type OrderId = OrderId(string)
 
 fn processUser(id: UserId) => string {
     `user: ${id}`
@@ -652,15 +644,15 @@ fn processUser(id: UserId) => string {
 """
 
 NEWTYPE = """\
-type ProductId = { number }
+type ProductId = ProductId(number)
 const id = ProductId(42)
 """
 
 OPAQUE_TYPE = """\
-opaque type HashedPassword = string
+opaque type HashedPassword = HashedPassword(string)
 
 fn hash(pw: string) => HashedPassword {
-    pw
+    HashedPassword(pw)
 }
 """
 
@@ -742,11 +734,9 @@ const hex = 0xFF_FF
 """
 
 MULTI_DEPTH_MATCH = """\
-type NetworkError = | Timeout { ms: number }
-    | DnsFailure { host: string }
+type NetworkError = Timeout { ms: number } | DnsFailure { host: string }
 
-type ApiError = | Network(NetworkError)
-    | NotFound
+type ApiError = Network(NetworkError) | NotFound
 
 fn describe(e: ApiError) => string {
     match e {

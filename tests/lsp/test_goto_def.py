@@ -21,7 +21,7 @@ class TestGotoDefBasic:
 
     def test_type_usage_to_definition(self, lsp):
         open_doc(lsp, URI,F.TYPES + "\nfn pick(c: Color) => string { \"ok\" }\n")
-        locs = def_locations(lsp.goto_definition(URI, 20, 11))
+        locs = def_locations(lsp.goto_definition(URI, 12, 11))
         assert len(locs) > 0
 
     def test_keyword_returns_empty(self, lsp):
@@ -41,7 +41,7 @@ class TestGotoDefTaggedTemplate:
 class TestGotoDefAdvanced:
     def test_union_variant_in_match(self, lsp):
         open_doc(lsp, URI,F.TYPES)
-        locs = def_locations(lsp.goto_definition(URI, 14, 8))  # "Red" in match
+        locs = def_locations(lsp.goto_definition(URI, 6, 8))  # "Red" in match
         assert len(locs) > 0
 
     def test_const_variable_usage(self, lsp):
