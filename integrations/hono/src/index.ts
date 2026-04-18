@@ -8,9 +8,14 @@ type Env = Record<string, unknown>;
  * the pipe operator. The underlying Hono instance is stored on a
  * double-underscore field to signal "compiler fingerprint — do not
  * reach into this directly".
+ *
+ * `fetch` is exposed at the top level so the router value satisfies
+ * runtimes like Cloudflare Workers directly — `export default app`
+ * works without a wrapping `{ fetch: ... }` adapter.
  */
 export type Router<E extends Env = Env> = {
   readonly __inner: Hono<{ Bindings: E }>;
+  fetch: Hono<{ Bindings: E }>["fetch"];
 };
 
 export type Handler<E extends Env = Env> = (
@@ -18,7 +23,8 @@ export type Handler<E extends Env = Env> = (
 ) => Response | Promise<Response>;
 
 export function router<E extends Env = Env>(): Router<E> {
-  return { __inner: new Hono<{ Bindings: E }>() };
+  const inner = new Hono<{ Bindings: E }>();
+  return { __inner: inner, fetch: inner.fetch.bind(inner) };
 }
 
 export function get<E extends Env>(
