@@ -2,6 +2,38 @@ use std::sync::Arc;
 
 use super::*;
 
+/// True if a Foreign type name like `Router<E>` contains an arg that looks
+/// like an unresolved type parameter (single uppercase letter). Used to stay
+/// permissive for same-base-name Foreigns when the checker hasn't yet
+/// substituted a type parameter through the call chain.
+fn has_type_param_arg(foreign_name: &str) -> bool {
+    let Some(open) = foreign_name.find('<') else {
+        return false;
+    };
+    let Some(inner) = foreign_name.get(open + 1..foreign_name.len() - 1) else {
+        return false;
+    };
+    let mut depth = 0;
+    let mut start = 0;
+    let chars: Vec<(usize, char)> = inner.char_indices().collect();
+    let mut ranges: Vec<&str> = Vec::new();
+    for (i, c) in &chars {
+        match c {
+            '<' => depth += 1,
+            '>' => depth -= 1,
+            ',' if depth == 0 => {
+                ranges.push(inner[start..*i].trim());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    ranges.push(inner[start..].trim());
+    ranges
+        .iter()
+        .any(|a| a.len() == 1 && a.chars().next().is_some_and(|c| c.is_ascii_uppercase()))
+}
+
 impl Checker {
     /// Resolve a `Type::Named` to its concrete underlying type, if possible.
     /// Returns `Some(concrete)` if the type was resolved, `None` if not a Named type.
@@ -156,8 +188,24 @@ impl Checker {
 
         // Foreign types: reject primitives, permissive otherwise.
         // Foreign-vs-Foreign is permissive because npm types often have subtype
-        // relationships (e.g. SQLiteColumn extends SQLWrapper) that Floe can't verify.
-        // TypeScript's own type checker validates the generated code.
+        // relationships (e.g. SQLiteColumn extends SQLWrapper) that Floe can't verify —
+        // EXCEPT when both sides share a base name with fully-resolved (non
+        // type-parameter) generic args: `Router<A>` and `Router<B>` are the
+        // same class with different instantiations and must not be freely
+        // interchangeable. If either side still contains an unresolved
+        // type-parameter placeholder (single uppercase letter like `E`, `T`,
+        // a leftover from a pipe/generic-inference gap), fall back to
+        // permissive because we can't yet decide equivalence.
+        if let (Type::Foreign { name: e_name, .. }, Type::Foreign { name: a_name, .. }) =
+            (expected, actual)
+        {
+            let e_base = e_name.split('<').next().unwrap_or(e_name);
+            let a_base = a_name.split('<').next().unwrap_or(a_name);
+            if e_base == a_base && !has_type_param_arg(e_name) && !has_type_param_arg(a_name) {
+                return e_name == a_name;
+            }
+            return true;
+        }
         if let Type::Foreign { .. } = expected {
             return !actual.is_primitive();
         }

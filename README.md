@@ -15,6 +15,9 @@
 
 A functional language that compiles to TypeScript. Pipes, pattern matching, Result/Option types, and full npm interop.
 
+> [!WARNING]
+> **Floe is experimental.** The language is pre-1.0, under active development, and should not be used in production. Expect bugs, rough edges, and breaking changes to the syntax, compiler output, and public APIs between releases. Pin your version and read the [CHANGELOG](CHANGELOG.md) before upgrading.
+
 ```floe
 import trusted { useState } from "react"
 

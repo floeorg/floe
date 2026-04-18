@@ -1,5 +1,7 @@
 # Floe Language — LLM Quick Reference
 
+**Status: Experimental.** Floe is pre-1.0 and under active development. The language, compiler output, and public APIs can change between releases. Bugs and rough edges should be expected. Not recommended for production use.
+
 Floe is a programming language that compiles to TypeScript. It targets TypeScript/React developers who want stronger guarantees. The syntax is familiar but stricter: no null, no any, no classes, no exceptions. Output is clean, readable .ts/.tsx files with zero runtime dependencies.
 
 ## Core Syntax

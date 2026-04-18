@@ -35,6 +35,12 @@ fn extract_chain_key(object: &Expr, field: &str) -> Option<String> {
 
 use super::hydrator::is_single_uppercase as is_generic_param;
 
+/// Strip generic arguments from a Foreign type name for chain-probe lookup.
+/// `Context<unknown>` -> `Context`, `Router<A, B>` -> `Router`, `Foo` -> `Foo`.
+fn foreign_base(name: &str) -> &str {
+    name.split('<').next().unwrap_or(name)
+}
+
 /// When a destructured param's type is unresolved, use heuristics for known field names.
 /// The "error" field maps to Error because Floe's error-handling callbacks (use blocks,
 /// fallbackRender) destructure `{ error }`.
@@ -1976,19 +1982,27 @@ impl Checker {
                     return_type,
                     ..
                 } => {
-                    // Validate the piped value as the first (and only) argument
-                    if let Some(first_param) = params.first()
-                        && !self.types_compatible(first_param, left_ty)
-                    {
-                        let (msg, label) = self.type_mismatch_detail(first_param, left_ty);
-                        self.emit_error(
-                            format!("argument 1 to `{name}`: {}", msg),
-                            right.span,
-                            ErrorCode::TypeMismatch,
-                            label,
-                        );
+                    // Instantiate Generic vars as fresh Unbound, then unify
+                    // the first param with the piped-in type so the callee's
+                    // type parameters pick up `left_ty`'s shape. Without this,
+                    // `a |> genericFn` leaves the generic vars unsolved and
+                    // the return type comes back as a bare `?T1`.
+                    let (inst_params, inst_ret) =
+                        hydrator::instantiate_signature(&params, &return_type, &mut self.next_var);
+                    if let Some(first_param) = inst_params.first() {
+                        let unified = unify::unify(first_param, left_ty).is_ok();
+                        let resolved_first = first_param.resolved();
+                        if !unified && !self.types_compatible(&resolved_first, left_ty) {
+                            let (msg, label) = self.type_mismatch_detail(&resolved_first, left_ty);
+                            self.emit_error(
+                                format!("argument 1 to `{name}`: {}", msg),
+                                right.span,
+                                ErrorCode::TypeMismatch,
+                                label,
+                            );
+                        }
                     }
-                    return return_type.as_ref().clone();
+                    return inst_ret.deep_resolved();
                 }
                 // Unknown/Error types: don't error (not enough info or error already emitted)
                 Type::Unknown | Type::Error | Type::Var(_) => {}
@@ -2400,7 +2414,9 @@ impl Checker {
         let root_name = &segments[0];
         if let Some(root_type) = self.env.lookup(root_name) {
             let type_name = match root_type {
-                Type::Foreign { name, .. } => Some(name.clone()),
+                // Probes are keyed by the base type name (no generic args), so
+                // `Context<unknown>` must lookup as `Context$...`.
+                Type::Foreign { name, .. } => Some(foreign_base(name).to_string()),
                 // Unknown types (not registered locally) and structural type aliases
                 // (wrapping a TS type) both use chain probes since resolve_member_type
                 // can't evaluate TypeScript method access for either.
@@ -2428,7 +2444,7 @@ impl Checker {
             if let Some(root_type) = self.env.lookup(root_name) {
                 let member_ty = self.resolve_member_type_silent(root_type, second);
                 let type_name = match &member_ty {
-                    Type::Foreign { name, .. } => Some(name.clone()),
+                    Type::Foreign { name, .. } => Some(foreign_base(name).to_string()),
                     Type::Named(name)
                         if self.env.lookup_type(name).is_none()
                             || self

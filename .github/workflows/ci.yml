@@ -92,16 +92,19 @@ jobs:
         run: |
           ./floe fmt --check examples/todo-app/src/
           ./floe fmt --check examples/store/src/
+          ./floe fmt --check examples/hono-api/src/
 
       - name: Floe check examples
         run: |
           ./floe check examples/todo-app/src/
           ./floe check examples/store/src/
+          ./floe check examples/hono-api/src/
 
       - name: Floe build examples
         run: |
           ./floe build examples/todo-app/src/
           ./floe build examples/store/src/
+          ./floe build examples/hono-api/src/
 
       - name: TypeScript type-check examples
         run: |
