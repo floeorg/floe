@@ -5,7 +5,7 @@ from . import fixtures as F
 
 KEYWORDS = ["fn", "const", "type", "match", "import", "export"]
 
-DOT_ACCESS_SOURCE = 'type User { name: string, age: number }\nconst u = User(name: "a", age: 1)\nconst n = u.\n'
+DOT_ACCESS_SOURCE = 'type User = { name: string, age: number }\nconst u = User(name: "a", age: 1)\nconst n = u.\n'
 
 
 class TestCompletionBasic:
@@ -44,7 +44,7 @@ class TestCompletionPipe:
 
 class TestCompletionMatch:
     def test_match_arms_show_variants(self, lsp):
-        source = "type Color { | Red | Green | Blue }\nconst c: Color = Red\nconst r = match c {\n    \n}"
+        source = "type Color = | Red | Green | Blue\nconst c: Color = Red\nconst r = match c {\n    \n}"
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 3, 4))
         assert any(v in labels for v in ["Red", "Green", "Blue"]), f"Labels: {labels[:10]}"
@@ -52,7 +52,7 @@ class TestCompletionMatch:
 
 class TestCompletionJsx:
     def test_jsx_attributes(self, lsp):
-        source = 'import trusted { useState } from "react"\nexport fn App() -> JSX.Element {\n    <button on\n}'
+        source = 'import trusted { useState } from "react"\nexport fn App() => JSX.Element {\n    <button on\n}'
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 2, 15))
         assert any("on" in l.lower() for l in labels), f"Labels: {labels[:10]}"
@@ -60,29 +60,29 @@ class TestCompletionJsx:
 
 class TestCompletionAdvanced:
     def test_prefix_filtering(self, lsp):
-        open_doc(lsp, URI, "fn apple() -> number { 1 }\nfn apricot() -> number { 2 }\nconst r = ap\n")
+        open_doc(lsp, URI, "fn apple() => number { 1 }\nfn apricot() => number { 2 }\nconst r = ap\n")
         labels = completion_labels(lsp.completion(URI, 2, 12))
         assert "apple" in labels and "apricot" in labels, f"Labels: {labels[:10]}"
 
     def test_imported_symbols(self, lsp):
-        lsp.open_doc("file:///tmp/helpers.fl", "export fn helperFn() -> number { 42 }\n")
+        lsp.open_doc("file:///tmp/helpers.fl", "export fn helperFn() => number { 42 }\n")
         lsp.collect_notifications("textDocument/publishDiagnostics", timeout=1)
         open_doc(lsp, URI, 'import { helperFn } from "./helpers"\n\n')
         labels = completion_labels(lsp.completion(URI, 1, 0))
         assert "helperFn" in labels, f"Labels: {labels[:15]}"
 
     def test_local_vars_in_fn_body(self, lsp):
-        open_doc(lsp, URI, "fn outer() -> number {\n    const local = 42\n    \n}")
+        open_doc(lsp, URI, "fn outer() => number {\n    const local = 42\n    \n}")
         labels = completion_labels(lsp.completion(URI, 2, 4))
         assert "local" in labels, f"Labels: {labels[:15]}"
 
     def test_union_constructors(self, lsp):
-        open_doc(lsp, URI, "type Color { | Red | Green | Blue }\nconst c = \n", timeout=2.0)
+        open_doc(lsp, URI, "type Color = | Red | Green | Blue\nconst c = \n", timeout=2.0)
         labels = completion_labels(lsp.completion(URI, 1, 10))
         assert any(v in labels for v in ["Red", "Green", "Blue"]), f"Labels: {labels[:15]}"
 
     def test_ok_err_builtins(self, lsp):
-        open_doc(lsp, URI, "type Color { | Red | Green | Blue }\nconst c = \n", timeout=2.0)
+        open_doc(lsp, URI, "type Color = | Red | Green | Blue\nconst c = \n", timeout=2.0)
         labels = completion_labels(lsp.completion(URI, 1, 10))
         assert "Ok" in labels and "Err" in labels, f"Labels: {labels[:15]}"
 
@@ -100,7 +100,7 @@ class TestCompletionDotAccess:
         assert "age" in labels, f"Labels: {labels[:15]}"
 
     def test_no_unrelated_fields(self, lsp):
-        source = 'type User { name: string, age: number }\ntype Item { title: string }\nconst u = User(name: "a", age: 1)\nconst n = u.\n'
+        source = 'type User = { name: string, age: number }\ntype Item = { title: string }\nconst u = User(name: "a", age: 1)\nconst n = u.\n'
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 3, 13))
         assert "title" not in labels, f"Item field 'title' leaked into User dot-access: {labels[:15]}"
@@ -113,7 +113,7 @@ class TestCompletionDotAccess:
 
     def test_no_global_vars_in_dot_access(self, lsp):
         """Regression test for #701."""
-        source = 'const foo = 42\nconst setFoo = 99\ntype User { name: string }\nconst u = User(name: "a")\nconst n = u.\n'
+        source = 'const foo = 42\nconst setFoo = 99\ntype User = { name: string }\nconst u = User(name: "a")\nconst n = u.\n'
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 4, 13))
         assert "foo" not in labels, f"Global var 'foo' leaked into dot-access: {labels[:15]}"
@@ -128,7 +128,7 @@ class TestCompletionDotAccess:
             assert kw not in labels, f"Keyword '{kw}' leaked into unresolved dot-access: {labels[:15]}"
 
     def test_spread_record_fields(self, lsp):
-        source = 'type Base { id: string }\ntype Extended { ...Base, extra: number }\nconst e = Extended(id: "1", extra: 42)\nconst n = e.\n'
+        source = 'type Base = { id: string }\ntype Extended = { ...Base, extra: number }\nconst e = Extended(id: "1", extra: 42)\nconst n = e.\n'
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 3, 13))
         assert "id" in labels, f"Spread field 'id' missing: {labels[:15]}"
@@ -189,7 +189,7 @@ class TestCompletionPipeFiltering:
 
     def test_pipe_for_block_functions(self, lsp):
         """User-defined for-block functions should appear in pipe completions."""
-        source = 'type Todo { text: string, done: boolean }\n\nfor Array<Todo> {\n    export fn remaining(self) -> number {\n        self |> filter(.done == false) |> length\n    }\n}\n\nconst todos: Array<Todo> = []\nconst r = todos |> \n'
+        source = 'type Todo = { text: string, done: boolean }\n\nfor Array<Todo> {\n    export fn remaining(self) => number {\n        self |> filter(.done == false) |> length\n    }\n}\n\nconst todos: Array<Todo> = []\nconst r = todos |> \n'
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 9, len("const r = todos |> ")))
         assert "remaining" in labels, f"For-block function 'remaining' should appear: {labels[:15]}"

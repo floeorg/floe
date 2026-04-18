@@ -138,7 +138,7 @@ def test_ambiguous_variant_with_qualification_ok(lsp):
 
 def test_bare_ambiguous_variant_errors(lsp):
     """Using a bare ambiguous variant should error."""
-    source = 'type Color { | Red | Green | Blue }\ntype Light { | Red | Yellow | Green }\nconst _x = Red\n'
+    source = 'type Color = | Red | Green | Blue\ntype Light = | Red | Yellow | Green\nconst _x = Red\n'
     result = open_doc(lsp, URI, source)
     messages = " ".join(e.get("message", "").lower() for e in result.errors)
     assert "ambiguous" in messages, f"Expected ambiguous error, got: {[e.get('message','') for e in result.errors]}"

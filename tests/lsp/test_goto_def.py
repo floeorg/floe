@@ -20,7 +20,7 @@ class TestGotoDefBasic:
         assert target_line == 0, f"Expected line 0, got {target_line}"
 
     def test_type_usage_to_definition(self, lsp):
-        open_doc(lsp, URI,F.TYPES + "\nfn pick(c: Color) -> string { \"ok\" }\n")
+        open_doc(lsp, URI,F.TYPES + "\nfn pick(c: Color) => string { \"ok\" }\n")
         locs = def_locations(lsp.goto_definition(URI, 20, 11))
         assert len(locs) > 0
 
