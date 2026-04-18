@@ -6,6 +6,7 @@ use super::completions::{
     match_arm_snippet,
 };
 use super::goto_def::import_path_at_offset;
+use super::handlers::end_position;
 use super::index::*;
 use super::*;
 
@@ -1092,4 +1093,41 @@ const u = User(name: "a", age: 1)
         labels.contains(&"age"),
         "should suggest 'age', got: {labels:?}"
     );
+}
+
+// ── Formatting range helper ──────────────────────────────────────
+
+#[test]
+fn end_position_no_trailing_newline() {
+    let pos = end_position("const x = 1");
+    assert_eq!(pos, Position::new(0, 11));
+}
+
+#[test]
+fn end_position_single_trailing_newline() {
+    let pos = end_position("const x = 1\n");
+    assert_eq!(pos, Position::new(1, 0));
+}
+
+#[test]
+fn end_position_multiple_trailing_newlines_covers_all() {
+    // The previous implementation using `str::lines()` returned (2, 0) here,
+    // leaving the final "\n" outside the edit range — which caused the
+    // formatter to leave two trailing newlines after applying the TextEdit.
+    let pos = end_position("const x = 1\n\n\n");
+    assert_eq!(pos, Position::new(3, 0));
+}
+
+#[test]
+fn end_position_multiline_no_trailing_newline() {
+    let pos = end_position("const a = 1\nconst b = 2");
+    assert_eq!(pos, Position::new(1, 11));
+}
+
+#[test]
+fn end_position_utf16_surrogate_pair_on_last_line() {
+    // "𝕊" (U+1D54A) is encoded as two UTF-16 code units — LSP character
+    // offsets must count code units, not chars.
+    let pos = end_position("const s = \"𝕊\"");
+    assert_eq!(pos, Position::new(0, 14));
 }

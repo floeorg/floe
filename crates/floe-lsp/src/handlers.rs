@@ -209,15 +209,25 @@ impl LanguageServer for FloeLsp {
             return Ok(None);
         }
 
-        let last_line = doc.content.lines().count().saturating_sub(1) as u32;
-        let last_char = doc.content.lines().last().map_or(0, |l| l.len()) as u32;
-
         Ok(Some(vec![TextEdit {
             range: Range {
                 start: Position::new(0, 0),
-                end: Position::new(last_line, last_char),
+                end: end_position(&doc.content),
             },
             new_text: formatted,
         }]))
     }
+}
+
+/// Position pointing at the end of `content`, covering any trailing newline.
+///
+/// `str::lines()` discards the empty segment after a final `\n`, so ranges
+/// built from it stop one newline short and leave stray trailing blank lines
+/// behind. This counts `\n`s directly and measures the tail in UTF-16 code
+/// units, as required by the LSP spec.
+pub(crate) fn end_position(content: &str) -> Position {
+    let line = content.bytes().filter(|&b| b == b'\n').count() as u32;
+    let last_line_start = content.rfind('\n').map_or(0, |i| i + 1);
+    let character = content[last_line_start..].encode_utf16().count() as u32;
+    Position::new(line, character)
 }
