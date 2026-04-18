@@ -339,3 +339,103 @@ type Box<T> {
       (record_field
         name: (identifier)
         type: (type_identifier)))))
+
+===
+Use bind with single binding
+===
+
+fn _test() -> string {
+    use x <- doSomething(42)
+    x
+}
+
+---
+
+(source_file
+  (function_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    return_type: (primitive_type)
+    body: (block
+      (use_declaration
+        binding: (identifier)
+        call: (call_expression
+          function: (primary_expression
+            (identifier))
+          (argument_list
+            (argument
+              (primary_expression
+                (number))))))
+      (expression_statement
+        (primary_expression
+          (identifier))))))
+
+===
+Use bind with object destructure
+===
+
+fn _test() -> number {
+    use { a, b } <- provideValues()
+    a + b
+}
+
+---
+
+(source_file
+  (function_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    return_type: (primitive_type)
+    body: (block
+      (use_declaration
+        binding: (object_pattern
+          (identifier)
+          (identifier))
+        call: (call_expression
+          function: (primary_expression
+            (identifier))
+          (argument_list)))
+      (expression_statement
+        (binary_expression
+          left: (primary_expression
+            (identifier))
+          operator: (operator)
+          right: (primary_expression
+            (identifier)))))))
+
+===
+Use bind with zero binding
+===
+
+fn _test() -> () {
+    use <- delay(1000)
+    Console.log("done")
+}
+
+---
+
+(source_file
+  (function_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    return_type: (unit_type)
+    body: (block
+      (use_declaration
+        call: (call_expression
+          function: (primary_expression
+            (identifier))
+          (argument_list
+            (argument
+              (primary_expression
+                (number))))))
+      (expression_statement
+        (call_expression
+          function: (member_expression
+            object: (primary_expression
+              (type_identifier))
+            property: (identifier))
+          (argument_list
+            (argument
+              (primary_expression
+                (string
+                  (string_content))))))))))

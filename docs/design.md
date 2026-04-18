@@ -738,6 +738,15 @@ Console.log("done")
 
 **Codegen:** Pure syntactic sugar. `use x <- f(a)` compiles to `f(a, (x) => { ... })`. No runtime cost.
 
+**Contextual keyword.** `use` is lexed as an identifier; it is only treated as a keyword in the CST when it appears at the start of an item in one of these shapes:
+
+- `use <-`                — zero-binding form → `fn()` callback
+- `use <ident> <-`        — single-binding form → `fn(x)` callback
+- `use ( ... ) <-`        — multi-parameter form → `fn(a, b)` callback
+- `use { ... } <-`        — object-destructured single parameter → `fn({ a, b })` callback (with optional `a: x` renames)
+
+In every other position `use` is a plain identifier, so `use(promise)` (calling React 19's `use()` hook), `import { use } from "react"`, and `foo.use` all parse as normal expressions. This mirrors how TypeScript treats `type`, `of`, and `as` as contextual keywords.
+
 #### Guard Pattern (Early Return via `use`)
 
 The `guard` stdlib functions combine with `use` to give linear, non-nested early-return flow without `if` or `return`:

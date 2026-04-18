@@ -88,7 +88,7 @@
       "patterns": [
         {
           "name": "keyword.control.floe",
-          "match": "\\b(match|return|collect|deriving|for|trait|test|assert|when|todo|unreachable|parse|mock)\\b"
+          "match": "\\b(match|return|collect|deriving|for|trait|test|assert|when|todo|unreachable|parse|mock|use)\\b"
         },
         {
           "name": "keyword.control.import.floe",

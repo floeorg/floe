@@ -192,3 +192,44 @@ Both handle early exits, but for different situations:
 | Requires | Function returns `Result` or `Option` | Nothing -- works in any function |
 
 Use `?` when you want to bubble errors up. Use guards when you want to handle conditions inline with a specific fallback.
+
+## Object-destructured bindings
+
+When a callback's single parameter is a record, you can destructure it inline:
+
+```floe
+use { user, session } <- Context.guard(ctx, <LoginPage />)
+// user and session are unwrapped from the Context result
+```
+
+Renames work the same way as in `const`:
+
+```floe
+use { user: currentUser, session: sess } <- Context.guard(ctx, fallback)
+```
+
+This lowers to a single-parameter callback with a destructure pattern:
+
+```typescript
+Context.guard(ctx, fallback, ({ user, session }) => { ... });
+```
+
+Note the distinction between the two parenthesised forms:
+
+- `use (a, b) <- fn(...)` — **multi-parameter callback**: lowers to `fn(..., (a, b) => { ... })`
+- `use { a, b } <- fn(...)` — **single parameter, object-destructured**: lowers to `fn(..., ({ a, b }) => { ... })`
+
+## Compatibility with React's `use()` hook
+
+`use` is a **contextual keyword** in Floe. It is only treated as the callback-flattening keyword when it appears at the start of a statement followed by `<-` (with or without a binding). In every other position it parses as a plain identifier, so you can still call React 19's `use()` hook:
+
+```floe
+import { use } from "react"
+
+export fn AsyncLabel(props: { promise: Promise<string> }) -> JSX.Element {
+    const label = use(props.promise)
+    <span>{label}</span>
+}
+```
+
+The rule is simple: `use <- ...`, `use x <- ...`, and `use (a, b) <- ...` are bind statements. Anything else -- `use(...)`, `.use`, `{ use }` -- is a regular identifier.

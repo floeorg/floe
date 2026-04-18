@@ -571,6 +571,15 @@ Console.log("done")
 
 `use` works with ANY function whose last parameter is a callback. Complementary to `?` (which only works on Result/Option).
 
+`use` is a **contextual keyword**. Bind shapes:
+- `use <- expr`                    — zero-binding callback
+- `use x <- expr`                  — single ident
+- `use (a, b) <- expr`             — multi-parameter callback → `fn(a, b) { ... }`
+- `use { a, b } <- expr`           — object-destructured single param → `fn({ a, b }) { ... }`
+- `use { a: x, b: y } <- expr`     — object destructure with renames
+
+`use(promise)`, `import { use } from "react"`, and `foo.use` are plain identifier uses — so React 19's `use()` hook works unchanged.
+
 ### Guard Pattern (Early Return via `use`)
 
 ```floe

@@ -1005,6 +1005,10 @@
         {
           "type": "type_declaration",
           "named": true
+        },
+        {
+          "type": "use_declaration",
+          "named": true
         }
       ]
     }
@@ -4103,6 +4107,10 @@
         {
           "type": "type_declaration",
           "named": true
+        },
+        {
+          "type": "use_declaration",
+          "named": true
         }
       ]
     }
@@ -4900,6 +4908,116 @@
     }
   },
   {
+    "type": "use_declaration",
+    "named": true,
+    "fields": {
+      "binding": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "object_pattern",
+            "named": true
+          }
+        ]
+      },
+      "call": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "arrow_closure",
+            "named": true
+          },
+          {
+            "type": "assignment_expression",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "block",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
+            "named": true
+          },
+          {
+            "type": "construct_expression",
+            "named": true
+          },
+          {
+            "type": "dot_shorthand",
+            "named": true
+          },
+          {
+            "type": "index_expression",
+            "named": true
+          },
+          {
+            "type": "jsx_element",
+            "named": true
+          },
+          {
+            "type": "jsx_fragment",
+            "named": true
+          },
+          {
+            "type": "jsx_self_closing",
+            "named": true
+          },
+          {
+            "type": "match_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "primary_expression",
+            "named": true
+          },
+          {
+            "type": "return_statement",
+            "named": true
+          },
+          {
+            "type": "tagged_template_expression",
+            "named": true
+          },
+          {
+            "type": "unary_expression",
+            "named": true
+          },
+          {
+            "type": "unwrap_expression",
+            "named": true
+          },
+          {
+            "type": "variant_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "variant",
     "named": true,
     "fields": {
@@ -5297,6 +5415,10 @@
     "named": false
   },
   {
+    "type": "<-",
+    "named": false
+  },
+  {
     "type": "</",
     "named": false
   },
@@ -5503,6 +5625,10 @@
   {
     "type": "unreachable",
     "named": true
+  },
+  {
+    "type": "use",
+    "named": false
   },
   {
     "type": "when",

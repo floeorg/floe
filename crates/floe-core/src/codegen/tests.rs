@@ -2028,6 +2028,80 @@ fn use_callback_block_returns_last_expr() {
     );
 }
 
+#[test]
+fn use_as_function_call_identifier() {
+    let result = emit(
+        r#"fn _test(promise: Promise<number>) -> number {
+    const value = use(promise)
+    value
+}"#,
+    );
+    assert!(
+        result.contains("use(promise)"),
+        "`use(...)` in expression position should parse as a function call, got: {result}"
+    );
+}
+
+#[test]
+fn use_as_member_access_identifier() {
+    let result = emit(
+        r#"fn _test(m: { use: string }) -> string {
+    m.use
+}"#,
+    );
+    assert!(
+        result.contains("m.use"),
+        "`.use` in member position should parse as a field access, got: {result}"
+    );
+}
+
+#[test]
+fn use_bind_adjacent_to_use_call() {
+    let result = emit(
+        r#"fn _test(promise: Promise<number>) -> number {
+    use x <- doSomething(42)
+    const fromHook = use(promise)
+    x + fromHook
+}"#,
+    );
+    assert!(
+        result.contains("doSomething(42, (x)"),
+        "use-bind should still desugar alongside a use() call, got: {result}"
+    );
+    assert!(
+        result.contains("use(promise)"),
+        "use() call should remain a plain call, got: {result}"
+    );
+}
+
+#[test]
+fn use_bind_object_destructure() {
+    let result = emit(
+        r#"fn _test() -> number {
+    use { a, b } <- provideValues()
+    a + b
+}"#,
+    );
+    assert!(
+        result.contains("provideValues((") && result.contains("{ a, b }"),
+        "object-destructured use should emit a single destructured callback param, got: {result}"
+    );
+}
+
+#[test]
+fn use_bind_object_destructure_with_rename() {
+    let result = emit(
+        r#"fn _test() -> number {
+    use { a: x, b: y } <- provideValues()
+    x + y
+}"#,
+    );
+    assert!(
+        result.contains("a: x") && result.contains("b: y"),
+        "renamed fields should appear in the destructure pattern, got: {result}"
+    );
+}
+
 // ── Mock Built-in ────────────────────────────────────────────
 
 #[test]

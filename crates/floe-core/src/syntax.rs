@@ -314,7 +314,6 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::When => SyntaxKind::KW_WHEN,
         TokenKind::Collect => SyntaxKind::KW_COLLECT,
         TokenKind::Deriving => SyntaxKind::KW_DERIVING,
-        TokenKind::Use => SyntaxKind::KW_USE,
         TokenKind::Typeof => SyntaxKind::KW_TYPEOF,
         TokenKind::Async => SyntaxKind::KW_ASYNC,
         TokenKind::Value => SyntaxKind::KW_VALUE,

@@ -861,21 +861,25 @@ impl<'src> Lowerer<'src> {
 
         let use_span = self.node_span(&use_node);
 
-        // Extract binding names (identifiers before `<-`)
-        let mut bindings: Vec<String> = Vec::new();
+        // Walk the tokens between `use` and `<-` once, gathering both the
+        // shape (object destructure vs bare idents) and the identifiers.
         let mut found_arrow = false;
-        for token in use_node.children_with_tokens() {
-            if let Some(token) = token.as_token() {
-                match token.kind() {
-                    SyntaxKind::LEFT_ARROW => {
-                        found_arrow = true;
-                        break;
-                    }
-                    SyntaxKind::IDENT => {
-                        bindings.push(token.text().to_string());
-                    }
-                    _ => {}
+        let mut has_lbrace = false;
+        let mut bindings: Vec<String> = Vec::new();
+        for token in use_node
+            .children_with_tokens()
+            .filter_map(|t| t.into_token())
+        {
+            match token.kind() {
+                SyntaxKind::LEFT_ARROW => {
+                    found_arrow = true;
+                    break;
                 }
+                SyntaxKind::L_BRACE => has_lbrace = true,
+                SyntaxKind::IDENT if !has_lbrace => {
+                    bindings.push(token.text().to_string());
+                }
+                _ => {}
             }
         }
 
@@ -883,24 +887,39 @@ impl<'src> Lowerer<'src> {
             return None;
         }
 
-        // Extract the call expression (everything after `<-`)
         let call_expr = self.lower_use_call_expr(&use_node)?;
-
-        // Build the callback body from remaining items
         let body_items = self.lower_block_children(remaining, block_span);
         let body = self.expr(ExprKind::Block(body_items), block_span);
 
-        // Build lambda params from bindings
-        let params: Vec<Param> = bindings
-            .into_iter()
-            .map(|name| Param {
-                name,
+        let params: Vec<Param> = if has_lbrace {
+            let fields = self.collect_object_destructure_fields(&use_node, false);
+            let synthetic_name = format!(
+                "_{}",
+                fields
+                    .iter()
+                    .map(|f| f.bound_name())
+                    .collect::<Vec<_>>()
+                    .join("_")
+            );
+            vec![Param {
+                name: synthetic_name,
                 type_ann: None,
                 default: None,
-                destructure: None,
+                destructure: Some(ParamDestructure::Object(fields)),
                 span: use_span,
-            })
-            .collect();
+            }]
+        } else {
+            bindings
+                .into_iter()
+                .map(|name| Param {
+                    name,
+                    type_ann: None,
+                    default: None,
+                    destructure: None,
+                    span: use_span,
+                })
+                .collect()
+        };
 
         let lambda = self.expr(
             ExprKind::Arrow {

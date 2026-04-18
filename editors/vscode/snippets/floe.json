@@ -237,5 +237,33 @@
       "mock<${1:Type}>(${2:field}: ${0:value})"
     ],
     "description": "Generate test data with field overrides"
+  },
+  "Use Bind": {
+    "prefix": "use",
+    "body": [
+      "use ${1:binding} <- ${0:expr}"
+    ],
+    "description": "Use bind (callback flattening) — unwraps into `binding` or bails via the guard function"
+  },
+  "Use Guard (Bool)": {
+    "prefix": "useb",
+    "body": [
+      "use <- Bool.guard(${1:condition}, ${0:fallback})"
+    ],
+    "description": "Boolean guard — continues if condition is true, returns `fallback` otherwise"
+  },
+  "Use Guard (Option)": {
+    "prefix": "useo",
+    "body": [
+      "use ${1:value} <- Option.guard(${2:option}, ${0:fallback})"
+    ],
+    "description": "Option guard — unwraps `Some` into `value`, returns `fallback` on `None`"
+  },
+  "Use Guard (Result)": {
+    "prefix": "user",
+    "body": [
+      "use ${1:value} <- Result.guard(${2:result}, (${3:e}) => ${0:fallback})"
+    ],
+    "description": "Result guard — unwraps `Ok` into `value`, runs the error handler on `Err`"
   }
 }
