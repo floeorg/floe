@@ -1229,5 +1229,40 @@ fn Component() {
             "inlined probe should preserve type arguments, got:\n{probe}"
         );
     }
+
+    #[test]
+    fn generate_probe_property_getter_then_method_call() {
+        // A chain with a property getter (`.req`) followed by a method call
+        // (`.param(...)`) must emit `.req` bare and `.param(null! as any)` as
+        // a call so tsgo picks the right overload.
+        let source = r#"import trusted { Context } from "hono"
+
+export fn handler(c: Context<unknown>) -> string {
+    match c.req.param("code") {
+        None -> "missing",
+        Some(v) -> v,
+    }
 }
-// temporary debug
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains("declare const __chain_base_Context: Context;"),
+            "probe should declare a Context chain base, got:\n{probe}"
+        );
+        // `.req` is a property, NOT a method call — it must NOT get `(null! as any)`
+        assert!(
+            !probe.contains(".req(null! as any)"),
+            "property getter `.req` must not be invoked as a method, got:\n{probe}"
+        );
+        // The terminal `.param(...)` must be probed as a call so tsgo picks
+        // the overload matching a string-typed key argument.
+        assert!(
+            probe.contains(
+                "__chain_call_Context$req$param = __chain_base_Context.req.param(null! as any);"
+            ),
+            "expected __chain_call_ probe with .req.param(null! as any), got:\n{probe}"
+        );
+    }
+}

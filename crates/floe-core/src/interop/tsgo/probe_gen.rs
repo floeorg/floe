@@ -734,6 +734,10 @@ pub(super) fn generate_probe(
     let mut chain_step_args: HashMap<String, String> = HashMap::new();
     // Track which chain steps are zero-arg calls (e.g. .select()) for full-chain probes
     let mut chain_step_zero_args: HashSet<String> = HashSet::new();
+    // Chain step keys whose Member is wrapped in a `Call` in source. Steps
+    // NOT in this set are property accesses (e.g. the `.req` getter in
+    // `c.req.param(...)`) and must be emitted without parentheses in the probe.
+    let mut chain_call_keys: HashSet<String> = HashSet::new();
     // Pre-merge imported_names and fl_module_imported_names for type-rooted chain arg detection.
     // Built once here rather than inside the walk closure to avoid cloning per expression.
     let combined_imported_names: HashMap<String, String> = {
@@ -744,27 +748,42 @@ pub(super) fn generate_probe(
         m
     };
     crate::walk::walk_program(program, &mut |expr| {
+        // Every `Call { callee: Member{...} }` identifies a chain step that
+        // must be invoked (not bare-accessed) in the probe, and — at the
+        // outermost such call — is the terminal for a `__chain_call_{key}`
+        // overload-resolution probe.
+        if let ExprKind::Call { callee, .. } = &expr.kind
+            && let ExprKind::Member { .. } = &callee.kind
+        {
+            if let Some(path) = extract_import_chain_path(callee, &imported_names) {
+                chain_call_keys.insert(path.join("$"));
+            }
+            if let Some((type_name, path)) = extract_typed_param_chain_path(callee, &param_type_map)
+            {
+                chain_call_keys.insert(type_rooted_key(&type_name, &path));
+            }
+        }
+
         if matches!(&expr.kind, ExprKind::Member { .. }) {
-            // Try variable-rooted chain (direct import like `import { db }`)
+            // Variable-rooted chain (direct import like `import { db }`)
             if let Some(path) = extract_import_chain_path(expr, &imported_names)
                 && path.len() > 2
             {
                 chain_paths.push(path);
                 return;
             }
-            // Try type-rooted chain (parameter like `db: Database`)
+            // Type-rooted chain (parameter like `db: Database`)
             if let Some((type_name, path)) = extract_typed_param_chain_path(expr, &param_type_map)
                 && path.len() > 2
             {
-                // Replace the variable name with the type name as the root
                 let mut type_path = vec![type_name];
                 type_path.extend(path[1..].iter().cloned());
                 let root_key = type_path[..=1].join("$");
                 type_rooted_chains.insert(root_key.clone());
 
-                // Capture imported arguments at each call step in the chain.
-                // combined_imported_names includes fl_module_imported_names so
-                // args like `snippetsTable` (imported via a .fl module's npm dep) are captured.
+                // `combined_imported_names` includes fl_module_imported_names
+                // so args like `snippetsTable` (imported via a .fl module's
+                // npm dep) are captured for generic preservation.
                 collect_chain_step_args(
                     expr,
                     &combined_imported_names,
@@ -815,12 +834,25 @@ pub(super) fn generate_probe(
                                 expr = format!("{expr}.{method}()");
                             } else if let Some(arg) = chain_step_args.get(&step_key) {
                                 expr = format!("{expr}.{method}({arg})");
-                            } else {
+                            } else if chain_call_keys.contains(&step_key) {
                                 expr = format!("{expr}.{method}(null! as any)");
+                            } else {
+                                // Property access (e.g. getter): emit bare access.
+                                expr = format!("{expr}.{method}");
                             }
                         }
                         let field = &path[end_idx];
                         lines.push(format!("export const {export_name} = {expr}.{field};"));
+                        // `__chain_call_{key}` delegates overload resolution to
+                        // tsgo by invoking the terminal with `null! as any`.
+                        // The checker prefers this over the bare `__chain_{key}`
+                        // property probe when the callee is a Member chain call.
+                        if chain_call_keys.contains(&chain_key) {
+                            let call_name = format!("__chain_call_{chain_key}");
+                            lines.push(format!(
+                                "export const {call_name} = {expr}.{field}(null! as any);"
+                            ));
+                        }
                         // Also capture the result of CALLING the method (the builder value)
                         // and its awaited form. This handles thenable builders (e.g. drizzle's
                         // `.returning()` returns a PromiseLike that resolves to the rows).
@@ -1400,6 +1432,7 @@ fn extract_import_chain_path(
 /// the imported type and path starts with the variable name.
 /// For `db.insert(...).values` where `db: Database`, returns ("Database", ["db", "insert", "values"]).
 /// For `self.client.insert(...).values` where client: Database, returns ("Database", ["self.client", "insert", "values"]).
+/// For `c.req.param(...)` where `c: Context`, returns ("Context", ["c", "req", "param"]).
 fn extract_typed_param_chain_path(
     expr: &Expr,
     param_type_map: &HashMap<String, String>,
@@ -1408,41 +1441,55 @@ fn extract_typed_param_chain_path(
         expr: &Expr,
         param_type_map: &HashMap<String, String>,
     ) -> Option<(String, Vec<String>)> {
-        match &expr.kind {
-            ExprKind::Member { object, field } => match &object.kind {
-                // Direct parameter: db.insert(...)
-                ExprKind::Identifier(name) if param_type_map.contains_key(name) => {
-                    let type_name = param_type_map[name].clone();
-                    Some((type_name, vec![name.clone(), field.clone()]))
-                }
-                // Self field access: self.client.insert(...)
-                ExprKind::Member {
-                    object: inner_obj,
-                    field: inner_field,
-                } if matches!(&inner_obj.kind, ExprKind::Identifier(_)) => {
-                    if let ExprKind::Identifier(name) = &inner_obj.kind {
-                        let key = format!("{name}.{inner_field}");
-                        if let Some(type_name) = param_type_map.get(&key) {
-                            Some((type_name.clone(), vec![key, field.clone()]))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                }
-                // Chained call or unwrap: expr().method(...) or expr()?.method(...)
-                ExprKind::Call { callee, .. } | ExprKind::Unwrap(callee) => {
-                    let (type_name, mut path) = extract_inner(callee, param_type_map)?;
-                    path.push(field.clone());
-                    Some((type_name, path))
-                }
-                _ => None,
-            },
-            _ => None,
+        let ExprKind::Member { object, field } = &expr.kind else {
+            return None;
+        };
+
+        // `x.field` where x is a typed parameter
+        if let ExprKind::Identifier(name) = &object.kind
+            && let Some(type_name) = param_type_map.get(name)
+        {
+            return Some((type_name.clone(), vec![name.clone(), field.clone()]));
         }
+
+        // `self.f.field` where `self.f` is keyed in param_type_map
+        if let ExprKind::Member {
+            object: inner_obj,
+            field: inner_field,
+        } = &object.kind
+            && let ExprKind::Identifier(name) = &inner_obj.kind
+        {
+            let key = format!("{name}.{inner_field}");
+            if let Some(type_name) = param_type_map.get(&key) {
+                return Some((type_name.clone(), vec![key, field.clone()]));
+            }
+        }
+
+        // Recurse through Call/Unwrap (mid-chain method call) or a nested
+        // Member (property-access chain like `c.req.param` where `.req` is a
+        // getter, not a method).
+        let inner = match &object.kind {
+            ExprKind::Call { callee, .. } | ExprKind::Unwrap(callee) => callee.as_ref(),
+            ExprKind::Member { .. } => object.as_ref(),
+            _ => return None,
+        };
+        let (type_name, mut path) = extract_inner(inner, param_type_map)?;
+        path.push(field.clone());
+        Some((type_name, path))
     }
     extract_inner(expr, param_type_map)
+}
+
+/// Build a type-rooted chain key from the `(type_name, [var, ...segments])`
+/// shape returned by `extract_typed_param_chain_path` — i.e. swap the
+/// variable-name root for the type name and join with `$`.
+fn type_rooted_key(type_name: &str, path: &[String]) -> String {
+    let mut out = String::from(type_name);
+    for seg in &path[1..] {
+        out.push('$');
+        out.push_str(seg);
+    }
+    out
 }
 
 /// Collect imported arguments at each call step in a chain expression.
