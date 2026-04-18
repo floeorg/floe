@@ -1,0 +1,42 @@
+{
+  "name": "@floeorg/esbuild-plugin",
+  "version": "0.4.7",
+  "description": "esbuild plugin for Floe - resolves and compiles .fl imports for wrangler, Bun, tsup, and raw esbuild",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test --experimental-strip-types src/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "floe",
+    "esbuild",
+    "esbuild-plugin",
+    "wrangler",
+    "bun",
+    "tsup"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/floeorg/floe.git",
+    "directory": "integrations/esbuild-plugin"
+  },
+  "homepage": "https://github.com/floeorg/floe",
+  "peerDependencies": {
+    "esbuild": ">=0.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "esbuild": "^0.27.3",
+    "typescript": "^6.0.2"
+  }
+}
