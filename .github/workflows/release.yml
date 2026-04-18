@@ -167,6 +167,12 @@ jobs:
           pnpm build
           npx npm@latest publish --access public --provenance
 
+      - name: Build and publish esbuild plugin
+        working-directory: integrations/esbuild-plugin
+        run: |
+          pnpm build
+          npx npm@latest publish --access public --provenance
+
   publish-extension:
     name: Publish VS Code Extension
     needs: release
