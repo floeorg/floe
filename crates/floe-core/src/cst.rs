@@ -212,11 +212,23 @@ impl<'src> CstParser<'src> {
     /// Looks ahead for balanced `<>` followed by `(`.
     fn is_generic_call(&self) -> bool {
         let mut depth = 0;
+        let mut brace_depth = 0;
         let mut i = self.pos; // at `<`
         while i < self.tokens.len() {
             match &self.tokens[i].kind {
-                TokenKind::LessThan => depth += 1,
-                TokenKind::GreaterThan => {
+                // Inline object-type literals (e.g. `foo<{ k: T }>()`) are valid
+                // type arguments. Track brace nesting so `<` / `>` inside braces
+                // (nested generics like `foo<{ k: Map<K, V> }>()`) don't shift
+                // the outer angle counter.
+                TokenKind::LeftBrace => brace_depth += 1,
+                TokenKind::RightBrace => {
+                    if brace_depth == 0 {
+                        return false;
+                    }
+                    brace_depth -= 1;
+                }
+                TokenKind::LessThan if brace_depth == 0 => depth += 1,
+                TokenKind::GreaterThan if brace_depth == 0 => {
                     depth -= 1;
                     if depth == 0 {
                         // Check if the next non-trivia token is `(`
@@ -228,11 +240,8 @@ impl<'src> CstParser<'src> {
                             && self.tokens[i].kind == TokenKind::LeftParen;
                     }
                 }
-                // These tokens can't appear in type arguments
-                TokenKind::LeftBrace
-                | TokenKind::RightBrace
-                | TokenKind::Semicolon
-                | TokenKind::Equal => return false,
+                // Outside of braces, these tokens end any plausible type-arg list.
+                TokenKind::Semicolon | TokenKind::Equal if brace_depth == 0 => return false,
                 _ => {}
             }
             i += 1;
