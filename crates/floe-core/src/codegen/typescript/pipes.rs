@@ -96,9 +96,11 @@ impl<'a> TypeScriptGenerator<'a> {
         extra_args: &[TypedArg],
     ) -> Option<String> {
         if let ExprKind::Identifier(name) = &callee.kind {
-            if self.ctx.local_names.contains(name.as_str())
-                && self.ctx.stdlib.lookup_by_name(name).is_empty()
-            {
+            // Local definitions and imports (trusted or otherwise) shadow
+            // stdlib pipe templates. Without this, `import trusted { get }`
+            // still routes `x |> get(...)` through `Record.get` / `Map.get`
+            // codegen instead of calling the imported function.
+            if self.ctx.local_names.contains(name.as_str()) {
                 return None;
             }
 

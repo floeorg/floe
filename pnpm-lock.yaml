@@ -45,6 +45,19 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
 
+  examples/hono-api:
+    dependencies:
+      '@floeorg/hono':
+        specifier: workspace:*
+        version: link:../../integrations/hono
+      hono:
+        specifier: ^4.12.10
+        version: 4.12.14
+    devDependencies:
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+
   examples/store:
     dependencies:
       '@tanstack/react-query':
@@ -185,6 +198,18 @@ importers:
       '@types/node':
         specifier: ^25.5.2
         version: 25.5.2
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+
+  integrations/hono:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.2
+        version: 25.5.2
+      hono:
+        specifier: ^4.12.10
+        version: 4.12.14
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -1686,6 +1711,10 @@ packages:
 
   hastscript@9.0.1:
     resolution: {integrity: sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==}
+
+  hono@4.12.14:
+    resolution: {integrity: sha512-am5zfg3yu6sqn5yjKBNqhnTX7Cv+m00ox+7jbaKkrLMRJ4rAdldd1xPd/JzbBWspqaQv6RSTrgFN95EsfhC+7w==}
+    engines: {node: '>=16.9.0'}
 
   html-escaper@3.0.3:
     resolution: {integrity: sha512-RuMffC89BOWQoY0WKGpIhn5gX3iI54O6nRA0yC124NYVtzjmFWBIiFd8M0x+ZdX0P9R4lADg1mgP8C7PxGOWuQ==}
@@ -4197,6 +4226,8 @@ snapshots:
       hast-util-parse-selector: 4.0.0
       property-information: 7.1.0
       space-separated-tokens: 2.0.2
+
+  hono@4.12.14: {}
 
   html-escaper@3.0.3: {}
 
