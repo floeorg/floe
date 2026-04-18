@@ -7352,6 +7352,68 @@ fn example() -> () {
 }
 
 #[test]
+fn chain_call_probe_resolves_overloaded_method_return_type() {
+    // When a chainable method has overloaded signatures (e.g. Hono's
+    // `HonoRequest.param`), the raw `__chain_{key}` probe exposes every
+    // overload as an object with multiple call signatures — and Floe's DTS
+    // parser keeps only the first, picking the wrong one. A separate
+    // `__chain_call_{key}` probe captures the CALL RESULT with `null! as any`
+    // as the argument, letting tsgo pick the matching overload, and the
+    // checker prefers it in `check_call`.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Context } from "hono"
+
+fn needsString(s: string) -> string { s }
+
+export fn handler(c: Context<unknown>) -> string {
+    match c.req.param("code") {
+        None -> "missing",
+        Some(v) -> needsString(v),
+    }
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Simulate tsgo emitting a `__chain_call_Context$req$param` probe that
+    // captures the result of calling `.param(null! as any)` — tsgo picks
+    // overload 2 (`(key: string): string | undefined`) and Floe wraps the
+    // resulting `string | undefined` to `Option<string>` at the boundary.
+    let context_export = DtsExport {
+        name: "Context".to_string(),
+        ts_type: TsType::Any,
+    };
+    let chain_call_probe = DtsExport {
+        name: "__chain_call_Context$req$param".to_string(),
+        ts_type: TsType::Union(vec![
+            TsType::Primitive("string".to_string()),
+            TsType::Undefined,
+        ]),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("hono".to_string(), vec![context_export, chain_call_probe]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "overloaded chain call should resolve via __chain_call_ probe, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn chain_probe_resolves_for_fl_bridge_type_param() {
     // When a function parameter is typed as a Floe bridge type alias (e.g. db: Database
     // where `type Database = DrizzleType`), chain probes keyed by type name should resolve

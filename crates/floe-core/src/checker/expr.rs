@@ -943,6 +943,17 @@ impl Checker {
             .collect();
         self.ctx.lambda_param_hints.clear();
 
+        // A `__chain_call_{key}` probe means tsgo already resolved this call
+        // site's overload and produced a concrete return type. Skip Floe-side
+        // arg validation (same as the Foreign-member branch below): the probe
+        // captures `.field(null! as any)`, so arg-vs-param checks would be
+        // against `any` anyway.
+        if let ExprKind::Member { object, field } = &callee.kind
+            && let Some(ty) = self.lookup_chain_call_probe(object, field)
+        {
+            return ty;
+        }
+
         // Handle piped value insertion
         if let Some(piped_ty) = piped_ty {
             if has_placeholder {
@@ -2454,39 +2465,49 @@ impl Checker {
         }
     }
 
-    /// Look up an awaited chain probe for a chain call expression.
-    /// e.g. for `db.insert(t).values({...}).returning()`, tries probes
-    /// `__chain_await_db$insert$values$returning` and (type-rooted)
-    /// `__chain_await_Database$insert$values$returning`.
-    /// Also handles the `?` unwrap form `chain()?` by peeling through Unwrap.
+    /// Look up a chain probe for a Member `object.field`, trying the
+    /// variable-rooted key first (e.g. `db$insert$values`) and then the
+    /// type-rooted key (e.g. `Database$insert$values`). `prefix` selects the
+    /// probe family: `"__chain_call_"` for overload-resolved call results,
+    /// `"__chain_await_"` for awaited chain results.
+    fn lookup_prefixed_chain_probe(
+        &mut self,
+        prefix: &str,
+        object: &Expr,
+        field: &str,
+    ) -> Option<Type> {
+        let chain_key = extract_chain_key(object, field)?;
+        if let Some(ty) = self.lookup_dts_probe(&format!("{prefix}{chain_key}")) {
+            return Some(ty);
+        }
+        let type_key = self.chain_key_by_root_type(object, field)?;
+        self.lookup_dts_probe(&format!("{prefix}{type_key}"))
+    }
+
+    /// Look up the call-result chain probe for a Member chain callee
+    /// (e.g. `c.req.param("code")` → `__chain_call_Context$req$param`).
+    /// tsgo has already resolved the correct overload, so the probe type
+    /// is the concrete return value.
+    fn lookup_chain_call_probe(&mut self, object: &Expr, field: &str) -> Option<Type> {
+        self.lookup_prefixed_chain_probe("__chain_call_", object, field)
+    }
+
+    /// Look up the awaited chain probe for a chain call expression
+    /// (e.g. `db.insert(t).values({...}).returning()` →
+    /// `__chain_await_Database$insert$values$returning`). Peels through the
+    /// `?` unwrap form `chain()?` to reach the underlying call.
     fn lookup_awaited_chain_probe(&mut self, left: &Expr) -> Option<Type> {
-        // Peel through Unwrap (e.g. `chain()?`) to reach the underlying call
         let expr = match &left.kind {
             ExprKind::Unwrap(inner) => inner.as_ref(),
             _ => left,
         };
-        let callee = match &expr.kind {
-            ExprKind::Call { callee, .. } => callee,
-            _ => return None,
+        let ExprKind::Call { callee, .. } = &expr.kind else {
+            return None;
         };
-        let (object, field) = match &callee.kind {
-            ExprKind::Member { object, field } => (object, field),
-            _ => return None,
+        let ExprKind::Member { object, field } = &callee.kind else {
+            return None;
         };
-        let chain_key = extract_chain_key(object, field)?;
-        // Try variable-name key first
-        let probe_name = format!("__chain_await_{chain_key}");
-        if let Some(ty) = self.lookup_dts_probe(&probe_name) {
-            return Some(ty);
-        }
-        // Try type-name key (parameter/field typed as npm/bridge type)
-        if let Some(type_key) = self.chain_key_by_root_type(object, field) {
-            let probe_name = format!("__chain_await_{type_key}");
-            if let Some(ty) = self.lookup_dts_probe(&probe_name) {
-                return Some(ty);
-            }
-        }
-        None
+        self.lookup_prefixed_chain_probe("__chain_await_", object, field)
     }
 
     /// Resolve a member type without emitting diagnostics (for probe key lookups).
