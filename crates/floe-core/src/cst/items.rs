@@ -464,25 +464,27 @@ impl<'src> CstParser<'src> {
                 self.parse_record_fields();
                 self.builder.finish_node();
             }
+            Some(TokenKind::Identifier(_))
+                if self.peek_inside_brace_second() == Some(TokenKind::Colon) =>
+            {
+                // Record field: `name: Type`, regardless of case. PascalCase
+                // field names are common in TS interop (Hono's `Bindings`,
+                // React props forwarded by name, etc.).
+                self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
+                self.parse_record_fields();
+                self.builder.finish_node();
+            }
             Some(TokenKind::Identifier(name)) if name.starts_with(char::is_lowercase) => {
-                // Peek further: if followed by `:`, it's a record field.
-                // Otherwise it's a newtype (e.g. `type OrderId { number }`)
-                if self.peek_inside_brace_second() == Some(TokenKind::Colon) {
-                    self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
-                    self.parse_record_fields();
-                    self.builder.finish_node();
-                } else {
-                    // Newtype wrapping a lowercase type like `number`, `string`, `boolean`
-                    self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
-                    self.bump(); // {
-                    self.eat_trivia();
-                    self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
-                    self.parse_type_expr();
-                    self.builder.finish_node();
-                    self.eat_trivia();
-                    self.expect(TokenKind::RightBrace);
-                    self.builder.finish_node();
-                }
+                // Newtype wrapping a lowercase type like `number`, `string`, `boolean`
+                self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
+                self.bump(); // {
+                self.eat_trivia();
+                self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
+                self.parse_type_expr();
+                self.builder.finish_node();
+                self.eat_trivia();
+                self.expect(TokenKind::RightBrace);
+                self.builder.finish_node();
             }
             Some(TokenKind::RightBrace) => {
                 // Empty record: `type Foo {}`

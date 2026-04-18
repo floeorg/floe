@@ -885,6 +885,55 @@ fn type_record() {
 }
 
 #[test]
+fn type_record_pascal_case_fields() {
+    match first_item("type HonoEnv { Bindings: Env, Variables: Vars }") {
+        ItemKind::TypeDecl(decl) => {
+            assert_eq!(decl.name, "HonoEnv");
+            match decl.def {
+                TypeDef::Record(ref entries) => {
+                    assert_eq!(entries.len(), 2);
+                    assert_eq!(entries[0].as_field().unwrap().name, "Bindings");
+                    assert_eq!(entries[1].as_field().unwrap().name, "Variables");
+                }
+                ref other => panic!("expected record, got {other:?}"),
+            }
+        }
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
+fn type_record_mixed_case_fields() {
+    match first_item("type X { DB: string, fooBar: number, BAZ: boolean }") {
+        ItemKind::TypeDecl(decl) => match decl.def {
+            TypeDef::Record(ref entries) => {
+                assert_eq!(entries.len(), 3);
+                assert_eq!(entries[0].as_field().unwrap().name, "DB");
+                assert_eq!(entries[1].as_field().unwrap().name, "fooBar");
+                assert_eq!(entries[2].as_field().unwrap().name, "BAZ");
+            }
+            ref other => panic!("expected record, got {other:?}"),
+        },
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
+fn type_newtype_with_pascal_wrapper_still_works() {
+    // `type Foo { Bar }` (no colon) remains a newtype wrapping `Bar`.
+    match first_item("type OrderId { Number }") {
+        ItemKind::TypeDecl(decl) => {
+            assert_eq!(decl.name, "OrderId");
+            assert!(
+                !matches!(decl.def, TypeDef::Record(_)),
+                "should not be a record (no colon after field)",
+            );
+        }
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
 fn type_record_with_spread() {
     match first_item("type B { ...A, extra: string }") {
         ItemKind::TypeDecl(decl) => {
