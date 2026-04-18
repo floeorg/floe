@@ -222,10 +222,8 @@ impl Checker {
                     // (e.g., Date, RegExp, URL, HTMLElement) as valid type annotations.
                     Type::Named(name.to_string())
                 } else if type_layout::is_ts_utility_type(name) {
-                    // TS built-in utility types (ReturnType, Parameters, Partial, ...)
-                    // have no Floe runtime representation. Resolve the type args so
-                    // inner references are marked used, then pass through as a Named
-                    // type. Codegen emits `Name<Args...>` unchanged and TS resolves it.
+                    // Resolve args so inner references are marked used; TS resolves
+                    // the utility-type semantics at its own compile time.
                     for arg in type_args {
                         self.resolve_type(arg);
                     }

@@ -5741,108 +5741,67 @@ fn string_literal_union_always_errors() {
 
 // ── TypeScript utility types ─────────────────────────────────
 
+fn assert_utility_type_accepted(src: &str) {
+    let diags = check(src);
+    assert!(
+        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport)
+            && !has_error(&diags, ErrorCode::UndefinedName),
+        "utility-type alias rejected: {diags:?}"
+    );
+}
+
 #[test]
 fn bridge_alias_with_return_type_and_typeof_local_is_ok() {
-    let diags = check(
-        r#"
-fn createDb(id: string) -> string { id }
-type Database = ReturnType<typeof createDb>
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "ReturnType<typeof localFn> should be accepted as a valid bridge: {diags:?}"
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::UndefinedName),
-        "ReturnType should be recognized as a TS utility type: {diags:?}"
+    assert_utility_type_accepted(
+        "fn createDb(id: string) -> string { id }
+type Database = ReturnType<typeof createDb>",
     );
 }
 
 #[test]
 fn bridge_alias_with_parameters_is_ok() {
-    let diags = check(
-        r#"
-fn createDb(id: string) -> string { id }
-type DbArgs = Parameters<typeof createDb>
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "Parameters<typeof localFn> should be accepted: {diags:?}"
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::UndefinedName),
-        "Parameters should be recognized: {diags:?}"
+    assert_utility_type_accepted(
+        "fn createDb(id: string) -> string { id }
+type DbArgs = Parameters<typeof createDb>",
     );
 }
 
 #[test]
 fn bridge_alias_with_partial_over_local_record_is_ok() {
-    let diags = check(
-        r#"
-type User { name: string, email: string, age: number }
-type PartialUser = Partial<User>
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "Partial<LocalType> should be accepted: {diags:?}"
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::UndefinedName),
-        "Partial should be recognized: {diags:?}"
+    assert_utility_type_accepted(
+        "type User { name: string, email: string, age: number }
+type PartialUser = Partial<User>",
     );
 }
 
 #[test]
 fn bridge_alias_with_readonly_and_non_nullable_is_ok() {
-    let diags = check(
-        r#"
-type User { name: string }
+    assert_utility_type_accepted(
+        "type User { name: string }
 type ReadOnlyUser = Readonly<User>
-type NonNullableUser = NonNullable<User>
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "Readonly / NonNullable should be accepted: {diags:?}"
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::UndefinedName),
-        "Readonly and NonNullable should be recognized: {diags:?}"
+type NonNullableUser = NonNullable<User>",
     );
 }
 
 #[test]
 fn bare_typeof_local_still_errors() {
-    // Standalone `typeof` on a local still errors — utility types are
-    // the interop pattern, not identity aliases.
     let diags = check(
-        r#"
-fn createDb(id: string) -> string { id }
-type Identity = typeof createDb
-"#,
+        "fn createDb(id: string) -> string { id }
+type Identity = typeof createDb",
     );
     assert!(
         has_error(&diags, ErrorCode::BridgeTypeWithoutImport),
-        "bare `typeof localFn` should still be a bridge error: {diags:?}"
+        "{diags:?}"
     );
 }
 
 #[test]
 fn unknown_utility_like_name_still_errors() {
-    // Only names in the allowlist pass through; typos still error.
     let diags = check(
-        r#"
-type User { name: string }
-type Wat = MyCustomUtility<User>
-"#,
+        "type User { name: string }
+type Wat = MyCustomUtility<User>",
     );
-    assert!(
-        has_error(&diags, ErrorCode::UndefinedName),
-        "unknown names should still error as undefined: {diags:?}"
-    );
+    assert!(has_error(&diags, ErrorCode::UndefinedName), "{diags:?}");
 }
 
 // ── Intersection restriction ─────────────────────────────────
