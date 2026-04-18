@@ -2,6 +2,10 @@
 title: Installation
 ---
 
+:::caution[Experimental]
+Floe is pre-1.0 software. The compiler may have bugs, and the language syntax, compiler output, and public APIs can change between releases. Pin the compiler version in CI and in any `package.json` that depends on `@floeorg/*` packages.
+:::
+
 ## Install the Compiler
 
 Floe ships as a single Rust binary called `floe`.

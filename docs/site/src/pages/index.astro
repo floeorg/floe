@@ -165,6 +165,34 @@ import floeLang from "../../../../editors/vscode/syntaxes/floe.tmLanguage.json";
         padding-bottom: 96px;
       }
 
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px;
+        margin-bottom: 24px;
+        border-radius: 999px;
+        background: var(--pill-bg);
+        border: 1px solid var(--pill-border);
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-dim);
+        transition: color 0.15s, border-color 0.15s;
+      }
+
+      .status-pill:hover {
+        color: var(--text);
+        border-color: var(--text-faint);
+      }
+
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #e0b84d;
+        box-shadow: 0 0 0 3px rgba(224, 184, 77, 0.18);
+      }
+
       .hero h1 {
         font-size: clamp(32px, 5vw, 50px);
         font-weight: 800;
@@ -436,6 +464,10 @@ import floeLang from "../../../../editors/vscode/syntaxes/floe.tmLanguage.json";
     </nav>
 
     <section class="hero wrap">
+      <a href="/docs/guide/introduction/" class="status-pill">
+        <span class="status-dot"></span>
+        Experimental — pre-1.0, APIs and syntax may change
+      </a>
       <h1>A functional language for the TypeScript ecosystem</h1>
       <p>
         Import any TypeScript library into Floe. Import Floe from TypeScript.

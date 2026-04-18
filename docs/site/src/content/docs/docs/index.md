@@ -10,3 +10,7 @@ hero:
       link: https://github.com/floeorg/floe
       variant: minimal
 ---
+
+:::caution[Experimental]
+Floe is pre-1.0 and under active development. Expect bugs, rough edges, and breaking changes to the syntax, compiler output, and public APIs between releases. Not yet recommended for production use.
+:::
