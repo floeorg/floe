@@ -151,6 +151,9 @@ impl Checker {
                     ret
                 }
             }
+            ExprKind::TaggedTemplate { tag, parts } => {
+                self.check_tagged_template(tag, parts, expr.span)
+            }
             ExprKind::Construct {
                 type_name,
                 spread,
@@ -766,6 +769,36 @@ impl Checker {
             Type::Array(Arc::new(Type::Unknown))
         } else {
             Type::Array(Arc::new(elem_type.unwrap_or(Type::Unknown).deep_resolved()))
+        }
+    }
+
+    fn check_tagged_template(&mut self, tag: &Expr, parts: &[TemplatePart], span: Span) -> Type {
+        // Interpolated values are the variadic `...values` args of the tag.
+        // Check them for side effects/diagnostics, regardless of the tag type.
+        for part in parts {
+            if let TemplatePart::Expr(e) = part {
+                self.check_expr(e);
+            }
+        }
+
+        let tag_ty = self.check_expr(tag).resolved();
+        match tag_ty {
+            Type::Function { return_type, .. } => (*return_type).clone(),
+            // Foreign/Unknown callees come from .d.ts imports whose signature
+            // wasn't probed deeply enough. Trust that TypeScript will validate
+            // the tagged-template call at emit time.
+            Type::Foreign { .. } | Type::Unknown | Type::Var(_) => Type::Unknown,
+            // Error types already emitted a diagnostic upstream — stay quiet.
+            Type::Error => Type::Error,
+            other => {
+                self.emit_error(
+                    format!("value of type `{other}` is not callable as a template tag"),
+                    span,
+                    ErrorCode::NotCallable,
+                    "not a function",
+                );
+                Type::Error
+            }
         }
     }
 

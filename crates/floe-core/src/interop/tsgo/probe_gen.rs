@@ -1303,6 +1303,14 @@ fn collect_member_accesses_expr(
                 }
             }
         }
+        ExprKind::TaggedTemplate { tag, parts } => {
+            collect_member_accesses_expr(tag, imported_names, accesses);
+            for part in parts {
+                if let TemplatePart::Expr(e) = part {
+                    collect_member_accesses_expr(e, imported_names, accesses);
+                }
+            }
+        }
         ExprKind::Index { object, index } => {
             collect_member_accesses_expr(object, imported_names, accesses);
             collect_member_accesses_expr(index, imported_names, accesses);

@@ -48,6 +48,15 @@ fn process(input: string) -> string {
 }
 """
 
+TAGGED_TEMPLATE = """\
+fn sql(strings: Array<string>, values: Array<string>) -> string {
+    ""
+}
+
+const id = "42"
+const q = sql`select * from users where id = ${id}`
+"""
+
 ERRORS_BANNED_KEYWORDS = """\
 let x = 42
 var y = 10

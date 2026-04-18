@@ -19,6 +19,11 @@ export fn greet(name: string) -> string {
     `Hello, ${name}!`
 }
 
+// Tagged template literals — pass through to TS unchanged so npm libraries
+// like Drizzle, styled-components, and graphql-tag work out of the box
+const query = sql`select * from users where id = ${id}`
+const Button = styled.button`color: ${primary}; padding: 8px`
+
 // Anonymous functions use (params) => body (arrow closures)
 items |> map((x) => x + 1)
 
@@ -807,6 +812,7 @@ match key {
 | `()` (unit) | `undefined` |
 | `expr \|> await` | `await expr` (enclosing fn inferred `async`) |
 | `async fn f() -> T { body }` | `async function f(): Promise<T> { return body; }` |
+| `` tag`a ${x} b` `` | `` tag`a ${x} b` `` (byte-identical tagged template — passes a `TemplateStringsArray` to `tag`) |
 
 ## CLI Commands
 

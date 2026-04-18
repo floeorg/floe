@@ -66,6 +66,14 @@
   function: (member_expression
     property: (identifier) @function.method))
 
+(tagged_template_expression
+  tag: (primary_expression
+    (identifier) @function.call))
+
+(tagged_template_expression
+  tag: (member_expression
+    property: (identifier) @function.method))
+
 ; ── Parameters ───────────────────────────────────────────
 (parameter
   name: (identifier) @variable.parameter)

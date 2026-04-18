@@ -426,6 +426,26 @@ fn idempotent_comment_between_record_fields() {
     assert_idempotent("type User {\n    id: string,\n    // name\n    name: string,\n}");
 }
 
+// ── Tagged template literals ───────────────────────────
+
+#[test]
+fn format_tagged_template_simple() {
+    assert_fmt("const q = sql`select 1`", "const q = sql`select 1`");
+}
+
+#[test]
+fn format_tagged_template_with_interpolation() {
+    assert_fmt(
+        "const q = sql`${col} + ${delta}`",
+        "const q = sql`${col} + ${delta}`",
+    );
+}
+
+#[test]
+fn format_tagged_template_member_tag() {
+    assert_fmt("const q = db.sql`select 1`", "const q = db.sql`select 1`");
+}
+
 // ── Idempotency ────────────────────────────────────────
 
 fn assert_idempotent(input: &str) {

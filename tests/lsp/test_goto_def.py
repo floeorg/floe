@@ -30,6 +30,14 @@ class TestGotoDefBasic:
         assert len(locs) == 0
 
 
+class TestGotoDefTaggedTemplate:
+    def test_tag_jumps_to_fn(self, lsp):
+        open_doc(lsp, URI, F.TAGGED_TEMPLATE)
+        # `sql` in `sql`select ...`` is at line 5, column 10
+        locs = def_locations(lsp.goto_definition(URI, 5, 10))
+        assert len(locs) > 0, "expected tag identifier to resolve to its definition"
+
+
 class TestGotoDefAdvanced:
     def test_union_variant_in_match(self, lsp):
         open_doc(lsp, URI,F.TYPES)

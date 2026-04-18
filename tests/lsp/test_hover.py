@@ -58,6 +58,14 @@ class TestHoverBasic:
         assert h is not None and "trim" in h.lower(), f"Got: {h}"
 
 
+class TestHoverTaggedTemplate:
+    def test_hover_tag_identifier(self, lsp):
+        open_doc(lsp, URI, F.TAGGED_TEMPLATE)
+        # Line 5: `const q = sql`select ...`; `sql` starts at column 10
+        h = hover_text(lsp.hover(URI, 5, 10))
+        assert h is not None and "sql" in h, f"Expected sql fn hover, got: {h}"
+
+
 class TestHoverForBlock:
     def test_forblock_fn(self, lsp):
         open_doc(lsp, URI,F.FORBLOCK)

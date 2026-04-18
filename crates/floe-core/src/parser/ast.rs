@@ -553,6 +553,13 @@ pub enum ExprKind<T = ()> {
         type_args: Vec<TypeExpr<T>>,
         args: Vec<Arg<T>>,
     },
+    /// Tagged template literal: `` tag`a ${x} b` ``
+    /// Emits the same tagged-template form in TypeScript so the target
+    /// library receives the expected `TemplateStringsArray`.
+    TaggedTemplate {
+        tag: Box<Expr<T>>,
+        parts: Vec<TemplatePart<T>>,
+    },
     /// Type constructor: `User(name: "Ryan", email: e)` or `User(..existing, name: "New")`
     Construct {
         type_name: String,

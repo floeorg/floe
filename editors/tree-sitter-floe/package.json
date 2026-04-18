@@ -8,18 +8,24 @@
     "test": "tree-sitter test",
     "build": "tree-sitter generate && tree-sitter build"
   },
-  "keywords": ["tree-sitter", "parser", "floe"],
+  "keywords": [
+    "tree-sitter",
+    "parser",
+    "floe"
+  ],
   "license": "MIT",
   "dependencies": {
     "nan": "^2.18.0"
   },
   "devDependencies": {
-    "tree-sitter-cli": "^0.26.0"
+    "tree-sitter-cli": "^0.26.8"
   },
   "tree-sitter": [
     {
       "scope": "source.floe",
-      "file-types": ["fl"],
+      "file-types": [
+        "fl"
+      ],
       "highlights": "queries/highlights.scm"
     }
   ]

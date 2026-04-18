@@ -109,6 +109,7 @@ impl<'src> Formatter<'src> {
             SyntaxKind::BINARY_EXPR => self.fmt_binary(node),
             SyntaxKind::UNARY_EXPR => self.fmt_unary(node),
             SyntaxKind::CALL_EXPR => self.fmt_call(node),
+            SyntaxKind::TAGGED_TEMPLATE_EXPR => self.fmt_tagged_template(node),
             SyntaxKind::CONSTRUCT_EXPR => self.fmt_construct(node),
             SyntaxKind::MEMBER_EXPR => self.fmt_member(node),
             SyntaxKind::INDEX_EXPR => self.fmt_index(node),

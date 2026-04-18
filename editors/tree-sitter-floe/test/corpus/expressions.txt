@@ -285,6 +285,26 @@ const s = `hello ${name}`
             (identifier)))))))
 
 ===
+Tagged template expression
+===
+
+const q = sql`select ${id}`
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (tagged_template_expression
+      tag: (primary_expression
+        (identifier))
+      template: (template_literal
+        (template_string_content)
+        (template_interpolation
+          (primary_expression
+            (identifier)))))))
+
+===
 Array literal
 ===
 

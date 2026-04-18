@@ -987,6 +987,29 @@ impl Formatter<'_> {
         pretty::concat(parts)
     }
 
+    pub(crate) fn fmt_tagged_template(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = Vec::new();
+        for child_or_tok in node.children_with_tokens() {
+            match child_or_tok {
+                rowan::NodeOrToken::Node(child) if parts.is_empty() => {
+                    parts.push(self.fmt_node(&child));
+                }
+                rowan::NodeOrToken::Token(tok) => match tok.kind() {
+                    SyntaxKind::TEMPLATE_LITERAL => {
+                        parts.push(pretty::str(tok.text()));
+                        break;
+                    }
+                    k if parts.is_empty() && !k.is_trivia() => {
+                        parts.push(pretty::str(tok.text()));
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+        pretty::concat(parts)
+    }
+
     pub(crate) fn fmt_unwrap(&mut self, node: &SyntaxNode) -> Document {
         let mut parts = Vec::new();
         if let Some(child) = node.children().next() {

@@ -372,6 +372,14 @@ fn collect_value_names_from_expr(expr: &TypedExpr, names: &mut HashSet<String>) 
                 }
             }
         }
+        ExprKind::TaggedTemplate { tag, parts } => {
+            collect_value_names_from_expr(tag, names);
+            for part in parts {
+                if let TemplatePart::Expr(e) = part {
+                    collect_value_names_from_expr(e, names);
+                }
+            }
+        }
         ExprKind::Object(fields) => {
             for (_, value) in fields {
                 collect_value_names_from_expr(value, names);

@@ -41,7 +41,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 - Closures `(x) => expr` for inline/anonymous functions
 - Dot shorthand `.field` for implicit field-access closures
 - JSX / TSX (full support, including member expressions like `<Select.Trigger />`)
-- Generics (types and functions), template literals
+- Generics (types and functions), template literals, tagged template literals (`` tag`...` ``)
 - Async via `|> await` (or `|> Promise.await`) — return type must be `Promise<T>`, or use `async fn f() -> T` sugar
 - Destructuring, spread, rest params
 - `||` (boolean OR), `&&`, `!` (boolean operators)
@@ -109,6 +109,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Result.guard | `use val <- Result.guard(res, onErr)` | unwrap-or-bail via `use` |
 | Number separators | `1_000_000`, `3.141_592`, `0xFF_FF` | underscores stripped in output |
 | Mock data | `mock<User>`, `mock<User>(name: "Alice")` | object literal with generated test data |
+| Tagged template | `` tag`a ${x} b` `` | byte-identical tagged template in TS — the tag must be callable; values at `${}` become the variadic `...values` args |
 
 ### What's Removed (compile errors)
 
