@@ -1331,8 +1331,6 @@ fn generic_type() {
 
 #[test]
 fn generic_call_with_object_type_literal() {
-    // Regression for #1175: `foo<{ field: T }>()` was parsed as comparison
-    // (`foo < { field: T } > ()`) because `is_generic_call` bailed on any `{`.
     let expr = first_expr("foo<{ bindings: Env }>()");
     match expr {
         ExprKind::Call {
@@ -1369,7 +1367,7 @@ fn generic_call_with_multiple_type_args_including_object() {
 }
 
 #[test]
-fn generic_call_with_named_type_arg_still_works() {
+fn generic_call_with_named_type_arg() {
     let expr = first_expr("foo<Env>()");
     match expr {
         ExprKind::Call { type_args, .. } => {
