@@ -1,5 +1,6 @@
 ---
-source: tests/snapshot_codegen.rs
+source: crates/floe-core/tests/snapshot_codegen.rs
+assertion_line: 115
 expression: output
 ---
 function add(a: number, b: number): number {
@@ -16,4 +17,4 @@ function map(arr: Array<number>, f: (_p0: number) => number): Array<number> {
 
 const _addTen = (_x) => add(10, _x);
 
-const _items = [1, 2, 3].map((_x) => multiply(_x, 2));
+const _items = map([1, 2, 3], (_x) => multiply(_x, 2));

@@ -28,6 +28,11 @@
         },
         {
           "type": "json",
+          "path": "integrations/hono/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "editors/vscode/package.json",
           "jsonpath": "$.version"
         }

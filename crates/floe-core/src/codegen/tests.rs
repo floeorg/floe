@@ -347,6 +347,47 @@ fn pipe_chained() {
     assert_eq!(emit("a |> f |> g"), "g(f(a));");
 }
 
+#[test]
+fn pipe_local_fn_shadows_stdlib_template() {
+    // A locally defined `map` must win over the Array.map stdlib template.
+    // Imports feed the same `local_names` set, so this also covers trusted
+    // imports — the unit test avoids the npm resolver round-trip.
+    let src = r#"
+fn map(arr: Array<number>, f: (number) -> number) -> Array<number> { arr }
+const _items = [1, 2, 3] |> map((x) => x + 1)
+"#;
+    let out = emit_typed(src);
+    assert!(
+        out.contains("map([1, 2, 3]"),
+        "expected local `map` call, got:\n{out}"
+    );
+    assert!(
+        !out.contains("[1, 2, 3].map"),
+        "local `map` should not be routed through Array.map template:\n{out}"
+    );
+}
+
+#[test]
+fn pipe_local_fn_named_get_shadows_record_get() {
+    // `get` is one of the stdlib names most likely to collide with
+    // imports (Record.get / Map.get / Http.get). A local definition must
+    // still win.
+    let src = r#"
+type Router { path: string }
+fn get(r: Router, path: string) -> Router { Router(path: path) }
+const _r = Router(path: "/") |> get("/hello")
+"#;
+    let out = emit_typed(src);
+    assert!(
+        out.contains("get({"),
+        "expected local `get` call, got:\n{out}"
+    );
+    assert!(
+        !out.contains(".has("),
+        "local `get` should not be routed through Record.get template:\n{out}"
+    );
+}
+
 // ── Pipe into Match ─────────────────────────────────────────
 
 #[test]

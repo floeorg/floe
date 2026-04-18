@@ -161,6 +161,12 @@ jobs:
           pnpm build
           npx npm@latest publish --access public --provenance
 
+      - name: Build and publish Hono shim
+        working-directory: integrations/hono
+        run: |
+          pnpm build
+          npx npm@latest publish --access public --provenance
+
   publish-extension:
     name: Publish VS Code Extension
     needs: release

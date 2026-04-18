@@ -1,0 +1,15 @@
+{
+  "name": "floe-hono-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "floe check src/"
+  },
+  "dependencies": {
+    "@floeorg/hono": "workspace:*",
+    "hono": "^4.12.10"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}

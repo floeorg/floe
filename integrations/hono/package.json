@@ -1,0 +1,40 @@
+{
+  "name": "@floeorg/hono",
+  "version": "0.4.7",
+  "description": "Immutable router API for Hono, consumable from Floe via pipe operators",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test --experimental-strip-types src/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "floe",
+    "hono",
+    "router",
+    "immutable"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/floeorg/floe.git",
+    "directory": "integrations/hono"
+  },
+  "homepage": "https://github.com/floeorg/floe",
+  "peerDependencies": {
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "hono": "^4.12.10",
+    "typescript": "^6.0.2"
+  }
+}
