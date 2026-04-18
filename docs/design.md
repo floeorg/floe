@@ -28,11 +28,14 @@ A React developer should read Floe and understand it in 30 minutes. We keep fami
 
 ```
 (x) => arrow closures         (a) => a + 1
-->    match arms, fn types    Ok(x) -> x, (T) -> U
+=>    fn types                type Handler = (Request) => Response
+->    match arms, fn returns  Ok(x) => x, fn f() => T
 |>    pipe data through       data |> transform
 ?     unwrap Result/Option    fetchUser(id)?
 .x    dot shorthand           .name (implicit closure for field access)
 ```
+
+`->` is only valid on the left of a match-arm body (`pat -> expr`). Every type-position arrow — function-type aliases, callback types inside records, generic bounds, and function return types (`fn f(x: T) => U`) — uses `=>`.
 
 All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now means exactly one thing: unwrap or short-circuit.
 
@@ -44,7 +47,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 - Dot shorthand `.field` for implicit field-access closures
 - JSX / TSX (full support, including member expressions like `<Select.Trigger />`)
 - Generics (types and functions), template literals, tagged template literals (`` tag`...` ``)
-- Async via `|> await` (or `|> Promise.await`) — return type must be `Promise<T>`, or use `async fn f() -> T` sugar
+- Async via `|> await` (or `|> Promise.await`) — return type must be `Promise<T>`, or use `async fn f() => T` sugar
 - Destructuring, spread, rest params
 - `||` (boolean OR), `&&`, `!` (boolean operators)
 - `==` (but only between same types — structural equality on objects)
@@ -62,17 +65,19 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Match expression | `match x { ... }` | exhaustive if/else chain |
 | Match with ranges | `match n { 1..10 -> ... }` | range check |
 | Match with string patterns | `"/users/{id}" -> f(id)` | regex-based matching with captures |
-| Match with destructuring | `Click(el, { x, y }) -> ...` | nested destructuring |
+| Match with destructuring | `Click(el, { x, y }) => ...` | nested destructuring |
 | Result type | built-in `Ok(v)` / `Err(e)` | `{ ok: true, value } / { ok: false, error }` |
 | Option type | built-in `Some(v)` / `None` | `v / undefined` |
 | `todo` | placeholder, type `never` | `(() => { throw new Error("not implemented"); })()` |
 | `unreachable` | assert unreachable, type `never` | `(() => { throw new Error("unreachable"); })()` |
 | `?` operator | `fetchUser(id)?` | early return on Err/None |
-| Newtypes | `type UserId(string)` | `string` at runtime (single-variant wrapper) |
-| Opaque types | `opaque type HashedPw(string)` | `string`, but only the defining module can create/read |
-| Tagged unions | `type Route { \| Home \| Profile(string) \| Settings { tab: string } }` | discriminated union. `(Type, ...)` variants are positional; `{ name: Type, ... }` variants are named. Mixing the two forms in one variant is a parse error. |
-| String literal unions | `type Method = "GET" \| "POST" \| "PUT"` | `"GET" \| "POST" \| "PUT"` (pass-through for npm interop) |
-| Nested unions | `type ApiError { \| Network(NetworkError) \| NotFound }` | nested discriminated union (compiler generates tags) |
+| Newtypes | `type UserId = UserId(string)` | `string` at runtime (single-variant wrapper) |
+| Opaque types | `opaque type HashedPw = HashedPw(string)` | `string`, but only the defining module can create/read |
+| Tagged sums | `type Route = Home \| Profile(string) \| Settings { tab: string }` | discriminated union. `(Type, ...)` variants are positional; `{ name: Type, ... }` variants are named. Mixing the two forms in one variant is a parse error. Leading `\|` optional. |
+| String literal unions | `type Method = OneOf<"GET", "POST", "PUT">` | `"GET" \| "POST" \| "PUT"` (structural — for npm interop) |
+| Intersections | `type AdminCard = Intersect<ButtonProps, { role: "admin" }>` | `ButtonProps & { role: "admin" }` (structural) |
+| Function-type alias | `type Handler = (Request) => Response` | `type Handler = (arg: Request) => Response` |
+| Nested sums | `type ApiError = Network(NetworkError) \| NotFound` | nested discriminated union (compiler generates tags) |
 | Multi-depth match | `Network(Timeout(ms)) -> ...` | nested if/else with tag checks |
 | Type constructors | `User(name: "Ryan", email: e)` | `{ name: "Ryan", email: e }` (compiler adds tags for unions) |
 | Record spread | `User(..user, name: "New")` | `{ ...user, name: "New" }` |
@@ -83,7 +88,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | Qualified variant | `Type.Variant` for disambiguation | `{ __tag: "Variant" }` (same as bare) |
 | Variant as function | `Validation` (bare, non-unit) | `(errors) => ({ __tag: "Validation", errors })` |
 | Tagged union discriminator | implicit — users write `match x { Home -> ... }` | `__tag` field (double-underscore is Floe's fingerprint — also used for for-block mangling like `User__display`; leaves the name `tag` free for user records) |
-| Generic functions | `fn identity<T>(x: T) -> T { x }` | `function identity<T>(x: T): T { return x; }` |
+| Generic functions | `fn identity<T>(x: T) => T { x }` | `function identity<T>(x: T): T { return x; }` |
 | Default values | `fn f(x: number = 10)` | caller can omit, compiler fills in |
 | Structural equality | `==` on objects compares by value | deep equality check |
 | Unit type | `()` as return type, usable in generics | `undefined` / `void` in TS |
@@ -131,7 +136,11 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `x?: T` | Optional fields | `x: Option<T>` |
 | `+` on strings | Silent coercion bugs | Template literals only (warning) |
 | `void` | Not a real type, can't use in generics | Unit type `()` — a real value |
-| `=>` in expressions | Two syntaxes for functions is one too many | `fn(x) expr` for anonymous functions; `->` is used for function types like `(T) -> U` |
+| `=>` in expressions | Two syntaxes for functions is one too many | `fn(x) expr` for anonymous functions; `=>` is used for function types like `(T) => U` |
+| `(T) => U` in type position | Reserve `->` for match arms and fn return types | Use `(T) => U` |
+| `type X { ... }` / `type X(T)` | Legacy sum/newtype forms | Every type decl uses `type X = ...` |
+| `type X = "a" \| "b"` (bare string-literal union) | Ambiguous with nominal sums | `type X = OneOf<"a", "b">` (E201) |
+| `fn f(x: { a: T }) => ...` (inline record in signature) | Hurts error messages and readability | Name the record: `type Arg = { a: T }` then `fn f(x: Arg)` (E202) |
 | `function` | Verbose keyword | `fn` |
 | `if`/`else` | Redundant control flow | `match` expression |
 | `return` | Implicit returns — last expression is the value | Omit `return`; the last expression in a block is the return value |
@@ -373,7 +382,7 @@ const user = _r0.value
 Inside a `collect {}` block, `?` does NOT short-circuit. Each `?` that hits an Err records the error and continues. If any failed, the block returns `Err(Array<E>)` with all collected errors. If all succeeded, returns `Ok(last_expression)`.
 
 ```floe
-fn validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> {
+fn validateForm(input: FormInput) => Result<ValidForm, Array<ValidationError>> {
     collect {
         const name = input.name |> validateName?
         const email = input.email |> validateEmail?
@@ -408,34 +417,34 @@ The return type of `collect { ... }` is `Result<T, Array<E>>` where:
 
 | Function | Type | Description |
 |---|---|---|
-| `map` | `Result<T, E>, (T) -> U -> Result<U, E>` | Transform Ok value |
-| `mapErr` | `Result<T, E>, (E) -> F -> Result<T, F>` | Transform Err value |
-| `flatMap` | `Result<T, E>, (T) -> Result<U, E> -> Result<U, E>` | Chain result-returning ops |
-| `filter` | `Result<T, E>, (T) -> boolean, E -> Result<T, E>` | Keep Ok if predicate passes |
-| `unwrapOr` | `Result<T, E>, T -> T` | Extract Ok or default |
-| `or` | `Result<T, E>, Result<T, E> -> Result<T, E>` | First Ok, else second |
-| `values` | `Array<Result<T, E>> -> Array<T>` | Extract all Ok values |
-| `partition` | `Array<Result<T, E>> -> (Array<T>, Array<E>)` | Split into Ok and Err arrays |
-| `mapOr` | `Result<T, E>, U, (T) -> U -> U` | Map + default |
-| `flatten` | `Result<Result<T, E>, E> -> Result<T, E>` | Unwrap nested |
-| `zip` | `Result<T, E>, Result<U, E> -> Result<(T, U), E>` | Combine two Results |
-| `inspect` | `Result<T, E>, (T) -> () -> Result<T, E>` | Side-effect on Ok |
-| `inspectErr` | `Result<T, E>, (E) -> () -> Result<T, E>` | Side-effect on Err |
-| `isOk` | `Result<T, E> -> boolean` | Check Ok |
-| `isErr` | `Result<T, E> -> boolean` | Check Err |
-| `toOption` | `Result<T, E> -> Option<T>` | Drop error |
-| `all` | `Array<Result<T, E>> -> Result<Array<T>, E>` | Collect, fail on first Err |
-| `any` | `Array<Result<T, E>> -> Result<T, Array<E>>` | First Ok, or all Errs |
-| `guard` | `Result<T, E>, (E) -> U, (T) -> U -> U` | Bail with fallback on Err, continue with Ok (for `use`) |
-| `orElse` | `Result<T, E>, (E) -> Result<T, F> -> Result<T, F>` | Lazy fallback chain |
+| `map` | `(Result<T, E>, (T) => U) => Result<U, E>` | Transform Ok value |
+| `mapErr` | `(Result<T, E>, (E) => F) => Result<T, F>` | Transform Err value |
+| `flatMap` | `(Result<T, E>, (T) => Result<U, E>) => Result<U, E>` | Chain result-returning ops |
+| `filter` | `(Result<T, E>, (T) => boolean, E) => Result<T, E>` | Keep Ok if predicate passes |
+| `unwrapOr` | `(Result<T, E>, T) => T` | Extract Ok or default |
+| `or` | `(Result<T, E>, Result<T, E>) => Result<T, E>` | First Ok, else second |
+| `values` | `(Array<Result<T, E>>) => Array<T>` | Extract all Ok values |
+| `partition` | `(Array<Result<T, E>>) => (Array<T>, Array<E>)` | Split into Ok and Err arrays |
+| `mapOr` | `(Result<T, E>, U, (T) => U) => U` | Map + default |
+| `flatten` | `(Result<Result<T, E>, E>) => Result<T, E>` | Unwrap nested |
+| `zip` | `(Result<T, E>, Result<U, E>) => Result<(T, U), E>` | Combine two Results |
+| `inspect` | `(Result<T, E>, (T) => ()) => Result<T, E>` | Side-effect on Ok |
+| `inspectErr` | `(Result<T, E>, (E) => ()) => Result<T, E>` | Side-effect on Err |
+| `isOk` | `(Result<T, E>) => boolean` | Check Ok |
+| `isErr` | `(Result<T, E>) => boolean` | Check Err |
+| `toOption` | `(Result<T, E>) => Option<T>` | Drop error |
+| `all` | `(Array<Result<T, E>>) => Result<Array<T>, E>` | Collect, fail on first Err |
+| `any` | `(Array<Result<T, E>>) => Result<T, Array<E>>` | First Ok, or all Errs |
+| `guard` | `(Result<T, E>, (E) => U, (T) => U) => U` | Bail with fallback on Err, continue with Ok (for `use`) |
+| `orElse` | `(Result<T, E>, (E) => Result<T, F>) => Result<T, F>` | Lazy fallback chain |
 
 ### Option<T> - No Null, No Undefined
 
 ```floe
-type User {
-  name: string                  // always present
-  nickname: Option<string>      // might not exist
-  avatar: Option<Url>           // might not exist
+type User = {
+  name: string,                  // always present
+  nickname: Option<string>,      // might not exist
+  avatar: Option<Url>,           // might not exist
 }
 
 // Must handle the None case
@@ -471,31 +480,31 @@ const rows = data |> Option.unwrapOr([])
 
 | Function | Type | Description |
 |---|---|---|
-| `map` | `Option<T>, (T) -> U -> Option<U>` | Transform inner value |
-| `flatMap` | `Option<T>, (T) -> Option<U> -> Option<U>` | Chain option-returning ops |
-| `filter` | `Option<T>, (T) -> boolean -> Option<T>` | Keep Some if predicate passes |
-| `unwrapOr` | `Option<T>, T -> T` | Extract or default |
-| `or` | `Option<T>, Option<T> -> Option<T>` | First Some, else second |
-| `values` | `Array<Option<T>> -> Array<T>` | Extract all Some values |
-| `mapOr` | `Option<T>, U, (T) -> U -> U` | Map + default |
-| `flatten` | `Option<Option<T>> -> Option<T>` | Unwrap nested |
-| `zip` | `Option<T>, Option<U> -> Option<(T, U)>` | Combine two Options |
-| `inspect` | `Option<T>, (T) -> () -> Option<T>` | Side-effect |
-| `isSome` | `Option<T> -> boolean` | Check present |
-| `isNone` | `Option<T> -> boolean` | Check absent |
-| `toResult` | `Option<T>, E -> Result<T, E>` | Convert to Result |
-| `toErr` | `Option<E> -> Result<(), E>` | Convert to Err (for `{ data, error }`) |
-| `all` | `Array<Option<T>> -> Option<Array<T>>` | Collect, None if any missing |
-| `any` | `Array<Option<T>> -> Option<T>` | First Some |
-| `guard` | `Option<T>, U, (T) -> U -> U` | Bail with fallback on None, continue with Some (for `use`) |
-| `orElse` | `Option<T>, () -> Option<T> -> Option<T>` | Lazy fallback chain |
+| `map` | `(Option<T>, (T) => U) => Option<U>` | Transform inner value |
+| `flatMap` | `(Option<T>, (T) => Option<U>) => Option<U>` | Chain option-returning ops |
+| `filter` | `(Option<T>, (T) => boolean) => Option<T>` | Keep Some if predicate passes |
+| `unwrapOr` | `(Option<T>, T) => T` | Extract or default |
+| `or` | `(Option<T>, Option<T>) => Option<T>` | First Some, else second |
+| `values` | `(Array<Option<T>>) => Array<T>` | Extract all Some values |
+| `mapOr` | `(Option<T>, U, (T) => U) => U` | Map + default |
+| `flatten` | `(Option<Option<T>>) => Option<T>` | Unwrap nested |
+| `zip` | `(Option<T>, Option<U>) => Option<(T, U)>` | Combine two Options |
+| `inspect` | `(Option<T>, (T) => ()) => Option<T>` | Side-effect |
+| `isSome` | `(Option<T>) => boolean` | Check present |
+| `isNone` | `(Option<T>) => boolean` | Check absent |
+| `toResult` | `(Option<T>, E) => Result<T, E>` | Convert to Result |
+| `toErr` | `(Option<E>) => Result<(), E>` | Convert to Err (for `{ data, error }`) |
+| `all` | `(Array<Option<T>>) => Option<Array<T>>` | Collect, None if any missing |
+| `any` | `(Array<Option<T>>) => Option<T>` | First Some |
+| `guard` | `(Option<T>, U, (T) => U) => U` | Bail with fallback on None, continue with Some (for `use`) |
+| `orElse` | `(Option<T>, () => Option<T>) => Option<T>` | Lazy fallback chain |
 
 ### Settable<T> - Three-State Fields for Partial Updates
 
 For TypeScript interop where a field is both optional (`?`) and nullable (`| null`), `Settable<T>` captures three states:
 
 ```floe
-type UpdateUser {
+type UpdateUser = {
   name: Settable<string> = Unchanged,
   email: Settable<string> = Unchanged,
 }
@@ -512,108 +521,128 @@ const partial = UpdateUser(name: Value("Ryan"))
 
 `Settable<T>` compiles to `T | null | undefined` in TypeScript. `Value(x)` desugars to `x`, `Clear` desugars to `null`, and `Unchanged` causes the field to be omitted from the object literal.
 
-### Type System — Just `type`, No `enum`
+### Type System — Every type is `type X = ...`
 
-`type` does everything. No `|` = record. Has `|` = union. Unions nest infinitely.
+`type X = RHS`. The RHS picks the kind; there is no legacy form.
+
+| RHS shape | Kind |
+|---|---|
+| `{ field: T, ... }` | Record |
+| `A \| B \| ...` (constructor names) | Nominal tagged sum — leading `\|` optional |
+| `Name(T)` | Newtype |
+| `(Args) => Ret` | Structural function-type alias |
+| `OneOf<"a", "b", ...>` | Structural string-literal union (TS `"a" \| "b"`) |
+| `Intersect<A, B, ...>` | Structural intersection (TS `A & B`) |
+| `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... | TS utility alias (pass-through) |
+
+`|` at the top level of a `type` declaration is **always nominal** — it declares fresh constructors. Structural string unions must use `OneOf<>`.
 
 ```floe
 // Record type
-type User {
-  id: UserId
-  name: string
-  email: Email
+type User = {
+  id: UserId,
+  name: string,
+  email: Email,
 }
 
-// Record type composition with spread
-type BaseProps {
+// Record composition with spread
+type BaseProps = {
   className: string,
   disabled: boolean,
 }
 
-type ButtonProps {
+type ButtonProps = {
   ...BaseProps,
-  onClick: () -> (),
+  onClick: () => (),
   label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
 
 // Multiple spreads
-type A { x: number }
-type B { y: string }
-type C { ...A, ...B, z: boolean }
+type A = { x: number }
+type B = { y: string }
+type C = { ...A, ...B, z: boolean }
 // C has: x, y, z
 
 // Spread with generic types and typeof (npm interop)
-type CardProps {
+type CardProps = {
     ...VariantProps<typeof cardVariants>,
     className: string,
 }
 // Compiles to: type CardProps = VariantProps<typeof cardVariants> & { className: string };
 
-// Simple union type (has |)
-type Route {
+// Tagged sum — leading `|` optional, variants are nominal constructors
+type Route =
   | Home
   | Profile { id: string }
   | Settings { tab: string }
   | NotFound
-}
 
-// String literal union (for npm interop)
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
+// Inline form also works
+type Filter = All | Active | Completed
 
-// Union types can contain other union types — nest as deep as you want
-type NetworkError {
+// Structural string-literal union (for npm interop / config values)
+type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
+
+// Structural intersection
+type AdminCard = Intersect<ButtonProps, { role: "admin" }>
+
+// Function-type alias — structural
+type Handler = (Request) => Promise<Response>
+type Predicate<T> = (T) => boolean
+
+// Sums can contain sums — nest as deep as you want
+type NetworkError =
   | Timeout { ms: number }
   | DnsFailure { host: string }
   | ConnectionRefused { port: number }
-}
 
-type ValidationError {
+type ValidationError =
   | Required { field: string }
   | InvalidFormat { field: string, expected: string }
   | TooLong { field: string, max: number }
-}
 
-type AuthError {
+type AuthError =
   | InvalidCredentials
   | TokenExpired { expiredAt: Date }
   | InsufficientRole { required: Role, actual: Role }
-}
 
-// Parent union containing sub-unions
-type ApiError {
+// Parent sum containing sub-sums
+type ApiError =
   | Network(NetworkError)
   | Validation(ValidationError)
   | Auth(AuthError)
   | NotFound
   | ServerError { status: number, body: string }
-}
 
 // Go deeper — a full app error hierarchy
-type HttpError {
+type HttpError =
   | Network(NetworkError)
   | Status { code: number, body: string }
   | Decode(JsonError)
-}
 
-type UserError {
+type UserError =
   | Http(HttpError)
   | NotFound { id: UserId }
   | Banned { reason: string }
-}
 
-type PaymentError {
+type PaymentError =
   | Http(HttpError)
   | InsufficientFunds { needed: number, available: number }
   | CardDeclined { reason: string }
-}
 
-type AppError {
+type AppError =
   | User(UserError)
   | Payment(PaymentError)
   | Auth(AuthError)
-}
 ```
+
+#### Errors
+
+| Code | Trigger | Fix |
+|---|---|---|
+| `E201` | `type X = "a" \| "b"` — bare string-literal union | Use `type X = OneOf<"a", "b">` |
+| `E202` | Inline record type in a function signature (`fn f(x: { a: T })`) | Name the type: `type Arg = { a: T }` then `fn f(x: Arg)` |
 
 ### Multi-Depth Matching
 
@@ -683,18 +712,20 @@ The compiler generates discrimination tags in the emitted TypeScript — you nev
 ### Newtypes (Single-Variant Wrappers)
 
 ```floe
-type UserId(string)
-type Email(string)
+type UserId = UserId(string)
+type Email = Email(string)
 
 const id = UserId("abc123")
 sendEmail(id, "hello")  // COMPILE ERROR: UserId is not Email
 ```
 
+The RHS constructor may share the name of the type (idiomatic) or differ — both parse the same.
+
 ### Opaque Types
 
 ```floe
 // auth/password.fl
-opaque type HashedPassword(string)
+opaque type HashedPassword = HashedPassword(string)
 
 export fn hash(raw: string): HashedPassword {
   bcrypt(raw)  // only this module can create one
@@ -707,7 +738,6 @@ export fn verify(raw: string, hashed: HashedPassword): boolean {
 // other_file.fl
 const pw: HashedPassword = hash("secret")
 // pw + "abc"   COMPILE ERROR — it's not a string to you
-
 ```
 
 ### Callback Flattening (`use`)
@@ -755,7 +785,7 @@ The `guard` stdlib functions combine with `use` to give linear, non-nested early
 
 ```floe
 // Bool.guard — bail if condition is false
-export fn AdminPage(state: AuthState) -> JSX.Element {
+export fn AdminPage(state: AuthState) => JSX.Element {
     use <- Bool.guard(state.isAdmin, <Forbidden />)
     use <- Bool.guard(state.isVerified, <VerifyPrompt />)
 
@@ -775,9 +805,9 @@ Under the hood these are just functions — no new syntax:
 
 | Function | Type | Description |
 |---|---|---|
-| `Bool.guard` | `boolean, T, () -> T -> T` | Continue if true, bail with fallback if false |
-| `Option.guard` | `Option<T>, U, (T) -> U -> U` | Continue with unwrapped T if Some, bail if None |
-| `Result.guard` | `Result<T, E>, (E) -> U, (T) -> U -> U` | Continue with T if Ok, bail with onErr if Err |
+| `Bool.guard` | `(boolean, T, () => T) => T` | Continue if true, bail with fallback if false |
+| `Option.guard` | `(Option<T>, U, (T) => U) => U` | Continue with unwrapped T if Some, bail if None |
+| `Result.guard` | `(Result<T, E>, (E) => U, (T) => U) => U` | Continue with T if Ok, bail with onErr if Err |
 
 Inspired by Gleam's `bool.guard`. The key insight: `use` isn't just for callbacks — it's the language's early return mechanism.
 
@@ -797,7 +827,7 @@ const pair = (1, 2)
 const (x, y) = pair
 
 // Function signatures
-fn divmod(a: number, b: number) -> (number, number) {
+fn divmod(a: number, b: number) => (number, number) {
   (a / b, a % b)
 }
 
@@ -820,11 +850,11 @@ Records and functions use the same call syntax: `Name(args)` with optional label
 ```floe
 // --- Record Construction ---
 
-type User {
-  id: UserId
-  name: string
-  email: Email
-  nickname: Option<string>
+type User = {
+  id: UserId,
+  name: string,
+  email: Email,
+  nickname: Option<string>,
 }
 
 // Positional — args in field order
@@ -872,11 +902,11 @@ createUser("Ryan", role: Admin, email: Email("r@test.com"))
 // --- Default Values ---
 
 // On record types
-type Config {
-  baseUrl: string                    // required — no default
-  timeout: number = 5000             // default value
-  retries: number = 3                // default value
-  headers: Option<Headers> = None    // default value
+type Config = {
+  baseUrl: string,                    // required — no default
+  timeout: number = 5000,             // default value
+  retries: number = 3,                // default value
+  headers: Option<Headers> = None,    // default value
 }
 
 // Only specify what you need
@@ -900,14 +930,14 @@ fetchUsers(page: 3)                              // override one
 fetchUsers(limit: 50, sort: Descending)          // override two
 
 // On React component props
-type ButtonProps {
-  label: string                      // required
-  onClick: () -> ()                  // required
-  variant: Variant = Primary         // default
-  size: Size = Medium                // default
-  disabled: boolean = false             // default
-  loading: boolean = false              // default
-  icon: Option<Icon> = None          // default
+type ButtonProps = {
+  label: string,                      // required
+  onClick: () => (),                  // required
+  variant: Variant = Primary,         // default
+  size: Size = Medium,                // default
+  disabled: boolean = false,          // default
+  loading: boolean = false,           // default
+  icon: Option<Icon> = None,          // default
 }
 
 export fn Button(props: ButtonProps) {
@@ -935,18 +965,18 @@ Two syntactic forms are supported:
 **Block form** — group multiple functions:
 
 ```floe
-type User { name: string, age: number, active: boolean }
+type User = { name: string, age: number, active: boolean }
 
 for User {
-  fn display(self) -> string {
+  fn display(self) => string {
     `${self.name} (${self.age})`
   }
 
-  fn isAdult(self) -> boolean {
+  fn isAdult(self) => boolean {
     self.age >= 18
   }
 
-  fn greet(self, greeting: string) -> string {
+  fn greet(self, greeting: string) => string {
     `${greeting}, ${self.name}!`
   }
 }
@@ -957,7 +987,7 @@ Export is per-function — `export` goes before `fn` inside the block.
 ```floe
 // Works with generic types too
 for Array<User> {
-  fn adults(self) -> Array<User> {
+  fn adults(self) => Array<User> {
     self |> Array.filter(.age >= 18)
   }
 }
@@ -1010,13 +1040,13 @@ Methods in a `for` block can be exported individually or as a whole block:
 ```floe
 // Per-method export — useful when only some methods are public
 for User {
-  export fn display(self) -> string { self.name }
-  fn internalHelper(self) -> string { self.name }
+  export fn display(self) => string { self.name }
+  fn internalHelper(self) => string { self.name }
 }
 
 // Block-level export — the natural shape for trait impls
 export for User: Display {
-  fn display(self) -> string { self.name }
+  fn display(self) => string { self.name }
 }
 ```
 
@@ -1029,26 +1059,26 @@ Traits define behavioral contracts that types can implement via `for` blocks. Th
 ```floe
 // Define a trait with required method signatures
 trait Display {
-  fn display(self) -> string
+  fn display(self) => string
 }
 
 // Traits can have default implementations
 trait Eq {
-  fn eq(self, other: Self) -> boolean
-  fn neq(self, other: Self) -> boolean {
+  fn eq(self, other: Self) => boolean
+  fn neq(self, other: Self) => boolean {
     !(self |> eq(other))
   }
 }
 
 // Implement a trait for a type using `for Type: Trait`
 for User: Display {
-  fn display(self) -> string {
+  fn display(self) => string {
     `${self.name} (${self.age})`
   }
 }
 
 for User: Eq {
-  fn eq(self, other: User) -> boolean {
+  fn eq(self, other: User) => boolean {
     self.id == other.id
   }
   // neq is inherited from the default implementation
@@ -1070,7 +1100,7 @@ Trait rules:
 Record types can auto-derive trait implementations with `deriving`:
 
 ```floe
-type User {
+type User = {
   id: string,
   name: string,
   email: string,
@@ -1085,7 +1115,7 @@ This generates the same code as a handwritten `for` block with no runtime cost.
 
 | Trait | Generated implementation |
 |---|---|
-| `Display` | String representation: `fn display(self) -> string` producing `TypeName(field1: val1, field2: val2)` |
+| `Display` | String representation: `fn display(self) => string` producing `TypeName(field1: val1, field2: val2)` |
 
 **Codegen output** for `deriving (Display)`:
 
@@ -1106,7 +1136,7 @@ Deriving rules:
 `test` blocks let you write tests co-located with the code they test. They are type-checked but stripped from production output.
 
 ```floe
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 
 test "addition" {
   assert add(1, 2) == 3
@@ -1146,8 +1176,8 @@ Compiles to (test mode only):
 
 ```floe
 // Named/exported functions use `fn`
-export fn TodoApp() -> JSX.Element { ... }
-export fn fetchUser(id: UserId) -> Result<User, ApiError> { ... }
+export fn TodoApp() => JSX.Element { ... }
+export fn fetchUser(id: UserId) => Result<User, ApiError> { ... }
 
 // Inline/anonymous uses arrow closures
 todos |> Array.map((t) => t.name)
@@ -1159,15 +1189,15 @@ todos |> Array.filter(.done == false)
 todos |> Array.map(.text)
 
 // Named args and defaults
-fn greet(name: string, greeting: string = "Hello") -> string {
+fn greet(name: string, greeting: string = "Hello") => string {
   `${greeting}, ${name}!`
 }
 greet("Ryan")                    // "Hello, Ryan!"
 greet("Ryan", greeting: "Hey")  // "Hey, Ryan!"
 
 // COMPILE ERROR: const + closure — use fn instead
-const double = (x) => x * 2        // ERROR: Use `fn double(x) -> ...`
-fn double(x: number) -> number { x * 2 }  // correct
+const double = (x) => x * 2        // ERROR: Use `fn double(x) => ...`
+fn double(x: number) => number { x * 2 }  // correct
 ```
 
 ### Full Component Example
@@ -1175,19 +1205,18 @@ fn double(x: number) -> number { x * 2 }  // correct
 ```floe
 import { useState } from "react"
 
-type Todo {
-  id: string
-  text: string
-  done: boolean
+type Todo = {
+  id: string,
+  text: string,
+  done: boolean,
 }
 
-type Tab {
+type Tab =
   | Overview
   | Team
   | Analytics
-}
 
-export fn Dashboard(userId: UserId) -> JSX.Element {
+export fn Dashboard(userId: UserId) => JSX.Element {
   const (tab, setTab) = useState<Tab>(Overview)
   const user = useAsync(() => fetchUser(userId))
 
@@ -1210,7 +1239,7 @@ export fn Dashboard(userId: UserId) -> JSX.Element {
   </Layout>
 }
 
-fn OverviewPanel(user: AsyncState<User, ApiError>) -> JSX.Element {
+fn OverviewPanel(user: AsyncState<User, ApiError>) => JSX.Element {
   match user {
     Idle         -> <EmptyState>Click to load</EmptyState>
     Loading      -> <Skeleton lines={6} />
@@ -1226,7 +1255,7 @@ fn OverviewPanel(user: AsyncState<User, ApiError>) -> JSX.Element {
   }
 }
 
-fn describeError(err: ApiError) -> string {
+fn describeError(err: ApiError) => string {
   match err {
     Network(msg)    -> `Connection failed: ${msg}`
     NotFound        -> "User not found"
@@ -1246,7 +1275,7 @@ These are enforced at compile time with clear error messages.
 | Rule | Error | Fix |
 |------|-------|-----|
 | Exported functions must declare return types | `ERROR: missing return type` | Add `-> ReturnType` |
-| `const name = (x) => ...` | `ERROR: use fn instead` | `fn name(x) -> T { ... }` |
+| `const name = (x) => ...` | `ERROR: use fn instead` | `fn name(x) => T { ... }` |
 | No unused variables | `ERROR: x is never used` | Remove or prefix with `_` |
 | No unused imports | `ERROR: useRef is never used` | Remove the import |
 | No implicit type widening | `ERROR: mixed array needs explicit type` | Add type annotation |
@@ -1415,8 +1444,8 @@ Key tokens beyond standard TypeScript:
 |-------|--------|
 | `Pipe` | `\|>` |
 | `PipeUnwrap` | `\|>?` (pipe then unwrap) |
-| `Arrow` | `->` (match arms, return types, function types) |
-| `FatArrow` | `=>` (closures) |
+| `Arrow` | `->` (match arms, fn return types) |
+| `FatArrow` | `=>` (closures, fn-type aliases) |
 | `Question` | `?` (postfix, Result/Option unwrap) |
 | `Underscore` | `_` (placeholder/partial application) |
 | `PipePipe` | `\|\|` (boolean OR) |
@@ -1450,7 +1479,8 @@ Banned tokens (immediate compile errors with helpful messages):
 - `enum` → "Use type with | variants"
 - `void` → "Use the unit type () instead"
 - `function` → "Use fn instead"
-- `=>` after `fn(x)` → "Use fn(x) for closures — function types use -> like (T) -> U"
+- `=>` after `fn(x)` → "Use fn(x) for closures — function types also use => like (T) => U"
+- `->` in a type position → "Use => for function types; -> is only for match arms and fn return signatures"
 
 ### Parser (`floe_parser`)
 
@@ -1486,8 +1516,8 @@ enum Expr {
 
 // Top-level items include ForBlock, TraitDecl, and TestBlock
 // FunctionDecl includes optional type parameters for generic functions
-// fn identity<T>(x: T) -> T { x } → type_params: vec!["T"]
-// fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) } → type_params: vec!["A", "B"]
+// fn identity<T>(x: T) => T { x } → type_params: vec!["T"]
+// fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) } → type_params: vec!["A", "B"]
 struct FunctionDecl {
     name: String,
     type_params: Vec<String>,  // <T, U> — empty for non-generic functions
@@ -1625,8 +1655,8 @@ const user = fetchUser(id) |> await
 // user: Result<User, Error>
 
 // Compose with |> await? for concise async error handling.
-// `async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type:
-async fn loadProfile(id: string) -> Result<Profile, Error> {
+// `async fn f() => T` is sugar for `fn f() => Promise<T>` — write the inner type:
+async fn loadProfile(id: string) => Result<Profile, Error> {
   const user = fetchUser(id) |> await?
   const posts = fetchPosts(user.id) |> await?
   Ok(Profile(user, posts))
@@ -1638,7 +1668,7 @@ async fn loadProfile(id: string) -> Result<Profile, Error> {
 ```floe
 import { findElement } from "some-dom-lib"
 // .d.ts says: findElement(id: string): Element | null
-// Floe sees: findElement(id: string) -> Option<Element>
+// Floe sees: findElement(id: string) => Option<Element>
 
 match findElement("app") {
   Some(el) -> render(el),
@@ -1698,8 +1728,8 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `.name` (in callback) | `(x) => x.name` |
 | `.id != id` (in callback) | `(x) => x.id != id` |
 | `Type.Variant` (qualified) | `{ __tag: "Variant" }` (same as bare) |
-| `fn f(x: T) -> U { ... }` | `function f(x: T): U { ... }` |
-| `fn f<T>(x: T) -> T { ... }` | `function f<T>(x: T): T { ... }` |
+| `fn f(x: T) => U { ... }` | `function f(x: T): U { ... }` |
+| `fn f<T>(x: T) => T { ... }` | `function f<T>(x: T): T { ... }` |
 | untrusted npm call (e.g. `parseYaml(input)`) | `(() => { try { return { ok: true, value: parseYaml(input) }; } catch (_e) { return { ok: false, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()` |
 | `match x { A -> ..., B -> ... }` | `x.__tag === "A" ? ... : x.__tag === "B" ? ... : absurd(x)` |
 | `match x { A(v) when v > 0 -> ... }` | `x.__tag === "A" ? (() => { const v = x.value; if (v > 0) { return ...; } ... })()` |
@@ -1709,7 +1739,9 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `Err(error)` | `{ ok: false, error }` |
 | `Some(value)` | `value` |
 | `None` | `undefined` |
-| `type Method = "GET" \| "POST"` | `type Method = "GET" \| "POST"` (pass-through) |
+| `type Method = OneOf<"GET", "POST">` | `type Method = "GET" \| "POST"` |
+| `type Admin = Intersect<A, B>` | `type Admin = A & B` |
+| `type Handler = (Request) => Response` | `type Handler = (arg: Request) => Response` |
 | `match m { "GET" -> ... }` | `m === "GET" ? ...` (string comparison, no tag) |
 | `User(name: "Ry", email: e)` | `{ name: "Ry", email: e }` (+ tag for unions) |
 | `User(..user, name: "New")` | `{ ...user, name: "New" }` |
@@ -1719,7 +1751,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `f(x: number = 10)` | caller omits → compiler inserts `10` at call site |
 | `a == b` (objects) | deep structural equality check |
 | `()` (unit value) | `undefined` |
-| `fn f() -> ()` (unit return) | `function f(): void` |
+| `fn f() => ()` (unit return) | `function f(): void` |
 | `Array.sort(arr)` | `[...arr].sort((a, b) => a - b)` |
 | `Array.any(arr, pred)` | `arr.some(pred)` |
 | `Array.all(arr, pred)` | `arr.every(pred)` |
@@ -1732,11 +1764,11 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `Array.indexOf(arr, val)` | `arr.indexOf(val)` → `Option<number>` |
 | `Array.groupBy(arr, fn)` | `Object.groupBy(arr, fn)` |
 | `Number.parse("123")` | strict parse returning `Result` |
-| `type UserId(string)` | `string` (newtype erased) |
-| `opaque type X(T)` | `T` (erased, access controlled at compile time) |
-| `for User { fn display(self) -> string { ... } }` | `function display(self: User): string { ... }` |
-| `trait Display { fn display(self) -> string }` | *(erased — no output)* |
-| `for User: Display { fn display(self) -> string { ... } }` | `function display(self: User): string { ... }` (same as plain for block) |
+| `type UserId = UserId(string)` | `string` (newtype erased) |
+| `opaque type X = X(T)` | `T` (erased, access controlled at compile time) |
+| `for User { fn display(self) => string { ... } }` | `function display(self: User): string { ... }` |
+| `trait Display { fn display(self) => string }` | *(erased — no output)* |
+| `for User: Display { fn display(self) => string { ... } }` | `function display(self: User): string { ... }` (same as plain for block) |
 | `test "name" { assert expr }` | stripped in build mode; self-executing test in test mode |
 
 ---
@@ -1759,12 +1791,12 @@ Example: user types `Option<string>` value then `|>`
 ```
 
 Suggestions:
-  Option.map(fn)           Option<string> -> Option<U>
-  Option.unwrapOr(default) Option<string> -> string
-  Option.flatMap(fn)       Option<string> -> Option<U>
-  Option.isSome            Option<string> -> boolean
-  Option.isNone            Option<string> -> boolean
-  toUpperCase              string -> string  (if unwrapped)
+  Option.map(fn)           Option<string> => Option<U>
+  Option.unwrapOr(default) Option<string> => string
+  Option.flatMap(fn)       Option<string> => Option<U>
+  Option.isSome            Option<string> => boolean
+  Option.isNone            Option<string> => boolean
+  toUpperCase              string => string  (if unwrapped)
   ...
 
 ```
@@ -1830,7 +1862,7 @@ The formatter enforces a canonical style. Key conventions:
 
 ```floe
 // Multi-statement: blank line before final expression
-fn loadProfile(id: string) -> Result<Profile, ApiError> {
+fn loadProfile(id: string) => Result<Profile, ApiError> {
     const user = fetchUser(id)?
     const posts = fetchPosts(user.id)?
     const stats = computeStats(posts)
@@ -1839,7 +1871,7 @@ fn loadProfile(id: string) -> Result<Profile, ApiError> {
 }
 
 // Single expression: no blank line
-fn add(a: number, b: number) -> number {
+fn add(a: number, b: number) => number {
     a + b
 }
 ```
@@ -1867,7 +1899,7 @@ This applies to `fn` bodies, `for`-block functions, match arms with block bodies
 
 - [ ] Match expression parsing with `->` arms
 - [ ] Pattern matching: literals, variants, ranges, wildcards, nested variants
-- [ ] Multi-depth matching: `Network(Timeout(ms)) -> ...`
+- [ ] Multi-depth matching: `Network(Timeout(ms)) => ...`
 - [ ] Result type (Ok/Err) built-in
 - [ ] Option type (Some/None) built-in
 - [ ] `?` operator parsing and codegen
@@ -1938,19 +1970,19 @@ TypeScript's `void` is not a real type — you can't use it in generics like `Re
 
 ```floe
 // Functions with no meaningful return value
-fn log(msg: string) -> () {
+fn log(msg: string) => () {
   console.log(msg)
 }
 
 // Works naturally in generics
-fn deleteUser(id: UserId) -> Result<(), ApiError> {
+fn deleteUser(id: UserId) => Result<(), ApiError> {
   // ...
   Ok(())
 }
 
 // Callbacks
-type ButtonProps {
-  onClick: () -> ()
+type ButtonProps = {
+  onClick: () => (),
 }
 ```
 
@@ -1980,16 +2012,16 @@ const users = [u1, u2] |> Array.sortBy(.name)  // explicit comparator
 Floe uses implicit returns — the last expression in a block is the return value. The `return` keyword is banned.
 
 ```floe
-fn getName(user: User) -> string {
+fn getName(user: User) => string {
   user.name    // this is the return value
 }
 
-fn log(msg: string) -> () {
+fn log(msg: string) => () {
   Console.log(msg)    // unit functions — last expression is discarded
 }
 
 // COMPILE ERROR: empty non-unit function body
-fn broken(user: User) -> string {
+fn broken(user: User) => string {
 }
 ```
 
@@ -2029,7 +2061,7 @@ const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
 |----------|----------|-----------|
 | Syntax style | TS keywords + Gleam match/pipe | Familiar to React devs, 30min learning curve |
 | Function style | `fn` for named, `(x) => expr` for inline closures, `.field` for shorthand | One keyword, two closure forms, no overlap |
-| Arrow `->` | Match arms, return types, function types | `(T) -> U` for function types, `match x { A -> ... }` for match arms, `fn f() -> T` for return types |
+| Arrows `->` vs `=>` | `->` match arms only; `=>` everywhere else | `(T) => U` for function types, `fn f() => T` for return types, `match x { A -> ... }` for match arms |
 | `const name = (x) => ...` | Compile error | If it has a name, use `fn`. No two ways to name a function. |
 | Dot shorthand | `.field` in callback position creates implicit closure | Covers 80% of inline callbacks (filter, map, sort) |
 | Qualified variants | `Type.Variant` when ambiguous, bare when unambiguous | Compiler errors on ambiguous bare variants with helpful suggestion |

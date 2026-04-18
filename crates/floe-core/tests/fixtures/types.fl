@@ -1,14 +1,12 @@
-type User {
+type User = {
     id: string,
     name: string,
     email: string,
 }
 
-type Status {
-    | Active
+type Status = | Active
     | Inactive { reason: string }
     | Suspended(string)
     | Error(number, string)
-}
 
-type UserId(string)
+type UserId = UserId(string)

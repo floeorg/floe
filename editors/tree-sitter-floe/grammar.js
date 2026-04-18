@@ -121,7 +121,7 @@ module.exports = grammar({
         field("name", $.identifier),
         optional(field("type_parameters", $.type_parameters)),
         field("parameters", $.parameter_list),
-        optional(seq("->", field("return_type", $._type_expression))),
+        optional(seq("=>", field("return_type", $._type_expression))),
         optional(field("body", $.block)),
       ),
 
@@ -155,7 +155,7 @@ module.exports = grammar({
         field("name", choice($.identifier, $.type_identifier)),
         optional(field("type_parameters", $.type_parameters)),
         field("parameters", $.parameter_list),
-        optional(seq("->", field("return_type", $._type_expression))),
+        optional(seq("=>", field("return_type", $._type_expression))),
         field("body", $.block),
       ),
 
@@ -176,7 +176,7 @@ module.exports = grammar({
         "type",
         field("name", $.type_identifier),
         optional($.type_parameters),
-        optional("="),
+        "=",
         field("definition", $._type_definition),
         optional($.deriving_clause),
       ),
@@ -187,12 +187,23 @@ module.exports = grammar({
     _type_definition: ($) =>
       choice($.union_type_definition, $.newtype_definition, $.record_type, $._type_expression),
 
-    // Newtype with paren syntax: type UserId(string)
+    // Newtype with paren syntax: type UserId = UserId(string)
     newtype_definition: ($) =>
-      seq("(", commaSep1($._type_expression), ")"),
+      seq(
+        field("name", $.type_identifier),
+        "(",
+        commaSep1($._type_expression),
+        ")",
+      ),
 
     union_type_definition: ($) =>
-      prec.right(seq("|", $.variant, repeat(seq("|", $.variant)))),
+      prec.right(
+        seq(
+          optional("|"),
+          $.variant,
+          repeat1(seq("|", $.variant)),
+        ),
+      ),
 
     variant: ($) =>
       prec.right(1, seq(
@@ -255,11 +266,11 @@ module.exports = grammar({
 
     function_type: ($) =>
       seq(
-        "fn",
+        optional("fn"),
         "(",
         commaSep($._type_expression),
         ")",
-        "->",
+        "=>",
         $._type_expression,
       ),
 

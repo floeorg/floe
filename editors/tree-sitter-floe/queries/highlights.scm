@@ -85,6 +85,11 @@
 ; ── Arrow closure ────────────────────────────────────────
 (arrow_closure "=>" @operator)
 
+; ── Function type / return type arrow ─────────────────────
+(function_type "=>" @operator)
+(function_declaration "=>" @operator)
+(trait_method "=>" @operator)
+
 ; ── Dot shorthand ────────────────────────────────────────
 (dot_shorthand
   "." @punctuation.delimiter

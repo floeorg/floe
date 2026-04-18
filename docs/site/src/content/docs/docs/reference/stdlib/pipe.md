@@ -10,7 +10,7 @@ Utility functions for pipeline debugging and control flow.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `tap` | `T, (T) -> () -> T` | Call a function for side effects, return value unchanged |
+| `tap` | `T, (T) => () => T` | Call a function for side effects, return value unchanged |
 
 ## Examples
 

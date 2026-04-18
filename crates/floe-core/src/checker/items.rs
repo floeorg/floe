@@ -441,6 +441,25 @@ impl Checker {
             }
         }
 
+        for param in &decl.params {
+            if let Some(type_ann) = &param.type_ann
+                && matches!(type_ann.kind, TypeExprKind::Record(_))
+            {
+                let pascal = format!("{}{}", param.name[..1].to_uppercase(), &param.name[1..]);
+                self.emit_error_with_help(
+                    "inline record type in function signature",
+                    type_ann.span,
+                    ErrorCode::InlineRecordTypeInSignature,
+                    "anonymous record not allowed",
+                    format!(
+                        "declare a named type first, then reference it:\n    type T{pascal} = {{ ... }}\n    fn {fname}({pname}: T{pascal}) => ...",
+                        fname = decl.name,
+                        pname = param.name
+                    ),
+                );
+            }
+        }
+
         let return_type = decl
             .return_type
             .as_ref()

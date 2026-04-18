@@ -447,9 +447,9 @@ impl<'src> CstParser<'src> {
         false
     }
 
-    /// Heuristic: is the current `(` the start of a function type `(T) -> U`?
+    /// Heuristic: is the current `(` the start of a function type `(T) => U`?
     fn is_paren_function_type(&self) -> bool {
-        self.is_paren_followed_by(TokenKind::ThinArrow)
+        self.is_paren_followed_by(TokenKind::FatArrow)
     }
 
     /// Heuristic: is the current `(` the start of an arrow closure `(params) => body`?
@@ -711,12 +711,12 @@ mod tests {
 
     #[test]
     fn function_with_params() {
-        assert_no_errors("fn add(a: number, b: number) -> number { a + b }");
+        assert_no_errors("fn add(a: number, b: number) => number { a + b }");
     }
 
     #[test]
     fn function_with_promise_return() {
-        assert_no_errors("fn fetch(url: string) -> Promise<string> { url }");
+        assert_no_errors("fn fetch(url: string) => Promise<string> { url }");
     }
 
     #[test]
@@ -759,19 +759,19 @@ mod tests {
 
     #[test]
     fn export_type() {
-        assert_no_errors("export type Color { | Red | Green | Blue }");
+        assert_no_errors("export type Color = | Red | Green | Blue");
     }
 
     // ── Type declarations ─────────────────────────────────────────
 
     #[test]
     fn type_record() {
-        assert_no_errors("type User { name: string, age: number }");
+        assert_no_errors("type User = { name: string, age: number }");
     }
 
     #[test]
     fn type_union() {
-        assert_no_errors("type Color { | Red | Green | Blue }");
+        assert_no_errors("type Color = | Red | Green | Blue");
     }
 
     #[test]
@@ -788,7 +788,7 @@ mod tests {
     fn type_string_literal_union_rejected_in_braces() {
         // String literal unions are only valid in = type aliases (TS interop).
         // They must not be accepted inside { } type definitions.
-        let parse = cst_parse(r#"type Method { | "GET" | "POST" }"#);
+        let parse = cst_parse(r#"type Method = | "GET" | "POST""#);
         assert!(
             !parse.errors.is_empty(),
             "string literal union in {{ }} should produce parse errors"
@@ -802,17 +802,17 @@ mod tests {
 
     #[test]
     fn type_opaque() {
-        assert_no_errors("opaque type Id { string }");
+        assert_no_errors("opaque type Id = Id(string)");
     }
 
     #[test]
     fn type_generic() {
-        assert_no_errors("type Box<T> { value: T }");
+        assert_no_errors("type Box<T> = { value: T }");
     }
 
     #[test]
     fn type_exported() {
-        assert_no_errors("export type Point { x: number, y: number }");
+        assert_no_errors("export type Point = { x: number, y: number }");
     }
 
     // ── Expressions ───────────────────────────────────────────────
@@ -983,26 +983,26 @@ mod tests {
 
     #[test]
     fn fn_binding_form() {
-        assert_no_errors("fn add(a: number, b: number) -> number { a + b }\nfn inc = add(1, _)");
+        assert_no_errors("fn add(a: number, b: number) => number { a + b }\nfn inc = add(1, _)");
     }
 
     // ── For blocks ────────────────────────────────────────────────
 
     #[test]
     fn for_block_basic() {
-        assert_no_errors("for User { fn greet(self) -> string { self.name } }");
+        assert_no_errors("for User { fn greet(self) => string { self.name } }");
     }
 
     #[test]
     fn for_block_with_trait() {
-        assert_no_errors("for User: Display { fn show(self) -> string { self.name } }");
+        assert_no_errors("for User: Display { fn show(self) => string { self.name } }");
     }
 
     // ── Trait declarations ────────────────────────────────────────
 
     #[test]
     fn trait_basic() {
-        assert_no_errors("trait Display { fn show(self) -> string }");
+        assert_no_errors("trait Display { fn show(self) => string }");
     }
 
     // ── Test blocks ───────────────────────────────────────────────
@@ -1069,7 +1069,7 @@ mod tests {
 
     #[test]
     fn lossless_function() {
-        assert_lossless("fn add(a: number, b: number) -> number { a + b }");
+        assert_lossless("fn add(a: number, b: number) => number { a + b }");
     }
 
     #[test]
@@ -1094,7 +1094,7 @@ mod tests {
 
     #[test]
     fn lossless_for_block() {
-        assert_lossless("for User { fn greet(self) -> string { self.name } }");
+        assert_lossless("for User { fn greet(self) => string { self.name } }");
     }
 
     // ── CST node kind checks ──────────────────────────────────────

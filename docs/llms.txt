@@ -7,17 +7,18 @@ Floe is a programming language that compiles to TypeScript. It targets TypeScrip
 ## Core Syntax
 
 ```floe
-// Named functions use fn keyword with -> return type
-fn add(a: number, b: number) -> number {
+// Named functions use fn keyword with => return type.
+// Match arms use ->. Every other type-position arrow uses =>.
+fn add(a: number, b: number) => number {
     a + b
 }
 
 // Generic functions — type parameters after the function name
-fn identity<T>(x: T) -> T { x }
-fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }
+fn identity<T>(x: T) => T { x }
+fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) }
 
 // Exported function
-export fn greet(name: string) -> string {
+export fn greet(name: string) => string {
     `Hello, ${name}!`
 }
 
@@ -60,16 +61,28 @@ const names: Array<string> = ["a", "b", "c"]
 
 ## Types
 
+Every type declaration starts with `type Name = ...`. The RHS picks the kind:
+
+- `{ ... }` — record
+- `Variant | Variant | ...` — nominal tagged sum (leading `|` optional)
+- `Name(T)` — newtype (single-value wrapper)
+- `(Args) => Ret` — structural function-type alias
+- `OneOf<"a", "b">` / `Intersect<A, B>` — structural string-literal union / intersection
+- `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... — TS utility aliases
+
+A bare `|` of string literals (e.g. `type M = "a" | "b"`) is **E201** — use `OneOf<"a", "b">` instead.
+An inline record in a function signature (e.g. `fn f(x: { a: T })`) is **E202** — name the type.
+
 ```floe
 // Record type
-type User {
+type User = {
     id: string,
     name: string,
     email: string,
 }
 
 // Record type with default values
-type Config {
+type Config = {
     baseUrl: string,
     timeout: number = 5000,
     retries: number = 3,
@@ -79,7 +92,7 @@ type Config {
 // Config(baseUrl: "https://api.com", timeout: 10000) → overrides timeout
 
 // Settable<T> — three-state type for partial updates (PATCH-style)
-type UpdateUser {
+type UpdateUser = {
     name: Settable<string> = Unchanged,
     email: Settable<string> = Unchanged,
 }
@@ -87,100 +100,90 @@ type UpdateUser {
 // UpdateUser(name: Value("Ryan"), email: Clear)  → { name: "Ryan", email: null }
 // UpdateUser(name: Value("Ryan"))                → { name: "Ryan" }
 
-// Union type (discriminated)
+// Tagged sum type (nominal — `|` declares fresh constructors)
 // Positional fields use ( ), named fields use { }
 // Variant fields: `(Type, ...)` is positional-only (no field names);
 // `{ name: Type, ... }` is named-only. Mixing the two forms is a parse error.
-type Route {
+// The leading `|` is optional.
+type Route =
     | Home
     | Profile(string)
     | Settings { tab: string }
     | NotFound
-}
 
-// Union types can carry data
-type Validation {
-    | Valid(string)
-    | TooShort
-    | TooLong
-    | Empty
-}
+// Inline form is also fine
+type Validation = Valid(string) | TooShort | TooLong | Empty
 
-// Nested unions
-type NetworkError {
-    | Timeout(number)
-    | DnsFailure(string)
-}
+// Nested sums
+type NetworkError = Timeout(number) | DnsFailure(string)
 
-type ApiError {
+type ApiError =
     | Network(NetworkError)
     | NotFound
     | ServerError { status: number }
-}
 
 // Newtype (single-value wrapper) — parens mirror construction syntax
-type OrderId(number)
+type OrderId = OrderId(number)
+type UserId = UserId(string)
+type Email = Email(string)
 
-// Record type composition with spread
-type BaseProps {
+// Record composition with spread
+type BaseProps = {
     className: string,
     disabled: boolean,
 }
 
-type ButtonProps {
+type ButtonProps = {
     ...BaseProps,
-    onClick: () -> (),
+    onClick: () => (),
     label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
 
 // Multiple spreads
-type A { x: number }
-type B { y: string }
-type C { ...A, ...B, z: boolean }
+type A = { x: number }
+type B = { y: string }
+type C = { ...A, ...B, z: boolean }
 
-// Newtypes (single-variant wrappers)
-type UserId(string)
-type Email(string)
-
-// ── Floe types use { }, TS interop types use = ──────
+// Function-type alias (structural — just a type)
+type Handler = (Request) => Promise<Response>
+type Predicate<T> = (T) => boolean
 
 // Opaque types (only defining module can create/read)
-opaque type HashedPassword { string }
+opaque type HashedPassword = HashedPassword(string)
 
-// ── TS interop types (= syntax) ────────────────────
+// ── Structural string-literal unions / intersections ──
 
-// String literal union (for npm interop)
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
+// String-literal union via OneOf<>
+type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
+
+// Intersection via Intersect<>
+type AdminCard = Intersect<ButtonProps, { role: "admin" }>
 
 // String literal type arguments (for npm interop)
-// Used with React's ComponentProps, event emitters, etc.
 import { ComponentProps } from "react"
 type DivProps = ComponentProps<"div">
 
 // Spread with generic types and typeof (npm interop)
 import { tv, VariantProps } from "tailwind-variants"
 const variants = tv({ base: "rounded", variants: { size: { sm: "p-2" } } })
-type Props {
+type Props = {
     ...VariantProps<typeof variants>,
     className: string,
 }
 // Compiles to: type Props = VariantProps<typeof variants> & { className: string };
 
-// TS built-in utility types (usable in bridge `= type` aliases, no import needed)
-// Recognized: ReturnType, Parameters, ConstructorParameters, Awaited,
-//             Partial, Required, Readonly, Pick, Omit, NonNullable,
-//             Record, Extract, Exclude, InstanceType,
-//             Uppercase, Lowercase, Capitalize, Uncapitalize
-fn createDb(id: string) -> string { id }
+// TS built-in utility types (pass through unchanged; no import needed)
+// OneOf, Intersect, ReturnType, Parameters, ConstructorParameters, Awaited,
+// Partial, Required, Readonly, Pick, Omit, NonNullable,
+// Record, Extract, Exclude, InstanceType,
+// Uppercase, Lowercase, Capitalize, Uncapitalize
+fn createDb(id: string) => string { id }
 type Database = ReturnType<typeof createDb>
 type DbArgs = Parameters<typeof createDb>
 
-type User { name: string, email: string }
 type PartialUser = Partial<User>
 type ReadOnlyUser = Readonly<User>
-// These pass through to TS unchanged. Standalone `type X = typeof value`
-// (without a utility-type wrapper) still errors — use ReturnType/Parameters/etc.
 
 // Tuples
 const point: (number, number) = (10, 20)
@@ -221,7 +224,7 @@ result |> Result.mapErr(Validation)  // instead of Result.mapErr(fn(e) Validatio
 ```floe
 // Default: piped value becomes first argument (shorthand)
 users |> filter(.active) |> map(.name) |> sort
-// filter(users, .active) -> map(result, .name) -> sort(result)
+// filter(users, .active) => map(result, .name) => sort(result)
 
 const result = value
     |> multiply(2)       // multiply(value, 2)
@@ -279,10 +282,7 @@ match route {
 }
 
 // Match with guards
-type AgeGroup {
-    | Adult(number)
-    | Child(number)
-}
+type AgeGroup = Adult(number) | Child(number)
 match group {
     Adult(age) when age >= 65 -> "senior",
     Adult(age) -> "adult",
@@ -303,7 +303,7 @@ match status {
 }
 
 // Match on string literal union (exhaustive)
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
+type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 match method {
     "GET" -> "fetching",
     "POST" -> "creating",
@@ -352,7 +352,7 @@ match items {
 
 ```floe
 // Result<T, E> replaces exceptions
-fn divide(a: number, b: number) -> Result<number, string> {
+fn divide(a: number, b: number) => Result<number, string> {
     match b {
         0 -> Err("division by zero"),
         _ -> Ok(a / b),
@@ -366,14 +366,14 @@ match divide(10, 3) {
 }
 
 // ? operator for early return
-fn loadProfile(id: string) -> Result<Profile, Error> {
+fn loadProfile(id: string) => Result<Profile, Error> {
     const user = fetchUser(id)?        // returns Err early if it fails
     const posts = fetchPosts(user.id)?
     Ok(Profile(user, posts))
 }
 
 // Option<T> replaces null/undefined
-type User {
+type User = {
     name: string,
     nickname: Option<string>,
 }
@@ -399,7 +399,7 @@ error |> Option.toErr?              // bail if error exists
 const rows = data |> Option.unwrapOr([])
 
 // collect block — accumulate all errors instead of short-circuiting
-fn validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> {
+fn validateForm(input: FormInput) => Result<ValidForm, Array<ValidationError>> {
     collect {
         const name = input.name |> validateName?
         const email = input.email |> validateEmail?
@@ -423,7 +423,7 @@ result |> Result.orElse((e) => tryFallback(e))   // lazy fallback chain
 // Array helpers
 items |> Array.filterMap((x) => if_valid(x))     // map + filter in one pass (fn returns Option)
 items |> Array.partition(.active)                 // (active, inactive) — split by predicate
-nested |> Array.flatten                           // Array<Array<T>> -> Array<T>
+nested |> Array.flatten                           // Array<Array<T>> => Array<T>
 users |> Array.uniqueBy(.email)                   // deduplicate by key function (keeps first)
 ["a", "b", "c"] |> Array.indexOf("b")            // Some(1) — Option<number>, None if not found
 items |> Array.findLast(.done)                    // find from end
@@ -432,10 +432,10 @@ items |> Array.dropWhile(.done)                   // drop while predicate holds
 ["a", "b", "c"] |> Array.intersperse(", ")       // ["a", ", ", "b", ", ", "c"]
 
 // Promise helpers
-// Promise.await (or bare `await`): Promise<T> -> T (compiles to await, infers async on enclosing fn)
+// Promise.await (or bare `await`): Promise<T> => T (compiles to await, infers async on enclosing fn)
 // Functions using await must return Promise<T> (like ? requires Result<T, E>)
-// `async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type
-//   async fn fetchUser(id: number) -> Result<User, Error> { Http.get(url) |> await? |> parse<User> }
+// `async fn f() => T` is sugar for `fn f() => Promise<T>` — write the inner type
+//   async fn fetchUser(id: number) => Result<User, Error> { Http.get(url) |> await? |> parse<User> }
 // Emits TS `async function ...: Promise<T>`. Callers still use `|> await` to unwrap.
 const users = Promise.all([fetchUser(1), fetchUser(2)]) |> await
 const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> await
@@ -606,7 +606,7 @@ use data <- Result.guard(fetchResult, (e) => <ErrorPage error={e} />)
 ```floe
 // Block form — group multiple functions under a type
 for Array<Todo> {
-    export fn filterBy(self, f: Filter) -> Array<Todo> {
+    export fn filterBy(self, f: Filter) => Array<Todo> {
         match f {
             All -> self,
             Active -> self |> filter(.done == false),
@@ -614,13 +614,13 @@ for Array<Todo> {
         }
     }
 
-    export fn remaining(self) -> number {
+    export fn remaining(self) => number {
         self |> filter(.done == false) |> length
     }
 }
 
 for string {
-    export fn validate(self) -> Validation {
+    export fn validate(self) => Validation {
         const trimmed = self |> trim
         const len = trimmed |> String.length
         match len {
@@ -638,8 +638,8 @@ todos |> filterBy(Filter.Active)
 
 // Block-level export — exports every method in the block
 export for User {
-    fn display(self) -> string { self.name }
-    fn shout(self) -> string { self.name |> String.toUpperCase }
+    fn display(self) => string { self.name }
+    fn shout(self) => string { self.name |> String.toUpperCase }
 }
 ```
 
@@ -648,20 +648,20 @@ export for User {
 ```floe
 // Define a trait
 trait Display {
-    fn display(self) -> string
+    fn display(self) => string
 }
 
 // Traits can have default implementations
 trait Eq {
-    fn eq(self, other: Self) -> boolean
-    fn neq(self, other: Self) -> boolean {
+    fn eq(self, other: Self) => boolean
+    fn neq(self, other: Self) => boolean {
         !(self |> eq(other))
     }
 }
 
 // Implement a trait
 for User: Display {
-    fn display(self) -> string {
+    fn display(self) => string {
         `${self.name} (${self.age})`
     }
 }
@@ -669,17 +669,17 @@ for User: Display {
 // `export for` exports every method in the block at once — the natural
 // shape for trait impls where all methods are part of the contract
 export for User: Display {
-    fn display(self) -> string {
+    fn display(self) => string {
         `${self.name} (${self.age})`
     }
 }
 
 // Auto-derive traits for record types (only Display — Eq is built-in via ==)
-type Point {
+type Point = {
     x: number,
     y: number,
 } deriving (Display)
-// Generates display(self) -> string
+// Generates display(self) => string
 ```
 
 ## JSX / React Components
@@ -687,13 +687,13 @@ type Point {
 ```floe
 import { useState } from "react"
 
-type Todo {
+type Todo = {
     id: string,
     text: string,
     done: boolean,
 }
 
-export fn App() -> JSX.Element {
+export fn App() => JSX.Element {
     const (todos, setTodos) = useState<Array<Todo>>([])
     const (input, setInput) = useState("")
 
@@ -742,7 +742,7 @@ export fn App() -> JSX.Element {
 // Replaces the TS pattern {x && <Comp />} without truthiness pitfalls
 
 // JSX spread attributes — forward all props
-export fn Card(props: CardProps) -> JSX.Element {
+export fn Card(props: CardProps) => JSX.Element {
     <div {...props} className="card" />
 }
 
@@ -755,7 +755,7 @@ export fn Card(props: CardProps) -> JSX.Element {
 ## Tests
 
 ```floe
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 
 test "addition" {
     assert add(1, 2) == 3
@@ -767,7 +767,7 @@ test "addition" {
 
 ```floe
 // todo — placeholder, type never, warns at compile time
-fn processPayment(order: Order) -> Result<Receipt, Error> {
+fn processPayment(order: Order) => Result<Receipt, Error> {
     todo    // panics with "not implemented" at runtime
 }
 
@@ -793,19 +793,19 @@ match key {
 | `? :` (ternary) | `match` expression |
 | `?.` (optional chain) | `match` on `Option` or `?` |
 | `??` (nullish coalesce) | `Option.unwrapOr` |
-| `=>` (arrow function) | `(x) => expr` closure; function types use `->`: `(T) -> U` |
+| `=>` (arrow function) | `(x) => expr` closure; function types also use `=>`: `(T) => U` |
 | `function` keyword | `fn` |
 | `void` | Unit type `()` |
 | `as` (type assertion) | Type guards or `match` |
 | `return` | Implicit returns — last expression is the return value |
-| `async`/`await` | `\|> await` (or `\|> Promise.await`); return type `Promise<T>` or `async fn f() -> T` (sugar) |
+| `async`/`await` | `\|> await` (or `\|> Promise.await`); return type `Promise<T>` or `async fn f() => T` (sugar) |
 
 ## Compilation Examples
 
 | Floe | TypeScript Output |
 |------|-------------------|
-| `fn f(x: number) -> number { x }` | `function f(x: number): number { return x; }` |
-| `fn f<T>(x: T) -> T { x }` | `function f<T>(x: T): T { return x; }` |
+| `fn f(x: number) => number { x }` | `function f(x: number): number { return x; }` |
+| `fn f<T>(x: T) => T { x }` | `function f<T>(x: T): T { return x; }` |
 | `a \|> f(b)` | `f(a, b)` |
 | `a \|> f(b, _, c)` | `f(b, a, c)` |
 | `a \|> match { 1 -> "one", _ -> "other" }` | `match a { ... }` (desugared) |
@@ -822,7 +822,7 @@ match key {
 | `(1, 2)` | `[1, 2] as const` |
 | `()` (unit) | `undefined` |
 | `expr \|> await` | `await expr` (enclosing fn inferred `async`) |
-| `async fn f() -> T { body }` | `async function f(): Promise<T> { return body; }` |
+| `async fn f() => T { body }` | `async function f(): Promise<T> { return body; }` |
 | `` tag`a ${x} b` `` | `` tag`a ${x} b` `` (byte-identical tagged template — passes a `TemplateStringsArray` to `tag`) |
 
 ## CLI Commands

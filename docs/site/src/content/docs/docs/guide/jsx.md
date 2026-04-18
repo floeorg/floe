@@ -9,7 +9,7 @@ Floe supports JSX natively. Write React components with Floe's type system.
 ```floe
 import { useState } from "react"
 
-export fn Counter() -> JSX.Element {
+export fn Counter() => JSX.Element {
   const (count, setCount) = useState(0)
 
   <div>
@@ -26,11 +26,11 @@ Components are exported `fn` declarations with a `JSX.Element` return type. The 
 ```floe
 type ButtonProps {
   label: string,
-  onClick: () -> (),
+  onClick: () => (),
   disabled: boolean,
 }
 
-export fn Button(props: ButtonProps) -> JSX.Element {
+export fn Button(props: ButtonProps) => JSX.Element {
   <button
     onClick={props.onClick}
     disabled={props.disabled}
@@ -81,7 +81,7 @@ Use pipes with `map`:
 Forward all props to a child element:
 
 ```floe
-export fn Card(props: CardProps) -> JSX.Element {
+export fn Card(props: CardProps) => JSX.Element {
     <div {...props} className="card" />
 }
 ```
@@ -95,7 +95,7 @@ Compound component patterns using dot notation are supported:
 ```floe
 import { Select, ListBox } from "ui"
 
-export fn Picker() -> JSX.Element {
+export fn Picker() => JSX.Element {
     <Select>
         <Select.Trigger>Choose...</Select.Trigger>
         <Select.Value />

@@ -97,13 +97,7 @@ impl<'src> CstParser<'src> {
         self.parse_comma_separated(Self::parse_type_expr, TokenKind::RightParen);
         self.expect(TokenKind::RightParen);
         self.eat_trivia();
-        // Accept -> for function types; give helpful error if user writes =>
-        if self.at(TokenKind::FatArrow) {
-            self.error("function types use `->` not `=>`: write `(T) -> U`");
-            self.bump(); // consume => anyway to recover
-        } else {
-            self.expect(TokenKind::ThinArrow);
-        }
+        self.expect(TokenKind::FatArrow);
         self.eat_trivia();
         self.parse_type_expr();
     }

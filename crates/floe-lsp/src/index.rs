@@ -217,7 +217,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                 let ret = decl
                     .return_type
                     .as_ref()
-                    .map(|t| format!(" -> {}", type_expr_to_string(t)))
+                    .map(|t| format!(" => {}", type_expr_to_string(t)))
                     .unwrap_or_default();
 
                 let type_params = if decl.type_params.is_empty() {
@@ -269,8 +269,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     format!("<{}>", decl.type_params.join(", "))
                 };
 
-                // Build detailed type body for hover
-                let body = match &decl.def {
+                let (body, kind_tag) = match &decl.def {
                     TypeDef::Record(entries) => {
                         let members: Vec<String> = entries
                             .iter()
@@ -287,11 +286,12 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                                 }
                             })
                             .collect();
-                        if members.is_empty() {
-                            " {}".to_string()
+                        let body = if members.is_empty() {
+                            " = {}".to_string()
                         } else {
-                            format!(" {{\n{},\n}}", members.join(",\n"))
-                        }
+                            format!(" = {{\n{},\n}}", members.join(",\n"))
+                        };
+                        (body, "[record — nominal]".to_string())
                     }
                     TypeDef::Union(variants) => {
                         let vs: Vec<String> = variants
@@ -319,15 +319,23 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                                 }
                             })
                             .collect();
-                        format!("\n{}", vs.join("\n"))
+                        let body = format!(" =\n{}", vs.join("\n"));
+                        let tag = if variants.len() == 1 && variants[0].name == decl.name {
+                            "[newtype — nominal]".to_string()
+                        } else {
+                            format!("[sum — nominal, {} variants]", variants.len())
+                        };
+                        (body, tag)
                     }
                     TypeDef::Alias(ty) => {
-                        format!(" = {}", type_expr_to_string(ty))
+                        let body = format!(" = {}", type_expr_to_string(ty));
+                        (body, alias_kind_tag(ty))
                     }
                     TypeDef::StringLiteralUnion(variants) => {
                         let vs: Vec<String> =
                             variants.iter().map(|v| format!("\"{}\"", v)).collect();
-                        format!(" = {}", vs.join(" | "))
+                        let body = format!(" = {}", vs.join(" | "));
+                        (body, "[union — structural]".to_string())
                     }
                 };
 
@@ -337,7 +345,10 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     start: item.span.start,
                     end: item.span.end,
                     import_source: None,
-                    detail: format!("{vis}{opaque}type {}{type_params}{body}", decl.name),
+                    detail: format!(
+                        "{vis}{opaque}type {}{type_params}{body}\n{kind_tag}",
+                        decl.name
+                    ),
                     first_param_type: None,
                     owner_type: None,
                     variant_shape: None,
@@ -702,6 +713,20 @@ fn format_param(p: &TypedParam) -> String {
     s
 }
 
+pub(super) fn alias_kind_tag<T>(ty: &TypeExpr<T>) -> String {
+    match &ty.kind {
+        TypeExprKind::Named { name, .. } if name == floe_core::type_layout::TYPE_ONE_OF => {
+            "[union — structural]".to_string()
+        }
+        TypeExprKind::Named { name, .. } if name == floe_core::type_layout::TYPE_INTERSECT => {
+            "[intersection — structural]".to_string()
+        }
+        TypeExprKind::Function { .. } => "[function — structural]".to_string(),
+        TypeExprKind::Intersection(_) => "[intersection — structural]".to_string(),
+        _ => "[alias — structural]".to_string(),
+    }
+}
+
 pub(super) fn type_expr_to_string<T>(ty: &TypeExpr<T>) -> String {
     match &ty.kind {
         TypeExprKind::Named {
@@ -772,13 +797,13 @@ fn for_block_function_symbol<T>(
         })
         .collect();
 
-    // Same-file for-blocks use `fn name(...) -> R`; cross-file imports
+    // Same-file for-blocks use `fn name(...) => R`; cross-file imports
     // render as `fn name(...): R (from "source")` to match the TS-import
     // style hover. The two sites chose different separators historically
     // — keep that contract rather than changing user-visible hover output.
     let (ret_sep, source_suffix) = match &import_source {
         Some(src) => (": ", format!(" (from \"{src}\")")),
-        None => (" -> ", String::new()),
+        None => (" => ", String::new()),
     };
     let ret = func
         .return_type
@@ -838,12 +863,14 @@ fn enrich_symbol(
             sym.detail = format!("{}: {inferred}", sym.detail);
         }
     } else if sym.kind == SymbolKind::FUNCTION
-        && !sym.detail.contains("->")
+        && !sym.detail.contains("=>")
         && let Some(inferred) = name_types.get(&sym.name)
-        && let Some((_, ret)) = inferred.rsplit_once(" -> ")
+        && let Some((_, ret)) = inferred
+            .rsplit_once(" -> ")
+            .or_else(|| inferred.rsplit_once(" => "))
         && !ret.contains("?T")
     {
-        sym.detail = format!("{} -> {ret}", sym.detail);
+        sym.detail = format!("{} => {ret}", sym.detail);
     }
 
     // Typed fields — only meaningful for functions, and only if the

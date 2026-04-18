@@ -10,7 +10,7 @@ Immutable key-value map operations. All functions return new maps -- they never 
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Map.empty` | `() -> Map<K, V>` | Create an empty map |
+| `Map.empty` | `() => Map<K, V>` | Create an empty map |
 | `Map.fromArray` | `Array<(K, V)> -> Map<K, V>` | Create a map from key-value pairs |
 | `Map.get` | `Map<K, V>, K -> Option<V>` | Look up a value by key |
 | `Map.set` | `Map<K, V>, K, V -> Map<K, V>` | Add or update a key-value pair |

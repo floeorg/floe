@@ -130,7 +130,7 @@ mod tests {
     fn analyses_populate_reference_tracker() {
         let m = analyse_module(
             r#"
-fn greet(n: string) -> string { n }
+fn greet(n: string) => string { n }
 const _a = greet("a")
 "#,
             ModuleInputs::default(),

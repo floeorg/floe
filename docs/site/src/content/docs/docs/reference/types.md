@@ -25,28 +25,33 @@ title: Types Reference
 
 ## Type Declarations
 
-Floe has two forms of type declaration:
+Every type declaration starts with `type Name = RHS`. The shape of the RHS picks the kind:
 
-| Syntax | Meaning | Used for |
-|---|---|---|
-| `type Name { ... }` | Define a new Floe type | Records, unions, newtypes, opaque types |
-| `type Name = ...` | Alias a TypeScript type | TS interop aliases, string literal unions, `&` intersections |
+| RHS | Kind |
+|---|---|
+| `{ field: T, ... }` | Record |
+| `A \| B \| ...` (constructors) | Tagged sum (nominal — declares fresh constructors) |
+| `Name(T)` | Newtype (single-value wrapper) |
+| `(Args) => Ret` | Function-type alias (structural) |
+| `OneOf<"a", "b", ...>` | Structural string-literal union |
+| `Intersect<A, B, ...>` | Structural intersection |
+| `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... | TS utility alias (pass-through) |
 
-## Floe Types (`{ }` syntax)
+`|` at the top level of a `type` declaration is **always nominal**. For a structural union of string literals, use `OneOf<>`.
 
-### Record Types
+## Records
 
 Named product types with fields:
 
 ```floe
-type User {
+type User = {
   name: string,
   email: string,
   age: number,
 }
 ```
 
-Compiles to TypeScript `type`:
+Compiles to:
 
 ```typescript
 type User = {
@@ -58,10 +63,10 @@ type User = {
 
 ### Default Field Values
 
-Record fields can have default values, which are used when the field is omitted at construction:
+Record fields can have default values, used when the field is omitted at construction:
 
 ```floe
-type Config {
+type Config = {
   baseUrl: string,
   timeout: number = 5000,
   retries: number = 3,
@@ -71,31 +76,29 @@ const cfg = Config(baseUrl: "https://api.com")
 // timeout is 5000, retries is 3
 ```
 
-### Record Type Composition
+### Record Composition
 
 Include fields from other record types using `...` spread:
 
 ```floe
-type BaseProps {
+type BaseProps = {
   className: string,
   disabled: boolean,
 }
 
-type ButtonProps {
+type ButtonProps = {
   ...BaseProps,
-  onClick: () -> (),
+  onClick: () => (),
   label: string,
 }
 ```
 
-Compiles to TypeScript intersection:
+Compiles to a TypeScript intersection:
 
 ```typescript
 type BaseProps = { className: string; disabled: boolean };
 type ButtonProps = BaseProps & { onClick: () => void; label: string };
 ```
-
-Multiple spreads are allowed. Field name conflicts are compile errors.
 
 Spreads work with generic types, `typeof`, and npm imports:
 
@@ -104,31 +107,27 @@ import { tv, VariantProps } from "tailwind-variants"
 
 const cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
 
-type CardProps {
+type CardProps = {
   ...VariantProps<typeof cardVariants>,
   className: string,
 }
 ```
 
-Compiles to:
+## Tagged Sums
 
-```typescript
-type CardProps = VariantProps<typeof cardVariants> & { className: string };
-```
-
-### Union Types
-
-Tagged discriminated unions. Positional fields use `( )`, named fields use `{ }`:
+Nominal discriminated unions. The leading `|` is optional. Positional fields use `( )`, named fields use `{ }`:
 
 ```floe
-type Shape {
-  | Circle(number)                          // positional
-  | Rectangle { width: number, height: number }  // named
+type Shape =
+  | Circle(number)
+  | Rectangle { width: number, height: number }
   | Point
-}
+
+// Inline form
+type Filter = All | Active | Completed
 ```
 
-Compiles to TypeScript discriminated union:
+Compiles to a TypeScript discriminated union:
 
 ```typescript
 type Shape =
@@ -139,44 +138,48 @@ type Shape =
 
 Positional: single field uses `value`, multiple use `_0`, `_1`. Named fields keep their names.
 
-### Newtypes
+## Newtypes
 
 Single-variant wrappers that are distinct at compile time but erase to their base type at runtime:
 
 ```floe
-type UserId(string)
-type PostId(string)
+type UserId = UserId(string)
+type PostId = PostId(string)
 ```
 
-`UserId` and `PostId` are both `string` at runtime, but the compiler prevents mixing them up.
+`UserId` and `PostId` are both `string` at runtime, but the compiler prevents mixing them up. The constructor name typically matches the type name.
 
-### Opaque Types
+## Opaque Types
 
 Types where internals are hidden from other modules:
 
 ```floe
-opaque type Email { string }
+opaque type Email = Email(string)
 ```
 
 Only code in the module that defines `Email` can construct or destructure it. Other modules see it as an opaque blob.
 
-## TS Bridge Types (`=` syntax)
+## Function-Type Aliases
 
-### String Literal Unions
-
-String literal unions for npm interop:
+Structural function types. Use `=>` between the parameter list and return type:
 
 ```floe
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
+type Handler = (Request) => Promise<Response>
+type Predicate<T> = (T) => boolean
+type Reducer<S, A> = (S, A) => S
 ```
 
-Compiles to the same TypeScript type (pass-through):
+## Structural String-Literal Unions (`OneOf<>`)
 
-```typescript
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+For npm interop and config values:
+
+```floe
+type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 ```
 
-Match arms use string comparisons instead of tag checks:
+Compiles to `type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"`.
+
+Match arms use string comparisons:
 
 ```floe
 match method {
@@ -187,23 +190,28 @@ match method {
 }
 ```
 
-Exhaustiveness is checked -- missing a variant is a compile error.
+Exhaustiveness is checked. Writing `type M = "a" | "b"` with a bare `|` is a compile error (**E201**) — use `OneOf<"a", "b">`.
 
-### Type Aliases
+## Structural Intersections (`Intersect<>`)
+
+Combine types structurally:
+
+```floe
+type AdminCard = Intersect<ButtonProps, { role: "admin" }>
+type CardProps = Intersect<VariantProps<typeof variants>, { className: string }>
+```
+
+Compiles to `A & B`. For Floe-native record composition, prefer `...Spread` in a `{ }` record body.
+
+## Type Aliases (TS utilities)
 
 ```floe
 type DivProps = ComponentProps<"div">
+type PartialUser = Partial<User>
+type UserKeys = Pick<User, "name" | "email">
 ```
 
-### Intersections
-
-Combine TypeScript types with `&` (only valid in `=` declarations):
-
-```floe
-type CardProps = VariantProps<typeof variants> & { className: string }
-```
-
-For Floe-native record composition, use `...Spread` in `{ }` definitions instead.
+Recognized utilities pass through unchanged: `OneOf`, `Intersect`, `Partial`, `Required`, `Readonly`, `Pick`, `Omit`, `NonNullable`, `Record`, `Extract`, `Exclude`, `ReturnType`, `Parameters`, `ConstructorParameters`, `Awaited`, `InstanceType`, `Uppercase`, `Lowercase`, `Capitalize`, `Uncapitalize`.
 
 ## Type Expressions
 
@@ -217,21 +225,24 @@ Array<number>
 Result<User, Error>
 Option<string>
 
-// Function
-(number, number) -> number
-
-// Record (inline)
-{ name: string, age: number }
-
-// Array
-Array<T>
+// Function (structural)
+(number, number) => number
 
 // Tuple
 (string, number)
 
-// String literal (for npm interop)
+// String literal argument (for npm interop)
 ComponentProps<"div">
 ```
+
+Inline record types (`{ a: T }`) are allowed inside generics and value positions but **not** directly in function signatures — that is a compile error (**E202**). Name the type instead.
+
+## Errors
+
+| Code | Trigger | Fix |
+|---|---|---|
+| `E201` | Bare string-literal union (`type M = "a" \| "b"`) | Use `OneOf<"a", "b">` |
+| `E202` | Inline record in a function signature (`fn f(x: { a: T })`) | Name the type: `type Arg = { a: T }` then `fn f(x: Arg)` |
 
 ## Differences from TypeScript
 
@@ -239,6 +250,9 @@ ComponentProps<"div">
 |------------|----------------|
 | `any` | `unknown` + pattern matching |
 | `null`, `undefined` | `Option<T>` with `None` |
-| `enum` | Union types |
+| `enum` | Tagged sums |
 | `interface` | `type` |
 | `void` | Unit type `()` |
+| `(x: T) => U` (in types) | `(T) => U` |
+| `"a" \| "b"` (string literal union) | `OneOf<"a", "b">` |
+| `A & B` | `Intersect<A, B>` (or `...Spread` in record composition) |

@@ -7,9 +7,47 @@ import { for Product, for Array, sortProducts, matchesPrice, formatPrice } from 
 import { for ApiError } from "../errors"
 import { fetchProducts, fetchCategories, CategoryResponse } from "../api"
 
+// ── Prop types ─────────────────────────────────────────
+
+type ProductCardProps = {
+    product: Product,
+    onAddToCart: (Product) => (),
+}
+
+type FilterSidebarProps = {
+    categories: Array<CategoryResponse>,
+    selectedCategory: string,
+    onCategoryChange: (string) => (),
+    priceRange: PriceRange,
+    onPriceRangeChange: (PriceRange) => (),
+    sortOrder: SortOrder,
+    onSortChange: (SortOrder) => (),
+}
+
+type CategoryListProps = {
+    selectedCategory: string,
+    onCategoryChange: (string) => (),
+    priceRange: PriceRange,
+    onPriceRangeChange: (PriceRange) => (),
+    sortOrder: SortOrder,
+    onSortChange: (SortOrder) => (),
+}
+
+type ProductGridProps = {
+    category: string,
+    search: string,
+    sortOrder: SortOrder,
+    priceRange: PriceRange,
+    onAddToCart: (Product) => (),
+}
+
+type CatalogPageProps = {
+    onAddToCart: (Product) => (),
+}
+
 // ── Product card ───────────────────────────────────────
 
-fn ProductCard(props: { product: Product, onAddToCart: (Product) -> () }) -> JSX.Element {
+fn ProductCard(props: ProductCardProps) => JSX.Element {
     const product = props.product
     const hasDiscount = product.discountPercentage > 0
 
@@ -87,9 +125,7 @@ fn ProductCard(props: { product: Product, onAddToCart: (Product) -> () }) -> JSX
 
 // ── Filter sidebar ─────────────────────────────────────
 
-fn FilterSidebar(
-    props: { categories: Array<CategoryResponse>, selectedCategory: string, onCategoryChange: (string) -> (), priceRange: PriceRange, onPriceRangeChange: (PriceRange) -> (), sortOrder: SortOrder, onSortChange: (SortOrder) -> () },
-) -> JSX.Element {
+fn FilterSidebar(props: FilterSidebarProps) => JSX.Element {
     const priceRanges: Array<(string, PriceRange)> = [
         ("All Prices", Any),
         ("Under $25", Under(25)),
@@ -186,9 +222,7 @@ fn FilterSidebar(
 
 // ── Category loader ────────────────────────────────────
 
-fn CategoryList(
-    props: { selectedCategory: string, onCategoryChange: (string) -> (), priceRange: PriceRange, onPriceRangeChange: (PriceRange) -> (), sortOrder: SortOrder, onSortChange: (SortOrder) -> () },
-) -> JSX.Element {
+fn CategoryList(props: CategoryListProps) => JSX.Element {
     const { data } = useSuspenseQuery(
         {
         queryKey: ["categories"],
@@ -214,9 +248,7 @@ fn CategoryList(
 
 // ── Product grid ───────────────────────────────────────
 
-fn ProductGrid(
-    props: { category: string, search: string, sortOrder: SortOrder, priceRange: PriceRange, onAddToCart: (Product) -> () },
-) -> JSX.Element {
+fn ProductGrid(props: ProductGridProps) => JSX.Element {
     const { data } = useSuspenseQuery(
         {
         queryKey: ["products", props.category, props.search],
@@ -250,7 +282,7 @@ fn ProductGrid(
 
 // ── Skeletons ──────────────────────────────────────────
 
-fn CatalogSkeleton() -> JSX.Element {
+fn CatalogSkeleton() => JSX.Element {
     <div
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
     >
@@ -269,7 +301,7 @@ fn CatalogSkeleton() -> JSX.Element {
     </div>
 }
 
-fn SidebarSkeleton() -> JSX.Element {
+fn SidebarSkeleton() => JSX.Element {
     <div className="w-64 shrink-0 animate-pulse space-y-4">
         <div className="h-4 w-20 rounded bg-zinc-800" />
         <div className="space-y-2">
@@ -283,7 +315,7 @@ fn SidebarSkeleton() -> JSX.Element {
 // ── Main catalog page ──────────────────────────────────
 // Uses `use` to flatten Suspense/ErrorBoundary nesting.
 
-export fn CatalogPage(props: { onAddToCart: (Product) -> () }) -> JSX.Element {
+export fn CatalogPage(props: CatalogPageProps) => JSX.Element {
     const (category, setCategory) = useState("")
     const (search, setSearch) = useState("")
     const (sortOrder, setSortOrder) = useState<SortOrder>(Rating)

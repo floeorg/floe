@@ -38,10 +38,12 @@ pub const TYPE_PROMISE: &str = "Promise";
 pub const TYPE_MAP: &str = "Map";
 pub const TYPE_SET: &str = "Set";
 pub const TYPE_JSX_ELEMENT: &str = "JSX.Element";
+pub const TYPE_ONE_OF: &str = "OneOf";
+pub const TYPE_INTERSECT: &str = "Intersect";
 
 /// TypeScript built-in utility types that Floe passes through to TS unchanged.
 /// These have no runtime representation in Floe — they're type-level operations
-/// that TS handles at compile time. Used by bridge (`= type`) aliases so
+/// that TS handles at compile time. Used by structural aliases so
 /// `type Database = ReturnType<typeof createDb>` is accepted without needing
 /// to import `ReturnType` from anywhere.
 pub const TS_UTILITY_TYPES: &[&str] = &[
@@ -68,7 +70,11 @@ pub const TS_UTILITY_TYPES: &[&str] = &[
 ];
 
 pub fn is_ts_utility_type(name: &str) -> bool {
-    TS_UTILITY_TYPES.contains(&name)
+    TS_UTILITY_TYPES.contains(&name) || is_floe_native_utility_type(name)
+}
+
+pub fn is_floe_native_utility_type(name: &str) -> bool {
+    matches!(name, TYPE_ONE_OF | TYPE_INTERSECT)
 }
 
 /// Returns true if the name is a built-in type (not user-defined or npm).

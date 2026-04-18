@@ -9,11 +9,11 @@ sidebar:
 ```floe
 const name = "Alice"
 
-fn greet(name: string) -> string {
+fn greet(name: string) => string {
     `Hello, ${name}!`
 }
 
-fn identity<T>(x: T) -> T { x }
+fn identity<T>(x: T) => T { x }
 ```
 
 ## Pipes
@@ -64,7 +64,7 @@ type UserId { string }   // newtype
 ## Error Handling
 
 ```floe
-fn loadProfile(id: string) -> Result<Profile, Error> {
+fn loadProfile(id: string) => Result<Profile, Error> {
     const user = fetchUser(id)?       // ? returns Err early
     const posts = fetchPosts(user.id)?
 
@@ -81,21 +81,21 @@ match user.nickname {
 
 ```floe
 for Array<Todo> {
-    export fn remaining(self) -> number {
+    export fn remaining(self) => number {
         self |> filter(.done == false) |> length
     }
 }
 
-trait Display { fn display(self) -> string }
+trait Display { fn display(self) => string }
 for User: Display {
-    fn display(self) -> string { `${self.name} (${self.email})` }
+    fn display(self) => string { `${self.name} (${self.email})` }
 }
 ```
 
 ## JSX
 
 ```floe
-export fn Counter() -> JSX.Element {
+export fn Counter() => JSX.Element {
     const (count, setCount) = useState(0)
 
     <div>
@@ -114,7 +114,7 @@ const data = parseYaml(input)?              // auto-wrapped in Result, ? unwraps
 import trusted { useState } from "react"    // trusted = direct call, no wrapping
 import { for Array } from "./helpers"       // import for-block extensions
 
-fn fetchUser(id: string) -> Promise<Result<User, Error>> {
+fn fetchUser(id: string) => Promise<Result<User, Error>> {
     const response = Http.get(`/api/users/${id}`) |> Promise.await?
     const user = response |> Http.json |> Promise.await?
 
@@ -125,7 +125,7 @@ fn fetchUser(id: string) -> Promise<Result<User, Error>> {
 ## Tests
 
 ```floe
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 
 test "addition" {
     assert add(1, 2) == 3
@@ -136,6 +136,6 @@ test "addition" {
 ## Placeholders
 
 ```floe
-fn processPayment(order: Order) -> Result<Receipt, Error> { todo }
+fn processPayment(order: Order) => Result<Receipt, Error> { todo }
 match direction { "north" -> go(0, 1), _ -> unreachable }
 ```

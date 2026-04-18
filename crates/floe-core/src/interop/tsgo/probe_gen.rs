@@ -112,7 +112,7 @@ pub(super) fn generate_probe(
         }
     }
 
-    // Collect npm imports from resolved .fl modules so bridge type aliases
+    // Collect npm imports from resolved .fl modules so structural type aliases
     // (e.g. `type Database = DrizzleD1Database<Schema>`) are resolvable in the probe.
     // Keyed by specifier for deduplication; NOT added to `imported_names` so they
     // don't produce `_rN` re-exports and don't perturb the specifier_map index.
@@ -139,7 +139,7 @@ pub(super) fn generate_probe(
         }
     }
     // Build set of Floe-defined type names for param_type_map lookup.
-    // Allows chain probes for parameters typed as Floe bridge types
+    // Allows chain probes for parameters typed as Floe structural aliass
     // (e.g. db: Database where Database is `type Database = DrizzleType`).
     let fl_type_names: HashSet<&str> = program
         .items
@@ -191,7 +191,7 @@ pub(super) fn generate_probe(
         ));
     }
 
-    // Emit npm imports from resolved .fl modules (for bridge type resolution).
+    // Emit npm imports from resolved .fl modules (for structural alias resolution).
     // These are type-only context imports; they don't produce _rN re-exports.
     for (specifier, names) in &fl_module_npm_imports {
         lines.push(format!(

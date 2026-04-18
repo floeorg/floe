@@ -56,11 +56,16 @@ capitalize("hello")             // direct call, no wrapping (trusted)
 const data = fetchData()        // Result<T, Error> — auto-wrapped (untrusted)
 ```
 
-## Bridge types (`=` syntax)
+## Bridging TypeScript types
 
-When you need to reference TypeScript types, Floe uses the `=` syntax. This is distinct from `{ }` which creates new Floe types. See [Types](/docs/guide/types/#two-kinds-of-type-declarations) for the full mental model.
+Every Floe type declaration has the shape `type Name = RHS`. For interop with TypeScript libraries, two utility types bridge the structural operators TS uses:
 
-### String literal unions
+- `OneOf<A, B, ...>` compiles to `A | B | ...`
+- `Intersect<A, B, ...>` compiles to `A & B & ...`
+
+Plain aliases and TS utility types (`Partial`, `Pick`, `ReturnType`, ...) work directly on the RHS.
+
+### String-literal unions
 
 Many TypeScript libraries use string literal unions for configuration and options:
 
@@ -72,12 +77,12 @@ type HTMLInputTypeAttribute = "text" | "password" | "email" | "number";
 type Method = "GET" | "POST" | "PUT" | "DELETE";
 ```
 
-Floe supports these natively:
+In Floe, wrap them in `OneOf<>`:
 
 ```floe
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
+type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 
-fn describe(method: HttpMethod) -> string {
+fn describe(method: HttpMethod) => string {
     match method {
         "GET" -> "fetching",
         "POST" -> "creating",
@@ -87,23 +92,51 @@ fn describe(method: HttpMethod) -> string {
 }
 ```
 
-The match is exhaustive -- if you miss a variant, the compiler tells you. The type compiles directly to the same TypeScript string union (no tags, no wrapping).
+The match is exhaustive -- if you miss a variant, the compiler tells you. The type compiles directly to a TypeScript string union (no tags, no wrapping).
 
-### Type aliases and intersections
+Writing a bare string-literal union (`type M = "a" | "b"`) is a compile error (**E201**). Top-level `|` always declares nominal variants in Floe; `OneOf<>` is how you ask for the structural form.
 
-Alias TypeScript types or combine them with `&`:
+### Type aliases
+
+Alias TypeScript types with plain `=`:
 
 ```floe
 import { ComponentProps } from "react"
-import { tv, VariantProps } from "tailwind-variants"
 
 type DivProps = ComponentProps<"div">
-
-const cardVariants = tv({ base: "rounded-xl", variants: { size: { sm: "p-2" } } })
-type CardProps = VariantProps<typeof cardVariants> & { className: string }
+type PartialUser = Partial<User>
+type UserKeys = Pick<User, "name" | "email">
 ```
 
-`&` intersections are only valid in `=` declarations. For Floe-native record composition, use `...Spread` in `{ }` definitions.
+### Intersections
+
+Combine TypeScript types with `Intersect<>`:
+
+```floe
+import { tv, VariantProps } from "tailwind-variants"
+
+const cardVariants = tv({ base: "rounded-xl", variants: { size: { sm: "p-2" } } })
+type CardProps = Intersect<VariantProps<typeof cardVariants>, { className: string }>
+```
+
+For Floe-native record composition, prefer `...Spread` in a `{ }` record body:
+
+```floe
+type CardProps = {
+  ...VariantProps<typeof cardVariants>,
+  className: string,
+}
+```
+
+### Function-type aliases
+
+Use `=>` for function types:
+
+```floe
+import { Request, Response } from "express"
+
+type Handler = (Request, Response) => Promise<()>
+```
 
 ## Nullable and optional type conversion
 
@@ -123,7 +156,7 @@ Optional parameters (`?`) become `Option<T>` with a default of `None`, so you ca
 ```floe
 import { getElementById } from "some-dom-lib"
 // .d.ts says: getElementById(id: string): Element | null
-// Floe sees: getElementById(id: string) -> Option<Element>
+// Floe sees: getElementById(id: string) => Option<Element>
 
 match getElementById("app") {
   Some(el) -> render(el),
@@ -138,7 +171,7 @@ React hooks work directly:
 ```floe
 import { useState, useEffect, useCallback } from "react"
 
-export fn Counter() -> JSX.Element {
+export fn Counter() => JSX.Element {
   const (count, setCount) = useState(0)
 
   useEffect(() => {
@@ -158,7 +191,7 @@ Third-party React components work as regular JSX:
 ```floe
 import { Button, Dialog } from "@radix-ui/react"
 
-export fn MyPage() -> JSX.Element {
+export fn MyPage() => JSX.Element {
   const (open, setOpen) = useState(false)
 
   <div>

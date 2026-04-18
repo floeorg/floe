@@ -255,7 +255,7 @@ impl Formatter<'_> {
         sig.push(pretty::str(")"));
 
         if let Some(rt) = &return_type {
-            sig.push(pretty::str(" -> "));
+            sig.push(pretty::str(" => "));
             sig.push(self.fmt_type_expr(rt));
         }
 
@@ -369,10 +369,11 @@ impl Formatter<'_> {
         for child in node.children() {
             match child.kind() {
                 SyntaxKind::TYPE_DEF_UNION => {
+                    parts.push(pretty::str(" = "));
                     parts.push(self.fmt_union(&child));
                 }
                 SyntaxKind::TYPE_DEF_RECORD => {
-                    parts.push(pretty::str(" "));
+                    parts.push(pretty::str(" = "));
                     parts.push(self.fmt_record_def(&child));
                 }
                 SyntaxKind::TYPE_DEF_ALIAS | SyntaxKind::TYPE_DEF_STRING_UNION => {
@@ -398,23 +399,6 @@ impl Formatter<'_> {
             .filter(|c| c.kind() == SyntaxKind::VARIANT)
             .collect();
 
-        // Newtype case: type UserId(string)
-        if variants.is_empty() {
-            let fields: Vec<_> = node
-                .children()
-                .filter(|c| c.kind() == SyntaxKind::VARIANT_FIELD)
-                .collect();
-            let mut parts = vec![pretty::str("(")];
-            for (i, child) in fields.iter().enumerate() {
-                if i > 0 {
-                    parts.push(pretty::str(", "));
-                }
-                parts.push(self.fmt_variant_field(child));
-            }
-            parts.push(pretty::str(")"));
-            return pretty::concat(parts);
-        }
-
         let mut inner = Vec::new();
         for variant in &variants {
             inner.push(pretty::line());
@@ -422,12 +406,7 @@ impl Formatter<'_> {
             inner.push(self.fmt_variant(variant));
         }
 
-        pretty::concat(vec![
-            pretty::str(" {"),
-            pretty::nest(4, pretty::concat(inner)),
-            pretty::line(),
-            pretty::str("}"),
-        ])
+        pretty::nest(4, pretty::concat(inner))
     }
 
     fn fmt_variant(&mut self, node: &SyntaxNode) -> Document {
@@ -663,7 +642,6 @@ impl Formatter<'_> {
     pub(crate) fn fmt_type_expr(&mut self, node: &SyntaxNode) -> Document {
         let idents = self.collect_idents(node);
         let has_fat_arrow = self.has_token(node, SyntaxKind::FAT_ARROW);
-        let has_thin_arrow = self.has_token(node, SyntaxKind::THIN_ARROW);
         let has_lbracket = self.has_token(node, SyntaxKind::L_BRACKET);
         let has_lparen = self.has_token(node, SyntaxKind::L_PAREN);
         let has_record_fields = node
@@ -685,22 +663,12 @@ impl Formatter<'_> {
         }
 
         // Unit type: ()
-        if has_lparen
-            && idents.is_empty()
-            && !has_fat_arrow
-            && !has_thin_arrow
-            && child_type_exprs.is_empty()
-        {
+        if has_lparen && idents.is_empty() && !has_fat_arrow && child_type_exprs.is_empty() {
             return pretty::str("()");
         }
 
         // Tuple type: (T, U)
-        if has_lparen
-            && !has_thin_arrow
-            && !has_fat_arrow
-            && !child_type_exprs.is_empty()
-            && idents.is_empty()
-        {
+        if has_lparen && !has_fat_arrow && !child_type_exprs.is_empty() && idents.is_empty() {
             let mut parts = vec![pretty::str("(")];
             for (i, te) in child_type_exprs.iter().enumerate() {
                 if i > 0 {
@@ -712,8 +680,8 @@ impl Formatter<'_> {
             return pretty::concat(parts);
         }
 
-        // Function type: (params) -> ReturnType
-        if has_fat_arrow || has_thin_arrow {
+        // Function type: (params) => ReturnType
+        if has_fat_arrow {
             let mut parts = vec![pretty::str("(")];
             let param_count = child_type_exprs.len().saturating_sub(1);
             for (i, te) in child_type_exprs.iter().enumerate() {
@@ -725,7 +693,7 @@ impl Formatter<'_> {
                 }
                 parts.push(self.fmt_type_expr(te));
             }
-            parts.push(pretty::str(") -> "));
+            parts.push(pretty::str(") => "));
             if let Some(ret) = child_type_exprs.last() {
                 parts.push(self.fmt_type_expr(ret));
             }

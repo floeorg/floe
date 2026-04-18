@@ -136,7 +136,7 @@
         },
         {
           "name": "support.type.builtin.floe",
-          "match": "\\b(Result|Option|Array|Promise|JSX)\\b"
+          "match": "\\b(Result|Option|Array|Promise|JSX|OneOf|Intersect)\\b"
         },
         {
           "comment": "Generic type parameters: <Type> — only after an identifier",

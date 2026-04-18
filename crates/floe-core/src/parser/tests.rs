@@ -763,7 +763,7 @@ fn export_const() {
 
 #[test]
 fn function_decl() {
-    match first_item("fn add(a: number, b: number) -> number { a + b }") {
+    match first_item("fn add(a: number, b: number) => number { a + b }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "add");
             assert_eq!(decl.params.len(), 2);
@@ -777,7 +777,7 @@ fn function_decl() {
 
 #[test]
 fn generic_function_decl() {
-    match first_item("fn identity<T>(x: T) -> T { x }") {
+    match first_item("fn identity<T>(x: T) => T { x }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "identity");
             assert_eq!(decl.type_params.len(), 1);
@@ -792,7 +792,7 @@ fn generic_function_decl() {
 
 #[test]
 fn generic_function_multi_params() {
-    match first_item("fn pair<A, B>(a: A, b: B) -> (A, B) { (a, b) }") {
+    match first_item("fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "pair");
             assert_eq!(decl.type_params.len(), 2);
@@ -806,7 +806,7 @@ fn generic_function_multi_params() {
 
 #[test]
 fn generic_function_with_trait_bound() {
-    match first_item("fn process<R: Display>(repo: R) -> string { todo }") {
+    match first_item("fn process<R: Display>(repo: R) => string { todo }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "process");
             assert_eq!(decl.type_params.len(), 1);
@@ -820,7 +820,7 @@ fn generic_function_with_trait_bound() {
 
 #[test]
 fn fn_binding_form() {
-    let program = parse_ok("fn add(a: number, b: number) -> number { a + b }\nfn inc = add(1, _)");
+    let program = parse_ok("fn add(a: number, b: number) => number { a + b }\nfn inc = add(1, _)");
     assert_eq!(program.items.len(), 2);
     match &program.items[1].kind {
         ItemKind::Function(decl) => {
@@ -834,7 +834,7 @@ fn fn_binding_form() {
 
 #[test]
 fn promise_return_type_function() {
-    match first_item("fn fetchUser(id: string) -> Promise<Result<User, ApiError>> { Ok(user) }") {
+    match first_item("fn fetchUser(id: string) => Promise<Result<User, ApiError>> { Ok(user) }") {
         ItemKind::Function(decl) => {
             assert!(!decl.async_fn); // async_fn is set by mark_async_functions, not parser
             assert_eq!(decl.name, "fetchUser");
@@ -845,7 +845,7 @@ fn promise_return_type_function() {
 
 #[test]
 fn async_fn_declaration_sets_async_fn_flag() {
-    match first_item("async fn fetchUser(id: string) -> Result<User, Error> { Ok(user) }") {
+    match first_item("async fn fetchUser(id: string) => Result<User, Error> { Ok(user) }") {
         ItemKind::Function(decl) => {
             assert!(
                 decl.async_fn,
@@ -859,7 +859,7 @@ fn async_fn_declaration_sets_async_fn_flag() {
 
 #[test]
 fn exported_async_fn_declaration() {
-    match first_item("export async fn fetchUser(id: string) -> Result<User, Error> { Ok(user) }") {
+    match first_item("export async fn fetchUser(id: string) => Result<User, Error> { Ok(user) }") {
         ItemKind::Function(decl) => {
             assert!(decl.async_fn);
             assert!(decl.exported);
@@ -937,7 +937,7 @@ fn type_alias() {
 
 #[test]
 fn type_record() {
-    match first_item("type User { id: UserId, name: string }") {
+    match first_item("type User = { id: UserId, name: string }") {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "User");
             match decl.def {
@@ -951,7 +951,7 @@ fn type_record() {
 
 #[test]
 fn type_record_pascal_case_fields() {
-    match first_item("type HonoEnv { Bindings: Env, Variables: Vars }") {
+    match first_item("type HonoEnv = { Bindings: Env, Variables: Vars }") {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "HonoEnv");
             match decl.def {
@@ -969,7 +969,7 @@ fn type_record_pascal_case_fields() {
 
 #[test]
 fn type_record_mixed_case_fields() {
-    match first_item("type X { DB: string, fooBar: number, BAZ: boolean }") {
+    match first_item("type X = { DB: string, fooBar: number, BAZ: boolean }") {
         ItemKind::TypeDecl(decl) => match decl.def {
             TypeDef::Record(ref entries) => {
                 assert_eq!(entries.len(), 3);
@@ -984,14 +984,14 @@ fn type_record_mixed_case_fields() {
 }
 
 #[test]
-fn type_newtype_with_pascal_wrapper_still_works() {
-    // `type Foo { Bar }` (no colon) remains a newtype wrapping `Bar`.
-    match first_item("type OrderId { Number }") {
+fn type_newtype_with_pascal_wrapper_parses_as_union() {
+    match first_item("type OrderId = OrderId(Number)") {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "OrderId");
             assert!(
-                !matches!(decl.def, TypeDef::Record(_)),
-                "should not be a record (no colon after field)",
+                matches!(decl.def, TypeDef::Union(_)),
+                "newtype should lower to a single-variant union, got {:?}",
+                decl.def
             );
         }
         other => panic!("expected type decl, got {other:?}"),
@@ -1000,7 +1000,7 @@ fn type_newtype_with_pascal_wrapper_still_works() {
 
 #[test]
 fn type_record_with_spread() {
-    match first_item("type B { ...A, extra: string }") {
+    match first_item("type B = { ...A, extra: string }") {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "B");
             match decl.def {
@@ -1020,7 +1020,7 @@ fn type_record_with_spread() {
 
 #[test]
 fn type_record_with_multiple_spreads() {
-    match first_item("type C { ...A, ...B, extra: string }") {
+    match first_item("type C = { ...A, ...B, extra: string }") {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "C");
             match decl.def {
@@ -1039,7 +1039,7 @@ fn type_record_with_multiple_spreads() {
 
 #[test]
 fn type_union() {
-    let input = r#"type Route { | Home | Profile { id: string } | NotFound }"#;
+    let input = r#"type Route = | Home | Profile { id: string } | NotFound"#;
     match first_item(input) {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "Route");
@@ -1061,7 +1061,7 @@ fn type_union() {
 
 #[test]
 fn type_union_positional_fields() {
-    let input = r#"type Route { | Home | Profile(string) | Error(number, string) | Settings { tab: string } }"#;
+    let input = r#"type Route = | Home | Profile(string) | Error(number, string) | Settings { tab: string }"#;
     match first_item(input) {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "Route");
@@ -1109,7 +1109,7 @@ fn opaque_type() {
 
 #[test]
 fn variant_named_field_in_parens_is_error() {
-    let errs = parse("type Shape { | Circle(radius: number) }").unwrap_err();
+    let errs = parse("type Shape = | Circle(radius: number)").unwrap_err();
     assert!(
         errs.iter().any(|e| e
             .message
@@ -1120,7 +1120,7 @@ fn variant_named_field_in_parens_is_error() {
 
 #[test]
 fn variant_positional_field_in_braces_is_error() {
-    let errs = parse("type Shape { | Rectangle { number, number } }").unwrap_err();
+    let errs = parse("type Shape = | Rectangle { number, number }").unwrap_err();
     assert!(
         errs.iter()
             .any(|e| e.message.contains("`{...}` variants require named fields")),
@@ -1130,7 +1130,7 @@ fn variant_positional_field_in_braces_is_error() {
 
 #[test]
 fn newtype_paren_rejects_named_field() {
-    let errs = parse("type UserId(id: string)").unwrap_err();
+    let errs = parse("type UserId = UserId(id: string)").unwrap_err();
     assert!(
         errs.iter().any(|e| e
             .message
@@ -1448,7 +1448,7 @@ fn comparison_followed_by_block_is_not_generic_call() {
     // `f < x > { ... }` is not a generic call — no `(` after the `>`.
     // The `{` after `>` disambiguates.
     let input = r#"
-fn check() -> boolean {
+fn check() => boolean {
     const r = f < x
     r
 }
@@ -1463,7 +1463,7 @@ fn full_program() {
     let input = r#"
 import { useState } from "react"
 
-type Todo { id: string, text: string, done: boolean }
+type Todo = { id: string, text: string, done: boolean }
 
 export fn TodoApp() {
     const [todos, setTodos] = useState([])
@@ -1479,9 +1479,9 @@ export fn TodoApp() {
 #[test]
 fn for_block_basic() {
     let input = r#"
-type User { name: string }
+type User = { name: string }
 for User {
-    fn display(self) -> string {
+    fn display(self) => string {
         self.name
     }
 }
@@ -1503,11 +1503,11 @@ for User {
 #[test]
 fn for_block_multiple_functions() {
     let input = r#"
-type User { name: string, age: number }
+type User = { name: string, age: number }
 for User {
-    fn display(self) -> string { self.name }
-    fn isAdult(self) -> bool { self.age >= 18 }
-    fn greet(self, greeting: string) -> string { `${greeting}` }
+    fn display(self) => string { self.name }
+    fn isAdult(self) => bool { self.age >= 18 }
+    fn greet(self, greeting: string) => string { `${greeting}` }
 }
 "#;
     let program = parse_ok(input);
@@ -1529,7 +1529,7 @@ for User {
 fn for_block_generic_type() {
     let input = r#"
 for Array<User> {
-    fn adults(self) -> Array<User> { self }
+    fn adults(self) => Array<User> { self }
 }
 "#;
     let program = parse_ok(input);
@@ -1553,9 +1553,9 @@ for Array<User> {
 #[test]
 fn self_as_expression() {
     let input = r#"
-type User { name: string }
+type User = { name: string }
 for User {
-    fn getName(self) -> string { self.name }
+    fn getName(self) => string { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1588,10 +1588,10 @@ fn for_block_error_non_fn() {
 #[test]
 fn export_for_block_marks_all_methods_exported() {
     let input = r#"
-type User { name: string }
+type User = { name: string }
 export for User {
-    fn display(self) -> string { self.name }
-    fn shout(self) -> string { self.name }
+    fn display(self) => string { self.name }
+    fn shout(self) => string { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1610,10 +1610,10 @@ export for User {
 #[test]
 fn export_for_trait_impl_marks_all_methods_exported() {
     let input = r#"
-type User { name: string }
-trait Display { fn display(self) -> string }
+type User = { name: string }
+trait Display { fn display(self) => string }
 export for User: Display {
-    fn display(self) -> string { self.name }
+    fn display(self) => string { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1629,10 +1629,10 @@ export for User: Display {
 #[test]
 fn per_method_export_still_works_on_for_block() {
     let input = r#"
-type User { name: string }
+type User = { name: string }
 for User {
-    export fn display(self) -> string { self.name }
-    fn helper(self) -> string { self.name }
+    export fn display(self) => string { self.name }
+    fn helper(self) => string { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1793,7 +1793,7 @@ fn test_as_identifier() {
     // `test` should still work as a regular identifier (function name, variable, etc.)
     let program = parse_ok(
         r#"
-fn test() -> number { 1 }
+fn test() => number { 1 }
 "#,
     );
     match &program.items[0].kind {
@@ -1808,7 +1808,7 @@ fn test() -> number { 1 }
 fn test_block_with_function_calls() {
     let program = parse_ok(
         r#"
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 
 test "add function" {
     assert add(1, 2) == 3
@@ -1921,7 +1921,7 @@ fn tuple_type_annotation() {
 
 #[test]
 fn tuple_return_type() {
-    match first_item("fn f(a: number) -> (number, string) { (a, \"x\") }") {
+    match first_item("fn f(a: number) => (number, string) { (a, \"x\") }") {
         ItemKind::Function(decl) => {
             let ret = decl.return_type.unwrap();
             match &ret.kind {
@@ -2369,7 +2369,7 @@ fn collect_block_with_const() {
 
 #[test]
 fn newtype_parses_as_single_variant_union() {
-    let item = first_item("type ProductId { number }");
+    let item = first_item("type ProductId = ProductId(number)");
     match item {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "ProductId");
@@ -2393,7 +2393,7 @@ fn newtype_parses_as_single_variant_union() {
 
 #[test]
 fn newtype_paren_syntax() {
-    let item = first_item("type UserId(string)");
+    let item = first_item("type UserId = UserId(string)");
     match item {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "UserId");
@@ -2418,7 +2418,7 @@ fn newtype_paren_syntax() {
 #[test]
 fn newtype_with_named_field_is_record() {
     // With new syntax, `{ value: number }` is a record, not a newtype
-    let item = first_item("type UserId { value: number }");
+    let item = first_item("type UserId = { value: number }");
     match item {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "UserId");

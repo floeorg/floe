@@ -10,7 +10,7 @@ Functions for working with `boolean` values.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Bool.guard` | `boolean, T, () -> T -> T` | Continue if true, bail with fallback if false (for `use`) |
+| `Bool.guard` | `boolean, T, () => T -> T` | Continue if true, bail with fallback if false (for `use`) |
 
 ## Guard Pattern
 
@@ -19,7 +19,7 @@ Functions for working with `boolean` values.
 ```floe
 type AdminPageProps { auth: Auth }
 
-export fn AdminPage(props: AdminPageProps) -> JSX.Element {
+export fn AdminPage(props: AdminPageProps) => JSX.Element {
     use <- Bool.guard(props.auth.isAdmin, <Forbidden />)
     use <- Bool.guard(props.auth.isVerified, <VerifyPrompt />)
 

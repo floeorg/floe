@@ -10,7 +10,7 @@ Immutable unique collection operations. All functions return new sets -- they ne
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Set.empty` | `() -> Set<T>` | Create an empty set |
+| `Set.empty` | `() => Set<T>` | Create an empty set |
 | `Set.fromArray` | `Array<T> -> Set<T>` | Create a set from an array |
 | `Set.toArray` | `Set<T> -> Array<T>` | Convert a set to an array |
 | `Set.add` | `Set<T>, T -> Set<T>` | Add an element |

@@ -69,14 +69,14 @@ No runtime dependency. No schema definition to maintain. Change the type, the va
 
 ```floe
 // API response validation
-fn fetchUsers() -> Promise<Result<Array<User>, Error>> {
+fn fetchUsers() => Promise<Result<Array<User>, Error>> {
   const response = Http.get("/api/users") |> Promise.await?
   const data = Http.json(response) |> Promise.await?
   data |> parse<Array<User>>
 }
 
 // Form input validation
-fn validateForm(data: unknown) -> Result<ContactForm, Error> {
+fn validateForm(data: unknown) => Result<ContactForm, Error> {
   data |> parse<ContactForm>
 }
 ```
@@ -134,7 +134,7 @@ type Todo {
   done: boolean,
 }
 
-fn toggleDone(todo: Todo) -> Todo {
+fn toggleDone(todo: Todo) => Todo {
   Todo(..todo, done: !todo.done)
 }
 
@@ -204,7 +204,7 @@ Floe supports inline test blocks that live alongside the code they test. Tests a
 Use the `test` keyword followed by a name and a block of `assert` statements:
 
 ```floe
-fn add(a: number, b: number) -> number { a + b }
+fn add(a: number, b: number) => number { a + b }
 
 test "addition" {
   assert add(1, 2) == 3
@@ -227,7 +227,7 @@ type Validation {
   | TooLong
 }
 
-fn validate(input: string) -> Validation {
+fn validate(input: string) => Validation {
   const len = input |> String.length
   match len {
     0 -> Empty,

@@ -51,40 +51,27 @@ impl Checker {
                 _ => {}
             }
 
-            // Reject & intersection in { } type definitions (records/unions).
-            // & should only appear in = type aliases (TS bridge types).
+            // Reject & intersection in record and sum RHSes — it only
+            // belongs inside a structural alias (`type X = A & B`) or
+            // `Intersect<A, B>`.
             if matches!(decl.def, TypeDef::Record(_) | TypeDef::Union(_)) {
                 self.check_no_intersection_in_type_def(&decl.def, span);
             }
 
-            // Reject bridge type syntax (= ...) that doesn't reference any TS import.
-            // String literal unions never reference TS types, so always error.
-            // Aliases must reference at least one foreign/npm type.
-            // Opaque types are exempt — `opaque type X = T` is valid Floe syntax.
-            let bridge_help = match &decl.def {
-                TypeDef::StringLiteralUnion(_) if !decl.opaque => {
-                    Some("use a union type instead: `type Name { | Variant1 | Variant2 }`")
-                }
-                TypeDef::Alias(type_expr)
-                    if !decl.opaque && !self.type_expr_references_foreign(type_expr) =>
-                {
-                    Some(
-                        "`type Name = ...` is for TypeScript interop only — use `type Name { }` for Floe-native types",
-                    )
-                }
-                _ => None,
-            };
-            if let Some(help) = bridge_help {
-                self.problems.push(
-                    Diagnostic::error(
-                        format!(
-                            "bridge type `{}` uses `=` syntax but doesn't reference any TypeScript import",
-                            decl.name
-                        ),
-                        span,
-                    )
-                    .with_help(help)
-                    .with_error_code(ErrorCode::BridgeTypeWithoutImport),
+            if let TypeDef::StringLiteralUnion(variants) = &decl.def
+                && !decl.opaque
+            {
+                let quoted: Vec<String> = variants.iter().map(|v| format!("\"{v}\"")).collect();
+                self.emit_error_with_help(
+                    "structural union declared with bare `|`",
+                    span,
+                    ErrorCode::BareStringLiteralUnion,
+                    "bare `|`",
+                    format!(
+                        "use `OneOf<>` for TS-style string-literal unions:\n    type {} = OneOf<{}>",
+                        decl.name,
+                        quoted.join(", ")
+                    ),
                 );
             }
         }
@@ -186,58 +173,6 @@ impl Checker {
             }
         }
         None
-    }
-
-    /// Check whether a type expression references any foreign/npm type.
-    /// Returns `true` if at least one named type in the expression is exported
-    /// from a .d.ts package (found in `dts_imports`) or resolves to `Type::Foreign`
-    /// in the environment.
-    pub(crate) fn type_expr_references_foreign(&self, type_expr: &TypeExpr) -> bool {
-        match &type_expr.kind {
-            TypeExprKind::Named {
-                name, type_args, ..
-            } => {
-                if self.is_dts_export_name(name) {
-                    return true;
-                }
-                if crate::type_layout::is_ts_utility_type(name) {
-                    return true;
-                }
-                if let Some(ty) = self.env.lookup(name)
-                    && matches!(ty, Type::Foreign { .. })
-                {
-                    return true;
-                }
-                type_args
-                    .iter()
-                    .any(|a| self.type_expr_references_foreign(a))
-            }
-            TypeExprKind::Intersection(parts) => {
-                parts.iter().any(|p| self.type_expr_references_foreign(p))
-            }
-            TypeExprKind::Array(inner) => self.type_expr_references_foreign(inner),
-            TypeExprKind::Tuple(parts) => {
-                parts.iter().any(|p| self.type_expr_references_foreign(p))
-            }
-            TypeExprKind::Function {
-                params,
-                return_type,
-            } => {
-                params.iter().any(|p| self.type_expr_references_foreign(p))
-                    || self.type_expr_references_foreign(return_type)
-            }
-            TypeExprKind::Record(fields) => fields
-                .iter()
-                .any(|f| self.type_expr_references_foreign(&f.type_ann)),
-            TypeExprKind::TypeOf(_) | TypeExprKind::StringLiteral(_) => false,
-        }
-    }
-
-    /// Check if a name is an export from any .d.ts package.
-    fn is_dts_export_name(&self, name: &str) -> bool {
-        self.dts_imports
-            .values()
-            .any(|exports| exports.iter().any(|e| e.name == name))
     }
 
     /// Check that `&` intersection types don't appear in `{ }` type definitions.

@@ -2,14 +2,14 @@ import trusted { useState, Suspense } from "react"
 import trusted { useSuspenseQuery, QueryClient, QueryClientProvider, QueryErrorResetBoundary } from "@tanstack/react-query"
 import trusted { ErrorBoundary } from "react-error-boundary"
 
-type Post {
+type Post = {
     id: number,
     title: string,
     body: string,
     userId: number,
 }
 
-type User {
+type User = {
     id: number,
     name: string,
     email: string,
@@ -27,7 +27,7 @@ const queryClient = QueryClient(
 },
 )
 
-async fn fetchUser(userId: number) -> Result<User, Error> {
+async fn fetchUser(userId: number) => Result<User, Error> {
     Http.get(`https://jsonplaceholder.typicode.com/users/${userId}`)
         |> Promise.await?
         |> Http.json
@@ -35,11 +35,15 @@ async fn fetchUser(userId: number) -> Result<User, Error> {
         |> parse<User>
 }
 
-async fn fetchPosts(url: string) -> Result<Array<Post>, Error> {
+async fn fetchPosts(url: string) => Result<Array<Post>, Error> {
     Http.get(url) |> Promise.await? |> Http.json |> Promise.await? |> parse<Array<Post>>
 }
 
-fn PostAuthor(props: { userId: number }) -> JSX.Element {
+type PostAuthorProps = {
+    userId: number,
+}
+
+fn PostAuthor(props: PostAuthorProps) => JSX.Element {
     const { data } = useSuspenseQuery(
         {
         queryKey: ["user", props.userId],
@@ -55,7 +59,7 @@ fn PostAuthor(props: { userId: number }) -> JSX.Element {
     </span>
 }
 
-fn PostList() -> JSX.Element {
+fn PostList() => JSX.Element {
     const (selectedUserId, setSelectedUserId) = useState<Option<number>>(None)
 
     const url = match selectedUserId {
@@ -127,7 +131,7 @@ fn PostList() -> JSX.Element {
     </div>
 }
 
-fn LoadingSkeleton() -> JSX.Element {
+fn LoadingSkeleton() => JSX.Element {
     const skeletons = [1, 2, 3]
 
     <div className="space-y-4">
@@ -147,7 +151,7 @@ fn LoadingSkeleton() -> JSX.Element {
     </div>
 }
 
-export fn PostsPage() -> JSX.Element {
+export fn PostsPage() => JSX.Element {
     <QueryClientProvider client={queryClient}>
         <h1 className="mb-2 text-3xl font-bold">Posts</h1>
         <p className="mb-6 text-zinc-400">TanStack Query + Suspense demo using JSONPlaceholder API.</p>

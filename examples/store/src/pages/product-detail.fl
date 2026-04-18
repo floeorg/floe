@@ -6,9 +6,24 @@ import { Product, ProductId, Review } from "../types"
 import { for Product, formatPrice } from "../product"
 import { fetchProduct } from "../api"
 
+// ── Prop types ─────────────────────────────────────────
+
+type StarsProps = {
+    rating: number,
+}
+
+type ReviewCardProps = {
+    review: Review,
+}
+
+type ProductDetailProps = {
+    productId: ProductId,
+    onAddToCart: (Product) => (),
+}
+
 // ── Star rating display ────────────────────────────────
 
-fn Stars(props: { rating: number }) -> JSX.Element {
+fn Stars(props: StarsProps) => JSX.Element {
     const filled = Math.floor(props.rating)
     const filledStars = "*" |> String.repeat(filled)
     const emptyStars = "*" |> String.repeat(5 - filled)
@@ -21,7 +36,7 @@ fn Stars(props: { rating: number }) -> JSX.Element {
 
 // ── Review card ────────────────────────────────────────
 
-fn ReviewCard(props: { review: Review }) -> JSX.Element {
+fn ReviewCard(props: ReviewCardProps) => JSX.Element {
     const review = props.review
 
     <div
@@ -38,9 +53,7 @@ fn ReviewCard(props: { review: Review }) -> JSX.Element {
 
 // ── Product detail content ─────────────────────────────
 
-fn ProductDetailContent(
-    props: { productId: ProductId, onAddToCart: (Product) -> () },
-) -> JSX.Element {
+fn ProductDetailContent(props: ProductDetailProps) => JSX.Element {
     const { data } = useSuspenseQuery(
         {
         queryKey: ["product", props.productId],
@@ -164,7 +177,7 @@ fn ProductDetailContent(
 
 // ── Loading skeleton ───────────────────────────────────
 
-fn DetailSkeleton() -> JSX.Element {
+fn DetailSkeleton() => JSX.Element {
     <div className="animate-pulse">
         <div className="mb-8 flex gap-8">
             <div className="w-1/2">
@@ -188,9 +201,7 @@ fn DetailSkeleton() -> JSX.Element {
 
 // ── Exported page component ────────────────────────────
 
-export fn ProductDetailPage(
-    props: { productId: ProductId, onAddToCart: (Product) -> () },
-) -> JSX.Element {
+export fn ProductDetailPage(props: ProductDetailProps) => JSX.Element {
     <div>
         <Link
             to="/"

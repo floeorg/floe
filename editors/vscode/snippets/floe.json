@@ -2,7 +2,7 @@
   "Function Declaration": {
     "prefix": "fn",
     "body": [
-      "fn ${1:name}(${2:params}) -> ${3:ReturnType} {",
+      "fn ${1:name}(${2:params}) => ${3:ReturnType} {",
       "\t$0",
       "}"
     ],
@@ -11,7 +11,7 @@
   "Export Function": {
     "prefix": "efn",
     "body": [
-      "export fn ${1:name}(${2:params}) -> ${3:ReturnType} {",
+      "export fn ${1:name}(${2:params}) => ${3:ReturnType} {",
       "\t$0",
       "}"
     ],
@@ -20,7 +20,7 @@
   "Async Function": {
     "prefix": "afn",
     "body": [
-      "async fn ${1:name}(${2:params}) -> ${3:ReturnType} {",
+      "async fn ${1:name}(${2:params}) => ${3:ReturnType} {",
       "\t$0",
       "}"
     ],
@@ -87,7 +87,7 @@
   "React Component": {
     "prefix": "comp",
     "body": [
-      "export fn ${1:Component}() -> JSX.Element {",
+      "export fn ${1:Component}() => JSX.Element {",
       "\treturn <div>",
       "\t\t$0",
       "\t</div>",
@@ -119,14 +119,14 @@
   "Newtype": {
     "prefix": "newtype",
     "body": [
-      "type ${1:Name}(${2:string})"
+      "type ${1:Name} = ${1:Name}(${2:string})"
     ],
     "description": "Newtype wrapper"
   },
   "Opaque Type": {
     "prefix": "opaque",
     "body": [
-      "opaque type ${1:Name}(${2:string})"
+      "opaque type ${1:Name} = ${1:Name}(${2:string})"
     ],
     "description": "Opaque type"
   },
@@ -134,7 +134,7 @@
     "prefix": "for",
     "body": [
       "for ${1:Type} {",
-      "\texport fn ${2:name}(self) -> ${3:ReturnType} {",
+      "\texport fn ${2:name}(self) => ${3:ReturnType} {",
       "\t\t$0",
       "\t}",
       "}"
@@ -152,7 +152,7 @@
     "prefix": "trait",
     "body": [
       "trait ${1:Name} {",
-      "\tfn ${2:method}(self) -> ${3:ReturnType}",
+      "\tfn ${2:method}(self) => ${3:ReturnType}",
       "}"
     ],
     "description": "Trait declaration"
@@ -161,7 +161,7 @@
     "prefix": "impl",
     "body": [
       "for ${1:Type}: ${2:Trait} {",
-      "\tfn ${3:method}(self) -> ${4:ReturnType} {",
+      "\tfn ${3:method}(self) => ${4:ReturnType} {",
       "\t\t$0",
       "\t}",
       "}"

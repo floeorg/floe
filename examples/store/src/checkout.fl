@@ -3,7 +3,7 @@ import from "./product"
 
 // ── Validation helpers ─────────────────────────────────
 
-fn validateEmail(email: string) -> Result<string, CheckoutError> {
+fn validateEmail(email: string) => Result<string, CheckoutError> {
     const trimmed = email |> trim
 
     match trimmed |> contains("@") {
@@ -12,7 +12,7 @@ fn validateEmail(email: string) -> Result<string, CheckoutError> {
     }
 }
 
-fn validatePhone(phone: string) -> Result<string, CheckoutError> {
+fn validatePhone(phone: string) => Result<string, CheckoutError> {
     const trimmed = phone |> trim
 
     match trimmed |> length {
@@ -21,7 +21,7 @@ fn validatePhone(phone: string) -> Result<string, CheckoutError> {
     }
 }
 
-fn validateStock(cart: Array<CartItem>) -> Result<Array<CartItem>, CheckoutError> {
+fn validateStock(cart: Array<CartItem>) => Result<Array<CartItem>, CheckoutError> {
     const outOfStock = cart |> Array.filter((item) => item.quantity > item.product.stock)
 
     match outOfStock {
@@ -37,7 +37,7 @@ fn validateStock(cart: Array<CartItem>) -> Result<Array<CartItem>, CheckoutError
 export fn validateCheckout(
     cart: Array<CartItem>,
     shipping: ShippingInfo,
-) -> Result<ShippingInfo, Array<CheckoutError>> {
+) => Result<ShippingInfo, Array<CheckoutError>> {
     match cart |> Array.isEmpty {
         true -> Err([EmptyCart]),
         false -> collect {
@@ -55,7 +55,7 @@ export fn validateCheckout(
 export fn processCheckout(
     cart: Array<CartItem>,
     shipping: ShippingInfo,
-) -> Result<OrderStatus, Array<CheckoutError>> {
+) => Result<OrderStatus, Array<CheckoutError>> {
     const _validated = validateCheckout(cart, shipping)?
     const orderId = OrderId(Math.floor(Math.random() * 10_000))
 
@@ -65,7 +65,7 @@ export fn processCheckout(
 // ── Partial update (Settable) ─────────────────────────
 // Only updates fields that are Value(...). Clear sets to null. Unchanged is omitted.
 
-export fn updateShippingExample() -> ShippingUpdate {
+export fn updateShippingExample() => ShippingUpdate {
     ShippingUpdate(email: Value("new@email.com"), phone: Clear)
 }
 

@@ -39,17 +39,17 @@ class TestHoverBasic:
 
     def test_type_user(self, lsp):
         open_doc(lsp, URI,F.TYPES)
-        h = hover_text(lsp.hover(URI, 6, 5))
+        h = hover_text(lsp.hover(URI, 2, 5))
         assert h is not None and "User" in h, f"Got: {h}"
 
     def test_union_variant(self, lsp):
         open_doc(lsp, URI,F.TYPES)
-        h = hover_text(lsp.hover(URI, 1, 6))
+        h = hover_text(lsp.hover(URI, 0, 14))
         assert h is not None, f"Expected hover on variant Red, got: {h}"
 
     def test_fn_describeColor(self, lsp):
         open_doc(lsp, URI,F.TYPES)
-        h = hover_text(lsp.hover(URI, 12, 5))
+        h = hover_text(lsp.hover(URI, 4, 5))
         assert h is not None and "describeColor" in h, f"Got: {h}"
 
     def test_builtin_trim(self, lsp):
@@ -98,7 +98,7 @@ class TestHoverAdvanced:
 
     def test_nested_match_fn(self, lsp):
         open_doc(lsp, URI,F.NESTED_MATCH)
-        h = hover_text(lsp.hover(URI, 10, 3))
+        h = hover_text(lsp.hover(URI, 4, 3))
         assert h is not None and "describe" in h, f"Got: {h}"
 
     def test_spread_type(self, lsp):
@@ -424,7 +424,7 @@ class TestHoverRecordSpread:
 
     def test_multi_depth_match_fn(self, lsp):
         open_doc(lsp, URI,F.MULTI_DEPTH_MATCH)
-        h = hover_text(lsp.hover(URI, 10, 3))
+        h = hover_text(lsp.hover(URI, 4, 3))
         assert h is not None and "describe" in h, f"Got: {h}"
 
     def test_multiline_pipe_result(self, lsp):

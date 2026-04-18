@@ -23,7 +23,7 @@ VALID_SOURCES = [
     ("spread type", F.SPREAD_FILE),
     ("record spread", F.RECORD_SPREAD),
     ("closure assign", F.CLOSURE_ASSIGN),
-    ("string literal union (bridge type error)", F.STRING_LITERAL_UNION_NATIVE),
+    ("nominal sum of string-like constructors", F.STRING_LITERAL_UNION_NATIVE),
     ("collect/error accumulation", F.COLLECT_FILE),
     ("default params", F.DEFAULT_PARAMS),
     ("when guards", F.WHEN_GUARD),
@@ -97,10 +97,10 @@ def test_type_mismatch(lsp):
     assert "E001" in result.codes, f"Expected E001, got codes: {result.codes}"
 
 
-def test_bridge_type_without_import(lsp):
-    """String literal union in Floe source should produce E042."""
+def test_bare_string_literal_union(lsp):
+    """Bare `|` with string literals should produce E201 and suggest `OneOf<>`."""
     result = open_doc(lsp, URI, F.STRING_LITERAL_UNION)
-    assert "E042" in result.codes, f"Expected E042, got codes: {result.codes}"
+    assert "E201" in result.codes, f"Expected E201, got codes: {result.codes}"
 
 
 # ── Exhaustiveness checking (E004) ──────────────────────────────
@@ -138,7 +138,7 @@ def test_ambiguous_variant_with_qualification_ok(lsp):
 
 def test_bare_ambiguous_variant_errors(lsp):
     """Using a bare ambiguous variant should error."""
-    source = 'type Color { | Red | Green | Blue }\ntype Light { | Red | Yellow | Green }\nconst _x = Red\n'
+    source = 'type Color = | Red | Green | Blue\ntype Light = | Red | Yellow | Green\nconst _x = Red\n'
     result = open_doc(lsp, URI, source)
     messages = " ".join(e.get("message", "").lower() for e in result.errors)
     assert "ambiguous" in messages, f"Expected ambiguous error, got: {[e.get('message','') for e in result.errors]}"

@@ -24,7 +24,7 @@ Standard math functions. Compile directly to JavaScript `Math` methods.
 | `Math.sin` | `number -> number` | Sine |
 | `Math.cos` | `number -> number` | Cosine |
 | `Math.tan` | `number -> number` | Tangent |
-| `Math.random` | `() -> number` | Random number between 0 (inclusive) and 1 (exclusive) |
+| `Math.random` | `() => number` | Random number between 0 (inclusive) and 1 (exclusive) |
 
 ## Examples
 
