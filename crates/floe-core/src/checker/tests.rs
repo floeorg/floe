@@ -357,7 +357,7 @@ fn for_block_registers_function() {
         r#"
 type User = { name: string }
 for User {
-    fn display(self) -> string { self.name }
+    let display(self) -> string = { self.name }
 }
 let _x = display(User(name: "Ryan"))
 "#,
@@ -372,7 +372,7 @@ fn for_block_self_gets_type() {
         r#"
 type User = { name: string }
 for User {
-    fn getName(self) -> string { self.name }
+    let getName(self) -> string = { self.name }
 }
 "#,
     );
@@ -386,7 +386,7 @@ fn for_block_multiple_params() {
         r#"
 type User = { name: string }
 for User {
-    fn greet(self, greeting: string) -> string { greeting }
+    let greet(self, greeting: string) -> string = { greeting }
 }
 let _x = greet(User(name: "Ryan"), "Hello")
 "#,
@@ -460,7 +460,7 @@ fn for_block_with_pipe() {
         r#"
 type User = { name: string }
 for User {
-    fn display(self) -> string { self.name }
+    let display(self) -> string = { self.name }
 }
 let _user = User(name: "Ryan")
 let _x = _user |> display
@@ -967,7 +967,7 @@ fn shadow_const_shadows_for_block_fn_errors() {
         r#"
 type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export let remaining(self) -> number = { 0 }
 }
 let remaining = 5
 "#,
@@ -1010,7 +1010,7 @@ fn shadow_inner_scope_const_shadows_for_block_fn() {
         r#"
 type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export let remaining(self) -> number = { 0 }
 }
 let test() -> number = {
     let remaining = 5
@@ -1051,7 +1051,7 @@ fn shadow_for_block_pipe_then_shadow_allowed() {
         r#"
 type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export let remaining(self) -> number = { 0 }
 }
 let test() -> number = {
     let _todos: Array<Todo> = []
@@ -1105,7 +1105,7 @@ fn same_scope_redefinition_for_block_then_const() {
         r#"
 type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export let remaining(self) -> number = { 0 }
 }
 let remaining = 5
 "#,
@@ -2618,7 +2618,7 @@ fn trait_basic_definition() {
     let diags = check(
         r#"
 trait Display {
-  fn display(self) -> string
+  let display(self) -> string
 }
 "#,
     );
@@ -2638,11 +2638,11 @@ fn trait_impl_valid() {
     let diags = check(
         r#"
 trait Display {
-  fn display(self) -> string
+  let display(self) -> string
 }
 type User = { name: string }
 for User: Display {
-  fn display(self) -> string {
+  let display(self) -> string = {
     self.name
   }
 }
@@ -2664,11 +2664,11 @@ fn trait_impl_missing_method() {
     let diags = check(
         r#"
 trait Display {
-  fn display(self) -> string
+  let display(self) -> string
 }
 type User = { name: string }
 for User: Display {
-  fn toString(self) -> string {
+  let toString(self) -> string = {
     "wrong"
   }
 }
@@ -2687,7 +2687,7 @@ fn trait_unknown_trait() {
         r#"
 type User = { name: string }
 for User: NonExistent {
-  fn display(self) -> string {
+  let display(self) -> string = {
     self.name
   }
 }
@@ -2790,14 +2790,14 @@ fn trait_default_method_not_required() {
     let diags = check(
         r#"
 trait Eq {
-  fn eq(self, other: string) -> boolean
-  fn neq(self, other: string) -> boolean {
+  let eq(self, other: string) -> boolean
+  let neq(self, other: string) -> boolean = {
     !(self |> eq(other))
   }
 }
 type User = { name: string }
 for User: Eq {
-  fn eq(self, other: string) -> boolean {
+  let eq(self, other: string) -> boolean = {
     self.name == other
   }
 }
@@ -2820,7 +2820,7 @@ fn trait_for_block_without_trait_still_works() {
         r#"
 type User = { name: string }
 for User {
-  fn greet(self) -> string {
+  let greet(self) -> string = {
     self.name
   }
 }
@@ -2842,15 +2842,15 @@ fn trait_impl_all_required_methods() {
     let diags = check(
         r#"
 trait Printable {
-  fn print(self) -> string
-  fn prettyPrint(self) -> string
+  let print(self) -> string
+  let prettyPrint(self) -> string
 }
 type User = { name: string }
 for User: Printable {
-  fn print(self) -> string {
+  let print(self) -> string = {
     self.name
   }
-  fn prettyPrint(self) -> string {
+  let prettyPrint(self) -> string = {
     self.name
   }
 }
@@ -2872,12 +2872,12 @@ fn trait_impl_missing_one_of_two() {
     let diags = check(
         r#"
 trait Printable {
-  fn print(self) -> string
-  fn prettyPrint(self) -> string
+  let print(self) -> string
+  let prettyPrint(self) -> string
 }
 type User = { name: string }
 for User: Printable {
-  fn print(self) -> string {
+  let print(self) -> string = {
     self.name
   }
 }
@@ -2895,11 +2895,11 @@ fn trait_impl_missing_self_when_trait_requires_it() {
     let diags = check(
         r#"
 trait Display {
-  fn display(self) -> string
+  let display(self) -> string
 }
 type User = { name: string }
 for User: Display {
-  fn display() -> string {
+  let display() -> string = {
     "hello"
   }
 }
@@ -2918,11 +2918,11 @@ fn trait_impl_has_self_when_trait_does_not() {
     let diags = check(
         r#"
 trait Greet {
-  fn greet(name: string) -> string
+  let greet(name: string) -> string
 }
 type User = {}
 for User: Greet {
-  fn greet(self, name: string) -> string {
+  let greet(self, name: string) -> string = {
     name
   }
 }
@@ -3003,7 +3003,7 @@ fn trait_imported_without_for_errors() {
 import { User, Display } from "./types"
 
 for User: Display {
-    fn display(self) -> string {
+    let display(self) -> string = {
         self.name
     }
 }
@@ -3035,7 +3035,7 @@ fn trait_imported_with_for_accepted() {
 import { User, for Display } from "./types"
 
 for User: Display {
-    fn display(self) -> string {
+    let display(self) -> string = {
         self.name
     }
 }
@@ -4867,7 +4867,7 @@ type Entry = {
 }
 
 for Entry {
-    export fn fromRow() -> Entry {
+    export let fromRow() -> Entry = {
         Entry(id: 0, accents: [])
     }
 }
@@ -4891,10 +4891,10 @@ fn for_block_same_fn_name_same_type_still_errors() {
         r#"
 type Todo = { text: string }
 for Todo {
-    fn format(self) -> string { self.text }
+    let format(self) -> string = { self.text }
 }
 for Todo {
-    fn format(self) -> string { self.text }
+    let format(self) -> string = { self.text }
 }
 "#,
     );
@@ -4923,7 +4923,7 @@ type Accent = {
 }
 
 for AccentRow {
-    export fn toModel(self) -> Accent {
+    export let toModel(self) -> Accent = {
         Accent(
             id: self.id,
             accent: self.accent,
@@ -5120,7 +5120,7 @@ fn member_access_on_unresolved_named_type_errors() {
 type Wrapper = { inner: number }
 
 for Wrapper {
-    fn test(self) -> number {
+    let test(self) -> number = {
         self.nonexistent
     }
 }
@@ -5150,7 +5150,7 @@ import { AccentRow } from "../services/supabase/row-dto"
 type Accent = { id: number, entryId: number }
 
 for AccentRow {
-    export fn toModel(self) -> Accent {
+    export let toModel(self) -> Accent = {
         Accent(
             id: self.id,
             entryId: self.entryId,
@@ -5446,11 +5446,11 @@ type Accent = { id: number }
 type Entry = { id: number }
 
 for AccentRow {
-    fn toModel(self) -> Accent { Accent(id: self.id) }
+    let toModel(self) -> Accent = { Accent(id: self.id) }
 }
 
 for EntryRow {
-    fn toModel(self) -> Entry { Entry(id: self.id) }
+    let toModel(self) -> Entry = { Entry(id: self.id) }
 }
 
 let row = AccentRow(id: 1)
@@ -5488,11 +5488,11 @@ type Accent = { id: number }
 type Entry = { id: number }
 
 for AccentRow {
-    fn toModel(self) -> Accent { Accent(id: self.id) }
+    let toModel(self) -> Accent = { Accent(id: self.id) }
 }
 
 for EntryRow {
-    fn toModel(self) -> Entry { Entry(id: self.id) }
+    let toModel(self) -> Entry = { Entry(id: self.id) }
 }
 
 let row = AccentRow(id: 1)
@@ -6056,7 +6056,7 @@ type Out = { value: number }
 type In = { x: number }
 
 for In {
-    fn convert(self) -> Out {
+    let convert(self) -> Out = {
         Out(value: self.x)
     }
 }
@@ -6084,7 +6084,7 @@ fn dot_call_on_for_block_method_errors() {
 type User = { name: string }
 
 for User {
-    fn greet(self) -> string { `Hello, ${self.name}` }
+    let greet(self) -> string = { `Hello, ${self.name}` }
 }
 
 let u = User(name: "Ryan")
@@ -6105,7 +6105,7 @@ type AccentRow = { id: number, entryId: number }
 type Accent = { id: number, entryId: number }
 
 for AccentRow {
-    fn toModel(self) -> Accent {
+    let toModel(self) -> Accent = {
         Accent(id: self.id, entryId: self.entryId)
     }
 }
@@ -6129,7 +6129,7 @@ type AccentRow = { id: number, entryId: number }
 type Accent = { id: number, entryId: number }
 
 for AccentRow {
-    fn toModel(self) -> Accent {
+    let toModel(self) -> Accent = {
         Accent(id: self.id, entryId: self.entryId)
     }
 }
@@ -6152,7 +6152,7 @@ fn pipe_call_on_for_block_method_allowed() {
 type User = { name: string }
 
 for User {
-    fn greet(self) -> string { `Hello, ${self.name}` }
+    let greet(self) -> string = { `Hello, ${self.name}` }
 }
 
 let u = User(name: "Ryan")
@@ -6175,7 +6175,7 @@ fn dot_call_on_trait_method_via_generic_bound_errors() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(self, value: string) -> string
+    let create(self, value: string) -> string
 }
 
 let use_repo<R: Repo>(r: R, v: string) -> string = {
@@ -6195,7 +6195,7 @@ fn pipe_call_on_trait_method_via_generic_bound_allowed() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(self, value: string) -> string
+    let create(self, value: string) -> string
 }
 
 let use_repo<R: Repo>(r: R, v: string) -> string = {
@@ -8235,7 +8235,7 @@ fn trait_name_used_as_value_errors() {
     let diags = check(
         r#"
 trait SnippetRepository {
-    fn create(self, input: string) -> string
+    let create(self, input: string) -> string
 }
 
 let _r = SnippetRepository.create("hello")
@@ -8257,7 +8257,7 @@ fn trait_method_untyped_param_errors() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(self, shit, snippet: string) -> string
+    let create(self, shit, snippet: string) -> string
 }
 "#,
     );
@@ -8277,7 +8277,7 @@ fn for_block_fn_untyped_param_errors() {
 type MyRepo = {}
 
 for MyRepo {
-    fn create(self, shit) -> string {
+    let create(self, shit) -> string = {
         "hi"
     }
 }
@@ -8297,7 +8297,7 @@ fn trait_method_without_self_errors() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(input: string) -> string
+    let create(input: string) -> string
 }
 "#,
     );
@@ -8314,7 +8314,7 @@ fn trait_method_self_not_first_errors() {
     let diags = check(
         r#"
 trait Repo {
-    fn create(input: string, self) -> string
+    let create(input: string, self) -> string
 }
 "#,
     );

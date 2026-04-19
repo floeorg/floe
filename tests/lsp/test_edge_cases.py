@@ -33,7 +33,7 @@ class TestRapidUpdates:
     """Simulate typing by rapidly opening documents with partial content."""
 
     def test_survives_rapid_edits(self, lsp):
-        base = "const x = "
+        base = "x = "
         for i, char in enumerate("42"):
             lsp.open_doc(URI, base + "42"[: i + 1])
         lsp.collect_notifications("textDocument/publishDiagnostics", timeout=2)
@@ -43,10 +43,10 @@ class TestRapidUpdates:
         stages = [
             "fn ",
             "fn test",
-            "fn test(",
-            "fn test() ",
-            "fn test() {",
-            "fn test() { 42 }",
+            "let test(",
+            "let test() ",
+            "let test() {",
+            "let test() { 42 }",
         ]
         for stage in stages:
             lsp.open_doc(URI, stage)

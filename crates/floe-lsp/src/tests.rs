@@ -927,7 +927,7 @@ fn symbol_index_for_block_function_detail() {
     let source = r#"
 type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) -> number { 0 }
+    export let remaining(self) -> number = { 0 }
 }
 "#;
     let index = build_index(source);

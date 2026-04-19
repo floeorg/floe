@@ -20,7 +20,7 @@ class TestGotoDefBasic:
         assert target_line == 0, f"Expected line 0, got {target_line}"
 
     def test_type_usage_to_definition(self, lsp):
-        open_doc(lsp, URI,F.TYPES + "\nfn pick(c: Color) => string { \"ok\" }\n")
+        open_doc(lsp, URI,F.TYPES + "\nfn pick(c: Color) -> string { \"ok\" }\n")
         locs = def_locations(lsp.goto_definition(URI, 12, 11))
         assert len(locs) > 0
 
@@ -55,7 +55,7 @@ class TestGotoDefAdvanced:
     )
     def test_fn_in_nested_call(self, lsp, char, name):
         open_doc(lsp, URI,F.MULTIPLE_FNS)
-        # line 7: const d = first(second(third(0)))
+        # line 7: d = first(second(third(0)))
         locs = def_locations(lsp.goto_definition(URI, 7, char))
         assert len(locs) > 0, f"Expected goto def for {name}"
 

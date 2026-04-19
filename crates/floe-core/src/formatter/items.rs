@@ -206,14 +206,13 @@ impl Formatter<'_> {
 
     pub(crate) fn fmt_function(&mut self, node: &SyntaxNode) -> Document {
         let mut parts = Vec::new();
-        // Top-level (def-form) uses `let NAME(params) [-> Ret] = body`.
-        // For-block / trait methods keep `fn NAME(params) [-> Ret] { body }`.
-        let is_let_binding = self.has_token(node, SyntaxKind::KW_LET);
+        // All function declarations — top-level, for-block, trait — use
+        // `let NAME(params) [-> Ret] = body`.
 
         if self.has_token(node, SyntaxKind::KW_ASYNC) {
             parts.push(pretty::str("async "));
         }
-        parts.push(pretty::str(if is_let_binding { "let " } else { "fn " }));
+        parts.push(pretty::str("let "));
 
         if let Some(name) = self.first_ident(node) {
             parts.push(pretty::str(name));
@@ -264,7 +263,10 @@ impl Formatter<'_> {
 
         parts.push(pretty::group(pretty::concat(sig)));
 
-        if is_let_binding {
+        // Trait method declarations have no body — `let NAME(params) -> Ret`
+        // with no `= ...`. Emit `=` only when a block follows.
+        let has_block = node.children().any(|c| c.kind() == SyntaxKind::BLOCK_EXPR);
+        if has_block {
             parts.push(pretty::str(" ="));
         }
 
@@ -280,11 +282,7 @@ impl Formatter<'_> {
                 t.as_token()
                     .is_some_and(|t| t.kind() == SyntaxKind::L_BRACE)
             });
-            if is_let_binding
-                && !has_braces
-                && items.len() == 1
-                && items[0].kind() == SyntaxKind::EXPR_ITEM
-            {
+            if !has_braces && items.len() == 1 && items[0].kind() == SyntaxKind::EXPR_ITEM {
                 parts.push(pretty::str(" "));
                 parts.push(self.fmt_expr_item(&items[0]));
             } else {

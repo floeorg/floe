@@ -85,11 +85,11 @@ type Todo = {
 }
 
 for Array<Todo> {
-    export fn remaining(self) -> number {
+    export let remaining(self) -> number = {
         self |> filter(.done == false) |> length
     }
 
-    export fn completed(self) -> number {
+    export let completed(self) -> number = {
         self |> filter(.done == true) |> length
     }
 }
@@ -276,7 +276,7 @@ let useOption() -> string = {
 
 TRAIT_FILE = """\
 trait Printable {
-    fn print(self) -> string
+    let print(self) -> string
 }
 
 type Dog = {
@@ -285,7 +285,7 @@ type Dog = {
 }
 
 for Dog: Printable {
-    fn print(self) -> string {
+    let print(self) -> string = {
         `${self.name} (${self.breed})`
     }
 }
@@ -443,7 +443,7 @@ IMPORT_FOR = """\
 type Msg = { text: string }
 
 for Array<Msg> {
-    export fn count(self) -> number {
+    export let count(self) -> number = {
         self |> length
     }
 }
@@ -664,7 +664,7 @@ let second = pair.1
 
 DERIVING = """\
 trait Display {
-    fn display(self) -> string
+    let display(self) -> string
 }
 
 type Point = {
@@ -711,7 +711,7 @@ let same = a == b
 
 INLINE_FOR = """\
 for string {
-    export fn shout(self) -> string {
+    export let shout(self) -> string = {
         self |> String.toUpperCase
     }
 }
@@ -721,7 +721,7 @@ IMPORT_FOR_BLOCK_SYNTAX = """\
 type Msg = { text: string }
 
 for Array<Msg> {
-    export fn count(self) -> number {
+    export let count(self) -> number = {
         self |> length
     }
 }
@@ -781,7 +781,7 @@ type Accent = { id: number, name: string }
 type Row = { id: number, rawName: string }
 
 for Row {
-    export fn toAccent(self) -> Accent {
+    export let toAccent(self) -> Accent = {
         Accent(id: self.id, name: self.rawName)
     }
 }

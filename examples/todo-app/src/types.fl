@@ -26,5 +26,5 @@ export type TodoWithTimestamp = {
 }
 
 export trait Display {
-    fn display(self) -> string
+    let display(self) -> string
 }

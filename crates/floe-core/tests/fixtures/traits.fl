@@ -1,12 +1,12 @@
 // Trait definition with method signatures
 trait Display {
-  fn display(self) -> string
+  let display(self) -> string
 }
 
 // Trait with multiple methods and a default implementation
 trait Eq {
-  fn eq(self, other: string) -> boolean
-  fn neq(self, other: string) -> boolean {
+  let eq(self, other: string) -> boolean
+  let neq(self, other: string) -> boolean = {
     !(self |> eq(other))
   }
 }
@@ -19,21 +19,21 @@ type User = {
 
 // Implementing a trait for a type
 for User: Display {
-  fn display(self) -> string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }
 
 // Implementing another trait
 for User: Eq {
-  fn eq(self, other: string) -> boolean {
+  let eq(self, other: string) -> boolean = {
     self.name == other
   }
 }
 
 // Regular for block (no trait) still works
 for User {
-  fn greet(self, greeting: string) -> string {
+  let greet(self, greeting: string) -> string = {
     `${greeting}, ${self.name}!`
   }
 }

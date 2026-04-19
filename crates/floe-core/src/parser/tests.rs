@@ -1486,7 +1486,7 @@ fn for_block_basic() {
     let input = r#"
 type User = { name: string }
 for User {
-    fn display(self) -> string {
+    let display(self) -> string = {
         self.name
     }
 }
@@ -1510,9 +1510,9 @@ fn for_block_multiple_functions() {
     let input = r#"
 type User = { name: string, age: number }
 for User {
-    fn display(self) -> string { self.name }
-    fn isAdult(self) -> bool { self.age >= 18 }
-    fn greet(self, greeting: string) -> string { `${greeting}` }
+    let display(self) -> string = { self.name }
+    let isAdult(self) -> bool = { self.age >= 18 }
+    let greet(self, greeting: string) -> string = { `${greeting}` }
 }
 "#;
     let program = parse_ok(input);
@@ -1534,7 +1534,7 @@ for User {
 fn for_block_generic_type() {
     let input = r#"
 for Array<User> {
-    fn adults(self) -> Array<User> { self }
+    let adults(self) -> Array<User> = { self }
 }
 "#;
     let program = parse_ok(input);
@@ -1560,7 +1560,7 @@ fn self_as_expression() {
     let input = r#"
 type User = { name: string }
 for User {
-    fn getName(self) -> string { self.name }
+    let getName(self) -> string = { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1595,8 +1595,8 @@ fn export_for_block_marks_all_methods_exported() {
     let input = r#"
 type User = { name: string }
 export for User {
-    fn display(self) -> string { self.name }
-    fn shout(self) -> string { self.name }
+    let display(self) -> string = { self.name }
+    let shout(self) -> string = { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1616,9 +1616,9 @@ export for User {
 fn export_for_trait_impl_marks_all_methods_exported() {
     let input = r#"
 type User = { name: string }
-trait Display { fn display(self) -> string }
+trait Display { let display(self) -> string }
 export for User: Display {
-    fn display(self) -> string { self.name }
+    let display(self) -> string = { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1636,8 +1636,8 @@ fn per_method_export_still_works_on_for_block() {
     let input = r#"
 type User = { name: string }
 for User {
-    export fn display(self) -> string { self.name }
-    fn helper(self) -> string { self.name }
+    export let display(self) -> string = { self.name }
+    let helper(self) -> string = { self.name }
 }
 "#;
     let program = parse_ok(input);

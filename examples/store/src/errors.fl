@@ -3,7 +3,7 @@ import { ApiError, for Display } from "./types"
 // ── Multi-depth match on nested error unions ───────────
 
 export for ApiError: Display {
-    fn display(self) -> string {
+    let display(self) -> string = {
         self |> match {
             Network(Timeout { ms }) -> `Request timed out after ${ms}ms`,
             Network(DnsFailure { host }) -> `Cannot resolve ${host}`,
@@ -20,7 +20,7 @@ export for ApiError: Display {
 }
 
 for ApiError {
-    export fn isRetryable(self) -> boolean {
+    export let isRetryable(self) -> boolean = {
         self |> match {
             Network(_) -> true,
             BadResponse { status, body: _ } -> status |> match {

@@ -79,14 +79,14 @@ match user.nickname {
 
 ```floe
 for Array<Todo> {
-    export fn remaining(self) -> number {
+    export let remaining(self) -> number = {
         self |> filter(.done == false) |> length
     }
 }
 
-trait Display { fn display(self) -> string }
+trait Display { let display(self) -> string }
 for User: Display {
-    fn display(self) -> string { `${self.name} (${self.email})` }
+    let display(self) -> string = { `${self.name} (${self.email})` }
 }
 ```
 

@@ -606,7 +606,7 @@ use data <- Result.guard(fetchResult, (e) -> <ErrorPage error={e} />)
 ```floe
 // Block form — group multiple functions under a type
 for Array<Todo> {
-    export fn filterBy(self, f: Filter) -> Array<Todo> {
+    export let filterBy(self, f: Filter) -> Array<Todo> = {
         match f {
             All -> self,
             Active -> self |> filter(.done == false),
@@ -614,13 +614,13 @@ for Array<Todo> {
         }
     }
 
-    export fn remaining(self) -> number {
+    export let remaining(self) -> number = {
         self |> filter(.done == false) |> length
     }
 }
 
 for string {
-    export fn validate(self) -> Validation {
+    export let validate(self) -> Validation = {
         let trimmed = self |> trim
         let len = trimmed |> String.length
         match len {
@@ -638,8 +638,8 @@ todos |> filterBy(Filter.Active)
 
 // Block-level export — exports every method in the block
 export for User {
-    fn display(self) -> string { self.name }
-    fn shout(self) -> string { self.name |> String.toUpperCase }
+    let display(self) -> string = { self.name }
+    let shout(self) -> string = { self.name |> String.toUpperCase }
 }
 ```
 
@@ -648,20 +648,20 @@ export for User {
 ```floe
 // Define a trait
 trait Display {
-    fn display(self) -> string
+    let display(self) -> string
 }
 
 // Traits can have default implementations
 trait Eq {
-    fn eq(self, other: Self) -> boolean
-    fn neq(self, other: Self) -> boolean {
+    let eq(self, other: Self) -> boolean
+    let neq(self, other: Self) -> boolean = {
         !(self |> eq(other))
     }
 }
 
 // Implement a trait
 for User: Display {
-    fn display(self) -> string {
+    let display(self) -> string = {
         `${self.name} (${self.age})`
     }
 }
@@ -669,7 +669,7 @@ for User: Display {
 // `export for` exports every method in the block at once — the natural
 // shape for trait impls where all methods are part of the contract
 export for User: Display {
-    fn display(self) -> string {
+    let display(self) -> string = {
         `${self.name} (${self.age})`
     }
 }

@@ -1004,19 +1004,19 @@ mod tests {
 
     #[test]
     fn for_block_basic() {
-        assert_no_errors("for User { fn greet(self) -> string { self.name } }");
+        assert_no_errors("for User { let greet(self) -> string = { self.name } }");
     }
 
     #[test]
     fn for_block_with_trait() {
-        assert_no_errors("for User: Display { fn show(self) -> string { self.name } }");
+        assert_no_errors("for User: Display { let show(self) -> string = { self.name } }");
     }
 
     // ── Trait declarations ────────────────────────────────────────
 
     #[test]
     fn trait_basic() {
-        assert_no_errors("trait Display { fn show(self) -> string }");
+        assert_no_errors("trait Display { let show(self) -> string }");
     }
 
     // ── Test blocks ───────────────────────────────────────────────

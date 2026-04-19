@@ -2304,7 +2304,7 @@ fn for_block_bare_pipe_uses_mangled_name() {
 type Icon = | Grid | Columns
 
 for Icon {
-    fn toChar(self) -> string {
+    let toChar(self) -> string = {
         match self { Grid -> "G", Columns -> "C" }
     }
 }
@@ -2329,7 +2329,7 @@ fn for_block_bare_identifier_uses_mangled_name() {
 type Icon = | Grid | Columns
 
 for Icon {
-    fn toChar(self) -> string {
+    let toChar(self) -> string = {
         match self { Grid -> "G", Columns -> "C" }
     }
 }

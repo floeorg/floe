@@ -1031,7 +1031,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "ext.fl",
-                "for User { export fn greet(self) -> string { self.name } }",
+                "for User { export let greet(self) -> string = { self.name } }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1051,7 +1051,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "ext.fl",
-                "export for User {\n    fn greet(self) -> string { self.name }\n    fn shout(self) -> string { self.name }\n}",
+                "export for User {\n    let greet(self) -> string = { self.name }\n    let shout(self) -> string = { self.name }\n}",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1092,7 +1092,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "traits.fl",
-                "export trait Display { fn show(self) -> string }",
+                "export trait Display { let show(self) -> string }",
             ),
         ]);
         let main_path = base.join("main.fl");

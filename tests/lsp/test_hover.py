@@ -61,7 +61,7 @@ class TestHoverBasic:
 class TestHoverTaggedTemplate:
     def test_hover_tag_identifier(self, lsp):
         open_doc(lsp, URI, F.TAGGED_TEMPLATE)
-        # Line 5: `const q = sql`select ...`; `sql` starts at column 10
+        # Line 5: `q = sql`select ...`; `sql` starts at column 10
         h = hover_text(lsp.hover(URI, 5, 10))
         assert h is not None and "sql" in h, f"Expected sql fn hover, got: {h}"
 

@@ -135,13 +135,13 @@ fn snapshot_error_trait_method_param_type_mismatch() {
         "test.fl",
         r#"
 trait Repo {
-  fn create(self, input: number) -> string
+  let create(self, input: number) -> string
 }
 
 type MyRepo = {}
 
 for MyRepo: Repo {
-  fn create(self, input: string) -> string {
+  let create(self, input: string) -> string = {
     input
   }
 }
@@ -156,13 +156,13 @@ fn snapshot_error_trait_method_return_type_mismatch() {
         "test.fl",
         r#"
 trait Repo {
-  fn create(self) -> number
+  let create(self) -> number
 }
 
 type MyRepo = {}
 
 for MyRepo: Repo {
-  fn create(self) -> string {
+  let create(self) -> string = {
     "oops"
   }
 }
@@ -188,8 +188,8 @@ fn snapshot_error_trait_default_method_not_required() {
     // Default methods should not be required in implementations
     let source = r#"
 trait Eq {
-  fn eq(self, other: string) -> boolean
-  fn neq(self, other: string) -> boolean {
+  let eq(self, other: string) -> boolean
+  let neq(self, other: string) -> boolean = {
     !(self |> eq(other))
   }
 }
@@ -197,7 +197,7 @@ trait Eq {
 type User = { name: string }
 
 for User: Eq {
-  export fn eq(self, other: string) -> boolean {
+  export let eq(self, other: string) -> boolean = {
     self.name == other
   }
 }
@@ -270,13 +270,13 @@ fn snapshot_error_trait_used_as_parameter_type() {
         "test.fl",
         r#"
 trait Repo {
-  fn create(self) -> string
+  let create(self) -> string
 }
 
 type MyRepo = {}
 
 for MyRepo: Repo {
-  fn create(self) -> string { "ok" }
+  let create(self) -> string = { "ok" }
 }
 
 let doThing(repo: Repo) -> string = {
@@ -293,7 +293,7 @@ fn snapshot_error_trait_used_as_return_type() {
         "test.fl",
         r#"
 trait Repo {
-  fn create(self) -> string
+  let create(self) -> string
 }
 
 let getRepo() -> Repo = {
@@ -310,7 +310,7 @@ fn snapshot_error_trait_used_in_const_annotation() {
         "test.fl",
         r#"
 trait Repo {
-  fn create(self) -> string
+  let create(self) -> string
 }
 
 let x: Repo = todo

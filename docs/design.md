@@ -1020,15 +1020,15 @@ Two syntactic forms are supported:
 type User = { name: string, age: number, active: boolean }
 
 for User {
-  fn display(self) -> string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 
-  fn isAdult(self) -> boolean {
+  let isAdult(self) -> boolean = {
     self.age >= 18
   }
 
-  fn greet(self, greeting: string) -> string {
+  let greet(self, greeting: string) -> string = {
     `${greeting}, ${self.name}!`
   }
 }
@@ -1039,7 +1039,7 @@ Export is per-function — `export` goes before `fn` inside the block.
 ```floe
 // Works with generic types too
 for Array<User> {
-  fn adults(self) -> Array<User> {
+  let adults(self) -> Array<User> = {
     self |> Array.filter(.age >= 18)
   }
 }
@@ -1092,13 +1092,13 @@ Methods in a `for` block can be exported individually or as a whole block:
 ```floe
 // Per-method export — useful when only some methods are public
 for User {
-  export fn display(self) -> string { self.name }
-  fn internalHelper(self) -> string { self.name }
+  export let display(self) -> string = { self.name }
+  let internalHelper(self) -> string = { self.name }
 }
 
 // Block-level export — the natural shape for trait impls
 export for User: Display {
-  fn display(self) -> string { self.name }
+  let display(self) -> string = { self.name }
 }
 ```
 
@@ -1111,26 +1111,26 @@ Traits define behavioral contracts that types can implement via `for` blocks. Th
 ```floe
 // Define a trait with required method signatures
 trait Display {
-  fn display(self) -> string
+  let display(self) -> string
 }
 
 // Traits can have default implementations
 trait Eq {
-  fn eq(self, other: Self) -> boolean
-  fn neq(self, other: Self) -> boolean {
+  let eq(self, other: Self) -> boolean
+  let neq(self, other: Self) -> boolean = {
     !(self |> eq(other))
   }
 }
 
 // Implement a trait for a type using `for Type: Trait`
 for User: Display {
-  fn display(self) -> string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }
 
 for User: Eq {
-  fn eq(self, other: User) -> boolean {
+  let eq(self, other: User) -> boolean = {
     self.id == other.id
   }
   // neq is inherited from the default implementation

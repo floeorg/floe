@@ -719,11 +719,11 @@ impl<'src> CstParser<'src> {
                 self.bump();
                 self.eat_trivia();
             }
-            if self.at(TokenKind::Fn) || self.at(TokenKind::Async) {
+            if self.at(TokenKind::Let) || self.at(TokenKind::Async) {
                 self.parse_for_block_function();
                 self.eat_trivia();
             } else {
-                self.error("expected `fn` inside for block");
+                self.error("expected `let` inside for block");
                 self.bump();
                 self.eat_trivia();
             }
@@ -750,11 +750,11 @@ impl<'src> CstParser<'src> {
 
         // Parse method declarations inside the trait
         while !self.at(TokenKind::RightBrace) && !self.at_end() {
-            if self.at(TokenKind::Fn) {
+            if self.at(TokenKind::Let) {
                 self.parse_trait_method();
                 self.eat_trivia();
             } else {
-                self.error("expected `fn` inside trait");
+                self.error("expected `let` inside trait");
                 self.bump();
                 self.eat_trivia();
             }
@@ -768,7 +768,7 @@ impl<'src> CstParser<'src> {
     fn parse_trait_method(&mut self) {
         self.builder.start_node(SyntaxKind::FUNCTION_DECL.into());
 
-        self.expect(TokenKind::Fn);
+        self.expect(TokenKind::Let);
         self.eat_trivia();
         self.expect_ident();
         self.eat_trivia();
@@ -787,8 +787,10 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        // Optional body (default implementation)
-        if self.at(TokenKind::LeftBrace) {
+        // Optional body (default implementation): `= { ... }`
+        if self.at(TokenKind::Equal) {
+            self.bump();
+            self.eat_trivia();
             self.parse_block_expr();
         }
 
@@ -804,7 +806,7 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::Fn);
+        self.expect(TokenKind::Let);
         self.eat_trivia();
         self.expect_ident();
         self.eat_trivia();
@@ -823,6 +825,8 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
+        self.expect(TokenKind::Equal);
+        self.eat_trivia();
         self.parse_block_expr();
 
         self.builder.finish_node();

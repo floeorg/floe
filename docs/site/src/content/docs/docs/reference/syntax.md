@@ -112,13 +112,13 @@ result(b)
 
 ```floe
 for Type {
-  fn method(self) -> ReturnType {
+  let method(self) -> ReturnType = {
     body
   }
 }
 
 for Array<User> {
-  fn adults(self) -> Array<User> {
+  let adults(self) -> Array<User> = {
     self |> Array.filter(.age >= 18)
   }
 }
@@ -128,20 +128,20 @@ for Array<User> {
 
 ```floe
 trait Display {
-  fn display(self) -> string
+  let display(self) -> string
 }
 
 // Trait with default implementation
 trait Eq {
-  fn eq(self, other: Self) -> boolean
-  fn neq(self, other: Self) -> boolean {
+  let eq(self, other: Self) -> boolean
+  let neq(self, other: Self) -> boolean = {
     !(self |> eq(other))
   }
 }
 
 // Implement a trait
 for User: Display {
-  fn display(self) -> string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }

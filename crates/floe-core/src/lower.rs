@@ -1083,7 +1083,7 @@ mod tests {
 
     #[test]
     fn for_block_basic() {
-        let item = first_item("for User { fn greet(self) -> string { self.name } }");
+        let item = first_item("for User { let greet(self) -> string = { self.name } }");
         let ItemKind::ForBlock(block) = item else {
             panic!("expected ForBlock")
         };
