@@ -159,7 +159,7 @@ impl Formatter<'_> {
     // ── Const ───────────────────────────────────────────────────
 
     pub(crate) fn fmt_const(&mut self, node: &SyntaxNode) -> Document {
-        let mut parts = vec![pretty::str("const ")];
+        let mut parts = vec![pretty::str("let ")];
 
         let has_lbracket = self.has_token(node, SyntaxKind::L_BRACKET);
         let has_lbrace_before_eq = self.has_brace_destructuring(node);
@@ -206,14 +206,21 @@ impl Formatter<'_> {
 
     pub(crate) fn fmt_function(&mut self, node: &SyntaxNode) -> Document {
         let mut parts = Vec::new();
+        // Top-level function bindings use `let NAME = (...) [:Ret] => body`
+        // (issue #1214). For-block and trait methods keep `fn NAME(...) ...`.
+        let is_let_binding = self.has_token(node, SyntaxKind::KW_LET);
 
         if self.has_token(node, SyntaxKind::KW_ASYNC) {
             parts.push(pretty::str("async "));
         }
-        parts.push(pretty::str("fn "));
+        parts.push(pretty::str(if is_let_binding { "let " } else { "fn " }));
 
         if let Some(name) = self.first_ident(node) {
             parts.push(pretty::str(name));
+        }
+
+        if is_let_binding {
+            parts.push(pretty::str(" = "));
         }
 
         parts.push(self.fmt_type_params(node));
@@ -255,15 +262,40 @@ impl Formatter<'_> {
         sig.push(pretty::str(")"));
 
         if let Some(rt) = &return_type {
-            sig.push(pretty::str(" => "));
+            // `let`-binding: return type uses `: Ret`; for/trait: ` => Ret`.
+            sig.push(pretty::str(if is_let_binding { ": " } else { " => " }));
             sig.push(self.fmt_type_expr(rt));
         }
 
         parts.push(pretty::group(pretty::concat(sig)));
 
+        if is_let_binding {
+            parts.push(pretty::str(" =>"));
+        }
+
         if let Some(block) = &block {
-            parts.push(pretty::str(" "));
-            parts.push(self.fmt_block(block));
+            // Synthetic single-expression body (`let f = (x) => x + 1`) was
+            // wrapped in BLOCK_EXPR at parse time. If the block contains
+            // exactly one EXPR_ITEM, emit the bare expression.
+            let items: Vec<_> = block
+                .children()
+                .filter(|c| !matches!(c.kind(), SyntaxKind::L_BRACE | SyntaxKind::R_BRACE))
+                .collect();
+            let has_braces = block.children_with_tokens().any(|t| {
+                t.as_token()
+                    .is_some_and(|t| t.kind() == SyntaxKind::L_BRACE)
+            });
+            if is_let_binding
+                && !has_braces
+                && items.len() == 1
+                && items[0].kind() == SyntaxKind::EXPR_ITEM
+            {
+                parts.push(pretty::str(" "));
+                parts.push(self.fmt_expr_item(&items[0]));
+            } else {
+                parts.push(pretty::str(" "));
+                parts.push(self.fmt_block(block));
+            }
         }
 
         pretty::concat(parts)

@@ -722,7 +722,7 @@ mod tests {
 
     #[test]
     fn const_simple() {
-        let item = first_item("const x = 42");
+        let item = first_item("let x = 42");
         let ItemKind::Const(decl) = item else {
             panic!("expected Const")
         };
@@ -733,7 +733,7 @@ mod tests {
 
     #[test]
     fn const_typed() {
-        let item = first_item("const x: number = 42");
+        let item = first_item("let x: number = 42");
         let ItemKind::Const(decl) = item else {
             panic!("expected Const")
         };
@@ -742,7 +742,7 @@ mod tests {
 
     #[test]
     fn const_exported() {
-        let item = first_item("export const x = 1");
+        let item = first_item("export let x = 1");
         let ItemKind::Const(decl) = item else {
             panic!("expected Const")
         };
@@ -751,7 +751,7 @@ mod tests {
 
     #[test]
     fn const_array_destructuring() {
-        let item = first_item("const [a, b] = pair");
+        let item = first_item("let [a, b] = pair");
         let ItemKind::Const(decl) = item else {
             panic!("expected Const")
         };
@@ -762,7 +762,7 @@ mod tests {
 
     #[test]
     fn function_basic() {
-        let item = first_item("fn greet() { 1 }");
+        let item = first_item("let greet = () => { 1 }");
         let ItemKind::Function(decl) = item else {
             panic!("expected Function")
         };
@@ -774,7 +774,7 @@ mod tests {
 
     #[test]
     fn function_with_params_and_return() {
-        let item = first_item("fn add(a: number, b: number) => number { a + b }");
+        let item = first_item("let add = (a: number, b: number): number => { a + b }");
         let ItemKind::Function(decl) = item else {
             panic!("expected Function")
         };
@@ -785,7 +785,7 @@ mod tests {
 
     #[test]
     fn function_exported() {
-        let item = first_item("export fn hello() { 1 }");
+        let item = first_item("export let hello = () => { 1 }");
         let ItemKind::Function(decl) = item else {
             panic!("expected Function")
         };
@@ -1041,7 +1041,7 @@ mod tests {
 
     #[test]
     fn implicit_return_last_expr() {
-        let item = first_item("fn f() { 42 }");
+        let item = first_item("let f = () => { 42 }");
         let ItemKind::Function(decl) = item else {
             panic!("expected Function")
         };
@@ -1113,7 +1113,7 @@ mod tests {
 
     #[test]
     fn multiple_items() {
-        let prog = lower("const x = 1\nconst y = 2");
+        let prog = lower("let x = 1\nconst y = 2");
         assert_eq!(prog.items.len(), 2);
     }
 
@@ -1122,7 +1122,7 @@ mod tests {
     #[test]
     fn use_desugars_to_callback() {
         // `use x <- f(1)` followed by `x` should desugar to `f(1, fn(x) { x })`
-        let prog = lower("fn _test() => number {\n    use x <- f(1)\n    x\n}");
+        let prog = lower("let _test = (): number => {\n    use x <- f(1)\n    x\n}");
         let ItemKind::Function(decl) = &prog.items[0].kind else {
             panic!("expected Function")
         };
@@ -1146,7 +1146,7 @@ mod tests {
     #[test]
     fn use_zero_binding() {
         // `use <- f()` followed by `g()` should desugar to `f(fn() { g() })`
-        let prog = lower("fn _test() => () {\n    use <- f()\n    g()\n}");
+        let prog = lower("let _test = (): () => {\n    use <- f()\n    g()\n}");
         let ItemKind::Function(decl) = &prog.items[0].kind else {
             panic!("expected Function")
         };
@@ -1175,7 +1175,8 @@ mod tests {
     #[test]
     fn use_chained() {
         // Two chained `use` statements should produce nested calls
-        let prog = lower("fn _test() => () {\n    use x <- f()\n    use y <- g(x)\n    h(y)\n}");
+        let prog =
+            lower("let _test = (): () => {\n    use x <- f()\n    use y <- g(x)\n    h(y)\n}");
         let ItemKind::Function(decl) = &prog.items[0].kind else {
             panic!("expected Function")
         };

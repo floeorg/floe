@@ -708,9 +708,9 @@ mod tests {
     #[test]
     fn keywords() {
         assert_eq!(
-            lex("const fn export import match type opaque"),
+            lex("let fn export import match type opaque"),
             vec![
-                TokenKind::Const,
+                TokenKind::Let,
                 TokenKind::Fn,
                 TokenKind::Export,
                 TokenKind::Import,
@@ -748,11 +748,11 @@ mod tests {
 
     #[test]
     fn banned_keywords() {
-        let tokens = lex("let class throw null undefined any as enum function if else return");
+        let tokens = lex("const class throw null undefined any as enum function if else return");
         assert_eq!(
             tokens,
             vec![
-                TokenKind::Banned(BannedKeyword::Let),
+                TokenKind::Banned(BannedKeyword::Const),
                 TokenKind::Banned(BannedKeyword::Class),
                 TokenKind::Banned(BannedKeyword::Throw),
                 TokenKind::Banned(BannedKeyword::Null),
@@ -876,9 +876,9 @@ mod tests {
     #[test]
     fn line_comments_skipped() {
         assert_eq!(
-            lex("const // this is a comment\nx"),
+            lex("let // this is a comment\nx"),
             vec![
-                TokenKind::Const,
+                TokenKind::Let,
                 TokenKind::Identifier("x".to_string()),
                 TokenKind::Eof,
             ]
@@ -888,9 +888,9 @@ mod tests {
     #[test]
     fn block_comments_skipped() {
         assert_eq!(
-            lex("const /* block */ x"),
+            lex("let /* block */ x"),
             vec![
-                TokenKind::Const,
+                TokenKind::Let,
                 TokenKind::Identifier("x".to_string()),
                 TokenKind::Eof,
             ]
@@ -900,9 +900,9 @@ mod tests {
     #[test]
     fn nested_block_comments() {
         assert_eq!(
-            lex("const /* outer /* inner */ still comment */ x"),
+            lex("let /* outer /* inner */ still comment */ x"),
             vec![
-                TokenKind::Const,
+                TokenKind::Let,
                 TokenKind::Identifier("x".to_string()),
                 TokenKind::Eof,
             ]

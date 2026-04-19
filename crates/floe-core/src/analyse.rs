@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn analyses_a_trivial_module_without_errors() {
-        let m = analyse_module("const _x = 42", ModuleInputs::default());
+        let m = analyse_module("let _x = 42", ModuleInputs::default());
         let errors: Vec<_> = m
             .diagnostics
             .iter()
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn analyses_surface_parse_errors_as_diagnostics() {
-        let m = analyse_module("const =", ModuleInputs::default());
+        let m = analyse_module("let =", ModuleInputs::default());
         assert!(!m.diagnostics.is_empty(), "parse error should surface");
         assert!(m.program.items.is_empty());
     }
@@ -130,8 +130,8 @@ mod tests {
     fn analyses_populate_reference_tracker() {
         let m = analyse_module(
             r#"
-fn greet(n: string) => string { n }
-const _a = greet("a")
+let greet = (n: string): string => { n }
+let _a = greet("a")
 "#,
             ModuleInputs::default(),
         );

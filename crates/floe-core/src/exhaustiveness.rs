@@ -427,7 +427,7 @@ mod tests {
     fn wildcard_is_exhaustive() {
         let diags = check(
             r#"
-const x = match 42 {
+let x = match 42 {
     1 -> "one",
     _ -> "other",
 }
@@ -440,7 +440,7 @@ const x = match 42 {
     fn binding_is_exhaustive() {
         let diags = check(
             r#"
-const x = match 42 {
+let x = match 42 {
     n -> n + 1,
 }
 "#,
@@ -452,8 +452,8 @@ const x = match 42 {
     fn bool_both_branches_exhaustive() {
         let diags = check(
             r#"
-const x: boolean = true
-const y = match x {
+let x: boolean = true
+let y = match x {
     true -> "yes",
     false -> "no",
 }
@@ -467,7 +467,7 @@ const y = match x {
         let diags = check(
             r#"
 type Color = | Red | Green | Blue
-fn _f(c: Color) => string {
+let _f = (c: Color): string => {
     match c {
         Red -> "r",
         Green -> "g",
@@ -483,7 +483,7 @@ fn _f(c: Color) => string {
     fn option_both_variants_exhaustive() {
         let diags = check(
             r#"
-fn _f(x: Option<number>) => number {
+let _f = (x: Option<number>): number => {
     match x {
         Some(n) -> n,
         None -> 0,
@@ -499,7 +499,7 @@ fn _f(x: Option<number>) => number {
         let diags = check(
             r#"
 type Method = "GET" | "POST" | "PUT"
-fn _f(m: Method) => string {
+let _f = (m: Method): string => {
     match m {
         "GET" -> "get",
         "POST" -> "post",
@@ -515,7 +515,7 @@ fn _f(m: Method) => string {
     fn array_empty_and_nonempty_exhaustive() {
         let diags = check(
             r#"
-fn _f(xs: Array<number>) => number {
+let _f = (xs: Array<number>): number => {
     match xs {
         [] -> 0,
         [first, ..rest] -> first,
@@ -532,8 +532,8 @@ fn _f(xs: Array<number>) => number {
     fn bool_missing_false() {
         let diags = check(
             r#"
-const x: boolean = true
-const y = match x {
+let x: boolean = true
+let y = match x {
     true -> "yes",
 }
 "#,
@@ -546,7 +546,7 @@ const y = match x {
         let diags = check(
             r#"
 type Color = | Red | Green | Blue
-fn _f(c: Color) => string {
+let _f = (c: Color): string => {
     match c {
         Red -> "r",
         Green -> "g",
@@ -561,7 +561,7 @@ fn _f(c: Color) => string {
     fn number_without_catchall() {
         let diags = check(
             r#"
-const x = match 42 {
+let x = match 42 {
     1 -> "one",
     2 -> "two",
 }
@@ -574,8 +574,8 @@ const x = match 42 {
     fn string_without_catchall() {
         let diags = check(
             r#"
-const x: string = "hello"
-const y = match x {
+let x: string = "hello"
+let y = match x {
     "hello" -> 1,
     "world" -> 2,
 }
@@ -589,7 +589,7 @@ const y = match x {
         let diags = check(
             r#"
 type Method = "GET" | "POST" | "PUT" | "DELETE"
-fn _f(m: Method) => string {
+let _f = (m: Method): string => {
     match m {
         "GET" -> "get",
         "POST" -> "post",
@@ -605,7 +605,7 @@ fn _f(m: Method) => string {
         let diags = check(
             r#"
 type Status = "ok" | "error" | "pending"
-fn _f(s: Status) => number {
+let _f = (s: Status): number => {
     match s {
         "ok" -> 1,
         _ -> 0,
@@ -620,7 +620,7 @@ fn _f(s: Status) => number {
     fn array_missing_empty_case() {
         let diags = check(
             r#"
-fn _f(xs: Array<number>) => number {
+let _f = (xs: Array<number>): number => {
     match xs {
         [first, ..rest] -> first,
     }
@@ -634,7 +634,7 @@ fn _f(xs: Array<number>) => number {
     fn array_missing_nonempty_case() {
         let diags = check(
             r#"
-fn _f(xs: Array<number>) => number {
+let _f = (xs: Array<number>): number => {
     match xs {
         [] -> 0,
     }
@@ -650,8 +650,8 @@ fn _f(xs: Array<number>) => number {
     fn tuple_bool_bool_exhaustive() {
         let diags = check(
             r#"
-const x: (boolean, boolean) = (true, false)
-const y = match x {
+let x: (boolean, boolean) = (true, false)
+let y = match x {
     (true, true) -> 1,
     (true, false) -> 2,
     (false, true) -> 3,
@@ -666,8 +666,8 @@ const y = match x {
     fn tuple_bool_bool_missing_combination() {
         let diags = check(
             r#"
-const x: (boolean, boolean) = (true, false)
-const y = match x {
+let x: (boolean, boolean) = (true, false)
+let y = match x {
     (true, true) -> 1,
     (true, false) -> 2,
     (false, true) -> 3,
@@ -681,8 +681,8 @@ const y = match x {
     fn tuple_with_unbounded_needs_catchall() {
         let diags = check(
             r#"
-const x: (number, boolean) = (1, true)
-const y = match x {
+let x: (number, boolean) = (1, true)
+let y = match x {
     (1, true) -> 1,
     (2, false) -> 2,
 }
@@ -695,8 +695,8 @@ const y = match x {
     fn tuple_wildcard_exhaustive() {
         let diags = check(
             r#"
-const x: (number, boolean) = (1, true)
-const y = match x {
+let x: (number, boolean) = (1, true)
+let y = match x {
     _ -> 0,
 }
 "#,

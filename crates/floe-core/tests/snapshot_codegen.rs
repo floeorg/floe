@@ -172,7 +172,7 @@ trait Repo {
   fn findById(self, id: number) => string
 }
 
-type DrizzleRepo = {
+type DrizzleRepo = => {
   db: string,
 }
 
@@ -186,7 +186,7 @@ for DrizzleRepo: Repo {
   }
 }
 
-fn doWork<R: Repo>(repo: R, input: string) => string {
+let doWork = <R: Repo>(repo: R, input: string): string => {
   repo |> create(input)
 }
 "#,

@@ -3,8 +3,8 @@ import from "./product"
 
 // ── Validation helpers ─────────────────────────────────
 
-fn validateEmail(email: string) => Result<string, CheckoutError> {
-    const trimmed = email |> trim
+let validateEmail = (email: string): Result<string, CheckoutError> => {
+    let trimmed = email |> trim
 
     match trimmed |> contains("@") {
         true -> Ok(trimmed),
@@ -12,8 +12,8 @@ fn validateEmail(email: string) => Result<string, CheckoutError> {
     }
 }
 
-fn validatePhone(phone: string) => Result<string, CheckoutError> {
-    const trimmed = phone |> trim
+let validatePhone = (phone: string): Result<string, CheckoutError> => {
+    let trimmed = phone |> trim
 
     match trimmed |> length {
         n when n >= 7 -> Ok(trimmed),
@@ -21,8 +21,8 @@ fn validatePhone(phone: string) => Result<string, CheckoutError> {
     }
 }
 
-fn validateStock(cart: Array<CartItem>) => Result<Array<CartItem>, CheckoutError> {
-    const outOfStock = cart |> Array.filter((item) => item.quantity > item.product.stock)
+let validateStock = (cart: Array<CartItem>): Result<Array<CartItem>, CheckoutError> => {
+    let outOfStock = cart |> Array.filter((item) => item.quantity > item.product.stock)
 
     match outOfStock {
         [] -> Ok(cart),
@@ -34,16 +34,16 @@ fn validateStock(cart: Array<CartItem>) => Result<Array<CartItem>, CheckoutError
 // All validations run — user sees every error at once,
 // not one at a time.
 
-export fn validateCheckout(
+export let validateCheckout = (
     cart: Array<CartItem>,
     shipping: ShippingInfo,
-) => Result<ShippingInfo, Array<CheckoutError>> {
+): Result<ShippingInfo, Array<CheckoutError>> => {
     match cart |> Array.isEmpty {
         true -> Err([EmptyCart]),
         false -> collect {
-            const email = shipping.email |> validateEmail?
-            const phone = shipping.phone |> validatePhone?
-            const _stock = cart |> validateStock?
+            let email = shipping.email |> validateEmail?
+            let phone = shipping.phone |> validatePhone?
+            let _stock = cart |> validateStock?
 
             ShippingInfo(..shipping, email: email, phone: phone)
         },
@@ -52,12 +52,12 @@ export fn validateCheckout(
 
 // ── Mock checkout ──────────────────────────────────────
 
-export fn processCheckout(
+export let processCheckout = (
     cart: Array<CartItem>,
     shipping: ShippingInfo,
-) => Result<OrderStatus, Array<CheckoutError>> {
-    const _validated = validateCheckout(cart, shipping)?
-    const orderId = OrderId(Math.floor(Math.random() * 10_000))
+): Result<OrderStatus, Array<CheckoutError>> => {
+    let _validated = validateCheckout(cart, shipping)?
+    let orderId = OrderId(Math.floor(Math.random() * 10_000))
 
     Ok(Confirmed(orderId))
 }
@@ -65,7 +65,7 @@ export fn processCheckout(
 // ── Partial update (Settable) ─────────────────────────
 // Only updates fields that are Value(...). Clear sets to null. Unchanged is omitted.
 
-export fn updateShippingExample() => ShippingUpdate {
+export let updateShippingExample = (): ShippingUpdate => {
     ShippingUpdate(email: Value("new@email.com"), phone: Clear)
 }
 

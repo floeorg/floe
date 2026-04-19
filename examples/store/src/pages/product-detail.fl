@@ -23,10 +23,10 @@ type ProductDetailProps = {
 
 // ── Star rating display ────────────────────────────────
 
-fn Stars(props: StarsProps) => JSX.Element {
-    const filled = Math.floor(props.rating)
-    const filledStars = "*" |> String.repeat(filled)
-    const emptyStars = "*" |> String.repeat(5 - filled)
+let Stars = (props: StarsProps): JSX.Element => {
+    let filled = Math.floor(props.rating)
+    let filledStars = "*" |> String.repeat(filled)
+    let emptyStars = "*" |> String.repeat(5 - filled)
 
     <div className="flex gap-0.5">
         <span className="text-amber-400">{filledStars}</span>
@@ -36,8 +36,8 @@ fn Stars(props: StarsProps) => JSX.Element {
 
 // ── Review card ────────────────────────────────────────
 
-fn ReviewCard(props: ReviewCardProps) => JSX.Element {
-    const review = props.review
+let ReviewCard = (props: ReviewCardProps): JSX.Element => {
+    let review = props.review
 
     <div
         className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4"
@@ -53,20 +53,20 @@ fn ReviewCard(props: ReviewCardProps) => JSX.Element {
 
 // ── Product detail content ─────────────────────────────
 
-fn ProductDetailContent(props: ProductDetailProps) => JSX.Element {
-    const { data } = useSuspenseQuery(
+let ProductDetailContent = (props: ProductDetailProps): JSX.Element => {
+    let { data } = useSuspenseQuery(
         {
         queryKey: ["product", props.productId],
         queryFn: () => fetchProduct(props.productId),
     },
     )
 
-    const (product, reviews) = data |> match {
+    let (product, reviews) = data |> match {
         Ok(result) -> result,
         Err(_) -> unreachable,
     }
 
-    const hasDiscount = product.discountPercentage > 0
+    let hasDiscount = product.discountPercentage > 0
 
     <div>
         <div className="mb-8 flex gap-8">
@@ -177,7 +177,7 @@ fn ProductDetailContent(props: ProductDetailProps) => JSX.Element {
 
 // ── Loading skeleton ───────────────────────────────────
 
-fn DetailSkeleton() => JSX.Element {
+let DetailSkeleton = (): JSX.Element => {
     <div className="animate-pulse">
         <div className="mb-8 flex gap-8">
             <div className="w-1/2">
@@ -201,7 +201,7 @@ fn DetailSkeleton() => JSX.Element {
 
 // ── Exported page component ────────────────────────────
 
-export fn ProductDetailPage(props: ProductDetailProps) => JSX.Element {
+export let ProductDetailPage = (props: ProductDetailProps): JSX.Element => {
     <div>
         <Link
             to="/"

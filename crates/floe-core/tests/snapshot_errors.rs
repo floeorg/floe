@@ -61,13 +61,13 @@ fn snapshot_error_unused_import() {
 
 #[test]
 fn snapshot_error_unused_variable() {
-    let output = get_diagnostics("test.fl", "const x = 42");
+    let output = get_diagnostics("test.fl", "let x = 42");
     insta::assert_snapshot!(output);
 }
 
 #[test]
 fn snapshot_error_type_mismatch_comparison() {
-    let output = get_diagnostics("test.fl", r#"const _x = 1 == "hello""#);
+    let output = get_diagnostics("test.fl", r#"let _x = 1 == "hello""#);
     insta::assert_snapshot!(output);
 }
 
@@ -85,7 +85,7 @@ fn snapshot_error_unhandled_result() {
 
 #[test]
 fn snapshot_error_string_concat() {
-    let output = get_diagnostics("test.fl", r#"const _x = "a" + "b""#);
+    let output = get_diagnostics("test.fl", r#"let _x = "a" + "b""#);
     insta::assert_snapshot!(output);
 }
 
@@ -99,7 +99,7 @@ fn snapshot_error_banned_void() {
 fn snapshot_error_missing_return() {
     let output = get_diagnostics(
         "test.fl",
-        "function getName(_id: string): string {\n  const _x = 42\n}",
+        "function getName(_id: string): string {\n  let _x = 42\n}",
     );
     insta::assert_snapshot!(output);
 }
@@ -119,8 +119,8 @@ fn snapshot_error_untrusted_result_used_as_value() {
     let output = get_diagnostics(
         "test.fl",
         r#"import { transform } from "some-lib"
-fn process(x: string) => string {
-    const result = transform(x)
+let process = (x: string): string => {
+    let result = transform(x)
     result
 }"#,
     );
@@ -189,7 +189,7 @@ fn snapshot_error_trait_default_method_not_required() {
     let source = r#"
 trait Eq {
   fn eq(self, other: string) => boolean
-  fn neq(self, other: string) => boolean {
+  let neq = (self, other: string): boolean => {
     !(self |> eq(other))
   }
 }
@@ -222,14 +222,17 @@ for User: Eq {
 fn snapshot_error_unknown_named_argument() {
     let output = get_diagnostics(
         "test.fl",
-        "fn add(a: number, b: number) => number { a + b }\nconst _x = add(pooopy: 22)",
+        "let add = (a: number, b: number): number => { a + b }\nconst _x = add(pooopy: 22)",
     );
     insta::assert_snapshot!(output);
 }
 
 #[test]
 fn snapshot_error_todo_warning() {
-    let output = get_diagnostics("test.fl", "fn process(x: number) => number {\n  todo\n}");
+    let output = get_diagnostics(
+        "test.fl",
+        "let process = (x: number): number => {\n  todo\n}",
+    );
     insta::assert_snapshot!(output);
 }
 
@@ -237,7 +240,7 @@ fn snapshot_error_todo_warning() {
 fn snapshot_error_member_access_on_non_record_type() {
     let output = get_diagnostics(
         "test.fl",
-        "fn check(items: [number]) => number {\n  items.gibberish\n}",
+        "let check = (items: [number]): number => {\n  items.gibberish\n}",
     );
     insta::assert_snapshot!(output);
 }
@@ -246,7 +249,10 @@ fn snapshot_error_member_access_on_non_record_type() {
 fn snapshot_error_no_cascade_from_undefined_name() {
     // When a name is undefined, the error type (Type::Error) should suppress
     // cascading "type mismatch" errors on downstream uses.
-    let output = get_diagnostics("test.fl", "fn check() => number {\n  undefined_name + 1\n}");
+    let output = get_diagnostics(
+        "test.fl",
+        "let check = (): number => {\n  undefined_name + 1\n}",
+    );
     insta::assert_snapshot!(output);
 }
 
@@ -276,7 +282,7 @@ for MyRepo: Repo {
   fn create(self) => string { "ok" }
 }
 
-fn doThing(repo: Repo) => string {
+let doThing = (repo: Repo): string => {
   "hi"
 }
 "#,
@@ -293,7 +299,7 @@ trait Repo {
   fn create(self) => string
 }
 
-fn getRepo() => Repo {
+let getRepo = (): Repo => {
   todo
 }
 "#,
@@ -310,7 +316,7 @@ trait Repo {
   fn create(self) => string
 }
 
-const x: Repo = todo
+let x: Repo = todo
 "#,
     );
     insta::assert_snapshot!(output);
@@ -318,7 +324,10 @@ const x: Repo = todo
 
 #[test]
 fn snapshot_error_undefined_type_in_annotation() {
-    let output = get_diagnostics("test.fl", r#"fn doThing(x: GhostType) => string { "hi" }"#);
+    let output = get_diagnostics(
+        "test.fl",
+        r#"let doThing = (x: GhostType): string => { "hi" }"#,
+    );
     insta::assert_snapshot!(output);
 }
 
@@ -326,7 +335,7 @@ fn snapshot_error_undefined_type_in_annotation() {
 fn snapshot_error_field_access_on_unknown_from_bad_annotation() {
     let output = get_diagnostics(
         "test.fl",
-        r#"fn doThing(x: GhostType) => string { x.someField }"#,
+        r#"let doThing = (x: GhostType): string => { x.someField }"#,
     );
     insta::assert_snapshot!(output);
 }
@@ -336,8 +345,8 @@ fn snapshot_error_passing_unknown_to_typed_param() {
     let output = get_diagnostics(
         "test.fl",
         r#"
-fn takes(x: string) => string { x }
-fn doThing(x: GhostType) => string { takes(x) }
+let takes = (x: string): string => { x }
+let doThing = (x: GhostType): string => { takes(x) }
 "#,
     );
     insta::assert_snapshot!(output);

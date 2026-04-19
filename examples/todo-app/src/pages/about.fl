@@ -1,5 +1,5 @@
-export fn AboutPage() => JSX.Element {
-    const features = [
+export let AboutPage = (): JSX.Element => {
+    let features = [
         "Pipe operator (|>) for data transformation",
         "Exhaustive match expressions",
         "Tagged unions with pattern matching",

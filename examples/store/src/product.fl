@@ -35,7 +35,7 @@ for Product {
     }
 
     export fn ratingStars(self) => string {
-        const full = Math.floor(self.rating)
+        let full = Math.floor(self.rating)
 
         "*" |> String.repeat(full)
     }
@@ -45,7 +45,7 @@ for Product {
 
 for Array<CartItem> {
     export fn addItem(self, product: Product, qty: number = 1) => Array<CartItem> {
-        const existing = self |> Array.findIndex((item) => item.product.id == product.id)
+        let existing = self |> Array.findIndex((item) => item.product.id == product.id)
 
         existing |> match {
             None -> self |> Array.append(CartItem(product:, quantity: qty)),
@@ -71,13 +71,13 @@ for Array<CartItem> {
     }
 
     export fn totals(self) => (number, number, number) {
-        const subtotal = self
+        let subtotal = self
             |> Array.reduce(
             (acc: number, item: CartItem) => acc + item.product.price * item.quantity,
             0,
         )
 
-        const discounted = self
+        let discounted = self
             |> Array.reduce(
             (acc: number, item: CartItem) => acc + (item.product |> effectivePrice) * item.quantity,
             0,
@@ -97,7 +97,7 @@ for Array<CartItem> {
 
 // ── Sorting with partial application ───────────────────
 
-fn compareBy(order: SortOrder, a: Product, b: Product) => number {
+let compareBy = (order: SortOrder, a: Product, b: Product): number => {
     order |> match {
         PriceLow -> (a |> effectivePrice) - (b |> effectivePrice),
         PriceHigh -> (b |> effectivePrice) - (a |> effectivePrice),
@@ -106,14 +106,14 @@ fn compareBy(order: SortOrder, a: Product, b: Product) => number {
     }
 }
 
-export fn sortProducts(products: Array<Product>, order: SortOrder) => Array<Product> {
+export let sortProducts = (products: Array<Product>, order: SortOrder): Array<Product> => {
     products |> Array.sort((a, b) => compareBy(order, a, b))
 }
 
 // ── Price filtering with range matching ────────────────
 
-export fn matchesPrice(product: Product, range: PriceRange) => boolean {
-    const price = product |> effectivePrice
+export let matchesPrice = (product: Product, range: PriceRange): boolean => {
+    let price = product |> effectivePrice
 
     price |> match {
         _ when range == Any -> true,
@@ -129,7 +129,7 @@ export fn matchesPrice(product: Product, range: PriceRange) => boolean {
 
 // ── Formatting ─────────────────────────────────────────
 
-export fn formatPrice(amount: number) => string {
+export let formatPrice = (amount: number): string => {
     `$${amount |> Number.toFixed(2)}`
 }
 

@@ -32,8 +32,10 @@ pub enum TokenKind {
     Identifier(String),
 
     // Floe keywords
-    Const,
-    /// `fn` — function declaration keyword
+    /// `let` — universal binding keyword (values and functions)
+    Let,
+    /// `fn` — retained only for methods inside `for { ... }` blocks.
+    /// Top-level function declarations use `let` + arrow syntax.
     Fn,
     Export,
     Import,
@@ -196,7 +198,7 @@ pub enum TemplatePart {
 /// Banned keywords that produce immediate compile errors with helpful messages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BannedKeyword {
-    Let,
+    Const,
     Class,
     Throw,
     Null,
@@ -216,7 +218,7 @@ impl BannedKeyword {
     /// and what to use instead.
     pub fn help_message(&self) -> &'static str {
         match self {
-            Self::Let => "Use `const` - all bindings are immutable in Floe",
+            Self::Const => "Use `let` — the single binding keyword",
             Self::Class => "Use functions and types instead of classes",
             Self::Throw => "Return a `Result<T, E>` instead of throwing",
             Self::Null => "Use `Option<T>` with `Some`/`None` instead of null",
@@ -237,7 +239,7 @@ impl BannedKeyword {
     /// Returns the keyword as it would appear in source code.
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Let => "let",
+            Self::Const => "const",
             Self::Class => "class",
             Self::Throw => "throw",
             Self::Null => "null",
@@ -258,7 +260,7 @@ impl BannedKeyword {
 pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
     match word {
         // Floe keywords
-        "const" => Some(TokenKind::Const),
+        "let" => Some(TokenKind::Let),
         "fn" => Some(TokenKind::Fn),
         "export" => Some(TokenKind::Export),
         "import" => Some(TokenKind::Import),
@@ -291,7 +293,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "unreachable" => Some(TokenKind::Unreachable),
 
         // Banned keywords
-        "let" => Some(TokenKind::Banned(BannedKeyword::Let)),
+        "const" => Some(TokenKind::Banned(BannedKeyword::Const)),
         "class" => Some(TokenKind::Banned(BannedKeyword::Class)),
         "throw" => Some(TokenKind::Banned(BannedKeyword::Throw)),
         "null" => Some(TokenKind::Banned(BannedKeyword::Null)),
@@ -315,7 +317,7 @@ mod tests {
 
     #[test]
     fn lookup_floe_keywords() {
-        assert_eq!(lookup_keyword("const"), Some(TokenKind::Const));
+        assert_eq!(lookup_keyword("let"), Some(TokenKind::Let));
         assert_eq!(lookup_keyword("fn"), Some(TokenKind::Fn));
         assert_eq!(lookup_keyword("match"), Some(TokenKind::Match));
         assert_eq!(lookup_keyword("opaque"), Some(TokenKind::Opaque));
@@ -336,8 +338,8 @@ mod tests {
     #[test]
     fn lookup_banned_keywords() {
         assert_eq!(
-            lookup_keyword("let"),
-            Some(TokenKind::Banned(BannedKeyword::Let))
+            lookup_keyword("const"),
+            Some(TokenKind::Banned(BannedKeyword::Const))
         );
         assert_eq!(
             lookup_keyword("class"),
@@ -368,7 +370,7 @@ mod tests {
 
     #[test]
     fn banned_keyword_help_messages() {
-        assert!(BannedKeyword::Let.help_message().contains("const"));
+        assert!(BannedKeyword::Const.help_message().contains("let"));
         assert!(BannedKeyword::Throw.help_message().contains("Result"));
         assert!(BannedKeyword::Null.help_message().contains("Option"));
         assert!(BannedKeyword::Enum.help_message().contains("type"));

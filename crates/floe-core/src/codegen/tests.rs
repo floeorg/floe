@@ -100,7 +100,7 @@ fn named_args_reorder_to_declared_order() {
     // emitted call has values in source order which silently swaps
     // arguments at runtime.
     let source = r#"
-fn safeDivide(a: number, b: number) => number { a / b }
+let safeDivide = (a: number, b: number): number => { a / b }
 safeDivide(b: 1, a: 2)
 "#;
     let output = emit_typed(source);
@@ -113,7 +113,7 @@ safeDivide(b: 1, a: 2)
 #[test]
 fn named_args_in_declared_order_unchanged() {
     let source = r#"
-fn safeDivide(a: number, b: number) => number { a / b }
+let safeDivide = (a: number, b: number): number => { a / b }
 safeDivide(a: 2, b: 1)
 "#;
     let output = emit_typed(source);
@@ -126,7 +126,7 @@ safeDivide(a: 2, b: 1)
 #[test]
 fn mixed_positional_and_named_args_reorder() {
     let source = r#"
-fn f(a: number, b: number, c: number) => number { a + b + c }
+let f = (a: number, b: number, c: number): number => { a + b + c }
 f(10, c: 30, b: 20)
 "#;
     let output = emit_typed(source);
@@ -139,7 +139,7 @@ f(10, c: 30, b: 20)
 #[test]
 fn named_args_fully_reversed_three_params() {
     let source = r#"
-fn f(a: number, b: number, c: number) => number { a + b + c }
+let f = (a: number, b: number, c: number): number => { a + b + c }
 f(c: 30, b: 20, a: 10)
 "#;
     let output = emit_typed(source);
@@ -152,7 +152,7 @@ f(c: 30, b: 20, a: 10)
 #[test]
 fn named_args_splice_multiple_defaults() {
     let source = r#"
-fn g(a: number, b: number = 2, c: number = 3, d: number) => number { a + b + c + d }
+let g = (a: number, b: number = 2, c: number = 3, d: number): number => { a + b + c + d }
 g(d: 40, a: 10)
 "#;
     let output = emit_typed(source);
@@ -167,7 +167,7 @@ fn named_args_default_spliced_in_missing_slot() {
     // A named call that omits a defaulted parameter gets the default
     // spliced into the reordered slot so codegen emits it positionally.
     let source = r#"
-fn greet(name: string, greeting: string = "hello") => string { greeting }
+let greet = (name: string, greeting: string = "hello"): string => { greeting }
 greet(name: "world")
 "#;
     let output = emit_typed(source);
@@ -181,7 +181,7 @@ greet(name: "world")
 fn named_args_unknown_label_emits_error() {
     use crate::diagnostic::Severity;
     let source = r#"
-fn f(a: number) => number { a }
+let f = (a: number): number => { a }
 f(nonexistent: 1)
 "#;
     let program = crate::parser::Parser::new(source).parse_program().unwrap();
@@ -255,27 +255,27 @@ fn tagged_template_nested_template_in_interpolation() {
 
 #[test]
 fn const_decl() {
-    assert_eq!(emit("const x = 42"), "const x = 42;");
+    assert_eq!(emit("let x = 42"), "const x = 42;");
 }
 
 #[test]
 fn const_with_type() {
-    assert_eq!(emit("const x: number = 42"), "const x: number = 42;");
+    assert_eq!(emit("let x: number = 42"), "const x: number = 42;");
 }
 
 #[test]
 fn export_const() {
-    assert_eq!(emit("export const x = 42"), "export const x = 42;");
+    assert_eq!(emit("export let x = 42"), "export const x = 42;");
 }
 
 #[test]
 fn const_array_destructure() {
-    assert_eq!(emit("const [a, b] = pair"), "const [a, b] = pair;");
+    assert_eq!(emit("let [a, b] = pair"), "const [a, b] = pair;");
 }
 
 #[test]
 fn function_decl() {
-    let result = emit("fn add(a: number, b: number) => number { a + b }");
+    let result = emit("let add = (a: number, b: number): number => { a + b }");
     assert_eq!(
         result,
         "function add(a: number, b: number): number {\n  return a + b;\n}"
@@ -284,13 +284,14 @@ fn function_decl() {
 
 #[test]
 fn export_function() {
-    let result = emit("export fn greet() { \"hi\" }");
+    let result = emit("export let greet = () => { \"hi\" }");
     assert!(result.starts_with("export function greet()"));
 }
 
 #[test]
 fn promise_await_emits_async_function() {
-    let result = emit_with_types("fn fetch() => Promise<string> { getData() |> Promise.await }");
+    let result =
+        emit_with_types("let fetch = (): Promise<string> => { getData() |> Promise.await }");
     assert!(result.starts_with("async function fetch()"));
     assert!(result.contains("await getData()"));
 }
@@ -298,7 +299,7 @@ fn promise_await_emits_async_function() {
 #[test]
 fn async_fn_sugar_wraps_return_type_in_promise() {
     // `async fn f() -> T` should emit `async function f(): Promise<T>`
-    let result = emit_with_types("async fn fetch() => string { \"hi\" }");
+    let result = emit_with_types("async let fetch = (): string => { \"hi\" }");
     assert!(
         result.starts_with("async function fetch(): Promise<string>"),
         "expected async + Promise wrap, got: {result}"
@@ -307,8 +308,9 @@ fn async_fn_sugar_wraps_return_type_in_promise() {
 
 #[test]
 fn async_fn_sugar_with_await_body() {
-    let result =
-        emit_with_types("async fn fetch() => string { const x = getData() |> Promise.await\n x }");
+    let result = emit_with_types(
+        "async let fetch = (): string => { let x = getData() |> Promise.await\n x }",
+    );
     assert!(
         result.starts_with("async function fetch(): Promise<string>"),
         "expected async + Promise wrap, got: {result}"
@@ -318,7 +320,7 @@ fn async_fn_sugar_with_await_body() {
 
 #[test]
 fn function_with_defaults() {
-    let result = emit("fn f(x: number = 10) { x }");
+    let result = emit("let f = (x: number = 10) => { x }");
     assert!(result.contains("x: number = 10"));
 }
 
@@ -330,8 +332,8 @@ fn import_named() {
     assert_eq!(
         emit(
             r#"import trusted { useState, useEffect } from "react"
-const x = useState(0)
-const y = useEffect"#
+let x = useState(0)
+let y = useEffect"#
         ),
         "import { useState, useEffect } from \"react\";\n\nconst x = useState(0);\n\nconst y = useEffect;"
     );
@@ -343,7 +345,7 @@ fn import_type_only_specifier() {
     assert_eq!(
         emit(
             r#"import { Session } from "@supabase/supabase-js"
-const x: Option<Session> = None"#
+let x: Option<Session> = None"#
         ),
         "import { type Session } from \"@supabase/supabase-js\";\n\nconst x: Session | null | undefined = undefined;"
     );
@@ -381,8 +383,8 @@ fn pipe_local_fn_shadows_stdlib_template() {
     // Imports feed the same `local_names` set, so this also covers trusted
     // imports — the unit test avoids the npm resolver round-trip.
     let src = r#"
-fn map(arr: Array<number>, f: (number) => number) => Array<number> { arr }
-const _items = [1, 2, 3] |> map((x) => x + 1)
+let map = (arr: Array<number>, f: (number) => number): Array<number> => { arr }
+let _items = [1, 2, 3] |> map((x) => x + 1)
 "#;
     let out = emit_typed(src);
     assert!(
@@ -402,8 +404,8 @@ fn pipe_local_fn_named_get_shadows_record_get() {
     // still win.
     let src = r#"
 type Router = { path: string }
-fn get(r: Router, path: string) => Router { Router(path: path) }
-const _r = Router(path: "/") |> get("/hello")
+let get = (r: Router, path: string): Router => { Router(path: path) }
+let _r = Router(path: "/") |> get("/hello")
 "#;
     let out = emit_typed(src);
     assert!(
@@ -522,7 +524,7 @@ fn constructor_with_defaults_omitted() {
     let result = emit(
         r#"
         type Config = { baseUrl: string, timeout: number = 5000, retries: number = 3 }
-        const c = Config(baseUrl: "https://api.com")
+        let c = Config(baseUrl: "https://api.com")
         "#,
     );
     assert!(result.contains(r#"baseUrl: "https://api.com", timeout: 5000, retries: 3"#));
@@ -533,7 +535,7 @@ fn constructor_with_defaults_overridden() {
     let result = emit(
         r#"
         type Config = { baseUrl: string, timeout: number = 5000, retries: number = 3 }
-        const c = Config(baseUrl: "https://api.com", timeout: 10000)
+        let c = Config(baseUrl: "https://api.com", timeout: 10000)
         "#,
     );
     assert!(result.contains(r#"baseUrl: "https://api.com", timeout: 10000, retries: 3"#));
@@ -544,7 +546,7 @@ fn constructor_all_defaults() {
     let result = emit(
         r#"
         type Options = { timeout: number = 5000, retries: number = 3 }
-        const o = Options()
+        let o = Options()
         "#,
     );
     assert!(result.contains("timeout: 5000, retries: 3"));
@@ -557,7 +559,7 @@ fn record_type_default_fields_are_optional() {
     let result = emit(
         r#"
         type Config = { baseUrl: string, timeout: number = 5000, retries: number = 3 }
-        const c = Config(baseUrl: "https://api.com")
+        let c = Config(baseUrl: "https://api.com")
         "#,
     );
     // Fields with defaults should be optional in the type definition
@@ -579,7 +581,7 @@ fn settable_value_emits_value() {
     let result = emit(
         r#"
         type Dto = { name: Settable<string> = Unchanged }
-        const d = Dto(name: Value("Ryan"))
+        let d = Dto(name: Value("Ryan"))
         "#,
     );
     assert!(result.contains(r#"name: "Ryan""#));
@@ -590,7 +592,7 @@ fn settable_clear_emits_null() {
     let result = emit(
         r#"
         type Dto = { name: Settable<string> = Unchanged }
-        const d = Dto(name: Clear)
+        let d = Dto(name: Clear)
         "#,
     );
     assert!(result.contains("name: null"));
@@ -601,11 +603,11 @@ fn settable_unchanged_omits_field() {
     let result = emit(
         r#"
         type Dto = { name: Settable<string> = Unchanged, age: Settable<number> = Unchanged }
-        const d = Dto(name: Value("Ryan"))
+        let d = Dto(name: Value("Ryan"))
         "#,
     );
     // Constructor line should have name but not age
-    let const_line = result.lines().find(|l| l.starts_with("const d")).unwrap();
+    let const_line = result.lines().find(|l| l.starts_with("let d")).unwrap();
     assert!(const_line.contains(r#"name: "Ryan""#));
     assert!(!const_line.contains("age"));
 }
@@ -615,7 +617,7 @@ fn settable_all_unchanged_empty_object() {
     let result = emit(
         r#"
         type Dto = { name: Settable<string> = Unchanged }
-        const d = Dto()
+        let d = Dto()
         "#,
     );
     assert!(result.contains("{  }"));
@@ -716,7 +718,7 @@ fn newtype_erased() {
 
 #[test]
 fn option_type() {
-    let result = emit("const x: Option<string> = None");
+    let result = emit("let x: Option<string> = None");
     assert!(result.contains("string | null | undefined"));
 }
 
@@ -775,7 +777,7 @@ fn jsx_detection() {
 
 #[test]
 fn no_jsx_detection() {
-    let program = Parser::new("const x = 42").parse_program().unwrap();
+    let program = Parser::new("let x = 42").parse_program().unwrap();
     let typed = crate::checker::attach_types(
         program,
         &crate::checker::ExprTypeMap::new(),
@@ -790,7 +792,7 @@ fn no_jsx_detection() {
 #[test]
 fn generic_function_codegen() {
     assert_eq!(
-        emit("fn identity<T>(x: T) => T { x }"),
+        emit("let identity = <T>(x: T): T => { x }"),
         "function identity<T>(x: T): T {\n  return x;\n}"
     );
 }
@@ -798,7 +800,7 @@ fn generic_function_codegen() {
 #[test]
 fn generic_function_multi_params_codegen() {
     assert_eq!(
-        emit("fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) }"),
+        emit("let pair = <A, B>(a: A, b: B): (A, B) => { (a, b) }"),
         "function pair<A, B>(a: A, b: B): readonly [A, B] {\n  return [a, b];\n}"
     );
 }
@@ -820,7 +822,7 @@ fn lambda_multi_arg() {
 #[test]
 fn fn_binding_partial_application() {
     assert_eq!(
-        emit("fn add(a: number, b: number) => number { a + b }\nfn inc = add(1, _)"),
+        emit("let add = (a: number, b: number): number => { a + b }\nfn inc = add(1, _)"),
         "function add(a: number, b: number): number {\n  return a + b;\n}\n\nconst inc = (_x) => add(1, _x);"
     );
 }
@@ -848,7 +850,7 @@ fn floe_eq_helper_emitted_when_needed() {
 #[test]
 fn floe_eq_helper_not_emitted_when_not_needed() {
     // File that doesn't use == should NOT have the __floeEq helper
-    let result = emit("const x = 1 + 2");
+    let result = emit("let x = 1 + 2");
     assert!(
         !result.contains("__floeEq"),
         "expected no __floeEq helper, got:\n{result}"
@@ -858,7 +860,7 @@ fn floe_eq_helper_not_emitted_when_not_needed() {
 #[test]
 fn floe_eq_helper_emitted_for_dot_shorthand_eq() {
     // Dot shorthand with == should emit the helper
-    let result = emit("const active = todos |> Array.filter(.done == false)");
+    let result = emit("let active = todos |> Array.filter(.done == false)");
     assert!(
         result.contains("function __floeEq(a: unknown, b: unknown): boolean"),
         "expected __floeEq helper for dot shorthand ==, got:\n{result}"
@@ -880,7 +882,7 @@ fn floe_eq_helper_emitted_for_stdlib_contains() {
 #[test]
 fn option_unwrap_or_chained_with_pipe() {
     let result = emit(
-        "const _x: Option<Array<number>> = None\nconst _y = _x |> Option.unwrapOr([]) |> filter((n) => n > 0)",
+        "let _x: Option<Array<number>> = None\nconst _y = _x |> Option.unwrapOr([]) |> filter((n) => n > 0)",
     );
     // The ternary from unwrapOr must be parenthesized so .filter binds to the result, not to []
     assert!(
@@ -893,7 +895,7 @@ fn option_unwrap_or_chained_with_pipe() {
 fn option_stdlib_uses_null_check_not_undefined() {
     // Option functions must use != null (catches both null and undefined)
     // not !== undefined (misses null from serde/JSON)
-    let result = emit("const _x: Option<number> = None\nconst _y = _x |> Option.map((n) => n + 1)");
+    let result = emit("let _x: Option<number> = None\nconst _y = _x |> Option.map((n) => n + 1)");
     assert!(
         result.contains("!= null") && !result.contains("!== undefined"),
         "Option.map should use != null, not !== undefined, got: {result}"
@@ -904,13 +906,13 @@ fn option_stdlib_uses_null_check_not_undefined() {
 
 #[test]
 fn promise_await_pipe() {
-    let result = emit_with_types("const _x = fetchData() |> Promise.await");
+    let result = emit_with_types("let _x = fetchData() |> Promise.await");
     assert!(result.contains("await fetchData()"));
 }
 
 #[test]
 fn bare_await_shorthand_emits_async_function() {
-    let result = emit_with_types("fn fetch() => Promise<string> { getData() |> await }");
+    let result = emit_with_types("let fetch = (): Promise<string> => { getData() |> await }");
     assert!(
         result.starts_with("async function fetch()"),
         "bare `|> await` should infer async on enclosing function, got: {result}"
@@ -920,14 +922,14 @@ fn bare_await_shorthand_emits_async_function() {
 
 #[test]
 fn bare_await_shorthand_pipe() {
-    let result = emit_with_types("const _x = fetchData() |> await");
+    let result = emit_with_types("let _x = fetchData() |> await");
     assert!(result.contains("await fetchData()"));
 }
 
 #[test]
 fn nested_fn_with_promise_await_emits_async() {
     let result =
-        emit_with_types("fn outer() { fn inner() { getData() |> Promise.await } inner() }");
+        emit_with_types("let outer = () => { fn inner() { getData() |> Promise.await } inner() }");
     assert!(
         result.contains("async function inner()"),
         "nested fn with Promise.await should be async, got: {result}"
@@ -936,7 +938,7 @@ fn nested_fn_with_promise_await_emits_async() {
 
 #[test]
 fn nested_fn_with_bare_await_emits_async() {
-    let result = emit_with_types("fn outer() { fn inner() { getData() |> await } inner() }");
+    let result = emit_with_types("let outer = () => { fn inner() { getData() |> await } inner() }");
     assert!(
         result.contains("async function inner()"),
         "nested fn with bare await should be async, got: {result}"
@@ -945,7 +947,7 @@ fn nested_fn_with_bare_await_emits_async() {
 
 #[test]
 fn match_on_comparison_wraps_subject_in_parens() {
-    let result = emit("const _x = match 5 > 0 { true -> \"yes\", false -> \"no\" }");
+    let result = emit("let _x = match 5 > 0 { true -> \"yes\", false -> \"no\" }");
     assert!(
         result.contains("(5 > 0) === true"),
         "match on comparison should wrap subject in parens, got: {result}"
@@ -954,7 +956,7 @@ fn match_on_comparison_wraps_subject_in_parens() {
 
 #[test]
 fn match_arm_block_iife_returns_last_expr() {
-    let result = emit("const _x = match true { true -> { const a = 1\na + 2 }, false -> 0 }");
+    let result = emit("let _x = match true { true -> { let a = 1\na + 2 }, false -> 0 }");
     assert!(
         result.contains("return a + 2"),
         "match arm block IIFE should return last expression, got: {result}"
@@ -965,19 +967,19 @@ fn match_arm_block_iife_returns_last_expr() {
 
 #[test]
 fn implicit_return_single_expr() {
-    let result = emit("fn f() => number { 42 }");
+    let result = emit("let f = (): number => { 42 }");
     assert!(result.contains("return 42"));
 }
 
 #[test]
 fn implicit_return_multi_statement() {
-    let result = emit("fn f() => number { const x = 1\nx + 1 }");
+    let result = emit("let f = (): number => { let x = 1\nx + 1 }");
     assert!(result.contains("return x + 1"));
 }
 
 #[test]
 fn unit_function_no_return() {
-    let result = emit("fn f() => () { Console.log(\"hi\") }");
+    let result = emit("let f = (): () => { Console.log(\"hi\") }");
     assert!(!result.contains("return"));
 }
 
@@ -1292,19 +1294,19 @@ fn emit_with_types(input: &str) -> String {
 
 #[test]
 fn type_directed_array_length() {
-    let result = emit_with_types("const _x = [1, 2, 3] |> length");
+    let result = emit_with_types("let _x = [1, 2, 3] |> length");
     assert_eq!(result, "const _x = [1, 2, 3].length;");
 }
 
 #[test]
 fn type_directed_string_length() {
-    let result = emit_with_types(r#"const _x = "hello" |> length"#);
-    assert_eq!(result, r#"const _x = "hello".length;"#);
+    let result = emit_with_types(r#"let _x = "hello" |> length"#);
+    assert_eq!(result, r#"let _x = "hello".length;"#);
 }
 
 #[test]
 fn type_directed_array_filter() {
-    let result = emit_with_types(r#"const _x = [1, 2, 3] |> filter((x) => x > 1)"#);
+    let result = emit_with_types(r#"let _x = [1, 2, 3] |> filter((x) => x > 1)"#);
     assert_eq!(result, "const _x = [1, 2, 3].filter((x) => x > 1);");
 }
 
@@ -1313,7 +1315,7 @@ fn union_variant_dot_access() {
     let result = emit(
         r#"
 type Filter = | All | Active | Completed
-const _f = Filter.All
+let _f = Filter.All
 "#,
     );
     assert!(result.contains(r#"{ __tag: "All" }"#));
@@ -1322,7 +1324,7 @@ const _f = Filter.All
 #[test]
 fn union_variant_dot_access_non_union_passthrough() {
     // Regular member access should still work normally
-    let result = emit("const _x = foo.bar");
+    let result = emit("let _x = foo.bar");
     assert!(result.contains("foo.bar"));
 }
 
@@ -1335,7 +1337,7 @@ fn non_unit_variant_as_function() {
 type SaveError = | Validation { errors: Array<string> }
     | Api { message: string }
 
-const _f = Validation
+let _f = Validation
 "#,
     );
     assert!(
@@ -1349,7 +1351,7 @@ fn unit_variant_unchanged_as_value() {
     let result = emit(
         r#"
 type Filter = | All | Active | Completed
-const _f = All
+let _f = All
 "#,
     );
     assert!(result.contains(r#"{ __tag: "All" }"#), "got: {result}");
@@ -1366,7 +1368,7 @@ fn qualified_non_unit_variant_as_function() {
 type SaveError = | Validation { errors: Array<string> }
     | Api { message: string }
 
-const _f = SaveError.Validation
+let _f = SaveError.Validation
 "#,
     );
     assert!(
@@ -1382,7 +1384,7 @@ fn variant_construct_with_args_unchanged() {
 type MyError = | Validation { message: string }
     | NotFound
 
-const _e = Validation(message: "bad")
+let _e = Validation(message: "bad")
 "#,
     );
     assert!(
@@ -1398,7 +1400,7 @@ fn multi_field_variant_as_function() {
 type Shape = | Circle { radius: number }
     | Rect { width: number, height: number }
 
-const _f = Rect
+let _f = Rect
 "#,
     );
     assert!(
@@ -1421,20 +1423,20 @@ fn tuple_three_elements() {
 
 #[test]
 fn tuple_destructuring() {
-    let result = emit("const (x, y) = point");
+    let result = emit("let (x, y) = point");
     assert_eq!(result, "const [x, y] = point;");
 }
 
 #[test]
 fn tuple_type_annotation() {
-    let result = emit("const p: (number, string) = (1, \"a\")");
+    let result = emit("let p: (number, string) = (1, \"a\")");
     assert!(result.contains("readonly [number, string]"));
     assert!(result.contains("[1, \"a\"]"));
 }
 
 #[test]
 fn tuple_return_type() {
-    let result = emit("fn f(a: number) => (number, string) { (a, \"x\") }");
+    let result = emit("let f = (a: number): (number, string) => { (a, \"x\") }");
     assert!(result.contains("readonly [number, string]"));
 }
 
@@ -1449,21 +1451,21 @@ fn tuple_trailing_comma() {
 fn stdlib_pipe_tap_qualified() {
     let result = emit("[1, 2, 3] |> Pipe.tap(Console.log)");
     // Console.log gets its own codegen template, so it's expanded inside tap's IIFE
-    assert!(result.contains("const _v"), "output: {result}");
+    assert!(result.contains("let _v"), "output: {result}");
     assert!(result.contains("return _v"), "output: {result}");
 }
 
 #[test]
 fn stdlib_tap_direct_call() {
     let result = emit("Pipe.tap([1, 2, 3], Console.log)");
-    assert!(result.contains("const _v"), "output: {result}");
+    assert!(result.contains("let _v"), "output: {result}");
     assert!(result.contains("return _v"), "output: {result}");
 }
 
 #[test]
 fn stdlib_pipe_tap_with_lambda() {
     let result = emit("[1, 2, 3] |> Pipe.tap((x) => Console.log(x))");
-    assert!(result.contains("const _v"), "output: {result}");
+    assert!(result.contains("let _v"), "output: {result}");
     assert!(result.contains("return _v"), "output: {result}");
 }
 
@@ -1584,7 +1586,7 @@ fn emit_test_mode(input: &str) -> String {
 fn test_block_stripped_in_production() {
     let result = emit(
         r#"
-fn add(a: number, b: number) => number { a + b }
+let add = (a: number, b: number): number => { a + b }
 
 test "addition" {
     assert add(1, 2) == 3
@@ -1637,7 +1639,7 @@ fn string_literal_union_match() {
         r#"
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
-fn describe(method: HttpMethod) => string {
+let describe = (method: HttpMethod): string => {
     match method {
         "GET" -> "fetching",
         "POST" -> "creating",
@@ -1666,7 +1668,7 @@ fn string_literal_union_match_with_wildcard() {
     let result = emit(
         r#"
 type Status = "ok" | "error"
-fn handle(s: Status) => number {
+let handle = (s: Status): number => {
     match s {
         "ok" -> 1,
         _ -> 0,
@@ -1803,11 +1805,11 @@ fn match_array_literal_element() {
 fn collect_basic_structure() {
     let result = emit(
         r#"
-fn validate(x: number) => Result<number, string> { Ok(x) }
-fn f() => Result<number, Array<string>> {
+let validate = (x: number): Result<number, string> => { Ok(x) }
+let f = (): Result<number, Array<string>> => {
     collect {
-        const a = validate(1)?
-        const b = validate(2)?
+        let a = validate(1)?
+        let b = validate(2)?
         a + b
     }
 }
@@ -1833,7 +1835,7 @@ fn collect_no_unwrap() {
     // collect with no ? just wraps in Ok
     let result = emit(
         r#"
-fn f() => Result<number, Array<string>> {
+let f = (): Result<number, Array<string>> => {
     collect {
         42
     }
@@ -1947,7 +1949,7 @@ fn parse_array_type_codegen() {
 fn parse_in_pipe() {
     let result = emit("x |> parse<string>");
     assert!(
-        result.contains("const __v = x"),
+        result.contains("let __v = x"),
         "should use piped value, got: {result}"
     );
     assert!(
@@ -1961,7 +1963,7 @@ fn parse_in_pipe() {
 #[test]
 fn use_basic() {
     let result = emit(
-        r#"fn _test() => string {
+        r#"let _test = (): string => {
     use x <- doSomething(42)
     x
 }"#,
@@ -1975,7 +1977,7 @@ fn use_basic() {
 #[test]
 fn use_zero_binding() {
     let result = emit(
-        r#"fn _test() => () {
+        r#"let _test = (): () => {
     use <- delay(1000)
     Console.log("done")
 }"#,
@@ -1989,7 +1991,7 @@ fn use_zero_binding() {
 #[test]
 fn use_chained() {
     let result = emit(
-        r#"fn _test() => string {
+        r#"let _test = (): string => {
     use a <- first(1)
     use b <- second(a)
     b
@@ -2008,9 +2010,9 @@ fn use_chained() {
 #[test]
 fn use_callback_block_returns_last_expr() {
     let result = emit(
-        r#"fn _test() => number {
+        r#"let _test = (): number => {
     use x <- doSomething(42)
-    const y = x + 1
+    let y = x + 1
     y + 2
 }"#,
     );
@@ -2023,8 +2025,8 @@ fn use_callback_block_returns_last_expr() {
 #[test]
 fn use_as_function_call_identifier() {
     let result = emit(
-        r#"fn _test(promise: Promise<number>) => number {
-    const value = use(promise)
+        r#"let _test = (promise: Promise<number>): number => {
+    let value = use(promise)
     value
 }"#,
     );
@@ -2037,7 +2039,7 @@ fn use_as_function_call_identifier() {
 #[test]
 fn use_as_member_access_identifier() {
     let result = emit(
-        r#"fn _test(m: { use: string }) => string {
+        r#"let _test = (m: { use: string }): string => {
     m.use
 }"#,
     );
@@ -2050,9 +2052,9 @@ fn use_as_member_access_identifier() {
 #[test]
 fn use_bind_adjacent_to_use_call() {
     let result = emit(
-        r#"fn _test(promise: Promise<number>) => number {
+        r#"let _test = (promise: Promise<number>): number => {
     use x <- doSomething(42)
-    const fromHook = use(promise)
+    let fromHook = use(promise)
     x + fromHook
 }"#,
     );
@@ -2069,7 +2071,7 @@ fn use_bind_adjacent_to_use_call() {
 #[test]
 fn use_bind_object_destructure() {
     let result = emit(
-        r#"fn _test() => number {
+        r#"let _test = (): number => {
     use { a, b } <- provideValues()
     a + b
 }"#,
@@ -2083,7 +2085,7 @@ fn use_bind_object_destructure() {
 #[test]
 fn use_bind_object_destructure_with_rename() {
     let result = emit(
-        r#"fn _test() => number {
+        r#"let _test = (): number => {
     use { a: x, b: y } <- provideValues()
     x + y
 }"#,
@@ -2140,7 +2142,7 @@ fn mock_record_type() {
 fn mock_named_record() {
     let result = emit(
         "type User = { name: string, age: number }
-const u = mock<User>",
+let u = mock<User>",
     );
     assert!(
         result.contains("name: \"mock-name-"),
@@ -2156,7 +2158,7 @@ const u = mock<User>",
 fn mock_with_override() {
     let result = emit(
         "type User = { name: string, age: number }
-const u = mock<User>(name: \"Alice\")",
+let u = mock<User>(name: \"Alice\")",
     );
     assert!(
         result.contains("name: \"Alice\""),
@@ -2181,7 +2183,7 @@ fn mock_array_type() {
 fn mock_union_type() {
     let result = emit(
         "type Status = | Active | Inactive
-const s = mock<Status>",
+let s = mock<Status>",
     );
     assert!(
         result.contains("tag: \"Active\""),
@@ -2194,7 +2196,7 @@ const s = mock<Status>",
 #[test]
 fn typeof_function_alias() {
     let result = emit(
-        "fn greet(name: string) => string { `Hello, ${name}!` }
+        "let greet = (name: string): string => { `Hello, ${name}!` }
 type Greeter = typeof greet",
     );
     assert!(
@@ -2207,12 +2209,12 @@ type Greeter = typeof greet",
 fn typeof_const_alias() {
     let result = emit(
         "type Config = { baseUrl: string }
-const config = Config(baseUrl: \"https://api.com\")
+let config = Config(baseUrl: \"https://api.com\")
 type MyConfig = typeof config",
     );
     assert!(
         result.contains("type MyConfig = typeof config;"),
-        "should emit typeof for const binding, got: {result}"
+        "should emit typeof for let binding, got: {result}"
     );
 }
 
@@ -2285,7 +2287,7 @@ fn string_literal_type_arg() {
 fn jsx_spread_prop() {
     let result = emit(
         "type Props = { x: number }
-fn _test(props: Props) => JSX.Element {
+let _test = (props: Props): JSX.Element => {
     <div {...props} />
 }",
     );
@@ -2309,7 +2311,7 @@ for Icon {
     }
 }
 
-const _x = Grid |> toChar
+let _x = Grid |> toChar
 "#,
     );
     assert!(
@@ -2334,7 +2336,7 @@ for Icon {
     }
 }
 
-const _f = toChar
+let _f = toChar
 "#,
     );
     assert!(
@@ -2354,7 +2356,7 @@ fn user_union_named_ok_does_not_inherit_result_dispatch() {
         r#"
 type Bag = | Ok(number) | Missing
 
-export fn describe(b: Bag) => string {
+export let describe = (b: Bag): string => {
     match b {
         Ok(n) -> "ok",
         Missing -> "missing",
@@ -2376,7 +2378,7 @@ export fn describe(b: Bag) => string {
 fn real_result_match_uses_ok_field_discriminator() {
     let result = emit_typed(
         r#"
-export fn describe(r: Result<number, string>) => string {
+export let describe = (r: Result<number, string>): string => {
     match r {
         Ok(n) -> "ok",
         Err(e) -> "err",
@@ -2400,8 +2402,8 @@ fn user_record_tag_field_does_not_collide_with_union_discriminator() {
 type Button = { tag: string, label: string }
 type Route = | Home | Profile { id: string }
 
-const btn = Button(tag: "nav-button", label: "Home")
-const r = Home
+let btn = Button(tag: "nav-button", label: "Home")
+let r = Home
 "#,
     );
     // User's `tag` field survives as-is.
@@ -2427,15 +2429,15 @@ fn pipe_unwrap_emits_early_return_on_none() {
     // same way `(x |> f)?` does — identical runtime semantics.
     let result = emit_typed(
         r#"
-fn half(n: number) => Option<number> {
+let half = (n: number): Option<number> => {
     match n % 2 {
         0 -> Some(n / 2),
         _ -> None,
     }
 }
 
-fn run() => Option<number> {
-    const x = 10 |>? half
+let run = (): Option<number> => {
+    let x = 10 |>? half
     Some(x + 1)
 }
 "#,
@@ -2463,7 +2465,7 @@ fn untrusted_call_detection_reads_callee_type() {
         r#"
 import { someFn } from "untrusted-pkg"
 
-export fn wrap() => Result<number, Error> {
+export let wrap = (): Result<number, Error> => {
     someFn()
 }
 "#,

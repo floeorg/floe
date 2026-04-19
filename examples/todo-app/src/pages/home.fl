@@ -3,16 +3,16 @@ import trusted { v4 } from "uuid"
 import { Todo, Filter, Validation } from "../types"
 import { for string, for Array } from "../todo"
 
-export fn HomePage() => JSX.Element {
-    const (todos, setTodos) = useState<Array<Todo>>([])
-    const (input, setInput) = useState("")
-    const (filter, setFilter) = useState<Filter>(All)
-    const (error, setError) = useState("")
+export let HomePage = (): JSX.Element => {
+    let (todos, setTodos) = useState<Array<Todo>>([])
+    let (input, setInput) = useState("")
+    let (filter, setFilter) = useState<Filter>(All)
+    let (error, setError) = useState("")
 
-    const visible = todos |> filterBy(filter)
-    const remainingCount = todos |> remaining
+    let visible = todos |> filterBy(filter)
+    let remainingCount = todos |> remaining
 
-    fn handleAdd() {
+    let handleAdd = () => {
         match input |> validate {
             Empty -> setError("Please enter a todo"),
             TooShort -> setError("Todo must be at least 2 characters"),
@@ -26,14 +26,14 @@ export fn HomePage() => JSX.Element {
         }
     }
 
-    fn handleToggle(id: string) {
+    let handleToggle = (id: string) => {
         setTodos(todos |> map((t) => match t.id == id {
                     true -> Todo(..t, done: !t.done),
                     false -> t,
                 }))
     }
 
-    fn handleDelete(id: string) {
+    let handleDelete = (id: string) => {
         setTodos(todos |> filter(.id != id))
     }
 

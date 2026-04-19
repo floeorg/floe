@@ -34,24 +34,19 @@ impl<'src> CstParser<'src> {
                 self.parse_reexport();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Const) => {
+            Some(TokenKind::Let) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_const_decl();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Fn) if !self.peek_is(TokenKind::LeftParen) => {
-                // `fn name(...)` is a function declaration; `fn(...)` is a lambda expression
-                self.builder
-                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
-                self.parse_function_decl();
-                self.builder.finish_node();
-            }
             Some(TokenKind::Async) => {
-                // `async fn name(...)` — async function declaration
+                // `async let name = ...` — async function binding.
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
-                self.parse_function_decl();
+                self.bump(); // async
+                self.eat_trivia();
+                self.parse_const_decl();
                 self.builder.finish_node();
             }
             Some(TokenKind::Opaque) | Some(TokenKind::Type) => {
@@ -213,24 +208,40 @@ impl<'src> CstParser<'src> {
     // ── Const Declaration ────────────────────────────────────────
 
     fn parse_const_decl(&mut self) {
-        self.builder.start_node(SyntaxKind::CONST_DECL.into());
-        self.expect(TokenKind::Const);
+        // `let NAME = ...` has two shapes: value binding or function binding.
+        // If the RHS looks like a function literal (generics, or parens + body),
+        // lift it into a FUNCTION_DECL CST so existing checker machinery
+        // (default params, generic type params) continues to apply.
+        let checkpoint = self.builder.checkpoint();
+        self.expect(TokenKind::Let);
         self.eat_trivia();
 
+        if self.looks_like_let_function_binding() {
+            self.builder
+                .start_node_at(checkpoint, SyntaxKind::FUNCTION_DECL.into());
+            self.expect_ident();
+            self.eat_trivia();
+            self.expect(TokenKind::Equal);
+            self.eat_trivia();
+            self.parse_let_function_body();
+            self.builder.finish_node();
+            return;
+        }
+
+        self.builder
+            .start_node_at(checkpoint, SyntaxKind::CONST_DECL.into());
+
         if self.at(TokenKind::LeftBracket) {
-            // Array destructuring
             self.bump();
             self.eat_trivia();
             self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightBracket);
             self.expect(TokenKind::RightBracket);
         } else if self.at(TokenKind::LeftBrace) {
-            // Object destructuring: { a, b } or { a: x, b: y }
             self.bump();
             self.eat_trivia();
             self.parse_comma_separated(Self::parse_destructure_field, TokenKind::RightBrace);
             self.expect(TokenKind::RightBrace);
         } else if self.at(TokenKind::LeftParen) && self.is_const_tuple_destructuring() {
-            // Tuple destructuring: const (a, b) = ...
             self.bump();
             self.eat_trivia();
             self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightParen);
@@ -240,7 +251,6 @@ impl<'src> CstParser<'src> {
         }
         self.eat_trivia();
 
-        // Optional type annotation
         if self.at(TokenKind::Colon) {
             self.bump();
             self.eat_trivia();
@@ -253,6 +263,134 @@ impl<'src> CstParser<'src> {
         self.parse_expr();
 
         self.builder.finish_node();
+    }
+
+    /// After `let`, detect `NAME [<generics>] (params) [: Ret] =>` shape.
+    /// If the binding's RHS is an arrow lambda we treat it as a function
+    /// declaration; otherwise it's a plain value binding.
+    fn looks_like_let_function_binding(&self) -> bool {
+        if !self.is_ident() {
+            return false;
+        }
+        // Scan past name + optional <generics> + params-paren-group looking
+        // for `=>` (with optional `: Ret` in between).
+        let mut i = self.pos + 1;
+        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+            i += 1;
+        }
+        if !matches!(self.tokens.get(i).map(|t| &t.kind), Some(TokenKind::Equal)) {
+            return false;
+        }
+        // Past `=`
+        i += 1;
+        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+            i += 1;
+        }
+        // Optional `<generics>`
+        if matches!(
+            self.tokens.get(i).map(|t| &t.kind),
+            Some(TokenKind::LessThan)
+        ) {
+            i = self.skip_balanced(i + 1, |k| match k {
+                TokenKind::LessThan => 1,
+                TokenKind::GreaterThan => -1,
+                _ => 0,
+            });
+            while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+                i += 1;
+            }
+        }
+        // `(params)`
+        if !matches!(
+            self.tokens.get(i).map(|t| &t.kind),
+            Some(TokenKind::LeftParen)
+        ) {
+            return false;
+        }
+        i = self.skip_balanced(i + 1, |k| match k {
+            TokenKind::LeftParen => 1,
+            TokenKind::RightParen => -1,
+            _ => 0,
+        });
+        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+            i += 1;
+        }
+        // Optional `: Ret` — skip the type expression by scanning until `=>`
+        // or a statement-terminating token at depth 0.
+        if matches!(self.tokens.get(i).map(|t| &t.kind), Some(TokenKind::Colon)) {
+            i += 1;
+            let mut depth_angle: i32 = 0;
+            let mut depth_paren: i32 = 0;
+            let mut depth_bracket: i32 = 0;
+            while i < self.tokens.len() {
+                match &self.tokens[i].kind {
+                    TokenKind::LessThan => depth_angle += 1,
+                    TokenKind::GreaterThan => depth_angle -= 1,
+                    TokenKind::LeftParen => depth_paren += 1,
+                    TokenKind::RightParen => depth_paren -= 1,
+                    TokenKind::LeftBracket => depth_bracket += 1,
+                    TokenKind::RightBracket => depth_bracket -= 1,
+                    TokenKind::FatArrow
+                        if depth_angle <= 0 && depth_paren == 0 && depth_bracket == 0 =>
+                    {
+                        return true;
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            return false;
+        }
+        matches!(
+            self.tokens.get(i).map(|t| &t.kind),
+            Some(TokenKind::FatArrow)
+        )
+    }
+
+    /// Parse the body of a `let NAME = <function>` binding into the
+    /// existing FUNCTION_DECL shape so checker/codegen logic is unchanged.
+    fn parse_let_function_body(&mut self) {
+        // Optional `<generics>`
+        if self.at(TokenKind::LessThan) {
+            self.bump(); // <
+            self.eat_trivia();
+            self.parse_comma_separated(Self::parse_type_param, TokenKind::GreaterThan);
+            self.expect(TokenKind::GreaterThan);
+            self.eat_trivia();
+        }
+
+        self.expect(TokenKind::LeftParen);
+        self.eat_trivia();
+        self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
+        self.expect(TokenKind::RightParen);
+        self.eat_trivia();
+
+        // Optional return type annotation. Suppress top-level function-type
+        // parsing so `(A, B) => body` doesn't eat the let-body arrow.
+        if self.at(TokenKind::Colon) {
+            self.bump();
+            self.eat_trivia();
+            let prev = self.suppress_function_type;
+            self.suppress_function_type = true;
+            self.parse_type_expr();
+            self.suppress_function_type = prev;
+            self.eat_trivia();
+        }
+
+        self.expect(TokenKind::FatArrow);
+        self.eat_trivia();
+
+        if self.at(TokenKind::LeftBrace) {
+            self.parse_block_expr();
+        } else {
+            // Expression body — wrap into a synthetic BLOCK_EXPR { EXPR_ITEM }
+            // so the lowerer treats it like a one-expression block.
+            self.builder.start_node(SyntaxKind::BLOCK_EXPR.into());
+            self.builder.start_node(SyntaxKind::EXPR_ITEM.into());
+            self.parse_expr();
+            self.builder.finish_node();
+            self.builder.finish_node();
+        }
     }
 
     // ── Use Declaration ─────────────────────────────────────────

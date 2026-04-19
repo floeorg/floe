@@ -18,7 +18,7 @@ pub enum SyntaxKind {
 
     // Identifiers & keywords
     IDENT,
-    KW_CONST,
+    KW_LET,
     KW_FN,
     KW_EXPORT,
     KW_IMPORT,
@@ -210,7 +210,7 @@ impl SyntaxKind {
                 | Self::KW_TYPE
                 | Self::KW_EXPORT
                 | Self::KW_IMPORT
-                | Self::KW_CONST
+                | Self::KW_LET
                 | Self::KW_FN
                 | Self::KW_TRAIT
                 | Self::KW_COLLECT
@@ -298,7 +298,7 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::TemplateLiteral(_) => SyntaxKind::TEMPLATE_LITERAL,
         TokenKind::Bool(_) => SyntaxKind::BOOL,
         TokenKind::Identifier(_) => SyntaxKind::IDENT,
-        TokenKind::Const => SyntaxKind::KW_CONST,
+        TokenKind::Let => SyntaxKind::KW_LET,
         TokenKind::Fn => SyntaxKind::KW_FN,
         TokenKind::Export => SyntaxKind::KW_EXPORT,
         TokenKind::Import => SyntaxKind::KW_IMPORT,

@@ -4,18 +4,18 @@ type Env = {
     greeting: string,
 }
 
-fn hello(_c: unknown) => Response {
+let hello = (_c: unknown): Response => {
     Response("hello")
 }
 
-fn echo(_c: unknown) => Response {
+let echo = (_c: unknown): Response => {
     Response("echo")
 }
 
-export fn build() => Router<Env> {
+export let build = (): Router<Env> => {
     router<Env>() |> get("/hello", hello) |> post("/echo", echo)
 }
 
-export fn serve(request: Request, env: Env) => unknown {
+export let serve = (request: Request, env: Env): unknown => {
     handle(build(), request, env)
 }

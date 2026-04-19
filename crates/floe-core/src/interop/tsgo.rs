@@ -453,7 +453,7 @@ impl TsgoResolver {
             };
 
             // Try to parse the return type as a TS object
-            let snippet = format!("export declare const _q: {ret_str};");
+            let snippet = format!("export declare let _q: {ret_str};");
             let Ok(ret_exports) = super::dts::parse_dts_exports_from_str(&snippet) else {
                 continue;
             };
@@ -596,7 +596,7 @@ fn parse_hover_to_tstype(hover: &str) -> Option<TsType> {
         .map(|(_, rhs)| rhs.trim())
     {
         // Try to parse as a .d.ts snippet
-        let snippet = format!("export declare const _q: {rest};");
+        let snippet = format!("export declare let _q: {rest};");
         if let Ok(exports) = super::dts::parse_dts_exports_from_str(&snippet)
             && let Some(export) = exports.first()
         {
@@ -615,10 +615,10 @@ fn parse_hover_to_tstype(hover: &str) -> Option<TsType> {
     }
 
     // "const x: Type" → extract the type
-    if let Some(rest) = hover.strip_prefix("const ")
+    if let Some(rest) = hover.strip_prefix("let ")
         && let Some((_, ty_str)) = rest.split_once(':')
     {
-        let snippet = format!("export declare const _q: {};", ty_str.trim());
+        let snippet = format!("export declare let _q: {};", ty_str.trim());
         if let Ok(exports) = super::dts::parse_dts_exports_from_str(&snippet)
             && let Some(export) = exports.first()
         {
@@ -673,34 +673,34 @@ mod tests {
     #[test]
     fn generate_probe_basic_import() {
         let source = r#"import { useState } from "react"
-const [count, setCount] = useState(0)"#;
+let [count, setCount] = useState(0)"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         assert!(probe.contains("import { useState } from \"react\";"));
         // Array binding: destructures into _r0_0, _r0_1
         assert!(probe.contains("_tmp0 = useState(0);"));
-        assert!(probe.contains("export const [_r0_0, _r0_1] = _tmp0;"));
+        assert!(probe.contains("export let [_r0_0, _r0_1] = _tmp0;"));
     }
 
     #[test]
     fn generate_probe_with_type_args() {
         let source = r#"import { useState } from "react"
 type Todo = { text: string }
-const [todos, setTodos] = useState<Array<Todo>>([])"#;
+let [todos, setTodos] = useState<Array<Todo>>([])"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         assert!(probe.contains("import { useState } from \"react\";"));
         assert!(probe.contains("type Todo = {"));
         assert!(probe.contains("_tmp0 = useState<Array<Todo>>([]);"));
-        assert!(probe.contains("export const [_r0_0, _r0_1] = _tmp0;"));
+        assert!(probe.contains("export let [_r0_0, _r0_1] = _tmp0;"));
     }
 
     #[test]
     fn generate_probe_empty_for_no_npm_imports() {
         let source = r#"import { foo } from "./local"
-const x = 42"#;
+let x = 42"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
@@ -710,7 +710,7 @@ const x = 42"#;
     #[test]
     fn generate_probe_re_exports_unused_imports() {
         let source = r#"import { useState, useEffect } from "react"
-const [count, setCount] = useState(0)"#;
+let [count, setCount] = useState(0)"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
@@ -754,8 +754,8 @@ const [count, setCount] = useState(0)"#;
         let source = r#"
 import { useState } from "react"
 type Todo = { text: string, done: bool }
-const [todos, setTodos] = useState<Array<Todo>>([])
-const [input, setInput] = useState("")
+let [todos, setTodos] = useState<Array<Todo>>([])
+let [input, setInput] = useState("")
 "#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
@@ -807,7 +807,7 @@ const [input, setInput] = useState("")
         let source = r#"
 import { useState } from "react"
 type Filter = | All | Active | Completed
-const [filter, setFilter] = useState<Filter>(Filter.All)
+let [filter, setFilter] = useState<Filter>(Filter.All)
 "#;
         let program = Parser::new(source).parse_program().unwrap();
 
@@ -864,8 +864,8 @@ const [filter, setFilter] = useState<Filter>(Filter.All)
         let source = r#"import { fetchProducts } from "./api"
 import { useSuspenseQuery } from "@tanstack/react-query"
 
-fn test() {
-    const { data } = useSuspenseQuery({
+let test = () =>{
+    let { data } = useSuspenseQuery({
         queryKey: ["products"],
         queryFn: () => fetchProducts(),
     })
@@ -966,7 +966,7 @@ fn test() {
         );
         // Should NOT contain `declare const fetchProducts: any` (free var fallback)
         assert!(
-            !probe.contains("declare const fetchProducts: any"),
+            !probe.contains("declare let fetchProducts: any"),
             "fetchProducts should not be declared as `any`, got:\n{probe}"
         );
     }
@@ -974,7 +974,7 @@ fn test() {
     #[test]
     fn generate_probe_includes_relative_ts_imports() {
         let source = r#"import { newDate } from "../utils/date"
-const year = newDate()"#;
+let year = newDate()"#;
         let program = Parser::new(source).parse_program().unwrap();
 
         // Simulate a resolved TS path
@@ -1001,7 +1001,7 @@ const year = newDate()"#;
     #[test]
     fn generate_probe_object_destructure_from_ts_import() {
         let source = r#"import { useQuery } from "../hooks/use-query"
-const { data, isLoading } = useQuery("key")"#;
+let { data, isLoading } = useQuery("key")"#;
         let program = Parser::new(source).parse_program().unwrap();
 
         let mut ts_imports = HashMap::new();
@@ -1024,7 +1024,7 @@ const { data, isLoading } = useQuery("key")"#;
     #[test]
     fn specifier_map_object_destructure_creates_per_field_probes() {
         let source = r#"import { useQuery } from "../hooks/use-query"
-const { data, isLoading } = useQuery("key")"#;
+let { data, isLoading } = useQuery("key")"#;
         let program = Parser::new(source).parse_program().unwrap();
 
         let mut ts_imports = HashMap::new();
@@ -1073,7 +1073,7 @@ const { data, isLoading } = useQuery("key")"#;
     fn generate_probe_empty_when_only_fl_imports() {
         // Relative imports that resolve to .fl files should not be in the probe
         let source = r#"import { User } from "./types"
-const x = 42"#;
+let x = 42"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
         assert!(probe.is_empty());
@@ -1082,7 +1082,7 @@ const x = 42"#;
     #[test]
     fn generate_probe_includes_type_alias_probe() {
         let source = r#"import { tv, VariantProps } from "tailwind-variants"
-const spinnerVariants = tv({})
+let spinnerVariants = tv({})
 type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
@@ -1099,14 +1099,14 @@ type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
     #[test]
     fn generate_probe_emits_typeof_const_for_type_probe() {
         let source = r#"import { tv, VariantProps } from "tailwind-variants"
-const spinnerVariants = tv({})
+let spinnerVariants = tv({})
 type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
         // The probe should declare spinnerVariants so typeof can resolve
         assert!(
-            probe.contains("const spinnerVariants = tv("),
-            "probe should declare const for typeof resolution: {probe}"
+            probe.contains("let spinnerVariants = tv("),
+            "probe should declare let for typeof resolution: {probe}"
         );
     }
 
@@ -1126,7 +1126,7 @@ type MyNum = number"#;
     fn generate_probe_jsx_callback_prop() {
         let source = r#"import { NavLink } from "react-router-dom"
 
-fn page() {
+let page = () =>{
     <NavLink className={(state) => "active"} to="/home" />
 }"#;
         let program = Parser::new(source).parse_program().unwrap();
@@ -1152,7 +1152,7 @@ fn page() {
     fn generate_probe_jsx_no_probe_for_event_handlers() {
         let source = r#"import { Button } from "some-lib"
 
-fn page() {
+let page = () =>{
     <Button onClick={(e) => handle(e)} />
 }"#;
         let program = Parser::new(source).parse_program().unwrap();
@@ -1169,7 +1169,7 @@ fn page() {
     fn generate_probe_jsx_no_probe_for_non_arrow_props() {
         let source = r#"import { NavLink } from "react-router-dom"
 
-fn page() {
+let page = () =>{
     <NavLink className="static" to="/home" />
 }"#;
         let program = Parser::new(source).parse_program().unwrap();
@@ -1186,7 +1186,7 @@ fn page() {
     fn generate_probe_jsx_children_render_prop() {
         let source = r#"import { Draggable } from "@hello-pangea/dnd"
 
-fn page() {
+let page = () =>{
     <Draggable draggableId="id" index={0}>
         {(provided, snapshot) =>
             <div />
@@ -1217,9 +1217,9 @@ fn page() {
         let source = r#"import { useQueryClient } from "@tanstack/react-query"
 type IssueDto = { key: string, summary: string }
 
-fn Component() {
-    const queryClient = useQueryClient()
-    const data = queryClient.getQueryData<Array<IssueDto>>(["issues"])
+let Component = () =>{
+    let queryClient = useQueryClient()
+    let data = queryClient.getQueryData<Array<IssueDto>>(["issues"])
 }"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
@@ -1237,7 +1237,7 @@ fn Component() {
         // a call so tsgo picks the right overload.
         let source = r#"import trusted { Context } from "hono"
 
-export fn handler(c: Context<unknown>) => string {
+export let handler = (c: Context<unknown>): string =>{
     match c.req.param("code") {
         None -> "missing",
         Some(v) -> v,
@@ -1248,7 +1248,7 @@ export fn handler(c: Context<unknown>) => string {
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         assert!(
-            probe.contains("declare const __chain_base_Context: Context;"),
+            probe.contains("declare let __chain_base_Context: Context;"),
             "probe should declare a Context chain base, got:\n{probe}"
         );
         // `.req` is a property, NOT a method call — it must NOT get `(null! as any)`

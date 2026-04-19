@@ -24,10 +24,10 @@ type CartPageProps = {
 
 // ── Cart item row ──────────────────────────────────────
 
-fn CartItemRow(props: CartItemRowProps) => JSX.Element {
-    const item = props.item
-    const product = item.product
-    const lineTotal = (product.price * (1 - product.discountPercentage / 100)) * item.quantity
+let CartItemRow = (props: CartItemRowProps): JSX.Element => {
+    let item = props.item
+    let product = item.product
+    let lineTotal = (product.price * (1 - product.discountPercentage / 100)) * item.quantity
 
     <div
         className="flex items-center gap-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4"
@@ -71,8 +71,8 @@ fn CartItemRow(props: CartItemRowProps) => JSX.Element {
 
 // ── Order summary with tuple destructuring ─────────────
 
-fn OrderSummary(props: OrderSummaryProps) => JSX.Element {
-    const (subtotal, discount, total) = props.cart |> totals
+let OrderSummary = (props: OrderSummaryProps): JSX.Element => {
+    let (subtotal, discount, total) = props.cart |> totals
 
     <div
         className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6"
@@ -119,16 +119,16 @@ fn OrderSummary(props: OrderSummaryProps) => JSX.Element {
 
 // ── Cart page ──────────────────────────────────────────
 
-export fn CartPage(props: CartPageProps) => JSX.Element {
-    const (orderStatus, setOrderStatus) = useState<OrderStatus>(Pending)
+export let CartPage = (props: CartPageProps): JSX.Element => {
+    let (orderStatus, setOrderStatus) = useState<OrderStatus>(Pending)
 
-    fn handleCheckout() {
-        const orderId = OrderId(Math.floor(Math.random() * 10_000))
+    let handleCheckout = () => {
+        let orderId = OrderId(Math.floor(Math.random() * 10_000))
 
         setOrderStatus(Confirmed(orderId))
     }
 
-    const _count = props.cart |> itemCount
+    let _count = props.cart |> itemCount
 
     <div>
         <h1 className="mb-6 text-3xl font-bold">{`Cart (${_count} item${_count |> match { 1 -> "", _ -> "s" }})`}</h1>
