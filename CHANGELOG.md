@@ -5,6 +5,14 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.1](https://github.com/floeorg/floe/compare/v0.5.0...v0.5.1) (2026-04-19)
+
+
+### Bug Fixes
+
+* [[#1229](https://github.com/floeorg/floe/issues/1229)] override cross linker so release builds don't break on missing clang ([#1230](https://github.com/floeorg/floe/issues/1230)) ([94b7c25](https://github.com/floeorg/floe/commit/94b7c259c7404ba65fdc7a0e8e1320c33f6c35c1))
+* [[#1231](https://github.com/floeorg/floe/issues/1231)] drop let from VSCode invalid keyword list ([#1233](https://github.com/floeorg/floe/issues/1233)) ([2bedafd](https://github.com/floeorg/floe/commit/2bedafd351ebcfdefb92f213d361de28f4b35a36))
+
 ## [0.5.0](https://github.com/floeorg/floe/compare/v0.4.8...v0.5.0) (2026-04-19)
 
 
