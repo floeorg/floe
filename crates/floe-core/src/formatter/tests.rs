@@ -582,7 +582,7 @@ fn format_no_blank_line_when_source_has_none() {
 
 #[test]
 fn format_preserves_blank_line_after_match_block() {
-    let src = "let f = () => {\n    let url = x |> match {\n        1 -> \"a\",\n    }\n\n    const data = y\n\n    Ok(data)\n}";
+    let src = "let f = () => {\n    let url = x |> match {\n        1 -> \"a\",\n    }\n\n    let data = y\n\n    Ok(data)\n}";
     assert_fmt(src, src);
 }
 
@@ -824,8 +824,8 @@ fn format_object_destructure_mixed() {
 #[test]
 fn format_for_block_basic() {
     assert_fmt(
-        "for User {\n  let display = (self): string => {\n  `${self.name}`\n}\n}",
-        "for User {\n    let display = (self): string => {\n        `${self.name}`\n    }\n}",
+        "for User {\n  fn display(self) => string {\n  `${self.name}`\n}\n}",
+        "for User {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
     );
 }
 
@@ -833,7 +833,7 @@ fn format_for_block_basic() {
 fn format_for_block_with_trait() {
     assert_fmt(
         "for  User :  Display  {\nfn display(self) => string {\n`${self.name}`\n}\n}",
-        "for User: Display {\n    let display = (self): string => {\n        `${self.name}`\n    }\n}",
+        "for User: Display {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
     );
 }
 
@@ -849,14 +849,14 @@ fn format_for_block_with_export() {
 fn format_for_block_multiple_methods() {
     assert_fmt(
         "for User {\nfn name(self) => string { self.name }\nfn age(self) => number { self.age }\n}",
-        "for User {\n    let name = (self): string => {\n        self.name\n    }\n\n    let age = (self): number => {\n        self.age\n    }\n}",
+        "for User {\n    fn name(self) => string {\n        self.name\n    }\n\n    fn age(self) => number {\n        self.age\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_generic_type() {
     assert_fmt(
-        "for Array<Todo> {\nexport let remaining = (self): number => {\nself |> filter(.done == false) |> length\n}\n}",
+        "for Array<Todo> {\nexport fn remaining(self) => number {\nself |> filter(.done == false) |> length\n}\n}",
         "for Array<Todo> {\n    export fn remaining(self) => number {\n        self |> filter(.done == false) |> length\n    }\n}",
     );
 }
@@ -873,7 +873,7 @@ fn format_trait_decl_basic() {
 fn format_trait_decl_with_default_impl() {
     assert_fmt(
         "trait Eq {\nfn eq(self,other:Self) => boolean\nfn neq(self,other:Self) => boolean {\n!(self |> eq(other))\n}\n}",
-        "trait Eq {\n    fn eq(self, other: Self) => boolean\n\n    let neq = (self, other: Self): boolean => {\n        !(self |> eq(other))\n    }\n}",
+        "trait Eq {\n    fn eq(self, other: Self) => boolean\n\n    fn neq(self, other: Self) => boolean {\n        !(self |> eq(other))\n    }\n}",
     );
 }
 

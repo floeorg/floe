@@ -2023,7 +2023,7 @@ fn inner_function_infers_unit_return() {
     let program = crate::parser::Parser::new(
         r#"
 let outer = () =>{
-    fn inner() {
+    let inner = () => {
         Console.log("hi")
     }
     inner()
@@ -2208,7 +2208,7 @@ fn tuple_destructuring_infers_types() {
 #[test]
 fn tuple_in_function_return() {
     let source = r#"
-        export fn divmod(a: number, b: number) => (number, number) {
+        export let divmod = (a: number, b: number): (number, number) => {
             (a / b, a % b)
         }
     "#;
@@ -2232,7 +2232,7 @@ fn tuple_three_elements() {
 fn tuple_return_from_block_inline() {
     // Tuples work inline with function params
     let source = r#"
-        export fn test(a: number, b: number) => (number, number) {
+        export let test = (a: number, b: number): (number, number) => {
             (a + 1, b + 1)
         }
     "#;
@@ -2791,7 +2791,7 @@ fn trait_default_method_not_required() {
         r#"
 trait Eq {
   fn eq(self, other: string) => boolean
-  let neq = (self, other: string): boolean => {
+  fn neq(self, other: string) => boolean {
     !(self |> eq(other))
   }
 }
