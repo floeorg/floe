@@ -299,22 +299,6 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
         collect_type_alias_defaults(stmt, &mut type_aliases);
     }
 
-    // Collect function-shaped type aliases (body is — or wraps — a function)
-    // and expand references to them in every export. Without this, a
-    // signature like `fn post<E>(..., handler: Handler<E>)` keeps `Handler<E>`
-    // as an opaque `Foreign` type at the boundary, and callers passing an
-    // inline lambda get `unknown` params because the hint-propagation path
-    // in check_call only fires on `Type::Function` expected params (#1234).
-    let mut function_aliases: HashMap<String, TypeAliasDef> = HashMap::new();
-    for stmt in &ret.program.body {
-        collect_function_alias_bodies(stmt, &mut function_aliases);
-    }
-    if !function_aliases.is_empty() {
-        for export in &mut exports {
-            expand_function_aliases(&mut export.ts_type, &function_aliases, 0);
-        }
-    }
-
     let mut interface_bodies = collect_and_resolve_interfaces(&ret.program.body);
 
     // Resolve type aliases in interface field types
@@ -1996,71 +1980,6 @@ fn substitute_type_params(ty: &mut TsType, subst: &HashMap<String, TsType>) {
         TsType::Tuple(parts) => {
             for p in parts {
                 substitute_type_params(p, subst);
-            }
-        }
-        _ => {}
-    }
-}
-
-/// Recursively expand function-shaped alias references in a TsType. When a
-/// generic alias `A<P1, P2>` is expanded, the alias's declared params are
-/// substituted with the supplied args inside the alias body. Bounded
-/// recursion depth guards against pathological self-referential aliases.
-fn expand_function_aliases(ty: &mut TsType, aliases: &HashMap<String, TypeAliasDef>, depth: u32) {
-    if depth > 16 {
-        return;
-    }
-    match ty {
-        TsType::Named(name) => {
-            if let Some(def) = aliases.get(name)
-                && def.params.is_empty()
-            {
-                *ty = def.body.clone();
-                expand_function_aliases(ty, aliases, depth + 1);
-            }
-        }
-        TsType::Generic { name, args } => {
-            for arg in args.iter_mut() {
-                expand_function_aliases(arg, aliases, depth + 1);
-            }
-            if let Some(def) = aliases.get(name) {
-                let mut body = def.body.clone();
-                if !def.params.is_empty() {
-                    let subst: HashMap<String, TsType> = def
-                        .params
-                        .iter()
-                        .cloned()
-                        .zip(args.iter().cloned())
-                        .collect();
-                    substitute_type_params(&mut body, &subst);
-                }
-                *ty = body;
-                expand_function_aliases(ty, aliases, depth + 1);
-            }
-        }
-        TsType::Union(parts) => {
-            for p in parts {
-                expand_function_aliases(p, aliases, depth + 1);
-            }
-        }
-        TsType::Array(inner) => expand_function_aliases(inner, aliases, depth + 1),
-        TsType::Object(fields) => {
-            for f in fields {
-                expand_function_aliases(&mut f.ty, aliases, depth + 1);
-            }
-        }
-        TsType::Function {
-            params,
-            return_type,
-        } => {
-            for p in params {
-                expand_function_aliases(&mut p.ty, aliases, depth + 1);
-            }
-            expand_function_aliases(return_type, aliases, depth + 1);
-        }
-        TsType::Tuple(parts) => {
-            for p in parts {
-                expand_function_aliases(p, aliases, depth + 1);
             }
         }
         _ => {}
