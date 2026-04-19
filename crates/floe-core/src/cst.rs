@@ -718,22 +718,22 @@ mod tests {
 
     #[test]
     fn function_no_params() {
-        assert_no_errors("let greet = () => { 42 }");
+        assert_no_errors("let greet() = { 42 }");
     }
 
     #[test]
     fn function_with_params() {
-        assert_no_errors("let add = (a: number, b: number): number => { a + b }");
+        assert_no_errors("let add(a: number, b: number) -> number = { a + b }");
     }
 
     #[test]
     fn function_with_promise_return() {
-        assert_no_errors("let fetch = (url: string): Promise<string> => { url }");
+        assert_no_errors("let fetch(url: string) -> Promise<string> = { url }");
     }
 
     #[test]
     fn function_exported() {
-        assert_no_errors("export let hello = () => { 1 }");
+        assert_no_errors("export let hello() = { 1 }");
     }
 
     // ── Imports ───────────────────────────────────────────────────
@@ -766,7 +766,7 @@ mod tests {
 
     #[test]
     fn export_function() {
-        assert_no_errors("export let myFunc = () => { 1 }");
+        assert_no_errors("export let myFunc() = { 1 }");
     }
 
     #[test]
@@ -985,18 +985,18 @@ mod tests {
 
     #[test]
     fn lambda_arrow_style() {
-        assert_no_errors("(x) => x + 1");
+        assert_no_errors("(x) -> x + 1");
     }
 
     #[test]
     fn lambda_zero_arg() {
-        assert_no_errors("() => 42");
+        assert_no_errors("() -> 42");
     }
 
     #[test]
     fn let_with_partial_application() {
         assert_no_errors(
-            "let add = (a: number, b: number): number => { a + b }\nlet inc = add(1, _)",
+            "let add(a: number, b: number) -> number = { a + b }\nlet inc = add(1, _)",
         );
     }
 
@@ -1004,19 +1004,19 @@ mod tests {
 
     #[test]
     fn for_block_basic() {
-        assert_no_errors("for User { fn greet(self) => string { self.name } }");
+        assert_no_errors("for User { fn greet(self) -> string { self.name } }");
     }
 
     #[test]
     fn for_block_with_trait() {
-        assert_no_errors("for User: Display { fn show(self) => string { self.name } }");
+        assert_no_errors("for User: Display { fn show(self) -> string { self.name } }");
     }
 
     // ── Trait declarations ────────────────────────────────────────
 
     #[test]
     fn trait_basic() {
-        assert_no_errors("trait Display { fn show(self) => string }");
+        assert_no_errors("trait Display { fn show(self) -> string }");
     }
 
     // ── Test blocks ───────────────────────────────────────────────
@@ -1083,7 +1083,7 @@ mod tests {
 
     #[test]
     fn lossless_function() {
-        assert_lossless("let add = (a: number, b: number): number => { a + b }");
+        assert_lossless("let add(a: number, b: number) -> number = { a + b }");
     }
 
     #[test]
@@ -1108,7 +1108,7 @@ mod tests {
 
     #[test]
     fn lossless_for_block() {
-        assert_lossless("for User { fn greet(self) => string { self.name } }");
+        assert_lossless("for User { fn greet(self) -> string { self.name } }");
     }
 
     // ── CST node kind checks ──────────────────────────────────────

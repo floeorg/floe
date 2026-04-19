@@ -150,7 +150,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 }
                 docs.push(pretty::str("("));
                 docs.push(self.emit_params(params));
-                docs.push(pretty::str(") => "));
+                docs.push(pretty::str(") -> "));
                 if matches!(body.kind, ExprKind::Block(_)) {
                     docs.push(self.emit_block_expr_with_return(body));
                 } else {
@@ -240,7 +240,7 @@ impl<'a> TypeScriptGenerator<'a> {
                     BinOp::Eq => {
                         self.needs_deep_equal = true;
                         pretty::concat([
-                            pretty::str(format!("(_x) => {DEEP_EQUAL_FN}(_x.")),
+                            pretty::str(format!("(_x) -> {DEEP_EQUAL_FN}(_x.")),
                             pretty::str(field),
                             pretty::str(", "),
                             self.emit_expr(rhs),
@@ -250,7 +250,7 @@ impl<'a> TypeScriptGenerator<'a> {
                     BinOp::NotEq => {
                         self.needs_deep_equal = true;
                         pretty::concat([
-                            pretty::str(format!("(_x) => !{DEEP_EQUAL_FN}(_x.")),
+                            pretty::str(format!("(_x) -> !{DEEP_EQUAL_FN}(_x.")),
                             pretty::str(field),
                             pretty::str(", "),
                             self.emit_expr(rhs),
@@ -258,13 +258,13 @@ impl<'a> TypeScriptGenerator<'a> {
                         ])
                     }
                     _ => pretty::concat([
-                        pretty::str("(_x) => _x."),
+                        pretty::str("(_x) -> _x."),
                         pretty::str(field),
                         pretty::str(format!(" {} ", binop_str(*op))),
                         self.emit_expr(rhs),
                     ]),
                 },
-                None => pretty::concat([pretty::str("(_x) => _x."), pretty::str(field)]),
+                None => pretty::concat([pretty::str("(_x) -> _x."), pretty::str(field)]),
             },
 
             ExprKind::Invalid => pretty::str("undefined /* type error */"),
@@ -484,7 +484,7 @@ impl<'a> TypeScriptGenerator<'a> {
             .map(|f| format!(", {f}"))
             .collect::<String>();
         pretty::str(format!(
-            "({params}) => ({{ {TAG_FIELD}: \"{variant_name}\"{fields} }})"
+            "({params}) -> ({{ {TAG_FIELD}: \"{variant_name}\"{fields} }})"
         ))
     }
 
@@ -673,9 +673,9 @@ impl<'a> TypeScriptGenerator<'a> {
         }
 
         let prefix = if has_await {
-            "(async () => {"
+            "(async () -> {"
         } else {
-            "(() => {"
+            "(() -> {"
         };
 
         pretty::concat([
@@ -774,7 +774,7 @@ impl<'a> TypeScriptGenerator<'a> {
     ) -> Document {
         let param_name = "_x";
         let mut docs = vec![
-            pretty::str(format!("({param_name}) => ")),
+            pretty::str(format!("({param_name}) -> ")),
             self.emit_expr(callee),
             pretty::str("("),
         ];

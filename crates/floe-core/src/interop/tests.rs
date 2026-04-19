@@ -110,7 +110,7 @@ fn parse_tuple() {
 
 #[test]
 fn parse_function_type() {
-    let ty = parse_type_str("(x: string) => void");
+    let ty = parse_type_str("(x: string) -> void");
     assert_eq!(
         ty,
         TsType::Function {
@@ -822,7 +822,7 @@ fn qualified_typeof_keeps_full_path() {
 
 #[test]
 fn construct_signature_surfaces_as_function() {
-    let dts = "export type Ctor = new (x: number) => string;";
+    let dts = "export type Ctor = new (x: number) -> string;";
     let exports = parse_dts_exports_from_str(dts).unwrap();
     let ctor = exports.iter().find(|e| e.name == "Ctor").unwrap();
     assert!(

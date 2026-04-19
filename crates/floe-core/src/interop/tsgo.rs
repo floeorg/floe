@@ -443,7 +443,7 @@ impl TsgoResolver {
             };
             // Parse hover to extract return type fields
             // Hover format: "function useQuery(...): { data: T, isLoading: boolean, ... }"
-            let Some(ret_start) = hover.rfind("): ").or_else(|| hover.rfind(") => ")) else {
+            let Some(ret_start) = hover.rfind("): ").or_else(|| hover.rfind(") -> ")) else {
                 continue;
             };
             let ret_str = if hover[ret_start..].starts_with("): ") {
@@ -1237,7 +1237,7 @@ let Component = () =>{
         // a call so tsgo picks the right overload.
         let source = r#"import trusted { Context } from "hono"
 
-export let handler = (c: Context<unknown>): string =>{
+export let handler(c: Context<unknown>) -> string ={
     match c.req.param("code") {
         None -> "missing",
         Some(v) -> v,

@@ -228,7 +228,7 @@ mod tests {
         let src_path = tmp.path().join("lib.fl");
         std::fs::write(
             &src_path,
-            "export type Foo = { name: string }\nexport let greet = (f: Foo): string => { f.name }\nexport let MAX: number = 10\n",
+            "export type Foo = { name: string }\nexport let greet(f: Foo) -> string = { f.name }\nexport let MAX: number = 10\n",
         )
         .unwrap();
         let importer_path = tmp.path().join("app.fl");

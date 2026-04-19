@@ -24,8 +24,8 @@ fn format_const_typed() {
 #[test]
 fn format_function() {
     assert_fmt(
-        "let add = ( a:number,b:number ): number => {a+b}",
-        "let add = (a: number, b: number): number => {\n    a + b\n}",
+        "let add( a:number,b:number ) -> number = {a+b}",
+        "let add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
@@ -40,8 +40,8 @@ fn format_import() {
 #[test]
 fn format_export() {
     assert_fmt(
-        "export let add = (a:number,b:number): number => {a+b}",
-        "export let add = (a: number, b: number): number => {\n    a + b\n}",
+        "export let add(a:number,b:number) -> number = {a+b}",
+        "export let add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
@@ -104,7 +104,7 @@ fn format_pipe() {
 
 #[test]
 fn format_arrow() {
-    assert_fmt("let f = (x) => x + 1", "let f = (x) => x + 1");
+    assert_fmt("let f(x) = x + 1", "let f(x) = x + 1");
 }
 
 #[test]
@@ -163,16 +163,16 @@ fn format_jsx_comment_only_child() {
 #[test]
 fn format_blank_line_before_final_expr_in_multi_stmt_fn() {
     assert_fmt(
-        "let load = (id: string): number => {\n    let x = fetch(id)\n    let y = process(x)\n    x + y\n}",
-        "let load = (id: string): number => {\n    let x = fetch(id)\n    let y = process(x)\n\n    x + y\n}",
+        "let load(id: string) -> number = {\n    let x = fetch(id)\n    let y = process(x)\n    x + y\n}",
+        "let load(id: string) -> number = {\n    let x = fetch(id)\n    let y = process(x)\n\n    x + y\n}",
     );
 }
 
 #[test]
 fn format_single_expr_fn_no_blank_line() {
     assert_fmt(
-        "let add = (a: number, b: number): number => { a + b }",
-        "let add = (a: number, b: number): number => {\n    a + b\n}",
+        "let add(a: number, b: number) -> number = { a + b }",
+        "let add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
@@ -181,16 +181,16 @@ fn format_already_has_blank_line_no_double() {
     // Even if the input doesn't have one, the formatter always produces
     // the canonical output with exactly one blank line before the last expr
     assert_fmt(
-        "let f = (): number => {\n    let x = 1\n\n    x\n}",
-        "let f = (): number => {\n    let x = 1\n\n    x\n}",
+        "let f() -> number = {\n    let x = 1\n\n    x\n}",
+        "let f() -> number = {\n    let x = 1\n\n    x\n}",
     );
 }
 
 #[test]
 fn format_two_statement_block_gets_blank_line() {
     assert_fmt(
-        "let f = (): number => {\n    let x = 1\n    x\n}",
-        "let f = (): number => {\n    let x = 1\n\n    x\n}",
+        "let f() -> number = {\n    let x = 1\n    x\n}",
+        "let f() -> number = {\n    let x = 1\n\n    x\n}",
     );
 }
 
@@ -205,8 +205,8 @@ fn format_match_arm_block_body_blank_line() {
 #[test]
 fn format_lambda_block_body_blank_line() {
     assert_fmt(
-        "let f = (x) => {\n    let y = x + 1\n    y\n}",
-        "let f = (x) => {\n    let y = x + 1\n\n    y\n}",
+        "let f(x) = {\n    let y = x + 1\n    y\n}",
+        "let f(x) = {\n    let y = x + 1\n\n    y\n}",
     );
 }
 
@@ -232,14 +232,14 @@ fn format_named_arg_punning_already_punned() {
 #[test]
 fn format_tuple_type() {
     assert_fmt(
-        "let f = (): Result<(string, number), Error> => {}",
-        "let f = (): Result<(string, number), Error> => {}",
+        "let f() -> Result<(string, number), Error> = {}",
+        "let f() -> Result<(string, number), Error> = {}",
     );
 }
 
 #[test]
 fn format_unit_type() {
-    assert_fmt("let f = (): () => {}", "let f = (): () => {}");
+    assert_fmt("let f() -> () = {}", "let f() -> () = {}");
 }
 
 // ── Tuple expressions ──────────────────────────────────
@@ -329,32 +329,32 @@ fn format_preserves_consecutive_comments() {
 #[test]
 fn format_preserves_comment_in_block() {
     assert_fmt(
-        "let f = () => {\n    // hello\n    let x = 1\n\n    x\n}",
-        "let f = () => {\n    // hello\n    let x = 1\n\n    x\n}",
+        "let f() = {\n    // hello\n    let x = 1\n\n    x\n}",
+        "let f() = {\n    // hello\n    let x = 1\n\n    x\n}",
     );
 }
 
 #[test]
 fn format_preserves_comment_between_statements() {
     assert_fmt(
-        "let f = () => {\n    let x = 1\n    // middle comment\n    let y = 2\n\n    x + y\n}",
-        "let f = () => {\n    let x = 1\n    // middle comment\n    let y = 2\n\n    x + y\n}",
+        "let f() = {\n    let x = 1\n    // middle comment\n    let y = 2\n\n    x + y\n}",
+        "let f() = {\n    let x = 1\n    // middle comment\n    let y = 2\n\n    x + y\n}",
     );
 }
 
 #[test]
 fn format_preserves_comment_before_final_expr() {
     assert_fmt(
-        "let f = () => {\n    let x = 1\n    // result\n    x\n}",
-        "let f = () => {\n    let x = 1\n    // result\n\n    x\n}",
+        "let f() = {\n    let x = 1\n    // result\n    x\n}",
+        "let f() = {\n    let x = 1\n    // result\n\n    x\n}",
     );
 }
 
 #[test]
 fn format_preserves_block_comment_in_block() {
     assert_fmt(
-        "let f = () => {\n    /* block comment */\n    let x = 1\n\n    x\n}",
-        "let f = () => {\n    /* block comment */\n    let x = 1\n\n    x\n}",
+        "let f() = {\n    /* block comment */\n    let x = 1\n\n    x\n}",
+        "let f() = {\n    /* block comment */\n    let x = 1\n\n    x\n}",
     );
 }
 
@@ -403,8 +403,8 @@ fn format_preserves_comment_between_record_fields() {
 #[test]
 fn format_preserves_comment_between_function_params() {
     assert_fmt(
-        "let add = (\n    a: number,\n    // second operand\n    b: number,\n): number => {\n    a + b\n}",
-        "let add = (\n    a: number,\n    // second operand\n    b: number,\n): number => {\n    a + b\n}",
+        "let add(\n    a: number,\n    // second operand\n    b: number,\n) -> number = {\n    a + b\n}",
+        "let add(\n    a: number,\n    // second operand\n    b: number,\n) -> number = {\n    a + b\n}",
     );
 }
 
@@ -460,7 +460,7 @@ fn assert_idempotent(input: &str) {
 #[test]
 fn idempotent_tuple_type_in_result() {
     assert_idempotent(
-        "let f = (id: Id): Result<(Product, Array<Review>), Error> => { Ok((p, r)) }",
+        "let f(id: Id) -> Result<(Product, Array<Review>), Error> = { Ok((p, r)) }",
     );
 }
 
@@ -536,16 +536,16 @@ fn format_short_pipe_stays_inline() {
 #[test]
 fn format_long_fn_params_go_multiline() {
     assert_fmt(
-        "let fetchProducts = (category: string = \"\", search: string = \"\", limit: number = 20, skip: number = 0): Result<number, Error> => {}",
-        "let fetchProducts = (\n    category: string = \"\",\n    search: string = \"\",\n    limit: number = 20,\n    skip: number = 0,\n): Result<number, Error> => {}",
+        "let fetchProducts(category: string = \"\", search: string = \"\", limit: number = 20, skip: number = 0) -> Result<number, Error> = {}",
+        "let fetchProducts(\n    category: string = \"\",\n    search: string = \"\",\n    limit: number = 20,\n    skip: number = 0,\n) -> Result<number, Error> = {}",
     );
 }
 
 #[test]
 fn format_short_fn_params_stay_inline() {
     assert_fmt(
-        "let add = (a: number, b: number): number => { a + b }",
-        "let add = (a: number, b: number): number => {\n    a + b\n}",
+        "let add(a: number, b: number) -> number = { a + b }",
+        "let add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
@@ -567,22 +567,22 @@ fn format_short_call_args_stay_inline() {
 #[test]
 fn format_preserves_blank_lines_between_statements() {
     assert_fmt(
-        "let f = () => {\n    let a = 1\n\n    let b = 2\n\n    a + b\n}",
-        "let f = () => {\n    let a = 1\n\n    let b = 2\n\n    a + b\n}",
+        "let f() = {\n    let a = 1\n\n    let b = 2\n\n    a + b\n}",
+        "let f() = {\n    let a = 1\n\n    let b = 2\n\n    a + b\n}",
     );
 }
 
 #[test]
 fn format_no_blank_line_when_source_has_none() {
     assert_fmt(
-        "let f = () => {\n    let a = 1\n    let b = 2\n\n    a + b\n}",
-        "let f = () => {\n    let a = 1\n    let b = 2\n\n    a + b\n}",
+        "let f() = {\n    let a = 1\n    let b = 2\n\n    a + b\n}",
+        "let f() = {\n    let a = 1\n    let b = 2\n\n    a + b\n}",
     );
 }
 
 #[test]
 fn format_preserves_blank_line_after_match_block() {
-    let src = "let f = () => {\n    let url = x |> match {\n        1 -> \"a\",\n    }\n\n    let data = y\n\n    Ok(data)\n}";
+    let src = "let f() = {\n    let url = x |> match {\n        1 -> \"a\",\n    }\n\n    let data = y\n\n    Ok(data)\n}";
     assert_fmt(src, src);
 }
 
@@ -615,21 +615,21 @@ fn format_import_trusted_roundtrip() {
 #[test]
 fn format_destructured_param() {
     assert_fmt(
-        "let greet = ({name,age}:User) => {\n    name\n}",
-        "let greet = ({ name, age }: User) => {\n    name\n}",
+        "let greet({name,age}:User) = {\n    name\n}",
+        "let greet({ name, age }: User) = {\n    name\n}",
     );
 }
 
 #[test]
 fn format_destructured_arrow_param() {
-    assert_fmt("let f = ({x,y}) => x + y", "let f = ({ x, y }) => x + y");
+    assert_fmt("let f({x,y}) = x + y", "let f({ x, y }) = x + y");
 }
 
 #[test]
 fn format_underscore_param() {
     assert_fmt(
-        "let f = (_:number): number => {\n    42\n}",
-        "let f = (_: number): number => {\n    42\n}",
+        "let f(_:number) -> number = {\n    42\n}",
+        "let f(_: number) -> number = {\n    42\n}",
     );
 }
 
@@ -750,9 +750,9 @@ fn idempotent_long_array_with_constructors() {
 #[test]
 fn format_jsx_arrow_with_multiline_jsx_body_breaks_after_arrow() {
     assert_fmt(
-        r#"<nav className="flex-1 p-2">{items |> map((item) => <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
+        r#"<nav className="flex-1 p-2">{items |> map((item) -> <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
         r#"<nav className="flex-1 p-2">
-    {items |> map((item) =>
+    {items |> map((item) ->
         <NavLink
             key={item.to}
             to={item.to}
@@ -769,7 +769,7 @@ fn format_jsx_arrow_with_multiline_jsx_body_breaks_after_arrow() {
 #[test]
 fn idempotent_jsx_arrow_with_multiline_jsx_body() {
     assert_idempotent(
-        r#"<nav className="flex-1 p-2">{items |> map((item) => <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
+        r#"<nav className="flex-1 p-2">{items |> map((item) -> <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
     );
 }
 
@@ -777,8 +777,8 @@ fn idempotent_jsx_arrow_with_multiline_jsx_body() {
 fn format_jsx_arrow_simple_jsx_stays_inline() {
     // Arrow with inline JSX body should not break
     assert_fmt(
-        r#"<div>{items |> map((x) => <span>{x}</span>)}</div>"#,
-        r#"<div>{items |> map((x) => <span>{x}</span>)}</div>"#,
+        r#"<div>{items |> map((x) -> <span>{x}</span>)}</div>"#,
+        r#"<div>{items |> map((x) -> <span>{x}</span>)}</div>"#,
     );
 }
 
@@ -824,68 +824,68 @@ fn format_object_destructure_mixed() {
 #[test]
 fn format_for_block_basic() {
     assert_fmt(
-        "for User {\n  fn display(self) => string {\n  `${self.name}`\n}\n}",
-        "for User {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
+        "for User {\n  fn display(self) -> string {\n  `${self.name}`\n}\n}",
+        "for User {\n    fn display(self) -> string {\n        `${self.name}`\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_with_trait() {
     assert_fmt(
-        "for  User :  Display  {\nfn display(self) => string {\n`${self.name}`\n}\n}",
-        "for User: Display {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
+        "for  User :  Display  {\nfn display(self) -> string {\n`${self.name}`\n}\n}",
+        "for User: Display {\n    fn display(self) -> string {\n        `${self.name}`\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_with_export() {
     assert_fmt(
-        "for User {\n  export fn display(self) => string {\n  `${self.name}`\n}\n}",
-        "for User {\n    export fn display(self) => string {\n        `${self.name}`\n    }\n}",
+        "for User {\n  export fn display(self) -> string {\n  `${self.name}`\n}\n}",
+        "for User {\n    export fn display(self) -> string {\n        `${self.name}`\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_multiple_methods() {
     assert_fmt(
-        "for User {\nfn name(self) => string { self.name }\nfn age(self) => number { self.age }\n}",
-        "for User {\n    fn name(self) => string {\n        self.name\n    }\n\n    fn age(self) => number {\n        self.age\n    }\n}",
+        "for User {\nfn name(self) -> string { self.name }\nfn age(self) -> number { self.age }\n}",
+        "for User {\n    fn name(self) -> string {\n        self.name\n    }\n\n    fn age(self) -> number {\n        self.age\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_generic_type() {
     assert_fmt(
-        "for Array<Todo> {\nexport fn remaining(self) => number {\nself |> filter(.done == false) |> length\n}\n}",
-        "for Array<Todo> {\n    export fn remaining(self) => number {\n        self |> filter(.done == false) |> length\n    }\n}",
+        "for Array<Todo> {\nexport fn remaining(self) -> number {\nself |> filter(.done == false) |> length\n}\n}",
+        "for Array<Todo> {\n    export fn remaining(self) -> number {\n        self |> filter(.done == false) |> length\n    }\n}",
     );
 }
 
 #[test]
 fn format_trait_decl_basic() {
     assert_fmt(
-        "trait Display {\nfn display(self) => string\n}",
-        "trait Display {\n    fn display(self) => string\n}",
+        "trait Display {\nfn display(self) -> string\n}",
+        "trait Display {\n    fn display(self) -> string\n}",
     );
 }
 
 #[test]
 fn format_trait_decl_with_default_impl() {
     assert_fmt(
-        "trait Eq {\nfn eq(self,other:Self) => boolean\nfn neq(self,other:Self) => boolean {\n!(self |> eq(other))\n}\n}",
-        "trait Eq {\n    fn eq(self, other: Self) => boolean\n\n    fn neq(self, other: Self) => boolean {\n        !(self |> eq(other))\n    }\n}",
+        "trait Eq {\nfn eq(self,other:Self) -> boolean\nfn neq(self,other:Self) -> boolean {\n!(self |> eq(other))\n}\n}",
+        "trait Eq {\n    fn eq(self, other: Self) -> boolean\n\n    fn neq(self, other: Self) -> boolean {\n        !(self |> eq(other))\n    }\n}",
     );
 }
 
 #[test]
 fn idempotent_for_block() {
-    let formatted = "for User: Display {\n    export fn display(self) => string {\n        `${self.name}`\n    }\n}";
+    let formatted = "for User: Display {\n    export fn display(self) -> string {\n        `${self.name}`\n    }\n}";
     assert_fmt(formatted, formatted);
 }
 
 #[test]
 fn idempotent_trait_decl() {
-    let formatted = "trait Display {\n    fn display(self) => string\n}";
+    let formatted = "trait Display {\n    fn display(self) -> string\n}";
     assert_fmt(formatted, formatted);
 }
 
@@ -933,7 +933,7 @@ fn idempotent_doc_comment_before_const() {
 #[test]
 fn idempotent_doc_comment_before_function() {
     assert_idempotent(
-        "/// adds two numbers\nlet add = (a: number, b: number): number => {\n    a + b\n}",
+        "/// adds two numbers\nlet add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
@@ -961,7 +961,7 @@ fn idempotent_blank_lines_between_definitions() {
 
 #[test]
 fn idempotent_blank_lines_between_functions() {
-    assert_idempotent("let one = (): number => {\n    1\n}\n\nlet two = (): number => {\n    2\n}");
+    assert_idempotent("let one() -> number = {\n    1\n}\n\nlet two() -> number = {\n    2\n}");
 }
 
 #[test]
@@ -984,7 +984,7 @@ fn idempotent_block_comment_between_call_args() {
 #[test]
 fn idempotent_line_comment_between_function_params() {
     assert_idempotent(
-        "let add = (\n    a: number,\n    // second operand\n    b: number,\n): number => {\n    a + b\n}",
+        "let add(\n    a: number,\n    // second operand\n    b: number,\n) -> number = {\n    a + b\n}",
     );
 }
 

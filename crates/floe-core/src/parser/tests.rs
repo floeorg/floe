@@ -485,7 +485,7 @@ fn mock_with_overrides() {
 
 #[test]
 fn pipe_lambda_multi_arg() {
-    let expr = first_expr("(a, b) => a + b");
+    let expr = first_expr("(a, b) -> a + b");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 2);
@@ -498,7 +498,7 @@ fn pipe_lambda_multi_arg() {
 
 #[test]
 fn pipe_lambda_single_arg() {
-    let expr = first_expr("(x) => x + 1");
+    let expr = first_expr("(x) -> x + 1");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 1);
@@ -510,7 +510,7 @@ fn pipe_lambda_single_arg() {
 
 #[test]
 fn pipe_lambda_typed() {
-    let expr = first_expr("(x: number) => x + 1");
+    let expr = first_expr("(x: number) -> x + 1");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert!(params[0].type_ann.is_some());
@@ -521,7 +521,7 @@ fn pipe_lambda_typed() {
 
 #[test]
 fn zero_arg_lambda() {
-    let expr = first_expr("() => 42");
+    let expr = first_expr("() -> 42");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 0);
@@ -763,7 +763,7 @@ fn export_const() {
 
 #[test]
 fn function_decl() {
-    match first_item("let add = (a: number, b: number): number => { a + b }") {
+    match first_item("let add(a: number, b: number) -> number = { a + b }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "add");
             assert_eq!(decl.params.len(), 2);
@@ -777,7 +777,7 @@ fn function_decl() {
 
 #[test]
 fn generic_function_decl() {
-    match first_item("let identity = <T>(x: T): T => { x }") {
+    match first_item("let identity = <T>(x: T): T -> { x }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "identity");
             assert_eq!(decl.type_params.len(), 1);
@@ -792,7 +792,7 @@ fn generic_function_decl() {
 
 #[test]
 fn generic_function_multi_params() {
-    match first_item("let pair = <A, B>(a: A, b: B): (A, B) => { (a, b) }") {
+    match first_item("let pair = <A, B>(a: A, b: B): (A, B) -> { (a, b) }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "pair");
             assert_eq!(decl.type_params.len(), 2);
@@ -806,7 +806,7 @@ fn generic_function_multi_params() {
 
 #[test]
 fn generic_function_with_trait_bound() {
-    match first_item("let process = <R: Display>(repo: R): string => { todo }") {
+    match first_item("let process = <R: Display>(repo: R): string -> { todo }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "process");
             assert_eq!(decl.type_params.len(), 1);
@@ -825,7 +825,7 @@ fn partial_application_binds_as_const() {
     // parser keeps it as a `ConstDecl` — the checker produces the function
     // value via placeholder rewriting downstream.
     let program =
-        parse_ok("let add = (a: number, b: number): number => { a + b }\nlet inc = add(1, _)");
+        parse_ok("let add(a: number, b: number) -> number = { a + b }\nlet inc = add(1, _)");
     assert_eq!(program.items.len(), 2);
     match &program.items[1].kind {
         ItemKind::Const(decl) => {
@@ -838,7 +838,7 @@ fn partial_application_binds_as_const() {
 #[test]
 fn promise_return_type_function() {
     match first_item(
-        "let fetchUser = (id: string): Promise<Result<User, ApiError>> => { Ok(user) }",
+        "let fetchUser(id: string) -> Promise<Result<User, ApiError>> = { Ok(user) }",
     ) {
         ItemKind::Function(decl) => {
             assert!(!decl.async_fn); // async_fn is set by mark_async_functions, not parser
@@ -850,7 +850,7 @@ fn promise_return_type_function() {
 
 #[test]
 fn async_fn_declaration_sets_async_fn_flag() {
-    match first_item("async let fetchUser = (id: string): Result<User, Error> => { Ok(user) }") {
+    match first_item("async let fetchUser(id: string) -> Result<User, Error> = { Ok(user) }") {
         ItemKind::Function(decl) => {
             assert!(
                 decl.async_fn,
@@ -865,7 +865,7 @@ fn async_fn_declaration_sets_async_fn_flag() {
 #[test]
 fn exported_async_fn_declaration() {
     match first_item(
-        "export async let fetchUser = (id: string): Result<User, Error> => { Ok(user) }",
+        "export async let fetchUser(id: string) -> Result<User, Error> = { Ok(user) }",
     ) {
         ItemKind::Function(decl) => {
             assert!(decl.async_fn);
@@ -878,7 +878,7 @@ fn exported_async_fn_declaration() {
 
 #[test]
 fn function_with_defaults() {
-    match first_item("let f = (x: number = 10) => { x }") {
+    match first_item("let f(x: number = 10) = { x }") {
         ItemKind::Function(decl) => {
             assert!(decl.params[0].default.is_some());
         }
@@ -1316,7 +1316,7 @@ fn banned_keyword_error() {
 
 #[test]
 fn block_with_implicit_return() {
-    match first_item("let f = () => { let x = 1\nx }") {
+    match first_item("let f() = { let x = 1\nx }") {
         ItemKind::Function(decl) => match decl.body.kind {
             ExprKind::Block(items) => {
                 assert_eq!(items.len(), 2);
@@ -1455,7 +1455,7 @@ fn comparison_followed_by_block_is_not_generic_call() {
     // `f < x > { ... }` is not a generic call — no `(` after the `>`.
     // The `{` after `>` disambiguates.
     let input = r#"
-let check = (): boolean => {
+let check() -> boolean = {
     let r = f < x
     r
 }
@@ -1488,7 +1488,7 @@ fn for_block_basic() {
     let input = r#"
 type User = { name: string }
 for User {
-    fn display(self) => string {
+    fn display(self) -> string {
         self.name
     }
 }
@@ -1512,9 +1512,9 @@ fn for_block_multiple_functions() {
     let input = r#"
 type User = { name: string, age: number }
 for User {
-    fn display(self) => string { self.name }
-    fn isAdult(self) => bool { self.age >= 18 }
-    fn greet(self, greeting: string) => string { `${greeting}` }
+    fn display(self) -> string { self.name }
+    fn isAdult(self) -> bool { self.age >= 18 }
+    fn greet(self, greeting: string) -> string { `${greeting}` }
 }
 "#;
     let program = parse_ok(input);
@@ -1536,7 +1536,7 @@ for User {
 fn for_block_generic_type() {
     let input = r#"
 for Array<User> {
-    fn adults(self) => Array<User> { self }
+    fn adults(self) -> Array<User> { self }
 }
 "#;
     let program = parse_ok(input);
@@ -1562,7 +1562,7 @@ fn self_as_expression() {
     let input = r#"
 type User = { name: string }
 for User {
-    fn getName(self) => string { self.name }
+    fn getName(self) -> string { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1597,8 +1597,8 @@ fn export_for_block_marks_all_methods_exported() {
     let input = r#"
 type User = { name: string }
 export for User {
-    fn display(self) => string { self.name }
-    fn shout(self) => string { self.name }
+    fn display(self) -> string { self.name }
+    fn shout(self) -> string { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1618,9 +1618,9 @@ export for User {
 fn export_for_trait_impl_marks_all_methods_exported() {
     let input = r#"
 type User = { name: string }
-trait Display { fn display(self) => string }
+trait Display { fn display(self) -> string }
 export for User: Display {
-    fn display(self) => string { self.name }
+    fn display(self) -> string { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1638,8 +1638,8 @@ fn per_method_export_still_works_on_for_block() {
     let input = r#"
 type User = { name: string }
 for User {
-    export fn display(self) => string { self.name }
-    fn helper(self) => string { self.name }
+    export fn display(self) -> string { self.name }
+    fn helper(self) -> string { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1800,7 +1800,7 @@ fn test_as_identifier() {
     // `test` should still work as a regular identifier (function name, variable, etc.)
     let program = parse_ok(
         r#"
-let test = (): number => { 1 }
+let test() -> number = { 1 }
 "#,
     );
     match &program.items[0].kind {
@@ -1815,7 +1815,7 @@ let test = (): number => { 1 }
 fn test_block_with_function_calls() {
     let program = parse_ok(
         r#"
-let add = (a: number, b: number): number => { a + b }
+let add(a: number, b: number) -> number = { a + b }
 
 test "add function" {
     assert add(1, 2) == 3
@@ -1928,7 +1928,7 @@ fn tuple_type_annotation() {
 
 #[test]
 fn tuple_return_type() {
-    match first_item("let f = (a: number): (number, string) => { (a, \"x\") }") {
+    match first_item("let f(a: number) -> (number, string) = { (a, \"x\") }") {
         ItemKind::Function(decl) => {
             let ret = decl.return_type.unwrap();
             match &ret.kind {
@@ -2117,7 +2117,7 @@ fn object_literal_value_is_string_not_key() {
 #[test]
 fn lambda_object_destructure_binds_variables() {
     // `|{ x, y }| x + y` — x and y should be bound by the destructure
-    let expr = first_expr("({ x, y }) => x + y");
+    let expr = first_expr("({ x, y }) -> x + y");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 1);
@@ -2179,7 +2179,7 @@ fn const_object_destructure_mixed_rename_and_plain() {
 
 #[test]
 fn lambda_object_destructure_with_rename() {
-    let expr = first_expr("({ data: d, error: e }) => d");
+    let expr = first_expr("({ data: d, error: e }) -> d");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 1);
@@ -2203,7 +2203,7 @@ fn lambda_object_destructure_with_rename() {
 
 #[test]
 fn non_async_lambda_is_not_async() {
-    let expr = first_expr("() => 42");
+    let expr = first_expr("() -> 42");
     match expr {
         ExprKind::Arrow { async_fn, .. } => {
             assert!(
@@ -2217,7 +2217,7 @@ fn non_async_lambda_is_not_async() {
 
 #[test]
 fn lambda_destructured_param() {
-    let expr = first_expr("({ name, age }) => name");
+    let expr = first_expr("({ name, age }) -> name");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 1);

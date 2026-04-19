@@ -168,8 +168,8 @@ fn snapshot_trait_constrained_generics() {
     let output = compile(
         r#"
 trait Repo {
-  fn create(self, input: string) => string
-  fn findById(self, id: number) => string
+  fn create(self, input: string) -> string
+  fn findById(self, id: number) -> string
 }
 
 type DrizzleRepo = {
@@ -177,16 +177,16 @@ type DrizzleRepo = {
 }
 
 for DrizzleRepo: Repo {
-  export fn create(self, input: string) => string {
+  export fn create(self, input: string) -> string {
     input
   }
 
-  export fn findById(self, id: number) => string {
+  export fn findById(self, id: number) -> string {
     "found"
   }
 }
 
-let doWork = <R: Repo>(repo: R, input: string): string => {
+let doWork = <R: Repo>(repo: R, input: string): string -> {
   repo |> create(input)
 }
 "#,

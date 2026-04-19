@@ -384,7 +384,7 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::Fn) if self.peek_is(TokenKind::LeftParen) => {
                 // `fn(params) expr` is the old syntax — emit error pointing to =>
                 self.builder.start_node(SyntaxKind::ERROR.into());
-                self.error("anonymous functions use arrow syntax: `(params) => body` instead of `fn(params) body`");
+                self.error("anonymous functions use arrow syntax: `(params) -> body` instead of `fn(params) body`");
                 self.bump(); // fn
                 self.builder.finish_node();
             }

@@ -93,7 +93,7 @@ pub fn ts_type_to_string(ty: &TsType) -> String {
         } => {
             let params_str: Vec<String> = params.iter().map(|p| ts_type_to_string(&p.ty)).collect();
             format!(
-                "({}) => {}",
+                "({}) -> {}",
                 params_str.join(", "),
                 ts_type_to_string(return_type)
             )
@@ -159,7 +159,7 @@ pub(super) fn parse_type_str(s: &str) -> TsType {
     {
         let params_str = &s[1..close];
         let after = s[close + 1..].trim();
-        if let Some(ret_str) = after.strip_prefix("=>") {
+        if let Some(ret_str) = after.strip_prefix("->") {
             let params = parse_param_types(params_str);
             let return_type = parse_type_str(ret_str.trim());
             return TsType::Function {

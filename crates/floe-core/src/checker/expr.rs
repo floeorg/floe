@@ -933,7 +933,7 @@ impl Checker {
 
         if placeholder_count > 1 {
             self.emit_error(
-                "only one `_` placeholder allowed per call - use `(x, y) => f(x, y)` for multiple parameters",
+                "only one `_` placeholder allowed per call - use `(x, y) -> f(x, y)` for multiple parameters",
                 span,
                 ErrorCode::MultiplePlaceholders,
                 "multiple `_` placeholders",

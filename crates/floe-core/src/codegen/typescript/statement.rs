@@ -494,7 +494,7 @@ impl<'a> TypeScriptGenerator<'a> {
             };
 
             return_inner.push(pretty::str(format!(
-                "{}: ({params_str}) => {mangled}(__data{call_args_str}),",
+                "{}: ({params_str}) -> {mangled}(__data{call_args_str}),",
                 func.name
             )));
         }

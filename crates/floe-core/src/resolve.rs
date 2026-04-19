@@ -962,7 +962,7 @@ mod tests {
     fn exported_function_extracted() {
         let (_dir, base) = setup_files(&[
             ("main.fl", ""),
-            ("helpers.fl", "export let greet = () => { 1 }"),
+            ("helpers.fl", "export let greet() = { 1 }"),
         ]);
         let main_path = base.join("main.fl");
         let program = parse_program("import { greet } from \"./helpers\"");
@@ -1010,7 +1010,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "lib.fl",
-                "export type A = { x: number }\nexport let b = () => { 1 }",
+                "export type A = { x: number }\nexport let b() = { 1 }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1031,7 +1031,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "ext.fl",
-                "for User { export fn greet(self) => string { self.name } }",
+                "for User { export fn greet(self) -> string { self.name } }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1051,7 +1051,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "ext.fl",
-                "export for User {\n    let greet = (self): string => { self.name }\n    let shout = (self): string => { self.name }\n}",
+                "export for User {\n    let greet(self) -> string = { self.name }\n    let shout(self) -> string = { self.name }\n}",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1092,7 +1092,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "traits.fl",
-                "export trait Display { fn show(self) => string }",
+                "export trait Display { fn show(self) -> string }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1107,7 +1107,7 @@ mod tests {
     fn resolve_index_in_subdir() {
         let (_dir, base) = setup_files(&[
             ("main.fl", ""),
-            ("components/index.fl", "export let Button = () => { 1 }"),
+            ("components/index.fl", "export let Button() = { 1 }"),
         ]);
         let main_path = base.join("main.fl");
         let program = parse_program("import { Button } from \"./components\"");

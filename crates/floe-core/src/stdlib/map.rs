@@ -10,7 +10,7 @@ pub fn register(fns: &mut Vec<StdlibFn>) {
         stdlib_fn!("Map", "fromArray", [array_of(Type::Tuple(vec![t.clone(), u.clone()]))], map_of(t.clone(), u.clone()), "new Map($0)"),
         stdlib_fn!("Map", "get", [map_of(t.clone(), u.clone()), t.clone()], option_of(u.clone()), "$0.has($1) ? $0.get($1) : undefined"),
         stdlib_fn!("Map", "set", [map_of(t.clone(), u.clone()), t.clone(), u.clone()], map_of(t.clone(), u.clone()), "new Map([...$0, [$1, $2]])"),
-        stdlib_fn!("Map", "remove", [map_of(t.clone(), u.clone()), t.clone()], map_of(t.clone(), u.clone()), "new Map([...$0].filter(([k]) => k !== $1))"),
+        stdlib_fn!("Map", "remove", [map_of(t.clone(), u.clone()), t.clone()], map_of(t.clone(), u.clone()), "new Map([...$0].filter(([k]) -> k !== $1))"),
         stdlib_fn!("Map", "has", [map_of(t.clone(), u.clone()), t.clone()], Type::Bool, "$0.has($1)"),
         stdlib_fn!("Map", "keys", [map_of(t.clone(), u.clone())], array_of(t.clone()), "[...$0.keys()]"),
         stdlib_fn!("Map", "values", [map_of(t.clone(), u.clone())], array_of(u.clone()), "[...$0.values()]"),

@@ -355,7 +355,7 @@ impl<'a> TypeScriptGenerator<'a> {
             if has_await {
                 s.push_str("await (async () => { ");
             } else {
-                s.push_str("(() => { ");
+                s.push_str("(() -> { ");
             }
             for (name, access) in &bindings {
                 s.push_str(&format!("const {name} = {access}; "));

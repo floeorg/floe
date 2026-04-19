@@ -977,7 +977,7 @@ pub(super) fn generate_probe(
     let collector = collect_jsx_callback_probes(program, &imported_names);
     if !collector.probes.is_empty() {
         lines.push(
-            "type _JCB<T> = T extends (arg: infer P, ...rest: any[]) => any ? P : never;"
+            "type _JCB<T> = T extends (arg: infer P, ...rest: any[]) -> any ? P : never;"
                 .to_string(),
         );
         for probe in &collector.probes {
@@ -1678,7 +1678,7 @@ pub(super) fn type_expr_to_ts(ty: &TypeExpr) -> String {
                 .enumerate()
                 .map(|(i, p)| format!("_p{i}: {}", type_expr_to_ts(p)))
                 .collect();
-            format!("({}) => {}", ps.join(", "), type_expr_to_ts(return_type))
+            format!("({}) -> {}", ps.join(", "), type_expr_to_ts(return_type))
         }
         TypeExprKind::Array(inner) => {
             format!("{}[]", type_expr_to_ts(inner))
@@ -1805,7 +1805,7 @@ fn expr_to_ts_approx(expr: &Expr) -> String {
                     }
                 })
                 .collect();
-            format!("({}) => {}", ps.join(", "), expr_to_ts_approx(body))
+            format!("({}) -> {}", ps.join(", "), expr_to_ts_approx(body))
         }
         ExprKind::Object(fields) => {
             let fs: Vec<String> = fields

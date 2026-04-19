@@ -467,7 +467,7 @@ let y = match x {
         let diags = check(
             r#"
 type Color = | Red | Green | Blue
-let _f = (c: Color): string => {
+let _f(c: Color) -> string = {
     match c {
         Red -> "r",
         Green -> "g",
@@ -483,7 +483,7 @@ let _f = (c: Color): string => {
     fn option_both_variants_exhaustive() {
         let diags = check(
             r#"
-let _f = (x: Option<number>): number => {
+let _f(x: Option<number>) -> number = {
     match x {
         Some(n) -> n,
         None -> 0,
@@ -499,7 +499,7 @@ let _f = (x: Option<number>): number => {
         let diags = check(
             r#"
 type Method = "GET" | "POST" | "PUT"
-let _f = (m: Method): string => {
+let _f(m: Method) -> string = {
     match m {
         "GET" -> "get",
         "POST" -> "post",
@@ -515,7 +515,7 @@ let _f = (m: Method): string => {
     fn array_empty_and_nonempty_exhaustive() {
         let diags = check(
             r#"
-let _f = (xs: Array<number>): number => {
+let _f(xs: Array<number>) -> number = {
     match xs {
         [] -> 0,
         [first, ..rest] -> first,
@@ -546,7 +546,7 @@ let y = match x {
         let diags = check(
             r#"
 type Color = | Red | Green | Blue
-let _f = (c: Color): string => {
+let _f(c: Color) -> string = {
     match c {
         Red -> "r",
         Green -> "g",
@@ -589,7 +589,7 @@ let y = match x {
         let diags = check(
             r#"
 type Method = "GET" | "POST" | "PUT" | "DELETE"
-let _f = (m: Method): string => {
+let _f(m: Method) -> string = {
     match m {
         "GET" -> "get",
         "POST" -> "post",
@@ -605,7 +605,7 @@ let _f = (m: Method): string => {
         let diags = check(
             r#"
 type Status = "ok" | "error" | "pending"
-let _f = (s: Status): number => {
+let _f(s: Status) -> number = {
     match s {
         "ok" -> 1,
         _ -> 0,
@@ -620,7 +620,7 @@ let _f = (s: Status): number => {
     fn array_missing_empty_case() {
         let diags = check(
             r#"
-let _f = (xs: Array<number>): number => {
+let _f(xs: Array<number>) -> number = {
     match xs {
         [first, ..rest] -> first,
     }
@@ -634,7 +634,7 @@ let _f = (xs: Array<number>): number => {
     fn array_missing_nonempty_case() {
         let diags = check(
             r#"
-let _f = (xs: Array<number>): number => {
+let _f(xs: Array<number>) -> number = {
     match xs {
         [] -> 0,
     }
