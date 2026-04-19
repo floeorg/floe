@@ -53,6 +53,9 @@ jobs:
       - name: Build
         run: cargo build --profile ci
 
+      - name: Check Floe code samples in docs
+        run: cargo run --profile ci -p floe-doc-check -- docs/ README.md
+
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
