@@ -19,7 +19,7 @@ trait Display {
 Use `for Type: Trait` to implement a trait for a type:
 
 ```floe
-type User { name: string, age: number }
+type User = { name: string, age: number }
 
 for User: Display {
   fn display(self) => string {
@@ -97,7 +97,7 @@ for User: Eq {
 Record types can auto-derive trait implementations with `deriving`. This generates the same code as a handwritten `for` block with no runtime cost:
 
 ```floe
-type User {
+type User = {
   id: string,
   name: string,
   email: string,

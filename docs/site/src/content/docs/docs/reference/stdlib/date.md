@@ -26,18 +26,18 @@ Date construction and accessors. Floe has no `new` keyword, so the `Date` module
 
 ```floe
 // Create dates
-const now = Date.now()
-const release = Date.from("2024-06-15")
-const epoch = Date.fromMillis(0)
+let now = Date.now()
+let release = Date.from("2024-06-15")
+let epoch = Date.fromMillis(0)
 
 // Read fields with pipes
-const year = release |> Date.year         // 2024
-const month = release |> Date.month       // 6 (1-indexed, not 0!)
-const day = release |> Date.day           // 15
+let year = release |> Date.year         // 2024
+let month = release |> Date.month       // 6 (1-indexed, not 0!)
+let day = release |> Date.day           // 15
 
 // Convert to string or timestamp
-const iso = now |> Date.toIso             // "2024-..."
-const timestamp = now |> Date.millis      // 1718...
+let iso = now |> Date.toIso             // "2024-..."
+let timestamp = now |> Date.millis      // 1718...
 ```
 
 `Date.month` returns 1-12 (January = 1), unlike JavaScript's `getMonth()` which returns 0-11. This fixes a common JS footgun.

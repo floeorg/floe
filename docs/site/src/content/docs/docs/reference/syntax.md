@@ -15,8 +15,8 @@ title: Syntax Reference
 ### Const
 
 ```floe
-const x = 42
-const name: string = "hello"
+let x = 42
+let name: string = "hello"
 export const PI = 3.14159
 
 // Destructuring
@@ -59,20 +59,18 @@ async fn name() => T {
 
 ```floe
 // Record
-type User {
+type User = {
   name: string,
   email: string,
 }
 
 // Union — positional ( ) or named { } fields
-type Shape {
-  | Circle(number)
+type Shape = | Circle(number)
   | Rectangle(number, number)
   | Named { width: number, height: number }
-}
 
 // Newtype (single-value wrapper)
-type OrderId(number)
+type OrderId = OrderId(number)
 
 // String literal union (for npm interop)
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
@@ -81,13 +79,13 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 type Name = string
 
 // Newtype
-type UserId(string)
+type UserId = UserId(string)
 
 // Opaque
-opaque type Email(string)
+opaque type Email = Email(string)
 
 // Deriving traits
-type Point {
+type Point = {
   x: number,
   y: number,
 } deriving (Display)
@@ -240,8 +238,8 @@ Call rules:
 
 ```floe
 collect {
-    const name = validateName(input.name)?
-    const email = validateEmail(input.email)?
+    let name = validateName(input.name)?
+    let email = validateEmail(input.email)?
     ValidForm(name, email)
 }
 // Returns Result<T, Array<E>> — accumulates all errors from ?
@@ -321,7 +319,7 @@ import { a, b, c } from "module"
 
 // npm imports are untrusted by default — auto-wrapped in Result<T, Error>
 import { parseYaml } from "yaml-lib"
-const result = parseYaml(input)   // Result<T, Error> — auto-wrapped
+let result = parseYaml(input)   // Result<T, Error> — auto-wrapped
 
 // trusted imports — safe to call directly, no wrapping
 import trusted { useState } from "react"

@@ -69,7 +69,7 @@ The `?` operator unwraps `Ok(value)` or `Some(value)`, and returns early with `E
 |----------|---------|---------|
 | `..` | Record spread in constructors | `User(..existing, name: "New")` |
 | `..` | Array rest in match patterns | `[first, ..rest]` |
-| `...` | Type spread in record definitions | `type B { ...A, extra: string }` |
+| `...` | Type spread in record definitions | `type B = { ...A, extra: string }` |
 | `1..10` | Range pattern in match | `match n { 1..10 -> "small" }` |
 
 ## Arrow and Closure Operators

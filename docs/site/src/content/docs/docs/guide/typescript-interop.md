@@ -24,7 +24,7 @@ All npm imports are untrusted by default. The compiler auto-wraps calls in `Resu
 import { parseYaml } from "yaml-lib"
 
 // parseYaml is auto-wrapped — returns Result<T, Error>
-const result = parseYaml(input)
+let result = parseYaml(input)
 match result {
   Ok(data) -> process(data),
   Err(e) -> Console.error(e),
@@ -34,7 +34,7 @@ match result {
 Use `?` to unwrap the result concisely:
 
 ```floe
-const data = parseYaml(input)?  // unwraps or returns Err early
+let data = parseYaml(input)?  // unwraps or returns Err early
 ```
 
 ## `trusted` imports
@@ -53,7 +53,7 @@ You can mark individual functions as trusted from a module:
 import { trusted capitalize, fetchData } from "some-lib"
 
 capitalize("hello")             // direct call, no wrapping (trusted)
-const data = fetchData()        // Result<T, Error> — auto-wrapped (untrusted)
+let data = fetchData()        // Result<T, Error> — auto-wrapped (untrusted)
 ```
 
 ## Bridging TypeScript types
@@ -115,7 +115,7 @@ Combine TypeScript types with `Intersect<>`:
 ```floe
 import { tv, VariantProps } from "tailwind-variants"
 
-const cardVariants = tv({ base: "rounded-xl", variants: { size: { sm: "p-2" } } })
+let cardVariants = tv({ base: "rounded-xl", variants: { size: { sm: "p-2" } } })
 type CardProps = Intersect<VariantProps<typeof cardVariants>, { className: string }>
 ```
 
@@ -209,9 +209,9 @@ Browser globals like `window`, `document`, `navigator`, and `fetch` are availabl
 
 ```floe
 // Browser project (lib includes "DOM")
-const url = window.location.href
+let url = window.location.href
 navigator.clipboard.writeText("hello") |> await
-const width = window.innerWidth
+let width = window.innerWidth
 ```
 
 For non-browser runtimes, configure `compilerOptions.lib` and `compilerOptions.types` in your `tsconfig.json`:
@@ -223,7 +223,7 @@ For non-browser runtimes, configure `compilerOptions.lib` and `compilerOptions.t
 
 ```floe
 // Now process, Buffer, etc. are available
-const env = process.env
+let env = process.env
 ```
 
 See [Configuration](/docs/reference/configuration/#lib-and-types---controlling-globals) for details.

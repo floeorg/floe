@@ -67,7 +67,7 @@ This works, but it's all imperative control flow with early returns.
 ### The Floe way
 
 ```floe
-type AdminPageProps {
+type AdminPageProps = {
     auth: Auth,
     maybeUser: Option<User>,
     data: Result<Data, AppError>,
@@ -99,7 +99,7 @@ use <- Bool.guard(condition, fallbackValue)
 ```
 
 ```floe
-type PremiumContentProps { isPaid: boolean }
+type PremiumContentProps = { isPaid: boolean }
 
 export fn PremiumContent(props: PremiumContentProps) => JSX.Element {
     use <- Bool.guard(props.isPaid, <UpgradePage />)
@@ -118,7 +118,7 @@ use value <- Option.guard(optionValue, fallbackValue)
 ```
 
 ```floe
-type ProfileProps { maybeUser: Option<User> }
+type ProfileProps = { maybeUser: Option<User> }
 
 export fn Profile(props: ProfileProps) => JSX.Element {
     use user <- Option.guard(props.maybeUser, <LoginPrompt />)
@@ -137,7 +137,7 @@ use value <- Result.guard(resultValue, (err) => fallbackValue)
 ```
 
 ```floe
-type DataPageProps { result: Result<Data, ApiError> }
+type DataPageProps = { result: Result<Data, ApiError> }
 
 export fn DataPage(props: DataPageProps) => JSX.Element {
     use data <- Result.guard(props.result, (e) => <ErrorBanner error={e} />)
@@ -151,7 +151,7 @@ export fn DataPage(props: DataPageProps) => JSX.Element {
 Guards compose naturally. Each one narrows the type for everything below it:
 
 ```floe
-type OrderPageProps {
+type OrderPageProps = {
     auth: Auth,
     maybeOrder: Option<Order>,
     paymentResult: Result<Payment, PaymentError>,
@@ -227,7 +227,7 @@ Note the distinction between the two parenthesised forms:
 import { use } from "react"
 
 export fn AsyncLabel(props: { promise: Promise<string> }) => JSX.Element {
-    const label = use(props.promise)
+    let label = use(props.promise)
     <span>{label}</span>
 }
 ```

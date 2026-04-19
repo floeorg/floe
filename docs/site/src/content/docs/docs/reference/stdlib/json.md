@@ -16,10 +16,10 @@ JSON serialization and parsing. `JSON.parse` returns `Result` instead of throwin
 ## Examples
 
 ```floe
-const json = user |> JSON.stringify
+let json = user |> JSON.stringify
 // '{"name":"Alice","age":30}'
 
-const parsed = json |> JSON.parse
+let parsed = json |> JSON.parse
 // Ok({name: "Alice", age: 30})
 
 match JSON.parse(input) {

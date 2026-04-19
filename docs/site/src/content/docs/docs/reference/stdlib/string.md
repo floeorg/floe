@@ -31,14 +31,14 @@ Pipe-friendly string operations.
 
 ```floe
 // Pipe-friendly
-const cleaned = "  Hello, World!  "
+let cleaned = "  Hello, World!  "
   |> String.trim
   |> String.toLowerCase
   |> String.replace("world", "floe")
 // "hello, floe!"
 
 // Split and process
-const words = "one,two,three"
+let words = "one,two,three"
   |> String.split(",")
   |> Array.map((w) => String.toUpperCase(w))
 // ["ONE", "TWO", "THREE"]

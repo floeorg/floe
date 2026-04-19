@@ -7,16 +7,16 @@ title: Functions & Const
 All bindings are immutable. Use `const`:
 
 ```floe
-const name = "Floe"
-const count = 42
-const active = true
+let name = "Floe"
+let count = 42
+let active = true
 ```
 
 With type annotations:
 
 ```floe
-const name: string = "Floe"
-const count: number = 42
+let name: string = "Floe"
+let count: number = 42
 ```
 
 ### Destructuring
@@ -51,9 +51,9 @@ In multi-statement functions, `floe fmt` adds a blank line before the final expr
 
 ```floe
 fn loadProfile(id: string) => Result<Profile, ApiError> {
-    const user = fetchUser(id)?
-    const posts = fetchPosts(user.id)?
-    const stats = computeStats(posts)
+    let user = fetchUser(id)?
+    let posts = fetchPosts(user.id)?
+    let stats = computeStats(posts)
 
     Profile(user, posts, stats)
 }
@@ -121,7 +121,7 @@ users |> Array.sortBy(.name)
 
 ```floe
 // COMPILE ERROR
-const double = (x) => x * 2
+let double = (x) => x * 2
 
 // correct
 fn double(x: number) => number { x * 2 }
@@ -143,7 +143,7 @@ A function is async when its body uses `|> await` (or `|> Promise.await`). The r
 
 ```floe
 fn fetchUser(id: string) => Promise<User> {
-  const response = fetch(`/api/users/${id}`) |> await
+  let response = fetch(`/api/users/${id}`) |> await
   response.json() |> await
 }
 ```

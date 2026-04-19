@@ -37,8 +37,8 @@ Propagate errors early instead of nesting matches:
 
 ```floe
 fn processOrder(id: string) => Result<Receipt, Error> {
-  const order = fetchOrder(id)?       // returns Err early if it fails
-  const payment = chargeCard(order)?  // same here
+  let order = fetchOrder(id)?       // returns Err early if it fails
+  let payment = chargeCard(order)?  // same here
   Ok(Receipt(order, payment))
 }
 ```
@@ -56,9 +56,9 @@ Normally, `?` short-circuits on the first error. But sometimes you want **all** 
 ```floe
 fn validateForm(input: FormInput) => Result<ValidForm, Array<ValidationError>> {
     collect {
-        const name = input.name |> validateName?
-        const email = input.email |> validateEmail?
-        const age = input.age |> validateAge?
+        let name = input.name |> validateName?
+        let email = input.email |> validateEmail?
+        let age = input.age |> validateAge?
 
         ValidForm(name, email, age)
     }
@@ -90,7 +90,7 @@ Use regular `?` when operations are dependent (step 2 needs step 1's result). Us
 ### Real-world example: API config
 
 ```floe
-type ApiConfig {
+type ApiConfig = {
     baseUrl: string,
     apiKey: string,
     timeout: number,
@@ -98,9 +98,9 @@ type ApiConfig {
 
 fn loadConfig(env: Env) => Result<ApiConfig, Array<ConfigError>> {
     collect {
-        const baseUrl = env |> requireEnv("API_BASE_URL")?
-        const apiKey = env |> requireEnv("API_KEY")?
-        const timeout = env |> requireEnv("TIMEOUT")? |> Number.parse?
+        let baseUrl = env |> requireEnv("API_BASE_URL")?
+        let apiKey = env |> requireEnv("API_KEY")?
+        let timeout = env |> requireEnv("TIMEOUT")? |> Number.parse?
 
         ApiConfig(baseUrl, apiKey, timeout)
     }
@@ -113,14 +113,12 @@ fn loadConfig(env: Env) => Result<ApiConfig, Array<ConfigError>> {
 When composing functions with different error types, use `Result.mapErr` to convert errors into a domain type. Variant constructors can be passed directly as functions:
 
 ```floe
-type AppError {
-    | Validation { errors: Array<string> }
+type AppError = | Validation { errors: Array<string> }
     | Api { message: string }
-}
 
 fn saveTodo(text: string, id: string) => Result<Todo, AppError> {
-    const todo = validateTodo(text, id) |> Result.mapErr(Validation)?
-    const saved = apiSave(todo) |> Result.mapErr(Api)?
+    let todo = validateTodo(text, id) |> Result.mapErr(Validation)?
+    let saved = apiSave(todo) |> Result.mapErr(Api)?
     Ok(saved)
 }
 ```
@@ -165,7 +163,7 @@ npm imports are untrusted by default -- calls are auto-wrapped in `Result<T, Err
 
 ```floe
 import { parseYaml } from "yaml-lib"                // untrusted (default)
-const data = parseYaml(input)?                       // Result<T, Error>, ? unwraps
+let data = parseYaml(input)?                       // Result<T, Error>, ? unwraps
 
 import trusted { useState } from "react"             // trusted = direct call
 const (count, setCount) = useState(0)

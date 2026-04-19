@@ -33,42 +33,42 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 
 ```floe
 // Transform without unwrapping
-const upper = user.nickname
+let upper = user.nickname
   |> Option.map((n) => String.toUpperCase(n))
 // Some("RYAN") or None
 
 // Chain lookups
-const avatar = user.nickname
+let avatar = user.nickname
   |> Option.flatMap((n) => findAvatar(n))
 
 // Extract with fallback
-const display = user.nickname
+let display = user.nickname
   |> Option.unwrapOr(user.name)
 
 // Lazy fallback chain
-const config = localConfig
+let config = localConfig
   |> Option.orElse(() => envConfig)
   |> Option.orElse(() => defaultConfig)
 
 // Convert to Result for error handling
-const name = user.nickname
+let name = user.nickname
   |> Option.toResult("User has no nickname")
 
 // Filter — keep Some only if predicate passes
-const longName = user.nickname
+let longName = user.nickname
   |> Option.filter((n) => String.length(n) > 3)
 
 // Zip — combine two Options
-const pair = Option.zip(firstName, lastName)
+let pair = Option.zip(firstName, lastName)
 // Some(("Alice", "Smith")) or None
 
 // Handle { data, error } pattern (TanStack Query, Supabase, etc.)
 const { data, error } = supabase.rpc("get_entries", { query }) |> Promise.await
 error |> Option.toErr?              // bail if error exists
-const rows = data |> Option.unwrapOr([])
+let rows = data |> Option.unwrapOr([])
 
 // Collect all Options
-const allNames = [Some("Alice"), Some("Bob"), None]
+let allNames = [Some("Alice"), Some("Bob"), None]
   |> Option.all   // None (one is missing)
 
 // Optional JSX rendering — render if present, nothing if absent

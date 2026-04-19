@@ -26,7 +26,7 @@ Floe removes these and adds features that make correct code easy to write:
 ```floe
 import { useState } from "react"
 
-type Todo {
+type Todo = {
   id: string,
   text: string,
   done: boolean,
@@ -35,7 +35,7 @@ type Todo {
 export fn App() => JSX.Element {
   const (todos, setTodos) = useState<Array<Todo>>([])
 
-  const completedCount = todos
+  let completedCount = todos
     |> filter(.done)
     |> length
 
@@ -59,7 +59,7 @@ type Todo = {
 export function App(): JSX.Element {
   const [todos, setTodos] = useState<Todo[]>([]);
 
-  const completedCount = length(filter(todos, (t) => t.done));
+  let completedCount = length(filter(todos, (t) => t.done));
 
   return <div>
     <h1>Todos ({completedCount} done)</h1>

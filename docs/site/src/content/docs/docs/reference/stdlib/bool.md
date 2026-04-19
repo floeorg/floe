@@ -17,7 +17,7 @@ Functions for working with `boolean` values.
 `Bool.guard` combines with [`use`](/docs/guide/use/) to give linear early-return flow. If the condition is false, the fallback value is returned. If true, execution continues:
 
 ```floe
-type AdminPageProps { auth: Auth }
+type AdminPageProps = { auth: Auth }
 
 export fn AdminPage(props: AdminPageProps) => JSX.Element {
     use <- Bool.guard(props.auth.isAdmin, <Forbidden />)

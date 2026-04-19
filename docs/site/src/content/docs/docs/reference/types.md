@@ -72,7 +72,7 @@ type Config = {
   retries: number = 3,
 }
 
-const cfg = Config(baseUrl: "https://api.com")
+let cfg = Config(baseUrl: "https://api.com")
 // timeout is 5000, retries is 3
 ```
 
@@ -105,7 +105,7 @@ Spreads work with generic types, `typeof`, and npm imports:
 ```floe
 import { tv, VariantProps } from "tailwind-variants"
 
-const cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
+let cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
 
 type CardProps = {
   ...VariantProps<typeof cardVariants>,

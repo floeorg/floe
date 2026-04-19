@@ -16,20 +16,20 @@ Utility functions for pipeline debugging and control flow.
 
 ```floe
 // Debug a pipeline without breaking the chain
-const result = orders
+let result = orders
   |> Array.filter(.active)
   |> tap(Console.log)         // logs filtered orders, passes them through
   |> Array.map(.total)
   |> Array.reduce((sum, n) => sum + n, 0)
 
 // Use a closure for custom logging
-const processed = data
+let processed = data
   |> transform
   |> tap((x) => Console.log("after transform:", x))
   |> validate
 
 // Works with any type
-const name = "  Alice  "
+let name = "  Alice  "
   |> String.trim
   |> tap(Console.log)         // logs "Alice"
   |> String.toUpperCase       // "ALICE"

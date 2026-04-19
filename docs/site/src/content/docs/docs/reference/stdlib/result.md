@@ -35,39 +35,39 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 
 ```floe
 // Transform success value
-const doubled = fetchCount()
+let doubled = fetchCount()
   |> Result.map((n) => n * 2)
 
 // Handle errors
-const result = fetchUser(id)
+let result = fetchUser(id)
   |> Result.mapErr((e) => AppError(e))
 
 // Chain operations
-const profile = fetchUser(id)
+let profile = fetchUser(id)
   |> Result.flatMap((u) => fetchProfile(u.profileId))
 
 // Extract with fallback
-const count = fetchCount()
+let count = fetchCount()
   |> Result.unwrapOr(0)
 
 // Lazy fallback chain
-const data = fetchFromPrimary(id)
+let data = fetchFromPrimary(id)
   |> Result.orElse((e) => fetchFromBackup(id))
 
 // Filter — keep Ok only if predicate passes
-const validAge = parseAge(input)
+let validAge = parseAge(input)
   |> Result.filter((n) => n >= 18, "must be 18+")
 
 // Zip — combine two Results
-const pair = Result.zip(fetchUser(id), fetchProfile(id))
+let pair = Result.zip(fetchUser(id), fetchProfile(id))
 // Ok(("Alice", Profile(...))) or first Err
 
 // Collect all Results
-const users = [fetchUser(1), fetchUser(2), fetchUser(3)]
+let users = [fetchUser(1), fetchUser(2), fetchUser(3)]
   |> Result.all   // Ok([...]) or first Err
 
 // Debug with inspect
-const result = fetchUser(id)
+let result = fetchUser(id)
   |> Result.inspect((u) => Console.log("got user", u))
   |> Result.mapErr((e) => AppError(e))
 ```

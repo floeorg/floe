@@ -21,13 +21,13 @@ Pipe-friendly HTTP functions that return `Promise<Result<...>>` natively. As a s
 
 ```floe
 // Simple GET and parse JSON
-const data = Http.get("https://api.example.com/users") |> Promise.await? |> Http.json |> Promise.await?
+let data = Http.get("https://api.example.com/users") |> Promise.await? |> Http.json |> Promise.await?
 
 // POST with a body
-const result = Http.post("https://api.example.com/users", { name: "Alice" }) |> Promise.await?
+let result = Http.post("https://api.example.com/users", { name: "Alice" }) |> Promise.await?
 
 // Full pipeline
-const users = Http.get(url) |> Promise.await?
+let users = Http.get(url) |> Promise.await?
   |> Http.json |> Promise.await?
   |> Result.map((data) => Array.filter(data, .active))
 

@@ -25,7 +25,7 @@ Functions for working with `Promise<T>` values.
 
 ```floe
 fn fetchUser(id: string) => Promise<User> {
-  const response = fetch(`/api/users/${id}`) |> await
+  let response = fetch(`/api/users/${id}`) |> await
   response.json() |> await
 }
 // Compiles to: async function fetchUser(id: string): Promise<User> { ... }
@@ -51,7 +51,7 @@ For functions without a return type annotation, the compiler infers `Promise<T>`
 
 ```floe
 fn fetchName(id: string) {
-  const user = fetchUser(id) |> await
+  let user = fetchUser(id) |> await
   user.name
 }
 // Inferred return type: Promise<string>
@@ -93,12 +93,12 @@ npm imports are untrusted by default. The compiler wraps calls in try/catch and 
 ```floe
 // Sync npm function — Result<T, Error> directly
 import { parseYaml } from "yaml-lib"
-const result = parseYaml(text)
+let result = parseYaml(text)
 // Result<Config, Error> — no await needed
 
 // Async npm function — Promise<Result<T, Error>>, needs |> await
 import { transitionIssue } from "jira-api"
-const result = transitionIssue(id, tid) |> await
+let result = transitionIssue(id, tid) |> await
 // Result<(), Error>
 
 match result {
@@ -118,14 +118,14 @@ match result {
 
 ```floe
 // Wait for all fetches
-const users = Promise.all([fetchUser(1), fetchUser(2), fetchUser(3)]) |> Promise.await
+let users = Promise.all([fetchUser(1), fetchUser(2), fetchUser(3)]) |> Promise.await
 
 // Race — first response wins
-const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> Promise.await
+let fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> Promise.await
 
 // allSettled returns Array<Result<T, Error>> — natural fit for Floe
-const results = Promise.allSettled([fetchA(), fetchB(), fetchC()]) |> Promise.await
-const successes = results |> Array.filter(Result.isOk)
+let results = Promise.allSettled([fetchA(), fetchB(), fetchC()]) |> Promise.await
+let successes = results |> Array.filter(Result.isOk)
 
 // Delay
 Promise.delay(1000) |> Promise.await  // wait 1 second

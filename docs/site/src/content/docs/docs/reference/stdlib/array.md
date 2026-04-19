@@ -64,49 +64,49 @@ All stdlib functions are **pipe-friendly**: the first argument is the data, so t
 
 ```floe
 // Sort returns a new array, original unchanged
-const nums = [3, 1, 2]
-const sorted = Array.sort(nums)     // [1, 2, 3]
+let nums = [3, 1, 2]
+let sorted = Array.sort(nums)     // [1, 2, 3]
 // nums is still [3, 1, 2]
 
 // Safe access returns Option
-const first = Array.head([1, 2, 3])  // Some(1)
-const empty = Array.head([])         // None
+let first = Array.head([1, 2, 3])  // Some(1)
+let empty = Array.head([])         // None
 
 // Structural equality for contains
-const user1 = User(name: "Ryan")
-const found = Array.contains(users, user1)  // true if any user matches by value
+let user1 = User(name: "Ryan")
+let found = Array.contains(users, user1)  // true if any user matches by value
 
 // Pipe chains with dot shorthand
-const result = users
+let result = users
   |> Array.filter(.active)
   |> Array.sortBy(.name)
   |> Array.take(10)
   |> Array.map(.email)
 
 // Check predicates
-const hasAdmin = users |> Array.any(.role == "admin")   // true/false
-const allActive = users |> Array.all(.active)           // true/false
+let hasAdmin = users |> Array.any(.role == "admin")   // true/false
+let allActive = users |> Array.all(.active)           // true/false
 
 // Aggregate
-const total = [1, 2, 3] |> Array.sum             // 6
-const csv = ["a", "b", "c"] |> Array.join(", ")  // "a, b, c"
+let total = [1, 2, 3] |> Array.sum             // 6
+let csv = ["a", "b", "c"] |> Array.join(", ")  // "a, b, c"
 
 // filterMap — map + filter in one pass
-const ages = inputs |> Array.filterMap((s) => Number.parse(s) |> Result.toOption)
+let ages = inputs |> Array.filterMap((s) => Number.parse(s) |> Result.toOption)
 
 // partition — split into two groups
 const (adults, minors) = users |> Array.partition(.age >= 18)
 
 // intersperse — great for React
-const items = ["Home", "About", "Contact"]
+let items = ["Home", "About", "Contact"]
   |> Array.intersperse(" | ")
 // ["Home", " | ", "About", " | ", "Contact"]
 
 // Utilities
-const empty = Array.isEmpty([])          // true
-const chunks = [1, 2, 3, 4, 5] |> Array.chunk(2)   // [[1, 2], [3, 4], [5]]
-const deduped = [1, 2, 2, 3] |> Array.unique        // [1, 2, 3]
-const dedupedBy = users |> Array.uniqueBy(.email)   // keeps first per unique email
-const idx = ["a", "b", "c"] |> Array.indexOf("b")  // Some(1)
-const grouped = users |> Array.groupBy(.role)        // { admin: [...], user: [...] }
+let empty = Array.isEmpty([])          // true
+let chunks = [1, 2, 3, 4, 5] |> Array.chunk(2)   // [[1, 2], [3, 4], [5]]
+let deduped = [1, 2, 2, 3] |> Array.unique        // [1, 2, 3]
+let dedupedBy = users |> Array.uniqueBy(.email)   // keeps first per unique email
+let idx = ["a", "b", "c"] |> Array.indexOf("b")  // Some(1)
+let grouped = users |> Array.groupBy(.role)        // { admin: [...], user: [...] }
 ```
