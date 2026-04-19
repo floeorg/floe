@@ -41,8 +41,8 @@ class TestRapidUpdates:
 
     def test_partial_fn_typing(self, lsp):
         stages = [
-            "fn ",
-            "fn test",
+            "let ",
+            "let test",
             "let test(",
             "let test() ",
             "let test() {",

@@ -25,7 +25,7 @@ class TestHoverBasic:
     def test_fn_signature(self, lsp):
         open_doc(lsp, URI,F.SIMPLE)
         h = hover_text(lsp.hover(URI, 4, 3))
-        assert h is not None and "fn add" in h, f"Expected fn add signature, got: {h}"
+        assert h is not None and "let add" in h, f"Expected let add signature, got: {h}"
 
     def test_export_fn_signature(self, lsp):
         open_doc(lsp, URI,F.SIMPLE)
