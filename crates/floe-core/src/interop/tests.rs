@@ -911,12 +911,14 @@ fn triple_slash_scan_stops_at_first_non_header() {
 #[test]
 fn dts_import_type_encodes_module_sentinel() {
     // tsgo emits cross-module type references as `import("pkg").Foo<args>`.
-    // parse_dts_exports_from_str must encode the module source into the name
-    // so a later pass can look the alias up in its owning .d.ts.
+    // The tsgo probe parser preserves the module source in the name so a
+    // later pass can look the alias up in its owning .d.ts. The default
+    // `parse_dts_exports_from_str` entry strips the sentinel — this test
+    // uses the sentinel-preserving variant explicitly.
     let dts = r#"
         export declare let _r: <E>(handler: import("@floeorg/hono").Handler<E>) => void;
     "#;
-    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let exports = super::dts::parse_dts_exports_with_import_sources(dts).unwrap();
     let r = exports.iter().find(|e| e.name == "_r").unwrap();
     let handler_param = match &r.ts_type {
         TsType::Function { params, .. } => &params[0].ty,
@@ -930,6 +932,56 @@ fn dts_import_type_encodes_module_sentinel() {
         .expect("name should carry the module sentinel");
     assert_eq!(module, "@floeorg/hono");
     assert_eq!(alias, "Handler");
+}
+
+#[test]
+fn parse_dts_exports_from_str_strips_import_sentinels() {
+    // Non-tsgo callers of `parse_dts_exports_from_str` (e.g. direct .d.ts
+    // parsing via `enhance_import_types`) must receive clean names — the
+    // sentinel encoding is an internal tsgo-probe optimisation and would
+    // break helpers like `unwrap_set_state_action` that match on `name`.
+    let dts = r#"
+        export declare let _r: <T>(setter: import("react").Dispatch<import("react").SetStateAction<T>>) => void;
+    "#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let r = exports.iter().find(|e| e.name == "_r").unwrap();
+    let mut names = Vec::new();
+    fn collect(ty: &TsType, out: &mut Vec<String>) {
+        match ty {
+            TsType::Named(n) => out.push(n.clone()),
+            TsType::Generic { name, args } => {
+                out.push(name.clone());
+                for a in args {
+                    collect(a, out);
+                }
+            }
+            TsType::Function {
+                params,
+                return_type,
+            } => {
+                for p in params {
+                    collect(&p.ty, out);
+                }
+                collect(return_type, out);
+            }
+            _ => {}
+        }
+    }
+    collect(&r.ts_type, &mut names);
+    for n in &names {
+        assert!(
+            !n.contains('\x1F'),
+            "name `{n}` still carries an unstripped sentinel"
+        );
+    }
+    assert!(
+        names.iter().any(|n| n == "Dispatch"),
+        "expected clean `Dispatch` name, got {names:?}"
+    );
+    assert!(
+        names.iter().any(|n| n == "SetStateAction"),
+        "expected clean `SetStateAction` name, got {names:?}"
+    );
 }
 
 #[test]

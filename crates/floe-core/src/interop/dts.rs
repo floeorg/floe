@@ -366,8 +366,28 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
     })
 }
 
-/// Parse .d.ts exports from a string (used by tests and the file-based entry point).
+/// Parse .d.ts exports from a string. Strips `IMPORT_SOURCE_SENTINEL` from any
+/// `import("pkg").X` references so callers see clean identifiers. Use
+/// `parse_dts_exports_with_import_sources` when the caller (e.g. the tsgo
+/// probe runner) needs the encoded source to drive cross-module alias
+/// expansion.
 pub(super) fn parse_dts_exports_from_str(content: &str) -> Result<Vec<DtsExport>, String> {
+    let mut exports = parse_dts_content(content).map(|r| r.exports)?;
+    for export in &mut exports {
+        strip_import_sentinels(&mut export.ts_type);
+    }
+    Ok(exports)
+}
+
+/// Variant of `parse_dts_exports_from_str` that preserves the
+/// `IMPORT_SOURCE_SENTINEL` encoding. Caller is responsible for either
+/// expanding or stripping the encoding before the types reach the boundary
+/// wrapper. Used by the tsgo probe pipeline so it can resolve cross-module
+/// type alias references (`import("pkg").Handler<E>`) against the owning
+/// module's .d.ts (#1234).
+pub(super) fn parse_dts_exports_with_import_sources(
+    content: &str,
+) -> Result<Vec<DtsExport>, String> {
     parse_dts_content(content).map(|r| r.exports)
 }
 

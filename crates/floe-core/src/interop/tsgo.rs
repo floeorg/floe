@@ -21,7 +21,7 @@ use super::DtsExport;
 use super::TsType;
 use super::dts::{
     collect_function_aliases_from_file, collect_referenced_modules, expand_cross_module_aliases,
-    parse_dts_exports_from_str, strip_import_sentinels,
+    parse_dts_exports_from_str, parse_dts_exports_with_import_sources, strip_import_sentinels,
 };
 
 use probe_gen::generate_probe;
@@ -175,7 +175,7 @@ impl TsgoResolver {
             eprintln!("[floe] DTS OUTPUT:\n{dts_content}");
         }
 
-        let mut exports = match parse_dts_exports_from_str(&dts_content) {
+        let mut exports = match parse_dts_exports_with_import_sources(&dts_content) {
             Ok(exports) => exports,
             Err(e) => {
                 eprintln!("[floe] tsgo: failed to parse output: {e}");
