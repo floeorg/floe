@@ -189,7 +189,7 @@ fn snapshot_error_trait_default_method_not_required() {
     let source = r#"
 trait Eq {
   fn eq(self, other: string) -> boolean
-  let neq(self, other: string) -> boolean = {
+  fn neq(self, other: string) -> boolean {
     !(self |> eq(other))
   }
 }

@@ -1,7 +1,7 @@
 import trusted { JSX } from "react"
 import trusted { Select, ListBox } from "ui"
 
-export fn App() -> JSX.Element {
+export let App() -> JSX.Element = {
     <div>
         <Select.Trigger>Open</Select.Trigger>
         <Select.Value />

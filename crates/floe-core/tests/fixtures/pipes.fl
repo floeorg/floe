@@ -1,9 +1,9 @@
-const data = 42
-fn transform(x: number) -> string { "transformed" }
-fn format(s: string) -> string { s }
-fn wrap(prefix: string, value: string, suffix: string) -> string { prefix }
+let data = 42
+let transform(x: number) -> string = { "transformed" }
+let format(s: string) -> string = { s }
+let wrap(prefix: string, value: string, suffix: string) -> string = { prefix }
 
-const _result = data |> transform |> format
+let _result = data |> transform |> format
 
-const value = "hello"
-const _placed = value |> wrap("(", _, ")")
+let value = "hello"
+let _placed = value |> wrap("(", _, ")")

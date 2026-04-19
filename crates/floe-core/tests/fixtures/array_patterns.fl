@@ -1,20 +1,20 @@
-const items = [1, 2, 3]
+let items = [1, 2, 3]
 
-const _result = match items {
+let _result = match items {
     [] -> "empty",
     [only] -> only,
     [first, ..rest] -> first,
 }
 
 // Two-element exact match
-const pair = [10, 20]
-const _sum = match pair {
+let pair = [10, 20]
+let _sum = match pair {
     [a, b] -> a + b,
     _ -> 0,
 }
 
 // Rest pattern with multiple leading elements
-const _head = match items {
+let _head = match items {
     [a, b, ..rest] -> a + b,
     _ -> 0,
 }

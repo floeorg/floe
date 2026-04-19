@@ -1101,7 +1101,7 @@ let u = User(name: "a", age: 1)
 #[test]
 fn end_position_no_trailing_newline() {
     let pos = end_position("let x = 1");
-    assert_eq!(pos, Position::new(0, 11));
+    assert_eq!(pos, Position::new(0, 9));
 }
 
 #[test]
