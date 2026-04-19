@@ -1,5 +1,5 @@
 trait Display {
-  fn display(self) => string
+  fn display(self) -> string
 }
 
 type User = {
@@ -9,7 +9,7 @@ type User = {
 
 // Missing required method `display`
 for User: Display {
-  fn toString(self) => string {
+  fn toString(self) -> string {
     "wrong method name"
   }
 }

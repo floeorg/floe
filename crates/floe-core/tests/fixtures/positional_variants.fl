@@ -14,7 +14,7 @@ const p = Point
 
 // Pattern matching
 
-fn describe(s: Shape) => string {
+fn describe(s: Shape) -> string {
     match s {
         Circle(radius) -> `circle r=${radius}`,
         Rect(w, h) -> `rect ${w}x${h}`,

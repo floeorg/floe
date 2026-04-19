@@ -1,10 +1,10 @@
 // todo as function body placeholder
-fn processPayment(amount: number) => number {
+fn processPayment(amount: number) -> number {
   todo
 }
 
 // unreachable in match arm
-fn describe(n: number) => string {
+fn describe(n: number) -> string {
   match n {
     1 -> "one",
     2 -> "two",

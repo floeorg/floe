@@ -1,14 +1,14 @@
 // Unit type as return type
-fn log(msg: string) => () {
+fn log(msg: string) -> () {
   console.log(msg)
 }
 
 // Unit type in Result generic
-fn deleteUser(id: string) => Result<(), string> {
+fn deleteUser(id: string) -> Result<(), string> {
   Ok(())
 }
 
 // Callback with unit return
 type ButtonProps = {
-  onClick: () => ()
+  onClick: () -> ()
 }

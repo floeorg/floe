@@ -18,12 +18,12 @@ type ReviewCardProps = {
 
 type ProductDetailProps = {
     productId: ProductId,
-    onAddToCart: (Product) => (),
+    onAddToCart: (Product) -> (),
 }
 
 // ── Star rating display ────────────────────────────────
 
-let Stars = (props: StarsProps): JSX.Element => {
+let Stars(props: StarsProps) -> JSX.Element = {
     let filled = Math.floor(props.rating)
     let filledStars = "*" |> String.repeat(filled)
     let emptyStars = "*" |> String.repeat(5 - filled)
@@ -36,7 +36,7 @@ let Stars = (props: StarsProps): JSX.Element => {
 
 // ── Review card ────────────────────────────────────────
 
-let ReviewCard = (props: ReviewCardProps): JSX.Element => {
+let ReviewCard(props: ReviewCardProps) -> JSX.Element = {
     let review = props.review
 
     <div
@@ -53,11 +53,11 @@ let ReviewCard = (props: ReviewCardProps): JSX.Element => {
 
 // ── Product detail content ─────────────────────────────
 
-let ProductDetailContent = (props: ProductDetailProps): JSX.Element => {
+let ProductDetailContent(props: ProductDetailProps) -> JSX.Element = {
     let { data } = useSuspenseQuery(
         {
         queryKey: ["product", props.productId],
-        queryFn: () => fetchProduct(props.productId),
+        queryFn: () -> fetchProduct(props.productId),
     },
     )
 
@@ -77,7 +77,7 @@ let ProductDetailContent = (props: ProductDetailProps): JSX.Element => {
                     className="w-full rounded-xl object-cover"
                  />
                 <div className="mt-3 flex gap-2 overflow-x-auto">
-                    {product.images |> Array.map((img) =>
+                    {product.images |> Array.map((img) ->
                         <img
                             key={img}
                             src={img}
@@ -136,7 +136,7 @@ let ProductDetailContent = (props: ProductDetailProps): JSX.Element => {
                     </span>
                 </div>
                 <div className="mb-6 flex flex-wrap gap-2">
-                    {product.tags |> Array.map((tag) =>
+                    {product.tags |> Array.map((tag) ->
                         <span
                             key={tag}
                             className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-400"
@@ -146,7 +146,7 @@ let ProductDetailContent = (props: ProductDetailProps): JSX.Element => {
                     )}
                 </div>
                 <button
-                    onClick={() => props.onAddToCart(product)}
+                    onClick={() -> props.onAddToCart(product)}
                     disabled={!(product |> inStock)}
                     className={product |> inStock |> match {
                         true -> "w-full rounded-xl bg-indigo-600 py-3 text-lg font-semibold text-white transition-colors hover:bg-indigo-500",
@@ -167,7 +167,7 @@ let ProductDetailContent = (props: ProductDetailProps): JSX.Element => {
                     [] -> <p className="text-zinc-500">No reviews yet.</p>,
                     revs -> <div className="space-y-3">{revs
                         |> Array.map(
-                        (review) => <ReviewCard key={review.reviewerName} review={review} />,
+                        (review) -> <ReviewCard key={review.reviewerName} review={review} />,
                     )}</div>,
                 }}
             </div>
@@ -177,7 +177,7 @@ let ProductDetailContent = (props: ProductDetailProps): JSX.Element => {
 
 // ── Loading skeleton ───────────────────────────────────
 
-let DetailSkeleton = (): JSX.Element => {
+let DetailSkeleton() -> JSX.Element = {
     <div className="animate-pulse">
         <div className="mb-8 flex gap-8">
             <div className="w-1/2">
@@ -201,7 +201,7 @@ let DetailSkeleton = (): JSX.Element => {
 
 // ── Exported page component ────────────────────────────
 
-export let ProductDetailPage = (props: ProductDetailProps): JSX.Element => {
+export let ProductDetailPage(props: ProductDetailProps) -> JSX.Element = {
     <div>
         <Link
             to="/"
@@ -210,10 +210,10 @@ export let ProductDetailPage = (props: ProductDetailProps): JSX.Element => {
             {"<- Back to catalog"}
         </Link>
         <QueryErrorResetBoundary>
-            {({ reset }) =>
+            {({ reset }) ->
                 <ErrorBoundary
                     onReset={reset}
-                    fallbackRender={({ resetErrorBoundary, error }) =>
+                    fallbackRender={({ resetErrorBoundary, error }) ->
                         <div
                             className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
                         >

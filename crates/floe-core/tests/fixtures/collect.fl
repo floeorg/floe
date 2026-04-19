@@ -1,16 +1,16 @@
-fn validateName(name: string) => Result<string, string> {
+fn validateName(name: string) -> Result<string, string> {
     Ok(name)
 }
 
-fn validateEmail(email: string) => Result<string, string> {
+fn validateEmail(email: string) -> Result<string, string> {
     Ok(email)
 }
 
-fn validateAge(age: number) => Result<number, string> {
+fn validateAge(age: number) -> Result<number, string> {
     Ok(age)
 }
 
-fn validateForm(input: { name: string, email: string, age: number }) => Result<{ name: string, email: string, age: number }, Array<string>> {
+fn validateForm(input: { name: string, email: string, age: number }) -> Result<{ name: string, email: string, age: number }, Array<string>> {
     collect {
         const name = validateName(input.name)?
         const email = validateEmail(input.email)?

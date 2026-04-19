@@ -1,35 +1,35 @@
-fn validate(s: string) => Result<string, string> {
+fn validate(s: string) -> Result<string, string> {
     Ok(s)
 }
 
-fn format(s: string) => Result<string, string> {
+fn format(s: string) -> Result<string, string> {
     Ok(s)
 }
 
-fn _testPipeUnwrap() => Result<string, string> {
+fn _testPipeUnwrap() -> Result<string, string> {
     "hello" |> validate?
 }
 
-fn _testPipeChainUnwrap() => Result<string, string> {
+fn _testPipeChainUnwrap() -> Result<string, string> {
     "hello" |> validate |> format?
 }
 
-fn _testPipeOptionUnwrap() => Option<number> {
+fn _testPipeOptionUnwrap() -> Option<number> {
     [1, 2, 3] |> Array.head?
 }
 
-fn _testPipeUnwrapOp() => Result<string, string> {
+fn _testPipeUnwrapOp() -> Result<string, string> {
     "hello" |>? validate
 }
 
-fn _testPipeUnwrapOpChain() => Result<string, string> {
+fn _testPipeUnwrapOpChain() -> Result<string, string> {
     "hello" |>? validate |>? format
 }
 
-fn _testPipeUnwrapOpMixed() => Result<string, string> {
+fn _testPipeUnwrapOpMixed() -> Result<string, string> {
     "hello" |> validate |>? format
 }
 
-fn _testPipeUnwrapOpOption() => Option<number> {
+fn _testPipeUnwrapOpOption() -> Option<number> {
     [1, 2, 3] |>? Array.head
 }

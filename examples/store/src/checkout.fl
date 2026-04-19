@@ -3,7 +3,7 @@ import from "./product"
 
 // ── Validation helpers ─────────────────────────────────
 
-let validateEmail = (email: string): Result<string, CheckoutError> => {
+let validateEmail(email: string) -> Result<string, CheckoutError> = {
     let trimmed = email |> trim
 
     match trimmed |> contains("@") {
@@ -12,7 +12,7 @@ let validateEmail = (email: string): Result<string, CheckoutError> => {
     }
 }
 
-let validatePhone = (phone: string): Result<string, CheckoutError> => {
+let validatePhone(phone: string) -> Result<string, CheckoutError> = {
     let trimmed = phone |> trim
 
     match trimmed |> length {
@@ -21,8 +21,8 @@ let validatePhone = (phone: string): Result<string, CheckoutError> => {
     }
 }
 
-let validateStock = (cart: Array<CartItem>): Result<Array<CartItem>, CheckoutError> => {
-    let outOfStock = cart |> Array.filter((item) => item.quantity > item.product.stock)
+let validateStock(cart: Array<CartItem>) -> Result<Array<CartItem>, CheckoutError> = {
+    let outOfStock = cart |> Array.filter((item) -> item.quantity > item.product.stock)
 
     match outOfStock {
         [] -> Ok(cart),
@@ -34,10 +34,10 @@ let validateStock = (cart: Array<CartItem>): Result<Array<CartItem>, CheckoutErr
 // All validations run — user sees every error at once,
 // not one at a time.
 
-export let validateCheckout = (
+export let validateCheckout(
     cart: Array<CartItem>,
     shipping: ShippingInfo,
-): Result<ShippingInfo, Array<CheckoutError>> => {
+) -> Result<ShippingInfo, Array<CheckoutError>> = {
     match cart |> Array.isEmpty {
         true -> Err([EmptyCart]),
         false -> collect {
@@ -52,10 +52,10 @@ export let validateCheckout = (
 
 // ── Mock checkout ──────────────────────────────────────
 
-export let processCheckout = (
+export let processCheckout(
     cart: Array<CartItem>,
     shipping: ShippingInfo,
-): Result<OrderStatus, Array<CheckoutError>> => {
+) -> Result<OrderStatus, Array<CheckoutError>> = {
     let _validated = validateCheckout(cart, shipping)?
     let orderId = OrderId(Math.floor(Math.random() * 10_000))
 
@@ -65,7 +65,7 @@ export let processCheckout = (
 // ── Partial update (Settable) ─────────────────────────
 // Only updates fields that are Value(...). Clear sets to null. Unchanged is omitted.
 
-export let updateShippingExample = (): ShippingUpdate => {
+export let updateShippingExample() -> ShippingUpdate = {
     ShippingUpdate(email: Value("new@email.com"), phone: Clear)
 }
 

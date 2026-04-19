@@ -11,26 +11,26 @@ import { fetchProducts, fetchCategories, CategoryResponse } from "../api"
 
 type ProductCardProps = {
     product: Product,
-    onAddToCart: (Product) => (),
+    onAddToCart: (Product) -> (),
 }
 
 type FilterSidebarProps = {
     categories: Array<CategoryResponse>,
     selectedCategory: string,
-    onCategoryChange: (string) => (),
+    onCategoryChange: (string) -> (),
     priceRange: PriceRange,
-    onPriceRangeChange: (PriceRange) => (),
+    onPriceRangeChange: (PriceRange) -> (),
     sortOrder: SortOrder,
-    onSortChange: (SortOrder) => (),
+    onSortChange: (SortOrder) -> (),
 }
 
 type CategoryListProps = {
     selectedCategory: string,
-    onCategoryChange: (string) => (),
+    onCategoryChange: (string) -> (),
     priceRange: PriceRange,
-    onPriceRangeChange: (PriceRange) => (),
+    onPriceRangeChange: (PriceRange) -> (),
     sortOrder: SortOrder,
-    onSortChange: (SortOrder) => (),
+    onSortChange: (SortOrder) -> (),
 }
 
 type ProductGridProps = {
@@ -38,16 +38,16 @@ type ProductGridProps = {
     search: string,
     sortOrder: SortOrder,
     priceRange: PriceRange,
-    onAddToCart: (Product) => (),
+    onAddToCart: (Product) -> (),
 }
 
 type CatalogPageProps = {
-    onAddToCart: (Product) => (),
+    onAddToCart: (Product) -> (),
 }
 
 // ── Product card ───────────────────────────────────────
 
-let ProductCard = (props: ProductCardProps): JSX.Element => {
+let ProductCard(props: ProductCardProps) -> JSX.Element = {
     let product = props.product
     let hasDiscount = product.discountPercentage > 0
 
@@ -108,7 +108,7 @@ let ProductCard = (props: ProductCardProps): JSX.Element => {
             </span>
         </div>
         <button
-            onClick={() => props.onAddToCart(product)}
+            onClick={() -> props.onAddToCart(product)}
             disabled={!(product |> inStock)}
             className={product |> inStock |> match {
                 true -> "w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500",
@@ -125,7 +125,7 @@ let ProductCard = (props: ProductCardProps): JSX.Element => {
 
 // ── Filter sidebar ─────────────────────────────────────
 
-let FilterSidebar = (props: FilterSidebarProps): JSX.Element => {
+let FilterSidebar(props: FilterSidebarProps) -> JSX.Element = {
     let priceRanges: Array<(string, PriceRange)> = [
         ("All Prices", Any),
         ("Under $25", Under(25)),
@@ -153,7 +153,7 @@ let FilterSidebar = (props: FilterSidebarProps): JSX.Element => {
             </h3>
             <div className="space-y-1">
                 <button
-                    onClick={() => props.onCategoryChange("")}
+                    onClick={() -> props.onCategoryChange("")}
                     className={props.selectedCategory |> match {
                         "" -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                         _ -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
@@ -161,10 +161,10 @@ let FilterSidebar = (props: FilterSidebarProps): JSX.Element => {
                 >
                     All
                 </button>
-                {props.categories |> Array.map((cat: CategoryResponse) =>
+                {props.categories |> Array.map((cat: CategoryResponse) ->
                     <button
                         key={cat.slug}
-                        onClick={() => props.onCategoryChange(cat.slug)}
+                        onClick={() -> props.onCategoryChange(cat.slug)}
                         className={(props.selectedCategory == cat.slug) |> match {
                             true -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                             false -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
@@ -182,10 +182,10 @@ let FilterSidebar = (props: FilterSidebarProps): JSX.Element => {
                 Price
             </h3>
             <div className="space-y-1">
-                {priceRanges |> Array.map((pair: (string, PriceRange)) =>
+                {priceRanges |> Array.map((pair: (string, PriceRange)) ->
                     <button
                         key={pair.0}
-                        onClick={() => props.onPriceRangeChange(pair.1)}
+                        onClick={() -> props.onPriceRangeChange(pair.1)}
                         className={(props.priceRange == pair.1) |> match {
                             true -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                             false -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
@@ -203,10 +203,10 @@ let FilterSidebar = (props: FilterSidebarProps): JSX.Element => {
                 Sort By
             </h3>
             <div className="space-y-1">
-                {sortOptions |> Array.map((pair: (string, SortOrder)) =>
+                {sortOptions |> Array.map((pair: (string, SortOrder)) ->
                     <button
                         key={pair.0}
-                        onClick={() => props.onSortChange(pair.1)}
+                        onClick={() -> props.onSortChange(pair.1)}
                         className={(props.sortOrder == pair.1) |> match {
                             true -> "block w-full rounded px-3 py-1.5 text-left text-sm bg-indigo-600/20 text-indigo-300",
                             false -> "block w-full rounded px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
@@ -222,11 +222,11 @@ let FilterSidebar = (props: FilterSidebarProps): JSX.Element => {
 
 // ── Category loader ────────────────────────────────────
 
-let CategoryList = (props: CategoryListProps): JSX.Element => {
+let CategoryList(props: CategoryListProps) -> JSX.Element = {
     let { data } = useSuspenseQuery(
         {
         queryKey: ["categories"],
-        queryFn: () => fetchCategories(),
+        queryFn: () -> fetchCategories(),
     },
     )
 
@@ -248,11 +248,11 @@ let CategoryList = (props: CategoryListProps): JSX.Element => {
 
 // ── Product grid ───────────────────────────────────────
 
-let ProductGrid = (props: ProductGridProps): JSX.Element => {
+let ProductGrid(props: ProductGridProps) -> JSX.Element = {
     let { data } = useSuspenseQuery(
         {
         queryKey: ["products", props.category, props.search],
-        queryFn: () => fetchProducts(category: props.category, search: props.search, limit: 30),
+        queryFn: () -> fetchProducts(category: props.category, search: props.search, limit: 30),
     },
     )
 
@@ -261,7 +261,7 @@ let ProductGrid = (props: ProductGridProps): JSX.Element => {
         Err(_) -> ([], 0),
     }
 
-    let filtered = products |> Array.filter((p) => matchesPrice(p, props.priceRange))
+    let filtered = products |> Array.filter((p) -> matchesPrice(p, props.priceRange))
     let sorted = sortProducts(filtered, props.sortOrder)
 
     <div>
@@ -269,7 +269,7 @@ let ProductGrid = (props: ProductGridProps): JSX.Element => {
         <div
             className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
         >
-            {sorted |> Array.map((product) =>
+            {sorted |> Array.map((product) ->
                 <ProductCard
                     key={product.id}
                     product={product}
@@ -282,11 +282,11 @@ let ProductGrid = (props: ProductGridProps): JSX.Element => {
 
 // ── Skeletons ──────────────────────────────────────────
 
-let CatalogSkeleton = (): JSX.Element => {
+let CatalogSkeleton() -> JSX.Element = {
     <div
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
     >
-        {[1, 2, 3, 4, 5, 6] |> Array.map((i) =>
+        {[1, 2, 3, 4, 5, 6] |> Array.map((i) ->
             <div
                 key={i}
                 className="animate-pulse rounded-xl border border-zinc-800 bg-zinc-900/50 p-4"
@@ -301,7 +301,7 @@ let CatalogSkeleton = (): JSX.Element => {
     </div>
 }
 
-let SidebarSkeleton = (): JSX.Element => {
+let SidebarSkeleton() -> JSX.Element = {
     <div className="w-64 shrink-0 animate-pulse space-y-4">
         <div className="h-4 w-20 rounded bg-zinc-800" />
         <div className="space-y-2">
@@ -315,7 +315,7 @@ let SidebarSkeleton = (): JSX.Element => {
 // ── Main catalog page ──────────────────────────────────
 // Uses `use` to flatten Suspense/ErrorBoundary nesting.
 
-export let CatalogPage = (props: CatalogPageProps): JSX.Element => {
+export let CatalogPage(props: CatalogPageProps) -> JSX.Element = {
     let (category, setCategory) = useState("")
     let (search, setSearch) = useState("")
     let (sortOrder, setSortOrder) = useState<SortOrder>(Rating)
@@ -327,7 +327,7 @@ export let CatalogPage = (props: CatalogPageProps): JSX.Element => {
             <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) -> setSearch(e.target.value)}
                 placeholder="Search products..."
                 className="flex-1 rounded-lg bg-zinc-800 px-4 py-2 text-zinc-100 placeholder-zinc-500 outline-none ring-1 ring-zinc-700 focus:ring-indigo-500"
              />
@@ -345,10 +345,10 @@ export let CatalogPage = (props: CatalogPageProps): JSX.Element => {
             </Suspense>
             <div className="flex-1">
                 <QueryErrorResetBoundary>
-                    {({ reset }) =>
+                    {({ reset }) ->
                         <ErrorBoundary
                             onReset={reset}
-                            fallbackRender={({ resetErrorBoundary, error }) =>
+                            fallbackRender={({ resetErrorBoundary, error }) ->
                                 <div
                                     className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
                                 >

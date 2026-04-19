@@ -27,7 +27,7 @@ let queryClient = QueryClient(
 },
 )
 
-async let fetchUser = (userId: number): Result<User, Error> => {
+async let fetchUser(userId: number) -> Result<User, Error> = {
     Http.get(`https://jsonplaceholder.typicode.com/users/${userId}`)
         |> Promise.await?
         |> Http.json
@@ -35,7 +35,7 @@ async let fetchUser = (userId: number): Result<User, Error> => {
         |> parse<User>
 }
 
-async let fetchPosts = (url: string): Result<Array<Post>, Error> => {
+async let fetchPosts(url: string) -> Result<Array<Post>, Error> = {
     Http.get(url) |> Promise.await? |> Http.json |> Promise.await? |> parse<Array<Post>>
 }
 
@@ -43,11 +43,11 @@ type PostAuthorProps = {
     userId: number,
 }
 
-let PostAuthor = (props: PostAuthorProps): JSX.Element => {
+let PostAuthor(props: PostAuthorProps) -> JSX.Element = {
     let { data } = useSuspenseQuery(
         {
         queryKey: ["user", props.userId],
-        queryFn: () => fetchUser(props.userId),
+        queryFn: () -> fetchUser(props.userId),
     },
     )
 
@@ -59,7 +59,7 @@ let PostAuthor = (props: PostAuthorProps): JSX.Element => {
     </span>
 }
 
-let PostList = (): JSX.Element => {
+let PostList() -> JSX.Element = {
     let (selectedUserId, setSelectedUserId) = useState<Option<number>>(None)
 
     let url = match selectedUserId {
@@ -70,7 +70,7 @@ let PostList = (): JSX.Element => {
     let { data } = useSuspenseQuery(
         {
         queryKey: ["posts", selectedUserId],
-        queryFn: () => fetchPosts(url),
+        queryFn: () -> fetchPosts(url),
     },
     )
 
@@ -84,7 +84,7 @@ let PostList = (): JSX.Element => {
     <div>
         <div className="mb-6 flex flex-wrap gap-2">
             <button
-                onClick={() => setSelectedUserId(None)}
+                onClick={() -> setSelectedUserId(None)}
                 className={match selectedUserId {
                     None -> "rounded px-3 py-1 text-sm bg-indigo-600 text-white transition-colors",
                     _ -> "rounded px-3 py-1 text-sm bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors",
@@ -92,10 +92,10 @@ let PostList = (): JSX.Element => {
             >
                 All
             </button>
-            {userIds |> Array.map((id) =>
+            {userIds |> Array.map((id) ->
                 <button
                     key={id}
-                    onClick={() => setSelectedUserId(Some(id))}
+                    onClick={() -> setSelectedUserId(Some(id))}
                     className={match selectedUserId {
                         Some(selected) when selected == id -> "rounded px-3 py-1 text-sm bg-indigo-600 text-white transition-colors",
                         _ -> "rounded px-3 py-1 text-sm bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors",
@@ -106,7 +106,7 @@ let PostList = (): JSX.Element => {
             )}
         </div>
         <div className="space-y-4">
-            {posts |> Array.map((post) =>
+            {posts |> Array.map((post) ->
                 <article
                     key={post.id}
                     className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
@@ -131,11 +131,11 @@ let PostList = (): JSX.Element => {
     </div>
 }
 
-let LoadingSkeleton = (): JSX.Element => {
+let LoadingSkeleton() -> JSX.Element = {
     let skeletons = [1, 2, 3]
 
     <div className="space-y-4">
-        {skeletons |> Array.map((i) =>
+        {skeletons |> Array.map((i) ->
             <div
                 key={i}
                 className="animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/50 p-5"
@@ -151,15 +151,15 @@ let LoadingSkeleton = (): JSX.Element => {
     </div>
 }
 
-export let PostsPage = (): JSX.Element => {
+export let PostsPage() -> JSX.Element = {
     <QueryClientProvider client={queryClient}>
         <h1 className="mb-2 text-3xl font-bold">Posts</h1>
         <p className="mb-6 text-zinc-400">TanStack Query + Suspense demo using JSONPlaceholder API.</p>
         <QueryErrorResetBoundary>
-            {({ reset }) =>
+            {({ reset }) ->
                 <ErrorBoundary
                     onReset={reset}
-                    fallbackRender={({ resetErrorBoundary, error }) =>
+                    fallbackRender={({ resetErrorBoundary, error }) ->
                         <div
                             className="rounded-lg border border-red-900/50 bg-red-950/30 p-6 text-center"
                         >

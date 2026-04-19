@@ -3,13 +3,13 @@ import { Product, ProductId, CartItem, SortOrder, PriceRange, for Display, for D
 // ── Trait implementations ──────────────────────────────
 
 export for Product: Display {
-    fn display(self) => string {
+    fn display(self) -> string {
         `${self.title} - $${self.price}`
     }
 }
 
 export for Product: Discountable {
-    fn effectivePrice(self) => number {
+    fn effectivePrice(self) -> number {
         self.price * (1 - self.discountPercentage / 100)
     }
 }
@@ -17,15 +17,15 @@ export for Product: Discountable {
 // ── Product helpers ────────────────────────────────────
 
 for Product {
-    export fn savings(self) => number {
+    export fn savings(self) -> number {
         self.price - (self |> effectivePrice)
     }
 
-    export fn inStock(self) => boolean {
+    export fn inStock(self) -> boolean {
         self.stock > 0
     }
 
-    export fn stockLabel(self) => string {
+    export fn stockLabel(self) -> string {
         self.stock |> match {
             0 -> "Out of stock",
             n when n < 5 -> `Only ${n} left!`,
@@ -34,7 +34,7 @@ for Product {
         }
     }
 
-    export fn ratingStars(self) => string {
+    export fn ratingStars(self) -> string {
         let full = Math.floor(self.rating)
 
         "*" |> String.repeat(full)
@@ -44,60 +44,60 @@ for Product {
 // ── Cart operations ────────────────────────────────────
 
 for Array<CartItem> {
-    export fn addItem(self, product: Product, qty: number = 1) => Array<CartItem> {
-        let existing = self |> Array.findIndex((item) => item.product.id == product.id)
+    export fn addItem(self, product: Product, qty: number = 1) -> Array<CartItem> {
+        let existing = self |> Array.findIndex((item) -> item.product.id == product.id)
 
         existing |> match {
             None -> self |> Array.append(CartItem(product:, quantity: qty)),
-            Some(_) -> self |> Array.map((item) => match item.product.id == product.id {
+            Some(_) -> self |> Array.map((item) -> match item.product.id == product.id {
                     true -> CartItem(..item, quantity: item.quantity + qty),
                     false -> item,
                 }),
         }
     }
 
-    export fn removeItem(self, productId: ProductId) => Array<CartItem> {
-        self |> Array.filter((item) => item.product.id != productId)
+    export fn removeItem(self, productId: ProductId) -> Array<CartItem> {
+        self |> Array.filter((item) -> item.product.id != productId)
     }
 
-    export fn updateQuantity(self, productId: ProductId, qty: number) => Array<CartItem> {
+    export fn updateQuantity(self, productId: ProductId, qty: number) -> Array<CartItem> {
         qty |> match {
             0 -> self |> removeItem(productId),
-            _ -> self |> Array.map((item) => match item.product.id == productId {
+            _ -> self |> Array.map((item) -> match item.product.id == productId {
                     true -> CartItem(..item, quantity: qty),
                     false -> item,
                 }),
         }
     }
 
-    export fn totals(self) => (number, number, number) {
+    export fn totals(self) -> (number, number, number) {
         let subtotal = self
             |> Array.reduce(
-            (acc: number, item: CartItem) => acc + item.product.price * item.quantity,
+            (acc: number, item: CartItem) -> acc + item.product.price * item.quantity,
             0,
         )
 
         let discounted = self
             |> Array.reduce(
-            (acc: number, item: CartItem) => acc + (item.product |> effectivePrice) * item.quantity,
+            (acc: number, item: CartItem) -> acc + (item.product |> effectivePrice) * item.quantity,
             0,
         )
 
         (subtotal, subtotal - discounted, discounted)
     }
 
-    export fn itemCount(self) => number {
-        self |> Array.reduce((acc, item) => acc + item.quantity, 0)
+    export fn itemCount(self) -> number {
+        self |> Array.reduce((acc, item) -> acc + item.quantity, 0)
     }
 
-    export fn isEmpty(self) => boolean {
+    export fn isEmpty(self) -> boolean {
         self |> Array.isEmpty
     }
 }
 
 // ── Sorting with partial application ───────────────────
 
-let compareBy = (order: SortOrder, a: Product, b: Product): number => {
+let compareBy(order: SortOrder, a: Product, b: Product) -> number = {
     order |> match {
         PriceLow -> (a |> effectivePrice) - (b |> effectivePrice),
         PriceHigh -> (b |> effectivePrice) - (a |> effectivePrice),
@@ -106,13 +106,13 @@ let compareBy = (order: SortOrder, a: Product, b: Product): number => {
     }
 }
 
-export let sortProducts = (products: Array<Product>, order: SortOrder): Array<Product> => {
-    products |> Array.sort((a, b) => compareBy(order, a, b))
+export let sortProducts(products: Array<Product>, order: SortOrder) -> Array<Product> = {
+    products |> Array.sort((a, b) -> compareBy(order, a, b))
 }
 
 // ── Price filtering with range matching ────────────────
 
-export let matchesPrice = (product: Product, range: PriceRange): boolean => {
+export let matchesPrice(product: Product, range: PriceRange) -> boolean = {
     let price = product |> effectivePrice
 
     price |> match {
@@ -129,7 +129,7 @@ export let matchesPrice = (product: Product, range: PriceRange): boolean => {
 
 // ── Formatting ─────────────────────────────────────────
 
-export let formatPrice = (amount: number): string => {
+export let formatPrice(amount: number) -> string = {
     `$${amount |> Number.toFixed(2)}`
 }
 

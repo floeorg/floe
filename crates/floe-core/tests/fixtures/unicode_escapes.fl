@@ -1,15 +1,15 @@
-fn nbsp() => string {
+fn nbsp() -> string {
     "\u00A0"
 }
 
-fn smiley() => string {
+fn smiley() -> string {
     "\u{1F600}"
 }
 
-fn mixed() => string {
+fn mixed() -> string {
     "hello\u0020world"
 }
 
-fn in_template() => string {
+fn in_template() -> string {
     `before\u00A0after`
 }

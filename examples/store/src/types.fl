@@ -110,9 +110,9 @@ export type ShippingUpdate = {
 // ── Traits ─────────────────────────────────────────────
 
 export trait Display {
-    let display = (self): string
+    let display(self) -> string
 }
 
-export trait Discountable => {
-    fn effectivePrice(self) => number
+export trait Discountable = {
+    fn effectivePrice(self) -> number
 }

@@ -35,7 +35,7 @@ export type CategoryResponse = {
 
 // ── Single product fetch ───────────────────────────────
 
-export async let fetchProduct = (id: ProductId): Result<(Product, Array<Review>), ApiError> => {
+export async let fetchProduct(id: ProductId) -> Result<(Product, Array<Review>), ApiError> = {
     let data = Http.get(`https://dummyjson.com/products/${id}`)
         |> Promise.await?
         |> Http.json
@@ -62,12 +62,12 @@ export async let fetchProduct = (id: ProductId): Result<(Product, Array<Review>)
 
 // ── Product list with filters ──────────────────────────
 
-export async let fetchProducts = (
+export async let fetchProducts(
     category: string = "",
     search: string = "",
     limit: number = 20,
     skip: number = 0,
-): Result<(Array<Product>, number), ApiError> => {
+) -> Result<(Array<Product>, number), ApiError> = {
     let url = (category, search) |> match {
         ("", "") -> `https://dummyjson.com/products?limit=${limit}&skip=${skip}`,
         (cat, "") when cat != "" -> `https://dummyjson.com/products/category/${cat}?limit=${limit}&skip=${skip}`,
@@ -85,7 +85,7 @@ export async let fetchProducts = (
 
 // ── Categories ─────────────────────────────────────────
 
-export async let fetchCategories = (): Result<Array<CategoryResponse>, ApiError> => {
+export async let fetchCategories() -> Result<Array<CategoryResponse>, ApiError> = {
     let data = Http.get("https://dummyjson.com/products/categories")
         |> Promise.await?
         |> Http.json
@@ -97,9 +97,9 @@ export async let fetchCategories = (): Result<Array<CategoryResponse>, ApiError>
 
 // ── Parallel dashboard fetch ───────────────────────────
 
-export async let fetchStoreDashboard = (
+export async let fetchStoreDashboard(
     category: string = "",
-): Result<(Array<Product>, Array<CategoryResponse>), Array<ApiError>> => {
+) -> Result<(Array<Product>, Array<CategoryResponse>), Array<ApiError>> = {
     collect {
         let (products, _total) = fetchProducts(category: category) |> Promise.await?
         let categories = fetchCategories() |> Promise.await?

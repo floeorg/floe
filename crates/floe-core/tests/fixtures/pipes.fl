@@ -1,7 +1,7 @@
 const data = 42
-fn transform(x: number) => string { "transformed" }
-fn format(s: string) => string { s }
-fn wrap(prefix: string, value: string, suffix: string) => string { prefix }
+fn transform(x: number) -> string { "transformed" }
+fn format(s: string) -> string { s }
+fn wrap(prefix: string, value: string, suffix: string) -> string { prefix }
 
 const _result = data |> transform |> format
 

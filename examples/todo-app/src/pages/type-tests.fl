@@ -34,7 +34,7 @@ let _good = Todo(id: "1", text: "hi", done: false)
 // ── Match arm consistency ────────────────────────────────
 // All arms must return the same type
 
-let describeFilter = (f: Filter): string => {
+let describeFilter(f: Filter) -> string = {
     match f {
         All -> "all",
         Active -> "active",
@@ -43,7 +43,7 @@ let describeFilter = (f: Filter): string => {
 }
 
 // Uncomment to see error: match arms have incompatible types
-// fn badMatch(f: Filter) => string {
+// fn badMatch(f: Filter) -> string {
 //     match f {
 //         All -> "all",
 //         Active -> 42,
@@ -52,7 +52,7 @@ let describeFilter = (f: Filter): string => {
 // }
 // ── Match as conditional ─────────────────────────────────
 
-let abs = (x: number): number => {
+let abs(x: number) -> number = {
     match x > 0 {
         true -> x,
         false -> 0 - x,
@@ -61,7 +61,7 @@ let abs = (x: number): number => {
 
 // ── Pipe type checking ──────────────────────────────────
 
-let double = (x: number): number => {
+let double(x: number) -> number = {
     x * 2
 }
 
@@ -76,10 +76,10 @@ let myVal = 5
 // const myVal = 10  // ✗ uncomment → already defined and cannot be shadowed
 // ── Return type mismatch ─────────────────────────────────
 
-let greet = (): string => {
+let greet() -> string = {
     "hello"
 }
 
 // ✓
 
-// fn badReturn() => string { 42 }  // ✗ uncomment → return type mismatch
+// fn badReturn() -> string { 42 }  // ✗ uncomment → return type mismatch

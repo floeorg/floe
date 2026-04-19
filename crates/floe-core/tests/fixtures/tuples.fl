@@ -10,12 +10,12 @@ const origin: (number, number) = (0, 0)
 const (x, y) = point
 
 // Tuple in function return type
-fn divmod(a: number, b: number) => (number, number) {
+fn divmod(a: number, b: number) -> (number, number) {
   (a / b, a % b)
 }
 
 // Tuple in match
-fn describe(pair: (number, number)) => string {
+fn describe(pair: (number, number)) -> string {
   match pair {
     (0, 0) -> "origin",
     (_, 0) -> "on x-axis",

@@ -4,7 +4,7 @@ type User = {
 
 // Implementing a trait that doesn't exist
 for User: NonExistentTrait {
-  fn display(self) => string {
+  fn display(self) -> string {
     self.name
   }
 }

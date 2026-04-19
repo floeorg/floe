@@ -1,7 +1,7 @@
 import { Todo, Filter, Validation, for Display } from "./types"
 
 for string {
-    export fn validate(self) => Validation {
+    export fn validate(self) -> Validation {
         let trimmed = self |> trim
         let len = trimmed |> String.length
 
@@ -15,7 +15,7 @@ for string {
 }
 
 export for Todo: Display {
-    fn display(self) => string {
+    fn display(self) -> string {
         match self.done {
             true -> `[x] ${self.text}`,
             false -> `[ ] ${self.text}`,
@@ -24,7 +24,7 @@ export for Todo: Display {
 }
 
 for Array<Todo> {
-    export fn filterBy(self, f: Filter) => Array<Todo> {
+    export fn filterBy(self, f: Filter) -> Array<Todo> {
         match f {
             All -> self,
             Active -> self |> filter(.done == false),
@@ -32,23 +32,23 @@ for Array<Todo> {
         }
     }
 
-    export fn remaining(self) => number {
+    export fn remaining(self) -> number {
         self
             |> filter(.done == false)
-            |> tap((active) => Console.log("active todos:", active))
+            |> tap((active) -> Console.log("active todos:", active))
             |> length
     }
 
-    export fn stats(self) => (number, number) {
+    export fn stats(self) -> (number, number) {
         (self |> length, self |> filter(.done == true) |> length)
     }
 
-    export fn search(self, _query: string) => Array<Todo> {
+    export fn search(self, _query: string) -> Array<Todo> {
         todo
     }
 }
 
-let toResult = (v: Validation): Result<string, string> => {
+let toResult(v: Validation) -> Result<string, string> = {
     match v {
         Valid { text } -> Ok(text),
         TooShort -> Err("Text too short"),
@@ -57,7 +57,7 @@ let toResult = (v: Validation): Result<string, string> => {
     }
 }
 
-let validateId = (id: string): Result<string, string> => {
+let validateId(id: string) -> Result<string, string> = {
     match id |> String.length {
         0 -> Err("ID is empty"),
         _ -> Ok(id),
@@ -66,7 +66,7 @@ let validateId = (id: string): Result<string, string> => {
 
 // Error accumulation: collect all validation errors at once
 
-export let validateTodo = (text: string, id: string): Result<Todo, Array<string>> => {
+export let validateTodo(text: string, id: string) -> Result<Todo, Array<string>> = {
     collect {
         let validText = toResult(text |> validate)?
         let validId = validateId(id)?
@@ -77,13 +77,13 @@ export let validateTodo = (text: string, id: string): Result<Todo, Array<string>
 
 // Runtime type validation: parse unknown data into a Todo
 
-export let parseTodo = (data: unknown): Result<Todo, Error> => {
+export let parseTodo(data: unknown) -> Result<Todo, Error> = {
     data |> parse<Todo>
 }
 
 // Parse a list of todos from unknown data
 
-export let parseTodos = (data: unknown): Result<Array<Todo>, Error> => {
+export let parseTodos(data: unknown) -> Result<Array<Todo>, Error> = {
     data |> parse<Array<Todo>>
 }
 
