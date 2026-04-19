@@ -577,7 +577,7 @@ impl<'src> CstParser<'src> {
 
     // ── Fn Lambda ────────────────────────────────────────────────
 
-    /// Parse `(params) => body` or `(params): RetType => body` arrow closure.
+    /// Parse `(params) -> body` anonymous lambda.
     fn parse_arrow_closure(&mut self) {
         self.builder.start_node(SyntaxKind::ARROW_EXPR.into());
 
@@ -586,19 +586,7 @@ impl<'src> CstParser<'src> {
         self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
         self.expect(TokenKind::RightParen);
         self.eat_trivia();
-        // Optional return-type annotation introduced in #1214 — matches
-        // TS/ReScript `(params): Ret => body`. Suppress function-type
-        // parsing so `: (A, B) => Body` doesn't eat the closure arrow.
-        if self.at(TokenKind::Colon) {
-            self.bump();
-            self.eat_trivia();
-            let prev = self.suppress_function_type;
-            self.suppress_function_type = true;
-            self.parse_type_expr();
-            self.suppress_function_type = prev;
-            self.eat_trivia();
-        }
-        self.expect(TokenKind::FatArrow);
+        self.expect(TokenKind::ThinArrow);
         self.eat_trivia();
         self.parse_expr();
 

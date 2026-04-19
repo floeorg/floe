@@ -206,8 +206,8 @@ impl Formatter<'_> {
 
     pub(crate) fn fmt_function(&mut self, node: &SyntaxNode) -> Document {
         let mut parts = Vec::new();
-        // Top-level function bindings use `let NAME = (...) [:Ret] => body`
-        // (issue #1214). For-block and trait methods keep `fn NAME(...) ...`.
+        // Top-level (def-form) uses `let NAME(params) [-> Ret] = body`.
+        // For-block / trait methods keep `fn NAME(params) [-> Ret] { body }`.
         let is_let_binding = self.has_token(node, SyntaxKind::KW_LET);
 
         if self.has_token(node, SyntaxKind::KW_ASYNC) {
@@ -217,10 +217,6 @@ impl Formatter<'_> {
 
         if let Some(name) = self.first_ident(node) {
             parts.push(pretty::str(name));
-        }
-
-        if is_let_binding {
-            parts.push(pretty::str(" = "));
         }
 
         parts.push(self.fmt_type_params(node));
@@ -262,19 +258,18 @@ impl Formatter<'_> {
         sig.push(pretty::str(")"));
 
         if let Some(rt) = &return_type {
-            // `let`-binding: return type uses `: Ret`; for/trait: ` => Ret`.
-            sig.push(pretty::str(if is_let_binding { ": " } else { " => " }));
+            sig.push(pretty::str(" -> "));
             sig.push(self.fmt_type_expr(rt));
         }
 
         parts.push(pretty::group(pretty::concat(sig)));
 
         if is_let_binding {
-            parts.push(pretty::str(" =>"));
+            parts.push(pretty::str(" ="));
         }
 
         if let Some(block) = &block {
-            // Synthetic single-expression body (`let f = (x) => x + 1`) was
+            // Synthetic single-expression body (`let f(x) = x + 1`) was
             // wrapped in BLOCK_EXPR at parse time. If the block contains
             // exactly one EXPR_ITEM, emit the bare expression.
             let items: Vec<_> = block
@@ -673,7 +668,7 @@ impl Formatter<'_> {
 
     pub(crate) fn fmt_type_expr(&mut self, node: &SyntaxNode) -> Document {
         let idents = self.collect_idents(node);
-        let has_fat_arrow = self.has_token(node, SyntaxKind::FAT_ARROW);
+        let has_fat_arrow = self.has_token(node, SyntaxKind::THIN_ARROW);
         let has_lbracket = self.has_token(node, SyntaxKind::L_BRACKET);
         let has_lparen = self.has_token(node, SyntaxKind::L_PAREN);
         let has_record_fields = node
@@ -725,7 +720,7 @@ impl Formatter<'_> {
                 }
                 parts.push(self.fmt_type_expr(te));
             }
-            parts.push(pretty::str(") => "));
+            parts.push(pretty::str(") -> "));
             if let Some(ret) = child_type_exprs.last() {
                 parts.push(self.fmt_type_expr(ret));
             }

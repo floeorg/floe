@@ -228,8 +228,6 @@ impl<'src> CstParser<'src> {
                 .start_node_at(checkpoint, SyntaxKind::FUNCTION_DECL.into());
             self.expect_ident();
             self.eat_trivia();
-            self.expect(TokenKind::Equal);
-            self.eat_trivia();
             self.parse_let_function_body();
             self.builder.finish_node();
             return;
@@ -272,28 +270,18 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
-    /// After `let`, detect `NAME [<generics>] (params) [: Ret] =>` shape.
-    /// If the binding's RHS is an arrow lambda we treat it as a function
-    /// declaration; otherwise it's a plain value binding.
+    /// After `let`, detect def-form `NAME [<generics>] (params) ...` shape.
+    /// In def-form, params follow immediately after the name (with optional
+    /// generics in between) — no `=` between them.
     fn looks_like_let_function_binding(&self) -> bool {
         if !self.is_ident() {
             return false;
         }
-        // Scan past name + optional <generics> + params-paren-group looking
-        // for `=>` (with optional `: Ret` in between).
         let mut i = self.pos + 1;
         while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
             i += 1;
         }
-        if !matches!(self.tokens.get(i).map(|t| &t.kind), Some(TokenKind::Equal)) {
-            return false;
-        }
-        // Past `=`
-        i += 1;
-        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
-            i += 1;
-        }
-        // Optional `<generics>`
+        // Optional `<generics>` directly after the name
         if matches!(
             self.tokens.get(i).map(|t| &t.kind),
             Some(TokenKind::LessThan)
@@ -307,55 +295,14 @@ impl<'src> CstParser<'src> {
                 i += 1;
             }
         }
-        // `(params)`
-        if !matches!(
-            self.tokens.get(i).map(|t| &t.kind),
-            Some(TokenKind::LeftParen)
-        ) {
-            return false;
-        }
-        i = self.skip_balanced(i + 1, |k| match k {
-            TokenKind::LeftParen => 1,
-            TokenKind::RightParen => -1,
-            _ => 0,
-        });
-        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
-            i += 1;
-        }
-        // Optional `: Ret` — skip the type expression by scanning until `=>`
-        // or a statement-terminating token at depth 0.
-        if matches!(self.tokens.get(i).map(|t| &t.kind), Some(TokenKind::Colon)) {
-            i += 1;
-            let mut depth_angle: i32 = 0;
-            let mut depth_paren: i32 = 0;
-            let mut depth_bracket: i32 = 0;
-            while i < self.tokens.len() {
-                match &self.tokens[i].kind {
-                    TokenKind::LessThan => depth_angle += 1,
-                    TokenKind::GreaterThan => depth_angle -= 1,
-                    TokenKind::LeftParen => depth_paren += 1,
-                    TokenKind::RightParen => depth_paren -= 1,
-                    TokenKind::LeftBracket => depth_bracket += 1,
-                    TokenKind::RightBracket => depth_bracket -= 1,
-                    TokenKind::FatArrow
-                        if depth_angle <= 0 && depth_paren == 0 && depth_bracket == 0 =>
-                    {
-                        return true;
-                    }
-                    _ => {}
-                }
-                i += 1;
-            }
-            return false;
-        }
+        // Def-form requires `(` immediately after name (or after generics)
         matches!(
             self.tokens.get(i).map(|t| &t.kind),
-            Some(TokenKind::FatArrow)
+            Some(TokenKind::LeftParen)
         )
     }
 
-    /// Parse the body of a `let NAME = <function>` binding into the
-    /// existing FUNCTION_DECL shape so checker/codegen logic is unchanged.
+    /// Parse def-form body: `[<generics>] (params) [-> Ret] = body`.
     fn parse_let_function_body(&mut self) {
         // Optional `<generics>`
         if self.at(TokenKind::LessThan) {
@@ -372,19 +319,15 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::RightParen);
         self.eat_trivia();
 
-        // Optional return type annotation. Suppress top-level function-type
-        // parsing so `(A, B) => body` doesn't eat the let-body arrow.
-        if self.at(TokenKind::Colon) {
+        // Optional `-> ReturnType`.
+        if self.at(TokenKind::ThinArrow) {
             self.bump();
             self.eat_trivia();
-            let prev = self.suppress_function_type;
-            self.suppress_function_type = true;
             self.parse_type_expr();
-            self.suppress_function_type = prev;
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::FatArrow);
+        self.expect(TokenKind::Equal);
         self.eat_trivia();
 
         if self.at(TokenKind::LeftBrace) {
@@ -470,7 +413,7 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
 
             // Optional return type
-            if self.at(TokenKind::FatArrow) {
+            if self.at(TokenKind::ThinArrow) {
                 self.bump();
                 self.eat_trivia();
                 self.parse_type_expr();
@@ -889,7 +832,7 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Optional return type
-        if self.at(TokenKind::FatArrow) {
+        if self.at(TokenKind::ThinArrow) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();
@@ -925,7 +868,7 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Optional return type
-        if self.at(TokenKind::FatArrow) {
+        if self.at(TokenKind::ThinArrow) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();

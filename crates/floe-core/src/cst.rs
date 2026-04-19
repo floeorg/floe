@@ -453,22 +453,21 @@ impl<'src> CstParser<'src> {
         false
     }
 
-    /// Heuristic: is the current `(` the start of a function type `(T) => U`?
+    /// Heuristic: is the current `(` the start of a function type `(T) -> U`?
     fn is_paren_function_type(&self) -> bool {
         if self.suppress_function_type {
             return false;
         }
-        self.is_paren_followed_by(TokenKind::FatArrow)
+        self.is_paren_followed_by(TokenKind::ThinArrow)
     }
 
     /// Heuristic: is the current `(` the start of an arrow closure
-    /// `(params) => body` or a typed arrow `(params): Ret => body`?
+    /// `(params) -> body`?
     fn is_arrow_expr(&self) -> bool {
         if self.suppress_function_type {
             return false;
         }
-        self.is_paren_followed_by(TokenKind::FatArrow)
-            || self.is_paren_followed_by(TokenKind::Colon)
+        self.is_paren_followed_by(TokenKind::ThinArrow)
     }
 
     /// Check if the `(` at position `start` has a matching `)` followed by `kind`.
