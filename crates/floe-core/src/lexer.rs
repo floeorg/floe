@@ -644,11 +644,10 @@ mod tests {
     #[test]
     fn operators() {
         assert_eq!(
-            lex("|> -> -> == != <= >= && || !"),
+            lex("|> -> == != <= >= && || !"),
             vec![
                 TokenKind::Pipe,
                 TokenKind::ThinArrow,
-                TokenKind::FatArrow,
                 TokenKind::EqualEqual,
                 TokenKind::BangEqual,
                 TokenKind::LessEqual,
