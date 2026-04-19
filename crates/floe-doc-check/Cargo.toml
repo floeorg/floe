@@ -1,0 +1,22 @@
+[package]
+name = "floe-doc-check"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Syntax-check Floe code samples embedded in documentation"
+publish = false
+
+[[bin]]
+name = "floe-doc-check"
+path = "src/main.rs"
+
+[lib]
+name = "floe_doc_check"
+path = "src/lib.rs"
+
+[dependencies]
+floe-core = { path = "../floe-core" }
+anyhow.workspace = true
+clap.workspace = true
+walkdir = "2"
