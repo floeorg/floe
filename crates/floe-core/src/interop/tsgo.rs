@@ -207,9 +207,15 @@ impl TsgoResolver {
         for export in exports.iter() {
             collect_referenced_modules(&export.ts_type, &mut referenced);
         }
+        // Fast path: tsgo output had no `import("pkg").X` references, so
+        // parse_dts_exports_from_str never encoded a sentinel and no
+        // expansion or stripping is needed.
+        if referenced.is_empty() {
+            return;
+        }
         let mut aliases_by_module: HashMap<String, HashMap<String, _>> = HashMap::new();
         for module in &referenced {
-            if let Some(dts_path) = resolve_module_dts_path(&self.project_dir, module) {
+            if let Some(dts_path) = typeof_resolve::find_package_dts(&self.project_dir, module) {
                 let aliases = collect_function_aliases_from_file(&dts_path);
                 if !aliases.is_empty() {
                     aliases_by_module.insert(module.clone(), aliases);
@@ -626,46 +632,6 @@ impl TsgoResolver {
 /// Best-effort — hover format may vary across tsgo versions.
 /// Currently handles: `function ...`, `type X = ...`, `const x: Type`.
 #[cfg(feature = "native")]
-/// Resolve an npm module specifier to the path of its primary `.d.ts` file
-/// inside `project_dir/node_modules`. Honours `package.json`'s `types` /
-/// `typings` / `exports` map entries, falling back to common layouts. Returns
-/// `None` on any failure — the caller treats missing resolution as "no
-/// cross-module aliases to expand".
-#[cfg(feature = "native")]
-fn resolve_module_dts_path(project_dir: &Path, module: &str) -> Option<PathBuf> {
-    let pkg_dir = project_dir.join("node_modules").join(module);
-    let pkg_json_path = pkg_dir.join("package.json");
-    let pkg_json = std::fs::read_to_string(&pkg_json_path).ok()?;
-    let v: serde_json::Value = serde_json::from_str(&pkg_json).ok()?;
-    for key in ["types", "typings"] {
-        if let Some(s) = v.get(key).and_then(|x| x.as_str()) {
-            let p = pkg_dir.join(s);
-            if p.is_file() {
-                return Some(p);
-            }
-        }
-    }
-    // `main` commonly points at the JS entry; substituting .d.ts catches
-    // packages that omit `types` but ship declarations next to the entry.
-    if let Some(main) = v.get("main").and_then(|x| x.as_str()) {
-        let candidate = pkg_dir.join(main);
-        if let Some(stem) = candidate.file_stem() {
-            let mut alt = candidate.clone();
-            alt.set_file_name(format!("{}.d.ts", stem.to_string_lossy()));
-            if alt.is_file() {
-                return Some(alt);
-            }
-        }
-    }
-    for fallback in ["index.d.ts", "dist/index.d.ts"] {
-        let p = pkg_dir.join(fallback);
-        if p.is_file() {
-            return Some(p);
-        }
-    }
-    None
-}
-
 fn parse_hover_to_tstype(hover: &str) -> Option<TsType> {
     let hover = hover.trim();
 

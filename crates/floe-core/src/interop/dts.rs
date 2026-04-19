@@ -1895,9 +1895,8 @@ fn contains_function_shape(ty: &TsType) -> bool {
     }
 }
 
-/// Collect function-shaped type alias declarations so their references can be
-/// expanded in exported function signatures. Walks into `declare namespace`
-/// bodies so block-scoped aliases are picked up too.
+/// Recurses into `declare namespace` bodies so block-scoped aliases are
+/// collected alongside top-level ones.
 fn collect_function_alias_bodies(
     stmt: &Statement<'_>,
     aliases: &mut HashMap<String, TypeAliasDef>,
