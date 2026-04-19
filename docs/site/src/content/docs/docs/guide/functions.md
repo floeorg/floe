@@ -32,8 +32,8 @@ Option<T>` or a match pattern:
 
 ```floe
 match arr {
-  [first, ..rest] -> ...,
-  _ -> ...,
+  [first, ..rest] -> todo,
+  _ -> todo,
 }
 ```
 
@@ -106,7 +106,7 @@ Use `(x) => expr` for inline anonymous functions:
 ```floe
 todos |> Array.map((t) -> t.text)
 items |> Array.reduce((acc, x) -> acc + x.price, 0)
-onClick={() -> setCount(count + 1)}
+let handleClick = () -> setCount(count + 1)
 ```
 
 For simple field access, use dot shorthand:

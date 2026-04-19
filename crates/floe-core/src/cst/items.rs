@@ -871,10 +871,16 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::LeftBrace);
         self.eat_trivia();
 
-        // Parse test body: assert statements and expressions
+        // Parse test body: let bindings, assert statements, and expressions
         while !self.at(TokenKind::RightBrace) && !self.at_end() {
             let prev_pos = self.pos;
-            if self.at(TokenKind::Assert) {
+            if self.at(TokenKind::Let) {
+                let checkpoint = self.builder.checkpoint();
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
+                self.parse_const_decl();
+                self.builder.finish_node();
+            } else if self.at(TokenKind::Assert) {
                 self.parse_assert_stmt();
             } else {
                 self.parse_expr();

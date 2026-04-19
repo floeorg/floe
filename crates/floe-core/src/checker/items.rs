@@ -908,6 +908,9 @@ impl Checker {
                         );
                     }
                 }
+                TestStatement::Let(decl) => {
+                    self.check_const(decl, block.span);
+                }
                 TestStatement::Expr(expr) => {
                     self.check_expr(expr);
                 }

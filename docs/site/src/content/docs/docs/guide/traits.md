@@ -131,7 +131,9 @@ Traits are **erased at compile time**. `for User: Display` compiles to exactly t
 for User: Display {
   fn display(self) -> string { self.name }
 }
+```
 
+```ts
 // Compiled TypeScript (identical to plain for-block)
 function display(self: User): string { return self.name; }
 ```

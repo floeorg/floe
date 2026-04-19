@@ -117,8 +117,8 @@ type AppError = | Validation { errors: Array<string> }
     | Api { message: string }
 
 let saveTodo(text: string, id: string) -> Result<Todo, AppError> = {
-    let todo = validateTodo(text, id) |> Result.mapErr(Validation)?
-    let saved = apiSave(todo) |> Result.mapErr(Api)?
+    let todoItem = validateTodo(text, id) |> Result.mapErr(Validation)?
+    let saved = apiSave(todoItem) |> Result.mapErr(Api)?
     Ok(saved)
 }
 ```

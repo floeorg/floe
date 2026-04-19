@@ -557,7 +557,7 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        // Lower body: assert expressions and regular expressions
+        // Lower body: let bindings, assert expressions, and regular expressions
         let mut body = Vec::new();
         for child in node.children() {
             match child.kind() {
@@ -565,6 +565,17 @@ impl<'src> Lowerer<'src> {
                     let assert_span = self.node_span(&child);
                     if let Some(expr) = self.lower_first_expr(&child) {
                         body.push(TestStatement::Assert(expr, assert_span));
+                    }
+                }
+                SyntaxKind::ITEM => {
+                    // `let NAME = expr` inside a test block — reuses the
+                    // top-level ConstDecl lowering path.
+                    for sub in child.children() {
+                        if sub.kind() == SyntaxKind::CONST_DECL
+                            && let Some(decl) = self.lower_const(&sub, &child)
+                        {
+                            body.push(TestStatement::Let(decl));
+                        }
                     }
                 }
                 _ => {

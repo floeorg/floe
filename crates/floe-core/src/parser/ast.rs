@@ -427,7 +427,9 @@ pub struct TestBlock<T = ()> {
 pub enum TestStatement<T = ()> {
     /// `assert expr` — asserts that the expression is truthy
     Assert(Expr<T>, Span),
-    /// A regular expression statement (e.g., const bindings, function calls)
+    /// `let NAME = expr` — a local binding within the test
+    Let(ConstDecl<T>),
+    /// A regular expression statement (e.g., function calls)
     Expr(Expr<T>),
 }
 

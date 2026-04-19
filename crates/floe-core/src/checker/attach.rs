@@ -276,6 +276,7 @@ impl Attacher<'_> {
     fn test_statement(&self, stmt: TestStatement<()>) -> TestStatement<Arc<Type>> {
         match stmt {
             TestStatement::Assert(e, span) => TestStatement::Assert(self.expr(e), span),
+            TestStatement::Let(decl) => TestStatement::Let(self.const_decl(decl)),
             TestStatement::Expr(e) => TestStatement::Expr(self.expr(e)),
         }
     }

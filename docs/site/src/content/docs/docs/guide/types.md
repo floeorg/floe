@@ -221,7 +221,7 @@ let missing = None
 
 `Settable<T>` is a three-state type for partial updates. In a PATCH API, you need to distinguish between "set this field to a value", "clear this field to null", and "don't touch this field". TypeScript's `Partial<T>` can't tell the difference between "set to undefined" and "not provided".
 
-```floe
+```floe,ignore
 type Settable<T> = Value(T) | Clear | Unchanged
 ```
 

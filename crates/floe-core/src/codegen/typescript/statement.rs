@@ -651,6 +651,10 @@ impl<'a> TypeScriptGenerator<'a> {
                         "try {{ if (!({expr_str})) {{ __failed++; console.error(`  FAIL: {escaped}`); }} else {{ __passed++; }} }} catch (e) {{ __failed++; console.error(`  FAIL: {escaped}`, e); }}"
                     )));
                 }
+                TestStatement::Let(decl) => {
+                    inner.push(pretty::line());
+                    inner.push(self.emit_const(decl));
+                }
                 TestStatement::Expr(expr) => {
                     inner.push(pretty::line());
                     let expr_doc = self.emit_expr(expr);

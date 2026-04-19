@@ -93,8 +93,8 @@ match score {
 
 ```floe
 match event {
-  { type: "click", x, y } -> handleClick(x, y),
-  { type: "keydown", key } -> handleKey(key),
+  { kind: "click", x, y } -> handleClick(x, y),
+  { kind: "keydown", key } -> handleKey(key),
   _ -> ignore(),
 }
 ```

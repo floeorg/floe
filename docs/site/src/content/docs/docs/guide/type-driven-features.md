@@ -128,27 +128,27 @@ Non-overridden fields are still auto-generated. This is useful when your test ca
 `mock<T>` pairs naturally with Floe's inline test blocks:
 
 ```floe
-type Todo = {
+type Task = {
   id: string,
   text: string,
   done: boolean,
 }
 
-let toggleDone(todo: Todo) -> Todo = {
-  Todo(..todo, done: !todo.done)
+let toggleDone(task: Task) -> Task = {
+  Task(..task, done: !task.done)
 }
 
 test "toggle flips done status" {
-  let todo = mock<Todo>(done: false)
-  let toggled = toggleDone(todo)
+  let task = mock<Task>(done: false)
+  let toggled = toggleDone(task)
   assert toggled.done == true
 }
 
 test "toggle preserves other fields" {
-  let todo = mock<Todo>
-  let toggled = toggleDone(todo)
-  assert toggled.id == todo.id
-  assert toggled.text == todo.text
+  let task = mock<Task>
+  let toggled = toggleDone(task)
+  assert toggled.id == task.id
+  assert toggled.text == task.text
 }
 ```
 
@@ -218,7 +218,7 @@ test "addition" {
 Tests live in the same file as the code they test:
 
 ```floe
-type Validation = | Valid { string }
+type Validation = | Valid(string)
   | Empty
   | TooShort
   | TooLong
