@@ -822,7 +822,7 @@ fn qualified_typeof_keeps_full_path() {
 
 #[test]
 fn construct_signature_surfaces_as_function() {
-    let dts = "export type Ctor = new (x: number) -> string;";
+    let dts = "export type Ctor = new (x: number) => string;";
     let exports = parse_dts_exports_from_str(dts).unwrap();
     let ctor = exports.iter().find(|e| e.name == "Ctor").unwrap();
     assert!(

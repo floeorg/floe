@@ -471,7 +471,7 @@ fn pipe_into_match_with_guard() {
 #[test]
 fn partial_application() {
     // add(10, _) -> (_x) => add(10, _x)
-    assert_eq!(emit("add(10, _)"), "(_x) -> add(10, _x);");
+    assert_eq!(emit("add(10, _)"), "(_x) => add(10, _x);");
 }
 
 // ── Result / Option ──────────────────────────────────────────
@@ -996,7 +996,7 @@ fn array_literal() {
 fn stdlib_array_sort() {
     assert_eq!(
         emit("Array.sort([3, 1, 2])"),
-        "[...[3, 1, 2]].sort((a, b) -> a - b);"
+        "[...[3, 1, 2]].sort((a, b) => a - b);"
     );
 }
 
@@ -1004,7 +1004,7 @@ fn stdlib_array_sort() {
 fn stdlib_array_map() {
     assert_eq!(
         emit("Array.map([1, 2], (n) -> n * 2)"),
-        "[1, 2].map((n) -> n * 2);"
+        "[1, 2].map((n) => n * 2);"
     );
 }
 
@@ -1012,7 +1012,7 @@ fn stdlib_array_map() {
 fn stdlib_array_filter() {
     assert_eq!(
         emit("Array.filter([1, 2, 3], (n) -> n > 1)"),
-        "[1, 2, 3].filter((n) -> n > 1);"
+        "[1, 2, 3].filter((n) => n > 1);"
     );
 }
 
@@ -1063,7 +1063,7 @@ fn stdlib_array_contains() {
 fn stdlib_array_any() {
     assert_eq!(
         emit("Array.any([1, 2, 3], (n) -> n > 2)"),
-        "[1, 2, 3].some((n) -> n > 2);"
+        "[1, 2, 3].some((n) => n > 2);"
     );
 }
 
@@ -1071,7 +1071,7 @@ fn stdlib_array_any() {
 fn stdlib_array_all() {
     assert_eq!(
         emit("Array.all([1, 2, 3], (n) -> n > 0)"),
-        "[1, 2, 3].every((n) -> n > 0);"
+        "[1, 2, 3].every((n) => n > 0);"
     );
 }
 
@@ -1079,7 +1079,7 @@ fn stdlib_array_all() {
 fn stdlib_array_sum() {
     assert_eq!(
         emit("Array.sum([1, 2, 3])"),
-        "[1, 2, 3].reduce((a, b) -> a + b, 0);"
+        "[1, 2, 3].reduce((a, b) => a + b, 0);"
     );
 }
 
@@ -1247,7 +1247,7 @@ fn stdlib_console_warn_variadic() {
 fn stdlib_pipe_bare() {
     assert_eq!(
         emit("[3, 1, 2] |> Array.sort"),
-        "[...[3, 1, 2]].sort((a, b) -> a - b);"
+        "[...[3, 1, 2]].sort((a, b) => a - b);"
     );
 }
 
@@ -1255,7 +1255,7 @@ fn stdlib_pipe_bare() {
 fn stdlib_pipe_with_args() {
     assert_eq!(
         emit("[1, 2, 3] |> Array.map((n) -> n * 2)"),
-        "[1, 2, 3].map((n) -> n * 2);"
+        "[1, 2, 3].map((n) => n * 2);"
     );
 }
 
