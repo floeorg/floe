@@ -53,6 +53,8 @@ VALID_SOURCES = [
     ("qualified variants", F.QUALIFIED_VARIANT),
     ("generic functions", F.GENERIC_FN),
     ("multiline pipe", F.MULTILINE_PIPE),
+    ("use bind forms", F.USE_BIND),
+    ("use as identifier", F.USE_AS_IDENT),
 ]
 
 
@@ -101,6 +103,12 @@ def test_bare_string_literal_union(lsp):
     """Bare `|` with string literals should produce E201 and suggest `OneOf<>`."""
     result = open_doc(lsp, URI, F.STRING_LITERAL_UNION)
     assert "E201" in result.codes, f"Expected E201, got codes: {result.codes}"
+
+
+def test_bare_use_without_arrow_errors(lsp):
+    """`use` without `<-` falls through to identifier lookup and errors (#1200)."""
+    result = open_doc(lsp, URI, F.USE_BARE)
+    assert len(result.errors) > 0, "Expected an error for bare `use` without <-"
 
 
 # ── Exhaustiveness checking (E004) ──────────────────────────────
