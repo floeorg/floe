@@ -41,11 +41,12 @@ impl<'src> CstParser<'src> {
                 self.builder.finish_node();
             }
             Some(TokenKind::Async) => {
-                // `async let name = ...` — async function binding.
+                // `async let name = ...` — async function binding. The
+                // `async` token must live inside the FUNCTION_DECL node so
+                // `lower_function` picks it up; open the item first, then
+                // let `parse_const_decl` absorb the `async` prefix.
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
-                self.bump(); // async
-                self.eat_trivia();
                 self.parse_const_decl();
                 self.builder.finish_node();
             }
@@ -213,6 +214,12 @@ impl<'src> CstParser<'src> {
         // lift it into a FUNCTION_DECL CST so existing checker machinery
         // (default params, generic type params) continues to apply.
         let checkpoint = self.builder.checkpoint();
+        // Optional `async` prefix — only legal when the RHS is a function
+        // binding; the checkpoint-replay below drops it into FUNCTION_DECL.
+        if self.at(TokenKind::Async) {
+            self.bump();
+            self.eat_trivia();
+        }
         self.expect(TokenKind::Let);
         self.eat_trivia();
 

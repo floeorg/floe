@@ -995,9 +995,9 @@ mod tests {
     }
 
     #[test]
-    fn fn_binding_form() {
+    fn let_with_partial_application() {
         assert_no_errors(
-            "let add = (a: number, b: number): number => { a + b }\nfn inc = add(1, _)",
+            "let add = (a: number, b: number): number => { a + b }\nlet inc = add(1, _)",
         );
     }
 

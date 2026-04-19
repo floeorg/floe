@@ -1113,7 +1113,7 @@ mod tests {
 
     #[test]
     fn multiple_items() {
-        let prog = lower("let x = 1\nconst y = 2");
+        let prog = lower("let x = 1\nlet y = 2");
         assert_eq!(prog.items.len(), 2);
     }
 

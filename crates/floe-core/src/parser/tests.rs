@@ -819,17 +819,19 @@ fn generic_function_with_trait_bound() {
 }
 
 #[test]
-fn fn_binding_form() {
+fn partial_application_binds_as_const() {
+    // `let inc = add(1, _)` is a value binding whose RHS is a
+    // partial-application expression. It's not a lambda literal, so the
+    // parser keeps it as a `ConstDecl` — the checker produces the function
+    // value via placeholder rewriting downstream.
     let program =
         parse_ok("let add = (a: number, b: number): number => { a + b }\nlet inc = add(1, _)");
     assert_eq!(program.items.len(), 2);
     match &program.items[1].kind {
-        ItemKind::Function(decl) => {
-            assert_eq!(decl.name, "inc");
-            assert!(decl.params.is_empty());
-            assert!(decl.return_type.is_none());
+        ItemKind::Const(decl) => {
+            assert!(matches!(&decl.binding, ConstBinding::Name(n) if n == "inc"));
         }
-        other => panic!("expected function binding, got {other:?}"),
+        other => panic!("expected const binding, got {other:?}"),
     }
 }
 

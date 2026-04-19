@@ -311,16 +311,16 @@ fn format_const_tuple_destructure() {
 #[test]
 fn format_preserves_top_level_comments() {
     assert_fmt(
-        "// section header\nconst x = 1",
-        "// section header\n\nconst x = 1",
+        "// section header\nlet x = 1",
+        "// section header\n\nlet x = 1",
     );
 }
 
 #[test]
 fn format_preserves_consecutive_comments() {
     assert_fmt(
-        "// line 1\n// line 2\nconst x = 1",
-        "// line 1\n// line 2\n\nconst x = 1",
+        "// line 1\n// line 2\nlet x = 1",
+        "// line 1\n// line 2\n\nlet x = 1",
     );
 }
 
@@ -403,16 +403,16 @@ fn format_preserves_comment_between_record_fields() {
 #[test]
 fn format_preserves_comment_between_function_params() {
     assert_fmt(
-        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) => number {\n    a + b\n}",
-        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) => number {\n    a + b\n}",
+        "let add = (\n    a: number,\n    // second operand\n    b: number,\n): number => {\n    a + b\n}",
+        "let add = (\n    a: number,\n    // second operand\n    b: number,\n): number => {\n    a + b\n}",
     );
 }
 
 #[test]
 fn format_preserves_doc_comment_before_definition() {
     assert_fmt(
-        "/// the global counter\nconst count = 0",
-        "/// the global counter\n\nconst count = 0",
+        "/// the global counter\nlet count = 0",
+        "/// the global counter\n\nlet count = 0",
     );
 }
 
@@ -510,8 +510,8 @@ fn format_jsx_hyphenated_prop() {
 #[test]
 fn format_trailing_comments_between_items() {
     assert_fmt(
-        "let x = 1\n// section\nconst y = 2",
-        "let x = 1\n\n// section\n\nconst y = 2",
+        "let x = 1\n// section\nlet y = 2",
+        "let x = 1\n\n// section\n\nlet y = 2",
     );
 }
 
@@ -536,8 +536,8 @@ fn format_short_pipe_stays_inline() {
 #[test]
 fn format_long_fn_params_go_multiline() {
     assert_fmt(
-        "fn fetchProducts(category: string = \"\", search: string = \"\", limit: number = 20, skip: number = 0) => Result<number, Error> {}",
-        "fn fetchProducts(\n    category: string = \"\",\n    search: string = \"\",\n    limit: number = 20,\n    skip: number = 0,\n) => Result<number, Error> {}",
+        "let fetchProducts = (category: string = \"\", search: string = \"\", limit: number = 20, skip: number = 0): Result<number, Error> => {}",
+        "let fetchProducts = (\n    category: string = \"\",\n    search: string = \"\",\n    limit: number = 20,\n    skip: number = 0,\n): Result<number, Error> => {}",
     );
 }
 
@@ -824,8 +824,8 @@ fn format_object_destructure_mixed() {
 #[test]
 fn format_for_block_basic() {
     assert_fmt(
-        "for User {\n  fn display(self) => string {\n  `${self.name}`\n}\n}",
-        "for User {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
+        "for User {\n  let display = (self): string => {\n  `${self.name}`\n}\n}",
+        "for User {\n    let display = (self): string => {\n        `${self.name}`\n    }\n}",
     );
 }
 
@@ -833,7 +833,7 @@ fn format_for_block_basic() {
 fn format_for_block_with_trait() {
     assert_fmt(
         "for  User :  Display  {\nfn display(self) => string {\n`${self.name}`\n}\n}",
-        "for User: Display {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
+        "for User: Display {\n    let display = (self): string => {\n        `${self.name}`\n    }\n}",
     );
 }
 
@@ -849,7 +849,7 @@ fn format_for_block_with_export() {
 fn format_for_block_multiple_methods() {
     assert_fmt(
         "for User {\nfn name(self) => string { self.name }\nfn age(self) => number { self.age }\n}",
-        "for User {\n    fn name(self) => string {\n        self.name\n    }\n\n    fn age(self) => number {\n        self.age\n    }\n}",
+        "for User {\n    let name = (self): string => {\n        self.name\n    }\n\n    let age = (self): number => {\n        self.age\n    }\n}",
     );
 }
 
@@ -873,7 +873,7 @@ fn format_trait_decl_basic() {
 fn format_trait_decl_with_default_impl() {
     assert_fmt(
         "trait Eq {\nfn eq(self,other:Self) => boolean\nfn neq(self,other:Self) => boolean {\n!(self |> eq(other))\n}\n}",
-        "trait Eq {\n    fn eq(self, other: Self) => boolean\n\n    fn neq(self, other: Self) => boolean {\n        !(self |> eq(other))\n    }\n}",
+        "trait Eq {\n    fn eq(self, other: Self) => boolean\n\n    let neq = (self, other: Self): boolean => {\n        !(self |> eq(other))\n    }\n}",
     );
 }
 
@@ -927,13 +927,13 @@ fn idempotent_trailing_comment_at_end_of_function() {
 
 #[test]
 fn idempotent_doc_comment_before_const() {
-    assert_idempotent("/// the global counter\nconst count = 0");
+    assert_idempotent("/// the global counter\nlet count = 0");
 }
 
 #[test]
 fn idempotent_doc_comment_before_function() {
     assert_idempotent(
-        "/// adds two numbers\nfn add(a: number, b: number) => number {\n    a + b\n}",
+        "/// adds two numbers\nlet add = (a: number, b: number): number => {\n    a + b\n}",
     );
 }
 
@@ -946,22 +946,22 @@ fn idempotent_doc_comment_before_type() {
 
 #[test]
 fn idempotent_module_doc_comment_at_top() {
-    assert_idempotent("//// Todo domain module\n\nconst version = 1");
+    assert_idempotent("//// Todo domain module\n\nlet version = 1");
 }
 
 #[test]
 fn idempotent_module_doc_then_doc_then_plain() {
-    assert_idempotent("//// module header\n/// item doc\n// plain\nconst x = 1");
+    assert_idempotent("//// module header\n/// item doc\n// plain\nlet x = 1");
 }
 
 #[test]
 fn idempotent_blank_lines_between_definitions() {
-    assert_idempotent("let a = 1\n\nconst b = 2\n\nconst c = 3");
+    assert_idempotent("let a = 1\n\nlet b = 2\n\nlet c = 3");
 }
 
 #[test]
 fn idempotent_blank_lines_between_functions() {
-    assert_idempotent("let one = (): number => {\n    1\n}\n\nfn two() => number {\n    2\n}");
+    assert_idempotent("let one = (): number => {\n    1\n}\n\nlet two = (): number => {\n    2\n}");
 }
 
 #[test]
@@ -984,7 +984,7 @@ fn idempotent_block_comment_between_call_args() {
 #[test]
 fn idempotent_line_comment_between_function_params() {
     assert_idempotent(
-        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) => number {\n    a + b\n}",
+        "let add = (\n    a: number,\n    // second operand\n    b: number,\n): number => {\n    a + b\n}",
     );
 }
 

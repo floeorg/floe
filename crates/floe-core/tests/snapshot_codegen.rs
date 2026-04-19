@@ -172,7 +172,7 @@ trait Repo {
   fn findById(self, id: number) => string
 }
 
-type DrizzleRepo = => {
+type DrizzleRepo = {
   db: string,
 }
 

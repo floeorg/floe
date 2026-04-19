@@ -1845,7 +1845,7 @@ fn calling_named_function_type_returns_its_return_type() {
         r#"
 type Todo = { text: string }
 let setTodos = (value: Array<Todo>): () => { () }
-fn handler() {
+let handler = () =>{
     setTodos([])
 }
 "#,
@@ -1875,7 +1875,7 @@ fn dispatch_generic_converts_to_function() {
 import trusted { useState } from "react"
 type Todo = { text: string }
 let (todos, setTodos) = useState<Array<Todo>>([])
-fn handler() {
+let handler = () =>{
     setTodos([])
 }
 "#,
@@ -1950,7 +1950,7 @@ fn calling_dispatch_type_is_callable() {
 import trusted { useState } from "react"
 type Todo = { text: string }
 let (todos, setTodos) = useState<Array<Todo>>([])
-fn handler() {
+let handler = () =>{
     setTodos([])
 }
 "#,
@@ -2022,7 +2022,7 @@ fn handler() {
 fn inner_function_infers_unit_return() {
     let program = crate::parser::Parser::new(
         r#"
-fn outer() {
+let outer = () =>{
     fn inner() {
         Console.log("hi")
     }
@@ -2845,7 +2845,7 @@ trait Printable {
   fn print(self) => string
   fn prettyPrint(self) => string
 }
-type User = => { name: string }
+type User = { name: string }
 for User: Printable {
   fn print(self) => string {
     self.name
@@ -2875,7 +2875,7 @@ trait Printable {
   fn print(self) => string
   fn prettyPrint(self) => string
 }
-type User = => { name: string }
+type User = { name: string }
 for User: Printable {
   fn print(self) => string {
     self.name
@@ -3420,7 +3420,7 @@ fn await_inferred_return_type_is_promise() {
     let diags = check(
         r#"
 let getData = (): Promise<string> => { "hello" }
-fn inferred() { getData() |> Promise.await }
+let inferred = () =>{ getData() |> Promise.await }
 "#,
     );
     assert!(
@@ -4416,7 +4416,7 @@ let _x = takesClient(client)
 fn object_literal_keys_not_resolved_as_variables() {
     let diags = check(
         r#"
-fn _test() {
+let _test = () =>{
     let config = { staleTime: 60000, retry: 1 }
     config
 }
@@ -4434,7 +4434,7 @@ fn object_literal_shorthand_still_resolves_variable() {
     // Shorthand `{ name }` should still require `name` to be defined
     let diags = check(
         r#"
-fn _test() {
+let _test = () =>{
     let obj = { undefinedVar }
     obj
 }
@@ -4452,7 +4452,7 @@ fn _test() {
 fn lambda_object_destructure_binds_variables() {
     let diags = check(
         r#"
-fn _test() {
+let _test = () =>{
     let f = ({ x, y }) => x + y
     f({ x: 1, y: 2 })
 }
@@ -6266,7 +6266,7 @@ fn jsx_callback_param_inferred_from_probe() {
         r#"
 import trusted { NavLink } from "react-router-dom"
 
-fn page() {
+let page = () =>{
     <NavLink className={(state) => "active"} />
 }
 "#,
@@ -6336,7 +6336,7 @@ fn jsx_children_render_prop_params_inferred_from_probe() {
         r#"
 import trusted { Draggable } from "@hello-pangea/dnd"
 
-fn page() {
+let page = () =>{
     <Draggable draggableId="id" index={0}>
         {(provided, snapshot) =>
             <div />
@@ -6429,7 +6429,7 @@ fn jsx_children_render_prop_named_type_shows_in_name_types() {
         r#"
 import trusted { Draggable } from "@hello-pangea/dnd"
 
-fn page() {
+let page = () =>{
     <Draggable draggableId="id" index={0}>
         {(provided, snapshot) =>
             <div />

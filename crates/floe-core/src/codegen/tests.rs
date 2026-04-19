@@ -607,7 +607,7 @@ fn settable_unchanged_omits_field() {
         "#,
     );
     // Constructor line should have name but not age
-    let const_line = result.lines().find(|l| l.starts_with("let d")).unwrap();
+    let const_line = result.lines().find(|l| l.starts_with("const d")).unwrap();
     assert!(const_line.contains(r#"name: "Ryan""#));
     assert!(!const_line.contains("age"));
 }
@@ -1451,21 +1451,21 @@ fn tuple_trailing_comma() {
 fn stdlib_pipe_tap_qualified() {
     let result = emit("[1, 2, 3] |> Pipe.tap(Console.log)");
     // Console.log gets its own codegen template, so it's expanded inside tap's IIFE
-    assert!(result.contains("let _v"), "output: {result}");
+    assert!(result.contains("const _v"), "output: {result}");
     assert!(result.contains("return _v"), "output: {result}");
 }
 
 #[test]
 fn stdlib_tap_direct_call() {
     let result = emit("Pipe.tap([1, 2, 3], Console.log)");
-    assert!(result.contains("let _v"), "output: {result}");
+    assert!(result.contains("const _v"), "output: {result}");
     assert!(result.contains("return _v"), "output: {result}");
 }
 
 #[test]
 fn stdlib_pipe_tap_with_lambda() {
     let result = emit("[1, 2, 3] |> Pipe.tap((x) => Console.log(x))");
-    assert!(result.contains("let _v"), "output: {result}");
+    assert!(result.contains("const _v"), "output: {result}");
     assert!(result.contains("return _v"), "output: {result}");
 }
 
