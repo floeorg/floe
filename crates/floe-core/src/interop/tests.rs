@@ -905,3 +905,120 @@ fn triple_slash_scan_stops_at_first_non_header() {
     let refs = super::dts::extract_triple_slash_references(dts);
     assert_eq!(refs, vec!["./a.d.ts".to_string()]);
 }
+
+// ── Cross-module alias expansion (#1234) ─────────────────────
+
+#[test]
+fn dts_import_type_encodes_module_sentinel() {
+    // tsgo emits cross-module type references as `import("pkg").Foo<args>`.
+    // parse_dts_exports_from_str must encode the module source into the name
+    // so a later pass can look the alias up in its owning .d.ts.
+    let dts = r#"
+        export declare let _r: <E>(handler: import("@floeorg/hono").Handler<E>) => void;
+    "#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+    let r = exports.iter().find(|e| e.name == "_r").unwrap();
+    let handler_param = match &r.ts_type {
+        TsType::Function { params, .. } => &params[0].ty,
+        other => panic!("expected function, got {other:?}"),
+    };
+    let encoded_name = match handler_param {
+        TsType::Generic { name, .. } => name.as_str(),
+        other => panic!("expected Generic, got {other:?}"),
+    };
+    let (module, alias) = super::dts::decode_import_source(encoded_name)
+        .expect("name should carry the module sentinel");
+    assert_eq!(module, "@floeorg/hono");
+    assert_eq!(alias, "Handler");
+}
+
+#[test]
+fn expand_cross_module_aliases_substitutes_generic_args() {
+    // Simulate what the tsgo runner does: given a function whose parameter
+    // references an external alias via the sentinel encoding, expand the
+    // alias using the owning module's definitions and substitute type args.
+    use super::dts::{TypeAliasDef, expand_cross_module_aliases};
+
+    // Parse the alias-owning module to get its function-shaped aliases.
+    let foreign_dts = r#"
+        export type Handler<E> = (bindings: E) => string;
+    "#;
+    let foreign_aliases = {
+        let mut aliases: std::collections::HashMap<String, TypeAliasDef> =
+            std::collections::HashMap::new();
+        for export in parse_dts_exports_from_str(foreign_dts).unwrap() {
+            if let TsType::Function { .. } = &export.ts_type {
+                // Simulate what collect_function_alias_bodies does for type alias decls.
+                // Since `export type` comes through as DtsExport, we reuse the body.
+                aliases.insert(
+                    export.name.clone(),
+                    TypeAliasDef {
+                        params: vec!["E".to_string()],
+                        body: export.ts_type.clone(),
+                    },
+                );
+            }
+        }
+        aliases
+    };
+
+    // Build the sentinel-encoded reference that tsgo would produce for
+    // `handler: import("foreign-lib").Handler<{ port: number }>`.
+    let mut referencing = TsType::Function {
+        params: vec![super::FunctionParam {
+            ty: TsType::Generic {
+                name: super::dts::encode_import_source("foreign-lib", "Handler"),
+                args: vec![TsType::Object(vec![super::ObjectField {
+                    name: "port".to_string(),
+                    ty: TsType::Primitive("number".to_string()),
+                    optional: false,
+                }])],
+            },
+            optional: false,
+        }],
+        return_type: Box::new(TsType::Primitive("void".to_string())),
+    };
+
+    let mut by_module = std::collections::HashMap::new();
+    by_module.insert("foreign-lib".to_string(), foreign_aliases);
+    expand_cross_module_aliases(&mut referencing, &by_module, 0);
+
+    // After expansion the handler param should BE a function (c: { port: number }) -> string,
+    // not a Generic alias reference.
+    match &referencing {
+        TsType::Function { params, .. } => match &params[0].ty {
+            TsType::Function {
+                params: inner_params,
+                return_type,
+            } => {
+                match &inner_params[0].ty {
+                    TsType::Object(fields) => {
+                        assert_eq!(fields[0].name, "port");
+                        assert!(matches!(&fields[0].ty, TsType::Primitive(p) if p == "number"));
+                    }
+                    other => panic!("expected expanded object param, got {other:?}"),
+                }
+                assert!(matches!(return_type.as_ref(), TsType::Primitive(p) if p == "string"));
+            }
+            other => panic!("expected handler to be expanded to Function, got {other:?}"),
+        },
+        other => panic!("outer function disappeared: {other:?}"),
+    }
+}
+
+#[test]
+fn strip_import_sentinels_cleans_surviving_names() {
+    // Names that survive expansion (because the alias is missing or the
+    // module's .d.ts couldn't be resolved) must still have their sentinels
+    // stripped so the boundary wrapper sees clean identifiers.
+    use super::dts::{encode_import_source, strip_import_sentinels};
+    let mut ty = TsType::Generic {
+        name: encode_import_source("pkg", "Unknown"),
+        args: vec![TsType::Primitive("string".to_string())],
+    };
+    strip_import_sentinels(&mut ty);
+    match ty {
+        TsType::Generic { name, .. } => assert_eq!(name, "Unknown"),
+        other => panic!("expected Generic, got {other:?}"),
+    }
+}

@@ -299,6 +299,22 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
         collect_type_alias_defaults(stmt, &mut type_aliases);
     }
 
+    // Collect function-shaped type aliases (body is — or wraps — a function)
+    // and expand references to them in every export. Without this, a
+    // signature like `fn post<E>(..., handler: Handler<E>)` keeps `Handler<E>`
+    // as an opaque `Foreign` type at the boundary, and callers passing an
+    // inline lambda get `unknown` params because the hint-propagation path
+    // in check_call only fires on `Type::Function` expected params (#1234).
+    let mut function_aliases: HashMap<String, TypeAliasDef> = HashMap::new();
+    for stmt in &ret.program.body {
+        collect_function_alias_bodies(stmt, &mut function_aliases);
+    }
+    if !function_aliases.is_empty() {
+        for export in &mut exports {
+            expand_function_aliases(&mut export.ts_type, &function_aliases, 0);
+        }
+    }
+
     let mut interface_bodies = collect_and_resolve_interfaces(&ret.program.body);
 
     // Resolve type aliases in interface field types
@@ -1188,9 +1204,23 @@ macro_rules! convert_shared_type_arms {
             // import points at the module itself (the default export slot),
             // which at our boundary is just `Unknown` until the target is
             // resolved.
+            //
+            // When a qualifier IS present we encode the source module into
+            // the name using a unit-separator sentinel (`\x1F` is not a
+            // valid TS identifier char). A later pass in the tsgo runner
+            // decodes this, parses the referenced module's .d.ts for type
+            // aliases, and substitutes function-shaped aliases so lambda
+            // hints propagate through cross-module callback signatures
+            // like `handler: Handler<E>` from `@floeorg/hono` (#1234).
             $prefix::TSImportType(import_ty) => {
                 if let Some(ref qualifier) = import_ty.qualifier {
-                    let name = import_qualifier_to_string(qualifier);
+                    let raw_name = import_qualifier_to_string(qualifier);
+                    let module = import_ty.source.value.to_string();
+                    let name = if module.is_empty() {
+                        raw_name
+                    } else {
+                        encode_import_source(&module, &raw_name)
+                    };
                     if let Some(ref type_args) = import_ty.type_arguments {
                         let args: Vec<TsType> = type_args
                             .params
@@ -1641,6 +1671,380 @@ fn process_type_alias(
         if let Some(resolved) = aliases.get(&ref_name).cloned() {
             aliases.insert(name, resolved);
         }
+    }
+}
+
+/// Function-shaped type alias body + generic params (alias declaration order).
+/// For `type Handler<E> = (c: Context<{ Bindings: E }>) => Response`, `params`
+/// is `["E"]` and `body` is the `TsType::Function` literal.
+#[derive(Debug, Clone)]
+pub(super) struct TypeAliasDef {
+    pub(super) params: Vec<String>,
+    pub(super) body: TsType,
+}
+
+/// Sentinel used to encode `import("module").Name` as `module\x1FName` inside a
+/// `TsType::Named` or `TsType::Generic`. `\x1F` (unit separator) is not a valid
+/// TS identifier char, so this can't clash with a legitimate type name.
+pub(super) const IMPORT_SOURCE_SENTINEL: char = '\x1F';
+
+pub(super) fn encode_import_source(module: &str, name: &str) -> String {
+    format!("{module}{IMPORT_SOURCE_SENTINEL}{name}")
+}
+
+/// Decode `module\x1FName` back into `(module, name)`. Returns `None` when the
+/// sentinel is absent (i.e. the name is a plain local reference).
+pub(super) fn decode_import_source(encoded: &str) -> Option<(&str, &str)> {
+    encoded.split_once(IMPORT_SOURCE_SENTINEL)
+}
+
+/// Strip `IMPORT_SOURCE_SENTINEL` prefixes from every name inside a TsType so
+/// the type can be safely wrapped at the Floe boundary. Called after
+/// cross-module alias expansion has had its chance to use the encoded source.
+pub(super) fn strip_import_sentinels(ty: &mut TsType) {
+    match ty {
+        TsType::Named(name) => {
+            if let Some((_, clean)) = decode_import_source(name) {
+                *name = clean.to_string();
+            }
+        }
+        TsType::Generic { name, args } => {
+            if let Some((_, clean)) = decode_import_source(name) {
+                *name = clean.to_string();
+            }
+            for arg in args {
+                strip_import_sentinels(arg);
+            }
+        }
+        TsType::Union(parts) => {
+            for p in parts {
+                strip_import_sentinels(p);
+            }
+        }
+        TsType::Array(inner) => strip_import_sentinels(inner),
+        TsType::Object(fields) => {
+            for f in fields {
+                strip_import_sentinels(&mut f.ty);
+            }
+        }
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            for p in params {
+                strip_import_sentinels(&mut p.ty);
+            }
+            strip_import_sentinels(return_type);
+        }
+        TsType::Tuple(parts) => {
+            for p in parts {
+                strip_import_sentinels(p);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Expand cross-module type alias references encoded with
+/// `IMPORT_SOURCE_SENTINEL`. `aliases_by_module[mod][name]` is the resolved
+/// alias body (collected by parsing `mod`'s .d.ts). Only function-shaped
+/// aliases are in the map — see `collect_function_alias_bodies`.
+pub(super) fn expand_cross_module_aliases(
+    ty: &mut TsType,
+    aliases_by_module: &HashMap<String, HashMap<String, TypeAliasDef>>,
+    depth: u32,
+) {
+    if depth > 16 {
+        return;
+    }
+    match ty {
+        TsType::Named(name) => {
+            if let Some((module, alias_name)) = decode_import_source(name)
+                && let Some(aliases) = aliases_by_module.get(module)
+                && let Some(def) = aliases.get(alias_name)
+                && def.params.is_empty()
+            {
+                *ty = def.body.clone();
+                expand_cross_module_aliases(ty, aliases_by_module, depth + 1);
+            }
+        }
+        TsType::Generic { name, args } => {
+            for arg in args.iter_mut() {
+                expand_cross_module_aliases(arg, aliases_by_module, depth + 1);
+            }
+            if let Some((module, alias_name)) = decode_import_source(name)
+                && let Some(aliases) = aliases_by_module.get(module)
+                && let Some(def) = aliases.get(alias_name)
+            {
+                let mut body = def.body.clone();
+                if !def.params.is_empty() {
+                    let subst: HashMap<String, TsType> = def
+                        .params
+                        .iter()
+                        .cloned()
+                        .zip(args.iter().cloned())
+                        .collect();
+                    substitute_type_params(&mut body, &subst);
+                }
+                *ty = body;
+                expand_cross_module_aliases(ty, aliases_by_module, depth + 1);
+            }
+        }
+        TsType::Union(parts) => {
+            for p in parts {
+                expand_cross_module_aliases(p, aliases_by_module, depth + 1);
+            }
+        }
+        TsType::Array(inner) => expand_cross_module_aliases(inner, aliases_by_module, depth + 1),
+        TsType::Object(fields) => {
+            for f in fields {
+                expand_cross_module_aliases(&mut f.ty, aliases_by_module, depth + 1);
+            }
+        }
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            for p in params {
+                expand_cross_module_aliases(&mut p.ty, aliases_by_module, depth + 1);
+            }
+            expand_cross_module_aliases(return_type, aliases_by_module, depth + 1);
+        }
+        TsType::Tuple(parts) => {
+            for p in parts {
+                expand_cross_module_aliases(p, aliases_by_module, depth + 1);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Walk a TsType and collect every unique module referenced via the
+/// `IMPORT_SOURCE_SENTINEL` encoding. Used by the tsgo runner to decide which
+/// external .d.ts files need to be parsed for alias expansion.
+pub(super) fn collect_referenced_modules(ty: &TsType, out: &mut HashSet<String>) {
+    match ty {
+        TsType::Named(name) => {
+            if let Some((module, _)) = decode_import_source(name) {
+                out.insert(module.to_string());
+            }
+        }
+        TsType::Generic { name, args } => {
+            if let Some((module, _)) = decode_import_source(name) {
+                out.insert(module.to_string());
+            }
+            for a in args {
+                collect_referenced_modules(a, out);
+            }
+        }
+        TsType::Union(parts) | TsType::Tuple(parts) => {
+            for p in parts {
+                collect_referenced_modules(p, out);
+            }
+        }
+        TsType::Array(inner) => collect_referenced_modules(inner, out),
+        TsType::Object(fields) => {
+            for f in fields {
+                collect_referenced_modules(&f.ty, out);
+            }
+        }
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            for p in params {
+                collect_referenced_modules(&p.ty, out);
+            }
+            collect_referenced_modules(return_type, out);
+        }
+        _ => {}
+    }
+}
+
+/// Parse a .d.ts file at `path` and return only its function-shaped type
+/// alias definitions, keyed by alias name. Returns an empty map on any
+/// failure — cross-module alias expansion is a best-effort optimisation.
+pub(super) fn collect_function_aliases_from_file(
+    path: &std::path::Path,
+) -> HashMap<String, TypeAliasDef> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return HashMap::new(),
+    };
+    let allocator = Allocator::default();
+    let source_type = SourceType::tsx();
+    let ret = Parser::new(&allocator, &content, source_type).parse();
+    if ret.panicked {
+        return HashMap::new();
+    }
+    let mut aliases: HashMap<String, TypeAliasDef> = HashMap::new();
+    for stmt in &ret.program.body {
+        collect_function_alias_bodies(stmt, &mut aliases);
+    }
+    aliases
+}
+
+/// Recognise aliases whose body is (or is a union containing) a function. Only
+/// these participate in lambda-hint propagation, so we restrict expansion to
+/// them to avoid churning unrelated Foreign references.
+fn contains_function_shape(ty: &TsType) -> bool {
+    match ty {
+        TsType::Function { .. } => true,
+        TsType::Union(parts) => parts.iter().any(contains_function_shape),
+        _ => false,
+    }
+}
+
+/// Collect function-shaped type alias declarations so their references can be
+/// expanded in exported function signatures. Walks into `declare namespace`
+/// bodies so block-scoped aliases are picked up too.
+fn collect_function_alias_bodies(
+    stmt: &Statement<'_>,
+    aliases: &mut HashMap<String, TypeAliasDef>,
+) {
+    let decl = match stmt {
+        Statement::TSTypeAliasDeclaration(td) => Some(td.as_ref()),
+        Statement::ExportNamedDeclaration(ed) => match &ed.declaration {
+            Some(Declaration::TSTypeAliasDeclaration(td)) => Some(td.as_ref()),
+            _ => None,
+        },
+        Statement::TSModuleDeclaration(ns) => {
+            if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns.body {
+                for inner in &block.body {
+                    collect_function_alias_bodies(inner, aliases);
+                }
+            }
+            None
+        }
+        _ => None,
+    };
+    let Some(type_decl) = decl else {
+        return;
+    };
+    let body = convert_oxc_type(&type_decl.type_annotation);
+    if !contains_function_shape(&body) {
+        return;
+    }
+    let name = type_decl.id.name.to_string();
+    let params = type_decl
+        .type_parameters
+        .as_ref()
+        .map(|tps| tps.params.iter().map(|p| p.name.to_string()).collect())
+        .unwrap_or_default();
+    aliases.insert(name, TypeAliasDef { params, body });
+}
+
+/// Substitute named type-parameter references in a TsType with their bound
+/// arguments. Used when expanding a generic alias like `Handler<E>` — the
+/// alias body's `E` references are replaced with whatever was passed at the
+/// reference site.
+fn substitute_type_params(ty: &mut TsType, subst: &HashMap<String, TsType>) {
+    match ty {
+        TsType::Named(name) => {
+            if let Some(replacement) = subst.get(name) {
+                *ty = replacement.clone();
+            }
+        }
+        TsType::Generic { name, args } => {
+            if let Some(replacement) = subst.get(name) {
+                *ty = replacement.clone();
+            } else {
+                for arg in args {
+                    substitute_type_params(arg, subst);
+                }
+            }
+        }
+        TsType::Union(parts) => {
+            for p in parts {
+                substitute_type_params(p, subst);
+            }
+        }
+        TsType::Array(inner) => substitute_type_params(inner, subst),
+        TsType::Object(fields) => {
+            for f in fields {
+                substitute_type_params(&mut f.ty, subst);
+            }
+        }
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            for p in params {
+                substitute_type_params(&mut p.ty, subst);
+            }
+            substitute_type_params(return_type, subst);
+        }
+        TsType::Tuple(parts) => {
+            for p in parts {
+                substitute_type_params(p, subst);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Recursively expand function-shaped alias references in a TsType. When a
+/// generic alias `A<P1, P2>` is expanded, the alias's declared params are
+/// substituted with the supplied args inside the alias body. Bounded
+/// recursion depth guards against pathological self-referential aliases.
+fn expand_function_aliases(ty: &mut TsType, aliases: &HashMap<String, TypeAliasDef>, depth: u32) {
+    if depth > 16 {
+        return;
+    }
+    match ty {
+        TsType::Named(name) => {
+            if let Some(def) = aliases.get(name)
+                && def.params.is_empty()
+            {
+                *ty = def.body.clone();
+                expand_function_aliases(ty, aliases, depth + 1);
+            }
+        }
+        TsType::Generic { name, args } => {
+            for arg in args.iter_mut() {
+                expand_function_aliases(arg, aliases, depth + 1);
+            }
+            if let Some(def) = aliases.get(name) {
+                let mut body = def.body.clone();
+                if !def.params.is_empty() {
+                    let subst: HashMap<String, TsType> = def
+                        .params
+                        .iter()
+                        .cloned()
+                        .zip(args.iter().cloned())
+                        .collect();
+                    substitute_type_params(&mut body, &subst);
+                }
+                *ty = body;
+                expand_function_aliases(ty, aliases, depth + 1);
+            }
+        }
+        TsType::Union(parts) => {
+            for p in parts {
+                expand_function_aliases(p, aliases, depth + 1);
+            }
+        }
+        TsType::Array(inner) => expand_function_aliases(inner, aliases, depth + 1),
+        TsType::Object(fields) => {
+            for f in fields {
+                expand_function_aliases(&mut f.ty, aliases, depth + 1);
+            }
+        }
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            for p in params {
+                expand_function_aliases(&mut p.ty, aliases, depth + 1);
+            }
+            expand_function_aliases(return_type, aliases, depth + 1);
+        }
+        TsType::Tuple(parts) => {
+            for p in parts {
+                expand_function_aliases(p, aliases, depth + 1);
+            }
+        }
+        _ => {}
     }
 }
 

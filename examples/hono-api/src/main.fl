@@ -4,16 +4,10 @@ type Env = {
     greeting: string,
 }
 
-let hello(_c: unknown) -> Response = {
-    Response("hello")
-}
-
-let echo(_c: unknown) -> Response = {
-    Response("echo")
-}
-
 export let build() -> Router<Env> = {
-    router<Env>() |> get("/hello", hello) |> post("/echo", echo)
+    router<Env>()
+        |> get("/hello", (_c) -> Response("hello"))
+        |> post("/echo", (_c) -> Response("echo"))
 }
 
 export let serve(request: Request, env: Env) -> unknown = {
