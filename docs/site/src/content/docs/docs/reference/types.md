@@ -208,14 +208,14 @@ Compiles to `A & B`. For Floe-native record composition, prefer `...Spread` in a
 ```floe
 type DivProps = ComponentProps<"div">
 type PartialUser = Partial<User>
-type UserKeys = Pick<User, "name" | "email">
+type UserKeys = Pick<User, OneOf<"name", "email">>
 ```
 
 Recognized utilities pass through unchanged: `OneOf`, `Intersect`, `Partial`, `Required`, `Readonly`, `Pick`, `Omit`, `NonNullable`, `Record`, `Extract`, `Exclude`, `ReturnType`, `Parameters`, `ConstructorParameters`, `Awaited`, `InstanceType`, `Uppercase`, `Lowercase`, `Capitalize`, `Uncapitalize`.
 
 ## Type Expressions
 
-```floe
+```floe,ignore
 // Named
 User
 string

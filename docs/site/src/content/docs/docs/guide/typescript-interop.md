@@ -105,7 +105,7 @@ import { ComponentProps } from "react"
 
 type DivProps = ComponentProps<"div">
 type PartialUser = Partial<User>
-type UserKeys = Pick<User, "name" | "email">
+type UserKeys = Pick<User, OneOf<"name", "email">>
 ```
 
 ### Intersections

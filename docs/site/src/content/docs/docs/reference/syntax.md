@@ -167,11 +167,11 @@ test "addition works" {
 3.141_592       // float with separators
 0xFF_FF         // hex with separators
 "hello"         // string
-`hello ${name}` // template literal
-tag`a ${x} b`   // tagged template literal — `tag` receives the strings and interpolated values
-true            // boolean
-false           // boolean
-[1, 2, 3]      // array
+let msg = `hello ${name}` // template literal
+let tagged = tag`a ${x} b`   // tagged template literal — `tag` receives the strings and interpolated values
+let ok = true            // boolean
+let no = false           // boolean
+let arr = [1, 2, 3]      // array
 ```
 
 Underscores in number literals are purely visual — they are stripped during compilation. They can appear between any two digits but not at the start, end, or adjacent to a decimal point.
@@ -180,7 +180,7 @@ Tagged template literals compile to byte-identical TypeScript, so they interoper
 
 ### Operators
 
-```floe
+```floe,ignore
 a + b    a - b    a * b    a / b    a % b   // arithmetic
 a == b   a != b   a < b    a > b             // comparison
 a <= b   a >= b                               // comparison
@@ -191,7 +191,7 @@ expr?                                         // unwrap
 
 ### Pipe
 
-```floe
+```floe,ignore
 value |> transform
 value |> f(other_arg, _)   // placeholder
 a |> b |> c                // chaining
@@ -338,7 +338,9 @@ import { Todo, Filter, for Array } from "./todo"
 
 ## Patterns
 
-```floe
+Patterns appear inside `match` arms. The forms are:
+
+```floe,ignore
 42                    // number literal
 "hello"               // string literal
 true                  // boolean literal

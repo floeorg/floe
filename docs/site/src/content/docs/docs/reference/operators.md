@@ -43,10 +43,13 @@ Equality operators compile to strict equality (`===`, `!==`). Structural equalit
 The pipe operator passes the left side as the first argument to the right side. Use `_` as a placeholder for non-first-argument positions.
 
 ```floe
-x |> f          // f(x)
-x |> f(a, _)    // f(a, x)
-x |> f |> g     // g(f(x))
-x |> match { ... }  // match x { ... }
+let a = x |> f          // f(x)
+let b = x |> f(a, _)    // f(a, x)
+let c = x |> f |> g     // g(f(x))
+let d = x |> match {
+    Ok(v) -> v,
+    Err(_) -> 0,
+}
 ```
 
 The pipe-unwrap operator `|>?` pipes the value and then unwraps the result — equivalent to `(x |> f)?`.
