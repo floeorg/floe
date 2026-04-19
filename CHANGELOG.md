@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.2](https://github.com/floeorg/floe/compare/v0.5.1...v0.5.2) (2026-04-19)
+
+
+### Features
+
+* re-trigger release-please for contextual lambda typing fix ([ec476a2](https://github.com/floeorg/floe/commit/ec476a2b4bde135c0f007e1bd7cbe42744b08be3))
+
 ## [0.5.1](https://github.com/floeorg/floe/compare/v0.5.0...v0.5.1) (2026-04-19)
 
 
