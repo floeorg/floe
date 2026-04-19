@@ -206,8 +206,6 @@ impl ObjectDestructureField {
 pub enum ConstBinding {
     /// Simple name: `const x = ...`
     Name(String),
-    /// Array destructuring: `const [a, b] = ...`
-    Array(Vec<String>),
     /// Object destructuring: `const { a, b } = ...` or `const { a: x, b: y } = ...`
     Object(Vec<ObjectDestructureField>),
     /// Tuple destructuring: `const (a, b) = ...`
@@ -219,7 +217,7 @@ impl ConstBinding {
     pub fn binding_name(&self) -> String {
         match self {
             ConstBinding::Name(name) => name.clone(),
-            ConstBinding::Array(names) | ConstBinding::Tuple(names) => names.join("_"),
+            ConstBinding::Tuple(names) => names.join("_"),
             ConstBinding::Object(fields) => fields
                 .iter()
                 .map(|f| f.bound_name())

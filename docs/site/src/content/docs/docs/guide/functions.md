@@ -26,8 +26,8 @@ let (left, right) = getPair()      // `()` — tuple
 let { name, age } = getUser()      // `{}` — record
 ```
 
-Array destructuring (`const [a, b] = arr`) is rejected in `const`
-bindings — it lies about runtime length. Use `Array.get(arr, i) =>
+Array destructuring (`const [a, b] = arr`) is a parse error in `const`
+bindings — it would lie about runtime length. Use `Array.get(arr, i) =>
 Option<T>` or a match pattern:
 
 ```floe

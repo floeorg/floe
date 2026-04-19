@@ -256,9 +256,7 @@ impl<'a> TypeScriptGenerator<'a> {
     fn emit_binding(&mut self, binding: &ConstBinding) -> Document {
         match binding {
             ConstBinding::Name(name) => pretty::str(name),
-            ConstBinding::Array(names) | ConstBinding::Tuple(names) => {
-                pretty::str(format!("[{}]", names.join(", ")))
-            }
+            ConstBinding::Tuple(names) => pretty::str(format!("[{}]", names.join(", "))),
             ConstBinding::Object(fields) => {
                 let mut s = String::from("{ ");
                 for (i, f) in fields.iter().enumerate() {

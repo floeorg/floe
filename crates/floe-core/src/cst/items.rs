@@ -237,6 +237,11 @@ impl<'src> CstParser<'src> {
             .start_node_at(checkpoint, SyntaxKind::CONST_DECL.into());
 
         if self.at(TokenKind::LeftBracket) {
+            // Array destructure `[a, b]` is not a valid const binding: on
+            // arrays the runtime length isn't in the type, and on tuples it
+            // hides the real shape. Use `(a, b)` for tuples or `Array.get` /
+            // `match` for arrays.
+            self.error("expected identifier, `{`, or `(`");
             self.bump();
             self.eat_trivia();
             self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightBracket);

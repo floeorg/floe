@@ -618,7 +618,7 @@ type Todo = {
 }
 
 export function App() {
-  let [todos, setTodos] = useState([])
+  let (todos, setTodos) = useState([])
 
   return <div>
     <h1>Floe App</h1>

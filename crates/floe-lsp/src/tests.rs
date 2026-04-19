@@ -353,7 +353,7 @@ fn jsx_component_source() -> &'static str {
     r#"import { useState, JSX } from "react"
 
 export let Counter() -> JSX.Element = {
-    let [_count, setCount] = useState(0)
+    let (_count, setCount) = useState(0)
 
     <div>
         <h1>Count</h1>
@@ -486,7 +486,7 @@ fn hover_destructured_const_shows_type() {
     let source = r#"
 import { useState } from "react"
 export let App() -> JSX.Element = {
-    let [input, setInput] = useState("")
+    let (input, setInput) = useState("")
     <div>{input}</div>
 }
 "#;

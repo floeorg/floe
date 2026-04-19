@@ -749,15 +749,6 @@ mod tests {
         assert!(decl.exported);
     }
 
-    #[test]
-    fn const_array_destructuring() {
-        let item = first_item("let [a, b] = pair");
-        let ItemKind::Const(decl) = item else {
-            panic!("expected Const")
-        };
-        assert!(matches!(decl.binding, ConstBinding::Array(_)));
-    }
-
     // ── Function declarations ─────────────────────────────────────
 
     #[test]

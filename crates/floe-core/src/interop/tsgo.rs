@@ -673,12 +673,12 @@ mod tests {
     #[test]
     fn generate_probe_basic_import() {
         let source = r#"import { useState } from "react"
-let [count, setCount] = useState(0)"#;
+let (count, setCount) = useState(0)"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         assert!(probe.contains("import { useState } from \"react\";"));
-        // Array binding: destructures into _r0_0, _r0_1
+        // Tuple binding: destructures into _r0_0, _r0_1
         assert!(probe.contains("_tmp0 = useState(0);"));
         assert!(probe.contains("export let [_r0_0, _r0_1] = _tmp0;"));
     }
@@ -687,7 +687,7 @@ let [count, setCount] = useState(0)"#;
     fn generate_probe_with_type_args() {
         let source = r#"import { useState } from "react"
 type Todo = { text: string }
-let [todos, setTodos] = useState<Array<Todo>>([])"#;
+let (todos, setTodos) = useState<Array<Todo>>([])"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
@@ -710,11 +710,11 @@ let x = 42"#;
     #[test]
     fn generate_probe_re_exports_unused_imports() {
         let source = r#"import { useState, useEffect } from "react"
-let [count, setCount] = useState(0)"#;
+let (count, setCount) = useState(0)"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
-        // Array binding: destructured
+        // Tuple binding: destructured
         assert!(probe.contains("_tmp0 = useState(0);"));
         // useState has a call probe, so it uses plain re-export
         assert!(
@@ -754,8 +754,8 @@ let [count, setCount] = useState(0)"#;
         let source = r#"
 import { useState } from "react"
 type Todo = { text: string, done: bool }
-let [todos, setTodos] = useState<Array<Todo>>([])
-let [input, setInput] = useState("")
+let (todos, setTodos) = useState<Array<Todo>>([])
+let (input, setInput) = useState("")
 "#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
@@ -807,7 +807,7 @@ let [input, setInput] = useState("")
         let source = r#"
 import { useState } from "react"
 type Filter = | All | Active | Completed
-let [filter, setFilter] = useState<Filter>(Filter.All)
+let (filter, setFilter) = useState<Filter>(Filter.All)
 "#;
         let program = Parser::new(source).parse_program().unwrap();
 

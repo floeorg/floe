@@ -104,28 +104,6 @@ impl Checker {
             ConstBinding::Name(name) => {
                 self.define_const_binding(name, final_type, decl.exported, span);
             }
-            ConstBinding::Array(names) => {
-                // `[a, b]` in a const binding is banned: on arrays it
-                // lies about element presence (runtime length isn't in
-                // the type), on tuples it hides the real shape. The
-                // help text picks the right fix based on the value's
-                // actual shape.
-                let help = if matches!(final_type, Type::Tuple(_)) {
-                    format!("use `({0})` — the value is a tuple", names.join(", "))
-                } else {
-                    "use `Array.get(arr, i)` (returns `Option<T>`) or `match arr { [a, b, ..] -> ..., _ -> ... }`".to_string()
-                };
-                self.emit_error_with_help(
-                    "array destructuring `[...]` is not allowed in a const binding",
-                    span,
-                    ErrorCode::ArrayDestructureInConst,
-                    "`[a, b]` lies about runtime length",
-                    help,
-                );
-                // Binding names are left undefined — cascade "undefined
-                // name" errors are the same root cause and resolve once
-                // the user switches to `(a, b)` or `Array.get`.
-            }
             ConstBinding::Tuple(names) => {
                 for (i, name) in names.iter().enumerate() {
                     let elem_ty = Self::tuple_element_type(&final_type, i);

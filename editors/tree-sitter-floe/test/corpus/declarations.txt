@@ -179,7 +179,7 @@ const name: string = "hello"
         (string_content)))))
 
 ===
-Const with destructuring array
+Const with array pattern is an error
 ===
 
 const [a, b] = pair
@@ -187,10 +187,11 @@ const [a, b] = pair
 ---
 
 (source_file
+  (ERROR
+    (identifier)
+    (identifier))
   (const_declaration
-    (array_pattern
-      (identifier)
-      (identifier))
+    (identifier)
     (primary_expression
       (identifier))))
 
