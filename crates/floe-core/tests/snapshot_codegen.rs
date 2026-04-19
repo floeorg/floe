@@ -186,7 +186,7 @@ for DrizzleRepo: Repo {
   }
 }
 
-let doWork = <R: Repo>(repo: R, input: string): string -> {
+let doWork<R: Repo>(repo: R, input: string) -> string = {
   repo |> create(input)
 }
 "#,

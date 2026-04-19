@@ -792,7 +792,7 @@ fn no_jsx_detection() {
 #[test]
 fn generic_function_codegen() {
     assert_eq!(
-        emit("let identity = <T>(x: T): T -> { x }"),
+        emit("let identity<T>(x: T) -> T = { x }"),
         "function identity<T>(x: T): T {\n  return x;\n}"
     );
 }
@@ -800,7 +800,7 @@ fn generic_function_codegen() {
 #[test]
 fn generic_function_multi_params_codegen() {
     assert_eq!(
-        emit("let pair = <A, B>(a: A, b: B): (A, B) -> { (a, b) }"),
+        emit("let pair<A, B>(a: A, b: B) -> (A, B) = { (a, b) }"),
         "function pair<A, B>(a: A, b: B): readonly [A, B] {\n  return [a, b];\n}"
     );
 }

@@ -4692,7 +4692,7 @@ let _d = describe(Circle(5))
 fn generic_function_no_error() {
     let diags = check(
         r#"
-let identity = <T>(x: T): T -> { x }
+let identity<T>(x: T) -> T = { x }
 let _n = identity(42)
 let _s = identity("hello")
 "#,
@@ -4708,7 +4708,7 @@ let _s = identity("hello")
 fn generic_function_pair() {
     let diags = check(
         r#"
-let pair = <A, B>(a: A, b: B): (A, B) -> { (a, b) }
+let pair<A, B>(a: A, b: B) -> (A, B) = { (a, b) }
 let _p = pair(1, "hello")
 "#,
     );
@@ -4723,7 +4723,7 @@ let _p = pair(1, "hello")
 fn generic_function_with_callback() {
     let diags = check(
         r#"
-let apply = <T, U>(x: T, f: (T) -> U): U -> { f(x) }
+let apply<T, U>(x: T, f: (T) -> U) -> U = { f(x) }
 let double(n: number) -> number = { n * 2 }
 let _r = apply(5, double)
 "#,
@@ -6178,7 +6178,7 @@ trait Repo {
     fn create(self, value: string) -> string
 }
 
-let use_repo = <R: Repo>(r: R, v: string): string -> {
+let use_repo<R: Repo>(r: R, v: string) -> string = {
     r.create(v)
 }
 "#,
@@ -6198,7 +6198,7 @@ trait Repo {
     fn create(self, value: string) -> string
 }
 
-let use_repo = <R: Repo>(r: R, v: string): string -> {
+let use_repo<R: Repo>(r: R, v: string) -> string = {
     r |> create(v)
 }
 "#,
@@ -8022,7 +8022,7 @@ fn deep_resolve_follows_links_through_arrays() {
 fn annotated_generic_fn_matches_inferred_generic_fn() {
     let diags_annotated = check(
         r#"
-let id = <T>(x: T): T -> { x }
+let id<T>(x: T) -> T = { x }
 let _n = id(1)
 let _s = id("x")
 "#,
@@ -8486,9 +8486,9 @@ fn bare_identifier_pipe_solves_generic_from_piped_type() {
         r#"
 type Bindings = { name: string }
 
-let identity = <T>(x: T): T -> { x }
-let tap = <T>(x: T): T -> { x }
-let chain = <T>(x: T, _extra: string): T -> { x }
+let identity<T>(x: T) -> T = { x }
+let tap<T>(x: T) -> T = { x }
+let chain<T>(x: T, _extra: string) -> T = { x }
 
 let _bindings = Bindings(name: "x")
 let _direct = identity<Bindings>(_bindings)

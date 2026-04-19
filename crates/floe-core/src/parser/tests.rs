@@ -777,7 +777,7 @@ fn function_decl() {
 
 #[test]
 fn generic_function_decl() {
-    match first_item("let identity = <T>(x: T): T -> { x }") {
+    match first_item("let identity<T>(x: T) -> T = { x }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "identity");
             assert_eq!(decl.type_params.len(), 1);
@@ -792,7 +792,7 @@ fn generic_function_decl() {
 
 #[test]
 fn generic_function_multi_params() {
-    match first_item("let pair = <A, B>(a: A, b: B): (A, B) -> { (a, b) }") {
+    match first_item("let pair<A, B>(a: A, b: B) -> (A, B) = { (a, b) }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "pair");
             assert_eq!(decl.type_params.len(), 2);
@@ -806,7 +806,7 @@ fn generic_function_multi_params() {
 
 #[test]
 fn generic_function_with_trait_bound() {
-    match first_item("let process = <R: Display>(repo: R): string -> { todo }") {
+    match first_item("let process<R: Display>(repo: R) -> string = { todo }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "process");
             assert_eq!(decl.type_params.len(), 1);
