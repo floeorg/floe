@@ -434,3 +434,55 @@ class TestHoverRecordSpread:
         open_doc(lsp, URI,F.MULTILINE_PIPE)
         h = hover_text(lsp.hover(URI, 0, 6))
         assert h is not None, f"Got: {h}"
+
+
+class TestHoverUseBind:
+    """Hover coverage for `use` contextual keyword and its bind forms (#1200)."""
+
+    def test_use_keyword_does_not_crash(self, lsp):
+        """`use` in keyword position should not break hover on the line."""
+        open_doc(lsp, URI, F.USE_BIND)
+        h = hover_text(lsp.hover(URI, *at(F.USE_BIND, "use bound <-")))
+        assert h is not None, f"Expected some hover response on `use` keyword, got: {h}"
+
+    def test_single_ident_bound_shows_callback_param_type(self, lsp):
+        """`use bound <- callback` — hovering `bound` shows the callback param type."""
+        open_doc(lsp, URI, F.USE_BIND)
+        h = hover_text(lsp.hover(URI, *at(F.USE_BIND, "bound <- callback")))
+        assert h is not None and "number" in h, f"Expected number for bound, got: {h}"
+
+    def test_tuple_form_first_param(self, lsp):
+        """`use (first, second) <- withPair` — hover `first` shows its type."""
+        open_doc(lsp, URI, F.USE_BIND)
+        h = hover_text(lsp.hover(URI, *at(F.USE_BIND, "first, second")))
+        assert h is not None and "number" in h, f"Expected number for first, got: {h}"
+
+    def test_tuple_form_second_param(self, lsp):
+        open_doc(lsp, URI, F.USE_BIND)
+        h = hover_text(lsp.hover(URI, *at(F.USE_BIND, "second) <-")))
+        assert h is not None and "number" in h, f"Expected number for second, got: {h}"
+
+    def test_object_destructure_field_a(self, lsp):
+        """`use { a, b } <- provideValues` — hover `a` shows field type."""
+        open_doc(lsp, URI, F.USE_BIND)
+        h = hover_text(lsp.hover(URI, *at(F.USE_BIND, "a, b }")))
+        assert h is not None and "number" in h, f"Expected number for field a, got: {h}"
+
+    def test_object_destructure_field_b(self, lsp):
+        open_doc(lsp, URI, F.USE_BIND)
+        h = hover_text(lsp.hover(URI, *at(F.USE_BIND, "b } <- provideValues")))
+        assert h is not None and "number" in h, f"Expected number for field b, got: {h}"
+
+    def test_object_destructure_rename_binds_new_name(self, lsp):
+        """`use { a: x, b: y } <-` — hover `x` shows the renamed binding's type."""
+        open_doc(lsp, URI, F.USE_BIND)
+        h = hover_text(lsp.hover(URI, *at(F.USE_BIND, "x, b:")))
+        assert h is not None and "number" in h, f"Expected number for renamed x, got: {h}"
+
+    def test_use_as_identifier_is_plain_call(self, lsp):
+        """`use(42)` where `use` is a user-defined fn — hover shows the fn signature."""
+        open_doc(lsp, URI, F.USE_AS_IDENT)
+        h = hover_text(lsp.hover(URI, *at(F.USE_AS_IDENT, "use(42)")))
+        assert h is not None and "number" in h and "->" in h, (
+            f"Expected function signature for `use` identifier, got: {h}"
+        )

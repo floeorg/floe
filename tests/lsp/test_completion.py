@@ -200,3 +200,22 @@ class TestCompletionPipeFiltering:
         labels = completion_labels(lsp.completion(URI, 1, len("let r = s |> ")))
         assert "trim" in labels, f"Bare 'trim' should appear: {labels[:15]}"
         assert "String.trim" not in labels, f"Qualified 'String.trim' should not appear: {labels[:15]}"
+
+
+class TestCompletionUseBind:
+    """Completion behavior at a `use` bind position (#1200)."""
+
+    def test_after_use_space_does_not_crash(self, lsp):
+        """Cursor right after `use ` in a fresh bind position should not crash the server."""
+        source = (
+            "let callback(cb: (number) -> number) -> number = { cb(42) }\n"
+            "\n"
+            "let test() -> number = {\n"
+            "    use \n"
+            "}\n"
+        )
+        open_doc(lsp, URI, source)
+        resp = lsp.completion(URI, 3, len("    use "))
+        assert resp is not None, "Expected a completion response after `use `"
+        labels = completion_labels(resp)
+        assert isinstance(labels, list), f"Expected list of labels, got: {labels!r}"

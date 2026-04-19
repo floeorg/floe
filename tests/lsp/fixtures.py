@@ -876,3 +876,57 @@ PIPE_HOVER = """\
 let items = [1, 2, 3]
 let _result = items |> map((x) -> x + 1) |> Array.length
 """
+
+USE_BIND = """\
+let provideValues(cb: ({ a: number, b: number }) -> number) -> number = {
+    cb({ a: 1, b: 2 })
+}
+
+let withPair(cb: (number, number) -> number) -> number = {
+    cb(1, 2)
+}
+
+let callback(cb: (number) -> number) -> number = {
+    cb(42)
+}
+
+let sumDestructure() -> number = {
+    use { a, b } <- provideValues
+    a + b
+}
+
+let renameDestructure() -> number = {
+    use { a: x, b: y } <- provideValues
+    x + y
+}
+
+let sumPair() -> number = {
+    use (first, second) <- withPair
+    first + second
+}
+
+let bindOne() -> number = {
+    use bound <- callback
+    bound + 1
+}
+
+let zeroBind() -> string = {
+    use <- Bool.guard(true, "bail")
+    "ok"
+}
+"""
+
+USE_AS_IDENT = """\
+let use(p: number) -> number = { p + 1 }
+
+let caller() -> number = {
+    use(42)
+}
+"""
+
+USE_BARE = """\
+let test() -> number = {
+    use
+    42
+}
+"""
