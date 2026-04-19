@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.3](https://github.com/floeorg/floe/compare/v0.5.2...v0.5.3) (2026-04-19)
+
+
+### Bug Fixes
+
+* [[#1239](https://github.com/floeorg/floe/issues/1239)] strip .cargo/config.toml in release cross build ([#1240](https://github.com/floeorg/floe/issues/1240)) ([5f68220](https://github.com/floeorg/floe/commit/5f68220719d755752ef7cbb55d32603d9550d6bc))
+
 ## [0.5.2](https://github.com/floeorg/floe/compare/v0.5.1...v0.5.2) (2026-04-19)
 
 

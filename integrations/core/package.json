@@ -1,6 +1,6 @@
 {
   "name": "@floeorg/core",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Shared compilation logic for Floe integration plugins",
   "type": "module",
   "main": "dist/index.js",
