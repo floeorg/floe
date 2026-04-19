@@ -2,6 +2,11 @@
 //!
 //! The probe re-exports imported symbols with concrete type arguments so tsgo
 //! can emit a `.d.ts` with fully-resolved types.
+//!
+//! **Warning:** every string literal in this file emits TypeScript, not Floe.
+//! Use `=>` for function/lambda arrows and `?:` for conditional types — do not
+//! migrate them to Floe's `->` syntax. If the probe emits invalid TS, tsgo
+//! silently returns empty types and every trusted-import user gets `unknown`.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
