@@ -3003,7 +3003,7 @@ fn trait_imported_without_for_errors() {
 import { User, Display } from "./types"
 
 for User: Display {
-    fn display(self) => string {
+    fn display(self) -> string {
         self.name
     }
 }
@@ -3035,7 +3035,7 @@ fn trait_imported_with_for_accepted() {
 import { User, for Display } from "./types"
 
 for User: Display {
-    fn display(self) => string {
+    fn display(self) -> string {
         self.name
     }
 }
@@ -4867,7 +4867,7 @@ type Entry = {
 }
 
 for Entry {
-    export fn fromRow() => Entry {
+    export fn fromRow() -> Entry {
         Entry(id: 0, accents: [])
     }
 }
@@ -4923,7 +4923,7 @@ type Accent = {
 }
 
 for AccentRow {
-    export fn toModel(self) => Accent {
+    export fn toModel(self) -> Accent {
         Accent(
             id: self.id,
             accent: self.accent,
@@ -5150,7 +5150,7 @@ import { AccentRow } from "../services/supabase/row-dto"
 type Accent = { id: number, entryId: number }
 
 for AccentRow {
-    export fn toModel(self) => Accent {
+    export fn toModel(self) -> Accent {
         Accent(
             id: self.id,
             entryId: self.entryId,
@@ -7501,7 +7501,7 @@ type CreateItemInput = {
     content: string,
 }
 
-let createItem = (db: Database, input: CreateItemInput): Promise<Array<string>> => {
+let createItem(db: Database, input: CreateItemInput) -> Promise<Array<string>> = {
     let rows = db.insert(snippetsTable).values(snippetsTable).returning() |> await
     rows
 }
@@ -7780,7 +7780,7 @@ fn untrusted_import_field_mismatch_shows_hint() {
 import { transform } from "some-lib"
 import trusted { insert } from "db-lib"
 
-let test = (): () => {
+let test() -> () = {
     let name = transform("hello")
     insert({ name: name })
     ()

@@ -352,7 +352,7 @@ fn function_symbol_stores_first_param_type() {
 fn jsx_component_source() -> &'static str {
     r#"import { useState, JSX } from "react"
 
-export let Counter = (): JSX.Element => {
+export let Counter() -> JSX.Element = {
     let [_count, setCount] = useState(0)
 
     <div>
@@ -485,7 +485,7 @@ fn simulate_hover(source: &str, name: &str) -> Option<String> {
 fn hover_destructured_const_shows_type() {
     let source = r#"
 import { useState } from "react"
-export let App = (): JSX.Element => {
+export let App() -> JSX.Element = {
     let [input, setInput] = useState("")
     <div>{input}</div>
 }

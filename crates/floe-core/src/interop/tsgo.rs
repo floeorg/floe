@@ -864,10 +864,10 @@ let [filter, setFilter] = useState<Filter>(Filter.All)
         let source = r#"import { fetchProducts } from "./api"
 import { useSuspenseQuery } from "@tanstack/react-query"
 
-let test = () =>{
+let test() ={
     let { data } = useSuspenseQuery({
         queryKey: ["products"],
-        queryFn: () => fetchProducts(),
+        queryFn: () -> fetchProducts(),
     })
 }"#;
         let program = Parser::new(source).parse_program().unwrap();
@@ -1126,8 +1126,8 @@ type MyNum = number"#;
     fn generate_probe_jsx_callback_prop() {
         let source = r#"import { NavLink } from "react-router-dom"
 
-let page = () =>{
-    <NavLink className={(state) => "active"} to="/home" />
+let page() ={
+    <NavLink className={(state) -> "active"} to="/home" />
 }"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
@@ -1152,8 +1152,8 @@ let page = () =>{
     fn generate_probe_jsx_no_probe_for_event_handlers() {
         let source = r#"import { Button } from "some-lib"
 
-let page = () =>{
-    <Button onClick={(e) => handle(e)} />
+let page() ={
+    <Button onClick={(e) -> handle(e)} />
 }"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
@@ -1169,7 +1169,7 @@ let page = () =>{
     fn generate_probe_jsx_no_probe_for_non_arrow_props() {
         let source = r#"import { NavLink } from "react-router-dom"
 
-let page = () =>{
+let page() ={
     <NavLink className="static" to="/home" />
 }"#;
         let program = Parser::new(source).parse_program().unwrap();
@@ -1186,9 +1186,9 @@ let page = () =>{
     fn generate_probe_jsx_children_render_prop() {
         let source = r#"import { Draggable } from "@hello-pangea/dnd"
 
-let page = () =>{
+let page() ={
     <Draggable draggableId="id" index={0}>
-        {(provided, snapshot) =>
+        {(provided, snapshot) ->
             <div />
         }
     </Draggable>
@@ -1217,7 +1217,7 @@ let page = () =>{
         let source = r#"import { useQueryClient } from "@tanstack/react-query"
 type IssueDto = { key: string, summary: string }
 
-let Component = () =>{
+let Component() ={
     let queryClient = useQueryClient()
     let data = queryClient.getQueryData<Array<IssueDto>>(["issues"])
 }"#;

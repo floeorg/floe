@@ -1472,9 +1472,9 @@ import { useState } from "react"
 
 type Todo = { id: string, text: string, done: boolean }
 
-export let TodoApp = () => {
+export let TodoApp() = {
     let [todos, setTodos] = useState([])
-    <div>{todos |> map((t) => <li>{t.text}</li>)}</div>
+    <div>{todos |> map((t) -> <li>{t.text}</li>)}</div>
 }
 "#;
     let program = parse_ok(input);

@@ -119,7 +119,7 @@ fn snapshot_error_untrusted_result_used_as_value() {
     let output = get_diagnostics(
         "test.fl",
         r#"import { transform } from "some-lib"
-let process = (x: string): string => {
+let process(x: string) -> string = {
     let result = transform(x)
     result
 }"#,

@@ -882,7 +882,7 @@ fn floe_eq_helper_emitted_for_stdlib_contains() {
 #[test]
 fn option_unwrap_or_chained_with_pipe() {
     let result = emit(
-        "let _x: Option<Array<number>> = None\nconst _y = _x |> Option.unwrapOr([]) |> filter((n) => n > 0)",
+        "let _x: Option<Array<number>> = None\nconst _y = _x |> Option.unwrapOr([]) |> filter((n) -> n > 0)",
     );
     // The ternary from unwrapOr must be parenthesized so .filter binds to the result, not to []
     assert!(
@@ -895,7 +895,7 @@ fn option_unwrap_or_chained_with_pipe() {
 fn option_stdlib_uses_null_check_not_undefined() {
     // Option functions must use != null (catches both null and undefined)
     // not !== undefined (misses null from serde/JSON)
-    let result = emit("let _x: Option<number> = None\nconst _y = _x |> Option.map((n) => n + 1)");
+    let result = emit("let _x: Option<number> = None\nconst _y = _x |> Option.map((n) -> n + 1)");
     assert!(
         result.contains("!= null") && !result.contains("!== undefined"),
         "Option.map should use != null, not !== undefined, got: {result}"
@@ -2465,7 +2465,7 @@ fn untrusted_call_detection_reads_callee_type() {
         r#"
 import { someFn } from "untrusted-pkg"
 
-export let wrap = (): Result<number, Error> => {
+export let wrap() -> Result<number, Error> = {
     someFn()
 }
 "#,
