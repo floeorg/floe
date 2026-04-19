@@ -794,7 +794,7 @@ mod tests {
 
     #[test]
     fn function_param_default() {
-        let item = first_item("fn greet(name: string = \"world\") { name }");
+        let item = first_item("let greet(name: string = \"world\") = { name }");
         let ItemKind::Function(decl) = item else {
             panic!("expected Function")
         };

@@ -990,7 +990,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "internal.fl",
-                "type Secret = { key: string }\nfn helper() { 1 }\nconst private = 42",
+                "type Secret = { key: string }\nlet helper() = { 1 }\nlet private = 42",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1051,7 +1051,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "ext.fl",
-                "export for User {\n    let greet(self) -> string = { self.name }\n    let shout(self) -> string = { self.name }\n}",
+                "export for User {\n    fn greet(self) -> string { self.name }\n    fn shout(self) -> string { self.name }\n}",
             ),
         ]);
         let main_path = base.join("main.fl");

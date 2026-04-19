@@ -921,7 +921,7 @@ fn idempotent_block_comment_inside_construct_args() {
 #[test]
 fn idempotent_trailing_comment_at_end_of_function() {
     assert_idempotent(
-        "let f = (): number => {\n    let x = 1\n\n    // return the answer\n    x\n}",
+        "let f() -> number = {\n    let x = 1\n\n    // return the answer\n    x\n}",
     );
 }
 

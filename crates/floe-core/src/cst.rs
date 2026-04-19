@@ -1121,7 +1121,7 @@ mod tests {
 
     #[test]
     fn has_item_children() {
-        let parse = cst_parse("let x = 1\nconst y = 2");
+        let parse = cst_parse("let x = 1\nlet y = 2");
         let items: Vec<_> = parse
             .syntax()
             .children()
