@@ -204,12 +204,12 @@ class TestHoverTypeQuality:
 
     def test_no_unknown(self, lsp):
         open_doc(lsp, URI,F.MULTIPLE_FNS)
-        h = hover_text(lsp.hover(URI, 4, 6))
+        h = hover_text(lsp.hover(URI, 4, 4))
         assert h is not None and "unknown" not in h.lower(), f"Got: {h}"
 
     def test_no_type_var(self, lsp):
         open_doc(lsp, URI,F.MULTIPLE_FNS)
-        h = hover_text(lsp.hover(URI, 4, 6))
+        h = hover_text(lsp.hover(URI, 4, 4))
         assert h is not None and "?T" not in h, f"Got: {h}"
 
     def test_closure_call_result_type(self, lsp):
@@ -219,7 +219,7 @@ class TestHoverTypeQuality:
 
     def test_collect_fn_shows_result(self, lsp):
         open_doc(lsp, URI,F.COLLECT_FILE)
-        h = hover_text(lsp.hover(URI, 15, 3))
+        h = hover_text(lsp.hover(URI, 15, 4))
         assert h is not None and "validate" in h, f"Got: {h}"
 
 
@@ -258,7 +258,7 @@ class TestHoverImprovements403:
 
     def test_string_split_signature(self, lsp):
         open_doc(lsp, URI,F.HOVER_STDLIB_MEMBER)
-        h = hover_text(lsp.hover(URI, 2, 38))
+        h = hover_text(lsp.hover(URI, 2, 33))
         assert h is not None and "split" in h and "->" in h, f"Got: {h}"
 
     def test_member_access_field_type(self, lsp):
@@ -273,7 +273,7 @@ class TestHoverImprovements403:
 
     def test_default_params_shown(self, lsp):
         open_doc(lsp, URI,F.HOVER_DEFAULT_PARAMS)
-        h = hover_text(lsp.hover(URI, 0, 3))
+        h = hover_text(lsp.hover(URI, 0, 4))
         assert h is not None and '= ""' in h and "= 20" in h, f"Got: {h}"
 
     def test_from_keyword_not_array_from(self, lsp):
@@ -286,12 +286,12 @@ class TestHoverImprovements403:
 class TestHoverGenericFn:
     def test_identity_shows_type_params(self, lsp):
         open_doc(lsp, URI,F.GENERIC_FN)
-        h = hover_text(lsp.hover(URI, 0, 3))
+        h = hover_text(lsp.hover(URI, 0, 4))
         assert h is not None and "<T>" in h, f"Got: {h}"
 
     def test_pair_shows_type_params(self, lsp):
         open_doc(lsp, URI,F.GENERIC_FN)
-        h = hover_text(lsp.hover(URI, 1, 3))
+        h = hover_text(lsp.hover(URI, 1, 4))
         assert h is not None and "<A, B>" in h, f"Got: {h}"
 
 
@@ -373,15 +373,15 @@ class TestHoverRecordSpread:
 
     def test_pipe_hover_shows_input_type(self, lsp):
         open_doc(lsp, URI, F.PIPE_HOVER)
-        # First |> at col 22: items (Array<number>) is being piped
-        h = hover_text(lsp.hover(URI, 1, 22))
+        # First |> at col 20: items (Array<number>) is being piped
+        h = hover_text(lsp.hover(URI, 1, 20))
         assert h is not None, f"Expected hover for pipe operator, got None"
         assert "Array" in h, f"Pipe hover should show Array type, got: {h}"
 
     def test_pipe_hover_second_pipe_shows_mapped_type(self, lsp):
         open_doc(lsp, URI, F.PIPE_HOVER)
-        # Second |> at col 43: map result (Array<number>) is being piped
-        h = hover_text(lsp.hover(URI, 1, 43))
+        # Second |> at col 41: map result (Array<number>) is being piped
+        h = hover_text(lsp.hover(URI, 1, 41))
         assert h is not None, f"Expected hover for second pipe, got None"
         assert "Array" in h, f"Second pipe should show Array type, got: {h}"
 
@@ -394,7 +394,7 @@ class TestHoverRecordSpread:
 
     def test_pipe_into_match_fn(self, lsp):
         open_doc(lsp, URI,F.PIPE_INTO_MATCH)
-        h = hover_text(lsp.hover(URI, 0, 3))
+        h = hover_text(lsp.hover(URI, 0, 4))
         assert h is not None and "label" in h, f"Got: {h}"
 
     def test_newtype_wrapper(self, lsp):
@@ -424,7 +424,7 @@ class TestHoverRecordSpread:
 
     def test_multi_depth_match_fn(self, lsp):
         open_doc(lsp, URI,F.MULTI_DEPTH_MATCH)
-        h = hover_text(lsp.hover(URI, 4, 3))
+        h = hover_text(lsp.hover(URI, 4, 4))
         assert h is not None and "describe" in h, f"Got: {h}"
 
     def test_multiline_pipe_result(self, lsp):
