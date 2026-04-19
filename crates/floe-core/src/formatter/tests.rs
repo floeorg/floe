@@ -471,7 +471,7 @@ fn idempotent_piped_match_with_tuple_patterns() {
 
 #[test]
 fn idempotent_generic_call() {
-    assert_idempotent("let [items, setItems] = Array<Todo>([])");
+    assert_idempotent("let (items, setItems) = Array<Todo>([])");
 }
 
 // ── Record spread ──────────────────────────────────────

@@ -84,8 +84,8 @@ pub(super) fn build_specifier_map(
                 };
                 let binding_name = decl.binding.binding_name();
 
-                // For array bindings, collect individual element types
-                if let ConstBinding::Array(names) = &decl.binding {
+                // For tuple bindings, collect individual element types
+                if let ConstBinding::Tuple(names) = &decl.binding {
                     let elem_types: Vec<TsType> = names
                         .iter()
                         .enumerate()

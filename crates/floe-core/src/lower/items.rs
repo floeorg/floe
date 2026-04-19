@@ -205,8 +205,12 @@ impl<'src> Lowerer<'src> {
         let has_lparen = self.has_token_before_eq(node, SyntaxKind::L_PAREN);
 
         if has_lbracket {
-            binding = Some(ConstBinding::Array(idents));
-        } else if has_lparen
+            // `[a, b]` was rejected by the parser — don't lower into an AST
+            // node so downstream passes don't operate on a malformed binding.
+            return None;
+        }
+
+        if has_lparen
             && idents.len() >= 2
             && !node.children().any(|c| c.kind() == SyntaxKind::TYPE_EXPR)
         {

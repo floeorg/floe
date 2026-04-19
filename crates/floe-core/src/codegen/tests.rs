@@ -269,11 +269,6 @@ fn export_const() {
 }
 
 #[test]
-fn const_array_destructure() {
-    assert_eq!(emit("let [a, b] = pair"), "const [a, b] = pair;");
-}
-
-#[test]
 fn function_decl() {
     let result = emit("let add(a: number, b: number) -> number = { a + b }");
     assert_eq!(

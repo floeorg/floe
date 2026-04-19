@@ -138,7 +138,6 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
             ItemKind::Const(decl) => {
                 let name = match &decl.binding {
                     ConstBinding::Name(n) => n.clone(),
-                    ConstBinding::Array(names) => format!("[{}]", names.join(", ")),
                     ConstBinding::Object(fields) => format!(
                         "{{ {} }}",
                         fields
@@ -174,7 +173,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
 
                 // Also index destructured names
                 match &decl.binding {
-                    ConstBinding::Array(names) | ConstBinding::Tuple(names) => {
+                    ConstBinding::Tuple(names) => {
                         for n in names {
                             symbols.push(Symbol {
                                 name: n.clone(),

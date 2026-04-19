@@ -285,7 +285,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 }
                 out.push(';');
             }
-            ConstBinding::Array(names) | ConstBinding::Tuple(names) => {
+            ConstBinding::Tuple(names) => {
                 for name in names {
                     out.push_str(&format!("export declare const {name}: any;"));
                 }

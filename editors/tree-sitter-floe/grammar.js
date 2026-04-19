@@ -285,14 +285,11 @@ module.exports = grammar({
     const_declaration: ($) =>
       seq(
         "let",
-        choice($.identifier, $.array_pattern, $.object_pattern),
+        choice($.identifier, $.object_pattern),
         optional(seq(":", $._type_expression)),
         "=",
         $._expression,
       ),
-
-    array_pattern: ($) =>
-      seq("[", commaSep1(choice($.identifier, "_")), "]"),
 
     object_pattern: ($) =>
       seq("{", commaSep1($.identifier), "}"),

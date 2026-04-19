@@ -560,9 +560,9 @@ pub(super) fn generate_probe(
         };
         let args_str = call.args.join(", ");
 
-        // For array destructuring, also destructure and re-export each element
+        // For tuple destructuring, also destructure and re-export each element
         // so tsgo inlines type aliases (e.g., Dispatch<...> → function type)
-        if let ConstBinding::Array(names) = &call.binding {
+        if let ConstBinding::Tuple(names) = &call.binding {
             let tmp = format!("_tmp{}", call.index);
             lines.push(format!(
                 "let {tmp} = {}{type_args_str}({args_str});",

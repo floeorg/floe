@@ -1471,7 +1471,7 @@ import { useState } from "react"
 type Todo = { id: string, text: string, done: boolean }
 
 export let TodoApp() = {
-    let [todos, setTodos] = useState([])
+    let (todos, setTodos) = useState([])
     <div>{todos |> map((t) -> <li>{t.text}</li>)}</div>
 }
 "#;
@@ -1865,6 +1865,16 @@ fn tuple_destructuring() {
         }
         other => panic!("expected const, got {other:?}"),
     }
+}
+
+#[test]
+fn array_destructure_in_const_is_parse_error() {
+    let errs = parse("let [a, b] = pair").expect_err("array destructure should not parse");
+    assert!(
+        errs.iter().any(|e| e.to_string().contains("identifier")),
+        "expected an 'expected identifier' style parse error, got: {:?}",
+        errs.iter().map(|e| e.to_string()).collect::<Vec<_>>()
+    );
 }
 
 // ── Tuple Patterns ──────────────────────────────────────────

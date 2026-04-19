@@ -8172,46 +8172,6 @@ let unused() -> number = { 1 }
 }
 
 #[test]
-fn array_destructure_on_tuple_value_errors() {
-    let diags = check(
-        r#"
-let t = (1, 2)
-let [x, y] = t
-"#,
-    );
-    assert!(
-        has_error_containing(&diags, "array destructuring"),
-        "expected array-destructure diagnostic, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-    let help = diags.iter().find_map(|d| d.help.as_deref()).unwrap_or("");
-    assert!(
-        help.contains("tuple"),
-        "help text should point at the tuple form, got: {help:?}"
-    );
-}
-
-#[test]
-fn array_destructure_on_array_value_also_errors() {
-    let diags = check(
-        r#"
-let arr: Array<number> = [1, 2, 3]
-let [a, b] = arr
-"#,
-    );
-    assert!(
-        has_error_containing(&diags, "array destructuring"),
-        "expected array-destructure diagnostic, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-    let help = diags.iter().find_map(|d| d.help.as_deref()).unwrap_or("");
-    assert!(
-        help.contains("Array.get") || help.contains("match"),
-        "help text should point at `Array.get` / match, got: {help:?}"
-    );
-}
-
-#[test]
 fn tuple_destructure_on_tuple_value_succeeds() {
     let diags = check(
         r#"

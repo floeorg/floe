@@ -1,7 +1,7 @@
 import trusted { useState, JSX } from "react"
 
 export let Counter() -> JSX.Element = {
-    let [_count, setCount] = useState(0)
+    let (_count, setCount) = useState(0)
 
     <div>
         <h1>Count</h1>
