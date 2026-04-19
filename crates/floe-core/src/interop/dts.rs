@@ -377,8 +377,18 @@ pub(super) fn parse_dts_exports_with_import_sources(
 
 /// Parse ALL type/interface declarations from a source file, including non-exported ones.
 /// Used to resolve type references like `IssueFilters` that appear in probe output
-/// but aren't exported from the source module.
+/// but aren't exported from the source module. Strips
+/// `IMPORT_SOURCE_SENTINEL` from any `import("pkg").X` references so callers
+/// never see the internal encoding (only the tsgo probe runner wants it).
 pub(super) fn parse_all_types_from_str(content: &str) -> Result<Vec<DtsExport>, String> {
+    let mut types = parse_all_types_raw(content)?;
+    for t in &mut types {
+        strip_import_sentinels(&mut t.ts_type);
+    }
+    Ok(types)
+}
+
+fn parse_all_types_raw(content: &str) -> Result<Vec<DtsExport>, String> {
     let allocator = Allocator::default();
     let source_type = SourceType::tsx();
     let ret = Parser::new(&allocator, content, source_type).parse();
@@ -1749,10 +1759,31 @@ pub(super) fn strip_import_sentinels(ty: &mut TsType) {
     }
 }
 
+/// Names that `wrap_boundary_type` special-cases and must stay as
+/// `TsType::Generic { name, ... }` references so the boundary wrapper can
+/// recognise them. Expanding these to their underlying body would strip the
+/// name and defeat helpers like `unwrap_set_state_action` (which peels
+/// `SetStateAction<T>` out of `Dispatch<...>` to produce `(T) -> ()`).
+const BOUNDARY_RESERVED_ALIASES: &[&str] = &[
+    "Array",
+    "ReadonlyArray",
+    "Promise",
+    "FloeOption",
+    "Record",
+    "Dispatch",
+    "SetStateAction",
+];
+
+fn is_boundary_reserved(name: &str) -> bool {
+    BOUNDARY_RESERVED_ALIASES.contains(&name)
+}
+
 /// Expand cross-module type alias references encoded with
 /// `IMPORT_SOURCE_SENTINEL`. `aliases_by_module[mod][name]` is the resolved
 /// alias body (collected by parsing `mod`'s .d.ts). Only function-shaped
-/// aliases are in the map — see `collect_function_alias_bodies`.
+/// aliases are in the map — see `collect_function_alias_bodies`. Names on
+/// `BOUNDARY_RESERVED_ALIASES` are left as references so the boundary
+/// wrapper can apply its custom handling.
 pub(super) fn expand_cross_module_aliases(
     ty: &mut TsType,
     aliases_by_module: &HashMap<String, HashMap<String, TypeAliasDef>>,
@@ -1764,6 +1795,7 @@ pub(super) fn expand_cross_module_aliases(
     match ty {
         TsType::Named(name) => {
             if let Some((module, alias_name)) = decode_import_source(name)
+                && !is_boundary_reserved(alias_name)
                 && let Some(aliases) = aliases_by_module.get(module)
                 && let Some(def) = aliases.get(alias_name)
                 && def.params.is_empty()
@@ -1777,6 +1809,7 @@ pub(super) fn expand_cross_module_aliases(
                 expand_cross_module_aliases(arg, aliases_by_module, depth + 1);
             }
             if let Some((module, alias_name)) = decode_import_source(name)
+                && !is_boundary_reserved(alias_name)
                 && let Some(aliases) = aliases_by_module.get(module)
                 && let Some(def) = aliases.get(alias_name)
             {
