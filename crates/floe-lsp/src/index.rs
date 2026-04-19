@@ -166,7 +166,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     start: item.span.start,
                     end: item.span.end,
                     import_source: None,
-                    detail: format!("{vis}const {name}{type_ann}"),
+                    detail: format!("{vis}let {name}{type_ann}"),
                     first_param_type: None,
                     owner_type: None,
                     variant_shape: None,
@@ -182,7 +182,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                                 start: item.span.start,
                                 end: item.span.end,
                                 import_source: None,
-                                detail: format!("const {{ {n} }}"),
+                                detail: format!("let {{ {n} }}"),
                                 first_param_type: None,
                                 owner_type: None,
                                 variant_shape: None,
@@ -198,7 +198,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                                 start: item.span.start,
                                 end: item.span.end,
                                 import_source: None,
-                                detail: format!("const {{ {n} }}"),
+                                detail: format!("let {{ {n} }}"),
                                 first_param_type: None,
                                 owner_type: None,
                                 variant_shape: None,
@@ -217,7 +217,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                 let ret = decl
                     .return_type
                     .as_ref()
-                    .map(|t| format!(" => {}", type_expr_to_string(t)))
+                    .map(|t| format!(" -> {}", type_expr_to_string(t)))
                     .unwrap_or_default();
 
                 let type_params = if decl.type_params.is_empty() {
@@ -244,7 +244,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     end: item.span.end,
                     import_source: None,
                     detail: format!(
-                        "{vis}{async_kw}fn {}{type_params}({}){ret}",
+                        "{vis}{async_kw}let {}{type_params}({}){ret}",
                         decl.name,
                         params.join(", ")
                     ),
@@ -467,7 +467,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                         end: method.span.end,
                         import_source: None,
                         detail: format!(
-                            "{}.fn {}({}){ret}",
+                            "{}.let {}({}){ret}",
                             decl.name,
                             method.name,
                             params.join(", ")
@@ -803,7 +803,7 @@ fn for_block_function_symbol<T>(
     // — keep that contract rather than changing user-visible hover output.
     let (ret_sep, source_suffix) = match &import_source {
         Some(src) => (": ", format!(" (from \"{src}\")")),
-        None => (" => ", String::new()),
+        None => (" -> ", String::new()),
     };
     let ret = func
         .return_type
@@ -827,7 +827,7 @@ fn for_block_function_symbol<T>(
         end,
         import_source,
         detail: format!(
-            "fn {}({}){ret}{source_suffix}",
+            "let {}({}){ret}{source_suffix}",
             func.name,
             params.join(", ")
         ),
@@ -863,14 +863,14 @@ fn enrich_symbol(
             sym.detail = format!("{}: {inferred}", sym.detail);
         }
     } else if sym.kind == SymbolKind::FUNCTION
-        && !sym.detail.contains("=>")
+        && !sym.detail.contains("->")
         && let Some(inferred) = name_types.get(&sym.name)
         && let Some((_, ret)) = inferred
             .rsplit_once(" -> ")
-            .or_else(|| inferred.rsplit_once(" => "))
+            .or_else(|| inferred.rsplit_once(" -> "))
         && !ret.contains("?T")
     {
-        sym.detail = format!("{} => {ret}", sym.detail);
+        sym.detail = format!("{} -> {ret}", sym.detail);
     }
 
     // Typed fields — only meaningful for functions, and only if the

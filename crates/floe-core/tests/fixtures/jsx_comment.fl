@@ -1,6 +1,6 @@
 import { JSX } from "react"
 
-export fn App() => JSX.Element {
+export let App() -> JSX.Element = {
     <div>
         {/* Desktop */}
         {/* Multi

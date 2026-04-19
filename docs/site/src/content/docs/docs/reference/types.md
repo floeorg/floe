@@ -72,7 +72,7 @@ type Config = {
   retries: number = 3,
 }
 
-const cfg = Config(baseUrl: "https://api.com")
+let cfg = Config(baseUrl: "https://api.com")
 // timeout is 5000, retries is 3
 ```
 
@@ -88,7 +88,7 @@ type BaseProps = {
 
 type ButtonProps = {
   ...BaseProps,
-  onClick: () => (),
+  onClick: () -> (),
   label: string,
 }
 ```
@@ -105,7 +105,7 @@ Spreads work with generic types, `typeof`, and npm imports:
 ```floe
 import { tv, VariantProps } from "tailwind-variants"
 
-const cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
+let cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
 
 type CardProps = {
   ...VariantProps<typeof cardVariants>,
@@ -164,9 +164,9 @@ Only code in the module that defines `Email` can construct or destructure it. Ot
 Structural function types. Use `=>` between the parameter list and return type:
 
 ```floe
-type Handler = (Request) => Promise<Response>
-type Predicate<T> = (T) => boolean
-type Reducer<S, A> = (S, A) => S
+type Handler = (Request) -> Promise<Response>
+type Predicate<T> = (T) -> boolean
+type Reducer<S, A> = (S, A) -> S
 ```
 
 ## Structural String-Literal Unions (`OneOf<>`)
@@ -208,14 +208,14 @@ Compiles to `A & B`. For Floe-native record composition, prefer `...Spread` in a
 ```floe
 type DivProps = ComponentProps<"div">
 type PartialUser = Partial<User>
-type UserKeys = Pick<User, "name" | "email">
+type UserKeys = Pick<User, OneOf<"name", "email">>
 ```
 
 Recognized utilities pass through unchanged: `OneOf`, `Intersect`, `Partial`, `Required`, `Readonly`, `Pick`, `Omit`, `NonNullable`, `Record`, `Extract`, `Exclude`, `ReturnType`, `Parameters`, `ConstructorParameters`, `Awaited`, `InstanceType`, `Uppercase`, `Lowercase`, `Capitalize`, `Uncapitalize`.
 
 ## Type Expressions
 
-```floe
+```floe,ignore
 // Named
 User
 string
@@ -226,7 +226,7 @@ Result<User, Error>
 Option<string>
 
 // Function (structural)
-(number, number) => number
+(number, number) -> number
 
 // Tuple
 (string, number)

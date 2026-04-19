@@ -6,28 +6,28 @@ import { for Array, formatPrice } from "../product"
 
 type CartItemRowProps = {
     item: CartItem,
-    onUpdateQty: (ProductId, number) => (),
-    onRemove: (ProductId) => (),
+    onUpdateQty: (ProductId, number) -> (),
+    onRemove: (ProductId) -> (),
 }
 
 type OrderSummaryProps = {
     cart: Array<CartItem>,
     orderStatus: OrderStatus,
-    onCheckout: () => (),
+    onCheckout: () -> (),
 }
 
 type CartPageProps = {
     cart: Array<CartItem>,
-    onUpdateQty: (ProductId, number) => (),
-    onRemove: (ProductId) => (),
+    onUpdateQty: (ProductId, number) -> (),
+    onRemove: (ProductId) -> (),
 }
 
 // ── Cart item row ──────────────────────────────────────
 
-fn CartItemRow(props: CartItemRowProps) => JSX.Element {
-    const item = props.item
-    const product = item.product
-    const lineTotal = (product.price * (1 - product.discountPercentage / 100)) * item.quantity
+let CartItemRow(props: CartItemRowProps) -> JSX.Element = {
+    let item = props.item
+    let product = item.product
+    let lineTotal = (product.price * (1 - product.discountPercentage / 100)) * item.quantity
 
     <div
         className="flex items-center gap-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4"
@@ -46,14 +46,14 @@ fn CartItemRow(props: CartItemRowProps) => JSX.Element {
         </div>
         <div className="flex items-center gap-2">
             <button
-                onClick={() => props.onUpdateQty(product.id, item.quantity - 1)}
+                onClick={() -> props.onUpdateQty(product.id, item.quantity - 1)}
                 className="flex h-8 w-8 items-center justify-center rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
             >
                 {"-"}
             </button>
             <span className="w-8 text-center text-zinc-100">{item.quantity}</span>
             <button
-                onClick={() => props.onUpdateQty(product.id, item.quantity + 1)}
+                onClick={() -> props.onUpdateQty(product.id, item.quantity + 1)}
                 className="flex h-8 w-8 items-center justify-center rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
             >
                 {"+"}
@@ -61,7 +61,7 @@ fn CartItemRow(props: CartItemRowProps) => JSX.Element {
         </div>
         <span className="w-24 text-right font-semibold text-zinc-100">{formatPrice(lineTotal)}</span>
         <button
-            onClick={() => props.onRemove(product.id)}
+            onClick={() -> props.onRemove(product.id)}
             className="text-zinc-600 hover:text-red-400 transition-colors"
         >
             {"x"}
@@ -71,8 +71,8 @@ fn CartItemRow(props: CartItemRowProps) => JSX.Element {
 
 // ── Order summary with tuple destructuring ─────────────
 
-fn OrderSummary(props: OrderSummaryProps) => JSX.Element {
-    const (subtotal, discount, total) = props.cart |> totals
+let OrderSummary(props: OrderSummaryProps) -> JSX.Element = {
+    let (subtotal, discount, total) = props.cart |> totals
 
     <div
         className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6"
@@ -119,16 +119,16 @@ fn OrderSummary(props: OrderSummaryProps) => JSX.Element {
 
 // ── Cart page ──────────────────────────────────────────
 
-export fn CartPage(props: CartPageProps) => JSX.Element {
-    const (orderStatus, setOrderStatus) = useState<OrderStatus>(Pending)
+export let CartPage(props: CartPageProps) -> JSX.Element = {
+    let (orderStatus, setOrderStatus) = useState<OrderStatus>(Pending)
 
-    fn handleCheckout() {
-        const orderId = OrderId(Math.floor(Math.random() * 10_000))
+    let handleCheckout() = {
+        let orderId = OrderId(Math.floor(Math.random() * 10_000))
 
         setOrderStatus(Confirmed(orderId))
     }
 
-    const _count = props.cart |> itemCount
+    let _count = props.cart |> itemCount
 
     <div>
         <h1 className="mb-6 text-3xl font-bold">{`Cart (${_count} item${_count |> match { 1 -> "", _ -> "s" }})`}</h1>
@@ -142,7 +142,7 @@ export fn CartPage(props: CartPageProps) => JSX.Element {
                 </div>,
             items -> <div className="flex gap-8">
                 <div className="flex-1 space-y-3">
-                    {items |> Array.map((item) =>
+                    {items |> Array.map((item) ->
                         <CartItemRow
                             key={item.product.id}
                             item={item}

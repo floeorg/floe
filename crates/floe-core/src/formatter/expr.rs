@@ -1042,17 +1042,17 @@ impl Formatter<'_> {
 
         if let Some(body) = body {
             if self.is_multiline_jsx(&body) {
-                parts.push(pretty::str(" =>"));
+                parts.push(pretty::str(" ->"));
                 parts.push(pretty::nest(
                     4,
                     pretty::concat(vec![pretty::line(), self.fmt_node(&body)]),
                 ));
             } else {
-                parts.push(pretty::str(" => "));
+                parts.push(pretty::str(" -> "));
                 parts.push(self.fmt_node(&body));
             }
         } else {
-            parts.push(pretty::str(" => "));
+            parts.push(pretty::str(" -> "));
             parts.push(self.fmt_expr_after_fat_arrow(node));
         }
 

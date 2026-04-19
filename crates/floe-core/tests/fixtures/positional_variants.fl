@@ -6,15 +6,15 @@ type Shape = | Circle(number)
 
 // Construction
 
-const c = Circle(5)
+let c = Circle(5)
 
-const r = Rect(10, 20)
+let r = Rect(10, 20)
 
-const p = Point
+let p = Point
 
 // Pattern matching
 
-fn describe(s: Shape) => string {
+let describe(s: Shape) -> string = {
     match s {
         Circle(radius) -> `circle r=${radius}`,
         Rect(w, h) -> `rect ${w}x${h}`,
@@ -22,25 +22,25 @@ fn describe(s: Shape) => string {
     }
 }
 
-const _d = describe(c)
+let _d = describe(c)
 
 // Mixed: positional and named in same union
 
 type Result2 = | Ok2(string)
     | Err2 { code: number, message: string }
 
-const _ok = Ok2("hello")
+let _ok = Ok2("hello")
 
-const _err = Err2(code: 404, message: "not found")
+let _err = Err2(code: 404, message: "not found")
 
-const _msg = match _ok {
+let _msg = match _ok {
     Ok2(val) -> val,
     Err2 { code, message } -> `${code}: ${message}`,
 }
 
 // Named-variant patterns also support renaming: `field: newName`.
 
-const _msg2 = match _err {
+let _msg2 = match _err {
     Ok2(val) -> val,
     Err2 { code: c, message: m } -> `${c}: ${m}`,
 }

@@ -368,7 +368,7 @@
   </div>
 
   <script is:inline type="module">
-    const CDN = 'https://esm.sh';
+    let CDN = 'https://esm.sh';
 
     // Load CodeMirror modules in parallel
     const [view, state, cmds, lang, highlight, jsLang] = await Promise.all([
@@ -388,7 +388,7 @@
     const { javascript } = jsLang;
 
     // ===== Floe language definition =====
-    const floeLang = StreamLanguage.define({
+    let floeLang = StreamLanguage.define({
       startState: () => ({}),
       token(stream) {
         if (stream.match('//')) { stream.skipToEnd(); return 'comment'; }
@@ -399,7 +399,7 @@
               // Skip interpolation — just color the delimiters
               return 'string';
             }
-            const ch = stream.next();
+            let ch = stream.next();
             if (ch === '`') break;
           }
           return 'string';
@@ -416,7 +416,7 @@
         if (stream.match(/^[+\-*\/%<>=!&|?:]/)) return 'operator';
 
         if (stream.match(/^[a-zA-Z_]\w*/)) {
-          const w = stream.current();
+          let w = stream.current();
           if (['fn','const','type','match','import','export','from','if','else','return','use','for','trait','opaque','trusted','test','assert','pub','when'].includes(w)) return 'keyword';
           if (['true','false'].includes(w)) return 'atom';
           if (['Ok','Err','Some','None','Result','Option','Array','Map','Set','string','number','boolean','JSX'].includes(w)) return 'typeName';
@@ -432,12 +432,12 @@
     });
 
     // ===== Glacial color theme =====
-    const glacialTheme = EditorView.theme({
+    let glacialTheme = EditorView.theme({
       '&': { backgroundColor: 'transparent' },
       '.cm-content': { caretColor: '#4d8fd6', padding: '0 12px' },
     }, { dark: true });
 
-    const glacialHighlight = syntaxHighlighting(HighlightStyle.define([
+    let glacialHighlight = syntaxHighlighting(HighlightStyle.define([
       { tag: tags.keyword,      color: '#7eb8f0', fontWeight: '500' },
       { tag: tags.comment,      color: '#3d5570', fontStyle: 'italic' },
       { tag: tags.string,       color: '#7dc4a0' },
@@ -450,18 +450,16 @@
     ]));
 
     // ===== Default code =====
-    const defaultCode = `fn greet(name: string) -> string {
+    let defaultCode = `fn greet(name: string) -> string {
   \`Hello, \${name}!\`
 }
 
-const message = "world"
+let message = "world"
   |> greet
 
-type Color {
-  | Red
+type Color = | Red
   | Green
   | Blue
-}
 
 fn describe(color: Color) -> string {
   match color {
@@ -480,7 +478,7 @@ fn safeDivide(a: number, b: number) -> Result<number, string> {
 
     // Load from URL hash if present
     let initialCode = defaultCode;
-    const hash = window.location.hash.slice(1);
+    let hash = window.location.hash.slice(1);
     if (hash) { try { initialCode = decodeURIComponent(atob(hash)); } catch {} }
 
     // ===== Mount input editor =====
@@ -488,7 +486,7 @@ fn safeDivide(a: number, b: number) -> Result<number, string> {
 
     let compileTimeout = null;
 
-    const inputEditor = new EditorView({
+    let inputEditor = new EditorView({
       doc: initialCode,
       extensions: [
         lineNumbers(),
@@ -512,7 +510,7 @@ fn safeDivide(a: number, b: number) -> Result<number, string> {
     // ===== Mount output editor (read-only) =====
     document.querySelector('#editor-output .loading-overlay')?.remove();
 
-    const outputEditor = new EditorView({
+    let outputEditor = new EditorView({
       doc: '// compiling...',
       extensions: [
         lineNumbers(),
@@ -529,21 +527,21 @@ fn safeDivide(a: number, b: number) -> Result<number, string> {
 
     function doCompile() {
       if (!compileFn) return;
-      const source = inputEditor.state.doc.toString();
-      const result = compileFn(source);
-      const dot = document.getElementById('status-dot');
-      const diagEl = document.getElementById('diagnostics');
+      let source = inputEditor.state.doc.toString();
+      let result = compileFn(source);
+      let dot = document.getElementById('status-dot');
+      let diagEl = document.getElementById('diagnostics');
 
       outputEditor.dispatch({
         changes: { from: 0, to: outputEditor.state.doc.length, insert: result.output || '// no output' },
       });
 
       if (result.diagnostics?.length > 0) {
-        const hasErrors = result.diagnostics.some(d => d.severity.toLowerCase().includes('error'));
+        let hasErrors = result.diagnostics.some(d => d.severity.toLowerCase().includes('error'));
         dot.className = hasErrors ? 'dot err' : 'dot ts';
         diagEl.innerHTML = result.diagnostics.map(d => {
-          const sev = d.severity.toLowerCase();
-          const cls = sev.includes('error') ? 'error' : 'warning';
+          let sev = d.severity.toLowerCase();
+          let cls = sev.includes('error') ? 'error' : 'warning';
           return `<div class="diag"><span class="diag-sev ${cls}">${esc(sev)}</span><span class="diag-loc">${d.line}:${d.column}</span><span class="diag-msg">${esc(d.message)}</span></div>`;
         }).join('');
       } else {
@@ -554,7 +552,7 @@ fn safeDivide(a: number, b: number) -> Result<number, string> {
 
     // Load WASM
     try {
-      const wasm = await import('/playground/pkg/floe_wasm.js');
+      let wasm = await import('/playground/pkg/floe_wasm.js');
       await wasm.default();
       compileFn = wasm.compile;
       doCompile();
@@ -566,14 +564,14 @@ fn safeDivide(a: number, b: number) -> Result<number, string> {
 
     // ===== Share =====
     document.getElementById('share-btn').addEventListener('click', () => {
-      const encoded = btoa(encodeURIComponent(inputEditor.state.doc.toString()));
+      let encoded = btoa(encodeURIComponent(inputEditor.state.doc.toString()));
       window.location.hash = encoded;
       navigator.clipboard.writeText(window.location.href).then(() => {
-        const btn = document.getElementById('share-btn');
+        let btn = document.getElementById('share-btn');
         btn.classList.add('copied');
         btn.querySelector('span') || (btn.lastChild.textContent = 'Copied');
-        const textNode = [...btn.childNodes].find(n => n.nodeType === 3);
-        const orig = textNode?.textContent;
+        let textNode = [...btn.childNodes].find(n => n.nodeType === 3);
+        let orig = textNode?.textContent;
         if (textNode) textNode.textContent = ' Copied';
         setTimeout(() => {
           btn.classList.remove('copied');

@@ -48,6 +48,11 @@ pub struct CstParser<'src> {
     pos: usize,
     builder: rowan::GreenNodeBuilder<'static>,
     errors: Vec<CstError>,
+    /// When set, `(T, U) => V` stops being parsed as a function-type at the
+    /// top level of a type expression. Enabled while parsing the return
+    /// type of a `let NAME = (...): RET => body` binding so the outer `=>`
+    /// belongs to the let-body arrow, not the return type.
+    suppress_function_type: bool,
 }
 
 impl<'src> CstParser<'src> {
@@ -58,6 +63,7 @@ impl<'src> CstParser<'src> {
             pos: 0,
             builder: rowan::GreenNodeBuilder::new(),
             errors: Vec::new(),
+            suppress_function_type: false,
         }
     }
 
@@ -212,7 +218,7 @@ impl<'src> CstParser<'src> {
                     | TokenKind::For
                     | TokenKind::Match
                     | TokenKind::Fn
-                    | TokenKind::Const
+                    | TokenKind::Let
                     | TokenKind::Import
                     | TokenKind::Export
                     | TokenKind::Trait
@@ -447,15 +453,21 @@ impl<'src> CstParser<'src> {
         false
     }
 
-    /// Heuristic: is the current `(` the start of a function type `(T) => U`?
+    /// Heuristic: is the current `(` the start of a function type `(T) -> U`?
     fn is_paren_function_type(&self) -> bool {
-        self.is_paren_followed_by(TokenKind::FatArrow)
+        if self.suppress_function_type {
+            return false;
+        }
+        self.is_paren_followed_by(TokenKind::ThinArrow)
     }
 
-    /// Heuristic: is the current `(` the start of an arrow closure `(params) => body`?
-    /// Scans to matching `)` and checks if followed by `=>`.
+    /// Heuristic: is the current `(` the start of an arrow closure
+    /// `(params) -> body`?
     fn is_arrow_expr(&self) -> bool {
-        self.is_paren_followed_by(TokenKind::FatArrow)
+        if self.suppress_function_type {
+            return false;
+        }
+        self.is_paren_followed_by(TokenKind::ThinArrow)
     }
 
     /// Check if the `(` at position `start` has a matching `)` followed by `kind`.
@@ -679,49 +691,49 @@ mod tests {
 
     #[test]
     fn const_simple() {
-        assert_no_errors("const x = 42");
+        assert_no_errors("let x = 42");
     }
 
     #[test]
     fn const_typed() {
-        assert_no_errors("const x: number = 42");
+        assert_no_errors("let x: number = 42");
     }
 
     #[test]
     fn const_exported() {
-        assert_no_errors("export const name = \"hello\"");
+        assert_no_errors("export let name = \"hello\"");
     }
 
     #[test]
     fn const_string_value() {
-        assert_no_errors("const greeting = \"world\"");
+        assert_no_errors("let greeting = \"world\"");
     }
 
     #[test]
     fn const_bool_value() {
-        assert_no_errors("const flag = true");
+        assert_no_errors("let flag = true");
     }
 
     // ── Function declarations ─────────────────────────────────────
 
     #[test]
     fn function_no_params() {
-        assert_no_errors("fn greet() { 42 }");
+        assert_no_errors("let greet() = { 42 }");
     }
 
     #[test]
     fn function_with_params() {
-        assert_no_errors("fn add(a: number, b: number) => number { a + b }");
+        assert_no_errors("let add(a: number, b: number) -> number = { a + b }");
     }
 
     #[test]
     fn function_with_promise_return() {
-        assert_no_errors("fn fetch(url: string) => Promise<string> { url }");
+        assert_no_errors("let fetch(url: string) -> Promise<string> = { url }");
     }
 
     #[test]
     fn function_exported() {
-        assert_no_errors("export fn hello() { 1 }");
+        assert_no_errors("export let hello() = { 1 }");
     }
 
     // ── Imports ───────────────────────────────────────────────────
@@ -754,7 +766,7 @@ mod tests {
 
     #[test]
     fn export_function() {
-        assert_no_errors("export fn myFunc() { 1 }");
+        assert_no_errors("export let myFunc() = { 1 }");
     }
 
     #[test]
@@ -875,7 +887,7 @@ mod tests {
     #[test]
     fn return_is_banned() {
         // `return` should produce a banned keyword error
-        let parse = cst_parse("fn f() { return 42 }");
+        let parse = cst_parse("let f = () => { return 42 }");
         assert!(
             parse.errors.iter().any(|e| e.message.contains("banned")),
             "expected banned keyword error for return, got: {:?}",
@@ -973,36 +985,38 @@ mod tests {
 
     #[test]
     fn lambda_arrow_style() {
-        assert_no_errors("(x) => x + 1");
+        assert_no_errors("(x) -> x + 1");
     }
 
     #[test]
     fn lambda_zero_arg() {
-        assert_no_errors("() => 42");
+        assert_no_errors("() -> 42");
     }
 
     #[test]
-    fn fn_binding_form() {
-        assert_no_errors("fn add(a: number, b: number) => number { a + b }\nfn inc = add(1, _)");
+    fn let_with_partial_application() {
+        assert_no_errors(
+            "let add(a: number, b: number) -> number = { a + b }\nlet inc = add(1, _)",
+        );
     }
 
     // ── For blocks ────────────────────────────────────────────────
 
     #[test]
     fn for_block_basic() {
-        assert_no_errors("for User { fn greet(self) => string { self.name } }");
+        assert_no_errors("for User { let greet(self) -> string = { self.name } }");
     }
 
     #[test]
     fn for_block_with_trait() {
-        assert_no_errors("for User: Display { fn show(self) => string { self.name } }");
+        assert_no_errors("for User: Display { let show(self) -> string = { self.name } }");
     }
 
     // ── Trait declarations ────────────────────────────────────────
 
     #[test]
     fn trait_basic() {
-        assert_no_errors("trait Display { fn show(self) => string }");
+        assert_no_errors("trait Display { let show(self) -> string }");
     }
 
     // ── Test blocks ───────────────────────────────────────────────
@@ -1021,12 +1035,12 @@ mod tests {
 
     #[test]
     fn trivia_whitespace_preserved() {
-        assert_lossless("const  x  =  1");
+        assert_lossless("let  x  =  1");
     }
 
     #[test]
     fn trivia_block_comment_preserved() {
-        assert_lossless("/* block */ const x = 1");
+        assert_lossless("/* block */ let x = 1");
     }
 
     // ── Error recovery ────────────────────────────────────────────
@@ -1034,7 +1048,7 @@ mod tests {
     #[test]
     fn error_recovery_missing_equal() {
         // Should not panic, produces CST errors
-        let parse = cst_parse("const x 42");
+        let parse = cst_parse("let x 42");
         assert!(!parse.errors.is_empty());
     }
 
@@ -1064,12 +1078,12 @@ mod tests {
 
     #[test]
     fn lossless_const() {
-        assert_lossless("const x = 42");
+        assert_lossless("let x = 42");
     }
 
     #[test]
     fn lossless_function() {
-        assert_lossless("fn add(a: number, b: number) => number { a + b }");
+        assert_lossless("let add(a: number, b: number) -> number = { a + b }");
     }
 
     #[test]
@@ -1094,20 +1108,20 @@ mod tests {
 
     #[test]
     fn lossless_for_block() {
-        assert_lossless("for User { fn greet(self) => string { self.name } }");
+        assert_lossless("for User { fn greet(self) -> string { self.name } }");
     }
 
     // ── CST node kind checks ──────────────────────────────────────
 
     #[test]
     fn root_is_program() {
-        let parse = cst_parse("const x = 1");
+        let parse = cst_parse("let x = 1");
         assert_eq!(parse.syntax().kind(), SyntaxKind::PROGRAM);
     }
 
     #[test]
     fn has_item_children() {
-        let parse = cst_parse("const x = 1\nconst y = 2");
+        let parse = cst_parse("let x = 1\nlet y = 2");
         let items: Vec<_> = parse
             .syntax()
             .children()

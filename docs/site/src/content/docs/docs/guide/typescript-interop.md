@@ -24,7 +24,7 @@ All npm imports are untrusted by default. The compiler auto-wraps calls in `Resu
 import { parseYaml } from "yaml-lib"
 
 // parseYaml is auto-wrapped — returns Result<T, Error>
-const result = parseYaml(input)
+let result = parseYaml(input)
 match result {
   Ok(data) -> process(data),
   Err(e) -> Console.error(e),
@@ -34,7 +34,7 @@ match result {
 Use `?` to unwrap the result concisely:
 
 ```floe
-const data = parseYaml(input)?  // unwraps or returns Err early
+let data = parseYaml(input)?  // unwraps or returns Err early
 ```
 
 ## `trusted` imports
@@ -44,7 +44,7 @@ For npm functions known to be safe (like React hooks, utility libraries), mark t
 ```floe
 import trusted { useState, useEffect } from "react"
 
-const (count, setCount) = useState(0)  // direct call, no wrapping
+let (count, setCount) = useState(0)  // direct call, no wrapping
 ```
 
 You can mark individual functions as trusted from a module:
@@ -53,7 +53,7 @@ You can mark individual functions as trusted from a module:
 import { trusted capitalize, fetchData } from "some-lib"
 
 capitalize("hello")             // direct call, no wrapping (trusted)
-const data = fetchData()        // Result<T, Error> — auto-wrapped (untrusted)
+let data = fetchData()        // Result<T, Error> — auto-wrapped (untrusted)
 ```
 
 ## Bridging TypeScript types
@@ -82,7 +82,7 @@ In Floe, wrap them in `OneOf<>`:
 ```floe
 type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 
-fn describe(method: HttpMethod) => string {
+let describe(method: HttpMethod) -> string = {
     match method {
         "GET" -> "fetching",
         "POST" -> "creating",
@@ -105,7 +105,7 @@ import { ComponentProps } from "react"
 
 type DivProps = ComponentProps<"div">
 type PartialUser = Partial<User>
-type UserKeys = Pick<User, "name" | "email">
+type UserKeys = Pick<User, OneOf<"name", "email">>
 ```
 
 ### Intersections
@@ -115,7 +115,7 @@ Combine TypeScript types with `Intersect<>`:
 ```floe
 import { tv, VariantProps } from "tailwind-variants"
 
-const cardVariants = tv({ base: "rounded-xl", variants: { size: { sm: "p-2" } } })
+let cardVariants = tv({ base: "rounded-xl", variants: { size: { sm: "p-2" } } })
 type CardProps = Intersect<VariantProps<typeof cardVariants>, { className: string }>
 ```
 
@@ -135,7 +135,7 @@ Use `=>` for function types:
 ```floe
 import { Request, Response } from "express"
 
-type Handler = (Request, Response) => Promise<()>
+type Handler = (Request, Response) -> Promise<()>
 ```
 
 ## Nullable and optional type conversion
@@ -156,7 +156,7 @@ Optional parameters (`?`) become `Option<T>` with a default of `None`, so you ca
 ```floe
 import { getElementById } from "some-dom-lib"
 // .d.ts says: getElementById(id: string): Element | null
-// Floe sees: getElementById(id: string) => Option<Element>
+// Floe sees: getElementById(id: string) -> Option<Element>
 
 match getElementById("app") {
   Some(el) -> render(el),
@@ -171,14 +171,14 @@ React hooks work directly:
 ```floe
 import { useState, useEffect, useCallback } from "react"
 
-export fn Counter() => JSX.Element {
-  const (count, setCount) = useState(0)
+export let Counter() -> JSX.Element = {
+  let (count, setCount) = useState(0)
 
-  useEffect(() => {
+  useEffect(() -> {
     Console.log("count changed:", count)
   }, [count])
 
-  <button onClick={() => setCount(count + 1)}>
+  <button onClick={() -> setCount(count + 1)}>
     {`Count: ${count}`}
   </button>
 }
@@ -191,11 +191,11 @@ Third-party React components work as regular JSX:
 ```floe
 import { Button, Dialog } from "@radix-ui/react"
 
-export fn MyPage() => JSX.Element {
-  const (open, setOpen) = useState(false)
+export let MyPage() -> JSX.Element = {
+  let (open, setOpen) = useState(false)
 
   <div>
-    <Button onClick={() => setOpen(true)}>Open</Button>
+    <Button onClick={() -> setOpen(true)}>Open</Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <p>Dialog content</p>
     </Dialog>
@@ -209,9 +209,9 @@ Browser globals like `window`, `document`, `navigator`, and `fetch` are availabl
 
 ```floe
 // Browser project (lib includes "DOM")
-const url = window.location.href
+let url = window.location.href
 navigator.clipboard.writeText("hello") |> await
-const width = window.innerWidth
+let width = window.innerWidth
 ```
 
 For non-browser runtimes, configure `compilerOptions.lib` and `compilerOptions.types` in your `tsconfig.json`:
@@ -223,7 +223,7 @@ For non-browser runtimes, configure `compilerOptions.lib` and `compilerOptions.t
 
 ```floe
 // Now process, Buffer, etc. are available
-const env = process.env
+let env = process.env
 ```
 
 See [Configuration](/docs/reference/configuration/#lib-and-types---controlling-globals) for details.

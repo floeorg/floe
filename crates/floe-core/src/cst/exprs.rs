@@ -162,7 +162,7 @@ impl<'src> CstParser<'src> {
                                 | Some(TokenKind::Type)
                                 | Some(TokenKind::Export)
                                 | Some(TokenKind::Import)
-                                | Some(TokenKind::Const)
+                                | Some(TokenKind::Let)
                                 | Some(TokenKind::Fn)
                                 | Some(TokenKind::Trait)
                                 | Some(TokenKind::Collect)
@@ -384,7 +384,7 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::Fn) if self.peek_is(TokenKind::LeftParen) => {
                 // `fn(params) expr` is the old syntax — emit error pointing to =>
                 self.builder.start_node(SyntaxKind::ERROR.into());
-                self.error("anonymous functions use arrow syntax: `(params) => body` instead of `fn(params) body`");
+                self.error("anonymous functions use arrow syntax: `(params) -> body` instead of `fn(params) body`");
                 self.bump(); // fn
                 self.builder.finish_node();
             }
@@ -577,7 +577,7 @@ impl<'src> CstParser<'src> {
 
     // ── Fn Lambda ────────────────────────────────────────────────
 
-    /// Parse `(params) => body` arrow closure.
+    /// Parse `(params) -> body` anonymous lambda.
     fn parse_arrow_closure(&mut self) {
         self.builder.start_node(SyntaxKind::ARROW_EXPR.into());
 
@@ -586,7 +586,7 @@ impl<'src> CstParser<'src> {
         self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
         self.expect(TokenKind::RightParen);
         self.eat_trivia();
-        self.expect(TokenKind::FatArrow);
+        self.expect(TokenKind::ThinArrow);
         self.eat_trivia();
         self.parse_expr();
 

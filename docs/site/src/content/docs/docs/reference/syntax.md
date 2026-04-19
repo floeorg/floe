@@ -15,42 +15,42 @@ title: Syntax Reference
 ### Const
 
 ```floe
-const x = 42
-const name: string = "hello"
-export const PI = 3.14159
+let x = 42
+let name: string = "hello"
+export let PI = 3.14159
 
 // Destructuring
-const (a, b) = pair             // tuple
-const { name, age } = user      // record
+let (a, b) = pair             // tuple
+let { name, age } = user      // record
 // (array destructuring not allowed in `const`; use `Array.get` or a match pattern)
 ```
 
 ### Function
 
 ```floe
-fn name(param: Type) => ReturnType {
+let name(param: Type) -> ReturnType = {
   body
 }
 
 // Generic function — type parameters after the name
-fn name<T>(param: T) => T {
+let name<T>(param: T) -> T = {
   body
 }
 
-fn name<A, B>(a: A, b: B) => (A, B) {
+let name<A, B>(a: A, b: B) -> (A, B) = {
   body
 }
 
-export fn name(param: Type) => ReturnType {
+export let name(param: Type) -> ReturnType = {
   body
 }
 
-fn name() => Promise<T> {
+let name() -> Promise<T> = {
   expr |> Promise.await
 }
 
-// async fn sugar — `async fn f() => T` means `fn f() => Promise<T>`
-async fn name() => T {
+// async fn sugar — `async fn f() -> T` means `fn f() -> Promise<T>`
+async let name() -> T = {
   expr |> await
 }
 ```
@@ -59,20 +59,18 @@ async fn name() => T {
 
 ```floe
 // Record
-type User {
+type User = {
   name: string,
   email: string,
 }
 
 // Union — positional ( ) or named { } fields
-type Shape {
-  | Circle(number)
+type Shape = | Circle(number)
   | Rectangle(number, number)
   | Named { width: number, height: number }
-}
 
 // Newtype (single-value wrapper)
-type OrderId(number)
+type OrderId = OrderId(number)
 
 // String literal union (for npm interop)
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
@@ -81,13 +79,13 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 type Name = string
 
 // Newtype
-type UserId(string)
+type UserId = UserId(string)
 
 // Opaque
-opaque type Email(string)
+opaque type Email = Email(string)
 
 // Deriving traits
-type Point {
+type Point = {
   x: number,
   y: number,
 } deriving (Display)
@@ -114,13 +112,13 @@ result(b)
 
 ```floe
 for Type {
-  fn method(self) => ReturnType {
+  let method(self) -> ReturnType = {
     body
   }
 }
 
 for Array<User> {
-  fn adults(self) => Array<User> {
+  let adults(self) -> Array<User> = {
     self |> Array.filter(.age >= 18)
   }
 }
@@ -130,20 +128,20 @@ for Array<User> {
 
 ```floe
 trait Display {
-  fn display(self) => string
+  let display(self) -> string
 }
 
 // Trait with default implementation
 trait Eq {
-  fn eq(self, other: Self) => boolean
-  fn neq(self, other: Self) => boolean {
+  let eq(self, other: Self) -> boolean
+  let neq(self, other: Self) -> boolean = {
     !(self |> eq(other))
   }
 }
 
 // Implement a trait
 for User: Display {
-  fn display(self) => string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }
@@ -169,11 +167,11 @@ test "addition works" {
 3.141_592       // float with separators
 0xFF_FF         // hex with separators
 "hello"         // string
-`hello ${name}` // template literal
-tag`a ${x} b`   // tagged template literal — `tag` receives the strings and interpolated values
-true            // boolean
-false           // boolean
-[1, 2, 3]      // array
+let msg = `hello ${name}` // template literal
+let tagged = tag`a ${x} b`   // tagged template literal — `tag` receives the strings and interpolated values
+let ok = true            // boolean
+let no = false           // boolean
+let arr = [1, 2, 3]      // array
 ```
 
 Underscores in number literals are purely visual — they are stripped during compilation. They can appear between any two digits but not at the start, end, or adjacent to a decimal point.
@@ -182,7 +180,7 @@ Tagged template literals compile to byte-identical TypeScript, so they interoper
 
 ### Operators
 
-```floe
+```floe,ignore
 a + b    a - b    a * b    a / b    a % b   // arithmetic
 a == b   a != b   a < b    a > b             // comparison
 a <= b   a >= b                               // comparison
@@ -193,7 +191,7 @@ expr?                                         // unwrap
 
 ### Pipe
 
-```floe
+```floe,ignore
 value |> transform
 value |> f(other_arg, _)   // placeholder
 a |> b |> c                // chaining
@@ -240,8 +238,8 @@ Call rules:
 
 ```floe
 collect {
-    const name = validateName(input.name)?
-    const email = validateEmail(input.email)?
+    let name = validateName(input.name)?
+    let email = validateEmail(input.email)?
     ValidForm(name, email)
 }
 // Returns Result<T, Array<E>> — accumulates all errors from ?
@@ -282,25 +280,25 @@ Color.Blue(hex: "#00f") // variant with data
 ### Anonymous Functions (Closures)
 
 ```floe
-(a: number, b: number) => a + b
-(x: number) => x * 2
-() => doSomething()
+(a: number, b: number) -> a + b
+(x: number) -> x * 2
+() -> doSomething()
 ```
 
 Dot shorthand for field access:
 
 ```floe
-.name           // (x) => x.name
-.id != id       // (x) => x.id != id
-.done == false  // (x) => x.done == false
+.name           // (x) -> x.name
+.id != id       // (x) -> x.id != id
+.done == false  // (x) -> x.done == false
 ```
 
 ### Function Types
 
 ```floe
-() => ()                    // takes nothing, returns nothing
-(string) => number          // takes string, returns number
-(number, number) => boolean    // takes two numbers, returns boolean
+() -> ()                    // takes nothing, returns nothing
+(string) -> number          // takes string, returns number
+(number, number) -> boolean    // takes two numbers, returns boolean
 ```
 
 ### JSX
@@ -321,11 +319,11 @@ import { a, b, c } from "module"
 
 // npm imports are untrusted by default — auto-wrapped in Result<T, Error>
 import { parseYaml } from "yaml-lib"
-const result = parseYaml(input)   // Result<T, Error> — auto-wrapped
+let result = parseYaml(input)   // Result<T, Error> — auto-wrapped
 
 // trusted imports — safe to call directly, no wrapping
 import trusted { useState } from "react"
-const (count, setCount) = useState(0)
+let (count, setCount) = useState(0)
 
 // Per-function trusted
 import { trusted capitalize, fetchData } from "some-lib"
@@ -340,7 +338,9 @@ import { Todo, Filter, for Array } from "./todo"
 
 ## Patterns
 
-```floe
+Patterns appear inside `match` arms. The forms are:
+
+```floe,ignore
 42                    // number literal
 "hello"               // string literal
 true                  // boolean literal

@@ -7,56 +7,56 @@ Floe is a programming language that compiles to TypeScript. It targets TypeScrip
 ## Core Syntax
 
 ```floe
-// Named functions use fn keyword with => return type.
-// Match arms use ->. Every other type-position arrow uses =>.
-fn add(a: number, b: number) => number {
+// Named functions use fn keyword with -> return type.
+// Match arms use ->. Every other type-position arrow uses ->.
+let add(a: number, b: number) -> number = {
     a + b
 }
 
 // Generic functions — type parameters after the function name
-fn identity<T>(x: T) => T { x }
-fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) }
+let identity<T>(x: T) -> T = { x }
+let pair<A, B>(a: A, b: B) -> (A, B) = { (a, b) }
 
 // Exported function
-export fn greet(name: string) => string {
+export let greet(name: string) -> string = {
     `Hello, ${name}!`
 }
 
 // Tagged template literals — pass through to TS unchanged so npm libraries
 // like Drizzle, styled-components, and graphql-tag work out of the box
-const query = sql`select * from users where id = ${id}`
-const Button = styled.button`color: ${primary}; padding: 8px`
+let query = sql`select * from users where id = ${id}`
+let Button = styled.button`color: ${primary}; padding: 8px`
 
-// Anonymous functions use (params) => body (arrow closures)
-items |> map((x) => x + 1)
+// Anonymous functions use (params) -> body (arrow closures)
+items |> map((x) -> x + 1)
 
-// Zero-arg closure
-onClick={() => doSomething()}
+// Zero-arg closure — natural inside JSX attributes
+<button onClick={() -> doSomething()}>Click</button>
 
 // Dot shorthand for field access in callbacks
-users |> filter(.active)        // same as (u) => u.active
-users |> map(.name)             // same as (u) => u.name
-users |> filter(.id != id)      // same as (u) => u.id != id
+users |> filter(.active)        // same as (u) -> u.active
+users |> map(.name)             // same as (u) -> u.name
+users |> filter(.id != id)      // same as (u) -> u.id != id
 
 // No semicolons
-const x = 5
-const y = x + 1
+let x = 5
+let y = x + 1
 ```
 
 ## Variables
 
 ```floe
 // Only const — no let, no var
-const name = "Ryan"
-const count = 42
+let name = "Ryan"
+let count = 42
 
 // Number literal separators (underscores for readability)
-const million = 1_000_000
-const pi = 3.141_592
-const hex = 0xFF_FF
+let million = 1_000_000
+let pi = 3.141_592
+let hex = 0xFF_FF
 
 // Type annotations
-const names: Array<string> = ["a", "b", "c"]
+let names: Array<string> = ["a", "b", "c"]
 ```
 
 ## Types
@@ -66,7 +66,7 @@ Every type declaration starts with `type Name = ...`. The RHS picks the kind:
 - `{ ... }` — record
 - `Variant | Variant | ...` — nominal tagged sum (leading `|` optional)
 - `Name(T)` — newtype (single-value wrapper)
-- `(Args) => Ret` — structural function-type alias
+- `(Args) -> Ret` — structural function-type alias
 - `OneOf<"a", "b">` / `Intersect<A, B>` — structural string-literal union / intersection
 - `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... — TS utility aliases
 
@@ -135,7 +135,7 @@ type BaseProps = {
 
 type ButtonProps = {
     ...BaseProps,
-    onClick: () => (),
+    onClick: () -> (),
     label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -146,8 +146,8 @@ type B = { y: string }
 type C = { ...A, ...B, z: boolean }
 
 // Function-type alias (structural — just a type)
-type Handler = (Request) => Promise<Response>
-type Predicate<T> = (T) => boolean
+type Handler = (Request) -> Promise<Response>
+type Predicate<T> = (T) -> boolean
 
 // Opaque types (only defining module can create/read)
 opaque type HashedPassword = HashedPassword(string)
@@ -166,7 +166,7 @@ type DivProps = ComponentProps<"div">
 
 // Spread with generic types and typeof (npm interop)
 import { tv, VariantProps } from "tailwind-variants"
-const variants = tv({ base: "rounded", variants: { size: { sm: "p-2" } } })
+let variants = tv({ base: "rounded", variants: { size: { sm: "p-2" } } })
 type Props = {
     ...VariantProps<typeof variants>,
     className: string,
@@ -178,7 +178,7 @@ type Props = {
 // Partial, Required, Readonly, Pick, Omit, NonNullable,
 // Record, Extract, Exclude, InstanceType,
 // Uppercase, Lowercase, Capitalize, Uncapitalize
-fn createDb(id: string) => string { id }
+let createDb(id: string) -> string = { id }
 type Database = ReturnType<typeof createDb>
 type DbArgs = Parameters<typeof createDb>
 
@@ -186,35 +186,35 @@ type PartialUser = Partial<User>
 type ReadOnlyUser = Readonly<User>
 
 // Tuples
-const point: (number, number) = (10, 20)
-const (x, y) = point
+let point: (number, number) = (10, 20)
+let (x, y) = point
 ```
 
 ## Type Constructors and Record Spread
 
 ```floe
 // Positional
-const user = User("1", "Ryan", "r@test.com")
+let user = User("1", "Ryan", "r@test.com")
 
 // Named arguments (any order)
-const user = User(name: "Ryan", id: "1", email: "r@test.com")
+let user = User(name: "Ryan", id: "1", email: "r@test.com")
 
 // Record spread with double dot
-const updated = User(..user, name: "New Name")
+let updated = User(..user, name: "New Name")
 
 // Union variant construction
-const err = ApiError.Network(NetworkError.Timeout(ms: 3000))
+let err = ApiError.Network(NetworkError.Timeout(ms: 3000))
 
 // Qualified variants required when ambiguous:
-// type Color { | Red | Green } and type Light { | Red | Yellow }
+// type Color = | Red | Green and type Light = | Red | Yellow
 // const c = Red        // Error: ambiguous
-const c = Color.Red     // OK — qualified
+let c = Color.Red     // OK — qualified
 // Bare variants work when unambiguous or in match arms
 
 // Non-unit variants as functions (constructor-as-function):
 // A non-unit variant name used without args becomes an arrow function
-const toValidation = Validation  // (errors) => ({ __tag: "Validation", errors })
-const toApi = SaveError.Api      // (message) => ({ __tag: "Api", message })
+let toValidation = Validation  // (errors) -> ({ __tag: "Validation", errors })
+let toApi = SaveError.Api      // (message) -> ({ __tag: "Api", message })
 // Useful with mapErr:
 result |> Result.mapErr(Validation)  // instead of Result.mapErr(fn(e) Validation(e))
 ```
@@ -224,9 +224,9 @@ result |> Result.mapErr(Validation)  // instead of Result.mapErr(fn(e) Validatio
 ```floe
 // Default: piped value becomes first argument (shorthand)
 users |> filter(.active) |> map(.name) |> sort
-// filter(users, .active) => map(result, .name) => sort(result)
+// filter(users, .active) -> map(result, .name) -> sort(result)
 
-const result = value
+let result = value
     |> multiply(2)       // multiply(value, 2)
     |> add(1)            // add(result, 1)
     |> toString          // toString(result)
@@ -236,7 +236,7 @@ const result = value
 42 |> wrap("[", _, "]")     // wrap("[", 42, "]") — 42 goes to second arg
 
 // _ outside pipes creates partial application
-const addTen = add(10, _)   // (x) => add(10, x)
+let addTen = add(10, _)   // (x) -> add(10, x)
 
 // tap for side effects mid-pipeline
 users
@@ -245,7 +245,7 @@ users
     |> map(.name)
 
 // Pipe into match — pipe a value directly into pattern matching
-const label = price |> match {
+let label = price |> match {
     _ when _ < 10 -> "cheap",
     _ when _ < 100 -> "moderate",
     _ -> "expensive",
@@ -253,7 +253,7 @@ const label = price |> match {
 // Equivalent to: match price { ... }
 
 // Chain into match
-const message = response.status
+let message = response.status
     |> match {
         200..299 -> "success",
         404 -> "not found",
@@ -262,9 +262,9 @@ const message = response.status
 
 // Pipe-unwrap operator |>? — pipe then unwrap the result
 // Equivalent to (x |> f)? — unwraps Result/Option or returns early
-const row = chain() |>? await                    // pipe to await, then unwrap
-const first = list |>? Array.first               // pipe lookup, unwrap Option
-const data = input |>? JSON.parse                // pipe parse, unwrap Result
+let row = chain() |>? await                    // pipe to await, then unwrap
+let first = list |>? Array.first               // pipe lookup, unwrap Option
+let data = input |>? JSON.parse                // pipe parse, unwrap Result
 ```
 
 ## Match Expressions
@@ -352,7 +352,7 @@ match items {
 
 ```floe
 // Result<T, E> replaces exceptions
-fn divide(a: number, b: number) => Result<number, string> {
+let divide(a: number, b: number) -> Result<number, string> = {
     match b {
         0 -> Err("division by zero"),
         _ -> Ok(a / b),
@@ -366,9 +366,9 @@ match divide(10, 3) {
 }
 
 // ? operator for early return
-fn loadProfile(id: string) => Result<Profile, Error> {
-    const user = fetchUser(id)?        // returns Err early if it fails
-    const posts = fetchPosts(user.id)?
+let loadProfile(id: string) -> Result<Profile, Error> = {
+    let user = fetchUser(id)?        // returns Err early if it fails
+    let posts = fetchPosts(user.id)?
     Ok(Profile(user, posts))
 }
 
@@ -385,25 +385,25 @@ match user.nickname {
 
 // Option helpers
 user.nickname |> Option.unwrapOr(user.name)
-user.nickname |> Option.map((n) => toUpperCase(n))
-user.nickname |> Option.filter((n) => String.length(n) > 3)
-user.nickname |> Option.inspect((n) => Console.log(n))
+user.nickname |> Option.map((n) -> toUpperCase(n))
+user.nickname |> Option.filter((n) -> String.length(n) > 3)
+user.nickname |> Option.inspect((n) -> Console.log(n))
 Option.zip(firstName, lastName)        // Option<(string, string)>
 Option.all([Some(1), Some(2), None])   // None
 Option.any([None, Some(1), None])      // Some(1)
-maybeUser |> Option.orElse(() => fetchDefaultUser())  // lazy fallback
+maybeUser |> Option.orElse(() -> fetchDefaultUser())  // lazy fallback
 
 // Option.toErr — for { data, error } patterns (Supabase, TanStack Query, etc.)
-const { data, error } = supabase.rpc("get_entries", { query }) |> Promise.await
+let { data, error } = supabase.rpc("get_entries", { query }) |> Promise.await
 error |> Option.toErr?              // bail if error exists
-const rows = data |> Option.unwrapOr([])
+let rows = data |> Option.unwrapOr([])
 
 // collect block — accumulate all errors instead of short-circuiting
-fn validateForm(input: FormInput) => Result<ValidForm, Array<ValidationError>> {
+let validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> = {
     collect {
-        const name = input.name |> validateName?
-        const email = input.email |> validateEmail?
-        const age = input.age |> validateAge?
+        let name = input.name |> validateName?
+        let email = input.email |> validateEmail?
+        let age = input.age |> validateAge?
 
         ValidForm(name, email, age)
     }
@@ -411,35 +411,35 @@ fn validateForm(input: FormInput) => Result<ValidForm, Array<ValidationError>> {
 // Inside collect, ? records errors and continues. Returns Err(Array<E>) if any failed.
 
 // Result helpers
-result |> Result.filter((n) => n > 0, "must be positive")
-result |> Result.inspect((v) => Console.log(v))
-result |> Result.inspectErr((e) => Console.error(e))
+result |> Result.filter((n) -> n > 0, "must be positive")
+result |> Result.inspect((v) -> Console.log(v))
+result |> Result.inspectErr((e) -> Console.error(e))
 Result.zip(fetchUser(id), fetchProfile(id))   // Result<(User, Profile), Error>
 Result.all([Ok(1), Ok(2), Err("fail")])        // Err("fail")
 Result.any([Err("a"), Ok(1), Err("b")])        // Ok(1)
 users |> Array.mapResult(validateUser)          // Result<Array<ValidUser>, Error>
-result |> Result.orElse((e) => tryFallback(e))   // lazy fallback chain
+result |> Result.orElse((e) -> tryFallback(e))   // lazy fallback chain
 
 // Array helpers
-items |> Array.filterMap((x) => if_valid(x))     // map + filter in one pass (fn returns Option)
+items |> Array.filterMap((x) -> if_valid(x))     // map + filter in one pass (fn returns Option)
 items |> Array.partition(.active)                 // (active, inactive) — split by predicate
-nested |> Array.flatten                           // Array<Array<T>> => Array<T>
+nested |> Array.flatten                           // Array<Array<T>> -> Array<T>
 users |> Array.uniqueBy(.email)                   // deduplicate by key function (keeps first)
-["a", "b", "c"] |> Array.indexOf("b")            // Some(1) — Option<number>, None if not found
+let idx = ["a", "b", "c"] |> Array.indexOf("b")  // Some(1) — Option<number>, None if not found
 items |> Array.findLast(.done)                    // find from end
 items |> Array.takeWhile(.active)                 // take while predicate holds
 items |> Array.dropWhile(.done)                   // drop while predicate holds
-["a", "b", "c"] |> Array.intersperse(", ")       // ["a", ", ", "b", ", ", "c"]
+let joined = ["a", "b", "c"] |> Array.intersperse(", ")  // ["a", ", ", "b", ", ", "c"]
 
 // Promise helpers
-// Promise.await (or bare `await`): Promise<T> => T (compiles to await, infers async on enclosing fn)
+// Promise.await (or bare `await`): Promise<T> -> T (compiles to await, infers async on enclosing fn)
 // Functions using await must return Promise<T> (like ? requires Result<T, E>)
-// `async fn f() => T` is sugar for `fn f() => Promise<T>` — write the inner type
-//   async fn fetchUser(id: number) => Result<User, Error> { Http.get(url) |> await? |> parse<User> }
+// `async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type
+//   async fn fetchUser(id: number) -> Result<User, Error> { Http.get(url) |> await? |> parse<User> }
 // Emits TS `async function ...: Promise<T>`. Callers still use `|> await` to unwrap.
-const users = Promise.all([fetchUser(1), fetchUser(2)]) |> await
-const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> await
-const results = Promise.allSettled([fetchA(), fetchB()]) |> await  // Array<Result<T, Error>>
+let users = Promise.all([fetchUser(1), fetchUser(2)]) |> await
+let fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> await
+let results = Promise.allSettled([fetchA(), fetchB()]) |> await  // Array<Result<T, Error>>
 Promise.delay(1000) |> await   // wait 1 second
 
 // ── Globals (browser/runtime) ──
@@ -456,68 +456,68 @@ Promise.delay(1000) |> await   // wait 1 second
 //   (omitted)                              → auto-includes all @types/*
 //
 // Examples:
-const url = window.location.href        // string (from lib.dom.d.ts)
+let url = window.location.href        // string (from lib.dom.d.ts)
 navigator.clipboard.writeText("hello")  // Promise<void>
-const w = window.innerWidth             // number
-const p = process.env                   // from @types/node
+let w = window.innerWidth             // number
+let p = process.env                   // from @types/node
 
 // npm imports are untrusted by default: wrapped in try/catch, return Result<T, Error>
 import { npmSyncFn } from "sync-lib"
-const result = npmSyncFn()            // Result<T, Error> — sync, no await needed
+let result = npmSyncFn()            // Result<T, Error> — sync, no await needed
 import { npmAsyncFn } from "async-lib"
-const result = npmAsyncFn() |> await  // Promise<Result<T, Error>> |> await → Result<T, Error>
+let result = npmAsyncFn() |> await  // Promise<Result<T, Error>> |> await → Result<T, Error>
 
 // parse<T> — compiler built-in for runtime type validation
 // No runtime library needed — the compiler inlines the checks
-const user = json |> parse<User>?
-const items = data |> parse<Array<Product>>?
-const point = raw |> parse<{ x: number, y: number }>?
+let user = json |> parse<User>?
+let items = data |> parse<Array<Product>>?
+let point = raw |> parse<{ x: number, y: number }>?
 // parse<T> returns Result<T, Error> — validates unknown data matches the type
 
 // mock<T> — compiler built-in for test data generation
 // No faker.js needed — the compiler generates object literals from the type
-const testUser = mock<User>              // { id: "mock-id-1", name: "mock-name-2", age: 3 }
-const admin = mock<User>(role: Admin)    // override specific fields
-const point = mock<{ x: number, y: number }>  // { x: 1, y: 2 }
+let testUser = mock<User>              // { id: "mock-id-1", name: "mock-name-2", age: 3 }
+let admin = mock<User>(role: Admin)    // override specific fields
+let point = mock<{ x: number, y: number }>  // { x: 1, y: 2 }
 // mock<T> returns T — always in sync with the type definition
 
 // Map<K, V> — immutable key-value maps
-const config = Map.fromArray([("host", "localhost"), ("port", "8080")])
-const updated = config |> Map.set("port", "3000")
-const port = Map.get(config, "port")     // Option<string>
-const keys = config |> Map.keys          // Array<string>
-const merged = Map.merge(defaults, config)
+let config = Map.fromArray([("host", "localhost"), ("port", "8080")])
+let updated = config |> Map.set("port", "3000")
+let port = Map.get(config, "port")     // Option<string>
+let keys = config |> Map.keys          // Array<string>
+let merged = Map.merge(defaults, config)
 
 // Record<K, V> — plain-object maps (from TS Record<string, T> interop)
 // Use Record.* instead of Map.* for imported TS lookup tables and dictionaries
-const icon = Record.get(ICONS, key)       // Option<string>  → compiles to ICONS[key]
-const keys = ICONS |> Record.keys         // Array<string>   → Object.keys(ICONS)
-const vals = ICONS |> Record.values       // Array<string>   → Object.values(ICONS)
-const has = Record.has(ICONS, key)        // boolean         → (key in ICONS)
-const n = ICONS |> Record.size            // number          → Object.keys(ICONS).length
+let icon = Record.get(ICONS, key)       // Option<string>  → compiles to ICONS[key]
+let keys = ICONS |> Record.keys         // Array<string>   → Object.keys(ICONS)
+let vals = ICONS |> Record.values       // Array<string>   → Object.values(ICONS)
+let has = Record.has(ICONS, key)        // boolean         → (key in ICONS)
+let n = ICONS |> Record.size            // number          → Object.keys(ICONS).length
 
 // Http — pipe-friendly fetch with Result (already returns Result natively)
-const data = Http.get("https://api.example.com/users") |> Promise.await? |> Http.json |> Promise.await?
-const result = Http.post(url, { name: "Alice" }) |> Promise.await?
-const body = Http.get(url) |> Promise.await? |> Http.text |> Promise.await?
+let data = Http.get("https://api.example.com/users") |> Promise.await? |> Http.json |> Promise.await?
+let result = Http.post(url, { name: "Alice" }) |> Promise.await?
+let body = Http.get(url) |> Promise.await? |> Http.text |> Promise.await?
 
 // Set<T> — immutable unique collections
-const tags = Set.fromArray(["urgent", "bug", "frontend"])
-const updated = tags |> Set.add("backend")
-const isUrgent = tags |> Set.has("urgent")    // boolean
-const teamAll = Set.union(teamA, teamB)
-const overlap = Set.intersect(teamA, teamB)
-const diff = Set.diff(teamA, teamB)
+let tags = Set.fromArray(["urgent", "bug", "frontend"])
+let updated = tags |> Set.add("backend")
+let isUrgent = tags |> Set.has("urgent")    // boolean
+let teamAll = Set.union(teamA, teamB)
+let overlap = Set.intersect(teamA, teamB)
+let diff = Set.diff(teamA, teamB)
 
 // Date — construction and accessors (no `new` keyword in Floe)
-const now = Date.now()                        // new Date()
-const d = Date.from("2024-01-15")             // new Date("2024-01-15")
-const d2 = Date.fromMillis(1705276800000)     // new Date(1705276800000)
-const year = d |> Date.year                   // d.getFullYear()
-const month = d |> Date.month                 // d.getMonth() + 1 (1-indexed!)
-const day = d |> Date.day                     // d.getDate()
-const ms = d |> Date.millis                   // d.getTime()
-const iso = d |> Date.toIso                   // d.toISOString()
+let now = Date.now()                        // new Date()
+let d = Date.from("2024-01-15")             // new Date("2024-01-15")
+let d2 = Date.fromMillis(1705276800000)     // new Date(1705276800000)
+let year = d |> Date.year                   // d.getFullYear()
+let month = d |> Date.month                 // d.getMonth() + 1 (1-indexed!)
+let day = d |> Date.day                     // d.getDate()
+let ms = d |> Date.millis                   // d.getTime()
+let iso = d |> Date.toIso                   // d.toISOString()
 ```
 
 ## Imports
@@ -528,20 +528,20 @@ import { Todo, Filter } from "./types"
 
 // npm imports — untrusted by default, auto-wrapped in Result<T, Error>
 import { fetchUser } from "some-lib"
-const user = fetchUser("id")     // Result<User, Error> — auto-wrapped
+let user = fetchUser("id")     // Result<User, Error> — auto-wrapped
 
 // trusted imports — safe to call directly, no wrapping
 import trusted { useState, useEffect } from "react"
 import { clsx } from "clsx"      // untrusted by default
-const (count, setCount) = useState(0)  // useState returns a tuple — use `()` not `[]`
+let (count, setCount) = useState(0)  // useState returns a tuple — use `()` not `[]`
 
 // Per-function trusted
 import { trusted capitalize, fetchData } from "some-lib"
 capitalize("hello")              // direct call, no wrapping (trusted)
-const data = fetchData()         // Result<T, Error> — auto-wrapped (untrusted)
+let data = fetchData()         // Result<T, Error> — auto-wrapped (untrusted)
 
 // Use ? to unwrap untrusted results
-const parsed = fetchData()?      // unwraps or returns Err early
+let parsed = fetchData()?      // unwraps or returns Err early
 
 // Importing for-block extensions and traits
 import { for User } from "./user-helpers"
@@ -563,12 +563,12 @@ Rule of thumb:
 use file <- File.open(path)
 use contents <- File.readAll(file)
 contents |> String.toUpper
-// Compiles to: File.open(path, (file) => { File.readAll(file, (contents) => { ... }) })
+// Compiles to: File.open(path, (file) -> { File.readAll(file, (contents) -> { ... }) })
 
 // Zero-binding form (callback takes no args)
 use <- Timer.delay(1000)
 Console.log("done")
-// Compiles to: Timer.delay(1000, () => { console.log("done"); })
+// Compiles to: Timer.delay(1000, () -> { console.log("done"); })
 ```
 
 `use` works with ANY function whose last parameter is a callback. Complementary to `?` (which only works on Result/Option).
@@ -595,7 +595,7 @@ use user <- Option.guard(maybeUser, <LoginPage />)
 <ProfilePage user={user} />
 
 // Result.guard — bail if Err, continue with Ok value
-use data <- Result.guard(fetchResult, (e) => <ErrorPage error={e} />)
+use data <- Result.guard(fetchResult, (e) -> <ErrorPage error={e} />)
 <Dashboard data={data} />
 ```
 
@@ -606,7 +606,7 @@ use data <- Result.guard(fetchResult, (e) => <ErrorPage error={e} />)
 ```floe
 // Block form — group multiple functions under a type
 for Array<Todo> {
-    export fn filterBy(self, f: Filter) => Array<Todo> {
+    export let filterBy(self, f: Filter) -> Array<Todo> = {
         match f {
             All -> self,
             Active -> self |> filter(.done == false),
@@ -614,15 +614,15 @@ for Array<Todo> {
         }
     }
 
-    export fn remaining(self) => number {
+    export let remaining(self) -> number = {
         self |> filter(.done == false) |> length
     }
 }
 
 for string {
-    export fn validate(self) => Validation {
-        const trimmed = self |> trim
-        const len = trimmed |> String.length
+    export let validate(self) -> Validation = {
+        let trimmed = self |> trim
+        let len = trimmed |> String.length
         match len {
             0 -> Empty,
             1 -> TooShort,
@@ -638,8 +638,8 @@ todos |> filterBy(Filter.Active)
 
 // Block-level export — exports every method in the block
 export for User {
-    fn display(self) => string { self.name }
-    fn shout(self) => string { self.name |> String.toUpperCase }
+    let display(self) -> string = { self.name }
+    let shout(self) -> string = { self.name |> String.toUpperCase }
 }
 ```
 
@@ -648,20 +648,20 @@ export for User {
 ```floe
 // Define a trait
 trait Display {
-    fn display(self) => string
+    let display(self) -> string
 }
 
 // Traits can have default implementations
 trait Eq {
-    fn eq(self, other: Self) => boolean
-    fn neq(self, other: Self) => boolean {
+    let eq(self, other: Self) -> boolean
+    let neq(self, other: Self) -> boolean = {
         !(self |> eq(other))
     }
 }
 
 // Implement a trait
 for User: Display {
-    fn display(self) => string {
+    let display(self) -> string = {
         `${self.name} (${self.age})`
     }
 }
@@ -669,7 +669,7 @@ for User: Display {
 // `export for` exports every method in the block at once — the natural
 // shape for trait impls where all methods are part of the contract
 export for User: Display {
-    fn display(self) => string {
+    let display(self) -> string = {
         `${self.name} (${self.age})`
     }
 }
@@ -679,7 +679,7 @@ type Point = {
     x: number,
     y: number,
 } deriving (Display)
-// Generates display(self) => string
+// Generates display(self) -> string
 ```
 
 ## JSX / React Components
@@ -693,11 +693,11 @@ type Todo = {
     done: boolean,
 }
 
-export fn App() => JSX.Element {
-    const (todos, setTodos) = useState<Array<Todo>>([])
-    const (input, setInput) = useState("")
+export let App() -> JSX.Element = {
+    let (todos, setTodos) = useState<Array<Todo>>([])
+    let (input, setInput) = useState("")
 
-    fn handleAdd() {
+    let handleAdd() = {
         setTodos(todos |> append(Todo(id: "1", text: input, done: false)))
         setInput("")
     }
@@ -706,15 +706,15 @@ export fn App() => JSX.Element {
         <h1>Todos</h1>
         <input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => match e.key {
+            onChange={(e) -> setInput(e.target.value)}
+            onKeyDown={(e) -> match e.key {
                 "Enter" -> handleAdd(),
                 _ -> (),
             }}
         />
         <button onClick={handleAdd}>Add</button>
         <ul>
-            {todos |> map((item) =>
+            {todos |> map((item) ->
                 <li key={item.id}>
                     <span className={match item.done {
                         true -> "line-through",
@@ -722,7 +722,7 @@ export fn App() => JSX.Element {
                     }}>
                         {item.text}
                     </span>
-                    <button onClick={() => setTodos(todos |> map((t) =>
+                    <button onClick={() -> setTodos(todos |> map((t) ->
                         match t.id == item.id {
                             true -> Todo(..t, done: !t.done),
                             false -> t,
@@ -738,11 +738,11 @@ export fn App() => JSX.Element {
 
 // Optional rendering — Option.map renders if present, nothing if absent
 // (None compiles to undefined, which React ignores)
-{user.nickname |> Option.map((nick) => <span className="badge">{nick}</span>)}
+{user.nickname |> Option.map((nick) -> <span className="badge">{nick}</span>)}
 // Replaces the TS pattern {x && <Comp />} without truthiness pitfalls
 
 // JSX spread attributes — forward all props
-export fn Card(props: CardProps) => JSX.Element {
+export let Card(props: CardProps) -> JSX.Element = {
     <div {...props} className="card" />
 }
 
@@ -755,7 +755,7 @@ export fn Card(props: CardProps) => JSX.Element {
 ## Tests
 
 ```floe
-fn add(a: number, b: number) => number { a + b }
+let add(a: number, b: number) -> number = { a + b }
 
 test "addition" {
     assert add(1, 2) == 3
@@ -767,7 +767,7 @@ test "addition" {
 
 ```floe
 // todo — placeholder, type never, warns at compile time
-fn processPayment(order: Order) => Result<Receipt, Error> {
+let processPayment(order: Order) -> Result<Receipt, Error> = {
     todo    // panics with "not implemented" at runtime
 }
 
@@ -787,30 +787,30 @@ match key {
 | `null`, `undefined` | `Option<T>` with `Some`/`None` |
 | `let`, `var` | `const` |
 | `class` | Functions + types |
-| `enum` | `type Name { \| A \| B }` variants |
+| `enum` | `type Name = { \| A \| B }` variants |
 | `throw` | Return `Result<T, E>` |
 | `if`/`else` | `match` expression |
 | `? :` (ternary) | `match` expression |
 | `?.` (optional chain) | `match` on `Option` or `?` |
 | `??` (nullish coalesce) | `Option.unwrapOr` |
-| `=>` (arrow function) | `(x) => expr` closure; function types also use `=>`: `(T) => U` |
+| `->` (arrow function) | `(x) -> expr` closure; function types also use `->`: `(T) -> U` |
 | `function` keyword | `fn` |
 | `void` | Unit type `()` |
 | `as` (type assertion) | Type guards or `match` |
 | `return` | Implicit returns — last expression is the return value |
-| `async`/`await` | `\|> await` (or `\|> Promise.await`); return type `Promise<T>` or `async fn f() => T` (sugar) |
+| `async`/`await` | `\|> await` (or `\|> Promise.await`); return type `Promise<T>` or `async fn f() -> T` (sugar) |
 
 ## Compilation Examples
 
 | Floe | TypeScript Output |
 |------|-------------------|
-| `fn f(x: number) => number { x }` | `function f(x: number): number { return x; }` |
-| `fn f<T>(x: T) => T { x }` | `function f<T>(x: T): T { return x; }` |
+| `fn f(x: number) -> number { x }` | `function f(x: number): number { return x; }` |
+| `fn f<T>(x: T) -> T { x }` | `function f<T>(x: T): T { return x; }` |
 | `a \|> f(b)` | `f(a, b)` |
 | `a \|> f(b, _, c)` | `f(b, a, c)` |
 | `a \|> match { 1 -> "one", _ -> "other" }` | `match a { ... }` (desugared) |
-| `(x) => x + 1` | `(x) => x + 1` |
-| `.name` (in callback) | `(x) => x.name` |
+| `(x) -> x + 1` | `(x) -> x + 1` |
+| `.name` (in callback) | `(x) -> x.name` |
 | `Ok(value)` | `{ ok: true, value }` |
 | `Err(error)` | `{ ok: false, error }` |
 | `Some(value)` | `value` |
@@ -822,7 +822,7 @@ match key {
 | `(1, 2)` | `[1, 2] as const` |
 | `()` (unit) | `undefined` |
 | `expr \|> await` | `await expr` (enclosing fn inferred `async`) |
-| `async fn f() => T { body }` | `async function f(): Promise<T> { return body; }` |
+| `async fn f() -> T { body }` | `async function f(): Promise<T> { return body; }` |
 | `` tag`a ${x} b` `` | `` tag`a ${x} b` `` (byte-identical tagged template — passes a `TemplateStringsArray` to `tag`) |
 
 ## CLI Commands

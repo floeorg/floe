@@ -110,7 +110,7 @@ fn parse_tuple() {
 
 #[test]
 fn parse_function_type() {
-    let ty = parse_type_str("(x: string) => void");
+    let ty = parse_type_str("(x: string) -> void");
     assert_eq!(
         ty,
         TsType::Function {

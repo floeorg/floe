@@ -313,6 +313,27 @@ def open_and_diagnose(
 # ── Shared helpers ────────────────────────────────────────
 
 
+def at(source: str, target: str, nth: int = 0, offset: int = 0) -> tuple[int, int]:
+    """Find the nth occurrence of `target` in `source` and return (line, col).
+
+    Returns the position of the first character of the match, offset by `offset`
+    bytes. Useful for writing position-agnostic tests:
+
+        at(SOURCE, "add")          # cursor on `add`
+        at(SOURCE, "|>", nth=1)    # cursor on the second `|>`
+        at(SOURCE, "User", offset=2)  # cursor inside `User` (on the `e`)
+    """
+    idx = -1
+    start = 0
+    for _ in range(nth + 1):
+        idx = source.index(target, start)
+        start = idx + 1
+    idx += offset
+    line = source[:idx].count("\n")
+    col = idx - (source.rfind("\n", 0, idx) + 1)
+    return line, col
+
+
 def result_list(resp: dict | None) -> list:
     """Extract result list from an LSP response."""
     if resp is None:

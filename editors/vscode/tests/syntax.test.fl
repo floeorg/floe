@@ -13,7 +13,7 @@ fn validate(text: string) => Validation {
     }
 }
 
-fn handleDelete(id: string) {
+let handleDelete(id: string) = {
 // <-- storage.type.floe
 // ^^^^^^^^^^^^ entity.name.function.floe
 

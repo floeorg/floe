@@ -13,19 +13,19 @@ fn assert_fmt(input: &str, expected: &str) {
 
 #[test]
 fn format_const() {
-    assert_fmt("const   x   =   42", "const x = 42");
+    assert_fmt("let   x   =   42", "let x = 42");
 }
 
 #[test]
 fn format_const_typed() {
-    assert_fmt("const x:number = 42", "const x: number = 42");
+    assert_fmt("let x:number = 42", "let x: number = 42");
 }
 
 #[test]
 fn format_function() {
     assert_fmt(
-        "fn  add( a:number,b:number ) => number{a+b}",
-        "fn add(a: number, b: number) => number {\n    a + b\n}",
+        "let add( a:number,b:number ) -> number = {a+b}",
+        "let add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
@@ -40,8 +40,8 @@ fn format_import() {
 #[test]
 fn format_export() {
     assert_fmt(
-        "export fn add(a:number,b:number) => number{a+b}",
-        "export fn add(a: number, b: number) => number {\n    a + b\n}",
+        "export let add(a:number,b:number) -> number = {a+b}",
+        "export let add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
@@ -89,27 +89,27 @@ fn format_string_union_type_normalizes_spacing() {
 #[test]
 fn format_match() {
     assert_fmt(
-        "const x = match route {Home -> \"home\",NotFound -> \"404\"}",
-        "const x = match route {\n    Home -> \"home\",\n    NotFound -> \"404\",\n}",
+        "let x = match route {Home -> \"home\",NotFound -> \"404\"}",
+        "let x = match route {\n    Home -> \"home\",\n    NotFound -> \"404\",\n}",
     );
 }
 
 #[test]
 fn format_pipe() {
     assert_fmt(
-        "const _r = data|>transform|>format",
-        "const _r = data |> transform |> format",
+        "let _r = data|>transform|>format",
+        "let _r = data |> transform |> format",
     );
 }
 
 #[test]
 fn format_arrow() {
-    assert_fmt("const f = (x) => x + 1", "const f = (x) => x + 1");
+    assert_fmt("let f(x) = x + 1", "let f(x) = x + 1");
 }
 
 #[test]
 fn format_blank_lines_between_items() {
-    assert_fmt("const x = 1\nconst y = 2", "const x = 1\n\nconst y = 2");
+    assert_fmt("let x = 1\nlet y = 2", "let x = 1\n\nlet y = 2");
 }
 
 // ── JSX ─────────────────────────────────────────────────────
@@ -163,16 +163,16 @@ fn format_jsx_comment_only_child() {
 #[test]
 fn format_blank_line_before_final_expr_in_multi_stmt_fn() {
     assert_fmt(
-        "fn load(id: string) => number {\n    const x = fetch(id)\n    const y = process(x)\n    x + y\n}",
-        "fn load(id: string) => number {\n    const x = fetch(id)\n    const y = process(x)\n\n    x + y\n}",
+        "let load(id: string) -> number = {\n    let x = fetch(id)\n    let y = process(x)\n    x + y\n}",
+        "let load(id: string) -> number = {\n    let x = fetch(id)\n    let y = process(x)\n\n    x + y\n}",
     );
 }
 
 #[test]
 fn format_single_expr_fn_no_blank_line() {
     assert_fmt(
-        "fn add(a: number, b: number) => number { a + b }",
-        "fn add(a: number, b: number) => number {\n    a + b\n}",
+        "let add(a: number, b: number) -> number = { a + b }",
+        "let add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
@@ -181,32 +181,32 @@ fn format_already_has_blank_line_no_double() {
     // Even if the input doesn't have one, the formatter always produces
     // the canonical output with exactly one blank line before the last expr
     assert_fmt(
-        "fn f() => number {\n    const x = 1\n\n    x\n}",
-        "fn f() => number {\n    const x = 1\n\n    x\n}",
+        "let f() -> number = {\n    let x = 1\n\n    x\n}",
+        "let f() -> number = {\n    let x = 1\n\n    x\n}",
     );
 }
 
 #[test]
 fn format_two_statement_block_gets_blank_line() {
     assert_fmt(
-        "fn f() => number {\n    const x = 1\n    x\n}",
-        "fn f() => number {\n    const x = 1\n\n    x\n}",
+        "let f() -> number = {\n    let x = 1\n    x\n}",
+        "let f() -> number = {\n    let x = 1\n\n    x\n}",
     );
 }
 
 #[test]
 fn format_match_arm_block_body_blank_line() {
     assert_fmt(
-        "const r = match x {\n    Some(v) -> {\n        const y = v + 1\n        y\n    },\n    None -> 0,\n}",
-        "const r = match x {\n    Some(v) -> {\n        const y = v + 1\n\n        y\n    },\n    None -> 0,\n}",
+        "let r = match x {\n    Some(v) -> {\n        let y = v + 1\n        y\n    },\n    None -> 0,\n}",
+        "let r = match x {\n    Some(v) -> {\n        let y = v + 1\n\n        y\n    },\n    None -> 0,\n}",
     );
 }
 
 #[test]
 fn format_lambda_block_body_blank_line() {
     assert_fmt(
-        "const f = (x) => {\n    const y = x + 1\n    y\n}",
-        "const f = (x) => {\n    const y = x + 1\n\n    y\n}",
+        "let f(x) = {\n    let y = x + 1\n    y\n}",
+        "let f(x) = {\n    let y = x + 1\n\n    y\n}",
     );
 }
 
@@ -232,21 +232,21 @@ fn format_named_arg_punning_already_punned() {
 #[test]
 fn format_tuple_type() {
     assert_fmt(
-        "fn f() => Result<(string, number), Error> {}",
-        "fn f() => Result<(string, number), Error> {}",
+        "let f() -> Result<(string, number), Error> = {}",
+        "let f() -> Result<(string, number), Error> = {}",
     );
 }
 
 #[test]
 fn format_unit_type() {
-    assert_fmt("fn f() => () {}", "fn f() => () {}");
+    assert_fmt("let f() -> () = {}", "let f() -> () = {}");
 }
 
 // ── Tuple expressions ──────────────────────────────────
 
 #[test]
 fn format_tuple_expr() {
-    assert_fmt("const x = (a, b)", "const x = (a, b)");
+    assert_fmt("let x = (a, b)", "let x = (a, b)");
 }
 
 #[test]
@@ -259,8 +259,8 @@ fn format_tuple_expr_in_ok() {
 #[test]
 fn format_match_tuple_pattern() {
     assert_fmt(
-        r#"const x = match point { (0, 0) -> "origin", (x, y) -> "other" }"#,
-        "const x = match point {\n    (0, 0) -> \"origin\",\n    (x, y) -> \"other\",\n}",
+        r#"let x = match point { (0, 0) -> "origin", (x, y) -> "other" }"#,
+        "let x = match point {\n    (0, 0) -> \"origin\",\n    (x, y) -> \"other\",\n}",
     );
 }
 
@@ -287,8 +287,8 @@ fn format_match_array_pattern_with_wildcard_rest() {
 #[test]
 fn format_piped_match() {
     assert_fmt(
-        r#"const x = value |> match { 1 -> "one", _ -> "other" }"#,
-        "const x = value |> match {\n    1 -> \"one\",\n    _ -> \"other\",\n}",
+        r#"let x = value |> match { 1 -> "one", _ -> "other" }"#,
+        "let x = value |> match {\n    1 -> \"one\",\n    _ -> \"other\",\n}",
     );
 }
 
@@ -296,14 +296,14 @@ fn format_piped_match() {
 
 #[test]
 fn format_call_with_type_args() {
-    assert_fmt("const x = Array<Todo>([])", "const x = Array<Todo>([])");
+    assert_fmt("let x = Array<Todo>([])", "let x = Array<Todo>([])");
 }
 
 // ── Const tuple destructuring ──────────────────────────
 
 #[test]
 fn format_const_tuple_destructure() {
-    assert_fmt("const (a, b) = getPoint()", "const (a, b) = getPoint()");
+    assert_fmt("let (a, b) = getPoint()", "let (a, b) = getPoint()");
 }
 
 // ── Comments ───────────────────────────────────────────
@@ -311,16 +311,16 @@ fn format_const_tuple_destructure() {
 #[test]
 fn format_preserves_top_level_comments() {
     assert_fmt(
-        "// section header\nconst x = 1",
-        "// section header\n\nconst x = 1",
+        "// section header\nlet x = 1",
+        "// section header\n\nlet x = 1",
     );
 }
 
 #[test]
 fn format_preserves_consecutive_comments() {
     assert_fmt(
-        "// line 1\n// line 2\nconst x = 1",
-        "// line 1\n// line 2\n\nconst x = 1",
+        "// line 1\n// line 2\nlet x = 1",
+        "// line 1\n// line 2\n\nlet x = 1",
     );
 }
 
@@ -329,32 +329,32 @@ fn format_preserves_consecutive_comments() {
 #[test]
 fn format_preserves_comment_in_block() {
     assert_fmt(
-        "fn f() {\n    // hello\n    const x = 1\n\n    x\n}",
-        "fn f() {\n    // hello\n    const x = 1\n\n    x\n}",
+        "let f() = {\n    // hello\n    let x = 1\n\n    x\n}",
+        "let f() = {\n    // hello\n    let x = 1\n\n    x\n}",
     );
 }
 
 #[test]
 fn format_preserves_comment_between_statements() {
     assert_fmt(
-        "fn f() {\n    const x = 1\n    // middle comment\n    const y = 2\n\n    x + y\n}",
-        "fn f() {\n    const x = 1\n    // middle comment\n    const y = 2\n\n    x + y\n}",
+        "let f() = {\n    let x = 1\n    // middle comment\n    let y = 2\n\n    x + y\n}",
+        "let f() = {\n    let x = 1\n    // middle comment\n    let y = 2\n\n    x + y\n}",
     );
 }
 
 #[test]
 fn format_preserves_comment_before_final_expr() {
     assert_fmt(
-        "fn f() {\n    const x = 1\n    // result\n    x\n}",
-        "fn f() {\n    const x = 1\n    // result\n\n    x\n}",
+        "let f() = {\n    let x = 1\n    // result\n    x\n}",
+        "let f() = {\n    let x = 1\n    // result\n\n    x\n}",
     );
 }
 
 #[test]
 fn format_preserves_block_comment_in_block() {
     assert_fmt(
-        "fn f() {\n    /* block comment */\n    const x = 1\n\n    x\n}",
-        "fn f() {\n    /* block comment */\n    const x = 1\n\n    x\n}",
+        "let f() = {\n    /* block comment */\n    let x = 1\n\n    x\n}",
+        "let f() = {\n    /* block comment */\n    let x = 1\n\n    x\n}",
     );
 }
 
@@ -387,8 +387,8 @@ fn format_preserves_comment_between_construct_args() {
 #[test]
 fn format_preserves_comment_between_array_elements() {
     assert_fmt(
-        "const xs = [1, /* skip */ 2, 3]",
-        "const xs = [\n    1,\n    /* skip */\n    2,\n    3,\n]",
+        "let xs = [1, /* skip */ 2, 3]",
+        "let xs = [\n    1,\n    /* skip */\n    2,\n    3,\n]",
     );
 }
 
@@ -403,16 +403,16 @@ fn format_preserves_comment_between_record_fields() {
 #[test]
 fn format_preserves_comment_between_function_params() {
     assert_fmt(
-        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) => number {\n    a + b\n}",
-        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) => number {\n    a + b\n}",
+        "let add(\n    a: number,\n    // second operand\n    b: number,\n) -> number = {\n    a + b\n}",
+        "let add(\n    a: number,\n    // second operand\n    b: number,\n) -> number = {\n    a + b\n}",
     );
 }
 
 #[test]
 fn format_preserves_doc_comment_before_definition() {
     assert_fmt(
-        "/// the global counter\nconst count = 0",
-        "/// the global counter\n\nconst count = 0",
+        "/// the global counter\nlet count = 0",
+        "/// the global counter\n\nlet count = 0",
     );
 }
 
@@ -430,20 +430,20 @@ fn idempotent_comment_between_record_fields() {
 
 #[test]
 fn format_tagged_template_simple() {
-    assert_fmt("const q = sql`select 1`", "const q = sql`select 1`");
+    assert_fmt("let q = sql`select 1`", "let q = sql`select 1`");
 }
 
 #[test]
 fn format_tagged_template_with_interpolation() {
     assert_fmt(
-        "const q = sql`${col} + ${delta}`",
-        "const q = sql`${col} + ${delta}`",
+        "let q = sql`${col} + ${delta}`",
+        "let q = sql`${col} + ${delta}`",
     );
 }
 
 #[test]
 fn format_tagged_template_member_tag() {
-    assert_fmt("const q = db.sql`select 1`", "const q = db.sql`select 1`");
+    assert_fmt("let q = db.sql`select 1`", "let q = db.sql`select 1`");
 }
 
 // ── Idempotency ────────────────────────────────────────
@@ -459,19 +459,19 @@ fn assert_idempotent(input: &str) {
 
 #[test]
 fn idempotent_tuple_type_in_result() {
-    assert_idempotent("fn f(id: Id) => Result<(Product, Array<Review>), Error> { Ok((p, r)) }");
+    assert_idempotent("let f(id: Id) -> Result<(Product, Array<Review>), Error> = { Ok((p, r)) }");
 }
 
 #[test]
 fn idempotent_piped_match_with_tuple_patterns() {
     assert_idempotent(
-        r#"const url = (cat, search) |> match { ("", "") -> "a", (c, "") -> "b", (_, q) -> "c" }"#,
+        r#"let url = (cat, search) |> match { ("", "") -> "a", (c, "") -> "b", (_, q) -> "c" }"#,
     );
 }
 
 #[test]
 fn idempotent_generic_call() {
-    assert_idempotent("const [items, setItems] = Array<Todo>([])");
+    assert_idempotent("let [items, setItems] = Array<Todo>([])");
 }
 
 // ── Record spread ──────────────────────────────────────
@@ -487,8 +487,8 @@ fn format_record_spread() {
 #[test]
 fn format_spread_in_construct() {
     assert_fmt(
-        "const x = Todo(..t, done: true)",
-        "const x = Todo(..t, done: true)",
+        "let x = Todo(..t, done: true)",
+        "let x = Todo(..t, done: true)",
     );
 }
 
@@ -508,8 +508,8 @@ fn format_jsx_hyphenated_prop() {
 #[test]
 fn format_trailing_comments_between_items() {
     assert_fmt(
-        "const x = 1\n// section\nconst y = 2",
-        "const x = 1\n\n// section\n\nconst y = 2",
+        "let x = 1\n// section\nlet y = 2",
+        "let x = 1\n\n// section\n\nlet y = 2",
     );
 }
 
@@ -518,40 +518,40 @@ fn format_trailing_comments_between_items() {
 #[test]
 fn format_long_pipe_goes_vertical() {
     assert_fmt(
-        "const data = Http.get(`https://example.com/very/long/url/that/exceeds/width`)|>Promise.await?|>Http.json|>Promise.await?",
-        "const data = Http.get(`https://example.com/very/long/url/that/exceeds/width`)\n    |> Promise.await?\n    |> Http.json\n    |> Promise.await?",
+        "let data = Http.get(`https://example.com/very/long/url/that/exceeds/width`)|>Promise.await?|>Http.json|>Promise.await?",
+        "let data = Http.get(`https://example.com/very/long/url/that/exceeds/width`)\n    |> Promise.await?\n    |> Http.json\n    |> Promise.await?",
     );
 }
 
 #[test]
 fn format_short_pipe_stays_inline() {
     assert_fmt(
-        "const _r = data|>transform|>format",
-        "const _r = data |> transform |> format",
+        "let _r = data|>transform|>format",
+        "let _r = data |> transform |> format",
     );
 }
 
 #[test]
 fn format_long_fn_params_go_multiline() {
     assert_fmt(
-        "fn fetchProducts(category: string = \"\", search: string = \"\", limit: number = 20, skip: number = 0) => Result<number, Error> {}",
-        "fn fetchProducts(\n    category: string = \"\",\n    search: string = \"\",\n    limit: number = 20,\n    skip: number = 0,\n) => Result<number, Error> {}",
+        "let fetchProducts(category: string = \"\", search: string = \"\", limit: number = 20, skip: number = 0) -> Result<number, Error> = {}",
+        "let fetchProducts(\n    category: string = \"\",\n    search: string = \"\",\n    limit: number = 20,\n    skip: number = 0,\n) -> Result<number, Error> = {}",
     );
 }
 
 #[test]
 fn format_short_fn_params_stay_inline() {
     assert_fmt(
-        "fn add(a: number, b: number) => number { a + b }",
-        "fn add(a: number, b: number) => number {\n    a + b\n}",
+        "let add(a: number, b: number) -> number = { a + b }",
+        "let add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
 #[test]
 fn format_long_call_args_go_multiline() {
     assert_fmt(
-        "const p = Product(id: ProductId(data.id), title: data.title, description: data.description, category: data.category, price: data.price)",
-        "const p = Product(\n    id: ProductId(data.id),\n    title: data.title,\n    description: data.description,\n    category: data.category,\n    price: data.price,\n)",
+        "let p = Product(id: ProductId(data.id), title: data.title, description: data.description, category: data.category, price: data.price)",
+        "let p = Product(\n    id: ProductId(data.id),\n    title: data.title,\n    description: data.description,\n    category: data.category,\n    price: data.price,\n)",
     );
 }
 
@@ -565,22 +565,22 @@ fn format_short_call_args_stay_inline() {
 #[test]
 fn format_preserves_blank_lines_between_statements() {
     assert_fmt(
-        "fn f() {\n    const a = 1\n\n    const b = 2\n\n    a + b\n}",
-        "fn f() {\n    const a = 1\n\n    const b = 2\n\n    a + b\n}",
+        "let f() = {\n    let a = 1\n\n    let b = 2\n\n    a + b\n}",
+        "let f() = {\n    let a = 1\n\n    let b = 2\n\n    a + b\n}",
     );
 }
 
 #[test]
 fn format_no_blank_line_when_source_has_none() {
     assert_fmt(
-        "fn f() {\n    const a = 1\n    const b = 2\n\n    a + b\n}",
-        "fn f() {\n    const a = 1\n    const b = 2\n\n    a + b\n}",
+        "let f() = {\n    let a = 1\n    let b = 2\n\n    a + b\n}",
+        "let f() = {\n    let a = 1\n    let b = 2\n\n    a + b\n}",
     );
 }
 
 #[test]
 fn format_preserves_blank_line_after_match_block() {
-    let src = "fn f() {\n    const url = x |> match {\n        1 -> \"a\",\n    }\n\n    const data = y\n\n    Ok(data)\n}";
+    let src = "let f() = {\n    let url = x |> match {\n        1 -> \"a\",\n    }\n\n    let data = y\n\n    Ok(data)\n}";
     assert_fmt(src, src);
 }
 
@@ -613,24 +613,21 @@ fn format_import_trusted_roundtrip() {
 #[test]
 fn format_destructured_param() {
     assert_fmt(
-        "fn greet({name,age}:User) {\n    name\n}",
-        "fn greet({ name, age }: User) {\n    name\n}",
+        "let greet({name,age}:User) = {\n    name\n}",
+        "let greet({ name, age }: User) = {\n    name\n}",
     );
 }
 
 #[test]
 fn format_destructured_arrow_param() {
-    assert_fmt(
-        "const f = ({x,y}) => x + y",
-        "const f = ({ x, y }) => x + y",
-    );
+    assert_fmt("let f({x,y}) = x + y", "let f({ x, y }) = x + y");
 }
 
 #[test]
 fn format_underscore_param() {
     assert_fmt(
-        "fn f(_:number) => number {\n    42\n}",
-        "fn f(_: number) => number {\n    42\n}",
+        "let f(_:number) -> number = {\n    42\n}",
+        "let f(_: number) -> number = {\n    42\n}",
     );
 }
 
@@ -638,12 +635,12 @@ fn format_underscore_param() {
 
 #[test]
 fn format_tuple_index_access() {
-    assert_fmt("const x = pair.0", "const x = pair.0");
+    assert_fmt("let x = pair.0", "let x = pair.0");
 }
 
 #[test]
 fn format_tuple_index_access_1() {
-    assert_fmt("const x = pair.1", "const x = pair.1");
+    assert_fmt("let x = pair.1", "let x = pair.1");
 }
 
 // ── JSX multi-line children ───────────────────────────────
@@ -728,21 +725,21 @@ fn idempotent_match_arm_jsx_multiline_props() {
 
 #[test]
 fn format_short_array_stays_inline() {
-    assert_fmt("const x = [1, 2, 3]", "const x = [1, 2, 3]");
+    assert_fmt("let x = [1, 2, 3]", "let x = [1, 2, 3]");
 }
 
 #[test]
 fn format_long_array_goes_multiline() {
     assert_fmt(
-        r#"const navItems: Array<NavItem> = [NavItem(to: "/", label: "Dashboard", icon: Grid), NavItem(to: "/board", label: "Board", icon: Columns), NavItem(to: "/backlog", label: "Backlog", icon: List)]"#,
-        "const navItems: Array<NavItem> = [\n    NavItem(to: \"/\", label: \"Dashboard\", icon: Grid),\n    NavItem(to: \"/board\", label: \"Board\", icon: Columns),\n    NavItem(to: \"/backlog\", label: \"Backlog\", icon: List),\n]",
+        r#"let navItems: Array<NavItem> = [NavItem(to: "/", label: "Dashboard", icon: Grid), NavItem(to: "/board", label: "Board", icon: Columns), NavItem(to: "/backlog", label: "Backlog", icon: List)]"#,
+        "let navItems: Array<NavItem> = [\n    NavItem(to: \"/\", label: \"Dashboard\", icon: Grid),\n    NavItem(to: \"/board\", label: \"Board\", icon: Columns),\n    NavItem(to: \"/backlog\", label: \"Backlog\", icon: List),\n]",
     );
 }
 
 #[test]
 fn idempotent_long_array_with_constructors() {
     assert_idempotent(
-        r#"const navItems: Array<NavItem> = [NavItem(to: "/", label: "Dashboard", icon: Grid), NavItem(to: "/board", label: "Board", icon: Columns), NavItem(to: "/backlog", label: "Backlog", icon: List)]"#,
+        r#"let navItems: Array<NavItem> = [NavItem(to: "/", label: "Dashboard", icon: Grid), NavItem(to: "/board", label: "Board", icon: Columns), NavItem(to: "/backlog", label: "Backlog", icon: List)]"#,
     );
 }
 
@@ -751,9 +748,9 @@ fn idempotent_long_array_with_constructors() {
 #[test]
 fn format_jsx_arrow_with_multiline_jsx_body_breaks_after_arrow() {
     assert_fmt(
-        r#"<nav className="flex-1 p-2">{items |> map((item) => <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
+        r#"<nav className="flex-1 p-2">{items |> map((item) -> <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
         r#"<nav className="flex-1 p-2">
-    {items |> map((item) =>
+    {items |> map((item) ->
         <NavLink
             key={item.to}
             to={item.to}
@@ -770,7 +767,7 @@ fn format_jsx_arrow_with_multiline_jsx_body_breaks_after_arrow() {
 #[test]
 fn idempotent_jsx_arrow_with_multiline_jsx_body() {
     assert_idempotent(
-        r#"<nav className="flex-1 p-2">{items |> map((item) => <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
+        r#"<nav className="flex-1 p-2">{items |> map((item) -> <NavLink key={item.to} to={item.to} className="flex items-center gap-3 px-3 py-2 rounded-md"><span>{item.icon}</span>{item.label}</NavLink>)}</nav>"#,
     );
 }
 
@@ -778,8 +775,8 @@ fn idempotent_jsx_arrow_with_multiline_jsx_body() {
 fn format_jsx_arrow_simple_jsx_stays_inline() {
     // Arrow with inline JSX body should not break
     assert_fmt(
-        r#"<div>{items |> map((x) => <span>{x}</span>)}</div>"#,
-        r#"<div>{items |> map((x) => <span>{x}</span>)}</div>"#,
+        r#"<div>{items |> map((x) -> <span>{x}</span>)}</div>"#,
+        r#"<div>{items |> map((x) -> <span>{x}</span>)}</div>"#,
     );
 }
 
@@ -799,24 +796,24 @@ fn format_member_keyword_names() {
 #[test]
 fn format_object_destructure_preserves_rename() {
     assert_fmt(
-        "const { data: issues, isLoading: loading } = hook()",
-        "const { data: issues, isLoading: loading } = hook()",
+        "let { data: issues, isLoading: loading } = hook()",
+        "let { data: issues, isLoading: loading } = hook()",
     );
 }
 
 #[test]
 fn format_object_destructure_without_rename() {
     assert_fmt(
-        "const {  data ,  columns  } = hook()",
-        "const { data, columns } = hook()",
+        "let {  data ,  columns  } = hook()",
+        "let { data, columns } = hook()",
     );
 }
 
 #[test]
 fn format_object_destructure_mixed() {
     assert_fmt(
-        "const { data: items, isLoading } = hook()",
-        "const { data: items, isLoading } = hook()",
+        "let { data: items, isLoading } = hook()",
+        "let { data: items, isLoading } = hook()",
     );
 }
 
@@ -825,68 +822,68 @@ fn format_object_destructure_mixed() {
 #[test]
 fn format_for_block_basic() {
     assert_fmt(
-        "for User {\n  fn display(self) => string {\n  `${self.name}`\n}\n}",
-        "for User {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
+        "for User {\n  let display(self) -> string = {\n  `${self.name}`\n}\n}",
+        "for User {\n    let display(self) -> string = {\n        `${self.name}`\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_with_trait() {
     assert_fmt(
-        "for  User :  Display  {\nfn display(self) => string {\n`${self.name}`\n}\n}",
-        "for User: Display {\n    fn display(self) => string {\n        `${self.name}`\n    }\n}",
+        "for  User :  Display  {\nlet display(self) -> string = {\n`${self.name}`\n}\n}",
+        "for User: Display {\n    let display(self) -> string = {\n        `${self.name}`\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_with_export() {
     assert_fmt(
-        "for User {\n  export fn display(self) => string {\n  `${self.name}`\n}\n}",
-        "for User {\n    export fn display(self) => string {\n        `${self.name}`\n    }\n}",
+        "for User {\n  export let display(self) -> string = {\n  `${self.name}`\n}\n}",
+        "for User {\n    export let display(self) -> string = {\n        `${self.name}`\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_multiple_methods() {
     assert_fmt(
-        "for User {\nfn name(self) => string { self.name }\nfn age(self) => number { self.age }\n}",
-        "for User {\n    fn name(self) => string {\n        self.name\n    }\n\n    fn age(self) => number {\n        self.age\n    }\n}",
+        "for User {\nlet name(self) -> string = { self.name }\nlet age(self) -> number = { self.age }\n}",
+        "for User {\n    let name(self) -> string = {\n        self.name\n    }\n\n    let age(self) -> number = {\n        self.age\n    }\n}",
     );
 }
 
 #[test]
 fn format_for_block_generic_type() {
     assert_fmt(
-        "for Array<Todo> {\nexport fn remaining(self) => number {\nself |> filter(.done == false) |> length\n}\n}",
-        "for Array<Todo> {\n    export fn remaining(self) => number {\n        self |> filter(.done == false) |> length\n    }\n}",
+        "for Array<Todo> {\nexport let remaining(self) -> number = {\nself |> filter(.done == false) |> length\n}\n}",
+        "for Array<Todo> {\n    export let remaining(self) -> number = {\n        self |> filter(.done == false) |> length\n    }\n}",
     );
 }
 
 #[test]
 fn format_trait_decl_basic() {
     assert_fmt(
-        "trait Display {\nfn display(self) => string\n}",
-        "trait Display {\n    fn display(self) => string\n}",
+        "trait Display {\nlet display(self) -> string\n}",
+        "trait Display {\n    let display(self) -> string\n}",
     );
 }
 
 #[test]
 fn format_trait_decl_with_default_impl() {
     assert_fmt(
-        "trait Eq {\nfn eq(self,other:Self) => boolean\nfn neq(self,other:Self) => boolean {\n!(self |> eq(other))\n}\n}",
-        "trait Eq {\n    fn eq(self, other: Self) => boolean\n\n    fn neq(self, other: Self) => boolean {\n        !(self |> eq(other))\n    }\n}",
+        "trait Eq {\nlet eq(self,other:Self) -> boolean\nlet neq(self,other:Self) -> boolean = {\n!(self |> eq(other))\n}\n}",
+        "trait Eq {\n    let eq(self, other: Self) -> boolean\n\n    let neq(self, other: Self) -> boolean = {\n        !(self |> eq(other))\n    }\n}",
     );
 }
 
 #[test]
 fn idempotent_for_block() {
-    let formatted = "for User: Display {\n    export fn display(self) => string {\n        `${self.name}`\n    }\n}";
+    let formatted = "for User: Display {\n    export let display(self) -> string = {\n        `${self.name}`\n    }\n}";
     assert_fmt(formatted, formatted);
 }
 
 #[test]
 fn idempotent_trait_decl() {
-    let formatted = "trait Display {\n    fn display(self) => string\n}";
+    let formatted = "trait Display {\n    let display(self) -> string\n}";
     assert_fmt(formatted, formatted);
 }
 
@@ -901,17 +898,17 @@ fn idempotent_block_comment_between_record_fields() {
 
 #[test]
 fn idempotent_line_comment_between_array_elements() {
-    assert_idempotent("const xs = [\n    1,\n    // skip\n    2,\n    3,\n]");
+    assert_idempotent("let xs = [\n    1,\n    // skip\n    2,\n    3,\n]");
 }
 
 #[test]
 fn idempotent_block_comment_between_array_elements() {
-    assert_idempotent("const xs = [\n    1,\n    /* skip */\n    2,\n    3,\n]");
+    assert_idempotent("let xs = [\n    1,\n    /* skip */\n    2,\n    3,\n]");
 }
 
 #[test]
 fn idempotent_line_comment_between_tuple_elements() {
-    assert_idempotent("const pair = (\n    1,\n    // second\n    2,\n)");
+    assert_idempotent("let pair = (\n    1,\n    // second\n    2,\n)");
 }
 
 #[test]
@@ -921,18 +918,18 @@ fn idempotent_block_comment_inside_construct_args() {
 
 #[test]
 fn idempotent_trailing_comment_at_end_of_function() {
-    assert_idempotent("fn f() => number {\n    const x = 1\n\n    // return the answer\n    x\n}");
+    assert_idempotent("let f() -> number = {\n    let x = 1\n\n    // return the answer\n    x\n}");
 }
 
 #[test]
 fn idempotent_doc_comment_before_const() {
-    assert_idempotent("/// the global counter\nconst count = 0");
+    assert_idempotent("/// the global counter\nlet count = 0");
 }
 
 #[test]
 fn idempotent_doc_comment_before_function() {
     assert_idempotent(
-        "/// adds two numbers\nfn add(a: number, b: number) => number {\n    a + b\n}",
+        "/// adds two numbers\nlet add(a: number, b: number) -> number = {\n    a + b\n}",
     );
 }
 
@@ -945,22 +942,22 @@ fn idempotent_doc_comment_before_type() {
 
 #[test]
 fn idempotent_module_doc_comment_at_top() {
-    assert_idempotent("//// Todo domain module\n\nconst version = 1");
+    assert_idempotent("//// Todo domain module\n\nlet version = 1");
 }
 
 #[test]
 fn idempotent_module_doc_then_doc_then_plain() {
-    assert_idempotent("//// module header\n/// item doc\n// plain\nconst x = 1");
+    assert_idempotent("//// module header\n/// item doc\n// plain\nlet x = 1");
 }
 
 #[test]
 fn idempotent_blank_lines_between_definitions() {
-    assert_idempotent("const a = 1\n\nconst b = 2\n\nconst c = 3");
+    assert_idempotent("let a = 1\n\nlet b = 2\n\nlet c = 3");
 }
 
 #[test]
 fn idempotent_blank_lines_between_functions() {
-    assert_idempotent("fn one() => number {\n    1\n}\n\nfn two() => number {\n    2\n}");
+    assert_idempotent("let one() -> number = {\n    1\n}\n\nlet two() -> number = {\n    2\n}");
 }
 
 #[test]
@@ -983,7 +980,7 @@ fn idempotent_block_comment_between_call_args() {
 #[test]
 fn idempotent_line_comment_between_function_params() {
     assert_idempotent(
-        "fn add(\n    a: number,\n    // second operand\n    b: number,\n) => number {\n    a + b\n}",
+        "let add(\n    a: number,\n    // second operand\n    b: number,\n) -> number = {\n    a + b\n}",
     );
 }
 

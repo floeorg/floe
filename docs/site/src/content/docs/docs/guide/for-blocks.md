@@ -7,18 +7,18 @@ title: For Blocks
 ## Basic Usage
 
 ```floe
-type User { name: string, age: number }
+type User = { name: string, age: number }
 
 for User {
-  fn display(self) => string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 
-  fn isAdult(self) => boolean {
+  let isAdult(self) -> boolean = {
     self.age >= 18
   }
 
-  fn greet(self, greeting: string) => string {
+  let greet(self, greeting: string) -> string = {
     `${greeting}, ${self.name}!`
   }
 }
@@ -38,7 +38,7 @@ user |> greet("Hello")    // greet(user, "Hello")
 This gives you method-call ergonomics without OOP:
 
 ```floe
-const message = user
+let message = user
   |> greet("Hi")
   |> String.toUpperCase
 ```
@@ -49,7 +49,7 @@ For blocks work with generic types:
 
 ```floe
 for Array<User> {
-  fn adults(self) => Array<User> {
+  let adults(self) -> Array<User> = {
     self |> Array.filter(.age >= 18)
   }
 }
@@ -90,9 +90,9 @@ From the todo app, validating input strings and filtering todos:
 
 ```floe
 for string {
-  export fn validate(self) => Validation {
-    const trimmed = self |> trim
-    const len = trimmed |> String.length
+  export let validate(self) -> Validation = {
+    let trimmed = self |> trim
+    let len = trimmed |> String.length
     match len {
       0 -> Empty,
       1 -> TooShort,
@@ -105,7 +105,7 @@ for string {
 }
 
 for Array<Todo> {
-  export fn filterBy(self, f: Filter) => Array<Todo> {
+  export let filterBy(self, f: Filter) -> Array<Todo> = {
     match f {
       All -> self,
       Active -> self |> filter(.done == false),
@@ -113,7 +113,7 @@ for Array<Todo> {
     }
   }
 
-  export fn remaining(self) => number {
+  export let remaining(self) -> number = {
     self
       |> filter(.done == false)
       |> length
@@ -127,8 +127,8 @@ Then import them in another file:
 import { Todo, Filter } from "./types"
 import { for string, for Array } from "./todo"
 
-const visible = todos |> filterBy(filter)
-const remaining = todos |> remaining
+let visible = todos |> filterBy(filter)
+let remaining = todos |> remaining
 ```
 
 ## Export
@@ -137,7 +137,7 @@ For-block functions can be exported by placing `export` before `fn` inside the b
 
 ```floe
 for User {
-  export fn display(self) => string {
+  export let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }
@@ -147,7 +147,7 @@ Prefix the whole block with `export` to export every method at once. This is the
 
 ```floe
 export for User: Display {
-  fn display(self) => string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }
@@ -166,7 +166,7 @@ Per-method `export` is useful for plain `for` blocks where only some methods sho
 
 ```floe
 for User {
-  fn display(self) => string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }

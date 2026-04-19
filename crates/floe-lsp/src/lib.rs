@@ -206,7 +206,7 @@ struct Document {
 
 /// Floe keywords and builtins for completion.
 const KEYWORDS: &[(&str, &str)] = &[
-    ("const", "const ${1:name} = ${0:value}"),
+    ("const", "let ${1:name} = ${0:value}"),
     (
         "function",
         "function ${1:name}(${2:params}): ${3:ReturnType} {\n\t$0\n}",
@@ -691,7 +691,7 @@ impl FloeLsp {
             // export type symbolName, export interface symbolName, export declare ...
             let is_export_of_symbol = trimmed.contains("export")
                 && (trimmed.contains(&format!("function {symbol_name}"))
-                    || trimmed.contains(&format!("const {symbol_name}"))
+                    || trimmed.contains(&format!("let {symbol_name}"))
                     || trimmed.contains(&format!("type {symbol_name}"))
                     || trimmed.contains(&format!("interface {symbol_name}"))
                     || trimmed.contains(&format!("fn {symbol_name}")));

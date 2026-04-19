@@ -41,13 +41,11 @@ A variant's field shape — `(...)` for positional, `{ ... }` for named — is p
 ### Named-field variants
 
 ```floe
-type Shape {
-  | Circle { radius: number }
+type Shape = | Circle { radius: number }
   | Rectangle { width: number, height: number }
   | Triangle { base: number, height: number }
-}
 
-fn area(shape: Shape) => number {
+let area(shape: Shape) -> number = {
   match shape {
     Circle { radius } -> 3.14159 * radius * radius,
     Rectangle { width, height } -> width * height,
@@ -61,13 +59,11 @@ Inside a named pattern, `{ width }` is shorthand for `{ width: width }`. Use `{ 
 ### Positional-field variants
 
 ```floe
-type Shape {
-  | Circle(number)
+type Shape = | Circle(number)
   | Rectangle(number, number)
   | Triangle(number, number)
-}
 
-fn area(shape: Shape) => number {
+let area(shape: Shape) -> number = {
   match shape {
     Circle(r) -> 3.14159 * r * r,
     Rectangle(w, h) -> w * h,
@@ -97,8 +93,8 @@ match score {
 
 ```floe
 match event {
-  { type: "click", x, y } -> handleClick(x, y),
-  { type: "keydown", key } -> handleKey(key),
+  { kind: "click", x, y } -> handleClick(x, y),
+  { kind: "keydown", key } -> handleKey(key),
   _ -> ignore(),
 }
 ```
@@ -118,7 +114,7 @@ match result {
 Match strings with `{name}` captures to extract parts:
 
 ```floe
-fn route(url: string) => Page {
+let route(url: string) -> Page = {
   match url {
     "/users/{id}" -> fetchUser(id),
     "/users/{id}/posts/{postId}" -> fetchPost(id, postId),
@@ -222,7 +218,7 @@ match value {
 You can pipe a value directly into `match` to combine pipelines with pattern matching:
 
 ```floe
-const label = price |> match {
+let label = price |> match {
     _ when _ < 10 -> "cheap",
     _ when _ < 100 -> "moderate",
     _ -> "expensive",
@@ -232,7 +228,7 @@ const label = price |> match {
 This works at the end of a pipeline chain:
 
 ```floe
-const label = product
+let label = product
     |> effectivePrice
     |> match {
         _ when _ < 10 -> "cheap",

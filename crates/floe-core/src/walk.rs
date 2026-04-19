@@ -34,6 +34,9 @@ pub fn walk_item_mut<T>(item: &mut Item<T>, f: &mut impl FnMut(&mut Expr<T>)) {
                     TestStatement::Assert(expr, _) | TestStatement::Expr(expr) => {
                         walk_expr_mut(expr, f);
                     }
+                    TestStatement::Let(decl) => {
+                        walk_expr_mut(&mut decl.value, f);
+                    }
                 }
             }
         }

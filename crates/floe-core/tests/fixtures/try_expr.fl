@@ -1,3 +1,3 @@
-const result = fetchData("hello")
+let result = fetchData("hello")
 
-const parsed = JSON.parse(input)
+let parsed = JSON.parse(input)

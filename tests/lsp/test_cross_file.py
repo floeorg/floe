@@ -6,7 +6,7 @@ from .conftest import def_locations, completion_labels, result_list, open_doc
 URI_A = "file:///tmp/types.fl"
 URI_B = "file:///tmp/main.fl"
 
-TYPES_SRC = 'export type Color = | Red | Green | Blue\nexport fn makeRed() => Color { Red }\n'
+TYPES_SRC = 'export type Color = | Red | Green | Blue\nexport let makeRed() -> Color { Red }\n'
 MAIN_SRC = 'import { Color, makeRed } from "./types"\nconst c = makeRed()\n'
 
 

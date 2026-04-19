@@ -24,34 +24,86 @@ The compiler is a single Rust binary (`floe`) that takes `.fl` files and emits `
 
 A React developer should read Floe and understand it in 30 minutes. We keep familiar syntax and add targeted upgrades.
 
-### Key Operators
+### Token discipline — `:`, `=`, `->` each do ONE job
+
+Floe uses three tokens for the concepts that most languages overload:
+
+| Token | Meaning | Used in |
+|---|---|---|
+| `:` | "has type" | parameter annotations, variable annotations |
+| `=` | "is bound to" | value bindings, function bodies |
+| `->` | "produces / maps to" | type arrows, match arms, return types, anonymous lambda bodies |
+
+`->` is used consistently for every "X maps to Y" relationship:
 
 ```
-(x) => arrow closures         (a) => a + 1
-=>    fn types                type Handler = (Request) => Response
-->    match arms, fn returns  Ok(x) => x, fn f() => T
-|>    pipe data through       data |> transform
-?     unwrap Result/Option    fetchUser(id)?
-.x    dot shorthand           .name (implicit closure for field access)
+type Handler = (Request) -> Response        // function type: Request maps to Response
+let f(x: T) -> U = body                      // def-form return type: params map to U
+xs |> map((x) -> x * 2)                      // anonymous lambda: x maps to x * 2
+match s { Active -> "on", Idle -> "off" }    // match arm: pattern maps to value
 ```
 
-`->` is only valid on the left of a match-arm body (`pat -> expr`). Every type-position arrow — function-type aliases, callback types inside records, generic bounds, and function return types (`fn f(x: T) => U`) — uses `=>`.
+There is no `=>` in Floe. Earlier drafts used `=>` for some arrow positions — this has been removed to eliminate token overload.
 
 All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now means exactly one thing: unwrap or short-circuit.
 
 ### What Stays from TypeScript
 
-- `const`, `export`, `import`, type annotations
-- `fn` for named/exported functions
-- Closures `(x) => expr` for inline/anonymous functions
+- `export`, `import`, type annotations
 - Dot shorthand `.field` for implicit field-access closures
 - JSX / TSX (full support, including member expressions like `<Select.Trigger />`)
 - Generics (types and functions), template literals, tagged template literals (`` tag`...` ``)
-- Async via `|> await` (or `|> Promise.await`) — return type must be `Promise<T>`, or use `async fn f() => T` sugar
+- Async via `|> await` (or `|> Promise.await`) — `async let` prefix for named functions, inner return type (compiler auto-wraps `Promise<>`)
 - Destructuring, spread, rest params
 - `||` (boolean OR), `&&`, `!` (boolean operators)
 - `==` (but only between same types — structural equality on objects)
 - Unit type `()` instead of `void`
+
+### Bindings and Functions
+
+`let` is the only binding keyword. All top-level and local bindings — values and functions — use `let`.
+
+Named functions use **def-form**, where params and return type sit inline:
+
+```floe
+let add(a: number, b: number) -> number = a + b
+let square(x: number) -> number = x * x
+let double(x: number) = x * 2                  // return type inferred
+let identity<T>(x: T) -> T = x                 // generic
+
+async let fetchUser(id: string) -> Result<User, Error> = {
+    Http.get(url) |> await?
+}
+
+export let handleRequest(req: Request) -> Promise<Response> = { ... }
+```
+
+Functions that implement a named type use **value-binding form**, where the type lives on the `let`:
+
+```floe
+type PlaceOrder = (Order) -> Result<Order, Error>
+
+let placeOrder: PlaceOrder = (order) -> {
+    order |> validate? |> price |> Ok
+}
+```
+
+Anonymous lambdas appear only in expression position (callbacks, pipe stages):
+
+```floe
+xs |> map((x) -> x * 2)
+xs |> filter((x) -> x > 0)
+onClick={() -> setCount(count + 1)}
+```
+
+Values follow the same `let` shape:
+
+```floe
+let pi = 3.14159
+let name: string = "alice"
+```
+
+The last expression in a block is the return value — no `return` keyword.
 
 ### What's Added
 
@@ -138,7 +190,7 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 | `void` | Not a real type, can't use in generics | Unit type `()` — a real value |
 | `=>` in expressions | Two syntaxes for functions is one too many | `fn(x) expr` for anonymous functions; `=>` is used for function types like `(T) => U` |
 | `(T) => U` in type position | Reserve `->` for match arms and fn return types | Use `(T) => U` |
-| `type X { ... }` / `type X(T)` | Legacy sum/newtype forms | Every type decl uses `type X = ...` |
+| `type X = { ... }` / `type X = X(T)` | Legacy sum/newtype forms | Every type decl uses `type X = ...` |
 | `type X = "a" \| "b"` (bare string-literal union) | Ambiguous with nominal sums | `type X = OneOf<"a", "b">` (E201) |
 | `fn f(x: { a: T }) => ...` (inline record in signature) | Hurts error messages and readability | Name the record: `type Arg = { a: T }` then `fn f(x: Arg)` (E202) |
 | `function` | Verbose keyword | `fn` |
@@ -154,8 +206,8 @@ All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now
 ```floe
 // Default: piped value goes to first argument
 users
-  |> filter(.active)                   // filter(users, x => x.active)
-  |> sortBy(.name)                     // sortBy(result, x => x.name)
+  |> filter(.active)                   // filter(users, x -> x.active)
+  |> sortBy(.name)                     // sortBy(result, x -> x.name)
   |> take(10)                          // take(result, 10)
 
 // Need a different position? Use _ placeholder
@@ -163,16 +215,16 @@ users
 42 |> wrap("[", _, "]")                // wrap("[", 42, "]")
 
 // _ also works outside pipes — partial application
-const addTen = add(10, _)              // (x) => add(10, x)
+let addTen = add(10, _)              // (x) -> add(10, x)
 [1, 2, 3] |> map(multiply(_, 2))      // [2, 4, 6]
 
 // Dot shorthand — .field creates an implicit closure
-todos |> Array.filter(.id != id)       // filter(todos, x => x.id != id)
-todos |> Array.map(.text)              // map(todos, x => x.text)
+todos |> Array.filter(.id != id)       // filter(todos, x -> x.id != id)
+todos |> Array.map(.text)              // map(todos, x -> x.text)
 
 // Closures — arrow syntax for when you need a named param
-todos |> Array.map((t) => Todo(..t, done: true))
-items |> Array.reduce((acc, x) => acc + x.price, 0)
+todos |> Array.map((t) -> Todo(..t, done: true))
+items |> Array.reduce((acc, x) -> acc + x.price, 0)
 
 // tap — call a function for side effects, pass value through
 orders
@@ -185,7 +237,7 @@ orders
   {users
     |> filter(.active)
     |> sortBy(.name)
-    |> map((u) => <li key={u.id}>{u.name}</li>)
+    |> map((u) -> <li key={u.id}>{u.name}</li>)
   }
 </ul>
 ```
@@ -200,7 +252,7 @@ Pipe rules:
 
 ```floe
 // Pipe into match — pipe the value directly into pattern matching
-const label = product
+let label = product
     |> effectivePrice
     |> match {
         _ when _ < 10 -> "cheap",
@@ -209,8 +261,8 @@ const label = product
     }
 
 // Equivalent to:
-const price = product |> effectivePrice
-const label = match price {
+let price = product |> effectivePrice
+let label = match price {
     _ when price < 10 -> "cheap",
     _ when price < 100 -> "moderate",
     _ -> "expensive",
@@ -267,7 +319,7 @@ match url {
 
 // Optional rendering — Option<JSX.Element> works as a JSX child
 // None compiles to undefined, which React ignores
-{user.nickname |> Option.map((nick) => <Badge>{nick}</Badge>)}
+{user.nickname |> Option.map((nick) -> <Badge>{nick}</Badge>)}
 
 ```
 
@@ -345,26 +397,26 @@ match request {
 
 ```floe
 // On Result<T, E> — gives you T, or returns Err(E) from function
-fn loadProfile(id: UserId): Result<Profile, AppError> {
-  const user  = fetchUser(id)?
-  const posts = fetchPosts(user.id)?
-  const stats = fetchStats(user.id)?
+let loadProfile(id: UserId) = : Result<Profile, AppError> {
+  let user  = fetchUser(id)?
+  let posts = fetchPosts(user.id)?
+  let stats = fetchStats(user.id)?
   Ok({ user, posts, stats })
 }
 
 // On Option<T> — gives you T, or returns None from function
-fn getDisplayName(userId: UserId): Option<string> {
-  const user     = findUser(userId)?
-  const nickname = user.nickname?
+let getDisplayName(userId: UserId) = : Option<string> {
+  let user     = findUser(userId)?
+  let nickname = user.nickname?
   Some(toUpperCase(nickname))
 }
 
 // In a pipe
-const name = fetchUser(id)? |> getName |> toUpperCase
+let name = fetchUser(id)? |> getName |> toUpperCase
 
 // Compiler enforces: function must return Result or Option to use ?
-fn greet(): string {
-  const user = fetchUser(id)?  // COMPILE ERROR: can't use ? in non-Result function
+let greet() = : string {
+  let user = fetchUser(id)?  // COMPILE ERROR: can't use ? in non-Result function
 }
 ```
 
@@ -372,9 +424,9 @@ Compiles to simple early returns:
 
 ```typescript
 // fetchUser(id)?  becomes:
-const _r0 = fetchUser(id)
+let _r0 = fetchUser(id)
 if (!_r0.ok) return _r0
-const user = _r0.value
+let user = _r0.value
 ```
 
 ### The `collect` Block (Error Accumulation)
@@ -382,11 +434,11 @@ const user = _r0.value
 Inside a `collect {}` block, `?` does NOT short-circuit. Each `?` that hits an Err records the error and continues. If any failed, the block returns `Err(Array<E>)` with all collected errors. If all succeeded, returns `Ok(last_expression)`.
 
 ```floe
-fn validateForm(input: FormInput) => Result<ValidForm, Array<ValidationError>> {
+let validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> = {
     collect {
-        const name = input.name |> validateName?
-        const email = input.email |> validateEmail?
-        const age = input.age |> validateAge?
+        let name = input.name |> validateName?
+        let email = input.email |> validateEmail?
+        let age = input.age |> validateAge?
 
         ValidForm(name, email, age)
     }
@@ -397,13 +449,13 @@ Compiles to an IIFE with error accumulation:
 
 ```typescript
 (() => {
-    const __errors: Array<ValidationError> = [];
-    const _r0 = validateName(input.name);
+    let __errors: Array<ValidationError> = [];
+    let _r0 = validateName(input.name);
     if (!_r0.ok) __errors.push(_r0.error);
-    const name = _r0.ok ? _r0.value : undefined as any;
-    const _r1 = validateEmail(input.email);
+    let name = _r0.ok ? _r0.value : undefined as any;
+    let _r1 = validateEmail(input.email);
     if (!_r1.ok) __errors.push(_r1.error);
-    const email = _r1.ok ? _r1.value : undefined as any;
+    let email = _r1.ok ? _r1.value : undefined as any;
     if (__errors.length > 0) return { ok: false, error: __errors };
     return { ok: true, value: { name, email } };
 })()
@@ -448,32 +500,32 @@ type User = {
 }
 
 // Must handle the None case
-const display = match user.nickname {
+let display = match user.nickname {
   Some(nick) -> nick
   None       -> user.name
 }
 
 // Or use Option helpers in pipes
-const display = user.nickname |> Option.unwrapOr(user.name)
+let display = user.nickname |> Option.unwrapOr(user.name)
 
 // Transform inside without unwrapping
-const upper: Option<string> = user.nickname |> Option.map((n) => toUpperCase(n))
+let upper: Option<string> = user.nickname |> Option.map((n) -> toUpperCase(n))
 
 // Chain
-const avatar = user.nickname |> Option.flatMap((n) => findAvatar(n))
+let avatar = user.nickname |> Option.flatMap((n) -> findAvatar(n))
 
 // Filter
-const longNick = user.nickname |> Option.filter((n) => String.length(n) > 3)
+let longNick = user.nickname |> Option.filter((n) -> String.length(n) > 3)
 
 // Zip two Options
-const pair = Option.zip(firstName, lastName)  // Option<(string, string)>
+let pair = Option.zip(firstName, lastName)  // Option<(string, string)>
 
 // Collect an array of Options
-const allNames = Option.all([Some("a"), Some("b")])  // Some(["a", "b"])
+let allNames = Option.all([Some("a"), Some("b")])  // Some(["a", "b"])
 
 // Handle { data, error } pattern (Supabase, TanStack Query, etc.)
 error |> Option.toErr?              // bail if error is Some
-const rows = data |> Option.unwrapOr([])
+let rows = data |> Option.unwrapOr([])
 ```
 
 #### Full Option helpers
@@ -512,10 +564,10 @@ type UpdateUser = {
 // Value(x) — set the field
 // Clear    — send null (clear the field)
 // Unchanged — omit the key entirely (don't touch it)
-const update = UpdateUser(name: Value("Ryan"), email: Clear)
+let update = UpdateUser(name: Value("Ryan"), email: Clear)
 // Compiles to: { name: "Ryan", email: null }
 
-const partial = UpdateUser(name: Value("Ryan"))
+let partial = UpdateUser(name: Value("Ryan"))
 // Compiles to: { name: "Ryan" }
 ```
 
@@ -553,7 +605,7 @@ type BaseProps = {
 
 type ButtonProps = {
   ...BaseProps,
-  onClick: () => (),
+  onClick: () -> (),
   label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -588,8 +640,8 @@ type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 type AdminCard = Intersect<ButtonProps, { role: "admin" }>
 
 // Function-type alias — structural
-type Handler = (Request) => Promise<Response>
-type Predicate<T> = (T) => boolean
+type Handler = (Request) -> Promise<Response>
+type Predicate<T> = (T) -> boolean
 
 // Sums can contain sums — nest as deep as you want
 type NetworkError =
@@ -693,7 +745,7 @@ match appError {
 }
 
 // Pass sub-types to specialist functions
-fn handleError(err: ApiError) {
+let handleError(err: ApiError) = {
   match err {
     Network(netErr) -> retryNetwork(netErr)   // pass NetworkError to specialist
     Auth(authErr)   -> handleAuth(authErr)     // pass AuthError to specialist
@@ -702,7 +754,7 @@ fn handleError(err: ApiError) {
 }
 
 // Sub-type IS the parent type
-const err: ApiError = Network(Timeout(3000))
+let err: ApiError = Network(Timeout(3000))
 // Network(Timeout(3000)) is both a NetworkError and an ApiError
 
 ```
@@ -715,7 +767,7 @@ The compiler generates discrimination tags in the emitted TypeScript — you nev
 type UserId = UserId(string)
 type Email = Email(string)
 
-const id = UserId("abc123")
+let id = UserId("abc123")
 sendEmail(id, "hello")  // COMPILE ERROR: UserId is not Email
 ```
 
@@ -727,16 +779,16 @@ The RHS constructor may share the name of the type (idiomatic) or differ — bot
 // auth/password.fl
 opaque type HashedPassword = HashedPassword(string)
 
-export fn hash(raw: string): HashedPassword {
+export let hash(raw: string) = : HashedPassword {
   bcrypt(raw)  // only this module can create one
 }
 
-export fn verify(raw: string, hashed: HashedPassword): boolean {
+export let verify(raw: string, hashed: HashedPassword) = : boolean {
   bcryptCompare(raw, hashed)  // only this module can read it
 }
 
 // other_file.fl
-const pw: HashedPassword = hash("secret")
+let pw: HashedPassword = hash("secret")
 // pw + "abc"   COMPILE ERROR — it's not a string to you
 ```
 
@@ -785,7 +837,7 @@ The `guard` stdlib functions combine with `use` to give linear, non-nested early
 
 ```floe
 // Bool.guard — bail if condition is false
-export fn AdminPage(state: AuthState) => JSX.Element {
+export let AdminPage(state: AuthState) -> JSX.Element = {
     use <- Bool.guard(state.isAdmin, <Forbidden />)
     use <- Bool.guard(state.isVerified, <VerifyPrompt />)
 
@@ -797,7 +849,7 @@ use user <- Option.guard(maybeUser, <LoginPage />)
 <ProfilePage user={user} />
 
 // Result.guard — bail if Err, continue with Ok value
-use data <- Result.guard(fetchResult, (e) => <ErrorPage error={e} />)
+use data <- Result.guard(fetchResult, (e) -> <ErrorPage error={e} />)
 <Dashboard data={data} />
 ```
 
@@ -817,17 +869,17 @@ Anonymous lightweight product types. Use parenthesized syntax for types, constru
 
 ```floe
 // Type annotation
-const point: (number, number) = (10, 20)
-const entry: (string, number, boolean) = ("key", 42, true)
+let point: (number, number) = (10, 20)
+let entry: (string, number, boolean) = ("key", 42, true)
 
 // Construction
-const pair = (1, 2)
+let pair = (1, 2)
 
 // Destructuring
-const (x, y) = pair
+let (x, y) = pair
 
 // Function signatures
-fn divmod(a: number, b: number) => (number, number) {
+let divmod(a: number, b: number) -> (number, number) = {
   (a / b, a % b)
 }
 
@@ -858,10 +910,10 @@ type User = {
 }
 
 // Positional — args in field order
-const user = User(UserId("1"), "Ryan", Email("r@test.com"), None)
+let user = User(UserId("1"), "Ryan", Email("r@test.com"), None)
 
 // Named — any order, self-documenting
-const user = User(
+let user = User(
   name: "Ryan",
   id: UserId("1"),
   email: Email("r@test.com"),
@@ -869,8 +921,8 @@ const user = User(
 )
 
 // Update with spread — ..existing then override
-const updated = User(..user, nickname: Some("Ry"))
-const updated = User(..user,
+let updated = User(..user, nickname: Some("Ry"))
+let updated = User(..user,
   name: "Ryan Updated",
   nickname: Some("Ry"),
 )
@@ -878,7 +930,7 @@ const updated = User(..user,
 
 // --- Named Arguments on Functions ---
 
-fn createUser(name: string, email: Email, role: Role): Result<User, ApiError> {
+let createUser(name: string, email: Email, role: Role) = : Result<User, ApiError> {
   // ...
 }
 
@@ -910,10 +962,10 @@ type Config = {
 }
 
 // Only specify what you need
-const config = Config(baseUrl: "https://api.example.com")
+let config = Config(baseUrl: "https://api.example.com")
 // timeout=5000, retries=3, headers=None — all defaulted
 
-const config = Config(baseUrl: "https://api.example.com", timeout: 10000)
+let config = Config(baseUrl: "https://api.example.com", timeout: 10000)
 // timeout overridden, rest defaulted
 
 // On functions
@@ -932,7 +984,7 @@ fetchUsers(limit: 50, sort: Descending)          // override two
 // On React component props
 type ButtonProps = {
   label: string,                      // required
-  onClick: () => (),                  // required
+  onClick: () -> (),                  // required
   variant: Variant = Primary,         // default
   size: Size = Medium,                // default
   disabled: boolean = false,          // default
@@ -940,7 +992,7 @@ type ButtonProps = {
   icon: Option<Icon> = None,          // default
 }
 
-export fn Button(props: ButtonProps) {
+export let Button(props: ButtonProps) = {
   <button>{props.label}</button>
 }
 
@@ -968,15 +1020,15 @@ Two syntactic forms are supported:
 type User = { name: string, age: number, active: boolean }
 
 for User {
-  fn display(self) => string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 
-  fn isAdult(self) => boolean {
+  let isAdult(self) -> boolean = {
     self.age >= 18
   }
 
-  fn greet(self, greeting: string) => string {
+  let greet(self, greeting: string) -> string = {
     `${greeting}, ${self.name}!`
   }
 }
@@ -987,7 +1039,7 @@ Export is per-function — `export` goes before `fn` inside the block.
 ```floe
 // Works with generic types too
 for Array<User> {
-  fn adults(self) => Array<User> {
+  let adults(self) -> Array<User> = {
     self |> Array.filter(.age >= 18)
   }
 }
@@ -1040,13 +1092,13 @@ Methods in a `for` block can be exported individually or as a whole block:
 ```floe
 // Per-method export — useful when only some methods are public
 for User {
-  export fn display(self) => string { self.name }
-  fn internalHelper(self) => string { self.name }
+  export let display(self) -> string = { self.name }
+  let internalHelper(self) -> string = { self.name }
 }
 
 // Block-level export — the natural shape for trait impls
 export for User: Display {
-  fn display(self) => string { self.name }
+  let display(self) -> string = { self.name }
 }
 ```
 
@@ -1059,26 +1111,26 @@ Traits define behavioral contracts that types can implement via `for` blocks. Th
 ```floe
 // Define a trait with required method signatures
 trait Display {
-  fn display(self) => string
+  let display(self) -> string
 }
 
 // Traits can have default implementations
 trait Eq {
-  fn eq(self, other: Self) => boolean
-  fn neq(self, other: Self) => boolean {
+  let eq(self, other: Self) -> boolean
+  let neq(self, other: Self) -> boolean = {
     !(self |> eq(other))
   }
 }
 
 // Implement a trait for a type using `for Type: Trait`
 for User: Display {
-  fn display(self) => string {
+  let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }
 
 for User: Eq {
-  fn eq(self, other: User) => boolean {
+  let eq(self, other: User) -> boolean = {
     self.id == other.id
   }
   // neq is inherited from the default implementation
@@ -1136,7 +1188,7 @@ Deriving rules:
 `test` blocks let you write tests co-located with the code they test. They are type-checked but stripped from production output.
 
 ```floe
-fn add(a: number, b: number) => number { a + b }
+let add(a: number, b: number) -> number = { a + b }
 
 test "addition" {
   assert add(1, 2) == 3
@@ -1162,7 +1214,7 @@ Compiles to (test mode only):
 ```typescript
 // test: addition
 (function() {
-  const __testName = "addition";
+  let __testName = "addition";
   let __passed = 0;
   let __failed = 0;
   try { if (!(add(1, 2) === 3)) { __failed++; } else { __passed++; } } catch (e) { __failed++; }
@@ -1175,29 +1227,31 @@ Compiles to (test mode only):
 ### Function Conventions
 
 ```floe
-// Named/exported functions use `fn`
-export fn TodoApp() => JSX.Element { ... }
-export fn fetchUser(id: UserId) => Result<User, ApiError> { ... }
+// Named/exported functions — def-form
+export let TodoApp() -> JSX.Element = { ... }
+export let fetchUser(id: UserId) -> Result<User, ApiError> = { ... }
 
-// Inline/anonymous uses arrow closures
-todos |> Array.map((t) => t.name)
-onClick={() => setCount(count + 1)}
-items |> Array.reduce((acc, x) => acc + x.price, 0)
+// Inline/anonymous — `(x) -> body`
+todos |> Array.map((t) -> t.name)
+onClick={() -> setCount(count + 1)}
+items |> Array.reduce((acc, x) -> acc + x.price, 0)
 
 // Dot shorthand for simple field access
 todos |> Array.filter(.done == false)
 todos |> Array.map(.text)
 
 // Named args and defaults
-fn greet(name: string, greeting: string = "Hello") => string {
+let greet(name: string, greeting: string = "Hello") -> string = {
   `${greeting}, ${name}!`
 }
 greet("Ryan")                    // "Hello, Ryan!"
 greet("Ryan", greeting: "Hey")  // "Hey, Ryan!"
 
-// COMPILE ERROR: const + closure — use fn instead
-const double = (x) => x * 2        // ERROR: Use `fn double(x) => ...`
-fn double(x: number) => number { x * 2 }  // correct
+// Def-form is idiomatic for named functions; value-binding-to-lambda is reserved
+// for implementing a named type (DDD) or binding a function returned from an expression:
+type Doubler = (number) -> number
+let double: Doubler = (x) -> x * 2       // DDD-style: implements named type
+let handler = makeHandler(config)         // value binding to a non-literal expression
 ```
 
 ### Full Component Example
@@ -1216,15 +1270,15 @@ type Tab =
   | Team
   | Analytics
 
-export fn Dashboard(userId: UserId) => JSX.Element {
-  const (tab, setTab) = useState<Tab>(Overview)
-  const user = useAsync(() => fetchUser(userId))
+export let Dashboard(userId: UserId) -> JSX.Element = {
+  let (tab, setTab) = useState<Tab>(Overview)
+  let user = useAsync(() -> fetchUser(userId))
 
   <Layout>
     <Sidebar>
       <NavItem
         active={match tab { Overview -> true, _ -> false }}
-        onClick={() => setTab(Overview)}>
+        onClick={() -> setTab(Overview)}>
         Overview
       </NavItem>
     </Sidebar>
@@ -1239,7 +1293,7 @@ export fn Dashboard(userId: UserId) => JSX.Element {
   </Layout>
 }
 
-fn OverviewPanel(user: AsyncState<User, ApiError>) => JSX.Element {
+let OverviewPanel(user: AsyncState<User, ApiError>) -> JSX.Element = {
   match user {
     Idle         -> <EmptyState>Click to load</EmptyState>
     Loading      -> <Skeleton lines={6} />
@@ -1255,7 +1309,7 @@ fn OverviewPanel(user: AsyncState<User, ApiError>) => JSX.Element {
   }
 }
 
-fn describeError(err: ApiError) => string {
+let describeError(err: ApiError) -> string = {
   match err {
     Network(msg)    -> `Connection failed: ${msg}`
     NotFound        -> "User not found"
@@ -1302,16 +1356,16 @@ These are enforced at compile time with clear error messages.
 
 ```floe
 // Direct call
-const user = parse<User>(json)
+let user = parse<User>(json)
 
 // Pipe usage (most common)
-const user = json |> parse<User>?
+let user = json |> parse<User>?
 
 // With array types
-const items = data |> parse<Array<Product>>?
+let items = data |> parse<Array<Product>>?
 
 // With inline record types
-const point = raw |> parse<{ x: number, y: number }>?
+let point = raw |> parse<{ x: number, y: number }>?
 ```
 
 ### Return Type
@@ -1324,7 +1378,7 @@ For `parse<{ name: string, age: number }>(json)`, the compiler emits:
 
 ```typescript
 (() => {
-  const __v = json;
+  let __v = json;
   if (typeof __v !== "object" || __v === null) return { ok: false as const, error: new Error("expected object, got " + typeof __v) };
   if (typeof (__v as any).name !== "string") return { ok: false as const, error: new Error("field 'name': expected string, got " + typeof (__v as any).name) };
   if (typeof (__v as any).age !== "number") return { ok: false as const, error: new Error("field 'age': expected number, got " + typeof (__v as any).age) };
@@ -1362,15 +1416,15 @@ In pipe context (`json |> parse<T>`), value is a `Placeholder` that gets substit
 
 ```floe
 // Basic - compiler generates realistic mock data from the type
-const testUser = mock<User>
+let testUser = mock<User>
 // { id: "mock-id-1", name: "mock-name-2", age: 3 }
 
 // Override specific fields
-const admin = mock<User>(role: Admin)
+let admin = mock<User>(role: Admin)
 // Random everything else, but role is Admin
 
 // Inline record types
-const point = mock<{ x: number, y: number }>
+let point = mock<{ x: number, y: number }>
 // { x: 1, y: 2 }
 ```
 
@@ -1394,7 +1448,7 @@ const point = mock<{ x: number, y: number }>
 
 ### Codegen
 
-`mock<User>` where `type User { id: string, name: string, age: number }` emits:
+`mock<User>` where `type User = { id: string, name: string, age: number }` emits:
 
 ```typescript
 { id: "mock-id-1", name: "mock-name-2", age: 3 }
@@ -1616,8 +1670,8 @@ npm imports are untrusted by default — calls are wrapped in `Result<T, Error>`
 import { parseYaml } from "yaml-lib"
 import { fetchUser } from "api-client"
 
-const data = parseYaml(input)          // Result<unknown, Error> — sync
-const user = fetchUser(id) |> await    // Promise<Result<User, Error>> → Result<User, Error>
+let data = parseYaml(input)          // Result<unknown, Error> — sync
+let user = fetchUser(id) |> await    // Promise<Result<User, Error>> → Result<User, Error>
 ```
 
 #### trusted imports
@@ -1641,24 +1695,24 @@ Untrusted calls return `Result<T, Error>` automatically. Use `?` to unwrap:
 
 ```floe
 // JSON.parse is stdlib — already returns Result
-const result = JSON.parse(input)
+let result = JSON.parse(input)
 // result: Result<T, ParseError>
 
 // npm imports are untrusted by default:
 import { parseYaml } from "yaml-lib"
-const data = parseYaml(input)
+let data = parseYaml(input)
 // data: Result<unknown, Error>
 
 // Async untrusted: returns Promise<Result<T, Error>>, use |> await to unwrap
 import { fetchUser } from "api-client"
-const user = fetchUser(id) |> await
+let user = fetchUser(id) |> await
 // user: Result<User, Error>
 
 // Compose with |> await? for concise async error handling.
-// `async fn f() => T` is sugar for `fn f() => Promise<T>` — write the inner type:
-async fn loadProfile(id: string) => Result<Profile, Error> {
-  const user = fetchUser(id) |> await?
-  const posts = fetchPosts(user.id) |> await?
+// `async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type:
+async let loadProfile(id: string) -> Result<Profile, Error> = {
+  let user = fetchUser(id) |> await?
+  let posts = fetchPosts(user.id) |> await?
   Ok(Profile(user, posts))
 }
 ```
@@ -1668,7 +1722,7 @@ async fn loadProfile(id: string) => Result<Profile, Error> {
 ```floe
 import { findElement } from "some-dom-lib"
 // .d.ts says: findElement(id: string): Element | null
-// Floe sees: findElement(id: string) => Option<Element>
+// Floe sees: findElement(id: string) -> Option<Element>
 
 match findElement("app") {
   Some(el) -> render(el),
@@ -1835,7 +1889,7 @@ export default function floe(): Plugin {
     name: "floe",
     transform(code, id) {
       if (!id.endsWith(".fl")) return
-      const tsx = compileZen(code)  // shell to floe or WASM
+      let tsx = compileZen(code)  // shell to floe or WASM
       return { code: tsx, map: null }
     }
   }
@@ -1862,16 +1916,16 @@ The formatter enforces a canonical style. Key conventions:
 
 ```floe
 // Multi-statement: blank line before final expression
-fn loadProfile(id: string) => Result<Profile, ApiError> {
-    const user = fetchUser(id)?
-    const posts = fetchPosts(user.id)?
-    const stats = computeStats(posts)
+let loadProfile(id: string) -> Result<Profile, ApiError> = {
+    let user = fetchUser(id)?
+    let posts = fetchPosts(user.id)?
+    let stats = computeStats(posts)
 
     Profile(user, posts, stats)
 }
 
 // Single expression: no blank line
-fn add(a: number, b: number) => number {
+let add(a: number, b: number) -> number = {
     a + b
 }
 ```
@@ -1954,8 +2008,8 @@ Beyond the banned keywords, Floe eliminates several categories of subtle runtime
 In JS, `{a: 1} === {a: 1}` is `false` because objects compare by reference. Floe uses structural (deep) equality by default.
 
 ```floe
-const a = User(name: "Ryan", email: Email("r@test.com"))
-const b = User(name: "Ryan", email: Email("r@test.com"))
+let a = User(name: "Ryan", email: Email("r@test.com"))
+let b = User(name: "Ryan", email: Email("r@test.com"))
 
 a == b  // true — compares fields, not references
 ```
@@ -1970,19 +2024,19 @@ TypeScript's `void` is not a real type — you can't use it in generics like `Re
 
 ```floe
 // Functions with no meaningful return value
-fn log(msg: string) => () {
+let log(msg: string) -> () = {
   console.log(msg)
 }
 
 // Works naturally in generics
-fn deleteUser(id: UserId) => Result<(), ApiError> {
+let deleteUser(id: UserId) -> Result<(), ApiError> = {
   // ...
   Ok(())
 }
 
 // Callbacks
 type ButtonProps = {
-  onClick: () => (),
+  onClick: () -> (),
 }
 ```
 
@@ -1998,11 +2052,11 @@ Floe's sort:
 - Requires an explicit comparator for non-primitive types
 
 ```floe
-const nums = [10, 2, 1]
-const sorted = nums |> Array.sort              // [1, 2, 10] — new array, numeric default
+let nums = [10, 2, 1]
+let sorted = nums |> Array.sort              // [1, 2, 10] — new array, numeric default
 nums                                            // [10, 2, 1] — unchanged
 
-const users = [u1, u2] |> Array.sortBy(.name)  // explicit comparator
+let users = [u1, u2] |> Array.sortBy(.name)  // explicit comparator
 ```
 
 **Codegen:** compiles to `[...arr].sort((a, b) => a - b)` for numbers, `[...arr].sort(comparator)` for custom.
@@ -2012,16 +2066,16 @@ const users = [u1, u2] |> Array.sortBy(.name)  // explicit comparator
 Floe uses implicit returns — the last expression in a block is the return value. The `return` keyword is banned.
 
 ```floe
-fn getName(user: User) => string {
+let getName(user: User) -> string = {
   user.name    // this is the return value
 }
 
-fn log(msg: string) => () {
+let log(msg: string) -> () = {
   Console.log(msg)    // unit functions — last expression is discarded
 }
 
 // COMPILE ERROR: empty non-unit function body
-fn broken(user: User) => string {
+let broken(user: User) -> string = {
 }
 ```
 
@@ -2038,9 +2092,9 @@ JS `parseInt("123abc")` silently returns `123`, `Number("")` returns `0`, and `p
 Floe provides strict parse functions that return `Result`:
 
 ```floe
-const n = Number.parse("123")       // Ok(123)
-const n = Number.parse("123abc")    // Err(ParseError)
-const n = Number.parse("")          // Err(ParseError)
+let n = Number.parse("123")       // Ok(123)
+let n = Number.parse("123abc")    // Err(ParseError)
+let n = Number.parse("")          // Err(ParseError)
 ```
 
 ### Overlapping Spread Warning
@@ -2048,9 +2102,9 @@ const n = Number.parse("")          // Err(ParseError)
 `{...a, ...b}` silently overwrites keys from `a` when `b` has the same keys. Floe warns when spreading objects with statically-known overlapping keys.
 
 ```floe
-const a = { x: 1, y: 2 }
-const b = { y: 3, z: 4 }
-const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
+let a = { x: 1, y: 2 }
+let b = { y: 3, z: 4 }
+let c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
 ```
 
 ---
@@ -2087,7 +2141,7 @@ const c = { ...a, ...b }    // WARNING: 'y' from 'a' is overwritten by 'b'
 | Spread overlap | Warning on statically-known key overlap | Catches silent overwrites at compile time |
 | Compiler language | Rust | Fast, WASM-ready for browser playground, good LSP story |
 | Inline tests | `test "name" { assert expr }` co-located with code | Gleam/Rust-inspired; type-checked always, stripped from production output |
-| Type definitions | `type Foo { fields }` for records, `type Foo { \| A \| B }` for unions | Unified syntax: all nominal types use `type Name { ... }`. `=` only for aliases and string literal unions |
+| Type definitions | `type Foo = { fields }` for records, `type Foo = { \| A \| B }` for unions | Unified syntax: all nominal types use `type Name = { ... }`. `=` only for aliases and string literal unions |
 | For blocks | `for Type { fn f(self) ... }` groups functions under a type | Rust/Swift-like method chaining DX without OOP. `self` is explicit, no `this` magic |
 
 ---

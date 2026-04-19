@@ -1,30 +1,30 @@
 {
   "Function Declaration": {
-    "prefix": "fn",
+    "prefix": "let",
     "body": [
-      "fn ${1:name}(${2:params}) => ${3:ReturnType} {",
+      "let ${1:name}(${2:params}) -> ${3:ReturnType} = {",
       "\t$0",
       "}"
     ],
-    "description": "Function declaration"
+    "description": "Named function (def-form)"
   },
   "Export Function": {
     "prefix": "efn",
     "body": [
-      "export fn ${1:name}(${2:params}) => ${3:ReturnType} {",
+      "export let ${1:name}(${2:params}) -> ${3:ReturnType} = {",
       "\t$0",
       "}"
     ],
-    "description": "Exported function declaration"
+    "description": "Exported named function"
   },
   "Async Function": {
     "prefix": "afn",
     "body": [
-      "async fn ${1:name}(${2:params}) => ${3:ReturnType} {",
+      "async let ${1:name}(${2:params}) -> ${3:ReturnType} = {",
       "\t$0",
       "}"
     ],
-    "description": "Async function declaration (return type is wrapped in Promise<T>)"
+    "description": "Async function (return type is wrapped in Promise<T>)"
   },
   "Match Expression": {
     "prefix": "match",
@@ -87,7 +87,7 @@
   "React Component": {
     "prefix": "comp",
     "body": [
-      "export fn ${1:Component}() => JSX.Element {",
+      "export let ${1:Component}() -> JSX.Element = {",
       "\treturn <div>",
       "\t\t$0",
       "\t</div>",
@@ -109,12 +109,12 @@
     ],
     "description": "Pipe expression"
   },
-  "Const": {
-    "prefix": "co",
+  "Value Binding": {
+    "prefix": "lt",
     "body": [
-      "const ${1:name} = ${0:value}"
+      "let ${1:name} = ${0:value}"
     ],
-    "description": "Const declaration"
+    "description": "Value binding"
   },
   "Newtype": {
     "prefix": "newtype",
@@ -134,7 +134,7 @@
     "prefix": "for",
     "body": [
       "for ${1:Type} {",
-      "\texport fn ${2:name}(self) => ${3:ReturnType} {",
+      "\texport fn ${2:name}(self) -> ${3:ReturnType} {",
       "\t\t$0",
       "\t}",
       "}"
@@ -152,7 +152,7 @@
     "prefix": "trait",
     "body": [
       "trait ${1:Name} {",
-      "\tfn ${2:method}(self) => ${3:ReturnType}",
+      "\tfn ${2:method}(self) -> ${3:ReturnType}",
       "}"
     ],
     "description": "Trait declaration"
@@ -161,7 +161,7 @@
     "prefix": "impl",
     "body": [
       "for ${1:Type}: ${2:Trait} {",
-      "\tfn ${3:method}(self) => ${4:ReturnType} {",
+      "\tfn ${3:method}(self) -> ${4:ReturnType} {",
       "\t\t$0",
       "\t}",
       "}"
@@ -171,9 +171,9 @@
   "Closure": {
     "prefix": "closure",
     "body": [
-      "(${1:params}) => ${0:expr}"
+      "(${1:params}) -> ${0:expr}"
     ],
-    "description": "Closure expression"
+    "description": "Anonymous lambda expression"
   },
   "Tap Debug": {
     "prefix": "tap",
@@ -195,7 +195,7 @@
     "prefix": "collect",
     "body": [
       "collect {",
-      "\tconst ${1:name} = ${2:expr}?",
+      "\tlet ${1:name} = ${2:expr}?",
       "\t$0",
       "}"
     ],
@@ -262,7 +262,7 @@
   "Use Guard (Result)": {
     "prefix": "user",
     "body": [
-      "use ${1:value} <- Result.guard(${2:result}, (${3:e}) => ${0:fallback})"
+      "use ${1:value} <- Result.guard(${2:result}, (${3:e}) -> ${0:fallback})"
     ],
     "description": "Result guard — unwraps `Ok` into `value`, runs the error handler on `Err`"
   }

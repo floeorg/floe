@@ -29,7 +29,7 @@ Standard math functions. Compile directly to JavaScript `Math` methods.
 ## Examples
 
 ```floe
-const rounded = 3.7 |> Math.floor    // 3
-const clamped = Math.max(0, Math.min(score, 100))
-const hyp = Math.sqrt(a * a + b * b)
+let rounded = 3.7 |> Math.floor    // 3
+let clamped = Math.max(0, Math.min(score, 100))
+let hyp = Math.sqrt(a * a + b * b)
 ```

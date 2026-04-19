@@ -20,7 +20,7 @@ class TestGotoDefBasic:
         assert target_line == 0, f"Expected line 0, got {target_line}"
 
     def test_type_usage_to_definition(self, lsp):
-        open_doc(lsp, URI,F.TYPES + "\nfn pick(c: Color) => string { \"ok\" }\n")
+        open_doc(lsp, URI,F.TYPES + "\nfn pick(c: Color) -> string { \"ok\" }\n")
         locs = def_locations(lsp.goto_definition(URI, 12, 11))
         assert len(locs) > 0
 
@@ -46,7 +46,7 @@ class TestGotoDefAdvanced:
 
     def test_const_variable_usage(self, lsp):
         open_doc(lsp, URI,F.MULTIPLE_FNS)
-        locs = def_locations(lsp.goto_definition(URI, 5, 17))  # "a" in second(a)
+        locs = def_locations(lsp.goto_definition(URI, 5, 15))  # "a" in second(a)
         assert len(locs) > 0
 
     @pytest.mark.parametrize(
@@ -55,13 +55,13 @@ class TestGotoDefAdvanced:
     )
     def test_fn_in_nested_call(self, lsp, char, name):
         open_doc(lsp, URI,F.MULTIPLE_FNS)
-        # line 7: const d = first(second(third(0)))
+        # line 7: d = first(second(third(0)))
         locs = def_locations(lsp.goto_definition(URI, 7, char))
         assert len(locs) > 0, f"Expected goto def for {name}"
 
     def test_type_in_parameter(self, lsp):
         open_doc(lsp, URI,F.RECORD_SPREAD)
-        locs = def_locations(lsp.goto_definition(URI, 6, 20))  # User in parameter
+        locs = def_locations(lsp.goto_definition(URI, 6, 21))  # User in parameter
         assert len(locs) > 0
 
     def test_type_in_return_annotation(self, lsp):

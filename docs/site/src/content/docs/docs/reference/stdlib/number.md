@@ -21,10 +21,10 @@ Safe numeric operations. Parsing returns `Result` instead of `NaN`.
 
 ```floe
 // Safe parsing - no more NaN surprises
-const result = "42" |> Number.parse
+let result = "42" |> Number.parse
 // Ok(42)
 
-const bad = "not a number" |> Number.parse
+let bad = "not a number" |> Number.parse
 // Err(ParseError)
 
 // Must handle the Result
@@ -34,5 +34,5 @@ match Number.parse(input) {
 }
 
 // Clamp to range
-const score = rawScore |> Number.clamp(0, 100)
+let score = rawScore |> Number.clamp(0, 100)
 ```

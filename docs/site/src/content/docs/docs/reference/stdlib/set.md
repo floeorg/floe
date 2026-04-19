@@ -26,24 +26,24 @@ Immutable unique collection operations. All functions return new sets -- they ne
 
 ```floe
 // Create a set from an array
-const tags = Set.fromArray(["urgent", "bug", "frontend"])
+let tags = Set.fromArray(["urgent", "bug", "frontend"])
 
 // All operations are immutable
-const updated = tags
+let updated = tags
   |> Set.add("backend")
   |> Set.remove("frontend")
 
 // Check membership
-const isUrgent = tags |> Set.has("urgent")   // true
+let isUrgent = tags |> Set.has("urgent")   // true
 
 // Set operations
-const teamA = Set.fromArray(["alice", "bob", "carol"])
-const teamB = Set.fromArray(["bob", "carol", "dave"])
+let teamA = Set.fromArray(["alice", "bob", "carol"])
+let teamB = Set.fromArray(["bob", "carol", "dave"])
 
-const everyone = Set.union(teamA, teamB)       // {"alice", "bob", "carol", "dave"}
-const overlap = Set.intersect(teamA, teamB)    // {"bob", "carol"}
-const onlyA = Set.diff(teamA, teamB)           // {"alice"}
+let everyone = Set.union(teamA, teamB)       // {"alice", "bob", "carol", "dave"}
+let overlap = Set.intersect(teamA, teamB)    // {"bob", "carol"}
+let onlyA = Set.diff(teamA, teamB)           // {"alice"}
 
 // Convert back to array
-const tagList = tags |> Set.toArray
+let tagList = tags |> Set.toArray
 ```

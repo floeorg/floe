@@ -97,7 +97,7 @@ impl<'src> CstParser<'src> {
         self.parse_comma_separated(Self::parse_type_expr, TokenKind::RightParen);
         self.expect(TokenKind::RightParen);
         self.eat_trivia();
-        self.expect(TokenKind::FatArrow);
+        self.expect(TokenKind::ThinArrow);
         self.eat_trivia();
         self.parse_type_expr();
     }

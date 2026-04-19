@@ -116,7 +116,7 @@
       "patterns": [
         {
           "name": "storage.type.floe",
-          "match": "\\b(const|fn|type)\\b"
+          "match": "\\b(let|fn|type)\\b"
         }
       ]
     },
@@ -174,10 +174,6 @@
           "match": "->"
         },
         {
-          "name": "keyword.operator.fat-arrow.floe",
-          "match": "=>"
-        },
-        {
           "name": "keyword.operator.unwrap.floe",
           "match": "\\?"
         },
@@ -211,7 +207,17 @@
     "functions": {
       "patterns": [
         {
-          "comment": "fn declarations (with optional async modifier and generic type parameters)",
+          "comment": "let-def function declarations (with optional async modifier and generic type parameters) — matches `let NAME(` shape",
+          "match": "\\b(?:(async)\\s+)?(let)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:<([A-Z][a-zA-Z0-9]*(?:\\s*,\\s*[A-Z][a-zA-Z0-9]*)*)>)?(?=\\s*\\()",
+          "captures": {
+            "1": { "name": "storage.modifier.async.floe" },
+            "2": { "name": "storage.type.function.floe" },
+            "3": { "name": "entity.name.function.floe" },
+            "4": { "name": "entity.name.type.parameter.floe" }
+          }
+        },
+        {
+          "comment": "For-block / trait method declarations still use `fn`",
           "match": "\\b(?:(async)\\s+)?(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:<([A-Z][a-zA-Z0-9]*(?:\\s*,\\s*[A-Z][a-zA-Z0-9]*)*)>)?",
           "captures": {
             "1": { "name": "storage.modifier.async.floe" },
@@ -232,13 +238,13 @@
     "lambda": {
       "patterns": [
         {
-          "comment": "Arrow closure: (params) => expr",
-          "match": "(\\()([^)]*)(\\))\\s*(=>)",
+          "comment": "Arrow closure: (params) -> expr",
+          "match": "(\\()([^)]*)(\\))\\s*(->)",
           "captures": {
             "1": { "name": "punctuation.definition.parameters.begin.floe" },
             "2": { "name": "variable.parameter.floe" },
             "3": { "name": "punctuation.definition.parameters.end.floe" },
-            "4": { "name": "keyword.operator.fat-arrow.floe" }
+            "4": { "name": "keyword.operator.arrow.floe" }
           }
         },
         {

@@ -253,39 +253,27 @@ impl<'src> Lowerer<'src> {
         // Collect type parameters: idents between < and >
         let type_params = self.collect_type_params(node);
 
-        // Detect `fn name = expr` (derived binding) vs `fn name(params) { body }`
-        let is_binding = self.has_token(node, SyntaxKind::EQUAL);
-
         let mut params = Vec::new();
         let mut return_type = None;
         let mut body = None;
 
         for child in node.children() {
             match child.kind() {
-                SyntaxKind::PARAM if !is_binding => {
+                SyntaxKind::PARAM => {
                     if let Some(param) = self.lower_param(&child) {
                         params.push(param);
                     }
                 }
-                SyntaxKind::TYPE_EXPR if !is_binding => {
+                SyntaxKind::TYPE_EXPR => {
                     if return_type.is_none() {
                         return_type = self.lower_type_expr(&child);
                     }
                 }
-                SyntaxKind::BLOCK_EXPR if !is_binding => {
-                    body = self.lower_expr_node(&child);
-                }
-                _ if is_binding && body.is_none() => {
-                    // For `fn name = expr`, the body is the expression after `=`
+                SyntaxKind::BLOCK_EXPR => {
                     body = self.lower_expr_node(&child);
                 }
                 _ => {}
             }
-        }
-
-        // For binding form, also try token expressions (e.g. identifiers)
-        if is_binding && body.is_none() {
-            body = self.lower_token_expr_after_eq(node);
         }
 
         Some(FunctionDecl {
@@ -569,7 +557,7 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        // Lower body: assert expressions and regular expressions
+        // Lower body: let bindings, assert expressions, and regular expressions
         let mut body = Vec::new();
         for child in node.children() {
             match child.kind() {
@@ -577,6 +565,17 @@ impl<'src> Lowerer<'src> {
                     let assert_span = self.node_span(&child);
                     if let Some(expr) = self.lower_first_expr(&child) {
                         body.push(TestStatement::Assert(expr, assert_span));
+                    }
+                }
+                SyntaxKind::ITEM => {
+                    // `let NAME = expr` inside a test block — reuses the
+                    // top-level ConstDecl lowering path.
+                    for sub in child.children() {
+                        if sub.kind() == SyntaxKind::CONST_DECL
+                            && let Some(decl) = self.lower_const(&sub, &child)
+                        {
+                            body.push(TestStatement::Let(decl));
+                        }
                     }
                 }
                 _ => {

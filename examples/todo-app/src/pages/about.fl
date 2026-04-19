@@ -1,5 +1,5 @@
-export fn AboutPage() => JSX.Element {
-    const features = [
+export let AboutPage() -> JSX.Element = {
+    let features = [
         "Pipe operator (|>) for data transformation",
         "Exhaustive match expressions",
         "Tagged unions with pattern matching",
@@ -15,7 +15,7 @@ export fn AboutPage() => JSX.Element {
             tagged unions, and React integration.</p>
         <h2 className="text-xl font-semibold mb-4">Features used in this app</h2>
         <ul className="space-y-2">
-            {features |> Array.map((feature) =>
+            {features |> Array.map((feature) ->
                 <li
                     key={feature}
                     className="flex items-center gap-2 text-zinc-300"

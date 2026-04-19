@@ -650,32 +650,15 @@ impl<'src> Lowerer<'src> {
         None
     }
 
-    pub(super) fn lower_token_expr_after_eq(&mut self, node: &SyntaxNode) -> Option<Expr> {
-        // For `fn name = expr`, find token expr after the `=`.
-        let mut found_eq = false;
-        for token in node.children_with_tokens() {
-            if let Some(token) = token.as_token() {
-                if token.kind() == SyntaxKind::EQUAL {
-                    found_eq = true;
-                    continue;
-                }
-                if found_eq && let Some(expr) = self.token_to_expr(token) {
-                    return Some(expr);
-                }
-            }
-        }
-        None
-    }
-
     pub(super) fn lower_token_expr_after_lambda_delim(
         &mut self,
         node: &SyntaxNode,
     ) -> Option<Expr> {
-        // For `(params) => body` arrows, find token expr after the `=>`.
+        // For `(params) -> body` arrows, find token expr after the `->`.
         let mut found_arrow = false;
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
-                if token.kind() == SyntaxKind::FAT_ARROW {
+                if token.kind() == SyntaxKind::THIN_ARROW {
                     found_arrow = true;
                     continue;
                 }

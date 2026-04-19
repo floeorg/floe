@@ -149,7 +149,7 @@ mod tests {
     fn cache_round_trips_a_clean_interface() {
         let tmp = TempDir::new().unwrap();
         let store = CacheStore::new(tmp.path().to_path_buf());
-        let src = "const x = 42";
+        let src = "let x = 42";
         let i = iface(src, HashMap::new(), false);
         store.write(Path::new("x.fl"), &i).unwrap();
         let read = store.read(Path::new("x.fl")).unwrap();
@@ -159,15 +159,15 @@ mod tests {
 
     #[test]
     fn is_fresh_matches_unchanged_source() {
-        let src = "const x = 42";
+        let src = "let x = 42";
         let i = iface(src, HashMap::new(), false);
         assert!(CacheStore::is_fresh(&i, src, &HashMap::new()));
     }
 
     #[test]
     fn is_fresh_rejects_changed_source() {
-        let i = iface("const x = 42", HashMap::new(), false);
-        assert!(!CacheStore::is_fresh(&i, "const x = 43", &HashMap::new()));
+        let i = iface("let x = 42", HashMap::new(), false);
+        assert!(!CacheStore::is_fresh(&i, "let x = 43", &HashMap::new()));
     }
 
     #[test]
@@ -179,25 +179,25 @@ mod tests {
             dep_path.clone(),
             ModuleInterface::fingerprint(dep_source.as_bytes()),
         );
-        let i = iface("const x = 42", dep_hashes, false);
+        let i = iface("let x = 42", dep_hashes, false);
         let mut current_deps = HashMap::new();
         // Dep now has different content.
         current_deps.insert(dep_path, "type A = { b: number }".to_string());
-        assert!(!CacheStore::is_fresh(&i, "const x = 42", &current_deps));
+        assert!(!CacheStore::is_fresh(&i, "let x = 42", &current_deps));
     }
 
     #[test]
     fn is_fresh_rejects_vanished_dependency() {
         let mut dep_hashes = HashMap::new();
         dep_hashes.insert(PathBuf::from("dep.fl"), 42);
-        let i = iface("const x = 42", dep_hashes, false);
-        assert!(!CacheStore::is_fresh(&i, "const x = 42", &HashMap::new()));
+        let i = iface("let x = 42", dep_hashes, false);
+        assert!(!CacheStore::is_fresh(&i, "let x = 42", &HashMap::new()));
     }
 
     #[test]
     fn is_fresh_refuses_to_serve_failing_module() {
-        let i = iface("const x = 42", HashMap::new(), /* had_errors */ true);
-        assert!(!CacheStore::is_fresh(&i, "const x = 42", &HashMap::new()));
+        let i = iface("let x = 42", HashMap::new(), /* had_errors */ true);
+        assert!(!CacheStore::is_fresh(&i, "let x = 42", &HashMap::new()));
     }
 
     #[test]
@@ -228,7 +228,7 @@ mod tests {
         let src_path = tmp.path().join("lib.fl");
         std::fs::write(
             &src_path,
-            "export type Foo = { name: string }\nexport fn greet(f: Foo) => string { f.name }\nexport const MAX: number = 10\n",
+            "export type Foo = { name: string }\nexport let greet(f: Foo) -> string = { f.name }\nexport let MAX: number = 10\n",
         )
         .unwrap();
         let importer_path = tmp.path().join("app.fl");

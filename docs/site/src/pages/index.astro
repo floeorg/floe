@@ -20,7 +20,7 @@ import floeLang from "../../../../editors/vscode/syntaxes/floe.tmLanguage.json";
       rel="stylesheet"
     />
     <script is:inline>
-      const t = localStorage.getItem("theme");
+      let t = localStorage.getItem("theme");
       if (t === "light") document.documentElement.setAttribute("data-theme", "light");
       else if (!t && window.matchMedia("(prefers-color-scheme: light)").matches)
         document.documentElement.setAttribute("data-theme", "light");
@@ -495,17 +495,15 @@ import floeLang from "../../../../editors/vscode/syntaxes/floe.tmLanguage.json";
           <Code
             code={`import { useState } from "react"
 
-type User {
+type User = {
   name: string,
   role: string,
   active: boolean,
 }
 
-type Status {
-  | Loading
+type Status = | Loading
   | Failed(string)
   | Ready(Array<User>)
-}
 
 export fn Dashboard() -> JSX.Element {
   const (status, setStatus) = useState<Status>(Loading)
@@ -514,7 +512,7 @@ export fn Dashboard() -> JSX.Element {
     Loading -> <Spinner />,
     Failed(msg) -> <Alert message={msg} />,
     Ready(users) -> {
-      const active = users
+      let active = users
         |> filter(.active)
         |> sortBy(.name)
 
@@ -563,7 +561,7 @@ export function Dashboard(): JSX.Element {
     return <Alert message={status.message} />;
   }
 
-  const active = status.users
+  let active = status.users
     .filter((u) => u.active)
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -597,7 +595,7 @@ export function Dashboard(): JSX.Element {
         </div>
         <Code
           code={`// Dot shorthand — .field becomes an accessor function
-const activeNames = users
+let activeNames = users
   |> filter(.isActive)
   |> sortBy(.lastLogin)
   |> map(.displayName)
@@ -631,12 +629,10 @@ users
             route.fl
           </div>
           <Code
-            code={`type Route {
-  | Home
+            code={`type Route = | Home
   | Profile(string)
   | Settings
   | NotFound
-}
 
 fn render(route: Route) -> JSX.Element {
   match route {
@@ -667,8 +663,8 @@ fn render(route: Route) -> JSX.Element {
         </div>
         <Code
           code={`fn getUser(id: string) -> Promise<Result<User, ApiError>> {
-  const response = fetch("/api/users/{id}") |> await?
-  const user = response.json() |> await?
+  let response = fetch("/api/users/{id}") |> await?
+  let user = response.json() |> await?
 
   Ok(user)
 }
@@ -750,9 +746,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(<App />)`}
 
     <script is:inline>
       document.getElementById("theme-toggle").addEventListener("click", () => {
-        const html = document.documentElement;
-        const current = html.getAttribute("data-theme");
-        const next = current === "dark" ? "light" : "dark";
+        let html = document.documentElement;
+        let current = html.getAttribute("data-theme");
+        let next = current === "dark" ? "light" : "dark";
         html.setAttribute("data-theme", next);
         localStorage.setItem("theme", next);
       });

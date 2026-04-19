@@ -24,8 +24,8 @@ Functions for working with `Promise<T>` values.
 `Promise.await` is a stdlib function with signature `Promise<T> -> T`. It compiles to JavaScript's `await` keyword. Using `Promise.await` anywhere in a function body causes the compiler to infer `async` on the emitted function -- no `async` keyword is needed in Floe. `await` is also available as a bare shorthand in pipes: `expr |> await`.
 
 ```floe
-fn fetchUser(id: string) => Promise<User> {
-  const response = fetch(`/api/users/${id}`) |> await
+let fetchUser(id: string) -> Promise<User> = {
+  let response = fetch(`/api/users/${id}`) |> await
   response.json() |> await
 }
 // Compiles to: async function fetchUser(id: string): Promise<User> { ... }
@@ -35,12 +35,12 @@ The return type must explicitly use `Promise<T>`, making async behavior visible 
 
 ```floe
 // Error: function `bad` uses `await` but return type is `string`, not `Promise<string>`
-fn bad() => string {
+let bad() -> string = {
   getData() |> await
 }
 
 // OK
-fn good() => Promise<string> {
+let good() -> Promise<string> = {
   getData() |> await
 }
 ```
@@ -50,8 +50,8 @@ This parallels how `?` requires the function to return `Result<T, E>`. Both oper
 For functions without a return type annotation, the compiler infers `Promise<T>` automatically:
 
 ```floe
-fn fetchName(id: string) {
-  const user = fetchUser(id) |> await
+let fetchName(id: string) = {
+  let user = fetchUser(id) |> await
   user.name
 }
 // Inferred return type: Promise<string>
@@ -63,12 +63,12 @@ fn fetchName(id: string) {
 
 ```floe
 // Verbose — three nested generics
-fn findByCode(code: string) => Promise<Result<Option<Snippet>, Error>> {
+let findByCode(code: string) -> Promise<Result<Option<Snippet>, Error>> = {
   // ...
 }
 
 // Sugar — the `Promise<>` wrapper is implied by `async`
-async fn findByCode(code: string) => Result<Option<Snippet>, Error> {
+async let findByCode(code: string) -> Result<Option<Snippet>, Error> = {
   // ...
 }
 ```
@@ -93,12 +93,12 @@ npm imports are untrusted by default. The compiler wraps calls in try/catch and 
 ```floe
 // Sync npm function — Result<T, Error> directly
 import { parseYaml } from "yaml-lib"
-const result = parseYaml(text)
+let result = parseYaml(text)
 // Result<Config, Error> — no await needed
 
 // Async npm function — Promise<Result<T, Error>>, needs |> await
 import { transitionIssue } from "jira-api"
-const result = transitionIssue(id, tid) |> await
+let result = transitionIssue(id, tid) |> await
 // Result<(), Error>
 
 match result {
@@ -118,14 +118,14 @@ match result {
 
 ```floe
 // Wait for all fetches
-const users = Promise.all([fetchUser(1), fetchUser(2), fetchUser(3)]) |> Promise.await
+let users = Promise.all([fetchUser(1), fetchUser(2), fetchUser(3)]) |> Promise.await
 
 // Race — first response wins
-const fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> Promise.await
+let fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> Promise.await
 
 // allSettled returns Array<Result<T, Error>> — natural fit for Floe
-const results = Promise.allSettled([fetchA(), fetchB(), fetchC()]) |> Promise.await
-const successes = results |> Array.filter(Result.isOk)
+let results = Promise.allSettled([fetchA(), fetchB(), fetchC()]) |> Promise.await
+let successes = results |> Array.filter(Result.isOk)
 
 // Delay
 Promise.delay(1000) |> Promise.await  // wait 1 second

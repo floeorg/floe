@@ -881,7 +881,7 @@ mod tests {
 
     #[test]
     fn resolve_path_fl_suffix() {
-        let (_dir, base) = setup_files(&[("types.fl", "const x = 1")]);
+        let (_dir, base) = setup_files(&[("types.fl", "let x = 1")]);
         let result = resolve_path(&base, "./types");
         assert!(result.is_some());
         assert!(result.unwrap().ends_with("types.fl"));
@@ -889,7 +889,7 @@ mod tests {
 
     #[test]
     fn resolve_path_index_fallback() {
-        let (_dir, base) = setup_files(&[("utils/index.fl", "const y = 2")]);
+        let (_dir, base) = setup_files(&[("utils/index.fl", "let y = 2")]);
         let result = resolve_path(&base, "./utils");
         assert!(result.is_some());
         assert!(result.unwrap().ends_with("index.fl"));
@@ -897,8 +897,7 @@ mod tests {
 
     #[test]
     fn resolve_path_prefer_fl_over_index() {
-        let (_dir, base) =
-            setup_files(&[("mod.fl", "const a = 1"), ("mod/index.fl", "const b = 2")]);
+        let (_dir, base) = setup_files(&[("mod.fl", "let a = 1"), ("mod/index.fl", "let b = 2")]);
         let result = resolve_path(&base, "./mod");
         assert!(result.is_some());
         // Should prefer mod.fl
@@ -925,9 +924,9 @@ mod tests {
 
     #[test]
     fn program_without_imports() {
-        let (_dir, base) = setup_files(&[("main.fl", "const x = 1")]);
+        let (_dir, base) = setup_files(&[("main.fl", "let x = 1")]);
         let main_path = base.join("main.fl");
-        let program = parse_program("const x = 1");
+        let program = parse_program("let x = 1");
         let result = resolve_imports(&main_path, &program, &TsconfigPaths::default());
         assert!(result.is_empty());
     }
@@ -961,8 +960,10 @@ mod tests {
 
     #[test]
     fn exported_function_extracted() {
-        let (_dir, base) =
-            setup_files(&[("main.fl", ""), ("helpers.fl", "export fn greet() { 1 }")]);
+        let (_dir, base) = setup_files(&[
+            ("main.fl", ""),
+            ("helpers.fl", "export let greet() = { 1 }"),
+        ]);
         let main_path = base.join("main.fl");
         let program = parse_program("import { greet } from \"./helpers\"");
         let result = resolve_imports(&main_path, &program, &TsconfigPaths::default());
@@ -973,7 +974,7 @@ mod tests {
 
     #[test]
     fn exported_const_extracted() {
-        let (_dir, base) = setup_files(&[("main.fl", ""), ("config.fl", "export const MAX = 100")]);
+        let (_dir, base) = setup_files(&[("main.fl", ""), ("config.fl", "export let MAX = 100")]);
         let main_path = base.join("main.fl");
         let program = parse_program("import { MAX } from \"./config\"");
         let result = resolve_imports(&main_path, &program, &TsconfigPaths::default());
@@ -989,7 +990,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "internal.fl",
-                "type Secret = { key: string }\nfn helper() { 1 }\nconst private = 42",
+                "type Secret = { key: string }\nlet helper() = { 1 }\nlet private = 42",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1009,7 +1010,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "lib.fl",
-                "export type A = { x: number }\nexport fn b() { 1 }",
+                "export type A = { x: number }\nexport let b() = { 1 }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1030,7 +1031,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "ext.fl",
-                "for User { export fn greet(self) => string { self.name } }",
+                "for User { export let greet(self) -> string = { self.name } }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1050,7 +1051,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "ext.fl",
-                "export for User {\n    fn greet(self) => string { self.name }\n    fn shout(self) => string { self.name }\n}",
+                "export for User {\n    let greet(self) -> string = { self.name }\n    let shout(self) -> string = { self.name }\n}",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1078,7 +1079,7 @@ mod tests {
 
     #[test]
     fn dotted_relative_import() {
-        let (_dir, base) = setup_files(&[("sub/main.fl", ""), ("lib.fl", "export const X = 1")]);
+        let (_dir, base) = setup_files(&[("sub/main.fl", ""), ("lib.fl", "export let X = 1")]);
         let main_path = base.join("sub/main.fl");
         let program = parse_program("import { X } from \"../lib\"");
         let result = resolve_imports(&main_path, &program, &TsconfigPaths::default());
@@ -1091,7 +1092,7 @@ mod tests {
             ("main.fl", ""),
             (
                 "traits.fl",
-                "export trait Display { fn show(self) => string }",
+                "export trait Display { let show(self) -> string }",
             ),
         ]);
         let main_path = base.join("main.fl");
@@ -1106,7 +1107,7 @@ mod tests {
     fn resolve_index_in_subdir() {
         let (_dir, base) = setup_files(&[
             ("main.fl", ""),
-            ("components/index.fl", "export fn Button() { 1 }"),
+            ("components/index.fl", "export let Button() = { 1 }"),
         ]);
         let main_path = base.join("main.fl");
         let program = parse_program("import { Button } from \"./components\"");
@@ -1224,8 +1225,8 @@ mod tests {
     #[test]
     fn resolve_ts_path_prefers_ts_over_tsx() {
         let (_dir, base) = setup_files(&[
-            ("mod.ts", "export const a = 1"),
-            ("mod.tsx", "export const b = 2"),
+            ("mod.ts", "export let a = 1"),
+            ("mod.tsx", "export let b = 2"),
         ]);
         let result = resolve_ts_path(&base, "./mod");
         assert!(result.is_some());
@@ -1234,7 +1235,7 @@ mod tests {
 
     #[test]
     fn resolve_ts_path_index_fallback() {
-        let (_dir, base) = setup_files(&[("utils/index.ts", "export const x = 1")]);
+        let (_dir, base) = setup_files(&[("utils/index.ts", "export let x = 1")]);
         let result = resolve_ts_path(&base, "./utils");
         assert!(result.is_some());
         assert!(result.unwrap().ends_with("index.ts"));

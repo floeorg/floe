@@ -30,7 +30,7 @@ fn build_index(source: &str) -> SymbolIndex {
 
 #[test]
 fn offset_to_position_first_line() {
-    let source = "const x = 42";
+    let source = "let x = 42";
     let pos = offset_to_position(source, 6);
     assert_eq!(pos.line, 0);
     assert_eq!(pos.character, 6);
@@ -38,15 +38,15 @@ fn offset_to_position_first_line() {
 
 #[test]
 fn offset_to_position_second_line() {
-    let source = "const x = 42\nconst y = 10";
+    let source = "let x = 42\nlet y = 10";
     let pos = offset_to_position(source, 19);
     assert_eq!(pos.line, 1);
-    assert_eq!(pos.character, 6);
+    assert_eq!(pos.character, 8);
 }
 
 #[test]
 fn offset_to_range_basic() {
-    let source = "const x = 42";
+    let source = "let x = 42";
     let range = offset_to_range(source, 6, 7);
     assert_eq!(range.start.line, 0);
     assert_eq!(range.start.character, 6);
@@ -63,32 +63,32 @@ fn position_to_offset_roundtrip() {
 
 #[test]
 fn word_at_offset_basic() {
-    let source = "const hello = 42";
+    let source = "let hello = 42";
     assert_eq!(word_at_offset(source, 6), "hello");
     assert_eq!(word_at_offset(source, 8), "hello");
 }
 
 #[test]
 fn word_at_offset_at_boundary() {
-    let source = "const x = 42";
-    assert_eq!(word_at_offset(source, 0), "const");
+    let source = "let x = 42";
+    assert_eq!(word_at_offset(source, 0), "let");
 }
 
 #[test]
 fn word_prefix_at_offset_partial() {
-    let source = "const hel";
-    assert_eq!(word_prefix_at_offset(source, 9), "hel");
+    let source = "let hel";
+    assert_eq!(word_prefix_at_offset(source, 7), "hel");
 }
 
 #[test]
 fn word_prefix_at_offset_empty() {
-    let source = "const ";
-    assert_eq!(word_prefix_at_offset(source, 6), "");
+    let source = "let ";
+    assert_eq!(word_prefix_at_offset(source, 4), "");
 }
 
 #[test]
 fn banned_keyword_produces_parse_error() {
-    let source = "let x = 42";
+    let source = "var x = 42";
     let parse_result = Parser::new(source).parse_program();
     assert!(parse_result.is_err());
     let errs = parse_result.unwrap_err();
@@ -99,41 +99,41 @@ fn banned_keyword_produces_parse_error() {
 
 #[test]
 fn symbol_index_function() {
-    let source = "fn add(a: number, b: number) => number { a + b }";
+    let source = "let add(a: number, b: number) -> number = { a + b }";
     let index = build_index(source);
     let syms = index.find_by_name("add");
     assert_eq!(syms.len(), 1);
     assert_eq!(syms[0].kind, SymbolKind::FUNCTION);
     assert_eq!(
-        syms[0].detail, "fn add(a: number, b: number) => number",
+        syms[0].detail, "let add(a: number, b: number) -> number",
         "function detail should use => for return type, not :"
     );
 }
 
 #[test]
 fn symbol_index_function_no_return_type() {
-    let source = "fn greet(name: string) { Console.log(name) }";
+    let source = "let greet(name: string) = { Console.log(name) }";
     let index = build_index(source);
     let syms = index.find_by_name("greet");
     assert_eq!(syms.len(), 1);
     assert_eq!(
-        syms[0].detail, "fn greet(name: string) => ()",
+        syms[0].detail, "let greet(name: string) -> ()",
         "function without return type should show the checker's inferred return"
     );
 }
 
 #[test]
 fn symbol_index_exported_function() {
-    let source = "export fn hello() => string { \"hi\" }";
+    let source = "export let hello() -> string = { \"hi\" }";
     let index = build_index(source);
     let syms = index.find_by_name("hello");
     assert_eq!(syms.len(), 1);
-    assert_eq!(syms[0].detail, "export fn hello() => string",);
+    assert_eq!(syms[0].detail, "export let hello() -> string",);
 }
 
 #[test]
 fn symbol_index_const() {
-    let source = "const x = 42";
+    let source = "let x = 42";
     let index = build_index(source);
     let syms = index.find_by_name("x");
     assert_eq!(syms.len(), 1);
@@ -218,8 +218,8 @@ fn pipe_context_detected() {
     assert!(is_pipe_context("users |> ", 9));
     assert!(is_pipe_context("users |>  ", 10));
     assert!(is_pipe_context("x |> f() |> ", 12));
-    assert!(!is_pipe_context("const x = 42", 12));
-    assert!(!is_pipe_context("const x = |", 11));
+    assert!(!is_pipe_context("let x = 42", 10));
+    assert!(!is_pipe_context("let x = |", 9));
 }
 
 #[test]
@@ -323,7 +323,7 @@ fn resolve_piped_type_with_unwrap() {
     let mut type_map = HashMap::new();
     type_map.insert(
         "fetchUser".to_string(),
-        "(number) => Result<User, Error>".to_string(),
+        "(number) -> Result<User, Error>".to_string(),
     );
     let source = "result? |> ";
     let mut tm = HashMap::new();
@@ -337,7 +337,7 @@ fn function_symbol_stores_first_param_type() {
     // Concrete types only — the index sources `first_param_type` from the
     // checker's resolved signature, so unbound generics like `T` without a
     // declared type parameter would surface as `<error>`.
-    let source = "fn head(arr: Array<number>) => number { 0 }";
+    let source = "let head(arr: Array<number>) -> number = { 0 }";
     let index = build_index(source);
     let syms = index.find_by_name("head");
     assert_eq!(syms.len(), 1);
@@ -352,8 +352,8 @@ fn function_symbol_stores_first_param_type() {
 fn jsx_component_source() -> &'static str {
     r#"import { useState, JSX } from "react"
 
-export fn Counter() => JSX.Element {
-    const [_count, setCount] = useState(0)
+export let Counter() -> JSX.Element = {
+    let [_count, setCount] = useState(0)
 
     <div>
         <h1>Count</h1>
@@ -485,8 +485,8 @@ fn simulate_hover(source: &str, name: &str) -> Option<String> {
 fn hover_destructured_const_shows_type() {
     let source = r#"
 import { useState } from "react"
-export fn App() => JSX.Element {
-    const [input, setInput] = useState("")
+export let App() -> JSX.Element = {
+    let [input, setInput] = useState("")
     <div>{input}</div>
 }
 "#;
@@ -506,7 +506,7 @@ export fn App() => JSX.Element {
 
 #[test]
 fn hover_simple_const_debug() {
-    let source = r#"const pee = "test""#;
+    let source = r#"let pee = "test""#;
     let hover = simulate_hover(source, "pee");
     assert!(hover.is_some());
     let detail = hover.unwrap();
@@ -520,8 +520,8 @@ fn hover_simple_const_debug() {
 #[test]
 fn shadow_error_in_checker() {
     let source = r#"
-const x = 5
-const x = 10
+let x = 5
+let x = 10
 "#;
     let (_index, _type_map) = build_index_and_types(source);
     let (diags, _, _, _) = floe_core::checker::Checker::new().check_with_types(
@@ -542,56 +542,56 @@ const x = 10
 #[test]
 fn hover_const_shows_inferred_type() {
     // const without explicit type annotation should show inferred type
-    let hover = simulate_hover("const x = 42", "x");
+    let hover = simulate_hover("let x = 42", "x");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
         detail.contains("number"),
-        "hover for const x = 42 should show 'number', got: {detail}"
+        "hover for let x = 42 should show 'number', got: {detail}"
     );
 }
 
 #[test]
 fn hover_const_with_annotation_shows_annotation() {
     // const with explicit type annotation should show the annotation
-    let hover = simulate_hover("const x: number = 42", "x");
+    let hover = simulate_hover("let x: number = 42", "x");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
         detail.contains("number"),
-        "hover for annotated const should show type, got: {detail}"
+        "hover for annotated let should show type, got: {detail}"
     );
 }
 
 #[test]
 fn hover_const_string_shows_type() {
-    let hover = simulate_hover(r#"const msg = "hello""#, "msg");
+    let hover = simulate_hover(r#"let msg = "hello""#, "msg");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
         detail.contains("string"),
-        "hover for const msg = \"hello\" should show 'string', got: {detail}"
+        "hover for let msg = \"hello\" should show 'string', got: {detail}"
     );
 }
 
 #[test]
 fn hover_const_bool_shows_type() {
-    let hover = simulate_hover("const flag = true", "flag");
+    let hover = simulate_hover("let flag = true", "flag");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
         detail.contains("boolean"),
-        "hover for const flag = true should show 'boolean', got: {detail}"
+        "hover for let flag = true should show 'boolean', got: {detail}"
     );
 }
 
 #[test]
 fn hover_function_shows_signature() {
-    let hover = simulate_hover("fn add(a: number, b: number) => number { a + b }", "add");
+    let hover = simulate_hover("let add(a: number, b: number) -> number = { a + b }", "add");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
-        detail.contains("fn add"),
+        detail.contains("let add"),
         "hover for function should show signature, got: {detail}"
     );
     assert!(
@@ -604,26 +604,26 @@ fn hover_function_shows_signature() {
 fn hover_const_function_value_shows_type() {
     // A const assigned to a function call should show the inferred return type
     let source = r#"
-fn getNum() => number { 42 }
-const result = getNum()
+let getNum() -> number = { 42 }
+let result = getNum()
 "#;
     let hover = simulate_hover(source, "result");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
         detail.contains("number"),
-        "hover for const result = getNum() should show inferred type 'number', got: {detail}"
+        "hover for let result = getNum() should show inferred type 'number', got: {detail}"
     );
 }
 
 #[test]
 fn hover_fn_with_return_type_shows_it() {
     // A function with explicit return type should show it
-    let hover = simulate_hover("fn double(x: number) => number { x * 2 }", "double");
+    let hover = simulate_hover("let double(x: number) -> number = { x * 2 }", "double");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
-        detail.contains("=> number"),
+        detail.contains("-> number"),
         "hover for fn with return type should show it, got: {detail}"
     );
 }
@@ -631,7 +631,7 @@ fn hover_fn_with_return_type_shows_it() {
 #[test]
 fn hover_fn_without_return_type_skips_unresolved() {
     // When the checker can't fully resolve the return type, don't show ?T variables
-    let hover = simulate_hover("fn double(x: number) { x * 2 }", "double");
+    let hover = simulate_hover("let double(x: number) = { x * 2 }", "double");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
@@ -645,11 +645,11 @@ fn unannotated_const_detail_includes_inferred_type() {
     // Symbol detail is enriched with the checker's inferred type at build
     // time so hover renders `Symbol.detail` directly without a separate
     // enrichment pass.
-    let source = "const x = 42";
+    let source = "let x = 42";
     let (index, type_map) = build_index_and_types(source);
     let syms = index.find_by_name("x");
     assert_eq!(syms.len(), 1);
-    assert_eq!(syms[0].detail, "const x: number");
+    assert_eq!(syms[0].detail, "let x: number");
     assert_eq!(type_map.get("x").map(|s| s.as_str()), Some("number"));
 }
 
@@ -657,16 +657,16 @@ fn unannotated_const_detail_includes_inferred_type() {
 fn hover_nested_const_shows_type() {
     // Reproduces #583: const inside nested fn shows no type on hover
     let source = r#"
-fn outer() {
-    fn inner() {
-        const s = "hello"
+let outer() = {
+    let inner() = {
+        let s = "hello"
     }
 }
 "#;
     let hover = simulate_hover(source, "s");
     assert!(
         hover.as_ref().is_some_and(|h| h.contains("string")),
-        "const s inside nested fn should show type, got: {:?}",
+        "let s inside nested fn should show type, got: {:?}",
         hover
     );
 }
@@ -675,16 +675,16 @@ fn outer() {
 fn hover_nested_const_with_type_annotation() {
     // const with type annotation should show type even when nested
     let source = r#"
-fn outer() {
-    fn inner() {
-        const s: Option<number> = None
+let outer() = {
+    let inner() = {
+        let s: Option<number> = None
     }
 }
 "#;
     let hover = simulate_hover(source, "s");
     assert!(
         hover.as_ref().is_some_and(|h| h.contains("Option<number>")),
-        "const s with type annotation should show type, got: {:?}",
+        "let s with type annotation should show type, got: {:?}",
         hover
     );
 }
@@ -759,7 +759,7 @@ fn jsx_tag_detected() {
     assert!(is_in_jsx_tag("<button on", 10));
     assert!(is_in_jsx_tag("<div className", 14));
     assert!(!is_in_jsx_tag("<button>content", 15));
-    assert!(!is_in_jsx_tag("const x = 42", 12));
+    assert!(!is_in_jsx_tag("let x = 42", 10));
 }
 
 #[test]
@@ -786,7 +786,7 @@ fn jsx_attribute_completions_all() {
 
 #[test]
 fn lambda_event_completions_on_change() {
-    let source = r#"<input onChange={(e) => e.}"#;
+    let source = r#"<input onChange={(e) -> e.}"#;
     let offset = source.len();
     let items = lambda_event_completions(source, offset, "");
     assert!(items.is_some(), "should provide event completions");
@@ -797,7 +797,7 @@ fn lambda_event_completions_on_change() {
 
 #[test]
 fn lambda_event_completions_target_value() {
-    let source = r#"<input onChange={(e) => e.target.}"#;
+    let source = r#"<input onChange={(e) -> e.target.}"#;
     let offset = source.len();
     let items = lambda_event_completions(source, offset, "");
     assert!(
@@ -811,7 +811,7 @@ fn lambda_event_completions_target_value() {
 
 #[test]
 fn lambda_event_completions_not_in_normal_lambda() {
-    let source = r#"const f = (x) => x."#;
+    let source = r#"let f(x) = x."#;
     let offset = source.len();
     let items = lambda_event_completions(source, offset, "");
     assert!(
@@ -899,14 +899,14 @@ fn import_path_at_offset_not_on_path() {
 
 #[test]
 fn import_path_at_offset_non_import_line() {
-    let source = r#"const x = "hello""#;
+    let source = r#"let x = "hello""#;
     let result = import_path_at_offset(source, 12);
     assert_eq!(result, None);
 }
 
 #[test]
 fn import_path_at_offset_multiline() {
-    let source = "const x = 42\nimport { Foo } from \"./foo\"\nconst y = 10";
+    let source = "let x = 42\nimport { Foo } from \"./foo\"\nconst y = 10";
     // Cursor on the path in line 2
     let import_line_start = source.find("import").unwrap();
     let quote_pos = source[import_line_start..].find('"').unwrap() + import_line_start;
@@ -927,14 +927,14 @@ fn symbol_index_for_block_function_detail() {
     let source = r#"
 type Todo = { text: string, done: boolean }
 for Array<Todo> {
-    export fn remaining(self) => number { 0 }
+    export let remaining(self) -> number = { 0 }
 }
 "#;
     let index = build_index(source);
     let syms = index.find_by_name("remaining");
     assert!(!syms.is_empty());
     assert_eq!(
-        syms[0].detail, "fn remaining(self: Array<Todo>) => number",
+        syms[0].detail, "let remaining(self: Array<Todo>) -> number",
         "for-block function should show clean signature, not wrapped in for {{ }}"
     );
 }
@@ -951,8 +951,8 @@ fn import_path_at_offset_bare_import() {
 #[test]
 fn hover_inner_function_shows_unit_return() {
     let source = r#"
-export fn outer() => () {
-    fn handleAdd() {
+export let outer() -> () = {
+    let handleAdd() = {
         Console.log("hi")
     }
     handleAdd()
@@ -963,8 +963,8 @@ export fn outer() => () {
     let detail = hover.unwrap();
     eprintln!("HOVER handleAdd: {detail}");
     assert!(
-        detail.contains("=> ()"),
-        "handleAdd hover should show => (), got: {detail}"
+        detail.contains("-> ()"),
+        "handleAdd hover should show -> (), got: {detail}"
     );
 }
 
@@ -1004,9 +1004,9 @@ fn simulate_goto_def(source: &str, cursor_offset: usize) -> Option<(usize, usize
 
 #[test]
 fn goto_def_type_usage_in_annotation() {
-    let source = "type Color = | Red | Green | Blue\nfn pick(c: Color) => string { \"ok\" }\n";
-    // Find "Color" in fn pick(c: Color)
-    let usage_offset = source.find("fn pick(c: Color)").unwrap() + "fn pick(c: ".len();
+    let source = "type Color = | Red | Green | Blue\nlet pick(c: Color) -> string = { \"ok\" }\n";
+    // Find "Color" in let pick(c: Color)
+    let usage_offset = source.find("let pick(c: Color)").unwrap() + "let pick(c: ".len();
     eprintln!(
         "Color usage at offset {usage_offset}, char: {:?}",
         &source[usage_offset..usage_offset + 5]
@@ -1020,23 +1020,23 @@ fn goto_def_type_usage_in_annotation() {
 
 #[test]
 fn goto_def_const_variable_usage() {
-    let source = "fn first(x: number) => number { x + 1 }\nfn second(x: number) => number { x + 2 }\n\nconst a = first(1)\nconst b = second(a)\n";
+    let source = "let first(x: number) -> number = { x + 1 }\nlet second(x: number) -> number = { x + 2 }\n\nlet a = first(1)\nlet b = second(a)\n";
     // Find "a" in second(a)
     let usage_offset = source.find("second(a)").unwrap() + "second(".len();
     eprintln!(
-        "const a usage at offset {usage_offset}, char: {:?}",
+        "let a usage at offset {usage_offset}, char: {:?}",
         &source[usage_offset..usage_offset + 1]
     );
     let result = simulate_goto_def(source, usage_offset);
     assert!(
         result.is_some(),
-        "go-to-def on const usage should find definition"
+        "go-to-def on let usage should find definition"
     );
 }
 
 #[test]
 fn goto_def_union_variant_in_match() {
-    let source = "type Color = | Red | Green | Blue\nfn describe(c: Color) => string {\n    match c {\n        Red -> \"red\",\n        Green -> \"green\",\n        Blue -> \"blue\",\n    }\n}\n";
+    let source = "type Color = | Red | Green | Blue\nlet describe(c: Color) -> string = {\n    match c {\n        Red -> \"red\",\n        Green -> \"green\",\n        Blue -> \"blue\",\n    }\n}\n";
     // Find "Red" in match arm
     let usage_offset = source.find("Red -> \"red\"").unwrap();
     eprintln!(
@@ -1054,7 +1054,7 @@ fn goto_def_union_variant_in_match() {
 fn type_map_has_field_entries_for_records() {
     let source = r#"
 type User = { name: string, age: number }
-const u = User(name: "a", age: 1)
+let u = User(name: "a", age: 1)
 "#;
     let (_, type_map) = build_index_and_types(source);
     assert_eq!(
@@ -1078,7 +1078,7 @@ const u = User(name: "a", age: 1)
 fn dot_access_completions_for_record_type() {
     let source = r#"
 type User = { name: string, age: number }
-const u = User(name: "a", age: 1)
+let u = User(name: "a", age: 1)
 "#;
     let (index, type_map) = build_index_and_types(source);
     let items = dot_access_completions("u", "", &type_map, &index);
@@ -1097,13 +1097,13 @@ const u = User(name: "a", age: 1)
 
 #[test]
 fn end_position_no_trailing_newline() {
-    let pos = end_position("const x = 1");
-    assert_eq!(pos, Position::new(0, 11));
+    let pos = end_position("let x = 1");
+    assert_eq!(pos, Position::new(0, 9));
 }
 
 #[test]
 fn end_position_single_trailing_newline() {
-    let pos = end_position("const x = 1\n");
+    let pos = end_position("let x = 1\n");
     assert_eq!(pos, Position::new(1, 0));
 }
 
@@ -1112,13 +1112,13 @@ fn end_position_multiple_trailing_newlines_covers_all() {
     // The previous implementation using `str::lines()` returned (2, 0) here,
     // leaving the final "\n" outside the edit range — which caused the
     // formatter to leave two trailing newlines after applying the TextEdit.
-    let pos = end_position("const x = 1\n\n\n");
+    let pos = end_position("let x = 1\n\n\n");
     assert_eq!(pos, Position::new(3, 0));
 }
 
 #[test]
 fn end_position_multiline_no_trailing_newline() {
-    let pos = end_position("const a = 1\nconst b = 2");
+    let pos = end_position("let a = 1\nconst b = 2");
     assert_eq!(pos, Position::new(1, 11));
 }
 
@@ -1126,6 +1126,6 @@ fn end_position_multiline_no_trailing_newline() {
 fn end_position_utf16_surrogate_pair_on_last_line() {
     // "𝕊" (U+1D54A) is encoded as two UTF-16 code units — LSP character
     // offsets must count code units, not chars.
-    let pos = end_position("const s = \"𝕊\"");
-    assert_eq!(pos, Position::new(0, 14));
+    let pos = end_position("let s = \"𝕊\"");
+    assert_eq!(pos, Position::new(0, 12));
 }

@@ -8,14 +8,14 @@ The pipe operator `|>` chains transformations left-to-right, making data flow re
 
 ```floe
 // Pipe the left side as the first argument to the right side
-const result = "hello" |> toUpperCase
+let result = "hello" |> toUpperCase
 // Compiles to: toUpperCase("hello")
 ```
 
 ## Chaining
 
 ```floe
-const result = users
+let result = users
   |> filter(.active)
   |> map(.name)
   |> sort
@@ -25,7 +25,7 @@ const result = users
 Compiles to:
 
 ```typescript
-const result = join(sort(map(filter(users, (u) => u.active), (u) => u.name)), ", ");
+let result = join(sort(map(filter(users, (u) => u.active), (u) => u.name)), ", ");
 ```
 
 The piped version reads like a recipe: take users, filter, map, sort, join.
@@ -35,12 +35,12 @@ The piped version reads like a recipe: take users, filter, map, sort, join.
 When the piped value isn't the first argument, use `_`:
 
 ```floe
-const result = 5 |> add(3, _)
+let result = 5 |> add(3, _)
 // Compiles to: add(3, 5)
 ```
 
 ```floe
-const result = value
+let result = value
   |> multiply(2)
   |> add(10, _)
   |> toString
@@ -61,7 +61,7 @@ users |> Array.sortBy(.name)
 For anything more complex, use an arrow closure:
 
 ```floe
-todos |> Array.map((t) => Todo(..t, done: !t.done))
+todos |> Array.map((t) -> Todo(..t, done: !t.done))
 ```
 
 ## Method-Style Pipes
@@ -71,10 +71,10 @@ Pipes work with any function, including methods accessed via imports:
 ```floe
 import { map, filter, reduce } from "ramda"
 
-const total = orders
+let total = orders
   |> filter(.status == "complete")
   |> map(.amount)
-  |> reduce((sum, n) => sum + n, 0, _)
+  |> reduce((sum, n) -> sum + n, 0, _)
 ```
 
 ## Debugging with `tap`
@@ -82,7 +82,7 @@ const total = orders
 `tap` runs a side-effect function (like logging) without breaking the pipeline:
 
 ```floe
-const result = users
+let result = users
   |> Array.filter(.active)
   |> tap(Console.log)          // logs filtered users, passes them through
   |> Array.map(.name)
@@ -96,7 +96,7 @@ const result = users
 You can pipe a value directly into `match` to combine pipelines with pattern matching:
 
 ```floe
-const label = price |> match {
+let label = price |> match {
     _ when _ < 10 -> "cheap",
     _ when _ < 100 -> "moderate",
     _ -> "expensive",
@@ -106,7 +106,7 @@ const label = price |> match {
 This is equivalent to `match price { ... }` but lets you keep the pipeline flowing:
 
 ```floe
-const message = response.status
+let message = response.status
     |> match {
         200..299 -> "success",
         404 -> "not found",
@@ -118,7 +118,7 @@ const message = response.status
 It works at the end of a chain too:
 
 ```floe
-const label = product
+let label = product
     |> effectivePrice
     |> match {
         _ when _ < 10 -> "cheap",

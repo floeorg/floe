@@ -1,13 +1,13 @@
-const value: Option<string> = Some("hello")
+let value: Option<string> = Some("hello")
 
-const _result = match value {
+let _result = match value {
     Some(s) -> s,
     None -> "nothing",
 }
 
-const empty: Option<number> = None
+let empty: Option<number> = None
 
-const _default = match empty {
+let _default = match empty {
     Some(n) -> n,
     None -> 0,
 }

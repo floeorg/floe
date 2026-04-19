@@ -34,24 +34,20 @@ impl<'src> CstParser<'src> {
                 self.parse_reexport();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Const) => {
+            Some(TokenKind::Let) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_const_decl();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Fn) if !self.peek_is(TokenKind::LeftParen) => {
-                // `fn name(...)` is a function declaration; `fn(...)` is a lambda expression
-                self.builder
-                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
-                self.parse_function_decl();
-                self.builder.finish_node();
-            }
             Some(TokenKind::Async) => {
-                // `async fn name(...)` — async function declaration
+                // `async let name = ...` — async function binding. The
+                // `async` token must live inside the FUNCTION_DECL node so
+                // `lower_function` picks it up; open the item first, then
+                // let `parse_const_decl` absorb the `async` prefix.
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
-                self.parse_function_decl();
+                self.parse_const_decl();
                 self.builder.finish_node();
             }
             Some(TokenKind::Opaque) | Some(TokenKind::Type) => {
@@ -213,24 +209,44 @@ impl<'src> CstParser<'src> {
     // ── Const Declaration ────────────────────────────────────────
 
     fn parse_const_decl(&mut self) {
-        self.builder.start_node(SyntaxKind::CONST_DECL.into());
-        self.expect(TokenKind::Const);
+        // `let NAME = ...` has two shapes: value binding or function binding.
+        // If the RHS looks like a function literal (generics, or parens + body),
+        // lift it into a FUNCTION_DECL CST so existing checker machinery
+        // (default params, generic type params) continues to apply.
+        let checkpoint = self.builder.checkpoint();
+        // Optional `async` prefix — only legal when the RHS is a function
+        // binding; the checkpoint-replay below drops it into FUNCTION_DECL.
+        if self.at(TokenKind::Async) {
+            self.bump();
+            self.eat_trivia();
+        }
+        self.expect(TokenKind::Let);
         self.eat_trivia();
 
+        if self.looks_like_let_function_binding() {
+            self.builder
+                .start_node_at(checkpoint, SyntaxKind::FUNCTION_DECL.into());
+            self.expect_ident();
+            self.eat_trivia();
+            self.parse_let_function_body();
+            self.builder.finish_node();
+            return;
+        }
+
+        self.builder
+            .start_node_at(checkpoint, SyntaxKind::CONST_DECL.into());
+
         if self.at(TokenKind::LeftBracket) {
-            // Array destructuring
             self.bump();
             self.eat_trivia();
             self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightBracket);
             self.expect(TokenKind::RightBracket);
         } else if self.at(TokenKind::LeftBrace) {
-            // Object destructuring: { a, b } or { a: x, b: y }
             self.bump();
             self.eat_trivia();
             self.parse_comma_separated(Self::parse_destructure_field, TokenKind::RightBrace);
             self.expect(TokenKind::RightBrace);
         } else if self.at(TokenKind::LeftParen) && self.is_const_tuple_destructuring() {
-            // Tuple destructuring: const (a, b) = ...
             self.bump();
             self.eat_trivia();
             self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightParen);
@@ -240,7 +256,6 @@ impl<'src> CstParser<'src> {
         }
         self.eat_trivia();
 
-        // Optional type annotation
         if self.at(TokenKind::Colon) {
             self.bump();
             self.eat_trivia();
@@ -253,6 +268,79 @@ impl<'src> CstParser<'src> {
         self.parse_expr();
 
         self.builder.finish_node();
+    }
+
+    /// After `let`, detect def-form `NAME [<generics>] (params) ...` shape.
+    /// In def-form, params follow immediately after the name (with optional
+    /// generics in between) — no `=` between them.
+    fn looks_like_let_function_binding(&self) -> bool {
+        if !self.is_ident() {
+            return false;
+        }
+        let mut i = self.pos + 1;
+        while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+            i += 1;
+        }
+        // Optional `<generics>` directly after the name
+        if matches!(
+            self.tokens.get(i).map(|t| &t.kind),
+            Some(TokenKind::LessThan)
+        ) {
+            i = self.skip_balanced(i + 1, |k| match k {
+                TokenKind::LessThan => 1,
+                TokenKind::GreaterThan => -1,
+                _ => 0,
+            });
+            while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
+                i += 1;
+            }
+        }
+        // Def-form requires `(` immediately after name (or after generics)
+        matches!(
+            self.tokens.get(i).map(|t| &t.kind),
+            Some(TokenKind::LeftParen)
+        )
+    }
+
+    /// Parse def-form body: `[<generics>] (params) [-> Ret] = body`.
+    fn parse_let_function_body(&mut self) {
+        // Optional `<generics>`
+        if self.at(TokenKind::LessThan) {
+            self.bump(); // <
+            self.eat_trivia();
+            self.parse_comma_separated(Self::parse_type_param, TokenKind::GreaterThan);
+            self.expect(TokenKind::GreaterThan);
+            self.eat_trivia();
+        }
+
+        self.expect(TokenKind::LeftParen);
+        self.eat_trivia();
+        self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
+        self.expect(TokenKind::RightParen);
+        self.eat_trivia();
+
+        // Optional `-> ReturnType`.
+        if self.at(TokenKind::ThinArrow) {
+            self.bump();
+            self.eat_trivia();
+            self.parse_type_expr();
+            self.eat_trivia();
+        }
+
+        self.expect(TokenKind::Equal);
+        self.eat_trivia();
+
+        if self.at(TokenKind::LeftBrace) {
+            self.parse_block_expr();
+        } else {
+            // Expression body — wrap into a synthetic BLOCK_EXPR { EXPR_ITEM }
+            // so the lowerer treats it like a one-expression block.
+            self.builder.start_node(SyntaxKind::BLOCK_EXPR.into());
+            self.builder.start_node(SyntaxKind::EXPR_ITEM.into());
+            self.parse_expr();
+            self.builder.finish_node();
+            self.builder.finish_node();
+        }
     }
 
     // ── Use Declaration ─────────────────────────────────────────
@@ -282,58 +370,6 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::LeftArrow);
         self.eat_trivia();
         self.parse_expr();
-
-        self.builder.finish_node();
-    }
-
-    // ── Function Declaration ────────────────────────────────────
-
-    fn parse_function_decl(&mut self) {
-        self.builder.start_node(SyntaxKind::FUNCTION_DECL.into());
-
-        // Optional `async` prefix: `async fn name(...)`
-        if self.at(TokenKind::Async) {
-            self.bump(); // async
-            self.eat_trivia();
-        }
-
-        self.expect(TokenKind::Fn);
-        self.eat_trivia();
-        self.expect_ident();
-        self.eat_trivia();
-
-        // Optional type parameters: <T, U> or <R: Trait, T>
-        if self.at(TokenKind::LessThan) {
-            self.bump(); // <
-            self.eat_trivia();
-            self.parse_comma_separated(Self::parse_type_param, TokenKind::GreaterThan);
-            self.expect(TokenKind::GreaterThan);
-            self.eat_trivia();
-        }
-
-        if self.at(TokenKind::Equal) {
-            // `fn name = expr` — derived function binding (pointfree style)
-            self.bump(); // =
-            self.eat_trivia();
-            self.parse_expr();
-        } else {
-            // `fn name(params) { body }` — standard function declaration
-            self.expect(TokenKind::LeftParen);
-            self.eat_trivia();
-            self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
-            self.expect(TokenKind::RightParen);
-            self.eat_trivia();
-
-            // Optional return type
-            if self.at(TokenKind::FatArrow) {
-                self.bump();
-                self.eat_trivia();
-                self.parse_type_expr();
-                self.eat_trivia();
-            }
-
-            self.parse_block_expr();
-        }
 
         self.builder.finish_node();
     }
@@ -683,11 +719,11 @@ impl<'src> CstParser<'src> {
                 self.bump();
                 self.eat_trivia();
             }
-            if self.at(TokenKind::Fn) || self.at(TokenKind::Async) {
+            if self.at(TokenKind::Let) || self.at(TokenKind::Async) {
                 self.parse_for_block_function();
                 self.eat_trivia();
             } else {
-                self.error("expected `fn` inside for block");
+                self.error("expected `let` inside for block");
                 self.bump();
                 self.eat_trivia();
             }
@@ -714,11 +750,11 @@ impl<'src> CstParser<'src> {
 
         // Parse method declarations inside the trait
         while !self.at(TokenKind::RightBrace) && !self.at_end() {
-            if self.at(TokenKind::Fn) {
+            if self.at(TokenKind::Let) {
                 self.parse_trait_method();
                 self.eat_trivia();
             } else {
-                self.error("expected `fn` inside trait");
+                self.error("expected `let` inside trait");
                 self.bump();
                 self.eat_trivia();
             }
@@ -732,7 +768,7 @@ impl<'src> CstParser<'src> {
     fn parse_trait_method(&mut self) {
         self.builder.start_node(SyntaxKind::FUNCTION_DECL.into());
 
-        self.expect(TokenKind::Fn);
+        self.expect(TokenKind::Let);
         self.eat_trivia();
         self.expect_ident();
         self.eat_trivia();
@@ -744,15 +780,17 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Optional return type
-        if self.at(TokenKind::FatArrow) {
+        if self.at(TokenKind::ThinArrow) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();
             self.eat_trivia();
         }
 
-        // Optional body (default implementation)
-        if self.at(TokenKind::LeftBrace) {
+        // Optional body (default implementation): `= { ... }`
+        if self.at(TokenKind::Equal) {
+            self.bump();
+            self.eat_trivia();
             self.parse_block_expr();
         }
 
@@ -768,7 +806,7 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::Fn);
+        self.expect(TokenKind::Let);
         self.eat_trivia();
         self.expect_ident();
         self.eat_trivia();
@@ -780,13 +818,15 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Optional return type
-        if self.at(TokenKind::FatArrow) {
+        if self.at(TokenKind::ThinArrow) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();
             self.eat_trivia();
         }
 
+        self.expect(TokenKind::Equal);
+        self.eat_trivia();
         self.parse_block_expr();
 
         self.builder.finish_node();
@@ -835,10 +875,16 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::LeftBrace);
         self.eat_trivia();
 
-        // Parse test body: assert statements and expressions
+        // Parse test body: let bindings, assert statements, and expressions
         while !self.at(TokenKind::RightBrace) && !self.at_end() {
             let prev_pos = self.pos;
-            if self.at(TokenKind::Assert) {
+            if self.at(TokenKind::Let) {
+                let checkpoint = self.builder.checkpoint();
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
+                self.parse_const_decl();
+                self.builder.finish_node();
+            } else if self.at(TokenKind::Assert) {
                 self.parse_assert_stmt();
             } else {
                 self.parse_expr();

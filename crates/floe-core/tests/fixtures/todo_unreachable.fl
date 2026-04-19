@@ -1,10 +1,10 @@
 // todo as function body placeholder
-fn processPayment(amount: number) => number {
+let processPayment(amount: number) -> number = {
   todo
 }
 
 // unreachable in match arm
-fn describe(n: number) => string {
+let describe(n: number) -> string = {
   match n {
     1 -> "one",
     2 -> "two",
@@ -13,7 +13,7 @@ fn describe(n: number) => string {
 }
 
 // todo in const
-const placeholder = todo
+let placeholder = todo
 
 // unreachable as expression
-const guard = unreachable
+let guard = unreachable

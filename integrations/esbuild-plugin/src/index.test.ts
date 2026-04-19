@@ -21,7 +21,7 @@ describe("@floeorg/esbuild-plugin", () => {
     );
     writeFileSync(
       join(projectDir, "src", "nested", "helper.fl"),
-      `export fn hello(name: string) -> string {\n    \`Hello, \${name}!\`\n}\n`,
+      `export let hello(name: string) -> string = {\n    \`Hello, \${name}!\`\n}\n`,
     );
     execFileSync("floe", ["build", "src/"], { cwd: projectDir, stdio: "pipe" });
   });
@@ -56,7 +56,7 @@ describe("@floeorg/esbuild-plugin", () => {
     );
     writeFileSync(
       join(projectDir, "src", "ts-wins", "shared.fl"),
-      `export const _kind: string = "fl"\n`,
+      `export let _kind: string = "fl"\n`,
     );
     writeFileSync(
       join(projectDir, "src", "entry.ts"),

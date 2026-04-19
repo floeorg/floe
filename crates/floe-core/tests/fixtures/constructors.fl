@@ -3,9 +3,9 @@ type Point = {
     y: number,
 }
 
-const origin = Point(x: 0, y: 0)
-const moved = Point(..origin, x: 10)
+let origin = Point(x: 0, y: 0)
+let moved = Point(..origin, x: 10)
 
-const x = 5
-const y = 10
-const punned = Point(x:, y:)
+let x = 5
+let y = 10
+let punned = Point(x:, y:)

@@ -485,7 +485,7 @@ fn mock_with_overrides() {
 
 #[test]
 fn pipe_lambda_multi_arg() {
-    let expr = first_expr("(a, b) => a + b");
+    let expr = first_expr("(a, b) -> a + b");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 2);
@@ -498,7 +498,7 @@ fn pipe_lambda_multi_arg() {
 
 #[test]
 fn pipe_lambda_single_arg() {
-    let expr = first_expr("(x) => x + 1");
+    let expr = first_expr("(x) -> x + 1");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 1);
@@ -510,7 +510,7 @@ fn pipe_lambda_single_arg() {
 
 #[test]
 fn pipe_lambda_typed() {
-    let expr = first_expr("(x: number) => x + 1");
+    let expr = first_expr("(x: number) -> x + 1");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert!(params[0].type_ann.is_some());
@@ -521,7 +521,7 @@ fn pipe_lambda_typed() {
 
 #[test]
 fn zero_arg_lambda() {
-    let expr = first_expr("() => 42");
+    let expr = first_expr("() -> 42");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 0);
@@ -730,7 +730,7 @@ fn match_array_wildcard_rest() {
 
 #[test]
 fn const_decl() {
-    match first_item("const x = 42") {
+    match first_item("let x = 42") {
         ItemKind::Const(decl) => {
             assert_eq!(decl.binding, ConstBinding::Name("x".to_string()));
             assert!(!decl.exported);
@@ -741,7 +741,7 @@ fn const_decl() {
 
 #[test]
 fn const_decl_typed() {
-    match first_item("const x: number = 42") {
+    match first_item("let x: number = 42") {
         ItemKind::Const(decl) => {
             assert!(decl.type_ann.is_some());
         }
@@ -751,7 +751,7 @@ fn const_decl_typed() {
 
 #[test]
 fn export_const() {
-    match first_item("export const x = 42") {
+    match first_item("export let x = 42") {
         ItemKind::Const(decl) => {
             assert!(decl.exported);
         }
@@ -763,7 +763,7 @@ fn export_const() {
 
 #[test]
 fn function_decl() {
-    match first_item("fn add(a: number, b: number) => number { a + b }") {
+    match first_item("let add(a: number, b: number) -> number = { a + b }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "add");
             assert_eq!(decl.params.len(), 2);
@@ -777,7 +777,7 @@ fn function_decl() {
 
 #[test]
 fn generic_function_decl() {
-    match first_item("fn identity<T>(x: T) => T { x }") {
+    match first_item("let identity<T>(x: T) -> T = { x }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "identity");
             assert_eq!(decl.type_params.len(), 1);
@@ -792,7 +792,7 @@ fn generic_function_decl() {
 
 #[test]
 fn generic_function_multi_params() {
-    match first_item("fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) }") {
+    match first_item("let pair<A, B>(a: A, b: B) -> (A, B) = { (a, b) }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "pair");
             assert_eq!(decl.type_params.len(), 2);
@@ -806,7 +806,7 @@ fn generic_function_multi_params() {
 
 #[test]
 fn generic_function_with_trait_bound() {
-    match first_item("fn process<R: Display>(repo: R) => string { todo }") {
+    match first_item("let process<R: Display>(repo: R) -> string = { todo }") {
         ItemKind::Function(decl) => {
             assert_eq!(decl.name, "process");
             assert_eq!(decl.type_params.len(), 1);
@@ -819,22 +819,26 @@ fn generic_function_with_trait_bound() {
 }
 
 #[test]
-fn fn_binding_form() {
-    let program = parse_ok("fn add(a: number, b: number) => number { a + b }\nfn inc = add(1, _)");
+fn partial_application_binds_as_const() {
+    // `let inc = add(1, _)` is a value binding whose RHS is a
+    // partial-application expression. It's not a lambda literal, so the
+    // parser keeps it as a `ConstDecl` — the checker produces the function
+    // value via placeholder rewriting downstream.
+    let program =
+        parse_ok("let add(a: number, b: number) -> number = { a + b }\nlet inc = add(1, _)");
     assert_eq!(program.items.len(), 2);
     match &program.items[1].kind {
-        ItemKind::Function(decl) => {
-            assert_eq!(decl.name, "inc");
-            assert!(decl.params.is_empty());
-            assert!(decl.return_type.is_none());
+        ItemKind::Const(decl) => {
+            assert!(matches!(&decl.binding, ConstBinding::Name(n) if n == "inc"));
         }
-        other => panic!("expected function binding, got {other:?}"),
+        other => panic!("expected const binding, got {other:?}"),
     }
 }
 
 #[test]
 fn promise_return_type_function() {
-    match first_item("fn fetchUser(id: string) => Promise<Result<User, ApiError>> { Ok(user) }") {
+    match first_item("let fetchUser(id: string) -> Promise<Result<User, ApiError>> = { Ok(user) }")
+    {
         ItemKind::Function(decl) => {
             assert!(!decl.async_fn); // async_fn is set by mark_async_functions, not parser
             assert_eq!(decl.name, "fetchUser");
@@ -845,7 +849,7 @@ fn promise_return_type_function() {
 
 #[test]
 fn async_fn_declaration_sets_async_fn_flag() {
-    match first_item("async fn fetchUser(id: string) => Result<User, Error> { Ok(user) }") {
+    match first_item("async let fetchUser(id: string) -> Result<User, Error> = { Ok(user) }") {
         ItemKind::Function(decl) => {
             assert!(
                 decl.async_fn,
@@ -859,7 +863,8 @@ fn async_fn_declaration_sets_async_fn_flag() {
 
 #[test]
 fn exported_async_fn_declaration() {
-    match first_item("export async fn fetchUser(id: string) => Result<User, Error> { Ok(user) }") {
+    match first_item("export async let fetchUser(id: string) -> Result<User, Error> = { Ok(user) }")
+    {
         ItemKind::Function(decl) => {
             assert!(decl.async_fn);
             assert!(decl.exported);
@@ -871,7 +876,7 @@ fn exported_async_fn_declaration() {
 
 #[test]
 fn function_with_defaults() {
-    match first_item("fn f(x: number = 10) { x }") {
+    match first_item("let f(x: number = 10) = { x }") {
         ItemKind::Function(decl) => {
             assert!(decl.params[0].default.is_some());
         }
@@ -1299,7 +1304,7 @@ fn jsx_fragment() {
 
 #[test]
 fn banned_keyword_error() {
-    let result = parse("let x = 5");
+    let result = parse("const x = 5");
     assert!(result.is_err());
     let errors = result.unwrap_err();
     assert!(errors[0].message.contains("banned keyword"));
@@ -1309,7 +1314,7 @@ fn banned_keyword_error() {
 
 #[test]
 fn block_with_implicit_return() {
-    match first_item("fn f() { const x = 1\nx }") {
+    match first_item("let f() = { let x = 1\nx }") {
         ItemKind::Function(decl) => match decl.body.kind {
             ExprKind::Block(items) => {
                 assert_eq!(items.len(), 2);
@@ -1375,7 +1380,7 @@ fn grouped() {
 
 #[test]
 fn generic_type() {
-    match first_item("const x: Result<User, ApiError> = Ok(user)") {
+    match first_item("let x: Result<User, ApiError> = Ok(user)") {
         ItemKind::Const(decl) => {
             let type_ann = decl.type_ann.unwrap();
             match type_ann.kind {
@@ -1448,8 +1453,8 @@ fn comparison_followed_by_block_is_not_generic_call() {
     // `f < x > { ... }` is not a generic call — no `(` after the `>`.
     // The `{` after `>` disambiguates.
     let input = r#"
-fn check() => boolean {
-    const r = f < x
+let check() -> boolean = {
+    let r = f < x
     r
 }
 "#;
@@ -1465,9 +1470,9 @@ import { useState } from "react"
 
 type Todo = { id: string, text: string, done: boolean }
 
-export fn TodoApp() {
-    const [todos, setTodos] = useState([])
-    <div>{todos |> map((t) => <li>{t.text}</li>)}</div>
+export let TodoApp() = {
+    let [todos, setTodos] = useState([])
+    <div>{todos |> map((t) -> <li>{t.text}</li>)}</div>
 }
 "#;
     let program = parse_ok(input);
@@ -1481,7 +1486,7 @@ fn for_block_basic() {
     let input = r#"
 type User = { name: string }
 for User {
-    fn display(self) => string {
+    let display(self) -> string = {
         self.name
     }
 }
@@ -1505,9 +1510,9 @@ fn for_block_multiple_functions() {
     let input = r#"
 type User = { name: string, age: number }
 for User {
-    fn display(self) => string { self.name }
-    fn isAdult(self) => bool { self.age >= 18 }
-    fn greet(self, greeting: string) => string { `${greeting}` }
+    let display(self) -> string = { self.name }
+    let isAdult(self) -> bool = { self.age >= 18 }
+    let greet(self, greeting: string) -> string = { `${greeting}` }
 }
 "#;
     let program = parse_ok(input);
@@ -1529,7 +1534,7 @@ for User {
 fn for_block_generic_type() {
     let input = r#"
 for Array<User> {
-    fn adults(self) => Array<User> { self }
+    let adults(self) -> Array<User> = { self }
 }
 "#;
     let program = parse_ok(input);
@@ -1555,7 +1560,7 @@ fn self_as_expression() {
     let input = r#"
 type User = { name: string }
 for User {
-    fn getName(self) => string { self.name }
+    let getName(self) -> string = { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1579,7 +1584,7 @@ for User {
 
 #[test]
 fn for_block_error_non_fn() {
-    let result = parse("for User { const x = 1 }");
+    let result = parse("for User { let x = 1 }");
     assert!(result.is_err());
 }
 
@@ -1590,8 +1595,8 @@ fn export_for_block_marks_all_methods_exported() {
     let input = r#"
 type User = { name: string }
 export for User {
-    fn display(self) => string { self.name }
-    fn shout(self) => string { self.name }
+    let display(self) -> string = { self.name }
+    let shout(self) -> string = { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1611,9 +1616,9 @@ export for User {
 fn export_for_trait_impl_marks_all_methods_exported() {
     let input = r#"
 type User = { name: string }
-trait Display { fn display(self) => string }
+trait Display { let display(self) -> string }
 export for User: Display {
-    fn display(self) => string { self.name }
+    let display(self) -> string = { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1631,8 +1636,8 @@ fn per_method_export_still_works_on_for_block() {
     let input = r#"
 type User = { name: string }
 for User {
-    export fn display(self) => string { self.name }
-    fn helper(self) => string { self.name }
+    export let display(self) -> string = { self.name }
+    let helper(self) -> string = { self.name }
 }
 "#;
     let program = parse_ok(input);
@@ -1793,7 +1798,7 @@ fn test_as_identifier() {
     // `test` should still work as a regular identifier (function name, variable, etc.)
     let program = parse_ok(
         r#"
-fn test() => number { 1 }
+let test() -> number = { 1 }
 "#,
     );
     match &program.items[0].kind {
@@ -1808,7 +1813,7 @@ fn test() => number { 1 }
 fn test_block_with_function_calls() {
     let program = parse_ok(
         r#"
-fn add(a: number, b: number) => number { a + b }
+let add(a: number, b: number) -> number = { a + b }
 
 test "add function" {
     assert add(1, 2) == 3
@@ -1851,7 +1856,7 @@ fn unit_not_tuple() {
 
 #[test]
 fn tuple_destructuring() {
-    match first_item("const (x, y) = point") {
+    match first_item("let (x, y) = point") {
         ItemKind::Const(decl) => {
             assert_eq!(
                 decl.binding,
@@ -1905,7 +1910,7 @@ fn tuple_pattern_in_match() {
 
 #[test]
 fn tuple_type_annotation() {
-    match first_item("const p: (number, string) = (1, \"a\")") {
+    match first_item("let p: (number, string) = (1, \"a\")") {
         ItemKind::Const(decl) => {
             let type_ann = decl.type_ann.unwrap();
             match &type_ann.kind {
@@ -1921,7 +1926,7 @@ fn tuple_type_annotation() {
 
 #[test]
 fn tuple_return_type() {
-    match first_item("fn f(a: number) => (number, string) { (a, \"x\") }") {
+    match first_item("let f(a: number) -> (number, string) = { (a, \"x\") }") {
         ItemKind::Function(decl) => {
             let ret = decl.return_type.unwrap();
             match &ret.kind {
@@ -2110,7 +2115,7 @@ fn object_literal_value_is_string_not_key() {
 #[test]
 fn lambda_object_destructure_binds_variables() {
     // `|{ x, y }| x + y` — x and y should be bound by the destructure
-    let expr = first_expr("({ x, y }) => x + y");
+    let expr = first_expr("({ x, y }) -> x + y");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 1);
@@ -2134,7 +2139,7 @@ fn lambda_object_destructure_binds_variables() {
 
 #[test]
 fn const_object_destructure_with_rename() {
-    let program = parse_ok("const { data: rows, error: err } = response");
+    let program = parse_ok("let { data: rows, error: err } = response");
     let item = &program.items[0];
     match &item.kind {
         ItemKind::Const(decl) => match &decl.binding {
@@ -2153,7 +2158,7 @@ fn const_object_destructure_with_rename() {
 
 #[test]
 fn const_object_destructure_mixed_rename_and_plain() {
-    let program = parse_ok("const { data: rows, error } = response");
+    let program = parse_ok("let { data: rows, error } = response");
     let item = &program.items[0];
     match &item.kind {
         ItemKind::Const(decl) => match &decl.binding {
@@ -2172,7 +2177,7 @@ fn const_object_destructure_mixed_rename_and_plain() {
 
 #[test]
 fn lambda_object_destructure_with_rename() {
-    let expr = first_expr("({ data: d, error: e }) => d");
+    let expr = first_expr("({ data: d, error: e }) -> d");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 1);
@@ -2196,7 +2201,7 @@ fn lambda_object_destructure_with_rename() {
 
 #[test]
 fn non_async_lambda_is_not_async() {
-    let expr = first_expr("() => 42");
+    let expr = first_expr("() -> 42");
     match expr {
         ExprKind::Arrow { async_fn, .. } => {
             assert!(
@@ -2210,7 +2215,7 @@ fn non_async_lambda_is_not_async() {
 
 #[test]
 fn lambda_destructured_param() {
-    let expr = first_expr("({ name, age }) => name");
+    let expr = first_expr("({ name, age }) -> name");
     match expr {
         ExprKind::Arrow { params, .. } => {
             assert_eq!(params.len(), 1);
@@ -2353,7 +2358,7 @@ fn collect_block_basic() {
 fn collect_block_with_const() {
     let expr = first_expr(
         r#"collect {
-        const a = validate(1)?
+        let a = validate(1)?
         a
     }"#,
     );
@@ -2450,7 +2455,7 @@ fn parse_module_classifies_comment_kinds() {
 //// module header
 /// item doc
 // plain
-const x = 1
+let x = 1
 ";
     let (program, extra) = Parser::parse_module(source).unwrap();
     assert_eq!(program.items.len(), 1);
@@ -2472,13 +2477,13 @@ const x = 1
 
 #[test]
 fn parse_module_records_empty_lines_between_statements() {
-    let source = "const a = 1\n\nconst b = 2\n";
+    let source = "let a = 1\n\nlet b = 2\n";
     let (_, extra) = Parser::parse_module(source).unwrap();
     assert_eq!(extra.empty_lines.len(), 1);
     let offset = extra.empty_lines[0] as usize;
     assert_eq!(source.as_bytes()[offset], b'\n');
-    assert!(source[..offset].ends_with("const a = 1\n"));
-    assert!(source[offset + 1..].starts_with("const b = 2"));
+    assert!(source[..offset].ends_with("let a = 1\n"));
+    assert!(source[offset + 1..].starts_with("let b = 2"));
 }
 
 #[test]

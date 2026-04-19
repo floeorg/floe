@@ -9,12 +9,12 @@ Floe supports JSX natively. Write React components with Floe's type system.
 ```floe
 import { useState } from "react"
 
-export fn Counter() => JSX.Element {
-  const (count, setCount) = useState(0)
+export let Counter() -> JSX.Element = {
+  let (count, setCount) = useState(0)
 
   <div>
     <h1>Count: {count}</h1>
-    <button onClick={() => setCount(count + 1)}>Increment</button>
+    <button onClick={() -> setCount(count + 1)}>Increment</button>
   </div>
 }
 ```
@@ -24,13 +24,13 @@ Components are exported `fn` declarations with a `JSX.Element` return type. The 
 ## Props
 
 ```floe
-type ButtonProps {
+type ButtonProps = {
   label: string,
-  onClick: () => (),
+  onClick: () -> (),
   disabled: boolean,
 }
 
-export fn Button(props: ButtonProps) => JSX.Element {
+export let Button(props: ButtonProps) -> JSX.Element = {
   <button
     onClick={props.onClick}
     disabled={props.disabled}
@@ -60,7 +60,7 @@ For the common "render if present, nothing if absent" pattern, use `Option.map`.
 ```floe
 // Instead of matching with a None -> <></> arm:
 <div>
-  {user.nickname |> Option.map((nick) => <span className="badge">{nick}</span>)}
+  {user.nickname |> Option.map((nick) -> <span className="badge">{nick}</span>)}
 </div>
 ```
 
@@ -72,7 +72,7 @@ Use pipes with `map`:
 
 ```floe
 <ul>
-  {items |> map((item) => <li key={item.id}>{item.name}</li>)}
+  {items |> map((item) -> <li key={item.id}>{item.name}</li>)}
 </ul>
 ```
 
@@ -81,7 +81,7 @@ Use pipes with `map`:
 Forward all props to a child element:
 
 ```floe
-export fn Card(props: CardProps) => JSX.Element {
+export let Card(props: CardProps) -> JSX.Element = {
     <div {...props} className="card" />
 }
 ```
@@ -95,7 +95,7 @@ Compound component patterns using dot notation are supported:
 ```floe
 import { Select, ListBox } from "ui"
 
-export fn Picker() => JSX.Element {
+export let Picker() -> JSX.Element = {
     <Select>
         <Select.Trigger>Choose...</Select.Trigger>
         <Select.Value />

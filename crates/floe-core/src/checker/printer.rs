@@ -77,7 +77,7 @@ pub(crate) fn fmt_type(
             }
             write!(
                 f,
-                ") => {}",
+                ") -> {}",
                 TypeDisplay {
                     ty: return_type,
                     style

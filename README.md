@@ -21,32 +21,31 @@ A functional language that compiles to TypeScript. Pipes, pattern matching, Resu
 ```floe
 import trusted { useState } from "react"
 
-type User {
+type User = {
   name: string,
   role: string,
   active: boolean,
 }
 
-type Status {
+type Status =
   | Loading
   | Failed(string)
   | Ready(Array<User>)
-}
 
-export fn Dashboard() -> JSX.Element {
-  const [status, setStatus] = useState<Status>(Loading)
+export let Dashboard() -> JSX.Element = {
+  let (status, setStatus) = useState<Status>(Loading)
 
   status |> match {
     Loading -> <Spinner />,
     Failed(msg) -> <Alert message={msg} />,
     Ready(users) -> {
-      const active = users
+      let active = users
         |> filter(.active)
         |> sortBy(.name)
 
       <div>
         <h2>{active |> length} active</h2>
-        {active |> map((u) =>
+        {active |> map((u) ->
           <Card key={u.name} title={u.name} badge={u.role} />
         )}
       </div>

@@ -16,13 +16,13 @@ Floe's compiler already has the type information. It generates validators and te
 
 ```floe
 // Validate JSON from an API
-const user = json |> parse<User>?
+let user = json |> parse<User>?
 
 // Validate with inline types
-const point = data |> parse<{ x: number, y: number }>?
+let point = data |> parse<{ x: number, y: number }>?
 
 // Validate arrays
-const items = raw |> parse<Array<Product>>?
+let items = raw |> parse<Array<Product>>?
 ```
 
 ### Return type
@@ -38,11 +38,11 @@ match data |> parse<User> {
 
 ### What it generates
 
-For `parse<User>(json)` where `type User { name: string, age: number }`, the compiler emits type checks inline:
+For `parse<User>(json)` where `type User = { name: string, age: number }`, the compiler emits type checks inline:
 
 ```typescript
 (() => {
-  const __v = json;
+  let __v = json;
   if (typeof __v !== "object" || __v === null)
     return { ok: false, error: new Error("expected object, got " + typeof __v) };
   if (typeof (__v as any).name !== "string")
@@ -69,14 +69,14 @@ No runtime dependency. No schema definition to maintain. Change the type, the va
 
 ```floe
 // API response validation
-fn fetchUsers() => Promise<Result<Array<User>, Error>> {
-  const response = Http.get("/api/users") |> Promise.await?
-  const data = Http.json(response) |> Promise.await?
+let fetchUsers() -> Promise<Result<Array<User>, Error>> = {
+  let response = Http.get("/api/users") |> Promise.await?
+  let data = Http.json(response) |> Promise.await?
   data |> parse<Array<User>>
 }
 
 // Form input validation
-fn validateForm(data: unknown) => Result<ContactForm, Error> {
+let validateForm(data: unknown) -> Result<ContactForm, Error> = {
   data |> parse<ContactForm>
 }
 ```
@@ -88,13 +88,13 @@ fn validateForm(data: unknown) => Result<ContactForm, Error> {
 `mock<T>` generates test data from a type definition. The compiler emits object literals directly -- no faker.js, no test factories, no runtime cost.
 
 ```floe
-type User {
+type User = {
   id: string,
   name: string,
   age: number,
 }
 
-const testUser = mock<User>
+let testUser = mock<User>
 // { id: "mock-id-1", name: "mock-name-2", age: 3 }
 ```
 
@@ -103,7 +103,7 @@ const testUser = mock<User>
 Override specific fields when you need control over certain values:
 
 ```floe
-const admin = mock<User>(name: "Alice", age: 30)
+let admin = mock<User>(name: "Alice", age: 30)
 // { id: "mock-id-1", name: "Alice", age: 30 }
 ```
 
@@ -128,27 +128,27 @@ Non-overridden fields are still auto-generated. This is useful when your test ca
 `mock<T>` pairs naturally with Floe's inline test blocks:
 
 ```floe
-type Todo {
+type Task = {
   id: string,
   text: string,
   done: boolean,
 }
 
-fn toggleDone(todo: Todo) => Todo {
-  Todo(..todo, done: !todo.done)
+let toggleDone(task: Task) -> Task = {
+  Task(..task, done: !task.done)
 }
 
 test "toggle flips done status" {
-  const todo = mock<Todo>(done: false)
-  const toggled = toggleDone(todo)
+  let task = mock<Task>(done: false)
+  let toggled = toggleDone(task)
   assert toggled.done == true
 }
 
 test "toggle preserves other fields" {
-  const todo = mock<Todo>
-  const toggled = toggleDone(todo)
-  assert toggled.id == todo.id
-  assert toggled.text == todo.text
+  let task = mock<Task>
+  let toggled = toggleDone(task)
+  assert toggled.id == task.id
+  assert toggled.text == task.text
 }
 ```
 
@@ -157,24 +157,22 @@ test "toggle preserves other fields" {
 `mock<T>` handles nested and complex types recursively:
 
 ```floe
-type Order {
+type Order = {
   id: string,
   items: Array<OrderItem>,
   status: OrderStatus,
 }
 
-type OrderItem {
+type OrderItem = {
   productId: string,
   quantity: number,
 }
 
-type OrderStatus {
-  | Pending
+type OrderStatus = | Pending
   | Shipped { trackingId: string }
   | Delivered
-}
 
-const testOrder = mock<Order>
+let testOrder = mock<Order>
 // {
 //   id: "mock-id-1",
 //   items: [{ productId: "mock-productId-2", quantity: 3 }],
@@ -204,7 +202,7 @@ Floe supports inline test blocks that live alongside the code they test. Tests a
 Use the `test` keyword followed by a name and a block of `assert` statements:
 
 ```floe
-fn add(a: number, b: number) => number { a + b }
+let add(a: number, b: number) -> number = { a + b }
 
 test "addition" {
   assert add(1, 2) == 3
@@ -220,15 +218,13 @@ test "addition" {
 Tests live in the same file as the code they test:
 
 ```floe
-type Validation {
-  | Valid { string }
+type Validation = | Valid(string)
   | Empty
   | TooShort
   | TooLong
-}
 
-fn validate(input: string) => Validation {
-  const len = input |> String.length
+let validate(input: string) -> Validation = {
+  let len = input |> String.length
   match len {
     0 -> Empty,
     1 -> TooShort,

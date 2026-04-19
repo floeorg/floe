@@ -5,9 +5,9 @@ title: Types
 ## Primitives
 
 ```floe
-const name: string = "Alice"
-const age: number = 30
-const active: boolean = true
+let name: string = "Alice"
+let age: number = 30
+let active: boolean = true
 ```
 
 ## Declaring Types
@@ -42,13 +42,13 @@ type User = {
 Construct records with the type name:
 
 ```floe
-const user = User(name: "Alice", email: "a@b.com", age: 30)
+let user = User(name: "Alice", email: "a@b.com", age: 30)
 ```
 
 Update with spread:
 
 ```floe
-const updated = User(..user, age: 31)
+let updated = User(..user, age: 31)
 ```
 
 Two types with identical fields are NOT interchangeable. `User` is not `Product` even if both have `name: string`.
@@ -64,7 +64,7 @@ type Config = {
   retries: number = 3,
 }
 
-const c = Config(baseUrl: "https://api.com")
+let c = Config(baseUrl: "https://api.com")
 // timeout is 5000, retries is 3
 ```
 
@@ -84,7 +84,7 @@ type BaseProps = {
 
 type ButtonProps = {
   ...BaseProps,
-  onClick: () => (),
+  onClick: () -> (),
   label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -103,7 +103,7 @@ Spreads work with generic types and `typeof`, including npm imports:
 ```floe
 import { tv, VariantProps } from "tailwind-variants"
 
-const cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
+let cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
 
 type CardProps = {
   ...VariantProps<typeof cardVariants>,
@@ -139,8 +139,8 @@ Use `Type.Variant` to qualify which sum a variant belongs to:
 ```floe
 type Filter = All | Active | Completed
 
-const f = Filter.All
-const g = Filter.Active
+let f = Filter.All
+let g = Filter.Active
 setFilter(Filter.Completed)
 ```
 
@@ -150,12 +150,12 @@ When two sums share a variant name, the compiler requires qualification:
 type Color = Red | Green | Blue
 type Light = Red | Yellow | Green
 
-const c = Red
+let c = Red
 // Error: variant `Red` is ambiguous — defined in both `Color` and `Light`
 // Help: use `Color.Red` or `Light.Red`
 
-const c = Color.Red   // OK
-const l = Light.Red   // OK
+let c = Color.Red   // OK
+let l = Light.Red   // OK
 ```
 
 Unambiguous variants can still be used bare. In match arms, bare variants always work because the type is known from the match subject:
@@ -178,11 +178,11 @@ type SaveError =
     | Api { message: string }
 
 // Bare variant name becomes an arrow function
-const toValidation = Validation
+let toValidation = Validation
 // Equivalent to: fn(errors) Validation(errors: errors)
 
 // Qualified syntax works too
-const toApi = SaveError.Api
+let toApi = SaveError.Api
 
 // Most useful with higher-order functions like mapErr:
 result |> Result.mapErr(Validation)
@@ -204,8 +204,8 @@ Unit variants (no fields) are values, not functions.
 For operations that can fail:
 
 ```floe
-const result = Ok(42)
-const error = Err("something went wrong")
+let result = Ok(42)
+let error = Err("something went wrong")
 ```
 
 ### Option
@@ -213,15 +213,15 @@ const error = Err("something went wrong")
 For values that may be absent:
 
 ```floe
-const found = Some("hello")
-const missing = None
+let found = Some("hello")
+let missing = None
 ```
 
 ### Settable
 
 `Settable<T>` is a three-state type for partial updates. In a PATCH API, you need to distinguish between "set this field to a value", "clear this field to null", and "don't touch this field". TypeScript's `Partial<T>` can't tell the difference between "set to undefined" and "not provided".
 
-```floe
+```floe,ignore
 type Settable<T> = Value(T) | Clear | Unchanged
 ```
 
@@ -235,7 +235,7 @@ type UpdateUser = {
 }
 
 // Set name, clear avatar, leave email alone
-const patch = UpdateUser(name: Value("Ryan"), avatar: Clear)
+let patch = UpdateUser(name: Value("Ryan"), avatar: Clear)
 ```
 
 #### What it compiles to
@@ -255,8 +255,8 @@ So `UpdateUser(name: Value("Ryan"), avatar: Clear)` compiles to `{ name: "Ryan",
 Propagate errors concisely:
 
 ```floe
-fn getUsername(id: string) => Result<string, Error> {
-  const user = fetchUser(id)?   // returns Err early if it fails
+let getUsername(id: string) -> Result<string, Error> = {
+  let user = fetchUser(id)?   // returns Err early if it fails
   Ok(user.name)
 }
 ```
@@ -289,12 +289,12 @@ opaque type Email = Email(string)
 Name a function type to use it in records or generics:
 
 ```floe
-type Handler = (Request) => Promise<Response>
-type Predicate<T> = (T) => boolean
+type Handler = (Request) -> Promise<Response>
+type Predicate<T> = (T) -> boolean
 
 type Button = {
   label: string,
-  onClick: () => (),
+  onClick: () -> (),
 }
 ```
 
@@ -305,13 +305,13 @@ Function types use `=>`. The `->` arrow is reserved for match arms and the retur
 Anonymous lightweight product types:
 
 ```floe
-const point: (number, number) = (10, 20)
+let point: (number, number) = (10, 20)
 
-fn divmod(a: number, b: number) => (number, number) {
+let divmod(a: number, b: number) -> (number, number) = {
   (a / b, a % b)
 }
 
-const (q, r) = divmod(10, 3)
+let (q, r) = divmod(10, 3)
 ```
 
 Tuples compile to TypeScript readonly tuples: `(number, string)` becomes `readonly [number, string]`.
@@ -338,7 +338,7 @@ type PartialUser = Partial<User>
 String-literal unions work with exhaustive matching:
 
 ```floe
-fn describe(method: HttpMethod) => string {
+let describe(method: HttpMethod) -> string = {
     match method {
         "GET" -> "fetching",
         "POST" -> "creating",

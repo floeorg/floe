@@ -1,20 +1,20 @@
-fn validateName(name: string) => Result<string, string> {
+let validateName(name: string) -> Result<string, string> = {
     Ok(name)
 }
 
-fn validateEmail(email: string) => Result<string, string> {
+let validateEmail(email: string) -> Result<string, string> = {
     Ok(email)
 }
 
-fn validateAge(age: number) => Result<number, string> {
+let validateAge(age: number) -> Result<number, string> = {
     Ok(age)
 }
 
-fn validateForm(input: { name: string, email: string, age: number }) => Result<{ name: string, email: string, age: number }, Array<string>> {
+let validateForm(input: { name: string, email: string, age: number }) -> Result<{ name: string, email: string, age: number }, Array<string>> = {
     collect {
-        const name = validateName(input.name)?
-        const email = validateEmail(input.email)?
-        const age = validateAge(input.age)?
+        let name = validateName(input.name)?
+        let email = validateEmail(input.email)?
+        let age = validateAge(input.age)?
 
         { name: name, email: email, age: age }
     }

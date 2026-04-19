@@ -13,20 +13,20 @@ import from "../todo"
 // ── Member access ────────────────────────────────────────
 // Hover over .text, .done — should show string, boolean
 
-const item = Todo(id: "1", text: "Buy milk", done: false)
+let item = Todo(id: "1", text: "Buy milk", done: false)
 
-const _name = item.text
+let _name = item.text
 
 // ✓ hover: string
 
-const _done = item.done
+let _done = item.done
 
 // ✓ hover: boolean
 // const _bad = item.nonexistent // ✗ uncomment → "type `Todo` has no field `nonexistent`"
 // ── Constructor validation ───────────────────────────────
 // Wrong field types should error
 
-const _good = Todo(id: "1", text: "hi", done: false)
+let _good = Todo(id: "1", text: "hi", done: false)
 
 // ✓
 // const _bad1 = Todo(id: 42, text: "hi", done: false)   // ✗ uncomment → field `id`: expected `string`, found `number`
@@ -34,7 +34,7 @@ const _good = Todo(id: "1", text: "hi", done: false)
 // ── Match arm consistency ────────────────────────────────
 // All arms must return the same type
 
-fn describeFilter(f: Filter) => string {
+let describeFilter(f: Filter) -> string = {
     match f {
         All -> "all",
         Active -> "active",
@@ -43,7 +43,7 @@ fn describeFilter(f: Filter) => string {
 }
 
 // Uncomment to see error: match arms have incompatible types
-// fn badMatch(f: Filter) => string {
+// fn badMatch(f: Filter) -> string {
 //     match f {
 //         All -> "all",
 //         Active -> 42,
@@ -52,7 +52,7 @@ fn describeFilter(f: Filter) => string {
 // }
 // ── Match as conditional ─────────────────────────────────
 
-fn abs(x: number) => number {
+let abs(x: number) -> number = {
     match x > 0 {
         true -> x,
         false -> 0 - x,
@@ -61,25 +61,25 @@ fn abs(x: number) => number {
 
 // ── Pipe type checking ──────────────────────────────────
 
-fn double(x: number) => number {
+let double(x: number) -> number = {
     x * 2
 }
 
-const _piped = 5 |> double
+let _piped = 5 |> double
 
 // ✓
 // const _badPipe = "hi" |> double  // ✗ uncomment → expected `number`, found `string`
 // ── Shadowing ────────────────────────────────────────────
 
-const myVal = 5
+let myVal = 5
 
 // const myVal = 10  // ✗ uncomment → already defined and cannot be shadowed
 // ── Return type mismatch ─────────────────────────────────
 
-fn greet() => string {
+let greet() -> string = {
     "hello"
 }
 
 // ✓
 
-// fn badReturn() => string { 42 }  // ✗ uncomment → return type mismatch
+// fn badReturn() -> string { 42 }  // ✗ uncomment → return type mismatch

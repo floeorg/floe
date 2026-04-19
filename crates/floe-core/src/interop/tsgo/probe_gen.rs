@@ -2,6 +2,11 @@
 //!
 //! The probe re-exports imported symbols with concrete type arguments so tsgo
 //! can emit a `.d.ts` with fully-resolved types.
+//!
+//! **Warning:** every string literal in this file emits TypeScript, not Floe.
+//! Use `=>` for function/lambda arrows and `?:` for conditional types — do not
+//! migrate them to Floe's `->` syntax. If the probe emits invalid TS, tsgo
+//! silently returns empty types and every trusted-import user gets `unknown`.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
@@ -277,7 +282,7 @@ pub(super) fn generate_probe(
         {
             let ts_args: Vec<String> = args.iter().map(arg_to_ts_approx).collect();
             lines.push(format!(
-                "export const _r{} = new {}({});",
+                "export let _r{} = new {}({});",
                 probe_index,
                 type_name,
                 ts_args.join(", "),
@@ -346,19 +351,19 @@ pub(super) fn generate_probe(
                             let has_await = expr_has_promise_await(&decl.value);
                             let await_prefix = if has_await { "await " } else { "" };
                             lines.push(format!(
-                                "const _tmp_{inlined_id} = {await_prefix}{call_expr};"
+                                "let _tmp_{inlined_id} = {await_prefix}{call_expr};"
                             ));
                             for f in fields {
                                 // Probe uses the original field name to access the property
                                 let field = &f.field;
                                 lines.push(format!(
-                                    "export const __probe_{field}_{inlined_id} = _tmp_{inlined_id}.{field};"
+                                    "export let __probe_{field}_{inlined_id} = _tmp_{inlined_id}.{field};"
                                 ));
                             }
                         } else {
                             let binding_name = decl.binding.binding_name();
                             lines.push(format!(
-                                "export const __probe_{binding_name}_{inlined_id} = {call_expr};"
+                                "export let __probe_{binding_name}_{inlined_id} = {call_expr};"
                             ));
                         }
                         // Don't increment probe_index — these don't use _rN naming
@@ -377,19 +382,17 @@ pub(super) fn generate_probe(
                 if let ConstBinding::Object(fields) = &decl.binding {
                     let has_await = expr_has_promise_await(&decl.value);
                     let await_prefix = if has_await { "await " } else { "" };
-                    lines.push(format!(
-                        "const _tmp_{inlined_id} = {await_prefix}{call_ts};"
-                    ));
+                    lines.push(format!("let _tmp_{inlined_id} = {await_prefix}{call_ts};"));
                     for f in fields {
                         let field = &f.field;
                         lines.push(format!(
-                            "export const __probe_{field}_{inlined_id} = _tmp_{inlined_id}.{field};"
+                            "export let __probe_{field}_{inlined_id} = _tmp_{inlined_id}.{field};"
                         ));
                     }
                 } else {
                     let binding_name = decl.binding.binding_name();
                     lines.push(format!(
-                        "export const __probe_{binding_name}_{inlined_id} = {call_ts};"
+                        "export let __probe_{binding_name}_{inlined_id} = {call_ts};"
                     ));
                 }
                 continue;
@@ -562,7 +565,7 @@ pub(super) fn generate_probe(
         if let ConstBinding::Array(names) = &call.binding {
             let tmp = format!("_tmp{}", call.index);
             lines.push(format!(
-                "const {tmp} = {}{type_args_str}({args_str});",
+                "let {tmp} = {}{type_args_str}({args_str});",
                 call.callee,
             ));
             let destructured: Vec<String> = names
@@ -570,30 +573,27 @@ pub(super) fn generate_probe(
                 .enumerate()
                 .map(|(i, _)| format!("_r{}_{i}", call.index))
                 .collect();
-            lines.push(format!(
-                "export const [{}] = {tmp};",
-                destructured.join(", "),
-            ));
+            lines.push(format!("export let [{}] = {tmp};", destructured.join(", "),));
         } else if let ConstBinding::Object(fields) = &call.binding {
             // For object destructuring: const { data } = useSuspenseQuery(...)
             // Use property access instead of destructuring so tsgo can resolve
             // complex generic return types field-by-field.
             let tmp = format!("_tmp{}", call.index);
             lines.push(format!(
-                "const {tmp} = {}{type_args_str}({args_str});",
+                "let {tmp} = {}{type_args_str}({args_str});",
                 call.callee,
             ));
             for (i, f) in fields.iter().enumerate() {
                 // Use __probe_{field}_ prefix so the LSP enhancement can find
                 // and fix `any` results by querying the function's return type.
                 lines.push(format!(
-                    "export const __probe_{}_r{}_{i} = {tmp}.{};",
+                    "export let __probe_{}_r{}_{i} = {tmp}.{};",
                     f.field, call.index, f.field,
                 ));
             }
         } else {
             lines.push(format!(
-                "export const _r{} = {}{type_args_str}({args_str});",
+                "export let _r{} = {}{type_args_str}({args_str});",
                 call.index, call.callee,
             ));
         }
@@ -627,13 +627,13 @@ pub(super) fn generate_probe(
                 // resolves the type naturally (typeof annotation causes tsgo
                 // to emit `typeof X` literally which the DTS parser can't resolve)
                 lines.push(format!(
-                    "export const _r{} = {};",
+                    "export let _r{} = {};",
                     reexport.index, reexport.name,
                 ));
             } else {
                 // No call probes — use _expand to inline the type
                 lines.push(format!(
-                    "export const _r{} = _expand({});",
+                    "export let _r{} = _expand({});",
                     reexport.index, reexport.name,
                 ));
             }
@@ -649,7 +649,7 @@ pub(super) fn generate_probe(
 
     for (obj, field) in &member_accesses {
         lines.push(format!(
-            "export const __member_{obj}_{field} = {obj}.{field};",
+            "export let __member_{obj}_{field} = {obj}.{field};",
         ));
     }
 
@@ -842,7 +842,7 @@ pub(super) fn generate_probe(
                             }
                         }
                         let field = &path[end_idx];
-                        lines.push(format!("export const {export_name} = {expr}.{field};"));
+                        lines.push(format!("export let {export_name} = {expr}.{field};"));
                         // `__chain_call_{key}` delegates overload resolution to
                         // tsgo by invoking the terminal with `null! as any`.
                         // The checker prefers this over the bare `__chain_{key}`
@@ -850,7 +850,7 @@ pub(super) fn generate_probe(
                         if chain_call_keys.contains(&chain_key) {
                             let call_name = format!("__chain_call_{chain_key}");
                             lines.push(format!(
-                                "export const {call_name} = {expr}.{field}(null! as any);"
+                                "export let {call_name} = {expr}.{field}(null! as any);"
                             ));
                         }
                         // Also capture the result of CALLING the method (the builder value)
@@ -858,13 +858,13 @@ pub(super) fn generate_probe(
                         // `.returning()` returns a PromiseLike that resolves to the rows).
                         // Calling in the probe is safe: tsgo only type-checks it, never executes.
                         let called_name = format!("__chain_called_{chain_key}");
-                        lines.push(format!("export const {called_name} = {expr}.{field}();"));
+                        lines.push(format!("export let {called_name} = {expr}.{field}();"));
                         let await_name = format!("__chain_await_{chain_key}");
                         let await_fn = format!("{await_name}_fn");
                         lines.push(format!(
                             "declare function {await_fn}(): Awaited<typeof {called_name}>;"
                         ));
-                        lines.push(format!("export const {await_name} = {await_fn}();"));
+                        lines.push(format!("export let {await_name} = {await_fn}();"));
                     }
                 }
             } else {
@@ -894,7 +894,7 @@ pub(super) fn generate_probe(
 
                     let export_name = format!("__chain_{chain_key}");
                     if emitted_chain_exports.insert(export_name.clone()) {
-                        lines.push(format!("export const {export_name} = {ret_name}.{field};"));
+                        lines.push(format!("export let {export_name} = {ret_name}.{field};"));
                     }
                 }
             }
@@ -916,7 +916,7 @@ pub(super) fn generate_probe(
                     collect_typeof_names(type_expr, &mut |name| {
                         if !typeof_consts_emitted.contains(name) {
                             if let Some(expr) = local_const_exprs.get(name) {
-                                lines.push(format!("const {name} = {expr};"));
+                                lines.push(format!("let {name} = {expr};"));
                             }
                             typeof_consts_emitted.insert(name.to_string());
                         }
@@ -949,7 +949,7 @@ pub(super) fn generate_probe(
                                 collect_typeof_names(type_expr, &mut |name| {
                                     if !typeof_consts_emitted.contains(name) {
                                         if let Some(expr) = local_const_exprs.get(name) {
-                                            lines.push(format!("const {name} = {expr};"));
+                                            lines.push(format!("let {name} = {expr};"));
                                         }
                                         typeof_consts_emitted.insert(name.to_string());
                                     }
@@ -1010,12 +1010,10 @@ pub(super) fn generate_probe(
         lines.push(format!(
             "declare const _jcChild_{comp}: NonNullable<typeof _jcProps_{comp}.children>;"
         ));
-        lines.push(format!(
-            "const _jcParams_{comp} = _extract(_jcChild_{comp});"
-        ));
+        lines.push(format!("let _jcParams_{comp} = _extract(_jcChild_{comp});"));
         for i in 0..probe.param_count {
             lines.push(format!(
-                "export const __jsxc_{comp}_{i} = _jcParams_{comp}[{i}];",
+                "export let __jsxc_{comp}_{i} = _jcParams_{comp}[{i}];",
             ));
         }
     }
@@ -1628,7 +1626,7 @@ pub(super) fn type_decl_to_ts(decl: &TypeDecl) -> String {
                 .map(|v| format!("  {} = \"{}\"", v.name, v.name))
                 .collect();
             format!(
-                "const enum {}{type_params} {{\n{}\n}}",
+                "let enum {}{type_params} {{\n{}\n}}",
                 decl.name,
                 members.join(",\n")
             )

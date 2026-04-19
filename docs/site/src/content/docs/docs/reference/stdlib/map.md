@@ -27,26 +27,26 @@ Immutable key-value map operations. All functions return new maps -- they never 
 
 ```floe
 // Create a map from key-value pairs
-const config = Map.fromArray([("host", "localhost"), ("port", "8080")])
+let config = Map.fromArray([("host", "localhost"), ("port", "8080")])
 
 // All operations are immutable
-const updated = config
+let updated = config
   |> Map.set("port", "3000")
   |> Map.set("debug", "true")
 
 // Safe lookup returns Option
-const port = Map.get(config, "port")   // Some("8080")
-const missing = Map.get(config, "foo") // None
+let port = Map.get(config, "port")   // Some("8080")
+let missing = Map.get(config, "foo") // None
 
 // Check membership
-const hasHost = config |> Map.has("host")   // true
+let hasHost = config |> Map.has("host")   // true
 
 // Convert to arrays
-const keys = config |> Map.keys      // ["host", "port"]
-const values = config |> Map.values  // ["localhost", "8080"]
+let keys = config |> Map.keys      // ["host", "port"]
+let values = config |> Map.values  // ["localhost", "8080"]
 
 // Merge maps (second map's values win on key conflict)
-const defaults = Map.fromArray([("port", "80"), ("host", "0.0.0.0")])
-const merged = Map.merge(defaults, config)
-// Map { "port" => "8080", "host" => "localhost" }
+let defaults = Map.fromArray([("port", "80"), ("host", "0.0.0.0")])
+let merged = Map.merge(defaults, config)
+// Map { "port" -> "8080", "host" -> "localhost" }
 ```
