@@ -8529,3 +8529,36 @@ const _piped_chain = identity<Bindings>(_bindings) |> chain("a") |> chain("b")
         "chained call-form pipe baseline"
     );
 }
+
+#[test]
+fn destructured_lambda_param_infers_body_return_type() {
+    // Lambda with object-destructured param used to lose body return-type
+    // inference because arrow args were checked before the callee's
+    // expected param types were available as hints — destructured bindings
+    // fell through to `Type::Unknown`, so `a + b` returned `unknown`. The
+    // main call path now defers arrow args and re-checks them with hints.
+    let program = crate::parser::Parser::new(
+        r#"
+fn call(cb: ({ a: number, b: number }) -> number) -> number {
+    cb({ a: 1, b: 2 })
+}
+
+const _plain = call(({ a, b }) => a + b)
+const _alias = call(({ a: x, b: y }) => x + y)
+const _ident = call((o) => o.a + o.b)
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+    let (diags, _, _, _) = Checker::new().check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "destructured-lambda call should type-check, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

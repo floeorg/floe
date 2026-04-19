@@ -941,10 +941,21 @@ impl Checker {
         }
 
         let callee_ty = self.check_expr(callee);
+        // Pass 1: check non-arrow args now. Arrow args are deferred (marked
+        // with `Type::Unknown`) until the callee's parameter types are known
+        // so lambda-param hints can flow in. Without this, a destructured
+        // lambda param resolves to a fresh type var and its body comes back
+        // as `unknown` (#1204).
         let mut arg_types: Vec<Type> = args
             .iter()
             .map(|arg| match arg {
-                Arg::Positional(e) | Arg::Named { value: e, .. } => self.check_expr(e),
+                Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                    if matches!(e.kind, ExprKind::Arrow { .. }) {
+                        Type::Unknown
+                    } else {
+                        self.check_expr(e)
+                    }
+                }
             })
             .collect();
         self.ctx.lambda_param_hints.clear();
@@ -1179,6 +1190,34 @@ impl Checker {
                             self.expr_types
                                 .insert(e.id, std::sync::Arc::new(resolved.clone()));
                             arg_types[i + param_offset] = resolved;
+                        }
+                    }
+
+                    // Pass 2 for arrow args (deferred during pass 1 above):
+                    // now that `params` is resolved, set lambda_param_hints
+                    // from the expected callback type so destructured params
+                    // get the right field types and the body return-type
+                    // infers against the hinted shape.
+                    for (i, arg) in args.iter().enumerate() {
+                        let e = match arg {
+                            Arg::Positional(e) | Arg::Named { value: e, .. } => e,
+                        };
+                        if !matches!(e.kind, ExprKind::Arrow { .. }) {
+                            continue;
+                        }
+                        let idx = i + param_offset;
+                        if let Some(param_ty) = params.get(idx)
+                            && let Type::Function {
+                                params: fn_params, ..
+                            } = param_ty.resolved()
+                        {
+                            self.ctx.lambda_param_hints =
+                                fn_params.iter().map(|p| p.resolved()).collect();
+                        }
+                        let actual_ty = self.check_expr(e);
+                        self.ctx.lambda_param_hints.clear();
+                        if idx < arg_types.len() {
+                            arg_types[idx] = actual_ty;
                         }
                     }
 
