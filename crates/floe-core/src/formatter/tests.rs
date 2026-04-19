@@ -459,9 +459,7 @@ fn assert_idempotent(input: &str) {
 
 #[test]
 fn idempotent_tuple_type_in_result() {
-    assert_idempotent(
-        "let f(id: Id) -> Result<(Product, Array<Review>), Error> = { Ok((p, r)) }",
-    );
+    assert_idempotent("let f(id: Id) -> Result<(Product, Array<Review>), Error> = { Ok((p, r)) }");
 }
 
 #[test]
@@ -920,9 +918,7 @@ fn idempotent_block_comment_inside_construct_args() {
 
 #[test]
 fn idempotent_trailing_comment_at_end_of_function() {
-    assert_idempotent(
-        "let f() -> number = {\n    let x = 1\n\n    // return the answer\n    x\n}",
-    );
+    assert_idempotent("let f() -> number = {\n    let x = 1\n\n    // return the answer\n    x\n}");
 }
 
 #[test]

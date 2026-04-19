@@ -290,8 +290,7 @@ fn export_function() {
 
 #[test]
 fn promise_await_emits_async_function() {
-    let result =
-        emit_with_types("let fetch() -> Promise<string> = { getData() |> Promise.await }");
+    let result = emit_with_types("let fetch() -> Promise<string> = { getData() |> Promise.await }");
     assert!(result.starts_with("async function fetch()"));
     assert!(result.contains("await getData()"));
 }
@@ -308,9 +307,8 @@ fn async_fn_sugar_wraps_return_type_in_promise() {
 
 #[test]
 fn async_fn_sugar_with_await_body() {
-    let result = emit_with_types(
-        "async let fetch() -> string = { let x = getData() |> Promise.await\n x }",
-    );
+    let result =
+        emit_with_types("async let fetch() -> string = { let x = getData() |> Promise.await\n x }");
     assert!(
         result.starts_with("async function fetch(): Promise<string>"),
         "expected async + Promise wrap, got: {result}"

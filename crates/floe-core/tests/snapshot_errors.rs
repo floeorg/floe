@@ -229,10 +229,7 @@ fn snapshot_error_unknown_named_argument() {
 
 #[test]
 fn snapshot_error_todo_warning() {
-    let output = get_diagnostics(
-        "test.fl",
-        "let process(x: number) -> number = {\n  todo\n}",
-    );
+    let output = get_diagnostics("test.fl", "let process(x: number) -> number = {\n  todo\n}");
     insta::assert_snapshot!(output);
 }
 

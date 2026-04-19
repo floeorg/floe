@@ -837,9 +837,8 @@ fn partial_application_binds_as_const() {
 
 #[test]
 fn promise_return_type_function() {
-    match first_item(
-        "let fetchUser(id: string) -> Promise<Result<User, ApiError>> = { Ok(user) }",
-    ) {
+    match first_item("let fetchUser(id: string) -> Promise<Result<User, ApiError>> = { Ok(user) }")
+    {
         ItemKind::Function(decl) => {
             assert!(!decl.async_fn); // async_fn is set by mark_async_functions, not parser
             assert_eq!(decl.name, "fetchUser");
@@ -864,9 +863,8 @@ fn async_fn_declaration_sets_async_fn_flag() {
 
 #[test]
 fn exported_async_fn_declaration() {
-    match first_item(
-        "export async let fetchUser(id: string) -> Result<User, Error> = { Ok(user) }",
-    ) {
+    match first_item("export async let fetchUser(id: string) -> Result<User, Error> = { Ok(user) }")
+    {
         ItemKind::Function(decl) => {
             assert!(decl.async_fn);
             assert!(decl.exported);

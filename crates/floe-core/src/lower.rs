@@ -1175,8 +1175,7 @@ mod tests {
     #[test]
     fn use_chained() {
         // Two chained `use` statements should produce nested calls
-        let prog =
-            lower("let _test() -> () = {\n    use x <- f()\n    use y <- g(x)\n    h(y)\n}");
+        let prog = lower("let _test() -> () = {\n    use x <- f()\n    use y <- g(x)\n    h(y)\n}");
         let ItemKind::Function(decl) = &prog.items[0].kind else {
             panic!("expected Function")
         };

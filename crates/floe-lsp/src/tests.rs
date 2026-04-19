@@ -587,10 +587,7 @@ fn hover_const_bool_shows_type() {
 
 #[test]
 fn hover_function_shows_signature() {
-    let hover = simulate_hover(
-        "let add(a: number, b: number) -> number = { a + b }",
-        "add",
-    );
+    let hover = simulate_hover("let add(a: number, b: number) -> number = { a + b }", "add");
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(

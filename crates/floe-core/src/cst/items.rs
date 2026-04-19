@@ -374,58 +374,6 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
-    // ── Function Declaration ────────────────────────────────────
-
-    fn parse_function_decl(&mut self) {
-        self.builder.start_node(SyntaxKind::FUNCTION_DECL.into());
-
-        // Optional `async` prefix: `async fn name(...)`
-        if self.at(TokenKind::Async) {
-            self.bump(); // async
-            self.eat_trivia();
-        }
-
-        self.expect(TokenKind::Fn);
-        self.eat_trivia();
-        self.expect_ident();
-        self.eat_trivia();
-
-        // Optional type parameters: <T, U> or <R: Trait, T>
-        if self.at(TokenKind::LessThan) {
-            self.bump(); // <
-            self.eat_trivia();
-            self.parse_comma_separated(Self::parse_type_param, TokenKind::GreaterThan);
-            self.expect(TokenKind::GreaterThan);
-            self.eat_trivia();
-        }
-
-        if self.at(TokenKind::Equal) {
-            // `fn name = expr` — derived function binding (pointfree style)
-            self.bump(); // =
-            self.eat_trivia();
-            self.parse_expr();
-        } else {
-            // `fn name(params) { body }` — standard function declaration
-            self.expect(TokenKind::LeftParen);
-            self.eat_trivia();
-            self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
-            self.expect(TokenKind::RightParen);
-            self.eat_trivia();
-
-            // Optional return type
-            if self.at(TokenKind::ThinArrow) {
-                self.bump();
-                self.eat_trivia();
-                self.parse_type_expr();
-                self.eat_trivia();
-            }
-
-            self.parse_block_expr();
-        }
-
-        self.builder.finish_node();
-    }
-
     pub(super) fn parse_param(&mut self) {
         self.builder.start_node(SyntaxKind::PARAM.into());
 
