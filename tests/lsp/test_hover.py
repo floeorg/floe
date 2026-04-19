@@ -1,6 +1,6 @@
 """Tests for textDocument/hover."""
 
-from .conftest import URI, hover_text, open_doc
+from .conftest import URI, at, hover_text, open_doc
 from . import fixtures as F
 
 
@@ -11,28 +11,29 @@ class TestHoverBasic:
         # Use a minimal fixture — SIMPLE contains a template literal whose
         # span miscalculation causes `find_expr_type_at_offset` to treat
         # unrelated top-level bindings as having string type (known issue).
-        open_doc(lsp, URI, "let x = 42\n")
-        h = hover_text(lsp.hover(URI, 0, 4))
+        src = "let x = 42\n"
+        open_doc(lsp, URI, src)
+        h = hover_text(lsp.hover(URI, *at(src, "x")))
         assert h is not None and "number" in h, f"Expected number type, got: {h}"
 
     def test_const_string(self, lsp):
-        open_doc(lsp, URI,F.SIMPLE)
-        h = hover_text(lsp.hover(URI, 1, 4))
+        open_doc(lsp, URI, F.SIMPLE)
+        h = hover_text(lsp.hover(URI, *at(F.SIMPLE, "msg")))
         assert h is not None and "string" in h, f"Expected string type, got: {h}"
 
     def test_const_boolean(self, lsp):
-        open_doc(lsp, URI,F.SIMPLE)
-        h = hover_text(lsp.hover(URI, 2, 4))
+        open_doc(lsp, URI, F.SIMPLE)
+        h = hover_text(lsp.hover(URI, *at(F.SIMPLE, "flag")))
         assert h is not None and ("boolean" in h or "bool" in h), f"Expected boolean type, got: {h}"
 
     def test_fn_signature(self, lsp):
-        open_doc(lsp, URI,F.SIMPLE)
-        h = hover_text(lsp.hover(URI, 4, 4))
+        open_doc(lsp, URI, F.SIMPLE)
+        h = hover_text(lsp.hover(URI, *at(F.SIMPLE, "add")))
         assert h is not None and "let add" in h, f"Expected let add signature, got: {h}"
 
     def test_export_fn_signature(self, lsp):
-        open_doc(lsp, URI,F.SIMPLE)
-        h = hover_text(lsp.hover(URI, 8, 11))
+        open_doc(lsp, URI, F.SIMPLE)
+        h = hover_text(lsp.hover(URI, *at(F.SIMPLE, "greet")))
         assert h is not None and "greet" in h, f"Expected greet signature, got: {h}"
 
     def test_whitespace_returns_null(self, lsp):
@@ -369,8 +370,7 @@ class TestHoverRecordSpread:
 
     def test_jsx_render_prop_param_shows_type(self, lsp):
         open_doc(lsp, URI, F.JSX_RENDER_PROP_PARAM)
-        # Hover on 'provided' (line 6, col 10)
-        h = hover_text(lsp.hover(URI, 6, 10))
+        h = hover_text(lsp.hover(URI, *at(F.JSX_RENDER_PROP_PARAM, "provided")))
         assert h is not None, f"Expected hover for render prop param provided, got None"
         assert "?T" not in h, f"Render prop param should not show type var, got: {h}"
 

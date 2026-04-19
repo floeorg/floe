@@ -840,7 +840,17 @@ let _result = items |> map((item) -> item + 1)
 """
 
 JSX_RENDER_PROP_PARAM = """\
-import trusted { Draggable } from "@hello-pangea/dnd"
+type DragProvided = { draggableProps: string, innerRef: string }
+type DragSnapshot = { isDragging: boolean }
+type DraggableProps = {
+    draggableId: string,
+    index: number,
+    children: (DragProvided, DragSnapshot) -> JSX.Element,
+}
+
+let Draggable(props: DraggableProps) -> JSX.Element = {
+    <div />
+}
 
 type Props = { id: string }
 
