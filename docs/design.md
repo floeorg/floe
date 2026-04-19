@@ -24,34 +24,86 @@ The compiler is a single Rust binary (`floe`) that takes `.fl` files and emits `
 
 A React developer should read Floe and understand it in 30 minutes. We keep familiar syntax and add targeted upgrades.
 
-### Key Operators
+### Token discipline — `:`, `=`, `->` each do ONE job
+
+Floe uses three tokens for the concepts that most languages overload:
+
+| Token | Meaning | Used in |
+|---|---|---|
+| `:` | "has type" | parameter annotations, variable annotations |
+| `=` | "is bound to" | value bindings, function bodies |
+| `->` | "produces / maps to" | type arrows, match arms, return types, anonymous lambda bodies |
+
+`->` is used consistently for every "X maps to Y" relationship:
 
 ```
-(x) => arrow closures         (a) => a + 1
-=>    fn types                type Handler = (Request) => Response
-->    match arms, fn returns  Ok(x) => x, fn f() => T
-|>    pipe data through       data |> transform
-?     unwrap Result/Option    fetchUser(id)?
-.x    dot shorthand           .name (implicit closure for field access)
+type Handler = (Request) -> Response        // function type: Request maps to Response
+let f(x: T) -> U = body                      // def-form return type: params map to U
+xs |> map((x) -> x * 2)                      // anonymous lambda: x maps to x * 2
+match s { Active -> "on", Idle -> "off" }    // match arm: pattern maps to value
 ```
 
-`->` is only valid on the left of a match-arm body (`pat -> expr`). Every type-position arrow — function-type aliases, callback types inside records, generic bounds, and function return types (`fn f(x: T) => U`) — uses `=>`.
+There is no `=>` in Floe. Earlier drafts used `=>` for some arrow positions — this has been removed to eliminate token overload.
 
 All four of TypeScript's `?` uses (`?.`, `??`, `?:`, `? :`) are removed. `?` now means exactly one thing: unwrap or short-circuit.
 
 ### What Stays from TypeScript
 
-- `const`, `export`, `import`, type annotations
-- `fn` for named/exported functions
-- Closures `(x) => expr` for inline/anonymous functions
+- `export`, `import`, type annotations
 - Dot shorthand `.field` for implicit field-access closures
 - JSX / TSX (full support, including member expressions like `<Select.Trigger />`)
 - Generics (types and functions), template literals, tagged template literals (`` tag`...` ``)
-- Async via `|> await` (or `|> Promise.await`) — return type must be `Promise<T>`, or use `async fn f() => T` sugar
+- Async via `|> await` (or `|> Promise.await`) — `async let` prefix for named functions, inner return type (compiler auto-wraps `Promise<>`)
 - Destructuring, spread, rest params
 - `||` (boolean OR), `&&`, `!` (boolean operators)
 - `==` (but only between same types — structural equality on objects)
 - Unit type `()` instead of `void`
+
+### Bindings and Functions
+
+`let` is the only binding keyword. All top-level and local bindings — values and functions — use `let`.
+
+Named functions use **def-form**, where params and return type sit inline:
+
+```floe
+let add(a: number, b: number) -> number = a + b
+let square(x: number) -> number = x * x
+let double(x: number) = x * 2                  // return type inferred
+let identity<T>(x: T) -> T = x                 // generic
+
+async let fetchUser(id: string) -> Result<User, Error> = {
+    Http.get(url) |> await?
+}
+
+export let handleRequest(req: Request) -> Promise<Response> = { ... }
+```
+
+Functions that implement a named type use **value-binding form**, where the type lives on the `let`:
+
+```floe
+type PlaceOrder = (Order) -> Result<Order, Error>
+
+let placeOrder: PlaceOrder = (order) -> {
+    order |> validate? |> price |> Ok
+}
+```
+
+Anonymous lambdas appear only in expression position (callbacks, pipe stages):
+
+```floe
+xs |> map((x) -> x * 2)
+xs |> filter((x) -> x > 0)
+onClick={() -> setCount(count + 1)}
+```
+
+Values follow the same `let` shape:
+
+```floe
+let pi = 3.14159
+let name: string = "alice"
+```
+
+The last expression in a block is the return value — no `return` keyword.
 
 ### What's Added
 
@@ -1175,29 +1227,31 @@ Compiles to (test mode only):
 ### Function Conventions
 
 ```floe
-// Named/exported functions use `fn`
-export fn TodoApp() => JSX.Element { ... }
-export fn fetchUser(id: UserId) => Result<User, ApiError> { ... }
+// Named/exported functions — def-form
+export let TodoApp() -> JSX.Element = { ... }
+export let fetchUser(id: UserId) -> Result<User, ApiError> = { ... }
 
-// Inline/anonymous uses arrow closures
-todos |> Array.map((t) => t.name)
-onClick={() => setCount(count + 1)}
-items |> Array.reduce((acc, x) => acc + x.price, 0)
+// Inline/anonymous — `(x) -> body`
+todos |> Array.map((t) -> t.name)
+onClick={() -> setCount(count + 1)}
+items |> Array.reduce((acc, x) -> acc + x.price, 0)
 
 // Dot shorthand for simple field access
 todos |> Array.filter(.done == false)
 todos |> Array.map(.text)
 
 // Named args and defaults
-fn greet(name: string, greeting: string = "Hello") => string {
+let greet(name: string, greeting: string = "Hello") -> string = {
   `${greeting}, ${name}!`
 }
 greet("Ryan")                    // "Hello, Ryan!"
 greet("Ryan", greeting: "Hey")  // "Hey, Ryan!"
 
-// COMPILE ERROR: const + closure — use fn instead
-let double = (x) => x * 2        // ERROR: Use `fn double(x) => ...`
-fn double(x: number) => number { x * 2 }  // correct
+// Def-form is idiomatic for named functions; value-binding-to-lambda is reserved
+// for implementing a named type (DDD) or binding a function returned from an expression:
+type Doubler = (number) -> number
+let double: Doubler = (x) -> x * 2       // DDD-style: implements named type
+let handler = makeHandler(config)         // value binding to a non-literal expression
 ```
 
 ### Full Component Example
