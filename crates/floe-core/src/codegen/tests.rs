@@ -882,7 +882,7 @@ fn floe_eq_helper_emitted_for_stdlib_contains() {
 #[test]
 fn option_unwrap_or_chained_with_pipe() {
     let result = emit(
-        "let _x: Option<Array<number>> = None\nconst _y = _x |> Option.unwrapOr([]) |> filter((n) => n > 0)",
+        "let _x: Option<Array<number>> = None\nlet _y = _x |> Option.unwrapOr([]) |> filter((n) -> n > 0)",
     );
     // The ternary from unwrapOr must be parenthesized so .filter binds to the result, not to []
     assert!(
@@ -895,7 +895,7 @@ fn option_unwrap_or_chained_with_pipe() {
 fn option_stdlib_uses_null_check_not_undefined() {
     // Option functions must use != null (catches both null and undefined)
     // not !== undefined (misses null from serde/JSON)
-    let result = emit("let _x: Option<number> = None\nconst _y = _x |> Option.map((n) => n + 1)");
+    let result = emit("let _x: Option<number> = None\nlet _y = _x |> Option.map((n) -> n + 1)");
     assert!(
         result.contains("!= null") && !result.contains("!== undefined"),
         "Option.map should use != null, not !== undefined, got: {result}"
@@ -929,7 +929,7 @@ fn bare_await_shorthand_pipe() {
 #[test]
 fn nested_fn_with_promise_await_emits_async() {
     let result =
-        emit_with_types("let outer() = { fn inner() { getData() |> Promise.await } inner() }");
+        emit_with_types("let outer() = { let inner() = { getData() |> Promise.await } inner() }");
     assert!(
         result.contains("async function inner()"),
         "nested fn with Promise.await should be async, got: {result}"
@@ -938,7 +938,7 @@ fn nested_fn_with_promise_await_emits_async() {
 
 #[test]
 fn nested_fn_with_bare_await_emits_async() {
-    let result = emit_with_types("let outer() = { fn inner() { getData() |> await } inner() }");
+    let result = emit_with_types("let outer() = { let inner() = { getData() |> await } inner() }");
     assert!(
         result.contains("async function inner()"),
         "nested fn with bare await should be async, got: {result}"
@@ -1301,7 +1301,7 @@ fn type_directed_array_length() {
 #[test]
 fn type_directed_string_length() {
     let result = emit_with_types(r#"let _x = "hello" |> length"#);
-    assert_eq!(result, r#"let _x = "hello".length;"#);
+    assert_eq!(result, r#"const _x = "hello".length;"#);
 }
 
 #[test]
@@ -1819,7 +1819,7 @@ let f() -> Result<number, Array<string>> = {
         result.contains("__errors"),
         "expected error accumulator, got: {result}"
     );
-    assert!(result.contains("(() -> {"), "expected IIFE, got: {result}");
+    assert!(result.contains("(() => {"), "expected IIFE, got: {result}");
     assert!(
         result.contains("ok: true as const"),
         "expected ok result, got: {result}"
