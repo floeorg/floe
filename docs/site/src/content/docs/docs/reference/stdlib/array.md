@@ -11,7 +11,7 @@ All stdlib functions are **pipe-friendly**: the first argument is the data, so t
 ```floe
 [3, 1, 2]
   |> Array.sort
-  |> Array.map((n) => n * 10)
+  |> Array.map((n) -> n * 10)
   |> Array.reverse
 // [30, 20, 10]
 ```
@@ -92,10 +92,10 @@ let total = [1, 2, 3] |> Array.sum             // 6
 let csv = ["a", "b", "c"] |> Array.join(", ")  // "a, b, c"
 
 // filterMap — map + filter in one pass
-let ages = inputs |> Array.filterMap((s) => Number.parse(s) |> Result.toOption)
+let ages = inputs |> Array.filterMap((s) -> Number.parse(s) |> Result.toOption)
 
 // partition — split into two groups
-const (adults, minors) = users |> Array.partition(.age >= 18)
+let (adults, minors) = users |> Array.partition(.age >= 18)
 
 // intersperse — great for React
 let items = ["Home", "About", "Contact"]

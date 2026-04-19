@@ -40,6 +40,6 @@ let cleaned = "  Hello, World!  "
 // Split and process
 let words = "one,two,three"
   |> String.split(",")
-  |> Array.map((w) => String.toUpperCase(w))
+  |> Array.map((w) -> String.toUpperCase(w))
 // ["ONE", "TWO", "THREE"]
 ```

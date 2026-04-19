@@ -84,7 +84,7 @@ type BaseProps = {
 
 type ButtonProps = {
   ...BaseProps,
-  onClick: () => (),
+  onClick: () -> (),
   label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -255,7 +255,7 @@ So `UpdateUser(name: Value("Ryan"), avatar: Clear)` compiles to `{ name: "Ryan",
 Propagate errors concisely:
 
 ```floe
-fn getUsername(id: string) => Result<string, Error> {
+let getUsername(id: string) -> Result<string, Error> = {
   let user = fetchUser(id)?   // returns Err early if it fails
   Ok(user.name)
 }
@@ -289,12 +289,12 @@ opaque type Email = Email(string)
 Name a function type to use it in records or generics:
 
 ```floe
-type Handler = (Request) => Promise<Response>
-type Predicate<T> = (T) => boolean
+type Handler = (Request) -> Promise<Response>
+type Predicate<T> = (T) -> boolean
 
 type Button = {
   label: string,
-  onClick: () => (),
+  onClick: () -> (),
 }
 ```
 
@@ -307,11 +307,11 @@ Anonymous lightweight product types:
 ```floe
 let point: (number, number) = (10, 20)
 
-fn divmod(a: number, b: number) => (number, number) {
+let divmod(a: number, b: number) -> (number, number) = {
   (a / b, a % b)
 }
 
-const (q, r) = divmod(10, 3)
+let (q, r) = divmod(10, 3)
 ```
 
 Tuples compile to TypeScript readonly tuples: `(number, string)` becomes `readonly [number, string]`.
@@ -338,7 +338,7 @@ type PartialUser = Partial<User>
 String-literal unions work with exhaustive matching:
 
 ```floe
-fn describe(method: HttpMethod) => string {
+let describe(method: HttpMethod) -> string = {
     match method {
         "GET" -> "fetching",
         "POST" -> "creating",

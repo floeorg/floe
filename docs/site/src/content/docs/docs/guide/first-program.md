@@ -49,12 +49,12 @@ Create `src/Counter.fl`:
 ```floe
 import { useState } from "react"
 
-export fn Counter() => JSX.Element {
-  const (count, setCount) = useState(0)
+export let Counter() -> JSX.Element = {
+  let (count, setCount) = useState(0)
 
   <div>
     <p>Count: {count}</p>
-    <button onClick={() => setCount(count + 1)}>+1</button>
+    <button onClick={() -> setCount(count + 1)}>+1</button>
   </div>
 }
 ```

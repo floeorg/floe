@@ -24,7 +24,7 @@ Functions for working with `Promise<T>` values.
 `Promise.await` is a stdlib function with signature `Promise<T> -> T`. It compiles to JavaScript's `await` keyword. Using `Promise.await` anywhere in a function body causes the compiler to infer `async` on the emitted function -- no `async` keyword is needed in Floe. `await` is also available as a bare shorthand in pipes: `expr |> await`.
 
 ```floe
-fn fetchUser(id: string) => Promise<User> {
+let fetchUser(id: string) -> Promise<User> = {
   let response = fetch(`/api/users/${id}`) |> await
   response.json() |> await
 }
@@ -35,12 +35,12 @@ The return type must explicitly use `Promise<T>`, making async behavior visible 
 
 ```floe
 // Error: function `bad` uses `await` but return type is `string`, not `Promise<string>`
-fn bad() => string {
+let bad() -> string = {
   getData() |> await
 }
 
 // OK
-fn good() => Promise<string> {
+let good() -> Promise<string> = {
   getData() |> await
 }
 ```
@@ -50,7 +50,7 @@ This parallels how `?` requires the function to return `Result<T, E>`. Both oper
 For functions without a return type annotation, the compiler infers `Promise<T>` automatically:
 
 ```floe
-fn fetchName(id: string) {
+let fetchName(id: string) = {
   let user = fetchUser(id) |> await
   user.name
 }
@@ -63,12 +63,12 @@ fn fetchName(id: string) {
 
 ```floe
 // Verbose — three nested generics
-fn findByCode(code: string) => Promise<Result<Option<Snippet>, Error>> {
+let findByCode(code: string) -> Promise<Result<Option<Snippet>, Error>> = {
   // ...
 }
 
 // Sugar — the `Promise<>` wrapper is implied by `async`
-async fn findByCode(code: string) => Result<Option<Snippet>, Error> {
+async let findByCode(code: string) -> Result<Option<Snippet>, Error> = {
   // ...
 }
 ```

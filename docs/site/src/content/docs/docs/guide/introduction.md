@@ -32,8 +32,8 @@ type Todo = {
   done: boolean,
 }
 
-export fn App() => JSX.Element {
-  const (todos, setTodos) = useState<Array<Todo>>([])
+export let App() -> JSX.Element = {
+  let (todos, setTodos) = useState<Array<Todo>>([])
 
   let completedCount = todos
     |> filter(.done)

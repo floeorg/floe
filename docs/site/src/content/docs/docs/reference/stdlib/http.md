@@ -29,7 +29,7 @@ let result = Http.post("https://api.example.com/users", { name: "Alice" }) |> Pr
 // Full pipeline
 let users = Http.get(url) |> Promise.await?
   |> Http.json |> Promise.await?
-  |> Result.map((data) => Array.filter(data, .active))
+  |> Result.map((data) -> Array.filter(data, .active))
 
 // Error handling with match
 match Http.get(url) |> Promise.await {

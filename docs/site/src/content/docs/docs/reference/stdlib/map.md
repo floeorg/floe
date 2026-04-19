@@ -48,5 +48,5 @@ let values = config |> Map.values  // ["localhost", "8080"]
 // Merge maps (second map's values win on key conflict)
 let defaults = Map.fromArray([("port", "80"), ("host", "0.0.0.0")])
 let merged = Map.merge(defaults, config)
-// Map { "port" => "8080", "host" => "localhost" }
+// Map { "port" -> "8080", "host" -> "localhost" }
 ```

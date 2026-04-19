@@ -206,8 +206,8 @@ The last expression in a block is the return value — no `return` keyword.
 ```floe
 // Default: piped value goes to first argument
 users
-  |> filter(.active)                   // filter(users, x => x.active)
-  |> sortBy(.name)                     // sortBy(result, x => x.name)
+  |> filter(.active)                   // filter(users, x -> x.active)
+  |> sortBy(.name)                     // sortBy(result, x -> x.name)
   |> take(10)                          // take(result, 10)
 
 // Need a different position? Use _ placeholder
@@ -215,16 +215,16 @@ users
 42 |> wrap("[", _, "]")                // wrap("[", 42, "]")
 
 // _ also works outside pipes — partial application
-let addTen = add(10, _)              // (x) => add(10, x)
+let addTen = add(10, _)              // (x) -> add(10, x)
 [1, 2, 3] |> map(multiply(_, 2))      // [2, 4, 6]
 
 // Dot shorthand — .field creates an implicit closure
-todos |> Array.filter(.id != id)       // filter(todos, x => x.id != id)
-todos |> Array.map(.text)              // map(todos, x => x.text)
+todos |> Array.filter(.id != id)       // filter(todos, x -> x.id != id)
+todos |> Array.map(.text)              // map(todos, x -> x.text)
 
 // Closures — arrow syntax for when you need a named param
-todos |> Array.map((t) => Todo(..t, done: true))
-items |> Array.reduce((acc, x) => acc + x.price, 0)
+todos |> Array.map((t) -> Todo(..t, done: true))
+items |> Array.reduce((acc, x) -> acc + x.price, 0)
 
 // tap — call a function for side effects, pass value through
 orders
@@ -237,7 +237,7 @@ orders
   {users
     |> filter(.active)
     |> sortBy(.name)
-    |> map((u) => <li key={u.id}>{u.name}</li>)
+    |> map((u) -> <li key={u.id}>{u.name}</li>)
   }
 </ul>
 ```
@@ -319,7 +319,7 @@ match url {
 
 // Optional rendering — Option<JSX.Element> works as a JSX child
 // None compiles to undefined, which React ignores
-{user.nickname |> Option.map((nick) => <Badge>{nick}</Badge>)}
+{user.nickname |> Option.map((nick) -> <Badge>{nick}</Badge>)}
 
 ```
 
@@ -397,7 +397,7 @@ match request {
 
 ```floe
 // On Result<T, E> — gives you T, or returns Err(E) from function
-fn loadProfile(id: UserId): Result<Profile, AppError> {
+let loadProfile(id: UserId) = : Result<Profile, AppError> {
   let user  = fetchUser(id)?
   let posts = fetchPosts(user.id)?
   let stats = fetchStats(user.id)?
@@ -405,7 +405,7 @@ fn loadProfile(id: UserId): Result<Profile, AppError> {
 }
 
 // On Option<T> — gives you T, or returns None from function
-fn getDisplayName(userId: UserId): Option<string> {
+let getDisplayName(userId: UserId) = : Option<string> {
   let user     = findUser(userId)?
   let nickname = user.nickname?
   Some(toUpperCase(nickname))
@@ -415,7 +415,7 @@ fn getDisplayName(userId: UserId): Option<string> {
 let name = fetchUser(id)? |> getName |> toUpperCase
 
 // Compiler enforces: function must return Result or Option to use ?
-fn greet(): string {
+let greet() = : string {
   let user = fetchUser(id)?  // COMPILE ERROR: can't use ? in non-Result function
 }
 ```
@@ -434,7 +434,7 @@ let user = _r0.value
 Inside a `collect {}` block, `?` does NOT short-circuit. Each `?` that hits an Err records the error and continues. If any failed, the block returns `Err(Array<E>)` with all collected errors. If all succeeded, returns `Ok(last_expression)`.
 
 ```floe
-fn validateForm(input: FormInput) => Result<ValidForm, Array<ValidationError>> {
+let validateForm(input: FormInput) -> Result<ValidForm, Array<ValidationError>> = {
     collect {
         let name = input.name |> validateName?
         let email = input.email |> validateEmail?
@@ -509,13 +509,13 @@ let display = match user.nickname {
 let display = user.nickname |> Option.unwrapOr(user.name)
 
 // Transform inside without unwrapping
-let upper: Option<string> = user.nickname |> Option.map((n) => toUpperCase(n))
+let upper: Option<string> = user.nickname |> Option.map((n) -> toUpperCase(n))
 
 // Chain
-let avatar = user.nickname |> Option.flatMap((n) => findAvatar(n))
+let avatar = user.nickname |> Option.flatMap((n) -> findAvatar(n))
 
 // Filter
-let longNick = user.nickname |> Option.filter((n) => String.length(n) > 3)
+let longNick = user.nickname |> Option.filter((n) -> String.length(n) > 3)
 
 // Zip two Options
 let pair = Option.zip(firstName, lastName)  // Option<(string, string)>
@@ -605,7 +605,7 @@ type BaseProps = {
 
 type ButtonProps = {
   ...BaseProps,
-  onClick: () => (),
+  onClick: () -> (),
   label: string,
 }
 // ButtonProps has: className, disabled, onClick, label
@@ -640,8 +640,8 @@ type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 type AdminCard = Intersect<ButtonProps, { role: "admin" }>
 
 // Function-type alias — structural
-type Handler = (Request) => Promise<Response>
-type Predicate<T> = (T) => boolean
+type Handler = (Request) -> Promise<Response>
+type Predicate<T> = (T) -> boolean
 
 // Sums can contain sums — nest as deep as you want
 type NetworkError =
@@ -745,7 +745,7 @@ match appError {
 }
 
 // Pass sub-types to specialist functions
-fn handleError(err: ApiError) {
+let handleError(err: ApiError) = {
   match err {
     Network(netErr) -> retryNetwork(netErr)   // pass NetworkError to specialist
     Auth(authErr)   -> handleAuth(authErr)     // pass AuthError to specialist
@@ -779,11 +779,11 @@ The RHS constructor may share the name of the type (idiomatic) or differ — bot
 // auth/password.fl
 opaque type HashedPassword = HashedPassword(string)
 
-export fn hash(raw: string): HashedPassword {
+export let hash(raw: string) = : HashedPassword {
   bcrypt(raw)  // only this module can create one
 }
 
-export fn verify(raw: string, hashed: HashedPassword): boolean {
+export let verify(raw: string, hashed: HashedPassword) = : boolean {
   bcryptCompare(raw, hashed)  // only this module can read it
 }
 
@@ -837,7 +837,7 @@ The `guard` stdlib functions combine with `use` to give linear, non-nested early
 
 ```floe
 // Bool.guard — bail if condition is false
-export fn AdminPage(state: AuthState) => JSX.Element {
+export let AdminPage(state: AuthState) -> JSX.Element = {
     use <- Bool.guard(state.isAdmin, <Forbidden />)
     use <- Bool.guard(state.isVerified, <VerifyPrompt />)
 
@@ -849,7 +849,7 @@ use user <- Option.guard(maybeUser, <LoginPage />)
 <ProfilePage user={user} />
 
 // Result.guard — bail if Err, continue with Ok value
-use data <- Result.guard(fetchResult, (e) => <ErrorPage error={e} />)
+use data <- Result.guard(fetchResult, (e) -> <ErrorPage error={e} />)
 <Dashboard data={data} />
 ```
 
@@ -876,10 +876,10 @@ let entry: (string, number, boolean) = ("key", 42, true)
 let pair = (1, 2)
 
 // Destructuring
-const (x, y) = pair
+let (x, y) = pair
 
 // Function signatures
-fn divmod(a: number, b: number) => (number, number) {
+let divmod(a: number, b: number) -> (number, number) = {
   (a / b, a % b)
 }
 
@@ -930,7 +930,7 @@ let updated = User(..user,
 
 // --- Named Arguments on Functions ---
 
-fn createUser(name: string, email: Email, role: Role): Result<User, ApiError> {
+let createUser(name: string, email: Email, role: Role) = : Result<User, ApiError> {
   // ...
 }
 
@@ -984,7 +984,7 @@ fetchUsers(limit: 50, sort: Descending)          // override two
 // On React component props
 type ButtonProps = {
   label: string,                      // required
-  onClick: () => (),                  // required
+  onClick: () -> (),                  // required
   variant: Variant = Primary,         // default
   size: Size = Medium,                // default
   disabled: boolean = false,          // default
@@ -992,7 +992,7 @@ type ButtonProps = {
   icon: Option<Icon> = None,          // default
 }
 
-export fn Button(props: ButtonProps) {
+export let Button(props: ButtonProps) = {
   <button>{props.label}</button>
 }
 
@@ -1020,15 +1020,15 @@ Two syntactic forms are supported:
 type User = { name: string, age: number, active: boolean }
 
 for User {
-  fn display(self) => string {
+  fn display(self) -> string {
     `${self.name} (${self.age})`
   }
 
-  fn isAdult(self) => boolean {
+  fn isAdult(self) -> boolean {
     self.age >= 18
   }
 
-  fn greet(self, greeting: string) => string {
+  fn greet(self, greeting: string) -> string {
     `${greeting}, ${self.name}!`
   }
 }
@@ -1039,7 +1039,7 @@ Export is per-function — `export` goes before `fn` inside the block.
 ```floe
 // Works with generic types too
 for Array<User> {
-  fn adults(self) => Array<User> {
+  fn adults(self) -> Array<User> {
     self |> Array.filter(.age >= 18)
   }
 }
@@ -1092,13 +1092,13 @@ Methods in a `for` block can be exported individually or as a whole block:
 ```floe
 // Per-method export — useful when only some methods are public
 for User {
-  export fn display(self) => string { self.name }
-  fn internalHelper(self) => string { self.name }
+  export fn display(self) -> string { self.name }
+  fn internalHelper(self) -> string { self.name }
 }
 
 // Block-level export — the natural shape for trait impls
 export for User: Display {
-  fn display(self) => string { self.name }
+  fn display(self) -> string { self.name }
 }
 ```
 
@@ -1111,26 +1111,26 @@ Traits define behavioral contracts that types can implement via `for` blocks. Th
 ```floe
 // Define a trait with required method signatures
 trait Display {
-  fn display(self) => string
+  fn display(self) -> string
 }
 
 // Traits can have default implementations
 trait Eq {
-  fn eq(self, other: Self) => boolean
-  fn neq(self, other: Self) => boolean {
+  fn eq(self, other: Self) -> boolean
+  fn neq(self, other: Self) -> boolean {
     !(self |> eq(other))
   }
 }
 
 // Implement a trait for a type using `for Type: Trait`
 for User: Display {
-  fn display(self) => string {
+  fn display(self) -> string {
     `${self.name} (${self.age})`
   }
 }
 
 for User: Eq {
-  fn eq(self, other: User) => boolean {
+  fn eq(self, other: User) -> boolean {
     self.id == other.id
   }
   // neq is inherited from the default implementation
@@ -1188,7 +1188,7 @@ Deriving rules:
 `test` blocks let you write tests co-located with the code they test. They are type-checked but stripped from production output.
 
 ```floe
-fn add(a: number, b: number) => number { a + b }
+let add(a: number, b: number) -> number = { a + b }
 
 test "addition" {
   assert add(1, 2) == 3
@@ -1270,15 +1270,15 @@ type Tab =
   | Team
   | Analytics
 
-export fn Dashboard(userId: UserId) => JSX.Element {
-  const (tab, setTab) = useState<Tab>(Overview)
-  let user = useAsync(() => fetchUser(userId))
+export let Dashboard(userId: UserId) -> JSX.Element = {
+  let (tab, setTab) = useState<Tab>(Overview)
+  let user = useAsync(() -> fetchUser(userId))
 
   <Layout>
     <Sidebar>
       <NavItem
         active={match tab { Overview -> true, _ -> false }}
-        onClick={() => setTab(Overview)}>
+        onClick={() -> setTab(Overview)}>
         Overview
       </NavItem>
     </Sidebar>
@@ -1293,7 +1293,7 @@ export fn Dashboard(userId: UserId) => JSX.Element {
   </Layout>
 }
 
-fn OverviewPanel(user: AsyncState<User, ApiError>) => JSX.Element {
+let OverviewPanel(user: AsyncState<User, ApiError>) -> JSX.Element = {
   match user {
     Idle         -> <EmptyState>Click to load</EmptyState>
     Loading      -> <Skeleton lines={6} />
@@ -1309,7 +1309,7 @@ fn OverviewPanel(user: AsyncState<User, ApiError>) => JSX.Element {
   }
 }
 
-fn describeError(err: ApiError) => string {
+let describeError(err: ApiError) -> string = {
   match err {
     Network(msg)    -> `Connection failed: ${msg}`
     NotFound        -> "User not found"
@@ -1709,8 +1709,8 @@ let user = fetchUser(id) |> await
 // user: Result<User, Error>
 
 // Compose with |> await? for concise async error handling.
-// `async fn f() => T` is sugar for `fn f() => Promise<T>` — write the inner type:
-async fn loadProfile(id: string) => Result<Profile, Error> {
+// `async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type:
+async let loadProfile(id: string) -> Result<Profile, Error> = {
   let user = fetchUser(id) |> await?
   let posts = fetchPosts(user.id) |> await?
   Ok(Profile(user, posts))
@@ -1722,7 +1722,7 @@ async fn loadProfile(id: string) => Result<Profile, Error> {
 ```floe
 import { findElement } from "some-dom-lib"
 // .d.ts says: findElement(id: string): Element | null
-// Floe sees: findElement(id: string) => Option<Element>
+// Floe sees: findElement(id: string) -> Option<Element>
 
 match findElement("app") {
   Some(el) -> render(el),
@@ -1916,7 +1916,7 @@ The formatter enforces a canonical style. Key conventions:
 
 ```floe
 // Multi-statement: blank line before final expression
-fn loadProfile(id: string) => Result<Profile, ApiError> {
+let loadProfile(id: string) -> Result<Profile, ApiError> = {
     let user = fetchUser(id)?
     let posts = fetchPosts(user.id)?
     let stats = computeStats(posts)
@@ -1925,7 +1925,7 @@ fn loadProfile(id: string) => Result<Profile, ApiError> {
 }
 
 // Single expression: no blank line
-fn add(a: number, b: number) => number {
+let add(a: number, b: number) -> number = {
     a + b
 }
 ```
@@ -2024,19 +2024,19 @@ TypeScript's `void` is not a real type — you can't use it in generics like `Re
 
 ```floe
 // Functions with no meaningful return value
-fn log(msg: string) => () {
+let log(msg: string) -> () = {
   console.log(msg)
 }
 
 // Works naturally in generics
-fn deleteUser(id: UserId) => Result<(), ApiError> {
+let deleteUser(id: UserId) -> Result<(), ApiError> = {
   // ...
   Ok(())
 }
 
 // Callbacks
 type ButtonProps = {
-  onClick: () => (),
+  onClick: () -> (),
 }
 ```
 
@@ -2066,16 +2066,16 @@ let users = [u1, u2] |> Array.sortBy(.name)  // explicit comparator
 Floe uses implicit returns — the last expression in a block is the return value. The `return` keyword is banned.
 
 ```floe
-fn getName(user: User) => string {
+let getName(user: User) -> string = {
   user.name    // this is the return value
 }
 
-fn log(msg: string) => () {
+let log(msg: string) -> () = {
   Console.log(msg)    // unit functions — last expression is discarded
 }
 
 // COMPILE ERROR: empty non-unit function body
-fn broken(user: User) => string {
+let broken(user: User) -> string = {
 }
 ```
 

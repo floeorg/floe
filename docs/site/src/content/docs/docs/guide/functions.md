@@ -22,8 +22,8 @@ let count: number = 42
 ### Destructuring
 
 ```floe
-const (left, right) = getPair()      // `()` — tuple
-const { name, age } = getUser()      // `{}` — record
+let (left, right) = getPair()      // `()` — tuple
+let { name, age } = getUser()      // `{}` — record
 ```
 
 Array destructuring (`const [a, b] = arr`) is rejected in `const`
@@ -40,7 +40,7 @@ match arr {
 ## Functions
 
 ```floe
-fn add(a: number, b: number) => number {
+let add(a: number, b: number) -> number = {
   a + b
 }
 ```
@@ -50,7 +50,7 @@ The last expression in a function body is the return value. The `return` keyword
 In multi-statement functions, `floe fmt` adds a blank line before the final expression to visually separate the return value:
 
 ```floe
-fn loadProfile(id: string) => Result<Profile, ApiError> {
+let loadProfile(id: string) -> Result<Profile, ApiError> = {
     let user = fetchUser(id)?
     let posts = fetchPosts(user.id)?
     let stats = computeStats(posts)
@@ -62,7 +62,7 @@ fn loadProfile(id: string) => Result<Profile, ApiError> {
 Exported functions **must** have return type annotations:
 
 ```floe
-export fn greet(name: string) => string {
+export let greet(name: string) -> string = {
   `Hello, ${name}!`
 }
 ```
@@ -72,11 +72,11 @@ export fn greet(name: string) => string {
 Functions can declare type parameters using angle brackets after the function name:
 
 ```floe
-fn identity<T>(x: T) => T { x }
+let identity<T>(x: T) -> T = { x }
 
-fn pair<A, B>(a: A, b: B) => (A, B) { (a, b) }
+let pair<A, B>(a: A, b: B) -> (A, B) = { (a, b) }
 
-fn mapResult<T, U, E>(r: Result<T, E>, f: (T) => U) => Result<U, E> {
+let mapResult<T, U, E>(r: Result<T, E>, f: (T) -> U) -> Result<U, E> = {
     match r {
         Ok(value) -> Ok(f(value)),
         Err(e) -> Err(e),
@@ -94,7 +94,7 @@ function pair<A, B>(a: A, b: B): readonly [A, B] { return [a, b] as const; }
 ### Default Parameters
 
 ```floe
-fn greet(name: string = "world") => string {
+let greet(name: string = "world") -> string = {
   `Hello, ${name}!`
 }
 ```
@@ -104,9 +104,9 @@ fn greet(name: string = "world") => string {
 Use `(x) => expr` for inline anonymous functions:
 
 ```floe
-todos |> Array.map((t) => t.text)
-items |> Array.reduce((acc, x) => acc + x.price, 0)
-onClick={() => setCount(count + 1)}
+todos |> Array.map((t) -> t.text)
+items |> Array.reduce((acc, x) -> acc + x.price, 0)
+onClick={() -> setCount(count + 1)}
 ```
 
 For simple field access, use dot shorthand:
@@ -121,10 +121,10 @@ users |> Array.sortBy(.name)
 
 ```floe
 // COMPILE ERROR
-let double = (x) => x * 2
+let double(x) = x * 2
 
 // correct
-fn double(x: number) => number { x * 2 }
+let double(x: number) -> number = { x * 2 }
 ```
 
 ### Function Types
@@ -132,9 +132,9 @@ fn double(x: number) => number { x * 2 }
 Use `->` to describe function types:
 
 ```floe
-type Transform = (string) => number
-type Predicate = (Todo) => boolean
-type Callback = () => ()
+type Transform = (string) -> number
+type Predicate = (Todo) -> boolean
+type Callback = () -> ()
 ```
 
 ### Async Functions
@@ -142,7 +142,7 @@ type Callback = () => ()
 A function is async when its body uses `|> await` (or `|> Promise.await`). The return type must be `Promise<T>` -- the compiler enforces this, just like `?` requires `Result<T, E>`:
 
 ```floe
-fn fetchUser(id: string) => Promise<User> {
+let fetchUser(id: string) -> Promise<User> = {
   let response = fetch(`/api/users/${id}`) |> await
   response.json() |> await
 }
@@ -154,12 +154,12 @@ For functions without a return type annotation, the compiler infers `Promise<T>`
 
 ```floe
 // Verbose
-fn findUser(id: string) => Promise<Result<Option<User>, Error>> {
+let findUser(id: string) -> Promise<Result<Option<User>, Error>> = {
   // ...
 }
 
 // Sugar — the Promise<> wrapper is implied
-async fn findUser(id: string) => Result<Option<User>, Error> {
+async let findUser(id: string) -> Result<Option<User>, Error> = {
   // ...
 }
 ```
@@ -172,8 +172,8 @@ The `use` keyword flattens nested callbacks. The rest of the block becomes the c
 
 ```floe
 // Without use — deeply nested
-File.open(path, (file) =>
-    File.readAll(file, (contents) =>
+File.open(path, (file) ->
+    File.readAll(file, (contents) ->
         contents |> String.toUpper
     )
 )

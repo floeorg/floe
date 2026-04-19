@@ -61,7 +61,7 @@ users |> Array.sortBy(.name)
 For anything more complex, use an arrow closure:
 
 ```floe
-todos |> Array.map((t) => Todo(..t, done: !t.done))
+todos |> Array.map((t) -> Todo(..t, done: !t.done))
 ```
 
 ## Method-Style Pipes
@@ -74,7 +74,7 @@ import { map, filter, reduce } from "ramda"
 let total = orders
   |> filter(.status == "complete")
   |> map(.amount)
-  |> reduce((sum, n) => sum + n, 0, _)
+  |> reduce((sum, n) -> sum + n, 0, _)
 ```
 
 ## Debugging with `tap`

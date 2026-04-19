@@ -34,12 +34,12 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 ```floe
 // Transform without unwrapping
 let upper = user.nickname
-  |> Option.map((n) => String.toUpperCase(n))
+  |> Option.map((n) -> String.toUpperCase(n))
 // Some("RYAN") or None
 
 // Chain lookups
 let avatar = user.nickname
-  |> Option.flatMap((n) => findAvatar(n))
+  |> Option.flatMap((n) -> findAvatar(n))
 
 // Extract with fallback
 let display = user.nickname
@@ -47,8 +47,8 @@ let display = user.nickname
 
 // Lazy fallback chain
 let config = localConfig
-  |> Option.orElse(() => envConfig)
-  |> Option.orElse(() => defaultConfig)
+  |> Option.orElse(() -> envConfig)
+  |> Option.orElse(() -> defaultConfig)
 
 // Convert to Result for error handling
 let name = user.nickname
@@ -56,14 +56,14 @@ let name = user.nickname
 
 // Filter — keep Some only if predicate passes
 let longName = user.nickname
-  |> Option.filter((n) => String.length(n) > 3)
+  |> Option.filter((n) -> String.length(n) > 3)
 
 // Zip — combine two Options
 let pair = Option.zip(firstName, lastName)
 // Some(("Alice", "Smith")) or None
 
 // Handle { data, error } pattern (TanStack Query, Supabase, etc.)
-const { data, error } = supabase.rpc("get_entries", { query }) |> Promise.await
+let { data, error } = supabase.rpc("get_entries", { query }) |> Promise.await
 error |> Option.toErr?              // bail if error exists
 let rows = data |> Option.unwrapOr([])
 
@@ -73,7 +73,7 @@ let allNames = [Some("Alice"), Some("Bob"), None]
 
 // Optional JSX rendering — render if present, nothing if absent
 <div>
-  {user.nickname |> Option.map((nick) => <Badge>{nick}</Badge>)}
+  {user.nickname |> Option.map((nick) -> <Badge>{nick}</Badge>)}
 </div>
 // None renders nothing (undefined is ignored by React)
 ```

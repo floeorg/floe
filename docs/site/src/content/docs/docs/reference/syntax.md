@@ -17,40 +17,40 @@ title: Syntax Reference
 ```floe
 let x = 42
 let name: string = "hello"
-export const PI = 3.14159
+export let PI = 3.14159
 
 // Destructuring
-const (a, b) = pair             // tuple
-const { name, age } = user      // record
+let (a, b) = pair             // tuple
+let { name, age } = user      // record
 // (array destructuring not allowed in `const`; use `Array.get` or a match pattern)
 ```
 
 ### Function
 
 ```floe
-fn name(param: Type) => ReturnType {
+let name(param: Type) -> ReturnType = {
   body
 }
 
 // Generic function — type parameters after the name
-fn name<T>(param: T) => T {
+let name<T>(param: T) -> T = {
   body
 }
 
-fn name<A, B>(a: A, b: B) => (A, B) {
+let name<A, B>(a: A, b: B) -> (A, B) = {
   body
 }
 
-export fn name(param: Type) => ReturnType {
+export let name(param: Type) -> ReturnType = {
   body
 }
 
-fn name() => Promise<T> {
+let name() -> Promise<T> = {
   expr |> Promise.await
 }
 
-// async fn sugar — `async fn f() => T` means `fn f() => Promise<T>`
-async fn name() => T {
+// async fn sugar — `async fn f() -> T` means `fn f() -> Promise<T>`
+async let name() -> T = {
   expr |> await
 }
 ```
@@ -112,13 +112,13 @@ result(b)
 
 ```floe
 for Type {
-  fn method(self) => ReturnType {
+  fn method(self) -> ReturnType {
     body
   }
 }
 
 for Array<User> {
-  fn adults(self) => Array<User> {
+  fn adults(self) -> Array<User> {
     self |> Array.filter(.age >= 18)
   }
 }
@@ -128,20 +128,20 @@ for Array<User> {
 
 ```floe
 trait Display {
-  fn display(self) => string
+  fn display(self) -> string
 }
 
 // Trait with default implementation
 trait Eq {
-  fn eq(self, other: Self) => boolean
-  fn neq(self, other: Self) => boolean {
+  fn eq(self, other: Self) -> boolean
+  fn neq(self, other: Self) -> boolean {
     !(self |> eq(other))
   }
 }
 
 // Implement a trait
 for User: Display {
-  fn display(self) => string {
+  fn display(self) -> string {
     `${self.name} (${self.age})`
   }
 }
@@ -280,25 +280,25 @@ Color.Blue(hex: "#00f") // variant with data
 ### Anonymous Functions (Closures)
 
 ```floe
-(a: number, b: number) => a + b
-(x: number) => x * 2
-() => doSomething()
+(a: number, b: number) -> a + b
+(x: number) -> x * 2
+() -> doSomething()
 ```
 
 Dot shorthand for field access:
 
 ```floe
-.name           // (x) => x.name
-.id != id       // (x) => x.id != id
-.done == false  // (x) => x.done == false
+.name           // (x) -> x.name
+.id != id       // (x) -> x.id != id
+.done == false  // (x) -> x.done == false
 ```
 
 ### Function Types
 
 ```floe
-() => ()                    // takes nothing, returns nothing
-(string) => number          // takes string, returns number
-(number, number) => boolean    // takes two numbers, returns boolean
+() -> ()                    // takes nothing, returns nothing
+(string) -> number          // takes string, returns number
+(number, number) -> boolean    // takes two numbers, returns boolean
 ```
 
 ### JSX
@@ -323,7 +323,7 @@ let result = parseYaml(input)   // Result<T, Error> — auto-wrapped
 
 // trusted imports — safe to call directly, no wrapping
 import trusted { useState } from "react"
-const (count, setCount) = useState(0)
+let (count, setCount) = useState(0)
 
 // Per-function trusted
 import { trusted capitalize, fetchData } from "some-lib"

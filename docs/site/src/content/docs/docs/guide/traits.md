@@ -10,7 +10,7 @@ A trait declares method signatures that implementing types must provide:
 
 ```floe
 trait Display {
-  fn display(self) => string
+  fn display(self) -> string
 }
 ```
 
@@ -22,7 +22,7 @@ Use `for Type: Trait` to implement a trait for a type:
 type User = { name: string, age: number }
 
 for User: Display {
-  fn display(self) => string {
+  fn display(self) -> string {
     `${self.name} (${self.age})`
   }
 }
@@ -36,14 +36,14 @@ Traits can provide default method bodies. Implementors inherit them unless they 
 
 ```floe
 trait Eq {
-  fn eq(self, other: string) => boolean
-  fn neq(self, other: string) => boolean {
+  fn eq(self, other: string) -> boolean
+  fn neq(self, other: string) -> boolean {
     !(self |> eq(other))
   }
 }
 
 for User: Eq {
-  fn eq(self, other: string) => boolean {
+  fn eq(self, other: string) -> boolean {
     self.name == other
   }
   // neq is inherited from the default implementation
@@ -57,12 +57,12 @@ Traits and their implementations sit on either side of the `export`/`import` rul
 ```floe
 // Define and export a trait
 export trait Display {
-  fn display(self) => string
+  fn display(self) -> string
 }
 
 // Export every method in a trait impl at once
 export for User: Display {
-  fn display(self) => string { self.name }
+  fn display(self) -> string { self.name }
 }
 ```
 
@@ -72,7 +72,7 @@ Import traits with the `for` prefix -- the same syntax used to pull in cross-fil
 import { User, for Display } from "./types"
 
 for User: Display {
-  fn display(self) => string { self.name }
+  fn display(self) -> string { self.name }
 }
 ```
 
@@ -84,11 +84,11 @@ A type can implement multiple traits:
 
 ```floe
 for User: Display {
-  fn display(self) => string { self.name }
+  fn display(self) -> string { self.name }
 }
 
 for User: Eq {
-  fn eq(self, other: string) => boolean { self.name == other }
+  fn eq(self, other: string) -> boolean { self.name == other }
 }
 ```
 
@@ -129,7 +129,7 @@ Traits are **erased at compile time**. `for User: Display` compiles to exactly t
 ```floe
 // Floe
 for User: Display {
-  fn display(self) => string { self.name }
+  fn display(self) -> string { self.name }
 }
 
 // Compiled TypeScript (identical to plain for-block)

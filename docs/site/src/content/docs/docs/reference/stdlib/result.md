@@ -36,15 +36,15 @@ Functions for working with `Result<T, E>` (`Ok(v)` / `Err(e)`) values.
 ```floe
 // Transform success value
 let doubled = fetchCount()
-  |> Result.map((n) => n * 2)
+  |> Result.map((n) -> n * 2)
 
 // Handle errors
 let result = fetchUser(id)
-  |> Result.mapErr((e) => AppError(e))
+  |> Result.mapErr((e) -> AppError(e))
 
 // Chain operations
 let profile = fetchUser(id)
-  |> Result.flatMap((u) => fetchProfile(u.profileId))
+  |> Result.flatMap((u) -> fetchProfile(u.profileId))
 
 // Extract with fallback
 let count = fetchCount()
@@ -52,11 +52,11 @@ let count = fetchCount()
 
 // Lazy fallback chain
 let data = fetchFromPrimary(id)
-  |> Result.orElse((e) => fetchFromBackup(id))
+  |> Result.orElse((e) -> fetchFromBackup(id))
 
 // Filter — keep Ok only if predicate passes
 let validAge = parseAge(input)
-  |> Result.filter((n) => n >= 18, "must be 18+")
+  |> Result.filter((n) -> n >= 18, "must be 18+")
 
 // Zip — combine two Results
 let pair = Result.zip(fetchUser(id), fetchProfile(id))
@@ -68,8 +68,8 @@ let users = [fetchUser(1), fetchUser(2), fetchUser(3)]
 
 // Debug with inspect
 let result = fetchUser(id)
-  |> Result.inspect((u) => Console.log("got user", u))
-  |> Result.mapErr((e) => AppError(e))
+  |> Result.inspect((u) -> Console.log("got user", u))
+  |> Result.mapErr((e) -> AppError(e))
 ```
 
 ## Guard Pattern
@@ -77,7 +77,7 @@ let result = fetchUser(id)
 `Result.guard` combines with [`use`](/docs/guide/use/) for early returns on errors:
 
 ```floe
-use data <- Result.guard(fetchResult, (e) => <ErrorPage error={e} />)
+use data <- Result.guard(fetchResult, (e) -> <ErrorPage error={e} />)
 <Dashboard data={data} />
 ```
 

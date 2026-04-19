@@ -73,11 +73,11 @@ type AdminPageProps = {
     data: Result<Data, AppError>,
 }
 
-export fn AdminPage(props: AdminPageProps) => JSX.Element {
+export let AdminPage(props: AdminPageProps) -> JSX.Element = {
     use <- Bool.guard(props.auth.isAdmin, <Forbidden />)
     use <- Bool.guard(props.auth.isVerified, <VerifyPrompt />)
     use user <- Option.guard(props.maybeUser, <LoginPage />)
-    use data <- Result.guard(props.data, (e) => <ErrorPage error={e} />)
+    use data <- Result.guard(props.data, (e) -> <ErrorPage error={e} />)
 
     // by here: admin, verified, user unwrapped, data unwrapped
     <Dashboard user={user} data={data} />
@@ -101,7 +101,7 @@ use <- Bool.guard(condition, fallbackValue)
 ```floe
 type PremiumContentProps = { isPaid: boolean }
 
-export fn PremiumContent(props: PremiumContentProps) => JSX.Element {
+export let PremiumContent(props: PremiumContentProps) -> JSX.Element = {
     use <- Bool.guard(props.isPaid, <UpgradePage />)
 
     <PremiumDashboard />
@@ -120,7 +120,7 @@ use value <- Option.guard(optionValue, fallbackValue)
 ```floe
 type ProfileProps = { maybeUser: Option<User> }
 
-export fn Profile(props: ProfileProps) => JSX.Element {
+export let Profile(props: ProfileProps) -> JSX.Element = {
     use user <- Option.guard(props.maybeUser, <LoginPrompt />)
 
     <ProfileCard name={user.name} />
@@ -132,15 +132,15 @@ export fn Profile(props: ProfileProps) => JSX.Element {
 Unwrap `Ok`, bail on `Err` with an error handler:
 
 ```floe
-use value <- Result.guard(resultValue, (err) => fallbackValue)
+use value <- Result.guard(resultValue, (err) -> fallbackValue)
 // value is the Ok value here
 ```
 
 ```floe
 type DataPageProps = { result: Result<Data, ApiError> }
 
-export fn DataPage(props: DataPageProps) => JSX.Element {
-    use data <- Result.guard(props.result, (e) => <ErrorBanner error={e} />)
+export let DataPage(props: DataPageProps) -> JSX.Element = {
+    use data <- Result.guard(props.result, (e) -> <ErrorBanner error={e} />)
 
     <DataTable rows={data.rows} />
 }
@@ -157,10 +157,10 @@ type OrderPageProps = {
     paymentResult: Result<Payment, PaymentError>,
 }
 
-export fn OrderPage(props: OrderPageProps) => JSX.Element {
+export let OrderPage(props: OrderPageProps) -> JSX.Element = {
     use <- Bool.guard(props.auth.isLoggedIn, <LoginPage />)
     use order <- Option.guard(props.maybeOrder, <p>Order not found</p>)
-    use payment <- Result.guard(props.paymentResult, (e) =>
+    use payment <- Result.guard(props.paymentResult, (e) ->
         <PaymentError message={e.message} />
     )
 
@@ -226,7 +226,7 @@ Note the distinction between the two parenthesised forms:
 ```floe
 import { use } from "react"
 
-export fn AsyncLabel(props: { promise: Promise<string> }) => JSX.Element {
+export let AsyncLabel(props: { promise: Promise<string> }) -> JSX.Element = {
     let label = use(props.promise)
     <span>{label}</span>
 }

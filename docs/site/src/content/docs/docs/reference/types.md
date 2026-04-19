@@ -88,7 +88,7 @@ type BaseProps = {
 
 type ButtonProps = {
   ...BaseProps,
-  onClick: () => (),
+  onClick: () -> (),
   label: string,
 }
 ```
@@ -164,9 +164,9 @@ Only code in the module that defines `Email` can construct or destructure it. Ot
 Structural function types. Use `=>` between the parameter list and return type:
 
 ```floe
-type Handler = (Request) => Promise<Response>
-type Predicate<T> = (T) => boolean
-type Reducer<S, A> = (S, A) => S
+type Handler = (Request) -> Promise<Response>
+type Predicate<T> = (T) -> boolean
+type Reducer<S, A> = (S, A) -> S
 ```
 
 ## Structural String-Literal Unions (`OneOf<>`)
@@ -226,7 +226,7 @@ Result<User, Error>
 Option<string>
 
 // Function (structural)
-(number, number) => number
+(number, number) -> number
 
 // Tuple
 (string, number)
