@@ -108,7 +108,7 @@
         },
         {
           "name": "invalid.illegal.keyword.floe",
-          "match": "\\b(let|var|class|enum|throw|null|undefined|any|as|function)\\b"
+          "match": "\\b(var|class|enum|throw|null|undefined|any|as|function)\\b"
         }
       ]
     },
