@@ -53,7 +53,7 @@ pub fn check_block(block: &CodeBlock) -> Vec<BlockError> {
 
 /// Recursively find Markdown files under `root`.
 ///
-/// Includes `*.md` and `*.mdx`. Follows symlinks is `false` to avoid cycles.
+/// Includes `*.md` and `*.mdx`. Symlinks are not followed, to avoid cycles.
 pub fn find_markdown_files(root: &Path) -> Vec<PathBuf> {
     if root.is_file() {
         return vec![root.to_path_buf()];

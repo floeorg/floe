@@ -49,27 +49,22 @@ pub fn extract_blocks(source: &str, path: &Path) -> Vec<CodeBlock> {
 
     let mut i = 0;
     while i < lines.len() {
-        let line = lines[i];
-        if let Some(fence) = parse_opening_fence(line) {
+        if let Some(fence) = parse_opening_fence(lines[i]) {
             let body_start = i + 1;
-            let mut body_end = lines.len();
-            for (j, body_line) in lines.iter().enumerate().skip(body_start) {
-                if is_closing_fence(body_line, &fence) {
-                    body_end = j;
-                    break;
-                }
-            }
+            let body_end = (body_start..lines.len())
+                .find(|&j| is_closing_fence(lines[j], &fence))
+                .unwrap_or(lines.len());
 
             if is_floe_info(&fence.info) {
-                let mut code = String::new();
-                for body_line in &lines[body_start..body_end] {
-                    code.push_str(&strip_indent(body_line, fence.indent));
-                }
+                let code = lines[body_start..body_end]
+                    .iter()
+                    .map(|l| strip_indent(l, fence.indent))
+                    .collect::<String>();
                 blocks.push(CodeBlock {
                     path: path.to_path_buf(),
                     code,
                     start_line: body_start + 1,
-                    info: fence.info.clone(),
+                    info: fence.info,
                 });
             }
 
@@ -88,7 +83,10 @@ struct Fence {
     info: String,
 }
 
-fn parse_opening_fence(line: &str) -> Option<Fence> {
+/// Scan a line for the common fence shape: up to 3 spaces of indent, 3+
+/// backticks, and whatever follows. Returns `None` for lines that can't be
+/// any kind of fence.
+fn scan_fence(line: &str) -> Option<(usize, usize, &str)> {
     let (indent, rest) = leading_indent(line);
     if indent > 3 {
         return None;
@@ -97,8 +95,12 @@ fn parse_opening_fence(line: &str) -> Option<Fence> {
     if ticks < 3 {
         return None;
     }
-    let info_raw = &rest[ticks..];
-    let info = info_raw.trim_end_matches(['\n', '\r']).trim().to_string();
+    Some((indent, ticks, &rest[ticks..]))
+}
+
+fn parse_opening_fence(line: &str) -> Option<Fence> {
+    let (indent, ticks, tail) = scan_fence(line)?;
+    let info = tail.trim_end_matches(['\n', '\r']).trim().to_string();
     // CommonMark forbids backticks in the info string of a backtick fence.
     if info.contains('`') {
         return None;
@@ -111,67 +113,34 @@ fn parse_opening_fence(line: &str) -> Option<Fence> {
 }
 
 fn is_closing_fence(line: &str, opening: &Fence) -> bool {
-    let (indent, rest) = leading_indent(line);
-    if indent > 3 {
+    let Some((_, ticks, tail)) = scan_fence(line) else {
         return false;
-    }
-    let ticks = rest.chars().take_while(|c| *c == '`').count();
-    if ticks < opening.length {
-        return false;
-    }
-    // Everything after the ticks must be whitespace.
-    rest[ticks..]
-        .trim_end_matches(['\n', '\r'])
-        .trim()
-        .is_empty()
+    };
+    ticks >= opening.length && tail.trim_end_matches(['\n', '\r']).trim().is_empty()
 }
 
 fn leading_indent(line: &str) -> (usize, &str) {
-    let mut count = 0;
-    for (i, ch) in line.char_indices() {
-        if ch == ' ' {
-            count += 1;
-        } else {
-            return (count, &line[i..]);
-        }
-    }
-    (count, "")
+    let count = line.chars().take_while(|c| *c == ' ').count();
+    (count, &line[count..])
 }
 
-fn strip_indent(line: &str, indent: usize) -> String {
-    let mut stripped = 0;
-    let mut idx = 0;
-    for (i, ch) in line.char_indices() {
-        if stripped == indent {
-            idx = i;
-            break;
-        }
-        if ch == ' ' {
-            stripped += 1;
-            idx = i + 1;
-        } else {
-            idx = i;
-            break;
-        }
+fn strip_indent(line: &str, indent: usize) -> &str {
+    let (n, rest) = leading_indent(line);
+    if n >= indent {
+        // The line is indented at least as far as the fence; trim exactly the
+        // fence indent and keep any extra indentation as part of the code.
+        &line[indent..]
+    } else {
+        // Less indentation than the fence (blank lines, mostly) — emit as-is.
+        rest
     }
-    line[idx..].to_string()
 }
 
 fn is_floe_info(info: &str) -> bool {
-    let mut iter = info.char_indices();
-    let Some((_, first)) = iter.next() else {
-        return false;
-    };
-    if !first.is_ascii_alphanumeric() && first != '_' {
-        return false;
-    }
     let end = info
-        .char_indices()
-        .find(|(_, c)| c.is_whitespace() || *c == ',')
-        .map(|(i, _)| i)
+        .find(|c: char| c.is_whitespace() || c == ',')
         .unwrap_or(info.len());
-    let lang = &info[..end];
-    lang.eq_ignore_ascii_case("floe")
+    info[..end].eq_ignore_ascii_case("floe")
 }
 
 #[cfg(test)]
