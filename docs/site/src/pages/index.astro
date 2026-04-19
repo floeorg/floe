@@ -501,7 +501,8 @@ type User = {
   active: boolean,
 }
 
-type Status = | Loading
+type Status =
+  | Loading
   | Failed(string)
   | Ready(Array<User>)
 
@@ -629,7 +630,8 @@ users
             route.fl
           </div>
           <Code
-            code={`type Route = | Home
+            code={`type Route = 
+  | Home
   | Profile(string)
   | Settings
   | NotFound
