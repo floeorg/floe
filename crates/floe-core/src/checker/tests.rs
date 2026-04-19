@@ -8522,3 +8522,244 @@ let _ident = call((o) -> o.a + o.b)
         errors.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn lambda_param_inferred_through_generic_trusted_fn() {
+    // The real-world Hono case: `post<E>(r: Router<E>, path: string,
+    // handler: (c: Context<{ Bindings: E }>) => Response)` — the lambda's
+    // `c` param should resolve to `Context<{ Bindings: <concrete E> }>`
+    // after `E` is unified from the first argument's type.
+    use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { router, post } from "some-router"
+type Bindings = { db: string }
+export let app = router<Bindings>() |> post("/", (c) -> c.path)
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Router<E> has an opaque inner (we only care that it's a named wrapper
+    // so post's signature can correlate its `E` with the first arg).
+    let router_fn = DtsExport {
+        name: "router".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Router".to_string(),
+                args: vec![TsType::Named("E".to_string())],
+            }),
+        },
+    };
+    // post(r: Router<E>, path: string, handler: (c: Ctx<E>) -> string): Router<E>
+    // Ctx<E> modeled as an object with a `path: string` field so we can
+    // observe propagation by checking `c.path` in the lambda body.
+    let ctx_obj = TsType::Object(vec![ObjectField {
+        name: "path".to_string(),
+        ty: TsType::Primitive("string".to_string()),
+        optional: false,
+    }]);
+    let post_fn = DtsExport {
+        name: "post".to_string(),
+        ts_type: TsType::Function {
+            params: vec![
+                FunctionParam {
+                    ty: TsType::Generic {
+                        name: "Router".to_string(),
+                        args: vec![TsType::Named("E".to_string())],
+                    },
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: TsType::Function {
+                        params: vec![FunctionParam {
+                            ty: ctx_obj,
+                            optional: false,
+                        }],
+                        return_type: Box::new(TsType::Primitive("string".to_string())),
+                    },
+                    optional: false,
+                },
+            ],
+            return_type: Box::new(TsType::Generic {
+                name: "Router".to_string(),
+                args: vec![TsType::Named("E".to_string())],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-router".to_string(), vec![router_fn, post_fn]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "generic trusted higher-order fn should type-check inline lambda, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn lambda_param_hint_not_clobbered_by_adjacent_trusted_calls_in_pipe_chain() {
+    // Realistic shape of a Hono routing pipeline: a `router<E>()` returning a
+    // wrapper, piped through multiple `post(path, (c) -> ...)` calls. Each
+    // lambda must pick up its own Context type from the expected handler
+    // param, and the hint from one call must not leak into or be overwritten
+    // by the next. Regression guard for #1234 once the fix lands.
+    use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { router, post, get } from "some-router"
+type Bindings = { DB: string }
+export let app = router<Bindings>()
+    |> get("/", (c) -> c.path)
+    |> post("/snippets", (c) -> c.path)
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let router_fn = DtsExport {
+        name: "router".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Router".to_string(),
+                args: vec![TsType::Named("E".to_string())],
+            }),
+        },
+    };
+    let handler_fn_type = TsType::Function {
+        params: vec![FunctionParam {
+            ty: TsType::Object(vec![ObjectField {
+                name: "path".to_string(),
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            }]),
+            optional: false,
+        }],
+        return_type: Box::new(TsType::Primitive("string".to_string())),
+    };
+    let make_route_fn = |name: &str| DtsExport {
+        name: name.to_string(),
+        ts_type: TsType::Function {
+            params: vec![
+                FunctionParam {
+                    ty: TsType::Generic {
+                        name: "Router".to_string(),
+                        args: vec![TsType::Named("E".to_string())],
+                    },
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: handler_fn_type.clone(),
+                    optional: false,
+                },
+            ],
+            return_type: Box::new(TsType::Generic {
+                name: "Router".to_string(),
+                args: vec![TsType::Named("E".to_string())],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "some-router".to_string(),
+        vec![router_fn, make_route_fn("get"), make_route_fn("post")],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "pipe-chained trusted higher-order calls should each receive their lambda hint, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn lambda_param_inferred_from_trusted_imported_higher_order_fn() {
+    // A trusted import that takes a callback should propagate the expected
+    // callback parameter type into an inline lambda. Previously the lambda
+    // param came back as `unknown`, forcing users to re-annotate (e.g.
+    // Hono's `post(path, (c: Context<...>) -> ...)`).
+    use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { withUser } from "some-lib"
+let _name = withUser((u) -> u.name)
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    // Mock: withUser(cb: (u: { id: number, name: string }) => string): string
+    let user_obj = TsType::Object(vec![
+        ObjectField {
+            name: "id".to_string(),
+            ty: TsType::Primitive("number".to_string()),
+            optional: false,
+        },
+        ObjectField {
+            name: "name".to_string(),
+            ty: TsType::Primitive("string".to_string()),
+            optional: false,
+        },
+    ]);
+    let with_user = DtsExport {
+        name: "withUser".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Function {
+                    params: vec![FunctionParam {
+                        ty: user_obj,
+                        optional: false,
+                    }],
+                    return_type: Box::new(TsType::Primitive("string".to_string())),
+                },
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Primitive("string".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![with_user]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "inline lambda to trusted higher-order fn should type-check, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

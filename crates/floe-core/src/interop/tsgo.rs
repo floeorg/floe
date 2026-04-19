@@ -19,7 +19,10 @@ use crate::parser::ast::*;
 
 use super::DtsExport;
 use super::TsType;
-use super::dts::parse_dts_exports_from_str;
+use super::dts::{
+    collect_function_aliases_from_file, collect_referenced_modules, expand_cross_module_aliases,
+    parse_dts_exports_from_str, parse_dts_exports_with_import_sources, strip_import_sentinels,
+};
 
 use probe_gen::generate_probe;
 #[cfg(feature = "native")]
@@ -172,7 +175,7 @@ impl TsgoResolver {
             eprintln!("[floe] DTS OUTPUT:\n{dts_content}");
         }
 
-        let exports = match parse_dts_exports_from_str(&dts_content) {
+        let mut exports = match parse_dts_exports_with_import_sources(&dts_content) {
             Ok(exports) => exports,
             Err(e) => {
                 eprintln!("[floe] tsgo: failed to parse output: {e}");
@@ -180,8 +183,51 @@ impl TsgoResolver {
             }
         };
 
+        // tsgo emits cross-module type alias references as
+        // `import("pkg").AliasName<args>`. `parse_dts_exports_from_str`
+        // encodes the source module into the name so we can resolve those
+        // references here by parsing each referenced package's `.d.ts` for
+        // its function-shaped aliases. Without this, aliases like
+        // `Handler<E>` from `@floeorg/hono` reach the checker as opaque
+        // `Foreign` types and the lambda-hint propagation path can't read
+        // the expected callback shape (#1234).
+        self.expand_cross_module_aliases_in(&mut exports);
+
         self.cache.insert(hash, exports.clone());
         build_specifier_map(program, &exports, ts_imports)
+    }
+
+    /// Resolve cross-module type-alias references (`import("pkg").X<...>`)
+    /// by parsing each referenced package's main `.d.ts`. Strips the
+    /// module-source sentinel from any names that survive unexpanded so the
+    /// boundary wrapper sees clean identifiers.
+    #[cfg(feature = "native")]
+    fn expand_cross_module_aliases_in(&self, exports: &mut [DtsExport]) {
+        let mut referenced = HashSet::new();
+        for export in exports.iter() {
+            collect_referenced_modules(&export.ts_type, &mut referenced);
+        }
+        // Fast path: tsgo output had no `import("pkg").X` references, so
+        // parse_dts_exports_from_str never encoded a sentinel and no
+        // expansion or stripping is needed.
+        if referenced.is_empty() {
+            return;
+        }
+        let mut aliases_by_module: HashMap<String, HashMap<String, _>> = HashMap::new();
+        for module in &referenced {
+            if let Some(dts_path) = typeof_resolve::find_package_dts(&self.project_dir, module) {
+                let aliases = collect_function_aliases_from_file(&dts_path);
+                if !aliases.is_empty() {
+                    aliases_by_module.insert(module.clone(), aliases);
+                }
+            }
+        }
+        for export in exports.iter_mut() {
+            if !aliases_by_module.is_empty() {
+                expand_cross_module_aliases(&mut export.ts_type, &aliases_by_module, 0);
+            }
+            strip_import_sentinels(&mut export.ts_type);
+        }
     }
 
     /// Enhance probe results with LSP/DTS parsing for better import types.
