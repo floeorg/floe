@@ -333,6 +333,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "floe-doc-check"
+version = "0.4.8"
+dependencies = [
+ "anyhow",
+ "clap",
+ "floe-core",
+ "walkdir",
+]
+
+[[package]]
 name = "floe-lsp"
 version = "0.4.8"
 dependencies = [
