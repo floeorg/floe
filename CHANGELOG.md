@@ -5,6 +5,32 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0](https://github.com/floeorg/floe/compare/v0.4.8...v0.5.0) (2026-04-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* [#1214] binding + arrow redesign — def-form functions, single `->` arrow ([#1223](https://github.com/floeorg/floe/issues/1223))
+* [#1208] type system redesign — universal `=`, `=>` in type positions, `OneOf`/`Intersect` ([#1222](https://github.com/floeorg/floe/issues/1222))
+
+### Features
+
+* [[#1192](https://github.com/floeorg/floe/issues/1192)] ship @floeorg/esbuild-plugin ([#1193](https://github.com/floeorg/floe/issues/1193)) ([f71289c](https://github.com/floeorg/floe/commit/f71289c167ebeb242ef07d68c6bff808a1c5252a))
+* [[#1200](https://github.com/floeorg/floe/issues/1200)] make `use` a contextual keyword + object-destructure bindings ([#1207](https://github.com/floeorg/floe/issues/1207)) ([f5a7acb](https://github.com/floeorg/floe/commit/f5a7acb03e63655ee504e70bd20b8aab2b19e6df))
+* [[#1208](https://github.com/floeorg/floe/issues/1208)] type system redesign — universal `=`, `=>` in type positions, `OneOf`/`Intersect` ([#1222](https://github.com/floeorg/floe/issues/1222)) ([530e701](https://github.com/floeorg/floe/commit/530e701e6fbce9c73ca45776f877045752c10b2f))
+* [[#1214](https://github.com/floeorg/floe/issues/1214)] binding + arrow redesign — def-form functions, single `->` arrow ([#1223](https://github.com/floeorg/floe/issues/1223)) ([5490630](https://github.com/floeorg/floe/commit/54906304c3a25e66dec342e7132e81e8fd1ffe07))
+* [[#1224](https://github.com/floeorg/floe/issues/1224)] add floe-doc-check for syntax-checking docs samples ([#1225](https://github.com/floeorg/floe/issues/1225)) ([090717f](https://github.com/floeorg/floe/commit/090717fba356266c3a57348b5d89937c6263e445))
+
+
+### Bug Fixes
+
+* [[#1194](https://github.com/floeorg/floe/issues/1194)] expose Router.fetch so `export default app` works under Workers ([#1196](https://github.com/floeorg/floe/issues/1196)) ([f1c845f](https://github.com/floeorg/floe/commit/f1c845fefcf9bc69e2fcaf283fa22aa1b711415a))
+* [[#1197](https://github.com/floeorg/floe/issues/1197)] resolve overloaded method return types via __chain_call_ probes ([#1205](https://github.com/floeorg/floe/issues/1205)) ([78aada0](https://github.com/floeorg/floe/commit/78aada0362e66d58233d76b16ceb1c7af47c011d))
+* [[#1198](https://github.com/floeorg/floe/issues/1198)] cover trailing newlines in LSP format TextEdit range ([#1199](https://github.com/floeorg/floe/issues/1199)) ([07cab1f](https://github.com/floeorg/floe/commit/07cab1fb70a96d9fe059f0de488dd8bdbf7d0cb5))
+* [[#1209](https://github.com/floeorg/floe/issues/1209)] instantiate + unify generics in bare-identifier pipes ([#1216](https://github.com/floeorg/floe/issues/1216)) ([29a73e3](https://github.com/floeorg/floe/commit/29a73e3b6304a5744cd2a766cccf6dc54fdbc640))
+* [[#1210](https://github.com/floeorg/floe/issues/1210)] build @floeorg/* integrations on pnpm install ([#1212](https://github.com/floeorg/floe/issues/1212)) ([9d3c607](https://github.com/floeorg/floe/commit/9d3c6078f7d40a9850d6d441274f7cf4241bf171))
+* [[#1211](https://github.com/floeorg/floe/issues/1211)] preserve generic args on Foreign type references ([#1213](https://github.com/floeorg/floe/issues/1213)) ([86c5958](https://github.com/floeorg/floe/commit/86c5958d0f8dedae57d521607b52d2e0895feb51))
+
 ## [0.4.8](https://github.com/floeorg/floe/compare/v0.4.7...v0.4.8) (2026-04-18)
 
 
