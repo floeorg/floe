@@ -54,6 +54,11 @@ jobs:
         run: cargo install cross --locked
 
       - name: Build
+        env:
+          # .cargo/config.toml pins clang+mold for linux targets to speed up native builds,
+          # but the cross-rs container ships neither. Override back to the container default.
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS: ""
         run: |
           if [ "${{ matrix.cross }}" = "true" ]; then
             cross build --release --target ${{ matrix.target }}
