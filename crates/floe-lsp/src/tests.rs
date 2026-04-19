@@ -38,10 +38,10 @@ fn offset_to_position_first_line() {
 
 #[test]
 fn offset_to_position_second_line() {
-    let source = "let x = 42\nconst y = 10";
+    let source = "let x = 42\nlet y = 10";
     let pos = offset_to_position(source, 19);
     assert_eq!(pos.line, 1);
-    assert_eq!(pos.character, 6);
+    assert_eq!(pos.character, 8);
 }
 
 #[test]
@@ -71,24 +71,24 @@ fn word_at_offset_basic() {
 #[test]
 fn word_at_offset_at_boundary() {
     let source = "let x = 42";
-    assert_eq!(word_at_offset(source, 0), "const");
+    assert_eq!(word_at_offset(source, 0), "let");
 }
 
 #[test]
 fn word_prefix_at_offset_partial() {
     let source = "let hel";
-    assert_eq!(word_prefix_at_offset(source, 9), "hel");
+    assert_eq!(word_prefix_at_offset(source, 7), "hel");
 }
 
 #[test]
 fn word_prefix_at_offset_empty() {
     let source = "let ";
-    assert_eq!(word_prefix_at_offset(source, 6), "");
+    assert_eq!(word_prefix_at_offset(source, 4), "");
 }
 
 #[test]
 fn banned_keyword_produces_parse_error() {
-    let source = "let x = 42";
+    let source = "var x = 42";
     let parse_result = Parser::new(source).parse_program();
     assert!(parse_result.is_err());
     let errs = parse_result.unwrap_err();
@@ -218,8 +218,8 @@ fn pipe_context_detected() {
     assert!(is_pipe_context("users |> ", 9));
     assert!(is_pipe_context("users |>  ", 10));
     assert!(is_pipe_context("x |> f() |> ", 12));
-    assert!(!is_pipe_context("let x = 42", 12));
-    assert!(!is_pipe_context("let x = |", 11));
+    assert!(!is_pipe_context("let x = 42", 10));
+    assert!(!is_pipe_context("let x = |", 9));
 }
 
 #[test]
@@ -660,8 +660,8 @@ fn unannotated_const_detail_includes_inferred_type() {
 fn hover_nested_const_shows_type() {
     // Reproduces #583: const inside nested fn shows no type on hover
     let source = r#"
-fn outer() {
-    fn inner() {
+let outer() = {
+    let inner() = {
         let s = "hello"
     }
 }
@@ -678,8 +678,8 @@ fn outer() {
 fn hover_nested_const_with_type_annotation() {
     // const with type annotation should show type even when nested
     let source = r#"
-fn outer() {
-    fn inner() {
+let outer() = {
+    let inner() = {
         let s: Option<number> = None
     }
 }
@@ -762,7 +762,7 @@ fn jsx_tag_detected() {
     assert!(is_in_jsx_tag("<button on", 10));
     assert!(is_in_jsx_tag("<div className", 14));
     assert!(!is_in_jsx_tag("<button>content", 15));
-    assert!(!is_in_jsx_tag("let x = 42", 12));
+    assert!(!is_in_jsx_tag("let x = 42", 10));
 }
 
 #[test]
@@ -955,7 +955,7 @@ fn import_path_at_offset_bare_import() {
 fn hover_inner_function_shows_unit_return() {
     let source = r#"
 export let outer() -> () = {
-    fn handleAdd() {
+    let handleAdd() = {
         Console.log("hi")
     }
     handleAdd()
@@ -1007,9 +1007,9 @@ fn simulate_goto_def(source: &str, cursor_offset: usize) -> Option<(usize, usize
 
 #[test]
 fn goto_def_type_usage_in_annotation() {
-    let source = "type Color = | Red | Green | Blue\nfn pick(c: Color) -> string { \"ok\" }\n";
-    // Find "Color" in fn pick(c: Color)
-    let usage_offset = source.find("fn pick(c: Color)").unwrap() + "fn pick(c: ".len();
+    let source = "type Color = | Red | Green | Blue\nlet pick(c: Color) -> string = { \"ok\" }\n";
+    // Find "Color" in let pick(c: Color)
+    let usage_offset = source.find("let pick(c: Color)").unwrap() + "let pick(c: ".len();
     eprintln!(
         "Color usage at offset {usage_offset}, char: {:?}",
         &source[usage_offset..usage_offset + 5]
@@ -1023,7 +1023,7 @@ fn goto_def_type_usage_in_annotation() {
 
 #[test]
 fn goto_def_const_variable_usage() {
-    let source = "let first = (x: number): number => { x + 1 }\nfn second(x: number) => number { x + 2 }\n\nconst a = first(1)\nconst b = second(a)\n";
+    let source = "let first(x: number) -> number = { x + 1 }\nlet second(x: number) -> number = { x + 2 }\n\nlet a = first(1)\nlet b = second(a)\n";
     // Find "a" in second(a)
     let usage_offset = source.find("second(a)").unwrap() + "second(".len();
     eprintln!(
@@ -1039,7 +1039,7 @@ fn goto_def_const_variable_usage() {
 
 #[test]
 fn goto_def_union_variant_in_match() {
-    let source = "type Color = | Red | Green | Blue\nfn describe(c: Color) -> string {\n    match c {\n        Red -> \"red\",\n        Green -> \"green\",\n        Blue -> \"blue\",\n    }\n}\n";
+    let source = "type Color = | Red | Green | Blue\nlet describe(c: Color) -> string = {\n    match c {\n        Red -> \"red\",\n        Green -> \"green\",\n        Blue -> \"blue\",\n    }\n}\n";
     // Find "Red" in match arm
     let usage_offset = source.find("Red -> \"red\"").unwrap();
     eprintln!(
@@ -1130,5 +1130,5 @@ fn end_position_utf16_surrogate_pair_on_last_line() {
     // "𝕊" (U+1D54A) is encoded as two UTF-16 code units — LSP character
     // offsets must count code units, not chars.
     let pos = end_position("let s = \"𝕊\"");
-    assert_eq!(pos, Position::new(0, 14));
+    assert_eq!(pos, Position::new(0, 12));
 }

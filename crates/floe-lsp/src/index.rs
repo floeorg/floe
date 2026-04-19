@@ -166,7 +166,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     start: item.span.start,
                     end: item.span.end,
                     import_source: None,
-                    detail: format!("{vis}const {name}{type_ann}"),
+                    detail: format!("{vis}let {name}{type_ann}"),
                     first_param_type: None,
                     owner_type: None,
                     variant_shape: None,
