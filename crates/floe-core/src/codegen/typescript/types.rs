@@ -81,7 +81,7 @@ impl<'a> TypeScriptGenerator<'a> {
                     docs.push(pretty::str(format!("_p{i}: ")));
                     docs.push(self.emit_type_expr(param));
                 }
-                docs.push(pretty::str(") -> "));
+                docs.push(pretty::str(") => "));
                 docs.push(self.emit_type_expr(return_type));
                 pretty::concat(docs)
             }

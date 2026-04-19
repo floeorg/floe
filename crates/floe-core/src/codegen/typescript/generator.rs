@@ -15,17 +15,17 @@ use super::super::{
 
 /// `todo` expression — throws "not implemented" at runtime.
 pub(super) const THROW_NOT_IMPLEMENTED: &str =
-    "(() -> { throw new Error(\"not implemented\"); })()";
+    "(() => { throw new Error(\"not implemented\"); })()";
 
 /// `unreachable` expression — throws "unreachable" at runtime.
-pub(super) const THROW_UNREACHABLE: &str = "(() -> { throw new Error(\"unreachable\"); })()";
+pub(super) const THROW_UNREACHABLE: &str = "(() => { throw new Error(\"unreachable\"); })()";
 
 /// Fallback for non-exhaustive match — throws at runtime.
 pub(super) const THROW_NON_EXHAUSTIVE: &str =
-    "(() -> { throw new Error(\"non-exhaustive match\"); })()";
+    "(() => { throw new Error(\"non-exhaustive match\"); })()";
 
 /// Mock placeholder for function types — throws when called.
-pub(super) const THROW_MOCK_FUNCTION: &str = "(() -> { throw new Error(\"mock function\"); })";
+pub(super) const THROW_MOCK_FUNCTION: &str = "(() => { throw new Error(\"mock function\"); })";
 
 /// Maximum line width for pretty-printing. The current codegen produces
 /// fixed-layout output: groups are built to never break, so the width

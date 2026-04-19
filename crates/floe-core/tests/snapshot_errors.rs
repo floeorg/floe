@@ -251,7 +251,7 @@ fn snapshot_error_no_cascade_from_undefined_name() {
     // cascading "type mismatch" errors on downstream uses.
     let output = get_diagnostics(
         "test.fl",
-        "let check() -> number = {\n  undefined_name + 1\n}",
+        "let check() => number = {\n  undefined_name + 1\n}",
     );
     insta::assert_snapshot!(output);
 }

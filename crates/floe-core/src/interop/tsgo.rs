@@ -1248,7 +1248,7 @@ export let handler(c: Context<unknown>) -> string ={
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         assert!(
-            probe.contains("declare let __chain_base_Context: Context;"),
+            probe.contains("declare const __chain_base_Context: Context;"),
             "probe should declare a Context chain base, got:\n{probe}"
         );
         // `.req` is a property, NOT a method call — it must NOT get `(null! as any)`

@@ -809,12 +809,12 @@ fn generic_function_multi_params_codegen() {
 
 #[test]
 fn lambda_single_arg() {
-    assert_eq!(emit("(x) -> x + 1"), "(x) -> x + 1;");
+    assert_eq!(emit("(x) -> x + 1"), "(x) => x + 1;");
 }
 
 #[test]
 fn lambda_multi_arg() {
-    assert_eq!(emit("(a, b) -> a + b"), "(a, b) -> a + b;");
+    assert_eq!(emit("(a, b) -> a + b"), "(a, b) => a + b;");
 }
 
 // ── Derived function binding ─────────────────────────────────
@@ -882,7 +882,7 @@ fn floe_eq_helper_emitted_for_stdlib_contains() {
 #[test]
 fn option_unwrap_or_chained_with_pipe() {
     let result = emit(
-        "let _x: Option<Array<number>> = None\nconst _y = _x |> Option.unwrapOr([]) |> filter((n) -> n > 0)",
+        "let _x: Option<Array<number>> = None\nconst _y = _x |> Option.unwrapOr([]) |> filter((n) => n > 0)",
     );
     // The ternary from unwrapOr must be parenthesized so .filter binds to the result, not to []
     assert!(
@@ -895,7 +895,7 @@ fn option_unwrap_or_chained_with_pipe() {
 fn option_stdlib_uses_null_check_not_undefined() {
     // Option functions must use != null (catches both null and undefined)
     // not !== undefined (misses null from serde/JSON)
-    let result = emit("let _x: Option<number> = None\nconst _y = _x |> Option.map((n) -> n + 1)");
+    let result = emit("let _x: Option<number> = None\nconst _y = _x |> Option.map((n) => n + 1)");
     assert!(
         result.contains("!= null") && !result.contains("!== undefined"),
         "Option.map should use != null, not !== undefined, got: {result}"
@@ -1341,7 +1341,7 @@ let _f = Validation
 "#,
     );
     assert!(
-        result.contains(r#"(errors) -> ({ __tag: "Validation", errors })"#),
+        result.contains(r#"(errors) => ({ __tag: "Validation", errors })"#),
         "got: {result}"
     );
 }
@@ -1372,7 +1372,7 @@ let _f = SaveError.Validation
 "#,
     );
     assert!(
-        result.contains(r#"(errors) -> ({ __tag: "Validation", errors })"#),
+        result.contains(r#"(errors) => ({ __tag: "Validation", errors })"#),
         "got: {result}"
     );
 }
@@ -1404,7 +1404,7 @@ let _f = Rect
 "#,
     );
     assert!(
-        result.contains(r#"(width, height) -> ({ __tag: "Rect", width, height })"#),
+        result.contains(r#"(width, height) => ({ __tag: "Rect", width, height })"#),
         "got: {result}"
     );
 }
@@ -1949,7 +1949,7 @@ fn parse_array_type_codegen() {
 fn parse_in_pipe() {
     let result = emit("x |> parse<string>");
     assert!(
-        result.contains("let __v = x"),
+        result.contains("const __v = x"),
         "should use piped value, got: {result}"
     );
     assert!(
