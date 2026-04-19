@@ -9,22 +9,22 @@ class TestHoverBasic:
 
     def test_const_number(self, lsp):
         open_doc(lsp, URI,F.SIMPLE)
-        h = hover_text(lsp.hover(URI, 0, 6))
+        h = hover_text(lsp.hover(URI, 0, 4))
         assert h is not None and "number" in h, f"Expected number type, got: {h}"
 
     def test_const_string(self, lsp):
         open_doc(lsp, URI,F.SIMPLE)
-        h = hover_text(lsp.hover(URI, 1, 6))
+        h = hover_text(lsp.hover(URI, 1, 4))
         assert h is not None and "string" in h, f"Expected string type, got: {h}"
 
     def test_const_boolean(self, lsp):
         open_doc(lsp, URI,F.SIMPLE)
-        h = hover_text(lsp.hover(URI, 2, 6))
+        h = hover_text(lsp.hover(URI, 2, 4))
         assert h is not None and ("boolean" in h or "bool" in h), f"Expected boolean type, got: {h}"
 
     def test_fn_signature(self, lsp):
         open_doc(lsp, URI,F.SIMPLE)
-        h = hover_text(lsp.hover(URI, 4, 3))
+        h = hover_text(lsp.hover(URI, 4, 4))
         assert h is not None and "let add" in h, f"Expected let add signature, got: {h}"
 
     def test_export_fn_signature(self, lsp):
@@ -98,7 +98,7 @@ class TestHoverAdvanced:
 
     def test_nested_match_fn(self, lsp):
         open_doc(lsp, URI,F.NESTED_MATCH)
-        h = hover_text(lsp.hover(URI, 4, 3))
+        h = hover_text(lsp.hover(URI, 4, 4))
         assert h is not None and "describe" in h, f"Got: {h}"
 
     def test_spread_type(self, lsp):
@@ -148,17 +148,17 @@ class TestHoverAdvanced:
 
     def test_const_from_fn_call(self, lsp):
         open_doc(lsp, URI,F.MULTIPLE_FNS)
-        h = hover_text(lsp.hover(URI, 4, 6))
+        h = hover_text(lsp.hover(URI, 4, 4))
         assert h is not None and "number" in h, f"Got: {h}"
 
     def test_nested_fn_call_result(self, lsp):
         open_doc(lsp, URI,F.MULTIPLE_FNS)
-        h = hover_text(lsp.hover(URI, 7, 6))
+        h = hover_text(lsp.hover(URI, 7, 4))
         assert h is not None and "number" in h, f"Got: {h}"
 
     def test_fn_tuple_return(self, lsp):
         open_doc(lsp, URI,F.TUPLE_FILE)
-        h = hover_text(lsp.hover(URI, 0, 3))
+        h = hover_text(lsp.hover(URI, 0, 4))
         assert h is not None and "swap" in h, f"Got: {h}"
 
     def test_const_assigned_tuple(self, lsp):
@@ -168,12 +168,12 @@ class TestHoverAdvanced:
 
     def test_destructured_tuple_var(self, lsp):
         open_doc(lsp, URI,F.TUPLE_FILE)
-        h = hover_text(lsp.hover(URI, 5, 7))
+        h = hover_text(lsp.hover(URI, 5, 5))
         assert h is not None, f"Got: {h}"
 
     def test_trait_impl_fn(self, lsp):
         open_doc(lsp, URI,F.TRAIT_FILE)
-        h = hover_text(lsp.hover(URI, 10, 7))
+        h = hover_text(lsp.hover(URI, 10, 8))
         assert h is not None and "print" in h, f"Got: {h}"
 
     def test_inner_const(self, lsp):

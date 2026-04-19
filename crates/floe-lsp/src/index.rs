@@ -244,7 +244,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     end: item.span.end,
                     import_source: None,
                     detail: format!(
-                        "{vis}{async_kw}fn {}{type_params}({}){ret}",
+                        "{vis}{async_kw}let {}{type_params}({}){ret}",
                         decl.name,
                         params.join(", ")
                     ),
@@ -467,7 +467,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                         end: method.span.end,
                         import_source: None,
                         detail: format!(
-                            "{}.fn {}({}){ret}",
+                            "{}.let {}({}){ret}",
                             decl.name,
                             method.name,
                             params.join(", ")
@@ -827,7 +827,7 @@ fn for_block_function_symbol<T>(
         end,
         import_source,
         detail: format!(
-            "fn {}({}){ret}{source_suffix}",
+            "let {}({}){ret}{source_suffix}",
             func.name,
             params.join(", ")
         ),

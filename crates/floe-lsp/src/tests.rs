@@ -105,7 +105,7 @@ fn symbol_index_function() {
     assert_eq!(syms.len(), 1);
     assert_eq!(syms[0].kind, SymbolKind::FUNCTION);
     assert_eq!(
-        syms[0].detail, "fn add(a: number, b: number) -> number",
+        syms[0].detail, "let add(a: number, b: number) -> number",
         "function detail should use => for return type, not :"
     );
 }
@@ -117,7 +117,7 @@ fn symbol_index_function_no_return_type() {
     let syms = index.find_by_name("greet");
     assert_eq!(syms.len(), 1);
     assert_eq!(
-        syms[0].detail, "fn greet(name: string) -> ()",
+        syms[0].detail, "let greet(name: string) -> ()",
         "function without return type should show the checker's inferred return"
     );
 }
@@ -591,7 +591,7 @@ fn hover_function_shows_signature() {
     assert!(hover.is_some());
     let detail = hover.unwrap();
     assert!(
-        detail.contains("fn add"),
+        detail.contains("let add"),
         "hover for function should show signature, got: {detail}"
     );
     assert!(
@@ -934,7 +934,7 @@ for Array<Todo> {
     let syms = index.find_by_name("remaining");
     assert!(!syms.is_empty());
     assert_eq!(
-        syms[0].detail, "fn remaining(self: Array<Todo>) -> number",
+        syms[0].detail, "let remaining(self: Array<Todo>) -> number",
         "for-block function should show clean signature, not wrapped in for {{ }}"
     );
 }
