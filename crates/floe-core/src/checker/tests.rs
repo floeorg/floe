@@ -8539,13 +8539,13 @@ fn destructured_lambda_param_infers_body_return_type() {
     // main call path now defers arrow args and re-checks them with hints.
     let program = crate::parser::Parser::new(
         r#"
-fn call(cb: ({ a: number, b: number }) -> number) -> number {
+let call(cb: ({ a: number, b: number }) -> number) -> number = {
     cb({ a: 1, b: 2 })
 }
 
-const _plain = call(({ a, b }) => a + b)
-const _alias = call(({ a: x, b: y }) => x + y)
-const _ident = call((o) => o.a + o.b)
+let _plain = call(({ a, b }) -> a + b)
+let _alias = call(({ a: x, b: y }) -> x + y)
+let _ident = call((o) -> o.a + o.b)
 "#,
     )
     .parse_program()
