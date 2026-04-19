@@ -30,8 +30,8 @@ let Button = styled.button`color: ${primary}; padding: 8px`
 // Anonymous functions use (params) -> body (arrow closures)
 items |> map((x) -> x + 1)
 
-// Zero-arg closure
-onClick={() -> doSomething()}
+// Zero-arg closure — natural inside JSX attributes
+<button onClick={() -> doSomething()}>Click</button>
 
 // Dot shorthand for field access in callbacks
 users |> filter(.active)        // same as (u) -> u.active
@@ -425,11 +425,11 @@ items |> Array.filterMap((x) -> if_valid(x))     // map + filter in one pass (fn
 items |> Array.partition(.active)                 // (active, inactive) — split by predicate
 nested |> Array.flatten                           // Array<Array<T>> -> Array<T>
 users |> Array.uniqueBy(.email)                   // deduplicate by key function (keeps first)
-["a", "b", "c"] |> Array.indexOf("b")            // Some(1) — Option<number>, None if not found
+let idx = ["a", "b", "c"] |> Array.indexOf("b")  // Some(1) — Option<number>, None if not found
 items |> Array.findLast(.done)                    // find from end
 items |> Array.takeWhile(.active)                 // take while predicate holds
 items |> Array.dropWhile(.done)                   // drop while predicate holds
-["a", "b", "c"] |> Array.intersperse(", ")       // ["a", ", ", "b", ", ", "c"]
+let joined = ["a", "b", "c"] |> Array.intersperse(", ")  // ["a", ", ", "b", ", ", "c"]
 
 // Promise helpers
 // Promise.await (or bare `await`): Promise<T> -> T (compiles to await, infers async on enclosing fn)
@@ -697,7 +697,7 @@ export let App() -> JSX.Element = {
     let (todos, setTodos) = useState<Array<Todo>>([])
     let (input, setInput) = useState("")
 
-    fn handleAdd() {
+    let handleAdd() = {
         setTodos(todos |> append(Todo(id: "1", text: input, done: false)))
         setInput("")
     }

@@ -54,10 +54,10 @@ jobs:
         run: cargo build --profile ci
 
       - name: Check Floe code samples in docs
-        # Only user-facing docs. docs/design.md and docs/llms.txt are internal
-        # compiler specs that contain intentional pseudo-code and mixed TS/Floe
-        # snippets which aren't meant to parse as complete Floe programs.
-        run: cargo run --profile ci -p floe-doc-check -- docs/site/ README.md
+        # User-facing docs + llms.txt (LLMs generate Floe code from these — they
+        # MUST parse). docs/design.md is excluded; it's an internal compiler
+        # spec with intentional pseudo-code and mixed TS/Floe snippets.
+        run: cargo run --profile ci -p floe-doc-check -- docs/site/ docs/llms.txt README.md
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
