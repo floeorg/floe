@@ -195,7 +195,7 @@ mod tests {
     fn lookup_array_sort() {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Array", "sort").unwrap();
-        assert_eq!(f.codegen, "[...$0].sort((a, b) -> a - b)");
+        assert_eq!(f.codegen, "[...$0].sort((a, b) => a - b)");
     }
 
     #[test]
@@ -223,7 +223,7 @@ mod tests {
     fn lookup_array_sum() {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Array", "sum").unwrap();
-        assert_eq!(f.codegen, "$0.reduce((a, b) -> a + b, 0)");
+        assert_eq!(f.codegen, "$0.reduce((a, b) => a + b, 0)");
     }
 
     #[test]
