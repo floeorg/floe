@@ -22,7 +22,7 @@ class TestReferences:
 
     def test_const_def_and_usage(self, lsp):
         open_doc(lsp, URI, F.MULTIPLE_FNS)
-        refs = result_list(lsp.references(URI, 4, 6))
+        refs = result_list(lsp.references(URI, 4, 4))
         assert len(refs) >= 2, f"Got {len(refs)} refs"
 
     def test_large_union_variant(self, lsp):

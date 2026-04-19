@@ -180,7 +180,7 @@ let describe(d: Direction) -> string = {
 }
 """
 
-COMPLETION_PIPE = "let nums = [1, 2, 3]\nconst result = nums |> \n"
+COMPLETION_PIPE = "let nums = [1, 2, 3]\nlet result = nums |> \n"
 
 JSX_COMPONENT = """\
 import trusted { useState } from "react"

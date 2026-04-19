@@ -46,7 +46,7 @@ class TestGotoDefAdvanced:
 
     def test_const_variable_usage(self, lsp):
         open_doc(lsp, URI,F.MULTIPLE_FNS)
-        locs = def_locations(lsp.goto_definition(URI, 5, 17))  # "a" in second(a)
+        locs = def_locations(lsp.goto_definition(URI, 5, 15))  # "a" in second(a)
         assert len(locs) > 0
 
     @pytest.mark.parametrize(
@@ -61,7 +61,7 @@ class TestGotoDefAdvanced:
 
     def test_type_in_parameter(self, lsp):
         open_doc(lsp, URI,F.RECORD_SPREAD)
-        locs = def_locations(lsp.goto_definition(URI, 6, 20))  # User in parameter
+        locs = def_locations(lsp.goto_definition(URI, 6, 21))  # User in parameter
         assert len(locs) > 0
 
     def test_type_in_return_annotation(self, lsp):

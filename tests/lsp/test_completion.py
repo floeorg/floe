@@ -5,7 +5,7 @@ from . import fixtures as F
 
 KEYWORDS = ["fn", "const", "type", "match", "import", "export"]
 
-DOT_ACCESS_SOURCE = 'type User = { name: string, age: number }\nconst u = User(name: "a", age: 1)\nconst n = u.\n'
+DOT_ACCESS_SOURCE = 'type User = { name: string, age: number }\nlet u = User(name: "a", age: 1)\nlet n = u.\n'
 
 
 class TestCompletionBasic:
@@ -28,7 +28,7 @@ class TestCompletionBasic:
 class TestCompletionPipe:
     def test_after_pipe_has_items(self, lsp):
         open_doc(lsp, URI, F.COMPLETION_PIPE)
-        labels = completion_labels(lsp.completion(URI, 1, len("result = nums |> ")))
+        labels = completion_labels(lsp.completion(URI, 1, len("let result = nums |> ")))
         assert len(labels) > 0
 
     def test_array_module_methods(self, lsp):
@@ -37,8 +37,8 @@ class TestCompletionPipe:
         assert any(m in labels for m in ["map", "filter", "reduce", "sort", "length"]), f"Labels: {labels[:15]}"
 
     def test_string_module_methods(self, lsp):
-        open_doc(lsp, URI, 's = "hello"\nconst r = s |> String.\n')
-        labels = completion_labels(lsp.completion(URI, 1, len("r = s |> String.")))
+        open_doc(lsp, URI, 'let s = "hello"\nlet r = s |> String.\n')
+        labels = completion_labels(lsp.completion(URI, 1, len("let r = s |> String.")))
         assert any(m in labels for m in ["trim", "toUpperCase", "toLowerCase", "length", "split"]), f"Labels: {labels[:15]}"
 
 
@@ -60,19 +60,19 @@ class TestCompletionJsx:
 
 class TestCompletionAdvanced:
     def test_prefix_filtering(self, lsp):
-        open_doc(lsp, URI, "let apple() -> number { 1 }\nfn apricot() -> number { 2 }\nconst r = ap\n")
-        labels = completion_labels(lsp.completion(URI, 2, 12))
+        open_doc(lsp, URI, "let apple() -> number = { 1 }\nlet apricot() -> number = { 2 }\nlet r = ap\n")
+        labels = completion_labels(lsp.completion(URI, 2, 10))
         assert "apple" in labels and "apricot" in labels, f"Labels: {labels[:10]}"
 
     def test_imported_symbols(self, lsp):
-        lsp.open_doc("file:///tmp/helpers.fl", "export let helperFn() -> number { 42 }\n")
+        lsp.open_doc("file:///tmp/helpers.fl", "export let helperFn() -> number = { 42 }\n")
         lsp.collect_notifications("textDocument/publishDiagnostics", timeout=1)
         open_doc(lsp, URI, 'import { helperFn } from "./helpers"\n\n')
         labels = completion_labels(lsp.completion(URI, 1, 0))
         assert "helperFn" in labels, f"Labels: {labels[:15]}"
 
     def test_local_vars_in_fn_body(self, lsp):
-        open_doc(lsp, URI, "let outer() -> number {\n    local = 42\n    \n}")
+        open_doc(lsp, URI, "let outer() -> number = {\n    let local = 42\n    \n}")
         labels = completion_labels(lsp.completion(URI, 2, 4))
         assert "local" in labels, f"Labels: {labels[:15]}"
 
@@ -95,7 +95,7 @@ class TestCompletionDotAccess:
 
     def test_record_fields(self, lsp):
         open_doc(lsp, URI, DOT_ACCESS_SOURCE)
-        labels = completion_labels(lsp.completion(URI, 2, 13))
+        labels = completion_labels(lsp.completion(URI, 2, 11))
         assert "name" in labels, f"Labels: {labels[:15]}"
         assert "age" in labels, f"Labels: {labels[:15]}"
 
@@ -128,9 +128,9 @@ class TestCompletionDotAccess:
             assert kw not in labels, f"Keyword '{kw}' leaked into unresolved dot-access: {labels[:15]}"
 
     def test_spread_record_fields(self, lsp):
-        source = 'type Base = { id: string }\ntype Extended = { ...Base, extra: number }\nconst e = Extended(id: "1", extra: 42)\nconst n = e.\n'
+        source = 'type Base = { id: string }\ntype Extended = { ...Base, extra: number }\nlet e = Extended(id: "1", extra: 42)\nlet n = e.\n'
         open_doc(lsp, URI, source)
-        labels = completion_labels(lsp.completion(URI, 3, 13))
+        labels = completion_labels(lsp.completion(URI, 3, 11))
         assert "id" in labels, f"Spread field 'id' missing: {labels[:15]}"
         assert "extra" in labels, f"Field 'extra' missing: {labels[:15]}"
 
@@ -175,28 +175,28 @@ class TestCompletionPipeFiltering:
 
     def test_pipe_no_keywords(self, lsp):
         open_doc(lsp, URI, F.COMPLETION_PIPE)
-        labels = completion_labels(lsp.completion(URI, 1, len("result = nums |> ")))
+        labels = completion_labels(lsp.completion(URI, 1, len("let result = nums |> ")))
         for kw in KEYWORDS:
             assert kw not in labels, f"Keyword '{kw}' should not appear in pipe completions: {labels[:15]}"
 
     def test_pipe_uses_bare_names(self, lsp):
         """Pipe completions should use bare names like 'map', not 'Array.map'."""
         open_doc(lsp, URI, F.COMPLETION_PIPE)
-        labels = completion_labels(lsp.completion(URI, 1, len("result = nums |> ")))
+        labels = completion_labels(lsp.completion(URI, 1, len("let result = nums |> ")))
         assert "map" in labels, f"Bare 'map' should appear in pipe completions: {labels[:15]}"
         assert "filter" in labels, f"Bare 'filter' should appear: {labels[:15]}"
         assert "Array.map" not in labels, f"Qualified 'Array.map' should not appear in pipe completions: {labels[:15]}"
 
     def test_pipe_for_block_functions(self, lsp):
         """User-defined for-block functions should appear in pipe completions."""
-        source = 'type Todo = { text: string, done: boolean }\n\nfor Array<Todo> {\n    export let remaining(self) -> number {\n        self |> filter(.done == false) |> length\n    }\n}\n\nconst todos: Array<Todo> = []\nconst r = todos |> \n'
+        source = 'type Todo = { text: string, done: boolean }\n\nfor Array<Todo> {\n    export let remaining(self) -> number = {\n        self |> filter(.done == false) |> length\n    }\n}\n\nlet todos: Array<Todo> = []\nlet r = todos |> \n'
         open_doc(lsp, URI, source)
-        labels = completion_labels(lsp.completion(URI, 9, len("r = todos |> ")))
+        labels = completion_labels(lsp.completion(URI, 9, len("let r = todos |> ")))
         assert "remaining" in labels, f"For-block function 'remaining' should appear: {labels[:15]}"
 
     def test_pipe_string_bare_names(self, lsp):
         """String pipe completions should use bare names."""
-        open_doc(lsp, URI, 's = "hello"\nconst r = s |> \n')
-        labels = completion_labels(lsp.completion(URI, 1, len("r = s |> ")))
+        open_doc(lsp, URI, 'let s = "hello"\nlet r = s |> \n')
+        labels = completion_labels(lsp.completion(URI, 1, len("let r = s |> ")))
         assert "trim" in labels, f"Bare 'trim' should appear: {labels[:15]}"
         assert "String.trim" not in labels, f"Qualified 'String.trim' should not appear: {labels[:15]}"

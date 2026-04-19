@@ -128,7 +128,7 @@ fn symbol_index_exported_function() {
     let index = build_index(source);
     let syms = index.find_by_name("hello");
     assert_eq!(syms.len(), 1);
-    assert_eq!(syms[0].detail, "export fn hello() -> string",);
+    assert_eq!(syms[0].detail, "export let hello() -> string",);
 }
 
 #[test]
