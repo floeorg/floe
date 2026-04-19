@@ -671,11 +671,11 @@ impl<'src> Lowerer<'src> {
         &mut self,
         node: &SyntaxNode,
     ) -> Option<Expr> {
-        // For `(params) => body` arrows, find token expr after the `=>`.
+        // For `(params) -> body` arrows, find token expr after the `->`.
         let mut found_arrow = false;
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
-                if token.kind() == SyntaxKind::FAT_ARROW {
+                if token.kind() == SyntaxKind::THIN_ARROW {
                     found_arrow = true;
                     continue;
                 }
