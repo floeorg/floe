@@ -121,7 +121,7 @@ module.exports = grammar({
         field("name", $.identifier),
         optional(field("type_parameters", $.type_parameters)),
         field("parameters", $.parameter_list),
-        optional(seq("=>", field("return_type", $._type_expression))),
+        optional(seq("->", field("return_type", $._type_expression))),
         optional(field("body", $.block)),
       ),
 
@@ -151,11 +151,12 @@ module.exports = grammar({
     function_declaration: ($) =>
       seq(
         optional("async"),
-        "fn",
+        "let",
         field("name", choice($.identifier, $.type_identifier)),
         optional(field("type_parameters", $.type_parameters)),
         field("parameters", $.parameter_list),
-        optional(seq("=>", field("return_type", $._type_expression))),
+        optional(seq("->", field("return_type", $._type_expression))),
+        "=",
         field("body", $.block),
       ),
 
@@ -266,11 +267,10 @@ module.exports = grammar({
 
     function_type: ($) =>
       seq(
-        optional("fn"),
         "(",
         commaSep($._type_expression),
         ")",
-        "=>",
+        "->",
         $._type_expression,
       ),
 
@@ -284,7 +284,7 @@ module.exports = grammar({
 
     const_declaration: ($) =>
       seq(
-        "const",
+        "let",
         choice($.identifier, $.array_pattern, $.object_pattern),
         optional(seq(":", $._type_expression)),
         "=",
@@ -618,7 +618,7 @@ module.exports = grammar({
           "(",
           commaSep($.lambda_parameter),
           ")",
-          "=>",
+          "->",
           field("body", $._expression),
         ),
       ),

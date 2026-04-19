@@ -1,7 +1,7 @@
 ; ── Keywords ──────────────────────────────────────────────
+"let" @keyword
 "fn" @keyword
 "async" @keyword
-"const" @keyword
 "type" @keyword
 "match" @keyword
 "return" @keyword
@@ -83,12 +83,12 @@
   name: (identifier) @variable.parameter)
 
 ; ── Arrow closure ────────────────────────────────────────
-(arrow_closure "=>" @operator)
+(arrow_closure "->" @operator)
 
 ; ── Function type / return type arrow ─────────────────────
-(function_type "=>" @operator)
-(function_declaration "=>" @operator)
-(trait_method "=>" @operator)
+(function_type "->" @operator)
+(function_declaration "->" @operator)
+(trait_method "->" @operator)
 
 ; ── Dot shorthand ────────────────────────────────────────
 (dot_shorthand
