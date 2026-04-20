@@ -772,28 +772,50 @@ impl<'a> TypeScriptGenerator<'a> {
         callee: &TypedExpr,
         args: &[TypedArg],
     ) -> Document {
-        let param_name = "_x";
+        // Each `_` placeholder becomes a distinct arrow parameter. A single
+        // placeholder keeps the historical `_x` name for compact output;
+        // two or more use indexed names `_x0, _x1, …` in left-to-right
+        // source order.
+        let placeholder_count = args
+            .iter()
+            .filter(|a| match a {
+                Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                    matches!(e.kind, ExprKind::Placeholder)
+                }
+            })
+            .count();
+        let name_for = |idx: usize| {
+            if placeholder_count == 1 {
+                "_x".to_string()
+            } else {
+                format!("_x{idx}")
+            }
+        };
+
+        let param_list = (0..placeholder_count)
+            .map(name_for)
+            .collect::<Vec<_>>()
+            .join(", ");
+
         let mut docs = vec![
-            pretty::str(format!("({param_name}) => ")),
+            pretty::str(format!("({param_list}) => ")),
             self.emit_expr(callee),
             pretty::str("("),
         ];
+        let mut placeholder_idx = 0;
         for (i, arg) in args.iter().enumerate() {
             if i > 0 {
                 docs.push(pretty::str(", "));
             }
-            match arg {
-                Arg::Positional(expr) if matches!(expr.kind, ExprKind::Placeholder) => {
-                    docs.push(pretty::str(param_name));
-                }
-                Arg::Positional(expr) => docs.push(self.emit_expr(expr)),
-                Arg::Named { value, .. } => {
-                    if matches!(value.kind, ExprKind::Placeholder) {
-                        docs.push(pretty::str(param_name));
-                    } else {
-                        docs.push(self.emit_expr(value));
-                    }
-                }
+            let value_expr = match arg {
+                Arg::Positional(expr) => expr,
+                Arg::Named { value, .. } => value,
+            };
+            if matches!(value_expr.kind, ExprKind::Placeholder) {
+                docs.push(pretty::str(name_for(placeholder_idx)));
+                placeholder_idx += 1;
+            } else {
+                docs.push(self.emit_expr(value_expr));
             }
         }
         docs.push(pretty::str(")"));

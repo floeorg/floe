@@ -235,8 +235,10 @@ let result = value
 5 |> add(3, _)              // add(3, 5) — 5 goes to second arg
 42 |> wrap("[", _, "]")     // wrap("[", 42, "]") — 42 goes to second arg
 
-// _ outside pipes creates partial application
-let addTen = add(10, _)   // (x) -> add(10, x)
+// _ outside pipes creates partial application. Multiple _ placeholders
+// become parameters in left-to-right order.
+let addTen = add(10, _)       // (x) -> add(10, x)
+let sandwich = wrap(_, "-", _) // (a, c) -> wrap(a, "-", c)
 
 // tap for side effects mid-pipeline
 users
