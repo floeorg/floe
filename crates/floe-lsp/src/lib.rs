@@ -517,6 +517,12 @@ impl FloeLsp {
             .get(uri)
             .map(|d| d.dep_paths.clone())
             .unwrap_or_default();
+        // Keystroke edits typically don't change the import set. Skip the
+        // write lock when nothing changed so hover/completion handlers
+        // don't contend with us on every keypress.
+        if old_deps == *new_deps {
+            return;
+        }
         let mut reverse = self.reverse_deps.write().await;
         for path in old_deps.difference(new_deps) {
             if let Some(set) = reverse.get_mut(path) {
