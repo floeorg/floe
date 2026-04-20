@@ -33,10 +33,19 @@ target="${arch}-${os}"
 
 if [ "$VERSION" = "latest" ]; then
     msg "Resolving latest release tag"
-    VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+    api_url="https://api.github.com/repos/$REPO/releases/latest"
+    # Authenticate when GITHUB_TOKEN is present. Shared NAT pools (GHA
+    # macOS runners, corporate networks) hit the 60/hour anonymous limit
+    # quickly, and the token lifts it to 5000/hour.
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        release_json=$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$api_url")
+    else
+        release_json=$(curl -fsSL "$api_url")
+    fi
+    VERSION=$(printf '%s' "$release_json" \
         | sed -n 's/.*"tag_name" *: *"\([^"]*\)".*/\1/p' \
         | head -n 1)
-    [ -n "$VERSION" ] || die "failed to resolve latest tag — GitHub API may be rate-limiting. Set FLOE_VERSION explicitly (e.g. FLOE_VERSION=v0.5.4)."
+    [ -n "$VERSION" ] || die "failed to resolve latest tag — GitHub API may be rate-limiting. Set FLOE_VERSION explicitly (e.g. FLOE_VERSION=v0.5.4) or export GITHUB_TOKEN."
 fi
 
 url="https://github.com/$REPO/releases/download/$VERSION/floe-${target}.tar.gz"

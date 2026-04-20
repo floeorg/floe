@@ -152,9 +152,11 @@ jobs:
       - name: Run install.sh against the latest release
         # The script pulls from the GitHub Release, not this commit — we
         # just verify the OS/arch detection + tarball path still resolve
-        # and the binary runs.
+        # and the binary runs. GITHUB_TOKEN lifts the API rate limit so
+        # the shared-NAT macOS runner doesn't 403 on `releases/latest`.
         env:
           INSTALL_DIR: ${{ runner.temp }}/floe-install
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           sh install.sh
           "$INSTALL_DIR/floe" --version
