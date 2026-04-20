@@ -50,15 +50,20 @@ This project uses **conventional commits** + **release-please** for automated ve
 4. **The tag triggers the release workflow** which:
    - Cross-compiles binaries for macOS (arm64 + x86), Linux (x86 + arm64), Windows
    - Uploads them as assets on the GitHub Release
-   - Publishes `floe` to crates.io
-   - Publishes `@floeorg/vite-plugin` to npm
+   - Publishes `@floeorg/vite-plugin` (and the other `@floeorg/*` packages) to npm
    - Publishes the VS Code extension to Open VSX
+
+Floe is not distributed on crates.io — the compiler CLI is an end-user
+tool, not a library for other Rust projects, and `cargo install` compiles
+from source which is slow and assumes the Rust toolchain is installed.
+Users install via the prebuilt binaries in the GitHub Release or the npm
+integrations, following the same pattern as Gleam.
 
 ### Package names
 
 | Package | Registry | Name |
 |---|---|---|
-| Compiler CLI | crates.io | `floe` |
+| Compiler CLI | GitHub Releases | `floe` binary |
 | Vite plugin | npm | `@floeorg/vite-plugin` |
 | VS Code extension | Open VSX | `floeorg.floe` |
 
