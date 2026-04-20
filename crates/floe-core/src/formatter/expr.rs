@@ -1039,54 +1039,37 @@ impl Formatter<'_> {
         parts.push(pretty::str(")"));
 
         // Body may be a child node (block, binary expr, call, …) or a bare
-        // token (identifier, string, number, bool). Walk the children in
-        // order and take the first meaningful content after the thin arrow.
-        let mut past_arrow = false;
-        let mut body_node: Option<SyntaxNode> = None;
-        let mut body_token: Option<String> = None;
-        for t in node.children_with_tokens() {
-            match t {
-                rowan::NodeOrToken::Token(tok) => {
-                    if tok.kind() == SyntaxKind::THIN_ARROW {
-                        past_arrow = true;
-                        continue;
-                    }
-                    if past_arrow
-                        && !tok.kind().is_trivia()
-                        && body_node.is_none()
-                        && body_token.is_none()
-                    {
-                        body_token = Some(tok.text().to_string());
-                    }
-                }
-                rowan::NodeOrToken::Node(child) => {
-                    if past_arrow
-                        && child.kind() != SyntaxKind::PARAM
-                        && body_node.is_none()
-                        && body_token.is_none()
-                    {
-                        body_node = Some(child);
-                    }
-                }
-            }
-        }
+        // token (identifier, string, number, bool), since single-token
+        // expressions like `"poop"` aren't wrapped in a node.
+        let body = node
+            .children_with_tokens()
+            .skip_while(|t| {
+                t.as_token()
+                    .is_none_or(|tok| tok.kind() != SyntaxKind::THIN_ARROW)
+            })
+            .skip(1)
+            .find(|t| match t {
+                rowan::NodeOrToken::Token(tok) => !tok.kind().is_trivia(),
+                rowan::NodeOrToken::Node(child) => child.kind() != SyntaxKind::PARAM,
+            });
 
-        if let Some(body) = body_node {
-            if self.is_multiline_jsx(&body) {
+        match body {
+            Some(rowan::NodeOrToken::Node(body)) if self.is_multiline_jsx(&body) => {
                 parts.push(pretty::str(" ->"));
                 parts.push(pretty::nest(
                     4,
                     pretty::concat(vec![pretty::line(), self.fmt_node(&body)]),
                 ));
-            } else {
+            }
+            Some(rowan::NodeOrToken::Node(body)) => {
                 parts.push(pretty::str(" -> "));
                 parts.push(self.fmt_node(&body));
             }
-        } else if let Some(tok_text) = body_token {
-            parts.push(pretty::str(" -> "));
-            parts.push(pretty::str(tok_text));
-        } else {
-            parts.push(pretty::str(" ->"));
+            Some(rowan::NodeOrToken::Token(tok)) => {
+                parts.push(pretty::str(" -> "));
+                parts.push(pretty::str(tok.text().to_string()));
+            }
+            None => parts.push(pretty::str(" ->")),
         }
 
         pretty::concat(parts)
