@@ -61,11 +61,20 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                     }
                 }
                 _ => {
-                    // Preserve generic args in the display name
-                    let args_str: Vec<String> = args
-                        .iter()
-                        .map(|a| wrap_boundary_type(a).to_string())
-                        .collect();
+                    // If any arg contains a type-parameter placeholder (a
+                    // single-uppercase-letter `Named`, at any nesting depth —
+                    // e.g. `E` inside `Context<{ Bindings: E }>`), the
+                    // placeholder would leak into the encoded name and block
+                    // later substitution. Fall back to the bare name so the
+                    // Foreign-vs-Foreign compat check can stay permissive
+                    // for unresolved generics (mirrors the same guard in
+                    // `resolve_named_type`).
+                    let wrapped_args: Vec<Type> = args.iter().map(wrap_boundary_type).collect();
+                    if wrapped_args.iter().any(contains_placeholder_param) {
+                        return Type::foreign(name.clone());
+                    }
+                    let args_str: Vec<String> =
+                        wrapped_args.iter().map(|a| a.to_string()).collect();
                     Type::foreign(format!("{}<{}>", name, args_str.join(", ")))
                 }
             }
@@ -317,6 +326,19 @@ fn wrap_non_null_inner(ty: &TsType) -> Type {
         TsType::Null | TsType::Undefined => Type::Unit,
         other => wrap_boundary_type(other),
     }
+}
+
+/// True if `ty` contains anywhere in its tree a single-uppercase-letter
+/// `Named` — the convention for an unresolved TypeScript generic parameter
+/// (`T`, `E`, `U`). Used when deciding whether to encode generic args into
+/// a Foreign name string: a placeholder baked into the string blocks later
+/// substitution during Foreign-vs-Foreign compat.
+fn contains_placeholder_param(ty: &Type) -> bool {
+    crate::checker::type_any_nested(ty, &|t: &Type| match t {
+        Type::Var(_) => true,
+        Type::Named(n) => n.len() == 1 && n.chars().next().is_some_and(|c| c.is_ascii_uppercase()),
+        _ => false,
+    })
 }
 
 /// Unwrap SetStateAction<T> → T. If not a SetStateAction, return as-is.

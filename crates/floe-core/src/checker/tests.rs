@@ -8612,6 +8612,106 @@ export let app = router<Bindings>() |> post("/", (c) -> c.path)
 }
 
 #[test]
+fn named_handler_with_nested_type_param_matches_generic_callback() {
+    // Regression for #1263. A named handler with an explicit
+    // `Context<{ Bindings: Bindings }>` annotation should pass to a
+    // generic `post<E>` expecting `(c: Context<{ Bindings: E }>) -> ...`
+    // once `E` is inferred to `Bindings` from the first arg. Previously
+    // the Foreign name was eagerly encoded as `Context<{ Bindings: E }>`
+    // (because `E` is nested inside a record arg, not at the top level),
+    // so the string-based compat check saw `Context<{ Bindings: E }>` vs
+    // `Context<{ Bindings: Bindings }>` and rejected the handler.
+    use crate::interop::{DtsExport, FunctionParam, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { router, post, Context } from "some-router"
+type Bindings = { DB: string }
+
+let handleCreate(_c: Context<{ Bindings: Bindings }>) -> string = { "ok" }
+
+export let app = router<Bindings>() |> post("/", handleCreate)
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let context_ty = DtsExport {
+        name: "Context".to_string(),
+        ts_type: TsType::Any,
+    };
+    let router_fn = DtsExport {
+        name: "router".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Router".to_string(),
+                args: vec![TsType::Named("E".to_string())],
+            }),
+        },
+    };
+    let ctx_generic = TsType::Generic {
+        name: "Context".to_string(),
+        args: vec![TsType::Object(vec![ObjectField {
+            name: "Bindings".to_string(),
+            ty: TsType::Named("E".to_string()),
+            optional: false,
+        }])],
+    };
+    let post_fn = DtsExport {
+        name: "post".to_string(),
+        ts_type: TsType::Function {
+            params: vec![
+                FunctionParam {
+                    ty: TsType::Generic {
+                        name: "Router".to_string(),
+                        args: vec![TsType::Named("E".to_string())],
+                    },
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                },
+                FunctionParam {
+                    ty: TsType::Function {
+                        params: vec![FunctionParam {
+                            ty: ctx_generic,
+                            optional: false,
+                        }],
+                        return_type: Box::new(TsType::Primitive("string".to_string())),
+                    },
+                    optional: false,
+                },
+            ],
+            return_type: Box::new(TsType::Generic {
+                name: "Router".to_string(),
+                args: vec![TsType::Named("E".to_string())],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "some-router".to_string(),
+        vec![context_ty, router_fn, post_fn],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "named handler with Context<{{ Bindings: Bindings }}> should type-check against generic post<E>, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn lambda_param_hint_not_clobbered_by_adjacent_trusted_calls_in_pipe_chain() {
     // Realistic shape of a Hono routing pipeline: a `router<E>()` returning a
     // wrapper, piped through multiple `post(path, (c) -> ...)` calls. Each

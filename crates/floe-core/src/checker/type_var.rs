@@ -145,6 +145,40 @@ where
     }
 }
 
+/// True if `pred` holds at any node in `ty`'s tree (short-circuits). The
+/// structural walk mirrors `map_children` so new `Type` variants only need
+/// one update here, not at every call site that wants to ask "does this
+/// tree contain X?".
+pub fn any_nested<F>(ty: &Type, pred: &F) -> bool
+where
+    F: Fn(&Type) -> bool,
+{
+    if pred(ty) {
+        return true;
+    }
+    match ty {
+        Type::Promise(inner)
+        | Type::Array(inner)
+        | Type::Settable(inner)
+        | Type::Opaque { base: inner, .. } => any_nested(inner, pred),
+        Type::Set { element } => any_nested(element, pred),
+        Type::Map { key, value } | Type::RecordMap { key, value } => {
+            any_nested(key, pred) || any_nested(value, pred)
+        }
+        Type::Tuple(items) | Type::TsUnion(items) => items.iter().any(|t| any_nested(t, pred)),
+        Type::Record(fields) => fields.iter().any(|(_, t)| any_nested(t, pred)),
+        Type::Function {
+            params,
+            return_type,
+            ..
+        } => params.iter().any(|t| any_nested(t, pred)) || any_nested(return_type, pred),
+        Type::Union { variants, .. } => variants
+            .iter()
+            .any(|(_, fs)| fs.iter().any(|t| any_nested(t, pred))),
+        _ => false,
+    }
+}
+
 /// Recursively resolve all `Type::Var` `Link` chains in a type tree. Unlike
 /// `resolve`, which only follows the outermost link, `deep_resolve` rebuilds
 /// the entire tree so nested unbound-then-linked vars (like `Array<Unbound>`
