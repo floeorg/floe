@@ -53,19 +53,6 @@ jobs:
         if: matrix.cross
         run: cargo install cross --locked
 
-      - name: Strip .cargo/config.toml for cross build
-        if: matrix.cross
-        shell: bash
-        run: |
-          # The committed .cargo/config.toml pins `linker = "clang"` +
-          # `-fuse-ld=mold` for Linux targets so native dev/CI builds go
-          # fast. The cross-rs container ships neither tool, and the
-          # previous attempt (#1230) to override via CARGO_TARGET_* env
-          # vars wasn't reliably forwarded into the container. Empty the
-          # file during the cross step so the container toolchain
-          # defaults win (aarch64-linux-gnu-gcc).
-          : > .cargo/config.toml
-
       - name: Build
         run: |
           if [ "${{ matrix.cross }}" = "true" ]; then
