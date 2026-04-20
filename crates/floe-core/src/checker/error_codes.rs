@@ -73,8 +73,6 @@ pub enum ErrorCode {
     AccessOnUnknown,
     /// Access on promise - use `Promise.await` first.
     AccessOnPromise,
-    /// Only one `_` placeholder allowed per call.
-    MultiplePlaceholders,
 
     // ── Type registration errors ─────────────────────────────────────
     /// Type name must start with uppercase letter.
@@ -172,7 +170,6 @@ impl ErrorCode {
             Self::UnsafeNarrowing => "E024",
             Self::AccessOnUnknown => "E025",
             Self::AccessOnPromise => "E026",
-            Self::MultiplePlaceholders => "E027",
             Self::TypeNameCase => "E028",
             Self::InvalidEnumSpread => "E029",
             Self::DuplicateField => "E030",

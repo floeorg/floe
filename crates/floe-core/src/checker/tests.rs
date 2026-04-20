@@ -4544,17 +4544,61 @@ let _result = "hello" |> add(3, _)
 }
 
 #[test]
-fn multiple_placeholders_error() {
-    let diags = check(
-        r#"
-let add(a: number, b: number) -> number = { a + b }
-let _f = add(_, _)
+fn multiple_placeholders_build_multi_arg_function() {
+    // Regression for #1217. `add3(_, 5, _)` partially applies the middle
+    // slot, leaving two open params whose types come from the function's
+    // signature. The result is a two-arg function taking (number, number).
+    let (diags, types, _, _) = Checker::new().check_with_types(
+        &crate::parser::Parser::new(
+            r#"
+let add3(a: number, b: number, c: number) -> number = { a + b + c }
+let _f = add3(_, 5, _)
 "#,
+        )
+        .parse_program()
+        .expect("should parse"),
     );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
     assert!(
-        has_error_containing(&diags, "only one `_` placeholder allowed per call"),
-        "multiple placeholders should produce error, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+        errors.is_empty(),
+        "multi-placeholder partial application should type-check, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        types.get("_f").map(String::as_str),
+        Some("(number, number) -> number"),
+        "expected two-arg partial, got {:?}",
+        types.get("_f")
+    );
+}
+
+#[test]
+fn four_arg_partial_with_three_placeholders() {
+    let (diags, types, _, _) = Checker::new().check_with_types(
+        &crate::parser::Parser::new(
+            r#"
+let add4(a: number, b: number, c: number, d: number) -> number = { a + b + c + d }
+let _g = add4(_, _, 10, _)
+"#,
+        )
+        .parse_program()
+        .expect("should parse"),
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "three-placeholder partial should type-check, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        types.get("_g").map(String::as_str),
+        Some("(number, number, number) -> number"),
     );
 }
 

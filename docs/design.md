@@ -214,8 +214,10 @@ users
 "hello" |> String.padStart(_, 10)      // padStart("hello", 10)
 42 |> wrap("[", _, "]")                // wrap("[", 42, "]")
 
-// _ also works outside pipes — partial application
+// _ also works outside pipes — partial application. Multiple _ placeholders
+// become parameters in left-to-right order.
 let addTen = add(10, _)              // (x) -> add(10, x)
+let between = add3(_, 5, _)          // (a, c) -> add3(a, 5, c)
 [1, 2, 3] |> map(multiply(_, 2))      // [2, 4, 6]
 
 // Dot shorthand — .field creates an implicit closure

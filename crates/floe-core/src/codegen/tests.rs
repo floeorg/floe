@@ -467,6 +467,20 @@ fn partial_application() {
     assert_eq!(emit("add(10, _)"), "(_x) => add(10, _x);");
 }
 
+#[test]
+fn partial_application_multiple_placeholders() {
+    // add3(_, 5, _) -> (_x0, _x1) => add3(_x0, 5, _x1)
+    assert_eq!(emit("add3(_, 5, _)"), "(_x0, _x1) => add3(_x0, 5, _x1);");
+}
+
+#[test]
+fn partial_application_three_placeholders() {
+    assert_eq!(
+        emit("add4(_, _, 10, _)"),
+        "(_x0, _x1, _x2) => add4(_x0, _x1, 10, _x2);"
+    );
+}
+
 // ── Result / Option ──────────────────────────────────────────
 
 #[test]

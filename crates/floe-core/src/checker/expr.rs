@@ -920,25 +920,14 @@ impl Checker {
             self.ctx.lambda_param_hints = vec![(**elem_ty).clone()];
         }
 
-        // Detect placeholder args for partial application
-        let placeholder_count = args
-            .iter()
-            .filter(|a| match a {
-                Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                    matches!(e.kind, ExprKind::Placeholder)
-                }
-            })
-            .count();
-        let has_placeholder = placeholder_count > 0;
-
-        if placeholder_count > 1 {
-            self.emit_error(
-                "only one `_` placeholder allowed per call - use `(x, y) -> f(x, y)` for multiple parameters",
-                span,
-                ErrorCode::MultiplePlaceholders,
-                "multiple `_` placeholders",
-            );
-        }
+        // Detect placeholder args for partial application. Each `_` becomes
+        // a parameter of the resulting function in left-to-right order —
+        // `add3(_, 5, _)` lowers to `(a, c) => add3(a, 5, c)`.
+        let has_placeholder = args.iter().any(|a| match a {
+            Arg::Positional(e) | Arg::Named { value: e, .. } => {
+                matches!(e.kind, ExprKind::Placeholder)
+            }
+        });
 
         let callee_ty = self.check_expr(callee);
         // Pass 1: check non-arrow args now. Arrow args are deferred (marked
