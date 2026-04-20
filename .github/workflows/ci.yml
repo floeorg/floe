@@ -12,7 +12,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings -C link-arg=-fuse-ld=mold"
+  RUSTFLAGS: "-D warnings"
 
 jobs:
   rust:
@@ -30,9 +30,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ci-profile
-
-      - name: Install mold linker
-        run: sudo apt-get update && sudo apt-get install -y mold
 
       - name: Install nextest
         uses: taiki-e/install-action@nextest
