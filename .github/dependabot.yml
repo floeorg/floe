@@ -23,6 +23,12 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
+    ignore:
+      # ovsx publish rejects the VS Code extension when
+      # @types/vscode > engines.vscode. Bumping the types without also
+      # raising the minimum supported VS Code version breaks the Open VSX
+      # release, so pin this and lift it by hand together with engines.vscode.
+      - dependency-name: "@types/vscode"
 
   - package-ecosystem: "github-actions"
     directory: "/"
