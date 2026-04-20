@@ -244,7 +244,8 @@ impl<'src> Lowerer<'src> {
                     .children_with_tokens()
                     .filter_map(|ct| ct.into_token())
                     .find(|t| t.kind() == SyntaxKind::TEMPLATE_LITERAL)?;
-                let parts = self.lower_template_literal(template.text());
+                let template_start: usize = template.text_range().start().into();
+                let parts = self.lower_template_literal(template.text(), template_start);
                 Some(self.expr(
                     ExprKind::TaggedTemplate {
                         tag: Box::new(tag),
@@ -680,7 +681,7 @@ impl<'src> Lowerer<'src> {
                 Some(self.expr(ExprKind::String(self.unquote_string(text)), span))
             }
             SyntaxKind::TEMPLATE_LITERAL => {
-                let parts = self.lower_template_literal(text);
+                let parts = self.lower_template_literal(text, span.start);
                 Some(self.expr(ExprKind::TemplateLiteral(parts), span))
             }
             SyntaxKind::BOOL => Some(self.expr(ExprKind::Bool(text == "true"), span)),
