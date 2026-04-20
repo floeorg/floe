@@ -8,12 +8,8 @@ class TestHoverBasic:
     """Hover on constants, functions, and types."""
 
     def test_const_number(self, lsp):
-        # Use a minimal fixture — SIMPLE contains a template literal whose
-        # span miscalculation causes `find_expr_type_at_offset` to treat
-        # unrelated top-level bindings as having string type (known issue).
-        src = "let x = 42\n"
-        open_doc(lsp, URI, src)
-        h = hover_text(lsp.hover(URI, *at(src, "x")))
+        open_doc(lsp, URI, F.SIMPLE)
+        h = hover_text(lsp.hover(URI, *at(F.SIMPLE, "x")))
         assert h is not None and "number" in h, f"Expected number type, got: {h}"
 
     def test_const_string(self, lsp):

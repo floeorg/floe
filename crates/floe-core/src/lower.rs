@@ -97,13 +97,20 @@ impl<'src> Lowerer<'src> {
 
     /// Parse a template literal source text (including backticks) into AST
     /// `TemplatePart`s, properly lowering interpolated expressions.
-    pub(super) fn lower_template_literal(&self, text: &str) -> Vec<TemplatePart> {
-        // Strip backticks
-        let inner = if text.len() >= 2 && text.starts_with('`') && text.ends_with('`') {
-            &text[1..text.len() - 1]
-        } else {
-            text
-        };
+    pub(super) fn lower_template_literal(
+        &self,
+        text: &str,
+        template_token_start: usize,
+    ) -> Vec<TemplatePart> {
+        // Strip backticks. `inner_start_in_outer` is the absolute offset in the
+        // outer file where `inner` begins (1 past the opening backtick when
+        // present, otherwise the template token's own start).
+        let (inner, inner_start_in_outer) =
+            if text.len() >= 2 && text.starts_with('`') && text.ends_with('`') {
+                (&text[1..text.len() - 1], template_token_start + 1)
+            } else {
+                (text, template_token_start)
+            };
 
         let mut parts = Vec::new();
         let mut current_raw = String::new();
@@ -163,8 +170,13 @@ impl<'src> Lowerer<'src> {
                 let interp_end = i;
                 let interp_source = &inner[interp_start..interp_end.min(inner.len())];
 
-                // Parse the interpolation as a Floe expression
-                if let Some(expr) = self.parse_interpolation_expr(interp_source) {
+                // Parse the interpolation as a Floe expression. Pass the
+                // absolute outer-file offset of the interpolation source so
+                // lowered expressions carry spans in outer coordinates —
+                // LSP's tightest-span walk depends on this.
+                let interp_outer_start = inner_start_in_outer + interp_start;
+                if let Some(expr) = self.parse_interpolation_expr(interp_source, interp_outer_start)
+                {
                     parts.push(TemplatePart::Expr(expr));
                 } else {
                     // Fallback: store as raw if parsing fails
@@ -226,7 +238,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Parse a string of Floe source code as a single expression.
-    fn parse_interpolation_expr(&self, source: &str) -> Option<Expr> {
+    fn parse_interpolation_expr(&self, source: &str, outer_start: usize) -> Option<Expr> {
         use crate::cst::CstParser;
         use crate::lexer::Lexer;
 
@@ -242,9 +254,15 @@ impl<'src> Lowerer<'src> {
         };
         let program = lowerer.lower_root(&root);
 
-        // Extract the first expression from the program
+        // Extract the first expression; shift every span from interpolation-
+        // source coordinates to outer-file coordinates so downstream tools
+        // (LSP hover, diagnostics, go-to-def) report the right position.
         program.items.into_iter().find_map(|item| {
-            if let ItemKind::Expr(expr) = item.kind {
+            if let ItemKind::Expr(mut expr) = item.kind {
+                crate::walk::walk_expr_mut(&mut expr, &mut |e: &mut Expr| {
+                    e.span.start += outer_start;
+                    e.span.end += outer_start;
+                });
                 Some(expr)
             } else {
                 None
@@ -1178,6 +1196,57 @@ mod tests {
             items.len(),
             1,
             "chained use should nest into a single expression"
+        );
+    }
+
+    // ── Template literal interpolation spans ──────────────────────
+
+    #[test]
+    fn template_interpolation_span_is_in_outer_file_coordinates() {
+        // Regression for #1227. The lowered expression inside `${...}` must
+        // carry spans relative to the outer source, not the interpolation
+        // substring. Otherwise LSP's tightest-span walk sees a `name` expr
+        // claiming offsets (0, 4) and confuses it with an unrelated top-
+        // level binding sitting at offsets (0, 4).
+        let source = "let x = 42\n\nexport let greet(name: string) -> string = {\n    `Hello, ${name}!`\n}\n";
+        let program = lower(source);
+
+        // Walk every Expr and collect any with a span outside [0, source.len()).
+        // Also check that the interpolation `name` identifier's span points
+        // at its real position in the outer source.
+        let mut interp_ident_spans: Vec<crate::lower::Span> = Vec::new();
+        crate::walk::walk_program(&program, &mut |e: &Expr| {
+            if let ExprKind::Identifier(n) = &e.kind
+                && n == "name"
+                && e.span.end <= source.len()
+            {
+                let slice = &source[e.span.start..e.span.end];
+                if slice == "name" {
+                    interp_ident_spans.push(e.span);
+                }
+            }
+            assert!(
+                e.span.end <= source.len(),
+                "expr span {:?} extends past source length {}: kind={:?}",
+                e.span,
+                source.len(),
+                e.kind
+            );
+        });
+
+        let expected = source
+            .match_indices("${name}")
+            .next()
+            .map(|(i, _)| i + 2)
+            .expect("fixture must contain ${name}");
+        assert!(
+            interp_ident_spans
+                .iter()
+                .any(|s| s.start == expected && s.end == expected + 4),
+            "interpolation `name` span should be (outer-file-offset) ({}, {}); got {:?}",
+            expected,
+            expected + 4,
+            interp_ident_spans
         );
     }
 }
