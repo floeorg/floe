@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.4](https://github.com/floeorg/floe/compare/v0.5.3...v0.5.4) (2026-04-20)
+
+
+### Bug Fixes
+
+* trigger release workflow with clean toolchain config ([7259446](https://github.com/floeorg/floe/commit/7259446785cd80e1ab48534e8fcf2b8d62aeba4e))
+
 ## [0.5.3](https://github.com/floeorg/floe/compare/v0.5.2...v0.5.3) (2026-04-19)
 
 
