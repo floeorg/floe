@@ -97,11 +97,12 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Upload assets to GitHub Release
+      - name: Upload assets and promote draft to published
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.tag_name }}
           files: artifacts/*
+          draft: false
 
   publish-npm:
     name: Publish to npm
