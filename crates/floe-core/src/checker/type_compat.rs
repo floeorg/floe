@@ -64,6 +64,26 @@ impl Checker {
         Some(format!("{}<{}>", base, padded.join(", ")))
     }
 
+    /// Unfold a `Type::Named` that resolves to a `TypeDef::Alias` (structural
+    /// alias). Nominal defs (record / union / newtype / opaque) and names that
+    /// don't refer to a user-declared type return `None`.
+    pub(crate) fn unfold_structural_alias(&self, ty: &Type) -> Option<Type> {
+        let Type::Named(name) = ty else {
+            return None;
+        };
+        let info = self.env.lookup_type(name)?;
+        if info.opaque {
+            return None;
+        }
+        if !matches!(info.def, crate::parser::ast::TypeDef::Alias(_)) {
+            return None;
+        }
+        Some(
+            self.env
+                .resolve_to_concrete(ty, &expr::simple_resolve_type_expr),
+        )
+    }
+
     /// Resolve a `Type::Named` to its concrete underlying type, if possible.
     /// Returns `Some(concrete)` if the type was resolved, `None` if not a Named type.
     pub(crate) fn resolve_named_to_concrete(&self, ty: &Type) -> Option<Type> {
@@ -207,6 +227,17 @@ impl Checker {
         // `never` is compatible with any type (it means "this code never returns")
         if matches!(actual, Type::Never) || matches!(expected, Type::Never) {
             return true;
+        }
+
+        // Structural alias unfolding: `type F = () -> string` is a structural
+        // alias per docs/design.md, so `Named("F")` must unfold to its RHS
+        // before comparison. Nominal types (record defs, tagged unions,
+        // newtypes, opaque) stay nominal — only `TypeDef::Alias` unfolds.
+        if let Some(unfolded) = self.unfold_structural_alias(expected) {
+            return self.types_compatible(&unfolded, actual);
+        }
+        if let Some(unfolded) = self.unfold_structural_alias(actual) {
+            return self.types_compatible(expected, &unfolded);
         }
 
         // Result<T, E> is never compatible with a non-Result expected type.

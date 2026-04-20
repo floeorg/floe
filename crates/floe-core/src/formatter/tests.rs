@@ -991,3 +991,43 @@ fn idempotent_todo_app_todo_fl() {
     let src = include_str!("../../../../examples/todo-app/src/todo.fl");
     assert_idempotent(src);
 }
+
+// ── Single-expression closures keep their body (#1275) ──────
+
+#[test]
+fn format_zero_arg_closure_string_body() {
+    assert_fmt(r#"let f = () -> "poop""#, r#"let f = () -> "poop""#);
+}
+
+#[test]
+fn format_zero_arg_closure_with_alias_annotation() {
+    assert_fmt(
+        "type F = () -> string\nlet f: F = () -> \"poop\"",
+        "type F = () -> string\n\nlet f: F = () -> \"poop\"",
+    );
+}
+
+#[test]
+fn format_one_arg_closure_single_expression_body() {
+    assert_fmt("let f = (x) -> x + 1", "let f = (x) -> x + 1");
+}
+
+#[test]
+fn format_zero_arg_closure_identifier_body() {
+    assert_fmt("let f = () -> x", "let f = () -> x");
+}
+
+#[test]
+fn format_zero_arg_closure_block_body() {
+    assert_fmt(r#"let f = () -> { "x" }"#, "let f = () -> {\n    \"x\"\n}");
+}
+
+#[test]
+fn idempotent_zero_arg_closure_with_alias() {
+    assert_idempotent("type F = () -> string\n\nlet f: F = () -> \"poop\"\n");
+}
+
+#[test]
+fn idempotent_one_arg_closure_single_expression() {
+    assert_idempotent("let f = (x) -> x + 1\n");
+}
