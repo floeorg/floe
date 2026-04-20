@@ -139,6 +139,15 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
         // resolution should have replaced this with the enclosing interface name
         // before wrapping. If it survived, fall back to Unknown.
         TsType::This => Type::Unknown,
+
+        // Indexed access `Obj["key"]` — evaluate the lookup when the
+        // shape is concrete enough, else fall back to Unknown. Earlier
+        // stages (checker-side generic substitution) should have
+        // already reduced `E["Bindings"]` to `X["Bindings"]` when `E`
+        // is bound to `X`; here we just finish the lookup.
+        TsType::IndexedAccess { object, index } => super::evaluate_indexed_access(object, index)
+            .map(|ts| wrap_boundary_type(&ts))
+            .unwrap_or(Type::Unknown),
     }
 }
 

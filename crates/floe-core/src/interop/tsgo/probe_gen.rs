@@ -657,6 +657,14 @@ pub(super) fn generate_probe(
     // so we can generate type-based chain probes for:
     // - Parameters typed as npm types (e.g. db: Database)
     // - For-block self.field access where the field has an npm type (e.g. self.client: Database)
+    // `param_type_map` holds the imported type's **base name** (e.g. "Context")
+    // so chain keys stay file-safe identifiers. `type_annotation_map` records
+    // the **full** TS annotation (e.g. "Context<{ Bindings: Bindings }>") for
+    // the first parameter we saw of each base type — the probe emits that
+    // full form in `declare const __chain_base_X: Y;` so tsgo sees the
+    // concrete generic args and can resolve chains like `c.env.DB` instead
+    // of collapsing to the default parameter's `any`.
+    let mut type_annotation_map: HashMap<String, String> = HashMap::new();
     let param_type_map: HashMap<String, String> = {
         // Collect type declarations for field type lookups
         let type_decls: HashMap<&str, &TypeDecl> = program
@@ -686,17 +694,17 @@ pub(super) fn generate_probe(
             };
             for (func, self_type_name) in funcs_with_self_type {
                 for param in &func.params {
-                    if let Some(TypeExpr {
-                        kind:
-                            TypeExprKind::Named {
-                                name: type_name, ..
-                            },
-                        ..
-                    }) = &param.type_ann
+                    if let Some(ann) = &param.type_ann
+                        && let TypeExprKind::Named {
+                            name: type_name, ..
+                        } = &ann.kind
                         && (imported_names.contains_key(type_name)
                             || fl_type_names.contains(type_name.as_str()))
                     {
                         map.insert(param.name.clone(), type_name.clone());
+                        type_annotation_map
+                            .entry(type_name.clone())
+                            .or_insert_with(|| type_expr_to_ts(ann));
                     }
                 }
                 // For for-block methods, also check self's record fields for imported types
@@ -714,6 +722,9 @@ pub(super) fn generate_probe(
                                 || fl_type_names.contains(field_type.as_str()))
                         {
                             map.insert(format!("self.{}", field.name), field_type.clone());
+                            type_annotation_map
+                                .entry(field_type.clone())
+                                .or_insert_with(|| type_expr_to_ts(&field.type_ann));
                         }
                     }
                 }
@@ -819,7 +830,15 @@ pub(super) fn generate_probe(
                 // the table type even though select() has no args).
                 let base_name = format!("__chain_base_{}", path[0]);
                 if emitted_chain_bases.insert(base_name.clone()) {
-                    lines.push(format!("declare const {base_name}: {};", path[0]));
+                    // Prefer the full TS annotation (e.g. `Context<{ Bindings: Bindings }>`)
+                    // when the user wrote one, so tsgo propagates the concrete generic
+                    // args through the chain. Falls back to the bare base name when no
+                    // annotation was captured (for-block receivers keyed by path).
+                    let full_ty = type_annotation_map
+                        .get(&path[0])
+                        .cloned()
+                        .unwrap_or_else(|| path[0].clone());
+                    lines.push(format!("declare const {base_name}: {full_ty};"));
                 }
 
                 for end_idx in 2..path.len() {
