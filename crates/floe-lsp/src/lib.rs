@@ -383,6 +383,7 @@ impl FloeLsp {
 
         let externs = ExternTypes {
             dts_imports: tsgo_result.exports,
+            dts_generic_params: tsgo_result.generic_param_defs,
             ambient,
             ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
         };

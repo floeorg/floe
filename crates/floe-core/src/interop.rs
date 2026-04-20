@@ -28,7 +28,9 @@ use std::process::Command;
 use crate::checker::Type;
 
 // Re-export public API
-pub use dts::{DtsExport, parse_dts_exports};
+pub use dts::{
+    DtsExport, GenericParamInfo, collect_generic_param_defs_from_source, parse_dts_exports,
+};
 pub use ts_types::{FunctionParam, ObjectField, TsType, ts_type_to_string};
 pub use tsgo::{TsgoResolver, TsgoResult};
 pub use wrapper::wrap_boundary_type;

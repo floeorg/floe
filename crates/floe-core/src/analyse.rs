@@ -25,6 +25,11 @@ use crate::resolve::ResolvedImports;
 #[derive(Debug, Default, Clone)]
 pub struct ExternTypes {
     pub dts_imports: HashMap<String, Vec<DtsExport>>,
+    /// Generic type parameter metadata (name + optional default) keyed
+    /// by the generic's declaration name. Populated alongside
+    /// `dts_imports` so the checker can pad partial type argument lists
+    /// with TypeScript's own defaults.
+    pub dts_generic_params: HashMap<String, Vec<crate::interop::GenericParamInfo>>,
     pub ambient: Option<AmbientDeclarations>,
     pub ts_imports_missing_tsgo: HashSet<String>,
 }
@@ -84,6 +89,9 @@ pub fn analyse_parsed(
         inputs.externs.ambient,
         inputs.externs.ts_imports_missing_tsgo,
     );
+    if !inputs.externs.dts_generic_params.is_empty() {
+        checker.set_dts_generic_params(inputs.externs.dts_generic_params);
+    }
     let (diagnostics, name_types, expr_types, invalid_exprs) = checker.check_all(&program);
     let name_type_map = checker.take_name_type_map();
     let references = std::mem::take(&mut checker.references);
