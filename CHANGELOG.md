@@ -5,6 +5,18 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.5](https://github.com/floeorg/floe/compare/v0.5.4...v0.5.5) (2026-04-20)
+
+
+### Features
+
+* add install.sh for prebuilt binaries + CI smoke test ([#1252](https://github.com/floeorg/floe/issues/1252)) ([5159078](https://github.com/floeorg/floe/commit/515907855a82fe97ad084963cfc525377b1b5104))
+
+
+### Bug Fixes
+
+* [[#1245](https://github.com/floeorg/floe/issues/1245)] align @types/vscode with engines.vscode for ovsx publish ([#1246](https://github.com/floeorg/floe/issues/1246)) ([d4883f6](https://github.com/floeorg/floe/commit/d4883f6ef14293bf4ea3db45fc3f70cb1220110e))
+
 ## [0.5.4](https://github.com/floeorg/floe/compare/v0.5.3...v0.5.4) (2026-04-20)
 
 
