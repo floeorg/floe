@@ -195,14 +195,26 @@ impl Checker {
         // interchangeable. If either side still contains an unresolved
         // type-parameter placeholder (single uppercase letter like `E`, `T`,
         // a leftover from a pipe/generic-inference gap), fall back to
-        // permissive because we can't yet decide equivalence.
+        // permissive because we can't yet decide equivalence. Bare-vs-encoded
+        // (e.g. `Context` vs `Context<{ Bindings: Bindings }>`) is the same
+        // situation one step earlier: bare Foreigns only arise when the
+        // resolver stripped args containing an active type parameter, so the
+        // real question is whether `Bindings` would unify with that stripped
+        // param — which can't be answered at compat time from a name string.
         if let (Type::Foreign { name: e_name, .. }, Type::Foreign { name: a_name, .. }) =
             (expected, actual)
         {
             let e_base = e_name.split('<').next().unwrap_or(e_name);
             let a_base = a_name.split('<').next().unwrap_or(a_name);
-            if e_base == a_base && !has_type_param_arg(e_name) && !has_type_param_arg(a_name) {
-                return e_name == a_name;
+            if e_base == a_base {
+                let e_has_args = e_name.contains('<');
+                let a_has_args = a_name.contains('<');
+                if e_has_args != a_has_args {
+                    return true;
+                }
+                if !has_type_param_arg(e_name) && !has_type_param_arg(a_name) {
+                    return e_name == a_name;
+                }
             }
             return true;
         }

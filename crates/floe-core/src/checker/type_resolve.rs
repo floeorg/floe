@@ -207,11 +207,9 @@ impl Checker {
                     } else {
                         let resolved_args: Vec<Type> =
                             type_args.iter().map(|t| self.resolve_type(t)).collect();
-                        let any_generic = resolved_args.iter().any(|t| {
-                            matches!(t, Type::Var(_))
-                                || matches!(t, Type::Named(n)
-                                    if self.active_type_params.contains_key(n.as_str()))
-                        });
+                        let any_generic = resolved_args
+                            .iter()
+                            .any(|t| self.type_contains_active_param(t));
                         if any_generic {
                             Type::foreign(name.to_string())
                         } else {
@@ -264,5 +262,20 @@ impl Checker {
                 }
             }
         }
+    }
+
+    /// True if `ty` contains anywhere in its tree an unresolved type-parameter
+    /// marker: a fresh inference `Var`, or a `Named` whose name is a currently-
+    /// active user-written generic (e.g. `E` inside `Context<{ Bindings: E }>`).
+    /// Nested params must trigger the same bare-Foreign fallback as top-level
+    /// ones — otherwise the placeholder leaks into the encoded Foreign name
+    /// string and the Foreign-vs-Foreign compat check rejects legitimate
+    /// instantiations.
+    fn type_contains_active_param(&self, ty: &Type) -> bool {
+        type_var::any_nested(ty, &|t: &Type| match t {
+            Type::Var(_) => true,
+            Type::Named(n) => self.active_type_params.contains_key(n.as_str()),
+            _ => false,
+        })
     }
 }

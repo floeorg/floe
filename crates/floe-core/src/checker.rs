@@ -27,6 +27,7 @@ pub use expr::simple_resolve_type_expr;
 pub use prelude::UNKNOWN;
 pub use printer::TypeDisplay;
 pub use problems::Problems;
+pub use type_var::any_nested as type_any_nested;
 pub use types::Type;
 
 use std::collections::{HashMap, HashSet};
