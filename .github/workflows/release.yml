@@ -102,11 +102,6 @@ jobs:
         with:
           tag_name: ${{ inputs.tag_name }}
           files: artifacts/*
-          # release-please creates the release as a draft so that
-          # `/releases/latest` doesn't surface it until the binaries are
-          # attached. Flip to published once the assets upload so end
-          # users and the install.sh smoke test both see a complete
-          # release.
           draft: false
 
   publish-npm:
