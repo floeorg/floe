@@ -749,7 +749,13 @@ pub(super) fn type_expr_to_string<T>(ty: &TypeExpr<T>) -> String {
             params,
             return_type,
         } => {
-            let ps: Vec<String> = params.iter().map(type_expr_to_string).collect();
+            let ps: Vec<String> = params
+                .iter()
+                .map(|p| match &p.label {
+                    Some(label) => format!("{label}: {}", type_expr_to_string(&p.type_ann)),
+                    None => type_expr_to_string(&p.type_ann),
+                })
+                .collect();
             format!(
                 "({}) -> {}",
                 ps.join(", "),

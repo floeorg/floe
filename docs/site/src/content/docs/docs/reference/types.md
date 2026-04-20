@@ -32,7 +32,7 @@ Every type declaration starts with `type Name = RHS`. The shape of the RHS picks
 | `{ field: T, ... }` | Record |
 | `A \| B \| ...` (constructors) | Tagged sum (nominal — declares fresh constructors) |
 | `Name(T)` | Newtype (single-value wrapper) |
-| `(Args) => Ret` | Function-type alias (structural) |
+| `(label: T, ...) => Ret` | Function-type alias (structural; parameter labels required) |
 | `OneOf<"a", "b", ...>` | Structural string-literal union |
 | `Intersect<A, B, ...>` | Structural intersection |
 | `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... | TS utility alias (pass-through) |
@@ -161,12 +161,20 @@ Only code in the module that defines `Email` can construct or destructure it. Ot
 
 ## Function-Type Aliases
 
-Structural function types. Use `=>` between the parameter list and return type:
+Structural function types. Use `->` between the parameter list and return type. **Parameter labels are required** in top-level type aliases and on function-typed record fields:
 
 ```floe
-type Handler = (Request) -> Promise<Response>
-type Predicate<T> = (T) -> boolean
-type Reducer<S, A> = (S, A) -> S
+type Handler = (req: Request) -> Promise<Response>
+type Predicate<T> = (value: T) -> boolean
+type Reducer<S, A> = (state: S, action: A) -> S
+```
+
+Labels are documentation only — they do not affect structural assignability, so `(x: Int) -> Int` is interchangeable with `(y: Int) -> Int`. Omitting labels at a named position is a compile error (**E203**).
+
+Inline function types used as higher-order parameters keep labels optional, since the name is usually noise:
+
+```floe
+let map(xs: Array<A>, f: (A) -> B) -> Array<B> = { xs |> Array.map(f) }
 ```
 
 ## Structural String-Literal Unions (`OneOf<>`)

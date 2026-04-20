@@ -27,7 +27,10 @@ impl Checker {
                 params,
                 return_type,
             } => {
-                let param_types: Vec<_> = params.iter().map(|p| self.resolve_type(p)).collect();
+                let param_types: Vec<_> = params
+                    .iter()
+                    .map(|p| self.resolve_type(&p.type_ann))
+                    .collect();
                 let ret = self.resolve_type(return_type);
                 let required_params = param_types.len();
                 Type::Function {

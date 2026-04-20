@@ -6,8 +6,8 @@ import { for Array, formatPrice } from "../product"
 
 type CartItemRowProps = {
     item: CartItem,
-    onUpdateQty: (ProductId, number) -> (),
-    onRemove: (ProductId) -> (),
+    onUpdateQty: (id: ProductId, qty: number) -> (),
+    onRemove: (id: ProductId) -> (),
 }
 
 type OrderSummaryProps = {
@@ -18,8 +18,8 @@ type OrderSummaryProps = {
 
 type CartPageProps = {
     cart: Array<CartItem>,
-    onUpdateQty: (ProductId, number) -> (),
-    onRemove: (ProductId) -> (),
+    onUpdateQty: (id: ProductId, qty: number) -> (),
+    onRemove: (id: ProductId) -> (),
 }
 
 // ── Cart item row ──────────────────────────────────────

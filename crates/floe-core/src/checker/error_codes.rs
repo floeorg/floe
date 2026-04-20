@@ -137,6 +137,9 @@ pub enum ErrorCode {
     BareStringLiteralUnion,
     /// Inline record type in function signature — declare a named type first.
     InlineRecordTypeInSignature,
+    /// Function-type parameter is missing a label in a named position
+    /// (top-level type alias or record field) — labels are required there.
+    MissingFnTypeParamLabel,
 }
 
 impl ErrorCode {
@@ -199,6 +202,7 @@ impl ErrorCode {
             Self::TraitImportWithoutFor => "E053",
             Self::BareStringLiteralUnion => "E201",
             Self::InlineRecordTypeInSignature => "E202",
+            Self::MissingFnTypeParamLabel => "E203",
         }
     }
 }

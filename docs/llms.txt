@@ -66,12 +66,13 @@ Every type declaration starts with `type Name = ...`. The RHS picks the kind:
 - `{ ... }` — record
 - `Variant | Variant | ...` — nominal tagged sum (leading `|` optional)
 - `Name(T)` — newtype (single-value wrapper)
-- `(Args) -> Ret` — structural function-type alias
+- `(label: T, ...) -> Ret` — structural function-type alias (parameter labels required)
 - `OneOf<"a", "b">` / `Intersect<A, B>` — structural string-literal union / intersection
 - `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... — TS utility aliases
 
 A bare `|` of string literals (e.g. `type M = "a" | "b"`) is **E201** — use `OneOf<"a", "b">` instead.
 An inline record in a function signature (e.g. `fn f(x: { a: T })`) is **E202** — name the type.
+A function-type alias or function-typed record field with unlabelled parameters (e.g. `type F = (Int) -> Int`) is **E203** — add labels (`type F = (x: Int) -> Int`). Labels are documentation only and do not affect structural assignability. Inline higher-order parameters (`let map(xs: Array<A>, f: (A) -> B) -> Array<B>`) keep labels optional.
 
 ```floe
 // Record type
@@ -145,9 +146,10 @@ type A = { x: number }
 type B = { y: string }
 type C = { ...A, ...B, z: boolean }
 
-// Function-type alias (structural — just a type)
-type Handler = (Request) -> Promise<Response>
-type Predicate<T> = (T) -> boolean
+// Function-type alias (structural — just a type). Labels on parameters
+// are required and act as documentation; they don't affect assignability.
+type Handler = (req: Request) -> Promise<Response>
+type Predicate<T> = (value: T) -> boolean
 
 // Opaque types (only defining module can create/read)
 opaque type HashedPassword = HashedPassword(string)

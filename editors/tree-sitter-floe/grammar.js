@@ -268,9 +268,15 @@ module.exports = grammar({
     function_type: ($) =>
       seq(
         "(",
-        commaSep($._type_expression),
+        commaSep($.function_type_param),
         ")",
         "->",
+        $._type_expression,
+      ),
+
+    function_type_param: ($) =>
+      choice(
+        seq(field("label", $.identifier), ":", $._type_expression),
         $._type_expression,
       ),
 

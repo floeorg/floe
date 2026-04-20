@@ -828,7 +828,7 @@ fn collect_type_names(type_expr: &TypeExpr, names: &mut HashSet<String>) {
             return_type,
         } => {
             for param in params {
-                collect_type_names(param, names);
+                collect_type_names(&param.type_ann, names);
             }
             collect_type_names(return_type, names);
         }

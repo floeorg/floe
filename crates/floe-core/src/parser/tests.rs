@@ -941,6 +941,43 @@ fn type_alias() {
 }
 
 #[test]
+fn fn_type_alias_with_labelled_params() {
+    match first_item("type Handler = (cmd: number, retries: number) -> number") {
+        ItemKind::TypeDecl(decl) => match decl.def {
+            TypeDef::Alias(ref te) => match &te.kind {
+                TypeExprKind::Function { params, .. } => {
+                    assert_eq!(params.len(), 2);
+                    assert_eq!(params[0].label.as_deref(), Some("cmd"));
+                    assert_eq!(params[1].label.as_deref(), Some("retries"));
+                }
+                other => panic!("expected function, got {other:?}"),
+            },
+            ref other => panic!("expected alias, got {other:?}"),
+        },
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
+fn fn_type_alias_without_labels_still_parses() {
+    // Parser still accepts unlabelled fn types — the missing-label diagnostic
+    // is emitted later by the checker, not the parser.
+    match first_item("type Handler = (number) -> number") {
+        ItemKind::TypeDecl(decl) => match decl.def {
+            TypeDef::Alias(ref te) => match &te.kind {
+                TypeExprKind::Function { params, .. } => {
+                    assert_eq!(params.len(), 1);
+                    assert!(params[0].label.is_none());
+                }
+                other => panic!("expected function, got {other:?}"),
+            },
+            ref other => panic!("expected alias, got {other:?}"),
+        },
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
 fn type_record() {
     match first_item("type User = { id: UserId, name: string }") {
         ItemKind::TypeDecl(decl) => {

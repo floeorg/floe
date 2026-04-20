@@ -9043,3 +9043,100 @@ let _x = twoArgs()
         errors.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn fn_type_alias_with_labels_is_accepted() {
+    let diags = check(
+        r#"
+type Handler = (req: number) -> number
+let _h: Handler = (x) -> x
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
+        "labelled fn type alias should not fire E203, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn fn_type_alias_without_labels_errors() {
+    let diags = check(
+        r#"
+type Handler = (number) -> number
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
+        "unlabelled fn type alias should fire E203, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn fn_typed_record_field_without_labels_errors() {
+    let diags = check(
+        r#"
+type Props = {
+    onClick: (number) -> (),
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
+        "unlabelled fn-typed record field should fire E203, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn fn_typed_record_field_with_labels_is_accepted() {
+    let diags = check(
+        r#"
+type Props = {
+    onClick: (id: number) -> (),
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
+        "labelled fn-typed record field should not fire E203, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn higher_order_fn_param_without_labels_is_accepted() {
+    // Inline higher-order params keep labels optional.
+    let diags = check(
+        r#"
+let _twice(f: (number) -> number, x: number) -> number = { f(f(x)) }
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
+        "higher-order fn params should not require labels, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn fn_type_param_label_does_not_collide_with_call_site_arguments() {
+    // Labels are documentation only — call sites use positional args without
+    // having to refer to the label.
+    let diags = check(
+        r#"
+type Apply = (n: number) -> number
+let _twice(f: Apply, x: number) -> number = { f(f(x)) }
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "labelled fn type should accept positional calls, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

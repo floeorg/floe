@@ -1150,7 +1150,7 @@ fn collect_typeof_names(type_expr: &TypeExpr, callback: &mut dyn FnMut(&str)) {
             return_type,
         } => {
             for p in params {
-                collect_typeof_names(p, callback);
+                collect_typeof_names(&p.type_ann, callback);
             }
             collect_typeof_names(return_type, callback);
         }
@@ -1195,7 +1195,7 @@ fn type_expr_references_imports(
         } => {
             params
                 .iter()
-                .any(|p| type_expr_references_imports(p, imported_names))
+                .any(|p| type_expr_references_imports(&p.type_ann, imported_names))
                 || type_expr_references_imports(return_type, imported_names)
         }
         TypeExprKind::Record(fields) => fields
@@ -1681,7 +1681,10 @@ pub(super) fn type_expr_to_ts(ty: &TypeExpr) -> String {
             let ps: Vec<String> = params
                 .iter()
                 .enumerate()
-                .map(|(i, p)| format!("_p{i}: {}", type_expr_to_ts(p)))
+                .map(|(i, p)| {
+                    let name = p.label.clone().unwrap_or_else(|| format!("_p{i}"));
+                    format!("{name}: {}", type_expr_to_ts(&p.type_ann))
+                })
                 .collect();
             format!("({}) => {}", ps.join(", "), type_expr_to_ts(return_type))
         }

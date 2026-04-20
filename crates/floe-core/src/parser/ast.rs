@@ -451,8 +451,14 @@ pub enum TypeExprKind<T = ()> {
     /// Record type inline: `{ name: string, age: number }`
     Record(Vec<RecordField<T>>),
     /// Function type: `(a: number, b: string) -> Result<T, E>`
+    ///
+    /// Each parameter carries an optional label. Labels are required in
+    /// top-level type aliases (`type F = (x: T) -> U`) and on function-typed
+    /// record fields, and remain optional inside higher-order parameter
+    /// positions like `fn map(xs: Array<A>, f: (A) -> B)`. Labels are
+    /// documentation only and never affect structural assignability.
     Function {
-        params: Vec<TypeExpr<T>>,
+        params: Vec<FnTypeParam<T>>,
         return_type: Box<TypeExpr<T>>,
     },
     /// Array type: `Array<T>`
@@ -465,6 +471,13 @@ pub enum TypeExprKind<T = ()> {
     Intersection(Vec<TypeExpr<T>>),
     /// String literal type: `"div"`, `"button"` (for npm interop like `ComponentProps<"div">`)
     StringLiteral(String),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FnTypeParam<T = ()> {
+    pub label: Option<String>,
+    pub type_ann: TypeExpr<T>,
+    pub span: Span,
 }
 
 // ── Expressions ──────────────────────────────────────────────────

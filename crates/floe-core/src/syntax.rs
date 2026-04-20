@@ -133,6 +133,10 @@ pub enum SyntaxKind {
     TYPE_EXPR_FUNCTION,
     TYPE_EXPR_RECORD,
     TYPE_EXPR_TUPLE,
+    /// Single parameter inside a function type, e.g. `cmd: Cmd` in
+    /// `(cmd: Cmd) -> Result<...>`. Wraps an optional `IDENT COLON`
+    /// label followed by a `TYPE_EXPR`.
+    FN_TYPE_PARAM,
     PARAM,
     PARAM_LIST,
     ARG_LIST,

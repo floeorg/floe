@@ -78,8 +78,9 @@ impl<'a> TypeScriptGenerator<'a> {
                     if i > 0 {
                         docs.push(pretty::str(", "));
                     }
-                    docs.push(pretty::str(format!("_p{i}: ")));
-                    docs.push(self.emit_type_expr(param));
+                    let name = param.label.clone().unwrap_or_else(|| format!("_p{i}"));
+                    docs.push(pretty::str(format!("{name}: ")));
+                    docs.push(self.emit_type_expr(&param.type_ann));
                 }
                 docs.push(pretty::str(") => "));
                 docs.push(self.emit_type_expr(return_type));

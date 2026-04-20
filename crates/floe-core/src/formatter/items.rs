@@ -664,6 +664,20 @@ impl Formatter<'_> {
 
     // ── Type Expressions ────────────────────────────────────────
 
+    pub(crate) fn fmt_fn_type_param(&mut self, node: &SyntaxNode) -> Document {
+        let label = self.collect_idents(node).into_iter().next();
+        let type_expr = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR);
+        let mut parts = Vec::new();
+        if let Some(label) = label {
+            parts.push(pretty::str(label));
+            parts.push(pretty::str(": "));
+        }
+        if let Some(te) = type_expr {
+            parts.push(self.fmt_type_expr(&te));
+        }
+        pretty::concat(parts)
+    }
+
     pub(crate) fn fmt_type_expr(&mut self, node: &SyntaxNode) -> Document {
         let idents = self.collect_idents(node);
         let has_fat_arrow = self.has_token(node, SyntaxKind::THIN_ARROW);
@@ -705,18 +719,18 @@ impl Formatter<'_> {
             return pretty::concat(parts);
         }
 
-        // Function type: (params) => ReturnType
+        // Function type: (params) -> ReturnType
         if has_fat_arrow {
+            let fn_params: Vec<_> = node
+                .children()
+                .filter(|c| c.kind() == SyntaxKind::FN_TYPE_PARAM)
+                .collect();
             let mut parts = vec![pretty::str("(")];
-            let param_count = child_type_exprs.len().saturating_sub(1);
-            for (i, te) in child_type_exprs.iter().enumerate() {
-                if i == param_count {
-                    break;
-                }
+            for (i, param) in fn_params.iter().enumerate() {
                 if i > 0 {
                     parts.push(pretty::str(", "));
                 }
-                parts.push(self.fmt_type_expr(te));
+                parts.push(self.fmt_fn_type_param(param));
             }
             parts.push(pretty::str(") -> "));
             if let Some(ret) = child_type_exprs.last() {
