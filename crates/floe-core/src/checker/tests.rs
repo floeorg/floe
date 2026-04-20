@@ -4820,6 +4820,7 @@ fn for_block_same_fn_name_different_types_no_conflict() {
             span: dummy_span,
         },
         trait_name: None,
+        trait_name_span: None,
         functions: vec![FunctionDecl {
             exported: true,
             async_fn: false,

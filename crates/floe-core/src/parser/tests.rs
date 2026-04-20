@@ -1632,6 +1632,26 @@ export for User: Display {
 }
 
 #[test]
+fn for_block_trait_name_span_points_at_identifier() {
+    let input = r#"
+type User = { name: string }
+trait Display { let display(self) -> string }
+for User: Display {
+    let display(self) -> string = { self.name }
+}
+"#;
+    let program = parse_ok(input);
+    let ItemKind::ForBlock(block) = &program.items[2].kind else {
+        panic!("expected ForBlock");
+    };
+    let span = block
+        .trait_name_span
+        .as_ref()
+        .expect("trait_name_span should be set when header has a trait");
+    assert_eq!(&input[span.start..span.end], "Display");
+}
+
+#[test]
 fn per_method_export_still_works_on_for_block() {
     let input = r#"
 type User = { name: string }
