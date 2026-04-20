@@ -103,23 +103,6 @@ jobs:
           tag_name: ${{ inputs.tag_name }}
           files: artifacts/*
 
-  publish-crate:
-    name: Publish to crates.io
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.tag_name }}
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "1.94.0"
-
-      - name: Publish
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
   publish-npm:
     name: Publish to npm
     needs: release
