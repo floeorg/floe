@@ -2,39 +2,68 @@ use std::sync::Arc;
 
 use super::*;
 
-/// True if a Foreign type name like `Router<E>` contains an arg that looks
-/// like an unresolved type parameter (single uppercase letter). Used to stay
-/// permissive for same-base-name Foreigns when the checker hasn't yet
-/// substituted a type parameter through the call chain.
-fn has_type_param_arg(foreign_name: &str) -> bool {
-    let Some(open) = foreign_name.find('<') else {
-        return false;
-    };
-    let Some(inner) = foreign_name.get(open + 1..foreign_name.len() - 1) else {
-        return false;
-    };
+/// Split a Foreign type name like `Foo<a, b<c>>` into a (base, args) pair
+/// where args are the top-level comma-separated segments. Returns `None`
+/// when the name carries no generic arguments.
+fn split_foreign_name(foreign_name: &str) -> Option<(&str, Vec<&str>)> {
+    let open = foreign_name.find('<')?;
+    let base = &foreign_name[..open];
+    let inner = foreign_name.get(open + 1..foreign_name.len() - 1)?;
     let mut depth = 0;
     let mut start = 0;
-    let chars: Vec<(usize, char)> = inner.char_indices().collect();
-    let mut ranges: Vec<&str> = Vec::new();
-    for (i, c) in &chars {
+    let mut args: Vec<&str> = Vec::new();
+    for (i, c) in inner.char_indices() {
         match c {
             '<' => depth += 1,
             '>' => depth -= 1,
             ',' if depth == 0 => {
-                ranges.push(inner[start..*i].trim());
+                args.push(inner[start..i].trim());
                 start = i + 1;
             }
             _ => {}
         }
     }
-    ranges.push(inner[start..].trim());
-    ranges
-        .iter()
+    args.push(inner[start..].trim());
+    Some((base, args))
+}
+
+/// True if a Foreign type name like `Router<E>` contains an arg that looks
+/// like an unresolved type parameter (single uppercase letter). Used to stay
+/// permissive for same-base-name Foreigns when the checker hasn't yet
+/// substituted a type parameter through the call chain.
+fn has_type_param_arg(foreign_name: &str) -> bool {
+    let Some((_, args)) = split_foreign_name(foreign_name) else {
+        return false;
+    };
+    args.iter()
         .any(|a| a.len() == 1 && a.chars().next().is_some_and(|c| c.is_ascii_uppercase()))
 }
 
 impl Checker {
+    /// Pad a Foreign type name with .d.ts-declared default type parameters.
+    /// Returns `None` when no padding applied (either the name isn't in the
+    /// registry, its arg count already matches the declaration, or there
+    /// are no trailing defaults to supply). Callers should fall back to
+    /// the original string when `None` is returned.
+    fn normalize_foreign_name(&self, name: &str) -> Option<String> {
+        let (base, args) = split_foreign_name(name)?;
+        let param_infos = self.dts_generic_params.get(base)?;
+        if args.len() >= param_infos.len() {
+            return None;
+        }
+        let mut padded: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
+        for info in &param_infos[args.len()..] {
+            let Some(default_ts) = &info.default else {
+                break;
+            };
+            padded.push(crate::interop::wrap_boundary_type(default_ts).to_string());
+        }
+        if padded.len() == args.len() {
+            return None;
+        }
+        Some(format!("{}<{}>", base, padded.join(", ")))
+    }
+
     /// Resolve a `Type::Named` to its concrete underlying type, if possible.
     /// Returns `Some(concrete)` if the type was resolved, `None` if not a Named type.
     pub(crate) fn resolve_named_to_concrete(&self, ty: &Type) -> Option<Type> {
@@ -204,16 +233,24 @@ impl Checker {
         if let (Type::Foreign { name: e_name, .. }, Type::Foreign { name: a_name, .. }) =
             (expected, actual)
         {
-            let e_base = e_name.split('<').next().unwrap_or(e_name);
-            let a_base = a_name.split('<').next().unwrap_or(a_name);
+            // Normalize both sides against the .d.ts default-type-parameter
+            // registry so a user's 1-arg `Foo<A>` can match a library's
+            // 3-arg `Foo<A, any, {}>` when the declaration supplies the
+            // missing defaults.
+            let e_normalized = self.normalize_foreign_name(e_name);
+            let a_normalized = self.normalize_foreign_name(a_name);
+            let e_ref = e_normalized.as_deref().unwrap_or(e_name);
+            let a_ref = a_normalized.as_deref().unwrap_or(a_name);
+            let e_base = e_ref.split('<').next().unwrap_or(e_ref);
+            let a_base = a_ref.split('<').next().unwrap_or(a_ref);
             if e_base == a_base {
-                let e_has_args = e_name.contains('<');
-                let a_has_args = a_name.contains('<');
+                let e_has_args = e_ref.contains('<');
+                let a_has_args = a_ref.contains('<');
                 if e_has_args != a_has_args {
                     return true;
                 }
-                if !has_type_param_arg(e_name) && !has_type_param_arg(a_name) {
-                    return e_name == a_name;
+                if !has_type_param_arg(e_ref) && !has_type_param_arg(a_ref) {
+                    return e_ref == a_ref;
                 }
             }
             return true;

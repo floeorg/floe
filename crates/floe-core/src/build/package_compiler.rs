@@ -222,6 +222,7 @@ impl PackageCompiler {
                 resolved_imports: resolved.clone(),
                 externs: ExternTypes {
                     dts_imports: tsgo_result.exports,
+                    dts_generic_params: tsgo_result.generic_param_defs,
                     ambient: self.ambient.clone(),
                     ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
                 },

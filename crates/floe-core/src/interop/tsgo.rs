@@ -35,6 +35,12 @@ use specifier_map::build_specifier_map;
 pub struct TsgoResult {
     /// Resolved exports per import specifier.
     pub exports: HashMap<String, Vec<DtsExport>>,
+    /// Generic type parameter metadata (name + optional default) collected
+    /// from .d.ts declarations, keyed by the generic's declaration name
+    /// (e.g. "Context"). Lets the checker pad partial type argument lists
+    /// with TypeScript's own defaults when a library writes
+    /// `interface Context<E = Env, P = any, I = {}>`.
+    pub generic_param_defs: HashMap<String, Vec<super::dts::GenericParamInfo>>,
     /// Import sources that resolve to `.ts`/`.tsx` files but could not be
     /// resolved because tsgo is not installed.
     pub ts_imports_missing_tsgo: HashSet<String>,
@@ -96,6 +102,7 @@ impl TsgoResolver {
             let _ = (program, resolved_imports, source_dir, tsconfig_paths);
             return TsgoResult {
                 exports: HashMap::new(),
+                generic_param_defs: HashMap::new(),
                 ts_imports_missing_tsgo: HashSet::new(),
             };
         }
@@ -126,11 +133,56 @@ impl TsgoResolver {
             // DTS parsing, typeof resolution, and LSP hover for unresolved types.
             let mut result = self.run_probe(program, resolved_imports, effective_ts_imports);
             self.enhance_import_types(&mut result, program, effective_ts_imports);
+            // Collect generic type parameter defaults from every resolved
+            // .d.ts source so the checker can pad partial type argument
+            // lists (e.g. Hono's `Context<E = Env, P extends string = any,
+            // I extends Input = {}>`).
+            let generic_param_defs = self.collect_generic_param_defs(program, resolved_imports);
             TsgoResult {
                 exports: result,
+                generic_param_defs,
                 ts_imports_missing_tsgo: missing_tsgo,
             }
         }
+    }
+
+    /// Collect generic type parameter defaults (e.g. `E = Env`) from every
+    /// npm package .d.ts referenced by the program. tsgo's probe output
+    /// loses original interface declarations, so we re-read the source
+    /// .d.ts for each specifier and collect defaults directly.
+    #[cfg(feature = "native")]
+    fn collect_generic_param_defs(
+        &self,
+        program: &Program,
+        resolved_imports: &HashMap<String, crate::resolve::ResolvedImports>,
+    ) -> HashMap<String, Vec<super::dts::GenericParamInfo>> {
+        let mut out: HashMap<String, Vec<super::dts::GenericParamInfo>> = HashMap::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        for item in &program.items {
+            let crate::parser::ast::ItemKind::Import(imp) = &item.kind else {
+                continue;
+            };
+            let specifier = imp.source.trim_matches('"');
+            if resolved_imports.contains_key(specifier) {
+                continue;
+            }
+            if !seen.insert(specifier.to_string()) {
+                continue;
+            }
+            let Some(dts_path) = typeof_resolve::find_package_dts(&self.project_dir, specifier)
+            else {
+                continue;
+            };
+            let Ok(content) = std::fs::read_to_string(&dts_path) else {
+                continue;
+            };
+            if let Ok(defs) = super::dts::collect_generic_param_defs_from_source(&content) {
+                for (k, v) in defs {
+                    out.entry(k).or_insert(v);
+                }
+            }
+        }
+        out
     }
 
     /// Run the probe system for call-site type resolution.

@@ -214,6 +214,12 @@ pub struct Checker {
     resolved_imports: HashMap<String, ResolvedImports>,
     /// Pre-resolved .d.ts exports for npm imports, keyed by specifier (e.g. "react").
     dts_imports: HashMap<String, Vec<DtsExport>>,
+    /// Generic type parameter metadata (name + optional default) captured
+    /// from .d.ts declarations, keyed by the generic's simple name
+    /// (e.g. "Context"). Used to pad partial type argument lists with
+    /// TypeScript's own defaults so a 1-arg user reference can unify with
+    /// a 3-arg library reference when the declaration has defaults.
+    dts_generic_params: HashMap<String, Vec<crate::interop::GenericParamInfo>>,
     /// Tracks consumed probe exports to prevent reuse.
     /// Uses (specifier_name, export_index) pairs for stable identification
     /// across HashMap iteration orders.
@@ -454,6 +460,7 @@ impl Checker {
             registering_types: false,
             resolved_imports: HashMap::new(),
             dts_imports: HashMap::new(),
+            dts_generic_params: HashMap::new(),
             probe_consumed: HashSet::new(),
             name_types: HashMap::new(),
             name_type_map: HashMap::new(),
@@ -488,6 +495,18 @@ impl Checker {
             dts_imports,
             ..Self::new()
         }
+    }
+
+    /// Register generic type parameter metadata (including defaults) from
+    /// .d.ts declarations. Each entry maps a generic's simple name to its
+    /// positional parameter list. Called by `from_context` with data
+    /// parsed from imported `.d.ts` files; exposed publicly so tests can
+    /// exercise the default-padding logic with inline fixtures.
+    pub fn set_dts_generic_params(
+        &mut self,
+        params: HashMap<String, Vec<crate::interop::GenericParamInfo>>,
+    ) {
+        self.dts_generic_params = params;
     }
 
     /// Create a checker with all available type context.

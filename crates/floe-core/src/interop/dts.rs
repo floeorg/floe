@@ -21,6 +21,17 @@ pub struct DtsExport {
     pub ts_type: TsType,
 }
 
+/// Generic type parameter metadata captured at declaration time. Used to
+/// pad partial type argument lists with TypeScript's own defaults so that
+/// `Context<{ Bindings: B }>` and `Context<{ Bindings: B }, any, {}>`
+/// resolve to the same Foreign type when the declaration reads
+/// `interface Context<E = Env, P extends string = any, I extends Input = {}>`.
+#[derive(Debug, Clone)]
+pub struct GenericParamInfo {
+    pub name: String,
+    pub default: Option<TsType>,
+}
+
 /// Reads a .d.ts file and extracts its named exports.
 ///
 /// Uses oxc_parser to parse the declaration file AST and extract exports.
@@ -2157,5 +2168,107 @@ fn resolve_generic_params(ty: &mut TsType, bounds: &HashMap<String, TsType>) {
             }
         }
         _ => {}
+    }
+}
+
+/// Collect generic type-parameter defaults for interfaces and type aliases
+/// so the checker can pad partial type-argument lists. Keyed by the
+/// generic's declaration name (e.g. "Context"), value is one entry per
+/// positional type parameter in source order.
+pub fn collect_generic_param_defs_from_source(
+    source: &str,
+) -> Result<HashMap<String, Vec<GenericParamInfo>>, String> {
+    use oxc_allocator::Allocator;
+    use oxc_parser::{ParseOptions, Parser as OxcParser};
+    use oxc_span::SourceType;
+
+    let allocator = Allocator::default();
+    let source_type = SourceType::ts();
+    let ret = OxcParser::new(&allocator, source, source_type)
+        .with_options(ParseOptions {
+            parse_regular_expression: false,
+            ..ParseOptions::default()
+        })
+        .parse();
+    if !ret.errors.is_empty() {
+        return Err(format!("parse errors: {:?}", ret.errors));
+    }
+    let mut out: HashMap<String, Vec<GenericParamInfo>> = HashMap::new();
+    for stmt in &ret.program.body {
+        collect_generic_param_defs(stmt, &mut out);
+    }
+    Ok(out)
+}
+
+/// Walk a single statement (recursively into module blocks and export
+/// declarations) and record the generic parameter list for each
+/// interface and type alias declaration.
+fn collect_generic_param_defs(
+    stmt: &Statement<'_>,
+    out: &mut HashMap<String, Vec<GenericParamInfo>>,
+) {
+    use oxc_ast::ast::{Declaration, TSModuleDeclarationBody};
+
+    match stmt {
+        Statement::TSInterfaceDeclaration(iface) => {
+            record_generic_params(&iface.id.name, iface.type_parameters.as_deref(), out);
+        }
+        Statement::TSTypeAliasDeclaration(type_decl) => {
+            record_generic_params(
+                &type_decl.id.name,
+                type_decl.type_parameters.as_deref(),
+                out,
+            );
+        }
+        Statement::ExportNamedDeclaration(export_decl) => {
+            if let Some(ref decl) = export_decl.declaration {
+                match decl {
+                    Declaration::TSInterfaceDeclaration(iface) => {
+                        record_generic_params(
+                            &iface.id.name,
+                            iface.type_parameters.as_deref(),
+                            out,
+                        );
+                    }
+                    Declaration::TSTypeAliasDeclaration(type_decl) => {
+                        record_generic_params(
+                            &type_decl.id.name,
+                            type_decl.type_parameters.as_deref(),
+                            out,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Statement::TSModuleDeclaration(ns_decl) => {
+            if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
+                for inner in &block.body {
+                    collect_generic_param_defs(inner, out);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn record_generic_params(
+    name: &str,
+    type_params: Option<&oxc_ast::ast::TSTypeParameterDeclaration<'_>>,
+    out: &mut HashMap<String, Vec<GenericParamInfo>>,
+) {
+    let Some(tp) = type_params else {
+        return;
+    };
+    let infos: Vec<GenericParamInfo> = tp
+        .params
+        .iter()
+        .map(|p| GenericParamInfo {
+            name: p.name.to_string(),
+            default: p.default.as_ref().map(convert_oxc_type),
+        })
+        .collect();
+    if !infos.is_empty() {
+        out.insert(name.to_string(), infos);
     }
 }

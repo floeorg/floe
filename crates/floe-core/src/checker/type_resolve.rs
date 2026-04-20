@@ -202,11 +202,16 @@ impl Checker {
                 // into a Foreign name would leak the unresolved placeholder
                 // past instantiation sites.
                 if let Some(Type::Foreign { .. }) = self.env.lookup(name) {
-                    if type_args.is_empty() {
+                    let mut resolved_args: Vec<Type> =
+                        type_args.iter().map(|t| self.resolve_type(t)).collect();
+                    // Pad with .d.ts-declared defaults when the user supplied
+                    // fewer args than the generic has params. Stops at the
+                    // first param with no default, matching TypeScript's own
+                    // behavior (defaults must form a contiguous tail).
+                    self.pad_with_dts_defaults(name, &mut resolved_args);
+                    if resolved_args.is_empty() {
                         Type::foreign(name.to_string())
                     } else {
-                        let resolved_args: Vec<Type> =
-                            type_args.iter().map(|t| self.resolve_type(t)).collect();
                         let any_generic = resolved_args
                             .iter()
                             .any(|t| self.type_contains_active_param(t));
@@ -277,5 +282,36 @@ impl Checker {
             Type::Named(n) => self.active_type_params.contains_key(n.as_str()),
             _ => false,
         })
+    }
+
+    /// Pad `args` with .d.ts-declared default type parameters for generic
+    /// `name`, so a user-written `Foo<A>` materializes as `Foo<A, DefB>`
+    /// when the declaration reads `Foo<A, B = DefB>`. Padding stops at the
+    /// first param with no default; TypeScript requires defaults to form a
+    /// contiguous tail, and we mirror that.
+    fn pad_with_dts_defaults(&self, name: &str, args: &mut Vec<Type>) {
+        pad_foreign_args_with_defaults(&self.dts_generic_params, name, args);
+    }
+}
+
+/// Module-level helper so `wrap_boundary_type` callers can apply the same
+/// padding without going through a `Checker` method. `args` is mutated in
+/// place — padding stops at the first parameter with no default.
+pub(crate) fn pad_foreign_args_with_defaults(
+    registry: &std::collections::HashMap<String, Vec<crate::interop::GenericParamInfo>>,
+    name: &str,
+    args: &mut Vec<Type>,
+) {
+    let Some(param_infos) = registry.get(name) else {
+        return;
+    };
+    if args.len() >= param_infos.len() {
+        return;
+    }
+    for info in &param_infos[args.len()..] {
+        let Some(default_ts) = &info.default else {
+            break;
+        };
+        args.push(crate::interop::wrap_boundary_type(default_ts));
     }
 }

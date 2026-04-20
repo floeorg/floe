@@ -8907,3 +8907,139 @@ let _name = withUser((u) -> u.name)
         errors.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── #1264 default type parameters ──────────────────────────────
+
+#[test]
+fn dts_generic_default_fills_missing_type_arg() {
+    // Regression for #1264. When a .d.ts generic declares defaults like
+    // `interface Foo<A = string, B = number>`, a user's 1-arg reference
+    // `Foo<boolean>` must resolve to the same Foreign as a 2-arg
+    // `Foo<boolean, number>` produced elsewhere in the same program.
+    use crate::interop::{DtsExport, GenericParamInfo, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Foo, pair } from "some-lib"
+
+let expectPadded(_x: Foo<boolean, number>) -> number = { 0 }
+let _usePartial = expectPadded(pair())
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let foo_export = DtsExport {
+        name: "Foo".to_string(),
+        ts_type: TsType::Any,
+    };
+    // pair(): Foo<boolean>  — library function returning a 1-arg form.
+    // Defaults should pad the second slot with `number`, making the
+    // return type equivalent to `Foo<boolean, number>`.
+    let pair_fn = DtsExport {
+        name: "pair".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Foo".to_string(),
+                args: vec![TsType::Primitive("boolean".to_string())],
+            }),
+        },
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![foo_export, pair_fn]);
+
+    let mut generic_params = HashMap::new();
+    generic_params.insert(
+        "Foo".to_string(),
+        vec![
+            GenericParamInfo {
+                name: "A".to_string(),
+                default: Some(TsType::Primitive("string".to_string())),
+            },
+            GenericParamInfo {
+                name: "B".to_string(),
+                default: Some(TsType::Primitive("number".to_string())),
+            },
+        ],
+    );
+
+    let mut checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    checker.set_dts_generic_params(generic_params);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Foo<boolean> (defaulted to Foo<boolean, number>) should unify with Foo<boolean, number>, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dts_generic_default_stops_at_first_missing_default() {
+    // If a parameter without a default sits before one with a default,
+    // padding cannot continue past it. `Foo<A, B = number>` called as
+    // `Foo<>` should leave A unresolved; we don't invent a value.
+    use crate::interop::{DtsExport, GenericParamInfo, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { twoArgs } from "some-lib"
+let _x = twoArgs()
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let two_args_fn = DtsExport {
+        name: "twoArgs".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Foo".to_string(),
+                args: vec![
+                    TsType::Primitive("boolean".to_string()),
+                    TsType::Primitive("string".to_string()),
+                ],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![two_args_fn]);
+
+    let mut generic_params = HashMap::new();
+    generic_params.insert(
+        "Foo".to_string(),
+        vec![
+            GenericParamInfo {
+                name: "A".to_string(),
+                default: None,
+            },
+            GenericParamInfo {
+                name: "B".to_string(),
+                default: Some(TsType::Primitive("number".to_string())),
+            },
+        ],
+    );
+
+    let mut checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    checker.set_dts_generic_params(generic_params);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "missing-default gap should not block legitimate usage, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
