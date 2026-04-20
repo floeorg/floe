@@ -1384,9 +1384,7 @@ export let handler(c: Context<{ Bindings: Bindings }>) -> string = {
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
         assert!(
-            probe.contains(
-                "declare const __chain_base_Context: Context<{ Bindings: Bindings }>;"
-            ),
+            probe.contains("declare const __chain_base_Context: Context<{ Bindings: Bindings }>;"),
             "probe must preserve nested generic type args, got:\n{probe}"
         );
     }
