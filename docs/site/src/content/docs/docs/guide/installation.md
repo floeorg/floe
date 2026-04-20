@@ -8,15 +8,29 @@ Floe is pre-1.0 software. The compiler may have bugs, and the language syntax, c
 
 ## Install the Compiler
 
-Floe ships as a single Rust binary called `floe`.
+Floe ships as a single prebuilt binary called `floe`. The install script detects your OS and architecture and drops the binary into `~/.local/bin`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/floeorg/floe/main/install.sh | sh
+```
+
+Pin a specific version with `FLOE_VERSION`, or pick a different install directory with `INSTALL_DIR`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/floeorg/floe/main/install.sh \
+  | FLOE_VERSION=v0.5.4 INSTALL_DIR=/usr/local/bin sh
+```
+
+Supported targets: macOS (arm64 + x86_64) and Linux (x86_64 + aarch64). On Windows, download the zip from the [latest release](https://github.com/floeorg/floe/releases/latest) and add the extracted directory to your `PATH`.
 
 ### From Source
 
+If you already have Rust installed and want to hack on the compiler itself:
+
 ```bash
-# Clone and build
 git clone https://github.com/floeorg/floe
 cd floe
-cargo install --path .
+cargo install --path crates/floe-cli
 
 # Verify
 floe --version
@@ -24,8 +38,8 @@ floe --version
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) 1.85+ (for building from source)
 - [Node.js](https://nodejs.org/) 18+ (for your project's build toolchain)
+- [Rust](https://rustup.rs/) 1.94+ (only if you're building from source)
 
 ## Create a Project
 

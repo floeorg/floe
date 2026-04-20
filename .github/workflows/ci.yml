@@ -134,3 +134,27 @@ jobs:
 
       - name: LSP integration tests
         run: python3 -m pytest tests/lsp/ --floe-bin=./floe -v --tb=short
+
+  install-script:
+    name: Install script smoke test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: shellcheck
+        if: matrix.os == 'ubuntu-latest'
+        run: shellcheck -s sh install.sh
+
+      - name: Run install.sh against the latest release
+        # The script pulls from the GitHub Release, not this commit — we
+        # just verify the OS/arch detection + tarball path still resolve
+        # and the binary runs.
+        env:
+          INSTALL_DIR: ${{ runner.temp }}/floe-install
+        run: |
+          sh install.sh
+          "$INSTALL_DIR/floe" --version
