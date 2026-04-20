@@ -97,12 +97,13 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Upload assets and promote draft to published
+      - name: Upload assets and promote prerelease to latest
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.tag_name }}
           files: artifacts/*
-          draft: false
+          prerelease: false
+          make_latest: "true"
 
   publish-npm:
     name: Publish to npm
