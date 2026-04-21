@@ -967,6 +967,26 @@ fn nested_fn_with_bare_await_emits_async() {
 }
 
 #[test]
+fn await_before_member_access_is_parenthesized() {
+    let result = emit_with_types(
+        "type R = Ok(number) | Err(string)\n\
+         let f() -> Promise<number> = { match getResult() |> await { Ok(v) -> v, Err(_) -> 0 } }",
+    );
+    assert!(
+        result.contains("(await getResult())"),
+        "`await` feeding member access must parenthesize — JS parses `await X.Y` as `await (X.Y)` — got: {result}"
+    );
+    assert!(
+        !result.contains(" await getResult().tag"),
+        "`await X.tag` must not appear — JS would await the tag of the unawaited Promise, got: {result}"
+    );
+    assert!(
+        !result.contains(" await getResult().value"),
+        "`await X.value` must not appear — JS would await the value of the unawaited Promise, got: {result}"
+    );
+}
+
+#[test]
 fn match_on_comparison_wraps_subject_in_parens() {
     let result = emit("let _x = match 5 > 0 { true -> \"yes\", false -> \"no\" }");
     assert!(
