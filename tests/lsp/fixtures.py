@@ -717,6 +717,18 @@ for string {
 }
 """
 
+UNION_SHORT = """\
+export type Filter = All | Active | Completed
+"""
+
+UNION_LONG = """\
+export type CheckoutError =
+    | EmptyCart
+    | InvalidEmail { email: string, reason: string }
+    | InvalidPhone { phone: string, reason: string }
+    | OutOfStock { productId: number, name: string }
+"""
+
 IMPORT_FOR_BLOCK_SYNTAX = """\
 type Msg = { text: string }
 

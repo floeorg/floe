@@ -304,7 +304,7 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "floe"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -316,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "floe-core"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "ariadne",
  "bincode",
@@ -334,7 +334,7 @@ dependencies = [
 
 [[package]]
 name = "floe-doc-check"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "floe-lsp"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "floe-core",
  "insta",
@@ -355,14 +355,14 @@ dependencies = [
 
 [[package]]
 name = "floe-test-helpers"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "floe-core",
 ]
 
 [[package]]
 name = "floe-wasm"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "floe-core",
  "serde",

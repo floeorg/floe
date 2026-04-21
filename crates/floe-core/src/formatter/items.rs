@@ -488,14 +488,23 @@ impl Formatter<'_> {
             .filter(|c| c.kind() == SyntaxKind::VARIANT)
             .collect();
 
+        // Before variant 0: broken emits "\n    | ", inline emits "".
+        // Between variants: broken emits "\n    | ", inline emits " | ".
+        // `break_` handles the newline/space swap; `if_broken` adds the
+        // leading `| ` only in broken mode (break_ can't emit text after
+        // the newline).
         let mut inner = Vec::new();
-        for variant in &variants {
-            inner.push(pretty::line());
-            inner.push(pretty::str("| "));
+        for (i, variant) in variants.iter().enumerate() {
+            if i == 0 {
+                inner.push(pretty::break_("", ""));
+            } else {
+                inner.push(pretty::break_("", " | "));
+            }
+            inner.push(pretty::if_broken(pretty::str("| "), pretty::nil()));
             inner.push(self.fmt_variant(variant));
         }
 
-        pretty::nest(4, pretty::concat(inner))
+        pretty::group(pretty::nest(4, pretty::concat(inner)))
     }
 
     fn fmt_variant(&mut self, node: &SyntaxNode) -> Document {

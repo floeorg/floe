@@ -56,11 +56,40 @@ fn format_type_record() {
 }
 
 #[test]
-fn format_type_union() {
+fn format_short_union_stays_on_one_line() {
     assert_fmt(
         "type Route = |Home|Profile{id:string}|NotFound",
-        "type Route =\n    | Home\n    | Profile { id: string }\n    | NotFound",
+        "type Route = Home | Profile { id: string } | NotFound",
     );
+}
+
+#[test]
+fn format_single_variant_newtype_stays_on_one_line() {
+    assert_fmt(
+        "export type SnippetCode =\n    | SnippetCode(string)",
+        "export type SnippetCode = SnippetCode(string)",
+    );
+}
+
+#[test]
+fn format_enum_like_union_stays_on_one_line() {
+    assert_fmt(
+        "export type ExpiryOption = ONE_HOUR | ONE_DAY | ONE_WEEK",
+        "export type ExpiryOption = ONE_HOUR | ONE_DAY | ONE_WEEK",
+    );
+}
+
+#[test]
+fn format_long_union_splits_to_one_variant_per_line() {
+    // Over the 100-column threshold: every variant on its own `|` line.
+    let input = "type Shape = Circle(number) | Rectangle(number, number) | \
+                 Triangle(number, number, number) | Trapezoid(number, number, number, number)";
+    let expected = "type Shape =\n    \
+                    | Circle(number)\n    \
+                    | Rectangle(number, number)\n    \
+                    | Triangle(number, number, number)\n    \
+                    | Trapezoid(number, number, number, number)";
+    assert_fmt(input, expected);
 }
 
 #[test]

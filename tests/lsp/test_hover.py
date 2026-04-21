@@ -431,6 +431,19 @@ class TestHoverRecordSpread:
         h = hover_text(lsp.hover(URI, 0, 6))
         assert h is not None, f"Got: {h}"
 
+    def test_short_union_hover_is_inline(self, lsp):
+        open_doc(lsp, URI, F.UNION_SHORT)
+        h = hover_text(lsp.hover(URI, *at(F.UNION_SHORT, "Filter")))
+        assert h is not None, f"Expected hover, got: {h}"
+        assert "All | Active | Completed" in h, f"Expected inline union, got: {h}"
+        assert "\n    | " not in h, f"Expected no split form, got: {h}"
+
+    def test_long_union_hover_splits(self, lsp):
+        open_doc(lsp, URI, F.UNION_LONG)
+        h = hover_text(lsp.hover(URI, *at(F.UNION_LONG, "CheckoutError")))
+        assert h is not None, f"Expected hover, got: {h}"
+        assert "\n    | EmptyCart" in h, f"Expected split form, got: {h}"
+
 
 class TestHoverUseBind:
     """Hover coverage for `use` contextual keyword and its bind forms (#1200)."""
