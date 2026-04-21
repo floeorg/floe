@@ -1031,3 +1031,70 @@ fn idempotent_zero_arg_closure_with_alias() {
 fn idempotent_one_arg_closure_single_expression() {
     assert_idempotent("let f = (x) -> x + 1\n");
 }
+
+// ── use declarations ────────────────────────────────────────
+
+#[test]
+fn use_decl_reformats_pipe_rhs() {
+    // Input pipe is long enough to force a break; arms use three different
+    // source indentations (7, 8, 1 spaces) to prove they are all rewritten.
+    assert_fmt(
+        concat!(
+            "let f() = {\n",
+            "    use body <-\n",
+            "       c.req.json()\n",
+            "        |> await\n",
+            "        |> parse<CreateBody>\n",
+            " |> Result.guard((_) -> c.json({ error: \"invalid body\" }, 400))\n",
+            "    c.json(body, 200)\n",
+            "}",
+        ),
+        concat!(
+            "let f() = {\n",
+            "    use body <- c.req.json()\n",
+            "        |> await\n",
+            "        |> parse<CreateBody>\n",
+            "        |> Result.guard((_) -> c.json({ error: \"invalid body\" }, 400))\n",
+            "\n",
+            "    c.json(body, 200)\n",
+            "}",
+        ),
+    );
+}
+
+#[test]
+fn use_decl_single_ident_idempotent() {
+    assert_idempotent("let f() = {\n    use x <- Option.guard(a, b)\n\n    x\n}\n");
+}
+
+#[test]
+fn use_decl_paren_destructure() {
+    assert_fmt(
+        "let f() = {\n    use (a,b) <- pair\n    a\n}",
+        "let f() = {\n    use (a, b) <- pair\n\n    a\n}",
+    );
+}
+
+#[test]
+fn use_decl_brace_destructure() {
+    assert_fmt(
+        "let f() = {\n    use {a,b} <- record\n    a\n}",
+        "let f() = {\n    use { a, b } <- record\n\n    a\n}",
+    );
+}
+
+#[test]
+fn use_decl_brace_destructure_with_rename() {
+    assert_fmt(
+        "let f() = {\n    use {a:x,b} <- record\n    x\n}",
+        "let f() = {\n    use { a: x, b } <- record\n\n    x\n}",
+    );
+}
+
+#[test]
+fn use_decl_no_binding() {
+    assert_fmt(
+        "let f() = {\n    use <- wrap()\n    done\n}",
+        "let f() = {\n    use <- wrap()\n\n    done\n}",
+    );
+}
