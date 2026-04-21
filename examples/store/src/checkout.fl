@@ -45,7 +45,7 @@ export let validateCheckout(
             let phone = shipping.phone |> validatePhone?
             let _stock = cart |> validateStock?
 
-            ShippingInfo(..shipping, email: email, phone: phone)
+            ShippingInfo(email: email, phone: phone, ..shipping)
         },
     }
 }

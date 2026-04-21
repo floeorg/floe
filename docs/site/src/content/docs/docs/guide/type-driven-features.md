@@ -135,7 +135,7 @@ type Task = {
 }
 
 let toggleDone(task: Task) -> Task = {
-  Task(..task, done: !task.done)
+  Task(done: !task.done, ..task)
 }
 
 test "toggle flips done status" {

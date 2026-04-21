@@ -426,25 +426,7 @@ impl<'src> CstParser<'src> {
                     if has_args {
                         self.expect(TokenKind::LeftParen);
                         self.eat_trivia();
-
-                        // Check for spread
-                        if self.at(TokenKind::DotDot) {
-                            self.builder.start_node(SyntaxKind::SPREAD_EXPR.into());
-                            self.bump();
-                            self.eat_trivia();
-                            self.parse_expr();
-                            self.builder.finish_node();
-                            self.eat_trivia();
-                            if self.at(TokenKind::Comma) {
-                                self.bump();
-                                self.eat_trivia();
-                            }
-                        }
-
-                        if !self.at(TokenKind::RightParen) {
-                            self.parse_comma_separated(Self::parse_call_arg, TokenKind::RightParen);
-                        }
-
+                        self.parse_constructor_args();
                         self.expect(TokenKind::RightParen);
                     }
 
@@ -492,26 +474,58 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::LeftParen);
         self.eat_trivia();
 
-        // Check for spread: `..expr`
-        if self.at(TokenKind::DotDot) {
-            self.builder.start_node(SyntaxKind::SPREAD_EXPR.into());
-            self.bump();
-            self.eat_trivia();
-            self.parse_expr();
-            self.builder.finish_node();
+        self.parse_constructor_args();
+
+        self.expect(TokenKind::RightParen);
+        self.builder.finish_node();
+    }
+
+    /// Parse a comma-separated list of constructor arguments. Accepts named
+    /// fields interspersed with at most one trailing `..base` spread. A
+    /// spread that appears before an explicit field is rejected with a
+    /// diagnostic pointing at the bad position.
+    fn parse_constructor_args(&mut self) {
+        let mut saw_spread = false;
+        while !self.at(TokenKind::RightParen) && !self.at_end() {
+            if self.at(TokenKind::DotDot) {
+                if saw_spread {
+                    self.builder.start_node(SyntaxKind::ERROR.into());
+                    self.error(
+                        "only one spread `..base` is allowed per constructor",
+                    );
+                    self.bump();
+                    self.eat_trivia();
+                    self.parse_expr();
+                    self.builder.finish_node();
+                } else {
+                    self.builder.start_node(SyntaxKind::SPREAD_EXPR.into());
+                    self.bump();
+                    self.eat_trivia();
+                    self.parse_expr();
+                    self.builder.finish_node();
+                    saw_spread = true;
+                }
+            } else {
+                if saw_spread {
+                    // Explicit arg after spread — the old spread-first syntax.
+                    self.builder.start_node(SyntaxKind::ERROR.into());
+                    self.error(
+                        "spread `..base` must come last — write explicit fields first, then `..base`",
+                    );
+                    self.parse_call_arg();
+                    self.builder.finish_node();
+                } else {
+                    self.parse_call_arg();
+                }
+            }
             self.eat_trivia();
             if self.at(TokenKind::Comma) {
                 self.bump();
                 self.eat_trivia();
+            } else {
+                break;
             }
         }
-
-        if !self.at(TokenKind::RightParen) {
-            self.parse_comma_separated(Self::parse_call_arg, TokenKind::RightParen);
-        }
-
-        self.expect(TokenKind::RightParen);
-        self.builder.finish_node();
     }
 
     // ── Call Arguments ───────────────────────────────────────────

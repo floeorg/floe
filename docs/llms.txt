@@ -200,8 +200,8 @@ let user = User("1", "Ryan", "r@test.com")
 // Named arguments (any order)
 let user = User(name: "Ryan", id: "1", email: "r@test.com")
 
-// Record spread with double dot
-let updated = User(..user, name: "New Name")
+// Record spread with double dot — explicit fields first, spread last
+let updated = User(name: "New Name", ..user)
 
 // Union variant construction
 let err = ApiError.Network(NetworkError.Timeout(ms: 3000))
@@ -761,7 +761,7 @@ export let App() -> JSX.Element = {
                     </span>
                     <button onClick={() -> setTodos(todos |> map((t) ->
                         match t.id == item.id {
-                            true -> Todo(..t, done: !t.done),
+                            true -> Todo(done: !t.done, ..t),
                             false -> t,
                         }
                     ))}>

@@ -28,7 +28,7 @@ export let HomePage() -> JSX.Element = {
 
     let handleToggle(id: string) = {
         setTodos(todos |> map((t) -> match t.id == id {
-                    true -> Todo(..t, done: !t.done),
+                    true -> Todo(done: !t.done, ..t),
                     false -> t,
                 }))
     }

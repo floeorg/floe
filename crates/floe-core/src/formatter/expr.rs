@@ -874,11 +874,6 @@ impl Formatter<'_> {
         let mut inner = vec![pretty::break_("", "")];
         let mut first = true;
         let mut prev_end: Option<u32> = None;
-        if let Some(spread) = &spread {
-            inner.push(self.fmt_spread(spread));
-            prev_end = Some(spread.text_range().end().into());
-            first = false;
-        }
         for arg in &args {
             let arg_start: u32 = arg.text_range().start().into();
             if !first {
@@ -894,6 +889,20 @@ impl Formatter<'_> {
             inner.push(self.fmt_arg(arg));
             prev_end = Some(arg.text_range().end().into());
             first = false;
+        }
+        if let Some(spread) = &spread {
+            if !first {
+                inner.push(pretty::break_(",", ", "));
+            }
+            if let Some(prev) = prev_end {
+                let spread_start: u32 = spread.text_range().start().into();
+                for c in self.pop_comments_in_range(prev, spread_start) {
+                    inner.push(pretty::str(c.text));
+                    inner.push(pretty::line());
+                    has_comment = true;
+                }
+            }
+            inner.push(self.fmt_spread(spread));
         }
 
         let mut group_parts = vec![pretty::str("(")];

@@ -604,7 +604,7 @@ type Todo = {
     done: bool,
 }
 let original = Todo(id: "1", text: "hello", done: false)
-let _t = Todo(..original, text: "updated")
+let _t = Todo(text: "updated", ..original)
 "#,
     );
     assert!(!has_error(&diags, ErrorCode::DuplicateDefinition));
@@ -5707,7 +5707,7 @@ fn spread_source_overwritten_field_mismatch_is_silent() {
         type SnippetId = SnippetId(number)
         type Snippet = { id: SnippetId, name: string }
         let row = { id: 1, name: "hi" }
-        let _s = Snippet(..row, id: SnippetId(2))
+        let _s = Snippet(id: SnippetId(2), ..row)
     "#,
     );
     assert!(
@@ -5723,7 +5723,7 @@ fn option_rejected_as_record_spread_source() {
         r#"
         type User = { id: number, name: string }
         let maybe: Option<User> = Some(User(id: 1, name: "a"))
-        let _u = User(..maybe, name: "b")
+        let _u = User(name: "b", ..maybe)
     "#,
     );
     assert!(
