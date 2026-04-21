@@ -5619,6 +5619,11 @@ fn bare_value_rejected_at_option_let_annotation() {
         "bare value at Option<T> annotation must be a TypeMismatch, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
+    assert!(
+        has_error_containing(&diags, "wrap with `Some(...)` or use `None`"),
+        "mismatch message should guide users to Some/None, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }
 
 #[test]

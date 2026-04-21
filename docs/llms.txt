@@ -375,11 +375,7 @@ let loadProfile(id: string) -> Result<Profile, Error> = {
     Ok(Profile(user, posts))
 }
 
-// Option<T> replaces null/undefined.
-// Construction is always explicit — `Some(x)` or `None`. A bare `T` is NOT
-// implicitly wrapped: `let x: Option<number> = 42` is a type error; write
-// `let x: Option<number> = Some(42)`. Same at call sites: `foo(Some(42))`,
-// not `foo(42)`, when `foo` takes `Option<number>`.
+// Option<T> replaces null/undefined
 type User = {
     name: string,
     nickname: Option<string>,

@@ -228,12 +228,8 @@ impl Checker {
                     "use a validation library like Zod, or match on the value",
                 );
             } else if !self.types_compatible(declared, &value_type) {
-                self.emit_error(
-                    format!("expected `{}`, found `{}`", declared, value_type),
-                    span,
-                    ErrorCode::TypeMismatch,
-                    format!("expected `{}`", declared),
-                );
+                let (msg, label) = self.type_mismatch_detail(declared, &value_type);
+                self.emit_error(msg, span, ErrorCode::TypeMismatch, label);
             }
             declared.clone()
         } else {

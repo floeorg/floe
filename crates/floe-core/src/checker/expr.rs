@@ -2973,11 +2973,31 @@ impl Checker {
     /// Returns `None` for ordinary mismatches — callers fall back to `"expected X, found Y"`.
     /// Returns `Some((annotation, inline_label))` for:
     /// - Record field-level diffs
+    /// - Bare `T` where `Option<T>` is expected (suggest `Some(...)` / `None`)
     pub(super) fn extra_mismatch_detail(
         &self,
         expected: &Type,
         found: &Type,
     ) -> Option<(String, String)> {
+        // Bare `T` supplied where `Option<T>` expected: TS users coming from
+        // `T | undefined` subtyping hit this constantly; point them at the
+        // constructors instead of a bare `expected X, found Y`.
+        if expected.is_option()
+            && !found.is_option()
+            && let Some(inner) = expected.option_inner()
+            && !matches!(inner, Type::Unknown | Type::Var(_))
+            && !matches!(found, Type::Unknown | Type::Error | Type::Var(_))
+            && self.types_compatible(inner, found)
+        {
+            return Some((
+                format!(
+                    "expected `{}`, found `{}` — wrap with `Some(...)` or use `None`",
+                    expected, found
+                ),
+                format!("expected `{}`", expected),
+            ));
+        }
+
         // Both are records — diff the fields and report only mismatches
         if let (Type::Record(exp_fields), Type::Record(fnd_fields)) = (expected, found) {
             let fnd_map: std::collections::HashMap<&str, &Type> =
