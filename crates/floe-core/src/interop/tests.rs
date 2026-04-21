@@ -1074,3 +1074,95 @@ fn strip_import_sentinels_cleans_surviving_names() {
         other => panic!("expected Generic, got {other:?}"),
     }
 }
+
+// ── Indexed access types (#1276) ───────────────────────────────
+
+#[test]
+fn parse_indexed_access_in_dts() {
+    use super::dts::parse_dts_exports_from_str;
+
+    let source = r#"
+export type Bindings = { DB: string }
+export type Env<E> = E["Bindings"]
+"#;
+    let exports = parse_dts_exports_from_str(source).expect("parse");
+    let env = exports
+        .iter()
+        .find(|e| e.name == "Env")
+        .expect("Env export");
+    match &env.ts_type {
+        TsType::IndexedAccess { object, index } => {
+            assert!(
+                matches!(&**object, TsType::Named(n) if n == "E"),
+                "expected object to be Named(\"E\"), got {:?}",
+                object
+            );
+            assert_eq!(
+                **index,
+                TsType::StringLiteral("Bindings".to_string()),
+                "expected StringLiteral(\"Bindings\"), got {:?}",
+                index
+            );
+        }
+        other => panic!("expected IndexedAccess, got {other:?}"),
+    }
+}
+
+#[test]
+fn evaluate_indexed_access_concrete_object() {
+    use super::wrapper::evaluate_indexed_access;
+    let obj = TsType::Object(vec![
+        ObjectField {
+            name: "DB".to_string(),
+            ty: TsType::Primitive("string".to_string()),
+            optional: false,
+        },
+        ObjectField {
+            name: "KV".to_string(),
+            ty: TsType::Primitive("number".to_string()),
+            optional: false,
+        },
+    ]);
+    let result = evaluate_indexed_access(&obj, &TsType::StringLiteral("DB".to_string()));
+    assert_eq!(result, Some(TsType::Primitive("string".to_string())));
+}
+
+#[test]
+fn evaluate_indexed_access_missing_key_is_none() {
+    use super::wrapper::evaluate_indexed_access;
+    let obj = TsType::Object(vec![ObjectField {
+        name: "DB".to_string(),
+        ty: TsType::Primitive("string".to_string()),
+        optional: false,
+    }]);
+    let result = evaluate_indexed_access(&obj, &TsType::StringLiteral("bogus".to_string()));
+    assert_eq!(result, None);
+}
+
+#[test]
+fn evaluate_indexed_access_abstract_object_is_none() {
+    use super::wrapper::evaluate_indexed_access;
+    // `E["Bindings"]` where `E` is still a type parameter — cannot
+    // evaluate yet, so the helper returns `None` and callers fall
+    // back to `unknown`.
+    let result = evaluate_indexed_access(
+        &TsType::Named("E".to_string()),
+        &TsType::StringLiteral("Bindings".to_string()),
+    );
+    assert_eq!(result, None);
+}
+
+#[test]
+fn wrap_indexed_access_concrete_returns_field_type() {
+    // Boundary wrap of a concrete `{ DB: string }["DB"]` resolves to
+    // Floe's `string`, not `unknown`.
+    let ty = TsType::IndexedAccess {
+        object: Box::new(TsType::Object(vec![ObjectField {
+            name: "DB".to_string(),
+            ty: TsType::Primitive("string".to_string()),
+            optional: false,
+        }])),
+        index: Box::new(TsType::StringLiteral("DB".to_string())),
+    };
+    assert_eq!(wrap_boundary_type(&ty), Type::String);
+}

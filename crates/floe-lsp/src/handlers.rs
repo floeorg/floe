@@ -63,15 +63,14 @@ impl LanguageServer for FloeLsp {
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
         if let Some(change) = params.content_changes.into_iter().next_back() {
-            self.update_document(uri, &change.text).await;
+            self.update_document(uri.clone(), &change.text).await;
+            self.recheck_dependents(&uri).await;
         }
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.documents
-            .write()
-            .await
-            .remove(&params.text_document.uri);
+        let uri = params.text_document.uri;
+        self.forget_document(&uri).await;
     }
 
     // ── Hover ───────────────────────────────────────────────────

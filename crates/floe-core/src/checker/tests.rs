@@ -4864,6 +4864,7 @@ fn for_block_same_fn_name_different_types_no_conflict() {
             span: dummy_span,
         },
         trait_name: None,
+        trait_name_span: None,
         functions: vec![FunctionDecl {
             exported: true,
             async_fn: false,
@@ -9084,5 +9085,83 @@ let _twice(f: Apply, x: number) -> number = { f(f(x)) }
         errors.is_empty(),
         "labelled fn type should accept positional calls, got: {:?}",
         errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+// ── Function-type aliases are structural (#1274) ─────────────
+
+#[test]
+fn function_type_alias_accepts_zero_arg_closure() {
+    let diags = check(
+        r#"
+type CreatePoop = () -> string
+export let poop: CreatePoop = () -> "poop"
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "closure should satisfy structural function alias, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn function_type_alias_accepts_one_arg_closure() {
+    let diags = check(
+        r#"
+type F = (number) -> number
+export let f: F = (x) -> x + 1
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "one-arg closure should satisfy structural function alias, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn function_type_alias_call_site_returns_unwrapped_type() {
+    let diags = check(
+        r#"
+type F = () -> string
+let f: F = () -> "x"
+export let s: string = f()
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "calling an alias-typed value should return the alias's return type, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn function_type_alias_as_parameter_accepts_closure_literal() {
+    let diags = check(
+        r#"
+type F = () -> string
+let run(g: F) -> string = { g() }
+export let r: string = run(() -> "z")
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "passing a closure to an alias-typed parameter should check, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn nominal_newtype_still_rejects_raw_payload() {
+    let diags = check(
+        r#"
+type OrderId = OrderId(number)
+export let id: OrderId = 42
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "nominal newtype must keep rejecting raw payload values"
     );
 }

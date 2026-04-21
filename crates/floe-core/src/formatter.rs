@@ -471,29 +471,6 @@ impl<'src> Formatter<'src> {
             .map(|t| t.text().to_string())
     }
 
-    /// Format expression after `=>`
-    pub(crate) fn fmt_expr_after_fat_arrow(&mut self, node: &SyntaxNode) -> Document {
-        let mut found_arrow = false;
-        for t in node.children_with_tokens() {
-            if let Some(tok) = t.as_token() {
-                if tok.kind() == SyntaxKind::FAT_ARROW {
-                    found_arrow = true;
-                    continue;
-                }
-                if found_arrow && !tok.kind().is_trivia() {
-                    return pretty::str(tok.text());
-                }
-            }
-            if let Some(child) = t.into_node()
-                && found_arrow
-                && child.kind() != SyntaxKind::PARAM
-            {
-                return self.fmt_node(&child);
-            }
-        }
-        pretty::nil()
-    }
-
     /// Check if a JSX element will format as multiline (heuristic).
     pub(crate) fn is_multiline_jsx(&self, node: &SyntaxNode) -> bool {
         if node.kind() != SyntaxKind::JSX_ELEMENT {

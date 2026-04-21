@@ -252,6 +252,7 @@ impl Attacher<'_> {
         ForBlock {
             type_name: self.type_expr(block.type_name),
             trait_name: block.trait_name,
+            trait_name_span: block.trait_name_span,
             functions: block
                 .functions
                 .into_iter()

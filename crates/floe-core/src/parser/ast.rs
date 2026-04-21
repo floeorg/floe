@@ -406,6 +406,8 @@ pub struct ForBlock<T = ()> {
     pub type_name: TypeExpr<T>,
     /// Optional trait bound: `for User: Display { ... }`
     pub trait_name: Option<String>,
+    /// Span of the trait name identifier in the header, for hover/goto-def.
+    pub trait_name_span: Option<Span>,
     pub functions: Vec<FunctionDecl<T>>,
     pub span: Span,
 }

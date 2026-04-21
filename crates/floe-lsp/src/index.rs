@@ -134,6 +134,26 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                         variant_shape: None,
                     });
                 }
+                // `import { for TraitName }` brings the trait name into scope
+                // for use in `for Type: TraitName { ... }` headers. Register
+                // each for-specifier as an import symbol so hover and goto-def
+                // on the trait name resolve to the source module.
+                for for_spec in &decl.for_specifiers {
+                    symbols.push(Symbol {
+                        name: for_spec.type_name.clone(),
+                        kind: SymbolKind::INTERFACE,
+                        start: for_spec.span.start,
+                        end: for_spec.span.end,
+                        import_source: Some(decl.source.clone()),
+                        detail: format!(
+                            "import {{ for {} }} from \"{}\"",
+                            for_spec.type_name, decl.source
+                        ),
+                        first_param_type: None,
+                        owner_type: None,
+                        variant_shape: None,
+                    });
+                }
             }
             ItemKind::Const(decl) => {
                 let name = match &decl.binding {
@@ -395,6 +415,42 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
             }
             ItemKind::ForBlock(block) => {
                 let type_str = type_expr_to_string(&block.type_name);
+
+                // Index the type name in the header so hover shows the type
+                // signature at the cursor position inside `for Type: ...`.
+                if let TypeExprKind::Named { name, .. } = &block.type_name.kind {
+                    symbols.push(Symbol {
+                        name: name.clone(),
+                        kind: SymbolKind::TYPE_PARAMETER,
+                        start: block.type_name.span.start,
+                        end: block.type_name.span.end,
+                        import_source: None,
+                        detail: format!("for {type_str}"),
+                        first_param_type: None,
+                        owner_type: None,
+                        variant_shape: None,
+                    });
+                }
+
+                // Index the trait name in the header. Hover shows the trait
+                // reference; goto-def falls through to the import specifier
+                // (registered above) via the cursor-on-def-name skip.
+                if let (Some(trait_name), Some(trait_span)) =
+                    (&block.trait_name, &block.trait_name_span)
+                {
+                    symbols.push(Symbol {
+                        name: trait_name.clone(),
+                        kind: SymbolKind::INTERFACE,
+                        start: trait_span.start,
+                        end: trait_span.end,
+                        import_source: None,
+                        detail: format!("trait {trait_name}"),
+                        first_param_type: None,
+                        owner_type: None,
+                        variant_shape: None,
+                    });
+                }
+
                 for func in &block.functions {
                     symbols.push(for_block_function_symbol(
                         func,

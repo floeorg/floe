@@ -387,6 +387,7 @@ impl<'src> Lowerer<'src> {
         // Find the type expression (first TYPE_EXPR child)
         let mut type_name = None;
         let mut trait_name = None;
+        let mut trait_name_span = None;
         let mut functions = Vec::new();
 
         // Collect idents that appear after a colon (trait name)
@@ -401,6 +402,7 @@ impl<'src> Lowerer<'src> {
                         saw_colon = true;
                     } else if saw_colon && token.kind() == SyntaxKind::IDENT {
                         trait_name = Some(token.text().to_string());
+                        trait_name_span = Some(self.token_span(&token));
                         saw_colon = false;
                     }
                 }
@@ -423,6 +425,7 @@ impl<'src> Lowerer<'src> {
         Some(ForBlock {
             type_name: type_name?,
             trait_name,
+            trait_name_span,
             functions,
             span,
         })

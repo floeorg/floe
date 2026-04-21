@@ -68,6 +68,14 @@ pub enum TsType {
     /// `this` return type — resolved to the enclosing interface/class name
     /// during conversion so fluent builders keep a usable type.
     This,
+    /// Indexed access: `E["Bindings"]` — the value type at `index` in
+    /// `object`. Preserved until generic parameters are substituted and
+    /// the lookup can be evaluated; unresolvable lookups fall back to
+    /// `Unknown` at the Floe boundary.
+    IndexedAccess {
+        object: Box<TsType>,
+        index: Box<TsType>,
+    },
 }
 
 /// Convert a TsType to a human-readable string for display.
@@ -117,6 +125,13 @@ pub fn ts_type_to_string(ty: &TsType) -> String {
         TsType::NumberLiteral(n) => n.to_string(),
         TsType::BooleanLiteral(b) => b.to_string(),
         TsType::This => "this".to_string(),
+        TsType::IndexedAccess { object, index } => {
+            format!(
+                "{}[{}]",
+                ts_type_to_string(object),
+                ts_type_to_string(index)
+            )
+        }
     }
 }
 

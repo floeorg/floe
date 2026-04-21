@@ -1345,9 +1345,11 @@ export let handler(c: Context<unknown>) -> string ={
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
 
+        // The probe must emit the parameter's full TS annotation so tsgo
+        // propagates the concrete generic args through the chain (#1276).
         assert!(
-            probe.contains("declare const __chain_base_Context: Context;"),
-            "probe should declare a Context chain base, got:\n{probe}"
+            probe.contains("declare const __chain_base_Context: Context<unknown>;"),
+            "probe should declare the Context chain base with its full type annotation, got:\n{probe}"
         );
         // `.req` is a property, NOT a method call — it must NOT get `(null! as any)`
         assert!(
@@ -1361,6 +1363,29 @@ export let handler(c: Context<unknown>) -> string ={
                 "__chain_call_Context$req$param = __chain_base_Context.req.param(null! as any);"
             ),
             "expected __chain_call_ probe with .req.param(null! as any), got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_preserves_nested_generic_type_argument() {
+        // Regression for #1276. Without the full type annotation in the probe,
+        // `c.env.DB` on `Context<{ Bindings: Bindings }>` collapses to the
+        // bare `Context` whose default E resolves `env` to `any`. The probe
+        // must emit the full annotation so tsgo threads `Bindings` through.
+        let source = r#"import trusted { Context } from "hono"
+
+type Bindings = { DB: string }
+
+export let handler(c: Context<{ Bindings: Bindings }>) -> string = {
+    c.env.DB
+}
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains("declare const __chain_base_Context: Context<{ Bindings: Bindings }>;"),
+            "probe must preserve nested generic type args, got:\n{probe}"
         );
     }
 }
