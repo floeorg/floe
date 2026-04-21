@@ -5668,6 +5668,22 @@ fn option_rejected_at_non_option_function_argument() {
 }
 
 #[test]
+fn option_rejected_as_record_spread_source() {
+    let diags = check(
+        r#"
+        type User = { id: number, name: string }
+        let maybe: Option<User> = Some(User(id: 1, name: "a"))
+        let _u = User(..maybe, name: "b")
+    "#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::InvalidSpreadType),
+        "spreading Option<T> into a record constructor must be rejected, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn option_rejected_at_non_option_record_field() {
     let diags = check(
         r#"
