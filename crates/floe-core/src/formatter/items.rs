@@ -294,6 +294,66 @@ impl Formatter<'_> {
         pretty::concat(parts)
     }
 
+    // ── Use declaration ─────────────────────────────────────────
+
+    pub(crate) fn fmt_use_decl(&mut self, node: &SyntaxNode) -> Document {
+        let binding = self.fmt_use_binding(node);
+        let mut parts = vec![pretty::str("use")];
+        if !binding.is_empty() {
+            parts.push(pretty::str(" "));
+            parts.push(pretty::str(binding));
+        }
+        parts.push(pretty::str(" <- "));
+        parts.push(self.fmt_use_rhs(node));
+        pretty::concat(parts)
+    }
+
+    fn fmt_use_binding(&self, node: &SyntaxNode) -> String {
+        let mut out = String::new();
+        for child in node.children_with_tokens() {
+            let Some(tok) = child.as_token() else {
+                continue;
+            };
+            match tok.kind() {
+                SyntaxKind::LEFT_ARROW => break,
+                SyntaxKind::KW_USE => {}
+                k if k.is_trivia() => {}
+                SyntaxKind::L_PAREN => out.push('('),
+                SyntaxKind::R_PAREN => out.push(')'),
+                SyntaxKind::L_BRACE => out.push_str("{ "),
+                SyntaxKind::R_BRACE => out.push_str(" }"),
+                SyntaxKind::COMMA => out.push_str(", "),
+                SyntaxKind::COLON => out.push_str(": "),
+                _ => out.push_str(tok.text()),
+            }
+        }
+        out
+    }
+
+    fn fmt_use_rhs(&mut self, node: &SyntaxNode) -> Document {
+        let mut past_arrow = false;
+        let mut parts = Vec::new();
+        for child in node.children_with_tokens() {
+            if !past_arrow {
+                if child
+                    .as_token()
+                    .is_some_and(|t| t.kind() == SyntaxKind::LEFT_ARROW)
+                {
+                    past_arrow = true;
+                }
+                continue;
+            }
+            match child {
+                rowan::NodeOrToken::Node(n) => parts.push(self.fmt_node(&n)),
+                rowan::NodeOrToken::Token(tok) if !tok.kind().is_trivia() => {
+                    parts.push(pretty::str(tok.text().to_string()));
+                }
+                _ => {}
+            }
+        }
+        pretty::concat(parts)
+    }
+
     fn fmt_type_params(&self, node: &SyntaxNode) -> Document {
         let mut in_angle = false;
         let mut started = false;

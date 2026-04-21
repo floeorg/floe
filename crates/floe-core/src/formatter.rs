@@ -102,6 +102,7 @@ impl<'src> Formatter<'src> {
             SyntaxKind::REEXPORT_DECL => self.fmt_reexport(node),
             SyntaxKind::CONST_DECL => self.fmt_const(node),
             SyntaxKind::FUNCTION_DECL => self.fmt_function(node),
+            SyntaxKind::USE_DECL => self.fmt_use_decl(node),
             SyntaxKind::TYPE_DECL => self.fmt_type_decl(node),
             SyntaxKind::BLOCK_EXPR => self.fmt_block(node),
             SyntaxKind::PIPE_EXPR => self.fmt_pipe(node),
