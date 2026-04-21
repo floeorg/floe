@@ -1027,14 +1027,6 @@ fn typealias_record_is_structural_alias() {
 
 #[test]
 fn typealias_record_with_spread_becomes_intersection() {
-    let item = first_item(
-        "type Base = { className: string }\n\
-         typealias Button = { ...Base, label: string }",
-    );
-    match item {
-        ItemKind::TypeDecl(_) => {}
-        other => panic!("expected type decl, got {other:?}"),
-    }
     let program = parse_ok(
         "type Base = { className: string }\n\
          typealias Button = { ...Base, label: string }",

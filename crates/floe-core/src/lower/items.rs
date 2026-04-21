@@ -410,10 +410,9 @@ impl<'src> Lowerer<'src> {
         })
     }
 
-    /// Convert a `TypeDef::Record` into `TypeDef::Alias(TypeExpr)` for
-    /// `typealias X = { ... }`. Records with spreads become intersections so
-    /// `typealias X = { ...Other, foo: T }` is equivalent to
-    /// `typealias X = Other & { foo: T }` — both compile to the same TS.
+    /// Records are the only RHS shape where both `type` and `typealias` are
+    /// legal; under `typealias`, spreads fold into an intersection so that
+    /// `typealias X = { ...Other, foo: T }` matches `Other & { foo: T }`.
     fn record_def_to_structural_alias(
         &mut self,
         def: TypeDef,
@@ -424,47 +423,51 @@ impl<'src> Lowerer<'src> {
             other => return other,
         };
         let span = self.node_span(record_node);
+        let has_spread = entries.iter().any(|e| matches!(e, RecordEntry::Spread(_)));
 
-        // Walk entries preserving order, grouping consecutive non-spread fields
-        // into synthetic record type exprs that sit between spreads in the
-        // resulting intersection.
-        let mut parts: Vec<TypeExpr> = Vec::new();
-        let mut pending_fields: Vec<RecordField> = Vec::new();
-        let flush = |pending: &mut Vec<RecordField>, parts: &mut Vec<TypeExpr>| {
-            if pending.is_empty() {
-                return;
-            }
-            let fields = std::mem::take(pending);
-            parts.push(TypeExpr {
+        if !has_spread {
+            let fields = entries
+                .into_iter()
+                .filter_map(|e| match e {
+                    RecordEntry::Field(f) => Some(*f),
+                    RecordEntry::Spread(_) => None,
+                })
+                .collect();
+            return TypeDef::Alias(TypeExpr {
                 kind: TypeExprKind::Record(fields),
                 span,
             });
-        };
+        }
+
+        let mut parts: Vec<TypeExpr> = Vec::new();
+        let mut pending: Vec<RecordField> = Vec::with_capacity(entries.len());
         for entry in entries {
             match entry {
-                RecordEntry::Field(f) => pending_fields.push(*f),
+                RecordEntry::Field(f) => pending.push(*f),
                 RecordEntry::Spread(s) => {
-                    flush(&mut pending_fields, &mut parts);
+                    if !pending.is_empty() {
+                        parts.push(TypeExpr {
+                            kind: TypeExprKind::Record(std::mem::take(&mut pending)),
+                            span,
+                        });
+                    }
                     if let Some(te) = s.type_expr {
                         parts.push(te);
                     }
                 }
             }
         }
-        flush(&mut pending_fields, &mut parts);
+        if !pending.is_empty() {
+            parts.push(TypeExpr {
+                kind: TypeExprKind::Record(pending),
+                span,
+            });
+        }
 
-        let inner = match parts.len() {
-            0 => TypeExpr {
-                kind: TypeExprKind::Record(Vec::new()),
-                span,
-            },
-            1 => parts.into_iter().next().unwrap(),
-            _ => TypeExpr {
-                kind: TypeExprKind::Intersection(parts),
-                span,
-            },
-        };
-        TypeDef::Alias(inner)
+        TypeDef::Alias(TypeExpr {
+            kind: TypeExprKind::Intersection(parts),
+            span,
+        })
     }
 
     fn lower_for_block(&mut self, node: &SyntaxNode, item_exported: bool) -> Option<ForBlock> {

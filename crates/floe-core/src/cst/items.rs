@@ -522,27 +522,20 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
         let def_kind = self.parse_type_def_after_eq();
 
-        // Validate keyword/RHS combination. Records are ambiguous (either keyword
-        // works): `type { ... }` is nominal, `typealias { ... }` is structural.
-        // Tagged unions and newtypes need nominal identity (require `type`), and
-        // function types, generic applications, intersections, tuples, and
-        // `typeof` are structural (require `typealias`). `opaque` is exempt —
-        // it is the explicit way to give a structural shape nominal identity.
-        match (is_typealias, is_opaque, def_kind) {
-            (false, false, SyntaxKind::TYPE_DEF_ALIAS) => {
-                self.error(
-                    "`type` declares a nominal type; this shape is structural. \
-                     Use `typealias` instead — it names a shape without creating \
-                     a new nominal type",
-                );
-            }
-            (true, _, SyntaxKind::TYPE_DEF_UNION) => {
-                self.error(
-                    "`typealias` names a structural shape; tagged unions and \
-                     newtypes need nominal identity. Use `type` instead",
-                );
-            }
-            _ => {}
+        // `opaque` is the explicit way to brand a structural shape as nominal,
+        // so it's exempt from the type/typealias split.
+        if !is_typealias && !is_opaque && def_kind == SyntaxKind::TYPE_DEF_ALIAS {
+            self.error(
+                "`type` declares a nominal type; this shape is structural. \
+                 Use `typealias` instead — it names a shape without creating \
+                 a new nominal type",
+            );
+        }
+        if is_typealias && def_kind == SyntaxKind::TYPE_DEF_UNION {
+            self.error(
+                "`typealias` names a structural shape; tagged unions and \
+                 newtypes need nominal identity. Use `type` instead",
+            );
         }
 
         // Optional deriving clause: `deriving (Display)`
