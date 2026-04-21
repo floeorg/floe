@@ -1965,6 +1965,33 @@ fn parse_in_pipe() {
     );
 }
 
+#[test]
+fn parse_with_awaited_value_emits_async_iife() {
+    let result =
+        emit_with_types("let f() -> Promise<unknown> = { fetchData() |> await |> parse<string> }");
+    assert!(
+        result.contains("await (async () => {"),
+        "parse with awaited value must wrap in async IIFE that is awaited, got: {result}"
+    );
+    assert!(
+        result.contains("await fetchData()"),
+        "should still emit the inner await, got: {result}"
+    );
+}
+
+#[test]
+fn parse_without_await_keeps_sync_iife() {
+    let result = emit("x |> parse<string>");
+    assert!(
+        result.contains("(() => {"),
+        "parse without await should stay sync, got: {result}"
+    );
+    assert!(
+        !result.contains("async () =>"),
+        "parse without await must not produce async IIFE, got: {result}"
+    );
+}
+
 // ── Use keyword (callback flattening) ────────────────────────
 
 #[test]

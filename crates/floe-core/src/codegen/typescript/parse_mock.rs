@@ -2,6 +2,7 @@ use crate::parser::ast::*;
 use crate::pretty::{self, Document};
 use crate::type_layout::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
 
+use super::expression::expr_contains_await;
 use super::generator::{THROW_MOCK_FUNCTION, TypeScriptGenerator};
 
 impl<'a> TypeScriptGenerator<'a> {
@@ -14,13 +15,19 @@ impl<'a> TypeScriptGenerator<'a> {
         let type_doc = self.emit_type_expr(type_arg);
         let type_str = Self::doc_to_string(&type_doc);
 
+        let (open, close) = if expr_contains_await(value) {
+            ("(await (async () => { const __v = ", "; })())")
+        } else {
+            ("(() => { const __v = ", "; })()")
+        };
+
         pretty::concat([
-            pretty::str("(() => { const __v = "),
+            pretty::str(open),
             value_doc,
             pretty::str("; "),
             pretty::str(checks),
             pretty::str(format!(
-                "return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: __v as {type_str} }}; }})()"
+                "return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: __v as {type_str} }}{close}"
             )),
         ])
     }
