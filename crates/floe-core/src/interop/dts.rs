@@ -1305,10 +1305,13 @@ macro_rules! convert_shared_type_arms {
             // narrow against the original type.
             $prefix::TSMappedType(_) => TsType::Unknown,
 
-            // Indexed access: T['k'] — without evaluating the lookup we
-            // can't return the field type. Use the source type so the
-            // surrounding code still typechecks as "something from T".
-            $prefix::TSIndexedAccessType(access) => convert_oxc_type(&access.object_type),
+            // Indexed access: T['k']. Preserved as a structured node so
+            // later stages can evaluate the lookup once `T` is
+            // substituted to a concrete type (see `evaluate_indexed_access`).
+            $prefix::TSIndexedAccessType(access) => TsType::IndexedAccess {
+                object: Box::new(convert_oxc_type(&access.object_type)),
+                index: Box::new(convert_oxc_type(&access.index_type)),
+            },
 
             // Template literal type: `` `prefix.${K}` `` — widen to string.
             $prefix::TSTemplateLiteralType(_) => TsType::Primitive("string".to_string()),
