@@ -3057,6 +3057,32 @@ for User: Display {
     );
 }
 
+#[test]
+fn for_import_of_missing_type_errors() {
+    use std::collections::HashMap;
+
+    let mut imports = HashMap::new();
+    imports.insert("./types".to_string(), resolved_module_with_display_trait());
+
+    let source = r#"
+import { User, for PeePeePooPoo } from "./types"
+"#;
+
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let diags = Checker::with_imports(imports).check(&program);
+    assert!(
+        has_error(&diags, ErrorCode::ExportNotFound),
+        "expected ExportNotFound for unknown `for` type, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(has_error_containing(
+        &diags,
+        "has no export named `PeePeePooPoo`"
+    ));
+}
+
 // ── Bug: Pipe with stdlib member access returns Unknown ─────
 // `x |> String.length` should infer as number, not unknown
 
