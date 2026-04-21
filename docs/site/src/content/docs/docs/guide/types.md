@@ -25,7 +25,7 @@ The RHS picks what kind of type you get:
 | `{ ... }` | Record |
 | `A \| B \| ...` | Tagged sum |
 | `Name(T)` | Newtype |
-| `(label: T, ...) => Ret` | Function-type alias (parameter labels required) |
+| `(T, ...) => Ret` or `(label: T, ...) => Ret` | Function-type alias (parameter labels optional) |
 | `OneOf<"a", "b">` | Structural string-literal union |
 | `Intersect<A, B>` | Structural intersection |
 
@@ -286,11 +286,11 @@ opaque type Email = Email(string)
 
 ## Function-Type Aliases
 
-Name a function type to use it in records or generics. **Parameter labels are required** at named positions (top-level aliases and function-typed record fields):
+Name a function type to use it in records or generics. Parameter labels are optional documentation:
 
 ```floe
 type Handler = (req: Request) -> Promise<Response>
-type Predicate<T> = (value: T) -> boolean
+type Predicate<T> = (T) -> boolean
 
 type Button = {
   label: string,
@@ -299,13 +299,7 @@ type Button = {
 }
 ```
 
-Labels are documentation only — they do not affect structural assignability. Inline higher-order parameters keep labels optional, since the name is usually noise:
-
-```floe
-let map(xs: Array<A>, f: (A) -> B) -> Array<B> = { xs |> Array.map(f) }
-```
-
-Omitting a label at a named position is a compile error (E203).
+Labels never affect structural assignability — `(x: Int) -> Int`, `(y: Int) -> Int`, and `(Int) -> Int` are all the same type. Add labels when the name carries meaning (DDD-style workflow types, multi-param callbacks); skip them when the position is obvious.
 
 ## Tuple Types
 

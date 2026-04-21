@@ -130,7 +130,7 @@ type CardProps = {
 
 ### Function-type aliases
 
-Use `->` for function types. Parameter labels are required in named positions:
+Use `->` for function types. Parameter labels are optional documentation:
 
 ```floe
 import { Request, Response } from "express"

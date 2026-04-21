@@ -9045,78 +9045,24 @@ let _x = twoArgs()
 }
 
 #[test]
-fn fn_type_alias_with_labels_is_accepted() {
+fn fn_type_alias_accepts_labelled_and_unlabelled_params() {
+    // Labels are documentation only — both forms parse and check cleanly.
     let diags = check(
         r#"
 type Handler = (req: number) -> number
-let _h: Handler = (x) -> x
+type Predicate = (number) -> boolean
+let _h(f: Handler, x: number) -> number = { f(x) }
+let _p(f: Predicate, x: number) -> boolean = { f(x) }
 "#,
     );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
     assert!(
-        !has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
-        "labelled fn type alias should not fire E203, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn fn_type_alias_without_labels_errors() {
-    let diags = check(
-        r#"
-type Handler = (number) -> number
-"#,
-    );
-    assert!(
-        has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
-        "unlabelled fn type alias should fire E203, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn fn_typed_record_field_without_labels_errors() {
-    let diags = check(
-        r#"
-type Props = {
-    onClick: (number) -> (),
-}
-"#,
-    );
-    assert!(
-        has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
-        "unlabelled fn-typed record field should fire E203, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn fn_typed_record_field_with_labels_is_accepted() {
-    let diags = check(
-        r#"
-type Props = {
-    onClick: (id: number) -> (),
-}
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
-        "labelled fn-typed record field should not fire E203, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn higher_order_fn_param_without_labels_is_accepted() {
-    // Inline higher-order params keep labels optional.
-    let diags = check(
-        r#"
-let _twice(f: (number) -> number, x: number) -> number = { f(f(x)) }
-"#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::MissingFnTypeParamLabel),
-        "higher-order fn params should not require labels, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+        errors.is_empty(),
+        "labelled and unlabelled fn-type aliases should both check cleanly, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 

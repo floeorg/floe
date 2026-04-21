@@ -58,20 +58,6 @@ impl Checker {
                 self.check_no_intersection_in_type_def(&decl.def, span);
             }
 
-            match &decl.def {
-                TypeDef::Alias(type_expr) => {
-                    self.check_named_fn_type_labels(type_expr);
-                }
-                TypeDef::Record(entries) => {
-                    for entry in entries {
-                        if let RecordEntry::Field(field) = entry {
-                            self.check_named_fn_type_labels(&field.type_ann);
-                        }
-                    }
-                }
-                _ => {}
-            }
-
             if let TypeDef::StringLiteralUnion(variants) = &decl.def
                 && !decl.opaque
             {
@@ -187,26 +173,6 @@ impl Checker {
             }
         }
         None
-    }
-
-    /// Emit E203 for any function-type parameter that lacks a label when the
-    /// function type sits at a named position (alias RHS or record field).
-    /// Only the outermost function type is checked — nested ones inside the
-    /// return type or generic args are still inline glue.
-    pub(crate) fn check_named_fn_type_labels(&mut self, type_expr: &TypeExpr) {
-        if let TypeExprKind::Function { params, .. } = &type_expr.kind {
-            for param in params {
-                if param.label.is_none() {
-                    self.emit_error_with_help(
-                        "function-type parameter is missing a label",
-                        param.span,
-                        ErrorCode::MissingFnTypeParamLabel,
-                        "missing label",
-                        "add a label, e.g. `(name: Type) -> ...`",
-                    );
-                }
-            }
-        }
     }
 
     /// Check that `&` intersection types don't appear in `{ }` type definitions.
