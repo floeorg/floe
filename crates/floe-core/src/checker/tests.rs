@@ -5728,7 +5728,6 @@ fn widening_annotation_does_not_warn_on_some_wrapping() {
 
 #[test]
 fn widening_annotation_does_not_warn_on_bare_binding() {
-    // Without an annotation there is nothing to widen.
     let diags = check(r#"let x = "hi""#);
     assert!(
         !has_error(&diags, ErrorCode::WideningAnnotation),

@@ -189,16 +189,14 @@ impl Checker {
         if !declared.is_option() || value.is_option() {
             return;
         }
-        if matches!(
-            value,
-            Type::Unknown | Type::Error | Type::Never | Type::Var(_)
-        ) {
-            return;
-        }
         let Some(inner) = declared.option_inner() else {
             return;
         };
-        if matches!(inner, Type::Var(_) | Type::Unknown) {
+        if matches!(
+            value,
+            Type::Unknown | Type::Error | Type::Never | Type::Var(_)
+        ) || matches!(inner, Type::Unknown | Type::Var(_))
+        {
             return;
         }
         if !self.types_compatible(inner, value) {
