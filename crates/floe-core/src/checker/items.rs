@@ -80,12 +80,6 @@ impl Checker {
                 ty
             }
         });
-        if let (Some(type_ann), Some(declared)) = (decl.type_ann.as_ref(), declared_type.as_ref())
-            && tsgo_type.is_none()
-        {
-            self.warn_if_annotation_widens(type_ann.span, declared, &value_type);
-        }
-
         let mut final_type = self.resolve_const_type(
             value_type.clone(),
             declared_type,
@@ -181,42 +175,6 @@ impl Checker {
         self.consume_probe(|name| name.starts_with(&prefix), true)
     }
 
-    /// Warn when a `let` annotation widens the RHS via implicit Some wrapping
-    /// (e.g. `let x: Option<string> = "hi"`). The widening keeps compiling, but
-    /// it hides stale annotations — if the RHS tightened after an upgrade, the
-    /// user would never notice without hovering.
-    fn warn_if_annotation_widens(&mut self, ann_span: Span, declared: &Type, value: &Type) {
-        if !declared.is_option() || value.is_option() {
-            return;
-        }
-        let Some(inner) = declared.option_inner() else {
-            return;
-        };
-        if matches!(
-            value,
-            Type::Unknown | Type::Error | Type::Never | Type::Var(_)
-        ) || matches!(inner, Type::Unknown | Type::Var(_))
-        {
-            return;
-        }
-        if !self.types_compatible(inner, value) {
-            return;
-        }
-        self.emit_warning_with_help(
-            format!(
-                "annotation `{}` is wider than the value type `{}`",
-                declared, value
-            ),
-            ann_span,
-            ErrorCode::WideningAnnotation,
-            format!("value has type `{}`", value),
-            format!(
-                "change the annotation to `{}`, or wrap the value with `Some(...)` if the `Option` is intentional",
-                value
-            ),
-        );
-    }
-
     /// Determine the final type for a const binding given value type, declared type, and tsgo probe.
     fn resolve_const_type(
         &mut self,
@@ -270,12 +228,8 @@ impl Checker {
                     "use a validation library like Zod, or match on the value",
                 );
             } else if !self.types_compatible(declared, &value_type) {
-                self.emit_error(
-                    format!("expected `{}`, found `{}`", declared, value_type),
-                    span,
-                    ErrorCode::TypeMismatch,
-                    format!("expected `{}`", declared),
-                );
+                let (msg, label) = self.type_mismatch_detail(declared, &value_type);
+                self.emit_error(msg, span, ErrorCode::TypeMismatch, label);
             }
             declared.clone()
         } else {

@@ -5087,7 +5087,7 @@ import trusted { Transition } from "api"
 let test(id: string) -> () = { () }
 
 let App() -> JSX.Element = {
-    let (transitions, _setTransitions) = useState<Array<Transition>>([])
+    let (transitions, _setTransitions) = useState<Array<Transition>>(Some([]))
     let _r = transitions |> map((t) -> test(t.id))
 
     <div />
@@ -5446,26 +5446,6 @@ fn stdlib_array_map_accepts_valid_array() {
 }
 
 #[test]
-fn stdlib_implicit_some_wrapping_still_works_for_concrete_option_params() {
-    // Functions that take Option<concrete_type> should still accept bare values
-    let diags = check(
-        r#"
-        let foo(x: Option<number>) -> Option<number> = { x }
-        let _x = foo(42)
-    "#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::TypeMismatch),
-        "implicit Some wrapping for concrete Option params should still work, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
-    );
-}
-
-#[test]
 fn stdlib_string_split_rejects_wrong_type() {
     let diags = check("let _x = String.split(42, \",\")");
     assert!(
@@ -5629,70 +5609,78 @@ let greet(name: string) -> string = { `Hello, ${name}!` }",
     );
 }
 
-// ── Boundary type compatibility ──────────────────────────
+// ── Strict Option wrapping ──────────────────────────────
 
 #[test]
-fn value_assignable_to_option() {
-    // A concrete value should be assignable to Option<T> (implicit Some wrapping)
+fn bare_value_rejected_at_option_let_annotation() {
     let diags = check("let x: Option<number> = 42");
     assert!(
-        !has_error(&diags, ErrorCode::TypeMismatch),
-        "concrete value should be assignable to Option<T>, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn array_assignable_to_option_array() {
-    // An array should be assignable to Option<Array<T>>
-    let diags = check("let x: Option<Array<number>> = [1, 2, 3]");
-    assert!(
-        !has_error(&diags, ErrorCode::TypeMismatch),
-        "array should be assignable to Option<Array<T>>, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
-    );
-}
-
-// ── Widening annotations (W008) ──────────────────────────
-
-#[test]
-fn widening_annotation_warns_on_bare_literal() {
-    let diags = check(r#"let x: Option<string> = "hi""#);
-    assert!(
-        has_error(&diags, ErrorCode::WideningAnnotation),
-        "expected W008, got: {:?}",
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "bare value at Option<T> annotation must be a TypeMismatch, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
-    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
+    assert!(
+        has_error_containing(&diags, "wrap with `Some(...)` or use `None`"),
+        "mismatch message should guide users to Some/None, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }
 
 #[test]
-fn widening_annotation_warns_on_narrowed_call_result() {
-    // Simulates the motivating example: a function that returns a narrowed `string`
-    // being bound under a wider `Option<string>` annotation.
+fn bare_array_rejected_at_option_array_let_annotation() {
+    let diags = check("let x: Option<Array<number>> = [1, 2, 3]");
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "bare array at Option<Array<T>> annotation must be a TypeMismatch, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn bare_value_rejected_at_option_function_argument() {
     let diags = check(
         r#"
-        let narrow() -> string = { "hi" }
-        let x: Option<string> = narrow()
+        let foo(x: Option<number>) -> Option<number> = { x }
+        let _x = foo(42)
     "#,
     );
     assert!(
-        has_error(&diags, ErrorCode::WideningAnnotation),
-        "expected W008 on leftover Option annotation, got: {:?}",
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "bare value at Option<T> argument must be a TypeMismatch, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
 #[test]
-fn widening_annotation_does_not_warn_when_rhs_is_option() {
+fn some_wrapping_accepted_at_option_let_annotation() {
+    let diags = check(r#"let x: Option<string> = Some("hi")"#);
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "explicit Some(...) should compile, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn none_accepted_at_option_let_annotation() {
+    let diags = check("let x: Option<string> = None");
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "None should compile, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn option_typed_call_result_accepted_at_option_let_annotation() {
     let diags = check(
         r#"
         let maybe() -> Option<string> = { Some("hi") }
@@ -5700,56 +5688,13 @@ fn widening_annotation_does_not_warn_when_rhs_is_option() {
     "#,
     );
     assert!(
-        !has_error(&diags, ErrorCode::WideningAnnotation),
-        "should not warn when RHS is already Option<T>, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn widening_annotation_does_not_warn_on_none() {
-    let diags = check("let x: Option<string> = None");
-    assert!(
-        !has_error(&diags, ErrorCode::WideningAnnotation),
-        "should not warn on None — it is already an Option, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn widening_annotation_does_not_warn_on_some_wrapping() {
-    let diags = check(r#"let x: Option<string> = Some("hi")"#);
-    assert!(
-        !has_error(&diags, ErrorCode::WideningAnnotation),
-        "should not warn when user already wrote Some(...), got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn widening_annotation_does_not_warn_on_bare_binding() {
-    let diags = check(r#"let x = "hi""#);
-    assert!(
-        !has_error(&diags, ErrorCode::WideningAnnotation),
-        "no annotation means nothing to warn about, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn widening_annotation_does_not_warn_on_function_return_type() {
-    // Scope: the rule intentionally only fires on `let` annotations, not
-    // function return types — widening a return type can be deliberate for
-    // API compatibility.
-    let diags = check(
-        r#"
-        let wrap() -> Option<string> = { "hi" }
-    "#,
-    );
-    assert!(
-        !has_error(&diags, ErrorCode::WideningAnnotation),
-        "function return widening should not warn, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "Option<T>-typed RHS should compile, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
     );
 }
 
