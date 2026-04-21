@@ -10,7 +10,10 @@ use crate::parse::extra::{ModuleExtra, SrcSpan};
 use crate::pretty::{self, Document};
 use crate::syntax::{SyntaxKind, SyntaxNode};
 
-const MAX_WIDTH: usize = 100;
+/// Column budget the formatter targets. Exposed so other crates (the LSP
+/// hover renderer in particular) can decide inline-vs-split with the same
+/// threshold, instead of keeping a parallel number in sync by convention.
+pub const MAX_WIDTH: usize = 100;
 
 /// Format Floe source code. Returns `None` if the file has parse errors.
 pub fn format(source: &str) -> Option<String> {

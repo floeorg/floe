@@ -93,6 +93,33 @@ fn format_long_union_splits_to_one_variant_per_line() {
 }
 
 #[test]
+fn format_union_exactly_at_column_boundary_stays_inline() {
+    // `type Roo = A | B | ... | W` is exactly 100 chars. At the boundary
+    // the width check uses `<=`, so it should stay on one line.
+    let input = "type Roo = A | B | C | D | E | F | G | H | I | J | K | L | M | \
+                 N | O | P | Q | R | S | T | U | V | W";
+    let expected = "type Roo = A | B | C | D | E | F | G | H | I | J | K | L | M | \
+                    N | O | P | Q | R | S | T | U | V | W";
+    assert_eq!(input.len(), 100);
+    assert_fmt(input, expected);
+}
+
+#[test]
+fn format_union_one_char_over_boundary_splits() {
+    // Same variants, name padded by one character — now 101 chars total,
+    // one over the budget, so the whole declaration splits.
+    let input = "type Root = A | B | C | D | E | F | G | H | I | J | K | L | M | \
+                 N | O | P | Q | R | S | T | U | V | W";
+    assert_eq!(input.len(), 101);
+    let expected = "type Root =\n    \
+                    | A\n    | B\n    | C\n    | D\n    | E\n    | F\n    | G\n    \
+                    | H\n    | I\n    | J\n    | K\n    | L\n    | M\n    | N\n    \
+                    | O\n    | P\n    | Q\n    | R\n    | S\n    | T\n    | U\n    \
+                    | V\n    | W";
+    assert_fmt(input, expected);
+}
+
+#[test]
 fn format_type_alias() {
     assert_fmt(
         "typealias StringAlias = string",

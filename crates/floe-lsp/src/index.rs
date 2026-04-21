@@ -12,12 +12,8 @@ use std::sync::Arc;
 use tower_lsp::lsp_types::*;
 
 use floe_core::checker::{Type, simple_resolve_type_expr};
+use floe_core::formatter;
 use floe_core::parser::ast::*;
-
-/// Column budget that decides whether a hover body stays on one line.
-/// Matches the formatter's `MAX_WIDTH` so hover and `floe fmt` agree on
-/// when a short union type fits inline.
-const HOVER_LINE_WIDTH: usize = 100;
 
 pub(super) fn symbol_kind_to_completion(kind: SymbolKind) -> CompletionItemKind {
     match kind {
@@ -344,17 +340,13 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                             })
                             .collect();
                         let inline = rendered.join(" | ");
-                        let header_width = vis.len()
-                            + opaque.len()
-                            + "type ".len()
-                            + decl.name.chars().count()
-                            + type_params.chars().count()
-                            + " = ".len();
-                        let body = if header_width + inline.chars().count() <= HOVER_LINE_WIDTH {
-                            format!(" = {}", inline)
+                        let one_line =
+                            format!("{vis}{opaque}type {}{type_params} = {inline}", decl.name);
+                        let body = if one_line.chars().count() <= formatter::MAX_WIDTH {
+                            format!(" = {inline}")
                         } else {
                             let vs: Vec<String> =
-                                rendered.iter().map(|v| format!("    | {}", v)).collect();
+                                rendered.iter().map(|v| format!("    | {v}")).collect();
                             format!(" =\n{}", vs.join("\n"))
                         };
                         let tag = if variants.len() == 1 && variants[0].name == decl.name {
