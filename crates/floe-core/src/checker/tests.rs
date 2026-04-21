@@ -5652,6 +5652,54 @@ fn bare_value_rejected_at_option_function_argument() {
 }
 
 #[test]
+fn option_rejected_at_non_option_function_argument() {
+    let diags = check(
+        r#"
+        let foo(x: number) -> number = { x }
+        let maybe: Option<number> = Some(1)
+        let _x = foo(maybe)
+    "#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "Option<T> passed where T is expected must be a TypeMismatch, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn option_rejected_as_record_spread_source() {
+    let diags = check(
+        r#"
+        type User = { id: number, name: string }
+        let maybe: Option<User> = Some(User(id: 1, name: "a"))
+        let _u = User(..maybe, name: "b")
+    "#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::InvalidSpreadType),
+        "spreading Option<T> into a record constructor must be rejected, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn option_rejected_at_non_option_record_field() {
+    let diags = check(
+        r#"
+        type Env = { db: number }
+        let maybe: Option<number> = Some(1)
+        let _e: Env = { db: maybe }
+    "#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "Option<T> assigned to record field of type T must be a TypeMismatch, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn some_wrapping_accepted_at_option_let_annotation() {
     let diags = check(r#"let x: Option<string> = Some("hi")"#);
     assert!(

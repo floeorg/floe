@@ -1652,6 +1652,19 @@ impl Checker {
                 );
             }
 
+            // Reject Option spreads — the Option must be unwrapped first (match or binding)
+            if spread_type.is_option() {
+                self.emit_error_with_help(
+                    format!(
+                        "cannot spread `Option` value into `{type_name}` — unwrap the Option first"
+                    ),
+                    spread_expr.span,
+                    ErrorCode::InvalidSpreadType,
+                    "`Option` must be narrowed first",
+                    "use `match opt { Some(v) -> ..., None -> ... }` to unwrap",
+                );
+            }
+
             if let Type::Record(spread_fields) = &spread_type {
                 let spread_keys: Vec<&str> =
                     spread_fields.iter().map(|(k, _)| k.as_str()).collect();

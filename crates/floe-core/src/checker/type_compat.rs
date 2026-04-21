@@ -246,6 +246,13 @@ impl Checker {
             return false;
         }
 
+        // Option<T> is never compatible with a non-Option expected type.
+        // Users must unwrap with `match` or pattern binding. TsUnion
+        // delegates to the per-member recursion further down.
+        if actual.is_option() && !expected.is_option() && !matches!(expected, Type::TsUnion(_)) {
+            return false;
+        }
+
         // Foreign types: reject primitives, permissive otherwise.
         // Foreign-vs-Foreign is permissive because npm types often have subtype
         // relationships (e.g. SQLiteColumn extends SQLWrapper) that Floe can't verify —
