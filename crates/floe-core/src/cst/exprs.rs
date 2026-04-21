@@ -490,9 +490,7 @@ impl<'src> CstParser<'src> {
             if self.at(TokenKind::DotDot) {
                 if saw_spread {
                     self.builder.start_node(SyntaxKind::ERROR.into());
-                    self.error(
-                        "only one spread `..base` is allowed per constructor",
-                    );
+                    self.error("only one spread `..base` is allowed per constructor");
                     self.bump();
                     self.eat_trivia();
                     self.parse_expr();
