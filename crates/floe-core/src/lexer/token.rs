@@ -42,6 +42,7 @@ pub enum TokenKind {
     From,
     Match,
     Type,
+    Typealias,
     Opaque,
     /// `for` — for block keyword (grouping functions under a type)
     For,
@@ -267,6 +268,7 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "from" => Some(TokenKind::From),
         "match" => Some(TokenKind::Match),
         "type" => Some(TokenKind::Type),
+        "typealias" => Some(TokenKind::Typealias),
         "opaque" => Some(TokenKind::Opaque),
         "for" => Some(TokenKind::For),
         "self" => Some(TokenKind::SelfKw),

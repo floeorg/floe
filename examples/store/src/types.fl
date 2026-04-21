@@ -107,6 +107,19 @@ export type ShippingUpdate = {
     address: Settable<string> = Unchanged,
 }
 
+// ── Structural aliases ─────────────────────────────────
+
+// `typealias` names a structural shape. Compared to `type`, no new nominal
+// identity is created — any record with these fields can be passed in as a
+// `ProductSummary`, which is handy when consuming data shapes from the API
+// without wrapping them in a nominal constructor.
+
+export typealias ProductSummary = {
+    id: ProductId,
+    title: string,
+    price: number,
+}
+
 // ── Traits ─────────────────────────────────────────────
 
 export trait Display {

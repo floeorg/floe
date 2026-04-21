@@ -89,6 +89,13 @@
     ],
     "description": "Union type declaration"
   },
+  "Typealias": {
+    "prefix": "typealias",
+    "body": [
+      "typealias ${1:Name} = ${0:Type}"
+    ],
+    "description": "Structural type alias"
+  },
   "React Component": {
     "prefix": "comp",
     "body": [

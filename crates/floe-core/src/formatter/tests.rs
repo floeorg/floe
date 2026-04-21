@@ -65,7 +65,10 @@ fn format_type_union() {
 
 #[test]
 fn format_type_alias() {
-    assert_fmt("type StringAlias = string", "type StringAlias = string");
+    assert_fmt(
+        "typealias StringAlias = string",
+        "typealias StringAlias = string",
+    );
 }
 
 #[test]
@@ -1002,8 +1005,8 @@ fn format_zero_arg_closure_string_body() {
 #[test]
 fn format_zero_arg_closure_with_alias_annotation() {
     assert_fmt(
-        "type F = () -> string\nlet f: F = () -> \"poop\"",
-        "type F = () -> string\n\nlet f: F = () -> \"poop\"",
+        "typealias F = () -> string\nlet f: F = () -> \"poop\"",
+        "typealias F = () -> string\n\nlet f: F = () -> \"poop\"",
     );
 }
 
@@ -1024,7 +1027,7 @@ fn format_zero_arg_closure_block_body() {
 
 #[test]
 fn idempotent_zero_arg_closure_with_alias() {
-    assert_idempotent("type F = () -> string\n\nlet f: F = () -> \"poop\"\n");
+    assert_idempotent("typealias F = () -> string\n\nlet f: F = () -> \"poop\"\n");
 }
 
 #[test]

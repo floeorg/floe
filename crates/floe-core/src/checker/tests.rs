@@ -3951,7 +3951,7 @@ type Route = | Home
 
 #[test]
 fn type_alias_without_ts_import_is_error() {
-    let diags = check("type Name = string");
+    let diags = check("typealias Name = string");
     {
         let errors: Vec<_> = diags
             .iter()
@@ -5551,7 +5551,7 @@ let _result = toModel(row)
 fn typeof_local_binding_is_ok() {
     let diags = check(
         "let greet(name: string) -> string = { `Hello, ${name}!` }
-type Greeter = typeof greet",
+typealias Greeter = typeof greet",
     );
     {
         let errors: Vec<_> = diags
@@ -5571,7 +5571,7 @@ fn typeof_local_record_binding_is_ok() {
     let diags = check(
         "type Config = { baseUrl: string, timeout: number }
 let config = Config(baseUrl: \"https://api.com\", timeout: 5000)
-type MyConfig = typeof config",
+typealias MyConfig = typeof config",
     );
     {
         let errors: Vec<_> = diags
@@ -5588,7 +5588,7 @@ type MyConfig = typeof config",
 
 #[test]
 fn typeof_undefined_binding() {
-    let diags = check("type T = typeof doesNotExist");
+    let diags = check("typealias T = typeof doesNotExist");
     assert!(
         has_error_containing(&diags, "undefined binding"),
         "should error on undefined binding: {diags:?}"
@@ -5600,7 +5600,7 @@ fn typeof_forward_reference_errors() {
     // typeof cannot forward-reference local functions (they aren't registered
     // until the second pass, after type registration)
     let diags = check(
-        "type Greeter = typeof greet
+        "typealias Greeter = typeof greet
 let greet(name: string) -> string = { `Hello, ${name}!` }",
     );
     assert!(
@@ -5803,7 +5803,7 @@ fn intersection_local_types_is_ok() {
     let diags = check(
         "type A = { x: number }
 type B = { y: string }
-type C = A & B",
+typealias C = A & B",
     );
     {
         let errors: Vec<_> = diags
@@ -5823,7 +5823,7 @@ fn intersection_three_local_types_is_ok() {
     let diags = check(
         "type A = { x: number }
 type B = { y: string }
-type D = A & B & { z: boolean }",
+typealias D = A & B & { z: boolean }",
     );
     {
         let errors: Vec<_> = diags
@@ -5843,7 +5843,7 @@ fn intersection_with_local_typeof_is_ok() {
     let diags = check(
         "type Config = { baseUrl: string }
 let config = Config(baseUrl: \"https://api.com\")
-type Extended = typeof config & { timeout: number }",
+typealias Extended = typeof config & { timeout: number }",
     );
     {
         let errors: Vec<_> = diags
@@ -5863,7 +5863,7 @@ fn intersection_local_generic_is_ok() {
     let diags = check(
         "type A = { x: number }
 type B = { y: string }
-type C = Array<A> & B",
+typealias C = Array<A> & B",
     );
     {
         let errors: Vec<_> = diags
@@ -5898,7 +5898,7 @@ let _test(b: B) -> number = { b.x }",
 fn alias_with_local_type_is_ok() {
     let diags = check(
         "type A = { x: number }
-type B = Array<\"div\">",
+typealias B = Array<\"div\">",
     );
     {
         let errors: Vec<_> = diags
@@ -5923,7 +5923,7 @@ fn alias_with_npm_import_is_ok() {
     let program = crate::parser::Parser::new(
         r#"
 import { ComponentProps } from "react"
-type DivProps = ComponentProps<"div">
+typealias DivProps = ComponentProps<"div">
 "#,
     )
     .parse_program()
@@ -5960,7 +5960,7 @@ fn intersection_with_npm_import_is_ok() {
     let program = crate::parser::Parser::new(
         r#"
 import { VariantProps } from "tailwind-variants"
-type CardProps = VariantProps & { className: string }
+typealias CardProps = VariantProps & { className: string }
 "#,
     )
     .parse_program()
@@ -6027,7 +6027,7 @@ fn assert_utility_type_accepted(src: &str) {
 fn alias_with_return_type_and_typeof_local_is_ok() {
     assert_utility_type_accepted(
         "let createDb(id: string) -> string = { id }
-type Database = ReturnType<typeof createDb>",
+typealias Database = ReturnType<typeof createDb>",
     );
 }
 
@@ -6035,7 +6035,7 @@ type Database = ReturnType<typeof createDb>",
 fn alias_with_parameters_is_ok() {
     assert_utility_type_accepted(
         "let createDb(id: string) -> string = { id }
-type DbArgs = Parameters<typeof createDb>",
+typealias DbArgs = Parameters<typeof createDb>",
     );
 }
 
@@ -6043,7 +6043,7 @@ type DbArgs = Parameters<typeof createDb>",
 fn alias_with_partial_over_local_record_is_ok() {
     assert_utility_type_accepted(
         "type User = { name: string, email: string, age: number }
-type PartialUser = Partial<User>",
+typealias PartialUser = Partial<User>",
     );
 }
 
@@ -6051,8 +6051,8 @@ type PartialUser = Partial<User>",
 fn alias_with_readonly_and_non_nullable_is_ok() {
     assert_utility_type_accepted(
         "type User = { name: string }
-type ReadOnlyUser = Readonly<User>
-type NonNullableUser = NonNullable<User>",
+typealias ReadOnlyUser = Readonly<User>
+typealias NonNullableUser = NonNullable<User>",
     );
 }
 
@@ -6060,7 +6060,7 @@ type NonNullableUser = NonNullable<User>",
 fn bare_typeof_local_still_errors() {
     let diags = check(
         "let createDb(id: string) -> string = { id }
-type Identity = typeof createDb",
+typealias Identity = typeof createDb",
     );
     {
         let errors: Vec<_> = diags
@@ -6079,7 +6079,7 @@ type Identity = typeof createDb",
 fn unknown_utility_like_name_still_errors() {
     let diags = check(
         "type User = { name: string }
-type Wat = MyCustomUtility<User>",
+typealias Wat = MyCustomUtility<User>",
     );
     assert!(has_error(&diags, ErrorCode::UndefinedName), "{diags:?}");
 }
@@ -6106,7 +6106,7 @@ type Props = {
 fn intersection_in_type_alias_is_ok() {
     let diags = check(
         r#"
-type Props = string & { extra: number }
+typealias Props = string & { extra: number }
 "#,
     );
     assert!(
@@ -9185,8 +9185,8 @@ fn fn_type_alias_accepts_labelled_and_unlabelled_params() {
     // Labels are documentation only — both forms parse and check cleanly.
     let diags = check(
         r#"
-type Handler = (req: number) -> number
-type Predicate = (number) -> boolean
+typealias Handler = (req: number) -> number
+typealias Predicate = (number) -> boolean
 let _h(f: Handler, x: number) -> number = { f(x) }
 let _p(f: Predicate, x: number) -> boolean = { f(x) }
 "#,
@@ -9208,7 +9208,7 @@ fn fn_type_param_label_does_not_collide_with_call_site_arguments() {
     // having to refer to the label.
     let diags = check(
         r#"
-type Apply = (n: number) -> number
+typealias Apply = (n: number) -> number
 let _twice(f: Apply, x: number) -> number = { f(f(x)) }
 "#,
     );
@@ -9229,7 +9229,7 @@ let _twice(f: Apply, x: number) -> number = { f(f(x)) }
 fn function_type_alias_accepts_zero_arg_closure() {
     let diags = check(
         r#"
-type CreatePoop = () -> string
+typealias CreatePoop = () -> string
 export let poop: CreatePoop = () -> "poop"
 "#,
     );
@@ -9244,7 +9244,7 @@ export let poop: CreatePoop = () -> "poop"
 fn function_type_alias_accepts_one_arg_closure() {
     let diags = check(
         r#"
-type F = (number) -> number
+typealias F = (number) -> number
 export let f: F = (x) -> x + 1
 "#,
     );
@@ -9259,7 +9259,7 @@ export let f: F = (x) -> x + 1
 fn function_type_alias_call_site_returns_unwrapped_type() {
     let diags = check(
         r#"
-type F = () -> string
+typealias F = () -> string
 let f: F = () -> "x"
 export let s: string = f()
 "#,
@@ -9275,7 +9275,7 @@ export let s: string = f()
 fn function_type_alias_as_parameter_accepts_closure_literal() {
     let diags = check(
         r#"
-type F = () -> string
+typealias F = () -> string
 let run(g: F) -> string = { g() }
 export let r: string = run(() -> "z")
 "#,

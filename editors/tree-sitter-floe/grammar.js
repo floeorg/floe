@@ -182,7 +182,7 @@ module.exports = grammar({
     type_declaration: ($) =>
       seq(
         optional("opaque"),
-        "type",
+        choice("type", "typealias"),
         field("name", $.type_identifier),
         optional($.type_parameters),
         "=",

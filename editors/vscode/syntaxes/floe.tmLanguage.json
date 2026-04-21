@@ -116,7 +116,7 @@
       "patterns": [
         {
           "name": "storage.type.floe",
-          "match": "\\b(let|fn|type)\\b"
+          "match": "\\b(let|fn|type|typealias)\\b"
         }
       ]
     },

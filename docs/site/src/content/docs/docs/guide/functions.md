@@ -132,9 +132,9 @@ let double(x: number) -> number = { x * 2 }
 Use `->` to describe function types:
 
 ```floe
-type Transform = (string) -> number
-type Predicate = (Todo) -> boolean
-type Callback = () -> ()
+typealias Transform = (string) -> number
+typealias Predicate = (Todo) -> boolean
+typealias Callback = () -> ()
 ```
 
 ### Async Functions

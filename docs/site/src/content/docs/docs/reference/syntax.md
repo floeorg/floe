@@ -75,10 +75,10 @@ type OrderId = OrderId(number)
 // String literal union (for npm interop)
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
-// Alias
-type Name = string
+// Structural alias
+typealias Name = string
 
-// Newtype
+// Newtype (nominal)
 type UserId = UserId(string)
 
 // Opaque

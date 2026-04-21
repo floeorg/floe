@@ -25,19 +25,28 @@ title: Types Reference
 
 ## Type Declarations
 
-Every type declaration starts with `type Name = RHS`. The shape of the RHS picks the kind:
+Floe has two type-declaration keywords:
 
-| RHS | Kind |
-|---|---|
-| `{ field: T, ... }` | Record |
-| `A \| B \| ...` (constructors) | Tagged sum (nominal — declares fresh constructors) |
-| `Name(T)` | Newtype (single-value wrapper) |
-| `(T, ...) => Ret` or `(label: T, ...) => Ret` | Function-type alias (structural; parameter labels optional, documentation only) |
-| `OneOf<"a", "b", ...>` | Structural string-literal union |
-| `Intersect<A, B, ...>` | Structural intersection |
-| `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... | TS utility alias (pass-through) |
+- `type Name = RHS` — **nominal** declaration. `Name` is a new, distinct identity.
+- `typealias Name = RHS` — **structural** alias. `Name` and `RHS` are interchangeable.
 
-`|` at the top level of a `type` declaration is **always nominal**. For a structural union of string literals, use `OneOf<>`.
+The RHS shape determines which keyword is allowed:
+
+| RHS | `type` | `typealias` |
+|---|---|---|
+| `{ field: T, ... }` | Nominal record (default) | Structural alias over the shape |
+| `{ ...Other, foo: T }` | Nominal record with spread | Structural intersection (`Other & { foo: T }`) |
+| `A \| B \| ...` (constructors) | Tagged sum | **Error** — requires nominal identity |
+| `Name(T)` | Newtype | **Error** — requires nominal identity |
+| `(T, ...) -> Ret` | **Error** — no nominal identity | Structural function-type alias |
+| `A & B` | **Error** — no nominal identity | Structural intersection |
+| `typeof value` | **Error** — no nominal identity | Structural typeof alias |
+| `Partial<T>` / `ReturnType<...>` / generic application | **Error** — no nominal identity | TS utility alias (pass-through) |
+| `"a" \| "b" \| ...` | String-literal union | String-literal union (same codegen) |
+
+`opaque type Name = RHS` is nominal on the outside but wraps an arbitrary structural shape inside. Use it when you need to give a structural type nominal identity explicitly (e.g. `opaque type HashedPw = string`).
+
+`|` at the top level of a `type` declaration is **always nominal** — it declares fresh constructors.
 
 ## Records
 
@@ -78,7 +87,7 @@ let cfg = Config(baseUrl: "https://api.com")
 
 ### Record Composition
 
-Include fields from other record types using `...` spread:
+Include fields from other record types using `...` spread. For structural prop shapes that don't need their own nominal identity, use `typealias` — the spread becomes a TypeScript intersection:
 
 ```floe
 type BaseProps = {
@@ -86,19 +95,21 @@ type BaseProps = {
   disabled: boolean,
 }
 
-type ButtonProps = {
+typealias ButtonProps = {
   ...BaseProps,
   onClick: () -> (),
   label: string,
 }
 ```
 
-Compiles to a TypeScript intersection:
+Compiles to:
 
 ```typescript
 type BaseProps = { className: string; disabled: boolean };
 type ButtonProps = BaseProps & { onClick: () => void; label: string };
 ```
+
+If `ButtonProps` had used `type` instead of `typealias`, it would still compile to the same TypeScript but would require explicit construction (`ButtonProps(...)`) at the Floe level — `typealias` is the right choice when you just want a structural shape, which is typical for UI prop types.
 
 Spreads work with generic types, `typeof`, and npm imports:
 
@@ -107,7 +118,7 @@ import { tv, VariantProps } from "tailwind-variants"
 
 let cardVariants = tv({ base: "rounded-xl", variants: { padding: { sm: "p-4" } } })
 
-type CardProps = {
+typealias CardProps = {
   ...VariantProps<typeof cardVariants>,
   className: string,
 }
@@ -164,9 +175,9 @@ Only code in the module that defines `Email` can construct or destructure it. Ot
 Structural function types. Use `->` between the parameter list and return type. Parameter labels are optional documentation:
 
 ```floe
-type Handler = (req: Request) -> Promise<Response>
-type Predicate<T> = (T) -> boolean
-type Reducer<S, A> = (state: S, action: A) -> S
+typealias Handler = (req: Request) -> Promise<Response>
+typealias Predicate<T> = (T) -> boolean
+typealias Reducer<S, A> = (state: S, action: A) -> S
 ```
 
 Labels never affect structural assignability — `(x: Int) -> Int` is interchangeable with `(y: Int) -> Int` and with the unlabelled `(Int) -> Int`. Use them when the name carries meaning (DDD-style workflow types, multi-param callbacks); skip them when the position is obvious. LSP hover surfaces whichever form you wrote.
@@ -176,7 +187,7 @@ Labels never affect structural assignability — `(x: Int) -> Int` is interchang
 For npm interop and config values:
 
 ```floe
-type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
+typealias HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 ```
 
 Compiles to `type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"`.
@@ -199,8 +210,8 @@ Exhaustiveness is checked. Writing `type M = "a" | "b"` with a bare `|` is a com
 Combine types structurally:
 
 ```floe
-type AdminCard = Intersect<ButtonProps, { role: "admin" }>
-type CardProps = Intersect<VariantProps<typeof variants>, { className: string }>
+typealias AdminCard = Intersect<ButtonProps, { role: "admin" }>
+typealias CardProps = Intersect<VariantProps<typeof variants>, { className: string }>
 ```
 
 Compiles to `A & B`. For Floe-native record composition, prefer `...Spread` in a `{ }` record body.
@@ -208,9 +219,9 @@ Compiles to `A & B`. For Floe-native record composition, prefer `...Spread` in a
 ## Type Aliases (TS utilities)
 
 ```floe
-type DivProps = ComponentProps<"div">
-type PartialUser = Partial<User>
-type UserKeys = Pick<User, OneOf<"name", "email">>
+typealias DivProps = ComponentProps<"div">
+typealias PartialUser = Partial<User>
+typealias UserKeys = Pick<User, OneOf<"name", "email">>
 ```
 
 Recognized utilities pass through unchanged: `OneOf`, `Intersect`, `Partial`, `Required`, `Readonly`, `Pick`, `Omit`, `NonNullable`, `Record`, `Extract`, `Exclude`, `ReturnType`, `Parameters`, `ConstructorParameters`, `Awaited`, `InstanceType`, `Uppercase`, `Lowercase`, `Capitalize`, `Uncapitalize`.

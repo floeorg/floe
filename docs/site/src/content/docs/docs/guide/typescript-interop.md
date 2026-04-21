@@ -80,7 +80,7 @@ type Method = "GET" | "POST" | "PUT" | "DELETE";
 In Floe, wrap them in `OneOf<>`:
 
 ```floe
-type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
+typealias HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 
 let describe(method: HttpMethod) -> string = {
     match method {
@@ -103,9 +103,9 @@ Alias TypeScript types with plain `=`:
 ```floe
 import { ComponentProps } from "react"
 
-type DivProps = ComponentProps<"div">
-type PartialUser = Partial<User>
-type UserKeys = Pick<User, OneOf<"name", "email">>
+typealias DivProps = ComponentProps<"div">
+typealias PartialUser = Partial<User>
+typealias UserKeys = Pick<User, OneOf<"name", "email">>
 ```
 
 ### Intersections
@@ -116,7 +116,7 @@ Combine TypeScript types with `Intersect<>`:
 import { tv, VariantProps } from "tailwind-variants"
 
 let cardVariants = tv({ base: "rounded-xl", variants: { size: { sm: "p-2" } } })
-type CardProps = Intersect<VariantProps<typeof cardVariants>, { className: string }>
+typealias CardProps = Intersect<VariantProps<typeof cardVariants>, { className: string }>
 ```
 
 For Floe-native record composition, prefer `...Spread` in a `{ }` record body:
@@ -135,7 +135,7 @@ Use `->` for function types. Parameter labels are optional documentation:
 ```floe
 import { Request, Response } from "express"
 
-type Handler = (req: Request, res: Response) -> Promise<()>
+typealias Handler = (req: Request, res: Response) -> Promise<()>
 ```
 
 ## Nullable and optional type conversion

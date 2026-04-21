@@ -719,7 +719,7 @@ fn type_union() {
 
 #[test]
 fn type_alias() {
-    assert_eq!(emit("type Name = string"), "type Name = string;");
+    assert_eq!(emit("typealias Name = string"), "type Name = string;");
 }
 
 #[test]
@@ -745,7 +745,7 @@ fn option_type() {
 
 #[test]
 fn result_type() {
-    let result = emit("type Res = Result<User, ApiError>");
+    let result = emit("typealias Res = Result<User, ApiError>");
     assert!(result.contains("ok: true"));
     assert!(result.contains("ok: false"));
 }
@@ -2335,7 +2335,7 @@ let s = mock<Status>",
 fn typeof_function_alias() {
     let result = emit(
         "let greet(name: string) -> string = { `Hello, ${name}!` }
-type Greeter = typeof greet",
+typealias Greeter = typeof greet",
     );
     assert!(
         result.contains("type Greeter = typeof greet;"),
@@ -2348,7 +2348,7 @@ fn typeof_const_alias() {
     let result = emit(
         "type Config = { baseUrl: string }
 let config = Config(baseUrl: \"https://api.com\")
-type MyConfig = typeof config",
+typealias MyConfig = typeof config",
     );
     assert!(
         result.contains("type MyConfig = typeof config;"),
@@ -2363,7 +2363,7 @@ fn intersection_two_types() {
     let result = emit(
         "type A = { x: number }
 type B = { y: string }
-type C = A & B",
+typealias C = A & B",
     );
     assert!(
         result.contains("type C = A & B;"),
@@ -2376,7 +2376,7 @@ fn intersection_three_types() {
     let result = emit(
         "type A = { x: number }
 type B = { y: string }
-type D = A & B & { z: boolean }",
+typealias D = A & B & { z: boolean }",
     );
     assert!(
         result.contains("A & B & { z: boolean }"),
@@ -2389,7 +2389,7 @@ fn intersection_after_generic_type() {
     let result = emit(
         "type A = { x: number }
 type B = { y: string }
-type C = Array<A> & B",
+typealias C = Array<A> & B",
     );
     assert!(
         result.contains("type C = Array<A> & B;"),
@@ -2414,7 +2414,7 @@ type B = {
 
 #[test]
 fn string_literal_type_arg() {
-    let result = emit("type A = Array<\"div\">");
+    let result = emit("typealias A = Array<\"div\">");
     assert!(
         result.contains("type A = Array<\"div\">;"),
         "should emit string literal type arg, got: {result}"

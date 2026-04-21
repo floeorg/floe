@@ -26,6 +26,7 @@ pub enum SyntaxKind {
     KW_RETURN,
     KW_MATCH,
     KW_TYPE,
+    KW_TYPEALIAS,
     KW_OPAQUE,
     KW_FOR,
     KW_SELF,
@@ -217,6 +218,7 @@ impl SyntaxKind {
                 | Self::KW_FOR
                 | Self::KW_FROM
                 | Self::KW_TYPE
+                | Self::KW_TYPEALIAS
                 | Self::KW_EXPORT
                 | Self::KW_IMPORT
                 | Self::KW_LET
@@ -314,6 +316,7 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::From => SyntaxKind::KW_FROM,
         TokenKind::Match => SyntaxKind::KW_MATCH,
         TokenKind::Type => SyntaxKind::KW_TYPE,
+        TokenKind::Typealias => SyntaxKind::KW_TYPEALIAS,
         TokenKind::Opaque => SyntaxKind::KW_OPAQUE,
         TokenKind::For => SyntaxKind::KW_FOR,
         TokenKind::SelfKw => SyntaxKind::KW_SELF,
