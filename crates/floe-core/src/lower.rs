@@ -929,7 +929,7 @@ mod tests {
 
     #[test]
     fn type_alias() {
-        let item = first_item("type Name = string");
+        let item = first_item("typealias Name = string");
         let ItemKind::TypeDecl(decl) = item else {
             panic!("expected TypeDecl")
         };

@@ -127,8 +127,9 @@ The last expression in a block is the return value — no `return` keyword.
 | Opaque types | `opaque type HashedPw = HashedPw(string)` | `string`, but only the defining module can create/read |
 | Tagged sums | `type Route = Home \| Profile(string) \| Settings { tab: string }` | discriminated union. `(Type, ...)` variants are positional; `{ name: Type, ... }` variants are named. Mixing the two forms in one variant is a parse error. Leading `\|` optional. |
 | String literal unions | `type Method = OneOf<"GET", "POST", "PUT">` | `"GET" \| "POST" \| "PUT"` (structural — for npm interop) |
-| Intersections | `type AdminCard = Intersect<ButtonProps, { role: "admin" }>` | `ButtonProps & { role: "admin" }` (structural) |
-| Function-type alias | `type Handler = (req: Request) => Response` | `type Handler = (req: Request) => Response` (parameter labels are optional documentation; LSP hover surfaces them but they never affect assignability) |
+| Structural record alias | `typealias SnippetRow = { id: number, code: string }` | `type SnippetRow = { id: number; code: string }` (structural — matches any record of that shape without a nominal wrap) |
+| Intersections | `typealias AdminCard = ButtonProps & { role: "admin" }` | `ButtonProps & { role: "admin" }` (structural; `typealias` is required because the RHS has no nominal identity) |
+| Function-type alias | `typealias Handler = (req: Request) => Response` | `type Handler = (req: Request) => Response` (structural — `typealias` is required; parameter labels are optional documentation and never affect assignability) |
 | Nested sums | `type ApiError = Network(NetworkError) \| NotFound` | nested discriminated union (compiler generates tags) |
 | Multi-depth match | `Network(Timeout(ms)) -> ...` | nested if/else with tag checks |
 | Type constructors | `User(name: "Ryan", email: e)` | `{ name: "Ryan", email: e }` (compiler adds tags for unions) |
@@ -577,19 +578,29 @@ let partial = UpdateUser(name: Value("Ryan"))
 
 ### Type System — Every type is `type X = ...`
 
-`type X = RHS`. The RHS picks the kind; there is no legacy form.
+Floe has two keywords that look almost the same but mean very different things:
 
-| RHS shape | Kind |
-|---|---|
-| `{ field: T, ... }` | Record |
-| `A \| B \| ...` (constructor names) | Nominal tagged sum — leading `\|` optional |
-| `Name(T)` | Newtype |
-| `(Args) => Ret` | Structural function-type alias |
-| `OneOf<"a", "b", ...>` | Structural string-literal union (TS `"a" \| "b"`) |
-| `Intersect<A, B, ...>` | Structural intersection (TS `A & B`) |
-| `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... | TS utility alias (pass-through) |
+| Keyword | Meaning | When to use |
+|---|---|---|
+| `type X = ...` | Declares a **nominal** type — `X` is a brand-new identity, distinct even from something with the same shape | Records, tagged sums, newtypes |
+| `typealias X = ...` | Names an existing **structural** shape — `X` and the RHS are interchangeable | Function types, generic applications, intersections, `typeof`, or a structural view over a record shape |
 
-`|` at the top level of a `type` declaration is **always nominal** — it declares fresh constructors. Structural string unions must use `OneOf<>`.
+The RHS picks what is allowed under each keyword:
+
+| RHS shape | `type` | `typealias` |
+|---|---|---|
+| `{ field: T, ... }` | Nominal Record (default) | Structural alias over the shape |
+| `A \| B \| ...` (constructor names) | Nominal tagged sum | **Error** — use `type` |
+| `Name(T)` | Newtype | **Error** — use `type` |
+| `(Args) -> Ret` | **Error** — use `typealias` | Structural function-type alias |
+| `"a" \| "b" \| ...` | String-literal union (nominal-ish, codegens to TS union) | Same codegen, either keyword is accepted |
+| `A & B` | **Error** — use `typealias` | Structural intersection |
+| `Partial<T>` / `ReturnType<...>` / any generic application | **Error** — use `typealias` | TS utility alias (pass-through) |
+| `typeof someValue` | **Error** — use `typealias` | Structural typeof alias |
+
+`opaque type X = RHS` is a third form: it is nominal on the outside but wraps an arbitrary structural shape on the inside, so `opaque type HashedPw = string` is valid even though bare `type HashedPw = string` is not. The `opaque` keyword is the explicit way to give a structural shape nominal identity.
+
+`|` at the top level of a `type` declaration is **always nominal** — it declares fresh constructors. Structural string unions can still be written inline (`"GET" | "POST"`) and are accepted under either keyword.
 
 ```floe
 // Record type
@@ -635,17 +646,26 @@ type Route =
 // Inline form also works
 type Filter = All | Active | Completed
 
-// Structural string-literal union (for npm interop / config values)
-type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
+// String-literal union (for npm interop / config values) — either keyword works
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
-// Structural intersection
-type AdminCard = Intersect<ButtonProps, { role: "admin" }>
+// Structural intersection — `typealias` is required because the RHS has
+// no nominal identity of its own
+typealias AdminCard = ButtonProps & { role: "admin" }
 
-// Function-type alias — structural. Parameter labels are optional
-// documentation; LSP hover surfaces them and they never influence
+// Function-type alias — structural; requires `typealias`. Parameter labels are
+// optional documentation; LSP hover surfaces them and they never influence
 // assignability.
-type Handler = (req: Request) -> Promise<Response>
-type Predicate<T> = (T) -> boolean
+typealias Handler = (req: Request) -> Promise<Response>
+typealias Predicate<T> = (T) -> boolean
+
+// Structural record alias — matches any record with the same fields
+// without paying for a nominal wrap. Useful for naming a TS-interop shape.
+typealias SnippetRow = {
+    id: number,
+    code: string,
+    content: string,
+}
 
 // Sums can contain sums — nest as deep as you want
 type NetworkError =

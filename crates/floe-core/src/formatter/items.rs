@@ -439,7 +439,11 @@ impl Formatter<'_> {
         if self.has_token(node, SyntaxKind::KW_OPAQUE) {
             parts.push(pretty::str("opaque "));
         }
-        parts.push(pretty::str("type "));
+        if self.has_token(node, SyntaxKind::KW_TYPEALIAS) {
+            parts.push(pretty::str("typealias "));
+        } else {
+            parts.push(pretty::str("type "));
+        }
 
         let idents = self.collect_idents(node);
         if let Some(name) = idents.first() {

@@ -61,16 +61,24 @@ let names: Array<string> = ["a", "b", "c"]
 
 ## Types
 
-Every type declaration starts with `type Name = ...`. The RHS picks the kind:
+Floe has two type-declaration keywords:
 
-- `{ ... }` — record
-- `Variant | Variant | ...` — nominal tagged sum (leading `|` optional)
-- `Name(T)` — newtype (single-value wrapper)
-- `(T, ...) -> Ret` or `(label: T, ...) -> Ret` — structural function-type alias; parameter labels are optional documentation that LSP hover surfaces and do not affect structural assignability
-- `OneOf<"a", "b">` / `Intersect<A, B>` — structural string-literal union / intersection
-- `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... — TS utility aliases
+- `type Name = RHS` — **nominal**. `Name` is a distinct new type. Use for records, tagged sums, newtypes.
+- `typealias Name = RHS` — **structural**. `Name` is just another name for the RHS shape. Use for function types, generic applications, intersections, `typeof`, or naming a structural record shape.
 
-A bare `|` of string literals (e.g. `type M = "a" | "b"`) is **E201** — use `OneOf<"a", "b">` instead.
+The RHS picks what is legal under each keyword:
+
+- `{ ... }` — record. `type` → nominal; `typealias` → structural shape alias.
+- `Variant | Variant | ...` — nominal tagged sum. **Requires `type`** (leading `|` optional).
+- `Name(T)` — newtype (single-value wrapper). **Requires `type`**.
+- `(T, ...) -> Ret` — structural function-type alias. **Requires `typealias`**. Parameter labels are optional documentation (LSP hover surfaces them; they never affect assignability).
+- `A & B` — structural intersection. **Requires `typealias`**.
+- `typeof someValue` — structural typeof alias. **Requires `typealias`**.
+- `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / any generic application — TS utility alias. **Requires `typealias`**.
+- `"a" | "b" | ...` — string-literal union. Either keyword is accepted (same codegen).
+
+`opaque type Name = RHS` is a special form: nominal on the outside, wrapping an arbitrary structural shape inside — so `opaque type HashedPw = string` is valid even though bare `type HashedPw = string` is not.
+
 An inline record in a function signature (e.g. `fn f(x: { a: T })`) is **E202** — name the type.
 
 ```floe
@@ -145,25 +153,33 @@ type A = { x: number }
 type B = { y: string }
 type C = { ...A, ...B, z: boolean }
 
-// Function-type alias (structural — just a type). Labels on parameters
-// are optional documentation and do not affect assignability.
-type Handler = (req: Request) -> Promise<Response>
-type Predicate<T> = (T) -> boolean
+// Function-type alias — structural, so it uses `typealias`. Labels on
+// parameters are optional documentation and do not affect assignability.
+typealias Handler = (req: Request) -> Promise<Response>
+typealias Predicate<T> = (T) -> boolean
 
 // Opaque types (only defining module can create/read)
 opaque type HashedPassword = HashedPassword(string)
 
 // ── Structural string-literal unions / intersections ──
 
-// String-literal union via OneOf<>
-type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
+// String-literal union — either keyword works
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE"
 
-// Intersection via Intersect<>
-type AdminCard = Intersect<ButtonProps, { role: "admin" }>
+// Intersection — structural, so `typealias`
+typealias AdminCard = ButtonProps & { role: "admin" }
+
+// Structural record alias — names a shape without a nominal wrap,
+// so records coming from TS interop assign to it by shape
+typealias SnippetRow = {
+    id: number,
+    code: string,
+    content: string,
+}
 
 // String literal type arguments (for npm interop)
 import { ComponentProps } from "react"
-type DivProps = ComponentProps<"div">
+typealias DivProps = ComponentProps<"div">
 
 // Spread with generic types and typeof (npm interop)
 import { tv, VariantProps } from "tailwind-variants"
@@ -180,11 +196,11 @@ type Props = {
 // Record, Extract, Exclude, InstanceType,
 // Uppercase, Lowercase, Capitalize, Uncapitalize
 let createDb(id: string) -> string = { id }
-type Database = ReturnType<typeof createDb>
-type DbArgs = Parameters<typeof createDb>
+typealias Database = ReturnType<typeof createDb>
+typealias DbArgs = Parameters<typeof createDb>
 
-type PartialUser = Partial<User>
-type ReadOnlyUser = Readonly<User>
+typealias PartialUser = Partial<User>
+typealias ReadOnlyUser = Readonly<User>
 
 // Tuples
 let point: (number, number) = (10, 20)
@@ -306,7 +322,7 @@ match status {
 }
 
 // Match on string literal union (exhaustive)
-type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
+typealias HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 match method {
     "GET" -> "fetching",
     "POST" -> "creating",

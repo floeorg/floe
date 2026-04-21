@@ -1181,7 +1181,7 @@ let x = 42"#;
     fn generate_probe_includes_type_alias_probe() {
         let source = r#"import { tv, VariantProps } from "tailwind-variants"
 let spinnerVariants = tv({})
-type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
+typealias SpinnerProps = VariantProps<typeof spinnerVariants>"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
         assert!(
@@ -1198,7 +1198,7 @@ type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
     fn generate_probe_emits_typeof_const_for_type_probe() {
         let source = r#"import { tv, VariantProps } from "tailwind-variants"
 let spinnerVariants = tv({})
-type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
+typealias SpinnerProps = VariantProps<typeof spinnerVariants>"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
         // The probe should declare spinnerVariants so typeof can resolve
@@ -1211,7 +1211,7 @@ type SpinnerProps = VariantProps<typeof spinnerVariants>"#;
     #[test]
     fn type_probe_not_emitted_for_local_only_alias() {
         let source = r#"import { useState } from "react"
-type MyNum = number"#;
+typealias MyNum = number"#;
         let program = Parser::new(source).parse_program().unwrap();
         let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
         assert!(

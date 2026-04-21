@@ -809,7 +809,7 @@ mod tests {
 
     #[test]
     fn type_alias() {
-        assert_no_errors("type Name = string");
+        assert_no_errors("typealias Name = string");
     }
 
     #[test]

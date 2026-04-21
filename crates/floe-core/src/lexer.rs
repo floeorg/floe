@@ -707,7 +707,7 @@ mod tests {
     #[test]
     fn keywords() {
         assert_eq!(
-            lex("let fn export import match type opaque"),
+            lex("let fn export import match type typealias opaque"),
             vec![
                 TokenKind::Let,
                 TokenKind::Fn,
@@ -715,6 +715,7 @@ mod tests {
                 TokenKind::Import,
                 TokenKind::Match,
                 TokenKind::Type,
+                TokenKind::Typealias,
                 TokenKind::Opaque,
                 TokenKind::Eof,
             ]

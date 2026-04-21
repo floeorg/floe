@@ -360,6 +360,7 @@ impl<'src> Lowerer<'src> {
     fn lower_type_decl(&mut self, node: &SyntaxNode, item_node: &SyntaxNode) -> Option<TypeDecl> {
         let exported = self.has_keyword(item_node, SyntaxKind::KW_EXPORT);
         let opaque = self.has_keyword(node, SyntaxKind::KW_OPAQUE);
+        let is_typealias = self.has_keyword(node, SyntaxKind::KW_TYPEALIAS);
 
         // Collect idents: first is name, rest are type params
         let idents = self.collect_idents_direct(node);
@@ -371,7 +372,17 @@ impl<'src> Lowerer<'src> {
         for child in node.children() {
             match child.kind() {
                 SyntaxKind::TYPE_DEF_RECORD => {
-                    def = Some(self.lower_type_def_record(&child));
+                    let record_def = self.lower_type_def_record(&child);
+                    // `typealias X = { ... }` is a structural alias over the
+                    // record shape — wrap in TypeDef::Alias so the checker
+                    // treats it as equivalent to the inline type and codegen
+                    // emits a plain `type X = { ... };` without the nominal
+                    // `__type` tag.
+                    def = Some(if is_typealias {
+                        self.record_def_to_structural_alias(record_def, &child)
+                    } else {
+                        record_def
+                    });
                 }
                 SyntaxKind::TYPE_DEF_UNION => {
                     def = Some(self.lower_type_def_union(&child));
@@ -396,6 +407,66 @@ impl<'src> Lowerer<'src> {
             type_params,
             def: def?,
             deriving,
+        })
+    }
+
+    /// Records are the only RHS shape where both `type` and `typealias` are
+    /// legal; under `typealias`, spreads fold into an intersection so that
+    /// `typealias X = { ...Other, foo: T }` matches `Other & { foo: T }`.
+    fn record_def_to_structural_alias(
+        &mut self,
+        def: TypeDef,
+        record_node: &SyntaxNode,
+    ) -> TypeDef {
+        let entries = match def {
+            TypeDef::Record(entries) => entries,
+            other => return other,
+        };
+        let span = self.node_span(record_node);
+        let has_spread = entries.iter().any(|e| matches!(e, RecordEntry::Spread(_)));
+
+        if !has_spread {
+            let fields = entries
+                .into_iter()
+                .filter_map(|e| match e {
+                    RecordEntry::Field(f) => Some(*f),
+                    RecordEntry::Spread(_) => None,
+                })
+                .collect();
+            return TypeDef::Alias(TypeExpr {
+                kind: TypeExprKind::Record(fields),
+                span,
+            });
+        }
+
+        let mut parts: Vec<TypeExpr> = Vec::new();
+        let mut pending: Vec<RecordField> = Vec::with_capacity(entries.len());
+        for entry in entries {
+            match entry {
+                RecordEntry::Field(f) => pending.push(*f),
+                RecordEntry::Spread(s) => {
+                    if !pending.is_empty() {
+                        parts.push(TypeExpr {
+                            kind: TypeExprKind::Record(std::mem::take(&mut pending)),
+                            span,
+                        });
+                    }
+                    if let Some(te) = s.type_expr {
+                        parts.push(te);
+                    }
+                }
+            }
+        }
+        if !pending.is_empty() {
+            parts.push(TypeExpr {
+                kind: TypeExprKind::Record(pending),
+                span,
+            });
+        }
+
+        TypeDef::Alias(TypeExpr {
+            kind: TypeExprKind::Intersection(parts),
+            span,
         })
     }
 

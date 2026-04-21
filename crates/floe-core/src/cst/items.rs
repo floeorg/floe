@@ -93,7 +93,7 @@ impl<'src> CstParser<'src> {
                 self.parse_const_decl();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Opaque) | Some(TokenKind::Type) => {
+            Some(TokenKind::Opaque) | Some(TokenKind::Type) | Some(TokenKind::Typealias) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_type_decl();
@@ -487,12 +487,24 @@ impl<'src> CstParser<'src> {
     fn parse_type_decl(&mut self) {
         self.builder.start_node(SyntaxKind::TYPE_DECL.into());
 
-        if self.at(TokenKind::Opaque) {
+        let is_opaque = self.at(TokenKind::Opaque);
+        if is_opaque {
             self.bump();
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::Type);
+        let is_typealias = self.at(TokenKind::Typealias);
+        if is_typealias {
+            if is_opaque {
+                self.error(
+                    "`opaque typealias` is not supported; `opaque` only applies to nominal \
+                     `type` declarations",
+                );
+            }
+            self.bump(); // typealias
+        } else {
+            self.expect(TokenKind::Type);
+        }
         self.eat_trivia();
         self.expect_ident();
         self.eat_trivia();
@@ -508,11 +520,33 @@ impl<'src> CstParser<'src> {
 
         self.expect(TokenKind::Equal);
         self.eat_trivia();
-        self.parse_type_def_after_eq();
+        let def_kind = self.parse_type_def_after_eq();
+
+        // `opaque` is the explicit way to brand a structural shape as nominal,
+        // so it's exempt from the type/typealias split.
+        if !is_typealias && !is_opaque && def_kind == SyntaxKind::TYPE_DEF_ALIAS {
+            self.error(
+                "`type` declares a nominal type; this shape is structural. \
+                 Use `typealias` instead — it names a shape without creating \
+                 a new nominal type",
+            );
+        }
+        if is_typealias && def_kind == SyntaxKind::TYPE_DEF_UNION {
+            self.error(
+                "`typealias` names a structural shape; tagged unions and \
+                 newtypes need nominal identity. Use `type` instead",
+            );
+        }
 
         // Optional deriving clause: `deriving (Display)`
         self.eat_trivia();
         if self.at(TokenKind::Deriving) {
+            if is_typealias {
+                self.error(
+                    "`deriving` requires a nominal `type` declaration; \
+                     `typealias` names a structural shape and cannot derive traits",
+                );
+            }
             self.builder.start_node(SyntaxKind::DERIVING_CLAUSE.into());
             self.bump(); // consume `deriving`
             self.eat_trivia();
@@ -526,36 +560,37 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
-    fn parse_type_def_after_eq(&mut self) {
+    fn parse_type_def_after_eq(&mut self) -> SyntaxKind {
         if self.at(TokenKind::LeftBrace) {
             self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
             self.parse_record_fields();
             self.builder.finish_node();
-            return;
+            return SyntaxKind::TYPE_DEF_RECORD;
         }
 
         if self.at(TokenKind::VerticalBar) {
             self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
             self.parse_union_variants_inner();
             self.builder.finish_node();
-            return;
+            return SyntaxKind::TYPE_DEF_UNION;
         }
 
         if self.is_ident() && self.looks_like_nominal_sum_or_newtype() {
             self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
             self.parse_union_variants_inner();
             self.builder.finish_node();
-            return;
+            return SyntaxKind::TYPE_DEF_UNION;
         }
 
         if self.at_string_literal_union() {
             self.parse_string_literal_union();
-            return;
+            return SyntaxKind::TYPE_DEF_STRING_UNION;
         }
 
         self.builder.start_node(SyntaxKind::TYPE_DEF_ALIAS.into());
         self.parse_type_expr();
         self.builder.finish_node();
+        SyntaxKind::TYPE_DEF_ALIAS
     }
 
     fn looks_like_nominal_sum_or_newtype(&self) -> bool {

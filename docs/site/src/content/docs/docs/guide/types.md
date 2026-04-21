@@ -12,22 +12,24 @@ let active: boolean = true
 
 ## Declaring Types
 
-Every type declaration looks like this:
+Floe has two type-declaration keywords:
 
-```floe
-type Name = RHS
-```
+- `type` declares a **nominal** type — a brand-new identity distinct from anything else. Use it for records, tagged sums, and newtypes.
+- `typealias` names an existing **structural** shape. The alias and its RHS are interchangeable; nothing new is created. Use it for function types, generic applications, intersections, `typeof`, and shape-only record aliases.
 
-The RHS picks what kind of type you get:
+The RHS shape determines what you can use under each keyword:
 
-| RHS | Kind |
-|---|---|
-| `{ ... }` | Record |
-| `A \| B \| ...` | Tagged sum |
-| `Name(T)` | Newtype |
-| `(T, ...) => Ret` or `(label: T, ...) => Ret` | Function-type alias (parameter labels optional) |
-| `OneOf<"a", "b">` | Structural string-literal union |
-| `Intersect<A, B>` | Structural intersection |
+| RHS | `type` | `typealias` |
+|---|---|---|
+| `{ field: T, ... }` | Nominal record | Structural record alias |
+| `A \| B \| ...` constructors | Tagged sum | Error — tagged unions need nominal identity |
+| `Name(T)` | Newtype | Error — newtypes need nominal identity |
+| `(T, ...) -> Ret` | Error — function types have no nominal identity | Function-type alias |
+| `A & B` | Error — intersections are structural | Structural intersection |
+| `typeof value` | Error — `typeof` is structural | Structural `typeof` alias |
+| `Partial<T>` / `ReturnType<...>` / any generic | Error — generic applications are structural | TS utility alias (pass-through) |
+
+If you need nominal identity around a structural shape (e.g. a `HashedPassword` wrapping a `string`), use `opaque type` — it is the explicit way to brand a structural type as nominal.
 
 ## Records
 
@@ -289,8 +291,8 @@ opaque type Email = Email(string)
 Name a function type to use it in records or generics. Parameter labels are optional documentation:
 
 ```floe
-type Handler = (req: Request) -> Promise<Response>
-type Predicate<T> = (T) -> boolean
+typealias Handler = (req: Request) -> Promise<Response>
+typealias Predicate<T> = (T) -> boolean
 
 type Button = {
   label: string,
@@ -322,8 +324,8 @@ Tuples compile to TypeScript readonly tuples: `(number, string)` becomes `readon
 When bridging to TypeScript libraries, two utility types cover the structural operators TS uses that have no nominal equivalent in Floe:
 
 ```floe
-type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
-type CardProps = Intersect<VariantProps<typeof cardVariants>, { className: string }>
+typealias HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
+typealias CardProps = Intersect<VariantProps<typeof cardVariants>, { className: string }>
 ```
 
 - `OneOf<A, B, ...>` compiles to `A | B | ...`
@@ -332,8 +334,8 @@ type CardProps = Intersect<VariantProps<typeof cardVariants>, { className: strin
 Alias existing TypeScript types with plain `=`:
 
 ```floe
-type DivProps = ComponentProps<"div">
-type PartialUser = Partial<User>
+typealias DivProps = ComponentProps<"div">
+typealias PartialUser = Partial<User>
 ```
 
 String-literal unions work with exhaustive matching:

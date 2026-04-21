@@ -3,6 +3,7 @@
 "fn" @keyword
 "async" @keyword
 "type" @keyword
+"typealias" @keyword
 "match" @keyword
 "return" @keyword
 "import" @keyword

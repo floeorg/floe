@@ -931,7 +931,7 @@ fn import_trusted_per_specifier() {
 
 #[test]
 fn type_alias() {
-    match first_item("type StringAlias = string") {
+    match first_item("typealias StringAlias = string") {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "StringAlias");
             assert!(matches!(decl.def, TypeDef::Alias(_)));
@@ -942,7 +942,7 @@ fn type_alias() {
 
 #[test]
 fn fn_type_alias_with_labelled_params() {
-    match first_item("type Handler = (cmd: number, retries: number) -> number") {
+    match first_item("typealias Handler = (cmd: number, retries: number) -> number") {
         ItemKind::TypeDecl(decl) => match decl.def {
             TypeDef::Alias(ref te) => match &te.kind {
                 TypeExprKind::Function { params, .. } => {
@@ -962,7 +962,7 @@ fn fn_type_alias_with_labelled_params() {
 fn fn_type_alias_without_labels_still_parses() {
     // Parser still accepts unlabelled fn types — the missing-label diagnostic
     // is emitted later by the checker, not the parser.
-    match first_item("type Handler = (number) -> number") {
+    match first_item("typealias Handler = (number) -> number") {
         ItemKind::TypeDecl(decl) => match decl.def {
             TypeDef::Alias(ref te) => match &te.kind {
                 TypeExprKind::Function { params, .. } => {
@@ -973,6 +973,88 @@ fn fn_type_alias_without_labels_still_parses() {
             },
             ref other => panic!("expected alias, got {other:?}"),
         },
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
+fn type_on_structural_alias_is_error() {
+    let errs = parse("type Handler = (req: number) -> number").unwrap_err();
+    assert!(
+        errs.iter().any(|e| e.message.contains("Use `typealias`")),
+        "expected typealias suggestion, got: {:?}",
+        errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn typealias_on_tagged_union_is_error() {
+    let errs = parse("typealias Shape = | Circle(number) | Square(number)").unwrap_err();
+    assert!(
+        errs.iter().any(|e| e.message.contains("Use `type`")),
+        "expected type suggestion, got: {:?}",
+        errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn typealias_on_newtype_is_error() {
+    let errs = parse("typealias SnippetId = SnippetId(number)").unwrap_err();
+    assert!(
+        errs.iter().any(|e| e.message.contains("Use `type`")),
+        "expected type suggestion, got: {:?}",
+        errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn typealias_record_is_structural_alias() {
+    match first_item("typealias SnippetRow = { id: number, code: string }") {
+        ItemKind::TypeDecl(decl) => match &decl.def {
+            TypeDef::Alias(te) => match &te.kind {
+                TypeExprKind::Record(fields) => {
+                    assert_eq!(fields.len(), 2);
+                    assert_eq!(fields[0].name, "id");
+                    assert_eq!(fields[1].name, "code");
+                }
+                other => panic!("expected record type expr, got {other:?}"),
+            },
+            other => panic!("expected alias, got {other:?}"),
+        },
+        other => panic!("expected type decl, got {other:?}"),
+    }
+}
+
+#[test]
+fn typealias_record_with_spread_becomes_intersection() {
+    let program = parse_ok(
+        "type Base = { className: string }\n\
+         typealias Button = { ...Base, label: string }",
+    );
+    let ItemKind::TypeDecl(decl) = program.items.into_iter().nth(1).unwrap().kind else {
+        panic!("expected second item to be typealias")
+    };
+    match &decl.def {
+        TypeDef::Alias(te) => match &te.kind {
+            TypeExprKind::Intersection(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert!(
+                    matches!(&parts[0].kind, TypeExprKind::Named { name, .. } if name == "Base")
+                );
+                assert!(matches!(&parts[1].kind, TypeExprKind::Record(fs) if fs.len() == 1));
+            }
+            other => panic!("expected intersection, got {other:?}"),
+        },
+        other => panic!("expected alias, got {other:?}"),
+    }
+}
+
+#[test]
+fn type_record_is_still_nominal() {
+    match first_item("type User = { name: string, age: number }") {
+        ItemKind::TypeDecl(decl) => {
+            assert!(matches!(decl.def, TypeDef::Record(_)));
+        }
         other => panic!("expected type decl, got {other:?}"),
     }
 }
@@ -2574,7 +2656,7 @@ fn newtype_with_named_field_is_record() {
 
 #[test]
 fn type_alias_still_parses_as_alias() {
-    let item = first_item("type Name = string");
+    let item = first_item("typealias Name = string");
     match item {
         ItemKind::TypeDecl(decl) => {
             assert_eq!(decl.name, "Name");
