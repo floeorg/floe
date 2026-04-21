@@ -1367,6 +1367,40 @@ export let handler(c: Context<unknown>) -> string ={
     }
 
     #[test]
+    fn generate_probe_threads_registration_path_into_handler_context() {
+        // Regression for #1281. When a handler is registered via a pipe
+        // chain `|> get("/users/:id", handleUser)`, the probe must emit a
+        // per-function chain base with the path threaded into Context's
+        // P parameter — otherwise tsgo resolves `c.req.param("id")` via
+        // the default `any` param and returns `string | undefined` rather
+        // than the narrowed `string`.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handleUser(c: Context<{ Bindings: Bindings }>) -> string = {
+    c.req.param("id")
+}
+
+export let app = router<Bindings>()
+    |> get("/users/:id", handleUser)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains("declare const __chain_base_handleUser__Context: Context<{ Bindings: Bindings }, \"/users/:id\">;"),
+            "per-function chain base must thread the registered path, got:\n{probe}"
+        );
+        assert!(
+            probe.contains(
+                "export let __chain_call_handleUser__Context$req$param = __chain_base_handleUser__Context.req.param(null! as any);"
+            ),
+            "per-function chain call probe missing for handler body, got:\n{probe}"
+        );
+    }
+
+    #[test]
     fn generate_probe_preserves_nested_generic_type_argument() {
         // Regression for #1276. Without the full type annotation in the probe,
         // `c.env.DB` on `Context<{ Bindings: Bindings }>` collapses to the
