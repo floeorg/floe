@@ -213,19 +213,43 @@ impl Checker {
             && let Some(ref resolved) = resolved
         {
             for for_spec in &decl.for_specifiers {
-                // Find all for-blocks in the resolved module that match this type
+                let mut attached = false;
                 for block in &resolved.for_blocks {
                     let base_type_name = match &block.type_name.kind {
                         TypeExprKind::Named { name, .. } => name.clone(),
                         _ => continue,
                     };
                     if base_type_name == for_spec.type_name {
+                        attached = true;
                         self.check_for_block_imported_with_source(block, &decl.source);
-                        // Mark the for-import functions as used (suppress unused import)
                         for func in &block.functions {
                             self.unused.used_names.insert(func.name.clone());
                         }
                     }
+                }
+                // `for X` is legal if X is a trait or type declared in the
+                // module, even when the module attaches no for-block to it —
+                // callers still need to name X to implement the trait locally
+                // or to import the type's methods once they exist.
+                let exists = attached
+                    || resolved
+                        .trait_decls
+                        .iter()
+                        .any(|t| t.name == for_spec.type_name)
+                    || resolved
+                        .type_decls
+                        .iter()
+                        .any(|t| t.name == for_spec.type_name);
+                if !exists {
+                    self.emit_error(
+                        format!(
+                            "module \"{}\" has no export named `{}`",
+                            decl.source, for_spec.type_name
+                        ),
+                        for_spec.span,
+                        ErrorCode::ExportNotFound,
+                        "not found in module",
+                    );
                 }
             }
         }
