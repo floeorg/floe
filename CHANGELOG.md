@@ -5,6 +5,24 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.1](https://github.com/floeorg/floe/compare/v0.6.0...v0.6.1) (2026-04-21)
+
+
+### Features
+
+* [[#1217](https://github.com/floeorg/floe/issues/1217)] support multiple _ placeholders in partial application ([#1270](https://github.com/floeorg/floe/issues/1270)) ([a79ea47](https://github.com/floeorg/floe/commit/a79ea47b25049a3bcd2d84bb858dba7105e5b8da))
+* [[#1264](https://github.com/floeorg/floe/issues/1264)] apply TypeScript default type parameters to .d.ts generics ([#1272](https://github.com/floeorg/floe/issues/1272)) ([d5bb16c](https://github.com/floeorg/floe/commit/d5bb16c844bb369798783a8ce73705f2318b149a))
+* [[#1276](https://github.com/floeorg/floe/issues/1276)] evaluate indexed access types and thread generic args through probes ([#1280](https://github.com/floeorg/floe/issues/1280)) ([07b38c4](https://github.com/floeorg/floe/commit/07b38c44a6bbdf2e5f3bc3a8b056482151e8d227))
+* [[#1281](https://github.com/floeorg/floe/issues/1281)] per-function chain probes thread registration paths through handlers ([#1283](https://github.com/floeorg/floe/issues/1283)) ([113ed89](https://github.com/floeorg/floe/commit/113ed8921d1496257c96dff9ec26e1795e8aa37e))
+
+
+### Bug Fixes
+
+* [[#1227](https://github.com/floeorg/floe/issues/1227)] template literal interpolation spans use outer-file coordinates ([#1269](https://github.com/floeorg/floe/issues/1269)) ([381ce3d](https://github.com/floeorg/floe/commit/381ce3d0ab2bc69baf0c5efcfef32ba271f34658))
+* [[#1263](https://github.com/floeorg/floe/issues/1263)] substitute type params inside Foreign type args during unification ([#1267](https://github.com/floeorg/floe/issues/1267)) ([9a20395](https://github.com/floeorg/floe/commit/9a20395c9ee733cda6e467a8e2c7c8f2d59f48c1))
+* [[#1271](https://github.com/floeorg/floe/issues/1271)] LSP hover/goto-def on for-block headers and dependent rechecks ([#1277](https://github.com/floeorg/floe/issues/1277)) ([c2aefd6](https://github.com/floeorg/floe/commit/c2aefd67aeecd5ba96ab731e87feafd934c5b72c))
+* [[#1274](https://github.com/floeorg/floe/issues/1274), [#1275](https://github.com/floeorg/floe/issues/1275)] function-type alias unfold + closure body formatter ([#1279](https://github.com/floeorg/floe/issues/1279)) ([8b44ce0](https://github.com/floeorg/floe/commit/8b44ce0004bcc300e301ab0f801f856ee690d703))
+
 ## [0.6.0](https://github.com/floeorg/floe/compare/v0.5.6...v0.6.0) (2026-04-20)
 
 
