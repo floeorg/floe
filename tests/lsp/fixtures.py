@@ -315,7 +315,7 @@ type User = {
 }
 
 let updateName(user: User, newName: string) -> User = {
-    User(..user, name: newName)
+    User(name: newName, ..user)
 }
 """
 
