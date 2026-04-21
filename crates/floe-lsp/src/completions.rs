@@ -63,7 +63,9 @@ impl FloeLsp {
         if let Some(obj_name) = identifier_before_dot(&doc.content, offset)
             && !registry.is_module(obj_name)
         {
-            let items = dot_access_completions(obj_name, &prefix, &doc.type_map, &doc.index);
+            let dts_cache = self.dts_cache.read().await;
+            let items =
+                dot_access_completions(obj_name, &prefix, &doc.type_map, &doc.index, &dts_cache);
             // Always return here — never fall through to global completions in dot context.
             // If we can't resolve fields, returning empty is better than dumping every symbol.
             return Ok(Some(CompletionResponse::Array(items)));

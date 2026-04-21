@@ -1081,7 +1081,8 @@ type User = { name: string, age: number }
 let u = User(name: "a", age: 1)
 "#;
     let (index, type_map) = build_index_and_types(source);
-    let items = dot_access_completions("u", "", &type_map, &index);
+    let dts = HashMap::new();
+    let items = dot_access_completions("u", "", &type_map, &index, &dts);
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(
         labels.contains(&"name"),
@@ -1091,6 +1092,68 @@ let u = User(name: "a", age: 1)
         labels.contains(&"age"),
         "should suggest 'age', got: {labels:?}"
     );
+}
+
+#[test]
+fn dot_access_completions_for_imported_generic_type() {
+    // Regression for #1302. When a parameter is typed as an imported
+    // generic (e.g. `c: Context<{ Bindings: B }>` from Hono), typing `c.`
+    // should suggest Context's declared fields. Previously typing nothing
+    // came back because `Context<...>` isn't a Floe record and none of
+    // Strategies 1–3 could enumerate its shape.
+    use floe_core::interop::{DtsExport, ObjectField, TsType};
+
+    // Simulate an imported `Context` with the Hono-shaped fields.
+    let context_export = DtsExport {
+        name: "Context".to_string(),
+        ts_type: TsType::Object(vec![
+            ObjectField {
+                name: "env".to_string(),
+                ty: TsType::Any,
+                optional: false,
+            },
+            ObjectField {
+                name: "req".to_string(),
+                ty: TsType::Any,
+                optional: false,
+            },
+            ObjectField {
+                name: "json".to_string(),
+                ty: TsType::Function {
+                    params: vec![],
+                    return_type: Box::new(TsType::Any),
+                },
+                optional: false,
+            },
+        ]),
+    };
+    let mut dts = HashMap::new();
+    dts.insert("hono".to_string(), vec![context_export]);
+
+    let mut type_map = HashMap::new();
+    type_map.insert(
+        "c".to_string(),
+        "Context<{ Bindings: Bindings }>".to_string(),
+    );
+    let index = SymbolIndex::default();
+
+    let items = dot_access_completions("c", "", &type_map, &index, &dts);
+    let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+    assert!(
+        labels.contains(&"env"),
+        "should suggest 'env', got: {labels:?}"
+    );
+    assert!(
+        labels.contains(&"req"),
+        "should suggest 'req', got: {labels:?}"
+    );
+    assert!(
+        labels.contains(&"json"),
+        "should suggest 'json', got: {labels:?}"
+    );
+    // Function fields render as METHOD, plain fields as PROPERTY.
+    let json_item = items.iter().find(|i| i.label == "json").unwrap();
+    assert_eq!(json_item.kind, Some(CompletionItemKind::METHOD));
 }
 
 // ── Formatting range helper ──────────────────────────────────────
