@@ -649,6 +649,11 @@ impl Checker {
                 self.check_no_redefinition(&param.name, span);
             }
             self.env.define(&param.name, ty.clone());
+            // Persist param type for LSP hover / dot-completion. Function
+            // scopes are popped after body-checking, so the later name_types
+            // scope-merge never reaches them. Matches the equivalent insert
+            // for lambda params in `check_arrow`.
+            self.name_types.insert(param.name.clone(), ty.to_string());
 
             // For destructured params, define the individual field names in scope
             if let Some(ref destructure) = param.destructure {
@@ -924,6 +929,7 @@ impl Checker {
 
             for (param, ty) in func.params.iter().zip(param_types.iter()) {
                 self.env.define(&param.name, ty.clone());
+                self.name_types.insert(param.name.clone(), ty.to_string());
             }
 
             // Type-check default parameter values
