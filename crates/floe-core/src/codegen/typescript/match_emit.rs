@@ -350,7 +350,7 @@ impl<'a> TypeScriptGenerator<'a> {
         let bindings = collect_bindings(&subject_str, pattern, &self.ctx.variant_info);
         let needs_iife = !bindings.is_empty() || matches!(body.kind, ExprKind::Block(_));
         if needs_iife {
-            let has_await = expr_contains_await(body);
+            let has_await = expr_contains_await(subject) || expr_contains_await(body);
             let mut s = String::new();
             if has_await {
                 s.push_str("await (async () => { ");
