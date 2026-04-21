@@ -5661,6 +5661,99 @@ fn array_assignable_to_option_array() {
     );
 }
 
+// ── Widening annotations (W008) ──────────────────────────
+
+#[test]
+fn widening_annotation_warns_on_bare_literal() {
+    let diags = check(r#"let x: Option<string> = "hi""#);
+    assert!(
+        has_error(&diags, ErrorCode::WideningAnnotation),
+        "expected W008, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(!has_error(&diags, ErrorCode::TypeMismatch));
+}
+
+#[test]
+fn widening_annotation_warns_on_narrowed_call_result() {
+    // Simulates the motivating example: a function that returns a narrowed `string`
+    // being bound under a wider `Option<string>` annotation.
+    let diags = check(
+        r#"
+        let narrow() -> string = { "hi" }
+        let x: Option<string> = narrow()
+    "#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::WideningAnnotation),
+        "expected W008 on leftover Option annotation, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn widening_annotation_does_not_warn_when_rhs_is_option() {
+    let diags = check(
+        r#"
+        let maybe() -> Option<string> = { Some("hi") }
+        let x: Option<string> = maybe()
+    "#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::WideningAnnotation),
+        "should not warn when RHS is already Option<T>, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn widening_annotation_does_not_warn_on_none() {
+    let diags = check("let x: Option<string> = None");
+    assert!(
+        !has_error(&diags, ErrorCode::WideningAnnotation),
+        "should not warn on None — it is already an Option, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn widening_annotation_does_not_warn_on_some_wrapping() {
+    let diags = check(r#"let x: Option<string> = Some("hi")"#);
+    assert!(
+        !has_error(&diags, ErrorCode::WideningAnnotation),
+        "should not warn when user already wrote Some(...), got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn widening_annotation_does_not_warn_on_bare_binding() {
+    // Without an annotation there is nothing to widen.
+    let diags = check(r#"let x = "hi""#);
+    assert!(
+        !has_error(&diags, ErrorCode::WideningAnnotation),
+        "no annotation means nothing to warn about, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn widening_annotation_does_not_warn_on_function_return_type() {
+    // Scope: the rule intentionally only fires on `let` annotations, not
+    // function return types — widening a return type can be deliberate for
+    // API compatibility.
+    let diags = check(
+        r#"
+        let wrap() -> Option<string> = { "hi" }
+    "#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::WideningAnnotation),
+        "function return widening should not warn, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── intersection types ─────────────────────────────────────
 
 #[test]
