@@ -1038,22 +1038,38 @@ impl Formatter<'_> {
         }
         parts.push(pretty::str(")"));
 
-        let body = node.children().find(|c| c.kind() != SyntaxKind::PARAM);
+        // Body may be a child node (block, binary expr, call, …) or a bare
+        // token (identifier, string, number, bool), since single-token
+        // expressions like `"poop"` aren't wrapped in a node.
+        let body = node
+            .children_with_tokens()
+            .skip_while(|t| {
+                t.as_token()
+                    .is_none_or(|tok| tok.kind() != SyntaxKind::THIN_ARROW)
+            })
+            .skip(1)
+            .find(|t| match t {
+                rowan::NodeOrToken::Token(tok) => !tok.kind().is_trivia(),
+                rowan::NodeOrToken::Node(child) => child.kind() != SyntaxKind::PARAM,
+            });
 
-        if let Some(body) = body {
-            if self.is_multiline_jsx(&body) {
+        match body {
+            Some(rowan::NodeOrToken::Node(body)) if self.is_multiline_jsx(&body) => {
                 parts.push(pretty::str(" ->"));
                 parts.push(pretty::nest(
                     4,
                     pretty::concat(vec![pretty::line(), self.fmt_node(&body)]),
                 ));
-            } else {
+            }
+            Some(rowan::NodeOrToken::Node(body)) => {
                 parts.push(pretty::str(" -> "));
                 parts.push(self.fmt_node(&body));
             }
-        } else {
-            parts.push(pretty::str(" -> "));
-            parts.push(self.fmt_expr_after_fat_arrow(node));
+            Some(rowan::NodeOrToken::Token(tok)) => {
+                parts.push(pretty::str(" -> "));
+                parts.push(pretty::str(tok.text().to_string()));
+            }
+            None => parts.push(pretty::str(" ->")),
         }
 
         pretty::concat(parts)
