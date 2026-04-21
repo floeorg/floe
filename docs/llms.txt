@@ -559,6 +559,40 @@ Rule of thumb:
 - `import { Name }` — data (type / const / function)
 - `import { for Name }` — behaviour (for-block methods OR trait contract)
 
+## Exports
+
+```floe
+// Named exports — prefix any top-level declaration with `export`.
+export let greet(name: string) -> string = { "hi ${name}" }
+export type User = { id: string, name: string }
+export let PI = 3.14
+
+// Default export — promote a named binding to the module's `default` slot.
+// Required for Cloudflare Workers entry points, Vite/Astro/Tailwind configs,
+// Next.js / Astro / Remix page files, and anything that loads
+// `export default ...` by shape.
+let app = router() |> get("/", handleRoot)
+export default app
+// → compiles to: export { app as default };
+
+// Only the bare-identifier form is allowed. Anonymous forms are rejected —
+// they are the real TS foot-gun (downstream importers pick arbitrary names,
+// refactoring breaks).
+// export default 1                     // ❌ parse error
+// export default router()              // ❌ parse error — bind it first
+// export default { fetch: handler }    // ❌ parse error
+// export default function() { ... }    // ❌ parse error (also `function` is banned)
+
+// Re-export from another module without importing into scope
+export { Card, CardContent } from "@heroui/react"
+export { Todo as TodoItem } from "./types"
+```
+
+Rules:
+- Exactly one `export default <name>` per module.
+- The referenced name must be declared in the same module (via `let`, `type`, or `import`).
+- Re-exporting a non-exported local is fine — the default export itself counts as an export.
+
 ## Callback Flattening (use)
 
 ```floe

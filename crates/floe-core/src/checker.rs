@@ -793,6 +793,8 @@ impl Checker {
             self.check_item(item);
         }
 
+        self.check_default_exports(program);
+
         // Check for unused imports
         for (name, span) in &self.unused.imported_names {
             if !self.unused.used_names.contains(name) {

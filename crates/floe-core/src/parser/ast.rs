@@ -114,6 +114,8 @@ pub enum ItemKind<T = ()> {
     Import(ImportDecl),
     /// `export { x, y } from "module"` — re-export without importing into scope
     ReExport(ReExportDecl),
+    /// `export default foo` — promote a named binding to the module's default export
+    DefaultExport(DefaultExportDecl),
     /// `const x = expr` or `export const x = expr`
     Const(ConstDecl<T>),
     /// `function f(...) { ... }` or `export function f(...) { ... }`
@@ -174,6 +176,20 @@ pub struct ReExportSpecifier {
     pub name: String,
     pub alias: Option<String>,
     pub span: Span,
+}
+
+// ── Default Export ──────────────────────────────────────────────
+//
+// Only the bare-identifier form is accepted — the anonymous TS variants
+// (`export default <expr>`, `export default function|class|{ ... }`) are
+// rejected at parse time. See `docs/design.md#default-exports` for the
+// rationale.
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DefaultExportDecl {
+    pub name: String,
+    /// Span of the identifier (for hover / go-to-def / duplicate-export errors).
+    pub name_span: Span,
 }
 
 // ── Const Declaration ────────────────────────────────────────────

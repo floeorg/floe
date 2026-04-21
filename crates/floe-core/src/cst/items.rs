@@ -1,4 +1,5 @@
 use super::*;
+use crate::lexer::token::BannedKeyword;
 
 impl<'src> CstParser<'src> {
     // ── Items ────────────────────────────────────────────────────
@@ -32,6 +33,48 @@ impl<'src> CstParser<'src> {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_reexport();
+                self.builder.finish_node();
+            }
+            // `default` arrives as an Identifier (not a lexer keyword); the
+            // bare-identifier form is allowed, anything else is rejected so
+            // the TS anonymous-default foot-guns (`export default <expr>`,
+            // `export default { ... }`) can never stick.
+            _ if exported && self.at_identifier("default") && self.peek_is_ident() => {
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
+                self.parse_default_export();
+                self.builder.finish_node();
+            }
+            _ if exported && self.at_identifier("default") => {
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ERROR.into());
+                self.error(
+                    "`export default` must be followed by a named binding; \
+                     bind the value first with `let name = ...` and write `export default name`",
+                );
+                self.bump();
+                while !self.at_end() && !self.preceded_by_newline() {
+                    self.bump();
+                }
+                self.builder.finish_node();
+            }
+            // Give a specific diagnostic for `export function` / `export class`
+            // instead of the generic "expected declaration after 'export'".
+            _ if exported
+                && matches!(
+                    self.current_kind(),
+                    Some(TokenKind::Banned(
+                        BannedKeyword::Function | BannedKeyword::Class
+                    ))
+                ) =>
+            {
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ERROR.into());
+                self.error(
+                    "`export function` and `export class` are not supported; \
+                     use `let name = ...` then `export default name`",
+                );
+                self.bump();
                 self.builder.finish_node();
             }
             Some(TokenKind::Let) => {
@@ -147,6 +190,22 @@ impl<'src> CstParser<'src> {
         self.expect(TokenKind::From);
         self.eat_trivia();
         self.expect_kind(TokenKind::String("".into()));
+
+        self.builder.finish_node();
+    }
+
+    // ── Default Export ────────────────────────────────────────────
+
+    /// Parse the body of `export default <ident>` (the `export` keyword is
+    /// already consumed). `default` is remapped to `KW_DEFAULT` so the
+    /// lowerer can distinguish it from the binding identifier that follows.
+    fn parse_default_export(&mut self) {
+        self.builder
+            .start_node(SyntaxKind::DEFAULT_EXPORT_DECL.into());
+
+        self.bump_remap(SyntaxKind::KW_DEFAULT);
+        self.eat_trivia();
+        self.expect_ident();
 
         self.builder.finish_node();
     }

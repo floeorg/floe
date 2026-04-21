@@ -68,6 +68,13 @@ impl<'a> TypeScriptGenerator<'a> {
                     first = false;
                     self.emit_dts_reexport(&mut out, decl);
                 }
+                ItemKind::DefaultExport(decl) => {
+                    if !first {
+                        out.push('\n');
+                    }
+                    first = false;
+                    out.push_str(&format!("export {{ {} as default }};", decl.name));
+                }
                 ItemKind::TraitDecl(_) | ItemKind::TestBlock(_) | ItemKind::Expr(_) => {}
             }
         }

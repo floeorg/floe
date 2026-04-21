@@ -8,6 +8,8 @@
 "import" @keyword
 "from" @keyword
 "export" @keyword
+"as" @keyword
+"default" @keyword
 "trusted" @keyword
 "for" @keyword
 "trait" @keyword

@@ -137,6 +137,9 @@ pub enum ErrorCode {
     BareStringLiteralUnion,
     /// Inline record type in function signature — declare a named type first.
     InlineRecordTypeInSignature,
+    /// `export default <name>` references a name that isn't declared at the
+    /// top of this module, or the module declares more than one default export.
+    InvalidDefaultExport,
 }
 
 impl ErrorCode {
@@ -199,6 +202,7 @@ impl ErrorCode {
             Self::TraitImportWithoutFor => "E053",
             Self::BareStringLiteralUnion => "E201",
             Self::InlineRecordTypeInSignature => "E202",
+            Self::InvalidDefaultExport => "E054",
         }
     }
 }

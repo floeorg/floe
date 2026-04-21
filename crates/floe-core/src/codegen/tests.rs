@@ -269,6 +269,20 @@ fn export_const() {
 }
 
 #[test]
+fn default_export_emits_named_reexport() {
+    let out = emit("let app = 1\nexport default app");
+    assert!(out.contains("const app = 1;"), "got: {out}");
+    assert!(out.contains("export { app as default };"), "got: {out}");
+}
+
+#[test]
+fn default_export_preserves_outer_export() {
+    let out = emit("export let app = 1\nexport default app");
+    assert!(out.contains("export const app = 1;"), "got: {out}");
+    assert!(out.contains("export { app as default };"), "got: {out}");
+}
+
+#[test]
 fn function_decl() {
     let result = emit("let add(a: number, b: number) -> number = { a + b }");
     assert_eq!(

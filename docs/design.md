@@ -1108,6 +1108,34 @@ export for User: Display {
 
 `export for X { ... }` is equivalent to prefixing every method inside with `export`. For trait implementations, all methods are part of the contract so the block-level form is preferred.
 
+### Default Exports
+
+Some runtimes (Cloudflare Workers, Deno Deploy, Bun) and many JS tools (Vite, Astro, Next.js, Tailwind, Prettier, Drizzle Kit) load a module's `default` slot by shape. Floe supports this via a single restricted form:
+
+```floe
+let app = router() |> get("/", handleRoot)
+export default app
+// compiles to:
+//   const app = ...;
+//   export { app as default };
+```
+
+**Only the bare-identifier form is allowed.** All anonymous TS-style defaults are rejected at parse time:
+
+| Source | Result |
+|---|---|
+| `export default foo` | ✅ |
+| `export default 1` | ❌ parse error — must be a named binding |
+| `export default { k: v }` | ❌ parse error — bind the object first |
+| `export default function() { ... }` | ❌ parse error (`function` also banned) |
+| `export default class { }` | ❌ parse error (`class` also banned) |
+
+**Rationale.** Anonymous defaults are the real TypeScript foot-gun: downstream importers pick arbitrary names for the thing (`import X from "…"` where `X` can be anything), so renames don't propagate and autocomplete is weaker. Requiring a named binding keeps the identifier stable across the import boundary without giving up the runtime contract.
+
+**Constraints** (checker, `E054`):
+- At most one `export default` per module.
+- The name must resolve to a top-level binding in the same module (`let`, `type`, `import`). A non-exported local is fine — the `export default` statement itself counts as the export.
+
 ### Traits — Type-Directed Behavioral Contracts
 
 Traits define behavioral contracts that types can implement via `for` blocks. They are compile-time only — erased entirely in codegen.
@@ -1586,6 +1614,14 @@ struct FunctionDecl {
 
 enum ItemKind {
     Import, Const, Function(FunctionDecl), TypeDecl,
+    ReExport {                 // export { X, Y as Z } from "module"
+        specifiers: Vec<ReExportSpecifier>,
+        source: String,
+    },
+    DefaultExport {            // export default foo
+        name: String,          // must resolve to a local binding
+        name_span: Span,
+    },
     ForBlock {                 // for Type { fn f(self) ... }
         type_name: TypeExpr,
         trait_name: Option<String>,  // for Type: Trait { ... }

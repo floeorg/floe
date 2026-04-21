@@ -9281,3 +9281,67 @@ let _run(r: Result<number, string>) -> number = {
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Default exports ──────────────────────────────────────────
+
+#[test]
+fn default_export_valid_binding() {
+    let diags = check(
+        r#"
+let app = 42
+export default app
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::InvalidDefaultExport),
+        "got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn default_export_unknown_binding_errors() {
+    let diags = check("export default app");
+    assert!(has_error(&diags, ErrorCode::InvalidDefaultExport));
+}
+
+#[test]
+fn default_export_duplicate_errors() {
+    let diags = check(
+        r#"
+let a = 1
+let b = 2
+export default a
+export default b
+"#,
+    );
+    assert!(has_error(&diags, ErrorCode::InvalidDefaultExport));
+    assert!(has_error_containing(&diags, "at most one default export"));
+}
+
+#[test]
+fn default_export_inside_block_is_error() {
+    let diags = check(
+        r#"
+let foo = 1
+let x = { export default foo }
+"#,
+    );
+    assert!(has_error(&diags, ErrorCode::InvalidDefaultExport));
+    assert!(has_error_containing(&diags, "only valid at module level"));
+}
+
+#[test]
+fn default_export_works_with_imported_binding() {
+    let diags = check(
+        r#"
+import { something } from "mod"
+export default something
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::InvalidDefaultExport),
+        "got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

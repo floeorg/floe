@@ -61,6 +61,7 @@ module.exports = grammar({
       choice(
         $.import_declaration,
         $.export_declaration,
+        $.default_export_declaration,
         $.function_declaration,
         $.type_declaration,
         $.const_declaration,
@@ -145,6 +146,13 @@ module.exports = grammar({
 
     export_declaration: ($) =>
       seq("export", choice($.function_declaration, $.const_declaration, $.for_block)),
+
+    // `export default foo` — promote a named binding to the default export.
+    // Floe deliberately rejects the anonymous TS forms (`export default <expr>`,
+    // `export default function|class|{...}`); the grammar only covers the
+    // bare-identifier form.
+    default_export_declaration: ($) =>
+      seq("export", "default", field("name", $.identifier)),
 
     // ── Functions ───────────────────────────────────────────
 

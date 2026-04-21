@@ -21,6 +21,13 @@ impl<'src> Lowerer<'src> {
                         span,
                     });
                 }
+                SyntaxKind::DEFAULT_EXPORT_DECL => {
+                    let decl = self.lower_default_export(&child)?;
+                    return Some(Item {
+                        kind: ItemKind::DefaultExport(decl),
+                        span,
+                    });
+                }
                 SyntaxKind::CONST_DECL => {
                     let decl = self.lower_const(&child, node)?;
                     return Some(Item {
@@ -164,6 +171,17 @@ impl<'src> Lowerer<'src> {
         }
 
         Some(ReExportDecl { specifiers, source })
+    }
+
+    fn lower_default_export(&mut self, node: &SyntaxNode) -> Option<DefaultExportDecl> {
+        let binding = node
+            .children_with_tokens()
+            .filter_map(|c| c.into_token())
+            .find(|t| t.kind() == SyntaxKind::IDENT)?;
+        Some(DefaultExportDecl {
+            name: binding.text().to_string(),
+            name_span: self.token_span(&binding),
+        })
     }
 
     fn lower_import_for_specifier(&mut self, node: &SyntaxNode) -> Option<ForImportSpecifier> {
