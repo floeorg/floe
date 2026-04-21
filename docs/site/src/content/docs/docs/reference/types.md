@@ -32,7 +32,7 @@ Every type declaration starts with `type Name = RHS`. The shape of the RHS picks
 | `{ field: T, ... }` | Record |
 | `A \| B \| ...` (constructors) | Tagged sum (nominal — declares fresh constructors) |
 | `Name(T)` | Newtype (single-value wrapper) |
-| `(Args) => Ret` | Function-type alias (structural) |
+| `(T, ...) => Ret` or `(label: T, ...) => Ret` | Function-type alias (structural; parameter labels optional, documentation only) |
 | `OneOf<"a", "b", ...>` | Structural string-literal union |
 | `Intersect<A, B, ...>` | Structural intersection |
 | `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... | TS utility alias (pass-through) |
@@ -161,13 +161,15 @@ Only code in the module that defines `Email` can construct or destructure it. Ot
 
 ## Function-Type Aliases
 
-Structural function types. Use `=>` between the parameter list and return type:
+Structural function types. Use `->` between the parameter list and return type. Parameter labels are optional documentation:
 
 ```floe
-type Handler = (Request) -> Promise<Response>
+type Handler = (req: Request) -> Promise<Response>
 type Predicate<T> = (T) -> boolean
-type Reducer<S, A> = (S, A) -> S
+type Reducer<S, A> = (state: S, action: A) -> S
 ```
+
+Labels never affect structural assignability — `(x: Int) -> Int` is interchangeable with `(y: Int) -> Int` and with the unlabelled `(Int) -> Int`. Use them when the name carries meaning (DDD-style workflow types, multi-param callbacks); skip them when the position is obvious. LSP hover surfaces whichever form you wrote.
 
 ## Structural String-Literal Unions (`OneOf<>`)
 

@@ -130,12 +130,12 @@ type CardProps = {
 
 ### Function-type aliases
 
-Use `=>` for function types:
+Use `->` for function types. Parameter labels are optional documentation:
 
 ```floe
 import { Request, Response } from "express"
 
-type Handler = (Request, Response) -> Promise<()>
+type Handler = (req: Request, res: Response) -> Promise<()>
 ```
 
 ## Nullable and optional type conversion

@@ -11,26 +11,26 @@ import { fetchProducts, fetchCategories, CategoryResponse } from "../api"
 
 type ProductCardProps = {
     product: Product,
-    onAddToCart: (Product) -> (),
+    onAddToCart: (product: Product) -> (),
 }
 
 type FilterSidebarProps = {
     categories: Array<CategoryResponse>,
     selectedCategory: string,
-    onCategoryChange: (string) -> (),
+    onCategoryChange: (category: string) -> (),
     priceRange: PriceRange,
-    onPriceRangeChange: (PriceRange) -> (),
+    onPriceRangeChange: (range: PriceRange) -> (),
     sortOrder: SortOrder,
-    onSortChange: (SortOrder) -> (),
+    onSortChange: (order: SortOrder) -> (),
 }
 
 type CategoryListProps = {
     selectedCategory: string,
-    onCategoryChange: (string) -> (),
+    onCategoryChange: (category: string) -> (),
     priceRange: PriceRange,
-    onPriceRangeChange: (PriceRange) -> (),
+    onPriceRangeChange: (range: PriceRange) -> (),
     sortOrder: SortOrder,
-    onSortChange: (SortOrder) -> (),
+    onSortChange: (order: SortOrder) -> (),
 }
 
 type ProductGridProps = {
@@ -38,11 +38,11 @@ type ProductGridProps = {
     search: string,
     sortOrder: SortOrder,
     priceRange: PriceRange,
-    onAddToCart: (Product) -> (),
+    onAddToCart: (product: Product) -> (),
 }
 
 type CatalogPageProps = {
-    onAddToCart: (Product) -> (),
+    onAddToCart: (product: Product) -> (),
 }
 
 // ── Product card ───────────────────────────────────────

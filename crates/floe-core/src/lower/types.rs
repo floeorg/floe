@@ -175,6 +175,20 @@ impl<'src> Lowerer<'src> {
         })
     }
 
+    pub(super) fn lower_fn_type_param(&mut self, node: &SyntaxNode) -> Option<FnTypeParam> {
+        let span = self.node_span(node);
+        let label = self.collect_idents_direct(node).first().cloned();
+        let type_expr_node = node
+            .children()
+            .find(|c| c.kind() == SyntaxKind::TYPE_EXPR)?;
+        let type_ann = self.lower_type_expr(&type_expr_node)?;
+        Some(FnTypeParam {
+            label,
+            type_ann,
+            span,
+        })
+    }
+
     pub(super) fn lower_type_expr(&mut self, node: &SyntaxNode) -> Option<TypeExpr> {
         let span = self.node_span(node);
 
@@ -298,17 +312,21 @@ impl<'src> Lowerer<'src> {
 
         // Function type: (params) -> ReturnType
         if has_fat_arrow || has_thin_arrow {
-            let type_exprs: Vec<TypeExpr> = node
+            let params: Vec<FnTypeParam> = node
                 .children()
-                .filter(|c| c.kind() == SyntaxKind::TYPE_EXPR)
-                .filter_map(|c| self.lower_type_expr(&c))
+                .filter(|c| c.kind() == SyntaxKind::FN_TYPE_PARAM)
+                .filter_map(|c| self.lower_fn_type_param(&c))
                 .collect();
+            let return_type = node
+                .children()
+                .find(|c| c.kind() == SyntaxKind::TYPE_EXPR)
+                .and_then(|c| self.lower_type_expr(&c));
 
-            if let Some((return_type, params)) = type_exprs.split_last() {
+            if let Some(return_type) = return_type {
                 return Some(TypeExpr {
                     kind: TypeExprKind::Function {
-                        params: params.to_vec(),
-                        return_type: Box::new(return_type.clone()),
+                        params,
+                        return_type: Box::new(return_type),
                     },
                     span,
                 });

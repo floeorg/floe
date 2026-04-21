@@ -185,7 +185,10 @@ impl Checker {
                 TypeExprKind::Function {
                     params,
                     return_type,
-                } => params.iter().any(has_intersection) || has_intersection(return_type),
+                } => {
+                    params.iter().any(|p| has_intersection(&p.type_ann))
+                        || has_intersection(return_type)
+                }
                 TypeExprKind::Named { type_args, .. } => type_args.iter().any(has_intersection),
                 TypeExprKind::Record(fields) => {
                     fields.iter().any(|f| has_intersection(&f.type_ann))

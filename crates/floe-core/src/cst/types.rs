@@ -94,11 +94,25 @@ impl<'src> CstParser<'src> {
     fn parse_function_type(&mut self) {
         self.expect(TokenKind::LeftParen);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_type_expr, TokenKind::RightParen);
+        self.parse_comma_separated(Self::parse_fn_type_param, TokenKind::RightParen);
         self.expect(TokenKind::RightParen);
         self.eat_trivia();
         self.expect(TokenKind::ThinArrow);
         self.eat_trivia();
         self.parse_type_expr();
+    }
+
+    /// Parse a single parameter in a function type:
+    ///   `IDENT ':' TYPE_EXPR` (labelled) or `TYPE_EXPR` (bare).
+    fn parse_fn_type_param(&mut self) {
+        self.builder.start_node(SyntaxKind::FN_TYPE_PARAM.into());
+        if self.is_ident() && self.peek_is(TokenKind::Colon) {
+            self.bump(); // ident
+            self.eat_trivia();
+            self.bump(); // :
+            self.eat_trivia();
+        }
+        self.parse_type_expr();
+        self.builder.finish_node();
     }
 }

@@ -3095,7 +3095,10 @@ pub fn simple_resolve_type_expr<T>(type_expr: &crate::parser::ast::TypeExpr<T>) 
             params,
             return_type,
         } => {
-            let param_types: Vec<_> = params.iter().map(simple_resolve_type_expr).collect();
+            let param_types: Vec<_> = params
+                .iter()
+                .map(|p| simple_resolve_type_expr(&p.type_ann))
+                .collect();
             let ret = simple_resolve_type_expr(return_type);
             let required_params = param_types.len();
             Type::Function {

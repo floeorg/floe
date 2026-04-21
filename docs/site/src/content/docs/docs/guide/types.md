@@ -25,7 +25,7 @@ The RHS picks what kind of type you get:
 | `{ ... }` | Record |
 | `A \| B \| ...` | Tagged sum |
 | `Name(T)` | Newtype |
-| `(Args) => Ret` | Function-type alias |
+| `(T, ...) => Ret` or `(label: T, ...) => Ret` | Function-type alias (parameter labels optional) |
 | `OneOf<"a", "b">` | Structural string-literal union |
 | `Intersect<A, B>` | Structural intersection |
 
@@ -286,19 +286,20 @@ opaque type Email = Email(string)
 
 ## Function-Type Aliases
 
-Name a function type to use it in records or generics:
+Name a function type to use it in records or generics. Parameter labels are optional documentation:
 
 ```floe
-type Handler = (Request) -> Promise<Response>
+type Handler = (req: Request) -> Promise<Response>
 type Predicate<T> = (T) -> boolean
 
 type Button = {
   label: string,
   onClick: () -> (),
+  onSubmit: (form: FormData) -> (),
 }
 ```
 
-Function types use `=>`. The `->` arrow is reserved for match arms and the return type of an `fn` declaration.
+Labels never affect structural assignability — `(x: Int) -> Int`, `(y: Int) -> Int`, and `(Int) -> Int` are all the same type. Add labels when the name carries meaning (DDD-style workflow types, multi-param callbacks); skip them when the position is obvious.
 
 ## Tuple Types
 

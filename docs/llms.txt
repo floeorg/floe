@@ -66,7 +66,7 @@ Every type declaration starts with `type Name = ...`. The RHS picks the kind:
 - `{ ... }` — record
 - `Variant | Variant | ...` — nominal tagged sum (leading `|` optional)
 - `Name(T)` — newtype (single-value wrapper)
-- `(Args) -> Ret` — structural function-type alias
+- `(T, ...) -> Ret` or `(label: T, ...) -> Ret` — structural function-type alias; parameter labels are optional documentation that LSP hover surfaces and do not affect structural assignability
 - `OneOf<"a", "b">` / `Intersect<A, B>` — structural string-literal union / intersection
 - `Partial<T>` / `Pick<T, K>` / `Omit<T, K>` / `ReturnType<...>` / ... — TS utility aliases
 
@@ -145,8 +145,9 @@ type A = { x: number }
 type B = { y: string }
 type C = { ...A, ...B, z: boolean }
 
-// Function-type alias (structural — just a type)
-type Handler = (Request) -> Promise<Response>
+// Function-type alias (structural — just a type). Labels on parameters
+// are optional documentation and do not affect assignability.
+type Handler = (req: Request) -> Promise<Response>
 type Predicate<T> = (T) -> boolean
 
 // Opaque types (only defining module can create/read)

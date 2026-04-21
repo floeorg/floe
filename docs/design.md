@@ -128,7 +128,7 @@ The last expression in a block is the return value — no `return` keyword.
 | Tagged sums | `type Route = Home \| Profile(string) \| Settings { tab: string }` | discriminated union. `(Type, ...)` variants are positional; `{ name: Type, ... }` variants are named. Mixing the two forms in one variant is a parse error. Leading `\|` optional. |
 | String literal unions | `type Method = OneOf<"GET", "POST", "PUT">` | `"GET" \| "POST" \| "PUT"` (structural — for npm interop) |
 | Intersections | `type AdminCard = Intersect<ButtonProps, { role: "admin" }>` | `ButtonProps & { role: "admin" }` (structural) |
-| Function-type alias | `type Handler = (Request) => Response` | `type Handler = (arg: Request) => Response` |
+| Function-type alias | `type Handler = (req: Request) => Response` | `type Handler = (req: Request) => Response` (parameter labels are optional documentation; LSP hover surfaces them but they never affect assignability) |
 | Nested sums | `type ApiError = Network(NetworkError) \| NotFound` | nested discriminated union (compiler generates tags) |
 | Multi-depth match | `Network(Timeout(ms)) -> ...` | nested if/else with tag checks |
 | Type constructors | `User(name: "Ryan", email: e)` | `{ name: "Ryan", email: e }` (compiler adds tags for unions) |
@@ -641,8 +641,10 @@ type HttpMethod = OneOf<"GET", "POST", "PUT", "DELETE">
 // Structural intersection
 type AdminCard = Intersect<ButtonProps, { role: "admin" }>
 
-// Function-type alias — structural
-type Handler = (Request) -> Promise<Response>
+// Function-type alias — structural. Parameter labels are optional
+// documentation; LSP hover surfaces them and they never influence
+// assignability.
+type Handler = (req: Request) -> Promise<Response>
 type Predicate<T> = (T) -> boolean
 
 // Sums can contain sums — nest as deep as you want

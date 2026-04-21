@@ -289,6 +289,14 @@ impl Attacher<'_> {
         }
     }
 
+    fn fn_type_param(&self, param: FnTypeParam<()>) -> FnTypeParam<Arc<Type>> {
+        FnTypeParam {
+            label: param.label,
+            type_ann: self.type_expr(param.type_ann),
+            span: param.span,
+        }
+    }
+
     fn type_expr_kind(&self, kind: TypeExprKind<()>) -> TypeExprKind<Arc<Type>> {
         match kind {
             TypeExprKind::Named {
@@ -307,7 +315,7 @@ impl Attacher<'_> {
                 params,
                 return_type,
             } => TypeExprKind::Function {
-                params: params.into_iter().map(|t| self.type_expr(t)).collect(),
+                params: params.into_iter().map(|p| self.fn_type_param(p)).collect(),
                 return_type: Box::new(self.type_expr(*return_type)),
             },
             TypeExprKind::Array(t) => TypeExprKind::Array(Box::new(self.type_expr(*t))),

@@ -9045,6 +9045,49 @@ let _x = twoArgs()
     );
 }
 
+#[test]
+fn fn_type_alias_accepts_labelled_and_unlabelled_params() {
+    // Labels are documentation only — both forms parse and check cleanly.
+    let diags = check(
+        r#"
+type Handler = (req: number) -> number
+type Predicate = (number) -> boolean
+let _h(f: Handler, x: number) -> number = { f(x) }
+let _p(f: Predicate, x: number) -> boolean = { f(x) }
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "labelled and unlabelled fn-type aliases should both check cleanly, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn fn_type_param_label_does_not_collide_with_call_site_arguments() {
+    // Labels are documentation only — call sites use positional args without
+    // having to refer to the label.
+    let diags = check(
+        r#"
+type Apply = (n: number) -> number
+let _twice(f: Apply, x: number) -> number = { f(f(x)) }
+"#,
+    );
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "labelled fn type should accept positional calls, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
 // ── Function-type aliases are structural (#1274) ─────────────
 
 #[test]
