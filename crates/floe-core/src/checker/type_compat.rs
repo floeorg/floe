@@ -247,8 +247,9 @@ impl Checker {
         }
 
         // Option<T> is never compatible with a non-Option expected type.
-        // Users must unwrap with `match` or pattern binding.
-        if actual.is_option() && !expected.is_option() {
+        // Users must unwrap with `match` or pattern binding. TsUnion
+        // delegates to the per-member recursion further down.
+        if actual.is_option() && !expected.is_option() && !matches!(expected, Type::TsUnion(_)) {
             return false;
         }
 
