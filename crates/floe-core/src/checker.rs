@@ -155,6 +155,12 @@ pub(crate) struct CheckContext {
     /// Expected type from surrounding context (const annotation, function return type, etc.).
     /// Used by Ok/Err for bidirectional inference to fill missing type parameters.
     pub expected_type: Option<Type>,
+    /// Name of the function currently being checked (top-level function
+    /// declarations only — lambdas and nested scopes leave this as `None`).
+    /// Used to look up per-function chain probes so `c.req.param(...)`
+    /// inside a handler registered at a specific route can narrow via
+    /// the path-threaded Context emitted by the probe generator.
+    pub current_function: Option<String>,
 }
 
 // ── Unused name tracking ────────────────────────────────────────

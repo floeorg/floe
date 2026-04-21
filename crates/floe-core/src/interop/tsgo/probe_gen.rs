@@ -1046,16 +1046,205 @@ pub(super) fn generate_probe(
 
     let has_jsx_probes = !collector.probes.is_empty() || !collector.children_probes.is_empty();
 
+    emit_per_handler_chain_probes(program, &imported_names, &mut lines);
+
     if probe_index == 0
         && member_accesses.is_empty()
         && !has_chain_probes
         && !has_type_probes
         && !has_jsx_probes
+        && !lines
+            .iter()
+            .any(|l| l.contains("__chain_base_") && l.contains("__"))
     {
         return String::new();
     }
 
     lines.join("\n") + "\n"
+}
+
+/// Emit per-handler scoped chain probes that thread the registration path
+/// (e.g. `get("/users/:id", handleGet)`) into the handler's parameter type.
+/// Without this, `c.req.param("id")` inside `handleGet` resolves against
+/// the default `P` of `Context` and falls back to `string | undefined`;
+/// with the path threaded, tsgo narrows to `string`.
+///
+/// Emits for each registered handler:
+///   declare const __chain_base_<fn>__<Base>: <Base><...args, "path">;
+///   export let __chain_<fn>__<Base>$f1$f2 = __chain_base_...f1.f2;
+///   export let __chain_call_<fn>__<Base>$f1$f2 = ...f1.f2(null! as any);
+///   export let __chain_await_<fn>__<Base>$f1$f2 = ...;
+///
+/// The checker's per-function chain lookup prefers these over the global
+/// `__chain_*` keys for expressions inside the named handler.
+fn emit_per_handler_chain_probes(
+    program: &Program,
+    imported_names: &HashMap<String, String>,
+    lines: &mut Vec<String>,
+) {
+    let handler_paths = collect_handler_paths(program);
+    if handler_paths.is_empty() {
+        return;
+    }
+
+    for item in &program.items {
+        let ItemKind::Function(decl) = &item.kind else {
+            continue;
+        };
+        let Some(path_literal) = handler_paths.get(decl.name.as_str()) else {
+            continue;
+        };
+
+        // Find the first imported-typed parameter (e.g. `c: Context<...>`)
+        // and render its annotation with the path threaded as an extra
+        // trailing type argument.
+        let Some((param_name, base_type, threaded_ann)) =
+            handler_param_with_path(decl, imported_names, path_literal)
+        else {
+            continue;
+        };
+
+        let chain_prefix = format!("{}__{}", decl.name, base_type);
+        let base_name = format!("__chain_base_{chain_prefix}");
+        lines.push(format!("declare const {base_name}: {threaded_ann};"));
+
+        // Walk the handler body for chain expressions rooted in `param_name`,
+        // then emit one probe per chain (plus `_call_` and `_await_` variants)
+        // using the per-function scoped base.
+        let chains = collect_param_rooted_chains(&decl.body, &param_name);
+        for (steps, is_call) in chains {
+            let chain_key = format!("{chain_prefix}${}", steps.join("$"));
+            let mut expr = base_name.clone();
+            for step in &steps {
+                expr = format!("{expr}.{step}");
+            }
+            lines.push(format!("export let __chain_{chain_key} = {expr};"));
+            if is_call {
+                lines.push(format!(
+                    "export let __chain_call_{chain_key} = {expr}(null! as any);"
+                ));
+            }
+            lines.push(format!("export let __chain_called_{chain_key} = {expr}();"));
+            let await_fn = format!("__chain_await_{chain_key}_fn");
+            lines.push(format!(
+                "declare function {await_fn}(): Awaited<typeof __chain_called_{chain_key}>;"
+            ));
+            lines.push(format!(
+                "export let __chain_await_{chain_key} = {await_fn}();"
+            ));
+        }
+    }
+}
+
+/// Scan pipe-chain method calls of the shape `router_method(path, handler)`
+/// and record `handler -> path`. Handlers registered by an inline lambda
+/// are skipped (no name to correlate with a function declaration).
+fn collect_handler_paths(program: &Program) -> HashMap<String, String> {
+    let mut out: HashMap<String, String> = HashMap::new();
+    crate::walk::walk_program(program, &mut |expr| {
+        let ExprKind::Call { args, .. } = &expr.kind else {
+            return;
+        };
+        // Two positional args: string literal path, then handler identifier.
+        if args.len() < 2 {
+            return;
+        }
+        let Arg::Positional(path_arg) = &args[0] else {
+            return;
+        };
+        let Arg::Positional(handler_arg) = &args[1] else {
+            return;
+        };
+        let ExprKind::String(path) = &path_arg.kind else {
+            return;
+        };
+        if !path.starts_with('/') {
+            return;
+        }
+        let ExprKind::Identifier(handler_name) = &handler_arg.kind else {
+            return;
+        };
+        out.entry(handler_name.clone())
+            .or_insert_with(|| path.clone());
+    });
+    out
+}
+
+/// For a function whose first parameter is `c: Import<...>`, render the
+/// TS annotation with `path_literal` appended as an additional type
+/// argument — e.g. `Context<{ Bindings: B }>` + `/users/:id` becomes
+/// `Context<{ Bindings: B }, "/users/:id">`. Returns the parameter name,
+/// the base type name (e.g. `"Context"`), and the rendered annotation.
+fn handler_param_with_path(
+    decl: &FunctionDecl,
+    imported_names: &HashMap<String, String>,
+    path_literal: &str,
+) -> Option<(String, String, String)> {
+    let param = decl.params.first()?;
+    let ann = param.type_ann.as_ref()?;
+    let TypeExprKind::Named {
+        name: base_type,
+        type_args,
+        ..
+    } = &ann.kind
+    else {
+        return None;
+    };
+    if !imported_names.contains_key(base_type) {
+        return None;
+    }
+    let mut args_str: Vec<String> = type_args.iter().map(type_expr_to_ts).collect();
+    args_str.push(format!("\"{path_literal}\""));
+    let threaded_ann = format!("{base_type}<{}>", args_str.join(", "));
+    Some((param.name.clone(), base_type.clone(), threaded_ann))
+}
+
+/// Walk `body` collecting chain expressions rooted in `param_name`. Each
+/// chain is returned once with a flag indicating whether any occurrence
+/// invoked the terminal step — that determines whether we emit the
+/// `__chain_call_` variant alongside the base `__chain_` probes.
+fn collect_param_rooted_chains(body: &Expr, param_name: &str) -> Vec<(Vec<String>, bool)> {
+    let mut by_key: HashMap<String, (Vec<String>, bool)> = HashMap::new();
+    crate::walk::walk_expr(body, &mut |expr| {
+        let (member_expr, is_call) = match &expr.kind {
+            ExprKind::Call { callee, .. } => (callee.as_ref(), true),
+            ExprKind::Member { .. } => (expr, false),
+            _ => return,
+        };
+        let Some(steps) = collect_member_chain(member_expr, param_name) else {
+            return;
+        };
+        if steps.len() < 2 {
+            return;
+        }
+        let key = steps.join("$");
+        by_key
+            .entry(key)
+            .and_modify(|(_, flag)| {
+                if is_call {
+                    *flag = true;
+                }
+            })
+            .or_insert((steps, is_call));
+    });
+    by_key.into_values().collect()
+}
+
+/// If `expr` is a Member chain rooted in `param_name`, return the field
+/// steps after the root (e.g. `c.req.param` → `vec!["req", "param"]`).
+fn collect_member_chain(expr: &Expr, param_name: &str) -> Option<Vec<String>> {
+    let ExprKind::Member { object, field } = &expr.kind else {
+        return None;
+    };
+    match &object.kind {
+        ExprKind::Identifier(name) if name == param_name => Some(vec![field.clone()]),
+        ExprKind::Member { .. } => {
+            let mut prior = collect_member_chain(object, param_name)?;
+            prior.push(field.clone());
+            Some(prior)
+        }
+        _ => None,
+    }
 }
 
 struct JsxCallbackProbe {

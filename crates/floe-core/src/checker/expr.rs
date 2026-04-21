@@ -2521,10 +2521,24 @@ impl Checker {
         field: &str,
     ) -> Option<Type> {
         let chain_key = extract_chain_key(object, field)?;
+        // Per-function scoped probe first — the probe generator emits a
+        // `__chain_{prefix}{fn}__{chain_key}` entry for handlers registered
+        // to a specific route, which threads the path into Context's P
+        // parameter and lets tsgo narrow `c.req.param("code")` to `string`.
+        if let Some(fn_name) = self.ctx.current_function.as_deref()
+            && let Some(ty) = self.lookup_dts_probe(&format!("{prefix}{fn_name}__{chain_key}"))
+        {
+            return Some(ty);
+        }
         if let Some(ty) = self.lookup_dts_probe(&format!("{prefix}{chain_key}")) {
             return Some(ty);
         }
         let type_key = self.chain_key_by_root_type(object, field)?;
+        if let Some(fn_name) = self.ctx.current_function.as_deref()
+            && let Some(ty) = self.lookup_dts_probe(&format!("{prefix}{fn_name}__{type_key}"))
+        {
+            return Some(ty);
+        }
         self.lookup_dts_probe(&format!("{prefix}{type_key}"))
     }
 
