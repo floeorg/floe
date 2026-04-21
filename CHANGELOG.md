@@ -5,6 +5,32 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0](https://github.com/floeorg/floe/compare/v0.6.1...v0.7.0) (2026-04-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* [#1313] add `typealias` keyword for structural aliases ([#1315](https://github.com/floeorg/floe/issues/1315))
+
+### Features
+
+* [[#1287](https://github.com/floeorg/floe/issues/1287)] warn when let annotation widens value via Option wrapping ([#1289](https://github.com/floeorg/floe/issues/1289)) ([ad10fca](https://github.com/floeorg/floe/commit/ad10fcaa730cef50a1222c390ea02a6215fd0205))
+* [[#1302](https://github.com/floeorg/floe/issues/1302)] member completion on imported generic types ([#1306](https://github.com/floeorg/floe/issues/1306)) ([76e93bf](https://github.com/floeorg/floe/commit/76e93bfc86da9a557f2d3efbff8a4459c2b476e3))
+* [[#1313](https://github.com/floeorg/floe/issues/1313)] add `typealias` keyword for structural aliases ([#1315](https://github.com/floeorg/floe/issues/1315)) ([f57327f](https://github.com/floeorg/floe/commit/f57327fb68e8bb8951ce632f89fca07e4f451317))
+
+
+### Bug Fixes
+
+* [[#1284](https://github.com/floeorg/floe/issues/1284)] LSP hover respects in-file bindings and chain-call args ([#1290](https://github.com/floeorg/floe/issues/1290)) ([54fc9d2](https://github.com/floeorg/floe/commit/54fc9d2bb2057ac6f3109fc4ae74c7add58d88b5))
+* [[#1286](https://github.com/floeorg/floe/issues/1286)] thread `use` continuation into piped-into call ([#1288](https://github.com/floeorg/floe/issues/1288)) ([aa1bfb4](https://github.com/floeorg/floe/commit/aa1bfb496f34306c77ae3fe7eec5dbca4f5bf0da))
+* [[#1294](https://github.com/floeorg/floe/issues/1294)] format the RHS of use-declarations ([#1295](https://github.com/floeorg/floe/issues/1295)) ([7576dad](https://github.com/floeorg/floe/commit/7576daddc968b7dc48d1a4c1db9f3f3a94ac5b25))
+* [[#1300](https://github.com/floeorg/floe/issues/1300)] wrap match IIFE in async when subject contains await ([#1301](https://github.com/floeorg/floe/issues/1301)) ([af72772](https://github.com/floeorg/floe/commit/af72772b9b4f97e32ce956821cb018c33f385793))
+* [[#1303](https://github.com/floeorg/floe/issues/1303)] parenthesize Promise.await template for correct member-access precedence ([#1304](https://github.com/floeorg/floe/issues/1304)) ([c4e5ba9](https://github.com/floeorg/floe/commit/c4e5ba94ca67a972e430127aa21ce20d05040647))
+* [[#1305](https://github.com/floeorg/floe/issues/1305)] codegen: cross-file trait dispatch and __make factory ([#1308](https://github.com/floeorg/floe/issues/1308)) ([e1221ff](https://github.com/floeorg/floe/commit/e1221ff7aa676da4f16664b08e4c7b4413cb2544))
+* [[#1307](https://github.com/floeorg/floe/issues/1307)] reject Option&lt;T&gt; where T is expected ([#1309](https://github.com/floeorg/floe/issues/1309)) ([4adb54d](https://github.com/floeorg/floe/commit/4adb54de38b5e67dfd2febe05004189f23bf982b))
+* [[#1310](https://github.com/floeorg/floe/issues/1310)] type-check record-spread source fields against target fields ([#1311](https://github.com/floeorg/floe/issues/1311)) ([a9565f4](https://github.com/floeorg/floe/commit/a9565f4605d413aa17fd74c12b9326b80fd61295))
+* [[#1316](https://github.com/floeorg/floe/issues/1316)] reject `for X` import specifier when X is not in the module ([#1317](https://github.com/floeorg/floe/issues/1317)) ([755522c](https://github.com/floeorg/floe/commit/755522cf1599facadb4ddbf49a85b719c903367d))
+
 ## [0.6.1](https://github.com/floeorg/floe/compare/v0.6.0...v0.6.1) (2026-04-21)
 
 
