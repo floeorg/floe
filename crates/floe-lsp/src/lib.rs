@@ -200,6 +200,10 @@ struct Document {
     /// consults it for precise definition spans so intra-module jumps
     /// don't rely on name-based index lookups.
     references: ReferenceTracker,
+    /// Canonical paths of every `.fl` file this document transitively
+    /// imports. Used to maintain the reverse-dependency index so edits
+    /// to an imported file re-check the files that depend on it.
+    dep_paths: HashSet<PathBuf>,
 }
 
 // ── LSP Protocol Constants ──────────────────────────────────────
@@ -257,6 +261,10 @@ pub struct FloeLsp {
     /// are reused without re-parsing. Avoids re-walking every
     /// imported `.fl` module on each keystroke.
     resolve_cache: Arc<RwLock<HashMap<PathBuf, (u64, floe_core::resolve::ResolvedImports)>>>,
+    /// Reverse-dependency index: canonical file path → open documents
+    /// that transitively import it. Edits to a dependency trigger a
+    /// re-check of every dependent so diagnostics don't go stale.
+    reverse_deps: Arc<RwLock<HashMap<PathBuf, HashSet<Url>>>>,
 }
 
 impl FloeLsp {
@@ -267,6 +275,7 @@ impl FloeLsp {
             dts_cache: Arc::new(RwLock::new(HashMap::new())),
             logged_projects: Arc::new(RwLock::new(HashSet::new())),
             resolve_cache: Arc::new(RwLock::new(HashMap::new())),
+            reverse_deps: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -325,14 +334,17 @@ impl FloeLsp {
         source_path: &Path,
         program: &floe_core::parser::ast::Program,
         tsconfig_paths: &floe_core::resolve::TsconfigPaths,
-    ) -> HashMap<String, floe_core::resolve::ResolvedImports> {
+    ) -> (
+        HashMap<String, floe_core::resolve::ResolvedImports>,
+        HashSet<PathBuf>,
+    ) {
         // Snapshot the cache under a read lock so concurrent LSP
         // handlers don't block on each other. The resolve function
         // writes fresh entries into the snapshot; we merge them back
         // under a write lock only if there were misses.
         let snapshot = self.resolve_cache.read().await.clone();
         let mut working = snapshot;
-        let (resolved, _dep_paths) = floe_core::resolve::resolve_imports_cached(
+        let (resolved, dep_paths) = floe_core::resolve::resolve_imports_cached(
             source_path,
             program,
             tsconfig_paths,
@@ -342,7 +354,7 @@ impl FloeLsp {
         if working.len() > self.resolve_cache.read().await.len() {
             *self.resolve_cache.write().await = working;
         }
-        resolved
+        (resolved, dep_paths)
     }
 
     /// Resolve `.fl` imports, tsgo exports, and ambient declarations for a
@@ -358,6 +370,7 @@ impl FloeLsp {
         Option<PathBuf>,
         Option<PathBuf>,
         floe_core::resolve::TsconfigPaths,
+        HashSet<PathBuf>,
     ) {
         let Ok(source_path) = uri.to_file_path() else {
             return (
@@ -366,13 +379,14 @@ impl FloeLsp {
                 None,
                 None,
                 Default::default(),
+                HashSet::new(),
             );
         };
         let source_dir = source_path.parent().unwrap_or(Path::new(".")).to_path_buf();
         let project_dir = find_project_dir(&source_dir);
         let tsconfig_paths = floe_core::resolve::TsconfigPaths::from_project_dir(&project_dir);
         self.log_project_info(&project_dir, &tsconfig_paths).await;
-        let resolved_imports = self
+        let (resolved_imports, dep_paths) = self
             .resolve_imports_cached(&source_path, program, &tsconfig_paths)
             .await;
 
@@ -394,6 +408,7 @@ impl FloeLsp {
             Some(project_dir),
             Some(source_dir),
             tsconfig_paths,
+            dep_paths,
         )
     }
 
@@ -412,18 +427,19 @@ impl FloeLsp {
 
         // Partial trees from lossy parses skip import/extern resolution
         // since the module inputs may be incomplete.
-        let (resolved_imports, externs, project_dir, source_dir, tsconfig_paths) = if full_parse_ok
-        {
-            self.gather_module_inputs(&uri, &program).await
-        } else {
-            (
-                HashMap::new(),
-                ExternTypes::default(),
-                None,
-                None,
-                Default::default(),
-            )
-        };
+        let (resolved_imports, externs, project_dir, source_dir, tsconfig_paths, dep_paths) =
+            if full_parse_ok {
+                self.gather_module_inputs(&uri, &program).await
+            } else {
+                (
+                    HashMap::new(),
+                    ExternTypes::default(),
+                    None,
+                    None,
+                    Default::default(),
+                    HashSet::new(),
+                )
+            };
 
         let analysed = analyse::analyse_parsed(
             program,
@@ -472,6 +488,8 @@ impl FloeLsp {
         let references = analysed.references;
         let typed_program = Some(typed_program);
 
+        self.update_reverse_deps(&uri, &dep_paths).await;
+
         self.documents.write().await.insert(
             uri.clone(),
             Document {
@@ -480,12 +498,94 @@ impl FloeLsp {
                 type_map,
                 typed_program,
                 references,
+                dep_paths,
             },
         );
 
         self.client
             .publish_diagnostics(uri, diagnostics, None)
             .await;
+    }
+
+    /// Update the reverse-dependency index so that `uri` is listed as a
+    /// dependent for every path in `new_deps`, and removed from paths it
+    /// no longer imports.
+    async fn update_reverse_deps(&self, uri: &Url, new_deps: &HashSet<PathBuf>) {
+        let old_deps = self
+            .documents
+            .read()
+            .await
+            .get(uri)
+            .map(|d| d.dep_paths.clone())
+            .unwrap_or_default();
+        // Keystroke edits typically don't change the import set. Skip the
+        // write lock when nothing changed so hover/completion handlers
+        // don't contend with us on every keypress.
+        if old_deps == *new_deps {
+            return;
+        }
+        let mut reverse = self.reverse_deps.write().await;
+        for path in old_deps.difference(new_deps) {
+            if let Some(set) = reverse.get_mut(path) {
+                set.remove(uri);
+                if set.is_empty() {
+                    reverse.remove(path);
+                }
+            }
+        }
+        for path in new_deps.difference(&old_deps) {
+            reverse.entry(path.clone()).or_default().insert(uri.clone());
+        }
+    }
+
+    /// Files whose diagnostics depend on `changed_uri`. Looked up via the
+    /// reverse-dependency index so we can re-check them after an edit.
+    async fn dependents_of(&self, changed_uri: &Url) -> Vec<Url> {
+        let Ok(path) = changed_uri.to_file_path() else {
+            return Vec::new();
+        };
+        let canonical = path.canonicalize().unwrap_or(path);
+        self.reverse_deps
+            .read()
+            .await
+            .get(&canonical)
+            .map(|set| set.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Re-check every open document that imports `changed_uri`. Called
+    /// after the changed file itself has been updated, so dependents see
+    /// fresh export info when their imports are resolved.
+    pub(crate) async fn recheck_dependents(&self, changed_uri: &Url) {
+        let dependents = self.dependents_of(changed_uri).await;
+        for dep_uri in dependents {
+            let source = self
+                .documents
+                .read()
+                .await
+                .get(&dep_uri)
+                .map(|d| d.content.clone());
+            if let Some(source) = source {
+                Box::pin(self.update_document(dep_uri, &source)).await;
+            }
+        }
+    }
+
+    /// Drop the document's state and remove it from the reverse-dependency
+    /// index so closed files no longer receive cascade rechecks.
+    pub(crate) async fn forget_document(&self, uri: &Url) {
+        let removed = self.documents.write().await.remove(uri);
+        if let Some(doc) = removed {
+            let mut reverse = self.reverse_deps.write().await;
+            for path in &doc.dep_paths {
+                if let Some(set) = reverse.get_mut(path) {
+                    set.remove(uri);
+                    if set.is_empty() {
+                        reverse.remove(path);
+                    }
+                }
+            }
+        }
     }
 
     /// Convert Floe diagnostics to LSP diagnostics.

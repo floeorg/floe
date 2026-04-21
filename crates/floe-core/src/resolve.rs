@@ -420,6 +420,10 @@ fn resolve_single_cached(
                     return Some(cached_imports.clone());
                 }
                 // Cache miss — parse the already-read bytes (no second read).
+                // Record the dep as visited so dep_paths reports it to the
+                // caller (LSP uses this to maintain reverse-dep rechecks) and
+                // so transitive cycles terminate.
+                visited.insert(canonical.clone());
                 let source_code = String::from_utf8(dep_bytes).ok()?;
                 let resolved =
                     resolve_from_source(&dep_path, &source_code, visited, tsconfig_paths)?;
