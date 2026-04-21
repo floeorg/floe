@@ -3,7 +3,7 @@ use crate::pretty::{self, Document};
 use crate::type_layout;
 use crate::type_layout::TAG_FIELD;
 
-use super::super::{escape_string, for_block_fn_name};
+use super::super::{escape_string, for_block_base_type_name, for_block_fn_name};
 use super::generator::TypeScriptGenerator;
 
 impl<'a> TypeScriptGenerator<'a> {
@@ -439,10 +439,10 @@ impl<'a> TypeScriptGenerator<'a> {
             docs.push(self.emit_for_block_function(func, &block.type_name));
         }
         if block.trait_name.is_some()
-            && let TypeExprKind::Named { name, .. } = &block.type_name.kind
+            && let Some(name) = for_block_base_type_name(&block.type_name)
             && !self.emitted_factories.contains(name)
         {
-            self.emitted_factories.insert(name.clone());
+            self.emitted_factories.insert(name.to_string());
             docs.push(pretty::str("\n"));
             docs.push(self.emit_trait_impl_factory(name, &block.type_name));
         }
@@ -450,6 +450,17 @@ impl<'a> TypeScriptGenerator<'a> {
     }
 
     fn emit_trait_impl_factory(&mut self, type_name: &str, type_expr: &TypedTypeExpr) -> Document {
+        // Invariant: the caller only invokes this for type names that were
+        // registered in `ctx.trait_impl_blocks` during context construction.
+        let blocks = self
+            .ctx
+            .trait_impl_blocks
+            .get(type_name)
+            .cloned()
+            .unwrap_or_else(|| {
+                panic!("emit_trait_impl_factory called for unregistered type {type_name}")
+            });
+
         let factory_name = format!("{type_name}__make");
         let mut docs = vec![
             pretty::str("export function "),
@@ -467,9 +478,6 @@ impl<'a> TypeScriptGenerator<'a> {
         return_inner.push(pretty::line());
         return_inner.push(pretty::str("...__data,"));
 
-        let Some(blocks) = self.ctx.trait_impl_blocks.get(type_name).cloned() else {
-            return pretty::nil();
-        };
         for block in &blocks {
             for func in &block.functions {
                 let non_self_params: Vec<&TypedParam> =
@@ -878,10 +886,7 @@ impl<'a> TypeScriptGenerator<'a> {
         for spec in &decl.specifiers {
             let has_trait_impl = resolved.for_blocks.iter().any(|block| {
                 block.trait_name.is_some()
-                    && matches!(
-                        &block.type_name.kind,
-                        TypeExprKind::Named { name, .. } if name == &spec.name
-                    )
+                    && for_block_base_type_name(&block.type_name) == Some(spec.name.as_str())
             });
             if has_trait_impl {
                 names.push(format!("{}__make", spec.name));

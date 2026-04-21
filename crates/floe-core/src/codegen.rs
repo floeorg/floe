@@ -27,6 +27,16 @@ pub fn for_block_fn_name<T>(type_expr: &TypeExpr<T>, fn_name: &str) -> String {
     format!("{type_prefix}__{fn_name}")
 }
 
+/// Base type name of a for-block (`for User: Display { ... }` -> `Some("User")`).
+/// Returns `None` for structural type expressions that can't be targeted
+/// by a nominal `T__make` factory (e.g. arrays, tuples).
+pub(crate) fn for_block_base_type_name<T>(type_expr: &TypeExpr<T>) -> Option<&str> {
+    match &type_expr.kind {
+        TypeExprKind::Named { name, .. } => Some(name),
+        _ => None,
+    }
+}
+
 /// Mangle a type expression into a valid identifier fragment.
 fn mangle_type_name<T>(type_expr: &TypeExpr<T>) -> String {
     match &type_expr.kind {

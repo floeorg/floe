@@ -8,7 +8,7 @@ use crate::type_layout;
 
 use super::super::{
     CodegenOutput, DEEP_EQUAL_FN, collect_constructor_names, collect_value_used_names,
-    for_block_fn_name,
+    for_block_base_type_name, for_block_fn_name,
 };
 
 // ── Runtime codegen constants ───────────────────────────────────
@@ -131,10 +131,10 @@ impl TypeContext {
                         for block in &resolved.for_blocks {
                             ctx.register_for_block_fns(block);
                             if let Some(trait_name) = &block.trait_name
-                                && let TypeExprKind::Named { name, .. } = &block.type_name.kind
+                                && let Some(name) = for_block_base_type_name(&block.type_name)
                             {
                                 ctx.type_trait_impls
-                                    .entry(name.clone())
+                                    .entry(name.to_string())
                                     .or_default()
                                     .push(trait_name.clone());
                             }
@@ -151,14 +151,14 @@ impl TypeContext {
                         ctx.local_names.insert(func.name.clone());
                     }
                     if let Some(trait_name) = &block.trait_name
-                        && let TypeExprKind::Named { name, .. } = &block.type_name.kind
+                        && let Some(name) = for_block_base_type_name(&block.type_name)
                     {
                         ctx.type_trait_impls
-                            .entry(name.clone())
+                            .entry(name.to_string())
                             .or_default()
                             .push(trait_name.clone());
                         ctx.trait_impl_blocks
-                            .entry(name.clone())
+                            .entry(name.to_string())
                             .or_default()
                             .push(block.clone());
                     }
@@ -196,9 +196,8 @@ impl TypeContext {
     }
 
     pub(super) fn register_for_block_fns<T>(&mut self, block: &ForBlock<T>) {
-        let type_name = match &block.type_name.kind {
-            TypeExprKind::Named { name, .. } => name.clone(),
-            _ => return,
+        let Some(type_name) = for_block_base_type_name(&block.type_name).map(str::to_string) else {
+            return;
         };
         self.for_block_type_names.insert(type_name.clone());
         for func in &block.functions {
