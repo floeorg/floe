@@ -387,20 +387,6 @@ impl Checker {
                     _ => true,
                 }
             }
-            // A concrete value T is assignable to Option<T> (implicit Some wrapping),
-            // but not when the inner type is an unresolved type variable — that would
-            // make any value match Option<Var(0)> in stdlib signatures.
-            Type::Union { .. } if expected.is_option() => {
-                if let Some(inner) = expected.option_inner() {
-                    if matches!(inner, Type::Var(_)) {
-                        false
-                    } else {
-                        self.types_compatible(inner, actual)
-                    }
-                } else {
-                    true
-                }
-            }
             Type::Union { name: exp_name, .. } => match actual {
                 Type::Named(n) => n == exp_name,
                 Type::Union { name: n, .. } => n == exp_name,

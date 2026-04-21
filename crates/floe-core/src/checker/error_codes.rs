@@ -137,8 +137,6 @@ pub enum ErrorCode {
     BareStringLiteralUnion,
     /// Inline record type in function signature — declare a named type first.
     InlineRecordTypeInSignature,
-    /// `let` annotation widens the value via implicit Option/Some wrapping.
-    WideningAnnotation,
 }
 
 impl ErrorCode {
@@ -201,7 +199,6 @@ impl ErrorCode {
             Self::TraitImportWithoutFor => "E053",
             Self::BareStringLiteralUnion => "E201",
             Self::InlineRecordTypeInSignature => "E202",
-            Self::WideningAnnotation => "W008",
         }
     }
 }

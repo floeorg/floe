@@ -494,6 +494,13 @@ The return type of `collect { ... }` is `Result<T, Array<E>>` where:
 
 ### Option<T> - No Null, No Undefined
 
+Constructing an `Option<T>` is always explicit — `Some(x)` or `None`.
+Floe does not implicitly wrap a bare `T` into `Option<T>`; passing `42`
+where `Option<number>` is expected is a type error, same as Rust/Gleam.
+This keeps annotations honest: if a function's return type narrows from
+`Option<T>` to `T`, every reader sees it immediately instead of relying
+on silent widening.
+
 ```floe
 type User = {
   name: string,                  // always present
