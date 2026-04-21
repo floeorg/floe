@@ -1636,6 +1636,22 @@ impl Checker {
             }
         }
 
+        // Build field type map for type checking arguments and spread fields.
+        let field_type_map: Option<Vec<(String, Type)>> = if let Some(ref info) = type_info {
+            match &info.def {
+                TypeDef::Record(entries) => Some(
+                    entries
+                        .iter()
+                        .filter_map(|e| e.as_field())
+                        .map(|f| (f.name.clone(), self.resolve_type(&f.type_ann)))
+                        .collect(),
+                ),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
         if let Some(spread_expr) = spread {
             let spread_type = self.check_expr(spread_expr);
 
@@ -1668,6 +1684,13 @@ impl Checker {
             if let Type::Record(spread_fields) = &spread_type {
                 let spread_keys: Vec<&str> =
                     spread_fields.iter().map(|(k, _)| k.as_str()).collect();
+                let explicit_labels: Vec<&str> = args
+                    .iter()
+                    .filter_map(|a| match a {
+                        Arg::Named { label, .. } => Some(label.as_str()),
+                        _ => None,
+                    })
+                    .collect();
                 for arg in args.iter() {
                     if let Arg::Named { label, .. } = arg
                         && spread_keys.contains(&label.as_str())
@@ -1682,33 +1705,18 @@ impl Checker {
                     }
                 }
 
-                // Type-check each spread source field against the target's
-                // field of the same name. Spread fields overwritten by an
-                // explicit arg are skipped — the explicit arg is checked
-                // below with its own span.
-                let explicit_labels: Vec<&str> = args
-                    .iter()
-                    .filter_map(|a| match a {
-                        Arg::Named { label, .. } => Some(label.as_str()),
-                        _ => None,
-                    })
-                    .collect();
-                if let Some(info) = &type_info
-                    && let TypeDef::Record(entries) = &info.def
-                {
+                // Spread fields overwritten by an explicit arg are skipped —
+                // the explicit arg is checked below with its own span.
+                if let Some(field_types) = &field_type_map {
                     for (src_name, src_ty) in spread_fields.iter() {
                         if explicit_labels.contains(&src_name.as_str()) {
                             continue;
                         }
-                        let Some(target_field) = entries
-                            .iter()
-                            .filter_map(|e| e.as_field())
-                            .find(|f| f.name == *src_name)
+                        let Some((_, target_ty)) = field_types.iter().find(|(n, _)| n == src_name)
                         else {
                             continue;
                         };
-                        let target_ty = self.resolve_type(&target_field.type_ann);
-                        if !self.types_compatible(&target_ty, src_ty) {
+                        if !self.types_compatible(target_ty, src_ty) {
                             self.emit_error(
                                 format!(
                                     "field `{src_name}` from spread: expected `{}`, found `{}`",
@@ -1723,22 +1731,6 @@ impl Checker {
                 }
             }
         }
-
-        // Build field type map for type checking arguments
-        let field_type_map: Option<Vec<(String, Type)>> = if let Some(ref info) = type_info {
-            match &info.def {
-                TypeDef::Record(entries) => Some(
-                    entries
-                        .iter()
-                        .filter_map(|e| e.as_field())
-                        .map(|f| (f.name.clone(), self.resolve_type(&f.type_ann)))
-                        .collect(),
-                ),
-                _ => None,
-            }
-        } else {
-            None
-        };
 
         // Build ordered field types for variant constructors (positional arg checking)
         let variant_field_types: Option<Vec<Type>> =
