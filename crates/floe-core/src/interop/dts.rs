@@ -79,6 +79,36 @@ fn parse_dts_exports_recursive(
         }
     }
 
+    // Follow named re-exports: `export type { X } from './y'` pulls X's full
+    // declaration out of ./y.d.ts and binds it (optionally renamed) in the
+    // current module. Without this, packages like hono whose entrypoint is
+    // a curation of named re-exports (`export type { Context } from './context'`)
+    // expose only the export name to callers, with no field info — breaking
+    // boundary wrap, dot-completion, and Foreign field lookup downstream.
+    for (exported_name, local_name, source) in &result.named_reexports {
+        if seen_names.contains(exported_name) {
+            continue;
+        }
+        let Some(resolved) = resolve_dts_source(parent_dir, source) else {
+            continue;
+        };
+        // Recurse: `visited` already prevents infinite loops on mutual
+        // re-exports. We clone it for each branch so one branch's visit
+        // doesn't hide a target for another branch that hasn't walked
+        // that file yet.
+        let mut branch_visited = visited.clone();
+        let Ok(reexported) = parse_dts_exports_recursive(&resolved, &mut branch_visited) else {
+            continue;
+        };
+        if let Some(target) = reexported.into_iter().find(|e| &e.name == local_name) {
+            exports.push(DtsExport {
+                name: exported_name.clone(),
+                ts_type: target.ts_type,
+            });
+            seen_names.insert(exported_name.clone());
+        }
+    }
+
     Ok(exports)
 }
 
@@ -136,6 +166,14 @@ fn resolve_dts_source(parent_dir: &Path, source: &str) -> Option<PathBuf> {
 struct ParseResult {
     exports: Vec<DtsExport>,
     reexport_sources: Vec<String>,
+    /// Named re-exports with a source path — `export { X } from './y'` and
+    /// `export type { X as Y } from './y'`. Each entry is
+    /// `(exported_name, local_name, source)`. The recursive loader pulls
+    /// the local_name's declaration out of `source` and rebinds it as
+    /// `exported_name` in the current module, so hono's
+    /// `export type { Context } from './context'` makes Context's full
+    /// interface body available at the package boundary.
+    named_reexports: Vec<(String, String, String)>,
 }
 
 fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
@@ -158,6 +196,7 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
     // `export { X as Y }`, and `typeof X` against the declared types.
     let mut local_types: HashMap<String, TsType> = HashMap::new();
     let mut aliased_reexports: Vec<(String, String)> = Vec::new();
+    let mut named_reexports: Vec<(String, String, String)> = Vec::new();
     let mut default_export_target: Option<String> = None;
 
     for stmt in &ret.program.body {
@@ -174,16 +213,24 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
                 record_local_type(decl, &mut local_types);
             }
 
-            // `export { X as Y }` without a declaration — collected here,
-            // resolved against local_types once the full file is scanned.
+            // `export { X as Y }` / `export type { Context } from './ctx'` —
+            // collected here, resolved against local_types (same file) or
+            // recursively from the source path (cross-file).
             if export_decl.declaration.is_none() {
+                let source_path = export_decl.source.as_ref().map(|s| s.value.to_string());
                 for spec in &export_decl.specifiers {
                     let exported_name = spec.exported.name().to_string();
                     let local_name = spec.local.name().to_string();
-                    if !exported_name.is_empty()
-                        && !local_name.is_empty()
-                        && exported_name != local_name
-                    {
+                    if exported_name.is_empty() || local_name.is_empty() {
+                        continue;
+                    }
+                    if let Some(ref src) = source_path {
+                        named_reexports.push((
+                            exported_name.clone(),
+                            local_name.clone(),
+                            src.clone(),
+                        ));
+                    } else if exported_name != local_name {
                         aliased_reexports.push((exported_name, local_name));
                     }
                 }
@@ -358,6 +405,7 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
     Ok(ParseResult {
         exports,
         reexport_sources,
+        named_reexports,
     })
 }
 

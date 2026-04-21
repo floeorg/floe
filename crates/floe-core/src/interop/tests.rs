@@ -1166,3 +1166,53 @@ fn wrap_indexed_access_concrete_returns_field_type() {
     };
     assert_eq!(wrap_boundary_type(&ty), Type::String);
 }
+
+#[test]
+fn named_reexport_pulls_in_full_interface_body() {
+    // Regression for #1302. Packages like hono expose their entry point
+    // as a curation of named re-exports:
+    //     export type { Context } from './context'
+    // The parser must follow the `from './context'` into the target file
+    // and attach Context's full interface body under the re-exported
+    // name. Without this, dts_cache["hono"]["Context"] is absent (or a
+    // bare Named alias) and downstream stages — dot-completion,
+    // __field_Context_* entries, boundary field lookup — all come up
+    // empty.
+    use super::dts::parse_dts_exports;
+    use tempfile::TempDir;
+
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("context.d.ts"),
+        r#"
+export interface Context {
+    env: unknown;
+    json(body: unknown): Response;
+}
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("index.d.ts"),
+        r#"
+export type { Context } from './context';
+"#,
+    )
+    .unwrap();
+
+    let exports = parse_dts_exports(&dir.path().join("index.d.ts")).expect("parse");
+    let context = exports
+        .iter()
+        .find(|e| e.name == "Context")
+        .expect("Context should be re-exported with its body");
+    match &context.ts_type {
+        TsType::Object(fields) => {
+            let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+            assert!(
+                names.contains(&"env") && names.contains(&"json"),
+                "expected Context fields env + json, got {names:?}"
+            );
+        }
+        other => panic!("expected TsType::Object for re-exported Context, got {other:?}"),
+    }
+}
