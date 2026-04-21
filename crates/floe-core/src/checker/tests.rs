@@ -9170,13 +9170,6 @@ export let id: OrderId = 42
 
 #[test]
 fn use_piped_into_result_guard_infers_ok_binding() {
-    // With the bug, `use body <- result |> Result.guard(err_fn)` desugared
-    // into `(result |> Result.guard(err_fn))(continuation)`, which stranded
-    // the continuation outside the hint-bearing call — the `body` param
-    // came back as `unknown` and the body couldn't use it as the Ok type.
-    //
-    // After the fix, the structure is `result |> Result.guard(err_fn, cont)`,
-    // so `body` inherits `Result.guard`'s on_ok param type.
     let diags = check(
         r#"
 let _run(r: Result<number, string>) -> number = {
@@ -9199,9 +9192,9 @@ let _run(r: Result<number, string>) -> number = {
 
 #[test]
 fn use_piped_into_result_guard_rejects_wrong_body_type() {
-    // The flip side: if the binding is inferred, using it against the wrong
-    // type should still error. This proves the hint actually flows through
-    // (rather than the binding being silently typed as `unknown`).
+    // Mismatched return type is the observable signal that `body` was
+    // inferred as `number` (not `unknown`) — without the fix the binding
+    // stays unknown and no such error fires.
     let diags = check(
         r#"
 let _run(r: Result<number, string>) -> string = {
@@ -9210,9 +9203,6 @@ let _run(r: Result<number, string>) -> string = {
 }
 "#,
     );
-    // If `body` is inferred as `number` (the Ok type), the function body
-    // evaluates to `number` and mismatches the declared `string` return.
-    // If `body` were `unknown`, no such error would fire.
     assert!(
         has_error_containing(&diags, "expected return type `string`, found `number`"),
         "wrong use-body type should error once the binding is properly inferred, got: {:?}",
@@ -9222,8 +9212,6 @@ let _run(r: Result<number, string>) -> string = {
 
 #[test]
 fn use_chained_pipe_preserves_binding_inference() {
-    // Chained pipes: the continuation must still reach the final call so the
-    // binding is hinted. `stepA` just re-exports the Result unchanged.
     let diags = check(
         r#"
 let stepA(r: Result<number, string>) -> Result<number, string> = { r }
@@ -9242,8 +9230,6 @@ let _run(r: Result<number, string>) -> number = {
 
 #[test]
 fn use_unpiped_call_still_works() {
-    // Regression guard: the non-pipe desugaring path must keep working
-    // exactly as before.
     let diags = check(
         r#"
 let _run(r: Result<number, string>) -> number = {

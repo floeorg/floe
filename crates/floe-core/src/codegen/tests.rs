@@ -2016,9 +2016,6 @@ fn use_chained() {
 
 #[test]
 fn use_piped_call_appends_continuation_to_inner_call() {
-    // `use x <- a |> f(b)` must desugar so the continuation lands on the
-    // piped-into function, not outside the pipe. Codegen should produce
-    // `f(a, b, (x) => ...)`, matching the unpiped `use x <- f(a, b)` form.
     let result = emit(
         r#"let _test() -> number = {
     use x <- 1 |> doSomething(42)
@@ -2033,8 +2030,6 @@ fn use_piped_call_appends_continuation_to_inner_call() {
 
 #[test]
 fn use_piped_bare_identifier_appends_continuation() {
-    // `use x <- a |> f` (bare identifier on the right) must become
-    // `f(a, (x) => ...)` — the continuation is the second arg to `f`.
     let result = emit(
         r#"let _test() -> number = {
     use x <- 1 |> doSomething
@@ -2049,8 +2044,6 @@ fn use_piped_bare_identifier_appends_continuation() {
 
 #[test]
 fn use_chained_pipe_threads_continuation_to_final_call() {
-    // Chained pipes are left-associative. The continuation must land on the
-    // outermost (rightmost) piped-into call so earlier stages still chain.
     let result = emit(
         r#"let _test() -> number = {
     use x <- 1 |> stepA |> stepB(42)
