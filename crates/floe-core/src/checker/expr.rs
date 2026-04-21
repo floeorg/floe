@@ -1681,6 +1681,46 @@ impl Checker {
                         );
                     }
                 }
+
+                // Type-check each spread source field against the target's
+                // field of the same name. Spread fields overwritten by an
+                // explicit arg are skipped — the explicit arg is checked
+                // below with its own span.
+                let explicit_labels: Vec<&str> = args
+                    .iter()
+                    .filter_map(|a| match a {
+                        Arg::Named { label, .. } => Some(label.as_str()),
+                        _ => None,
+                    })
+                    .collect();
+                if let Some(info) = &type_info
+                    && let TypeDef::Record(entries) = &info.def
+                {
+                    for (src_name, src_ty) in spread_fields.iter() {
+                        if explicit_labels.contains(&src_name.as_str()) {
+                            continue;
+                        }
+                        let Some(target_field) = entries
+                            .iter()
+                            .filter_map(|e| e.as_field())
+                            .find(|f| f.name == *src_name)
+                        else {
+                            continue;
+                        };
+                        let target_ty = self.resolve_type(&target_field.type_ann);
+                        if !self.types_compatible(&target_ty, src_ty) {
+                            self.emit_error(
+                                format!(
+                                    "field `{src_name}` from spread: expected `{}`, found `{}`",
+                                    target_ty, src_ty
+                                ),
+                                spread_expr.span,
+                                ErrorCode::TypeMismatch,
+                                format!("expected `{}`", target_ty),
+                            );
+                        }
+                    }
+                }
             }
         }
 

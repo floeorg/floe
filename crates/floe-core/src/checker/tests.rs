@@ -5668,6 +5668,56 @@ fn option_rejected_at_non_option_function_argument() {
 }
 
 #[test]
+fn spread_source_field_type_mismatch_errors() {
+    let diags = check(
+        r#"
+        type SnippetId = SnippetId(number)
+        type Snippet = { id: SnippetId, name: string }
+        let row = { id: 1, name: "hi" }
+        let _s = Snippet(..row)
+    "#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "spread source field `id: number` into `id: SnippetId` must be rejected, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn spread_source_field_type_match_still_compiles() {
+    let diags = check(
+        r#"
+        type User = { id: number, name: string }
+        let row = { id: 1, name: "hi" }
+        let _u = User(..row)
+    "#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "matching spread source fields must compile, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn spread_source_overwritten_field_mismatch_is_silent() {
+    let diags = check(
+        r#"
+        type SnippetId = SnippetId(number)
+        type Snippet = { id: SnippetId, name: string }
+        let row = { id: 1, name: "hi" }
+        let _s = Snippet(..row, id: SnippetId(2))
+    "#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "explicit override of mismatched spread field should suppress the spread error, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn option_rejected_as_record_spread_source() {
     let diags = check(
         r#"
