@@ -223,7 +223,7 @@ f(a, b)
 f(name: value)                 // named argument
 f(a, b: 2, c: 3)               // positional first, then named
 Constructor(a: 1)              // record constructor
-Constructor(..existing, a: 2)  // spread + update
+Constructor(a: 2, ..existing)  // explicit fields first, spread last
 ```
 
 Call rules:
