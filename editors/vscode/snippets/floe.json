@@ -17,6 +17,11 @@
     ],
     "description": "Exported named function"
   },
+  "Default Export": {
+    "prefix": "edef",
+    "body": ["export default ${1:name}"],
+    "description": "Promote a named binding to the module's default export"
+  },
   "Async Function": {
     "prefix": "afn",
     "body": [

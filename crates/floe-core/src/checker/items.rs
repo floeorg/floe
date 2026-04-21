@@ -14,6 +14,126 @@ fn last_expr_span(body: &Expr) -> Span {
 }
 
 impl Checker {
+    // ── Default Exports ──────────────────────────────────────────
+
+    /// Validate that each `export default <name>` refers to a binding
+    /// declared at the top of the module, that the module has at most one
+    /// default export, and that no default export hides inside a nested
+    /// block (where blocks happen to accept items but modules can't reach
+    /// them). Runs after the second item-check pass so the full set of
+    /// top-level names is available.
+    pub(crate) fn check_default_exports(&mut self, program: &Program) {
+        self.check_nested_default_exports(&program.items);
+        let mut top_level_names = std::collections::HashSet::new();
+        for item in &program.items {
+            match &item.kind {
+                ItemKind::Const(decl) => {
+                    if let ConstBinding::Name(name) = &decl.binding {
+                        top_level_names.insert(name.clone());
+                    }
+                }
+                ItemKind::Function(decl) => {
+                    top_level_names.insert(decl.name.clone());
+                }
+                ItemKind::TypeDecl(decl) => {
+                    top_level_names.insert(decl.name.clone());
+                }
+                ItemKind::Import(decl) => {
+                    for spec in &decl.specifiers {
+                        top_level_names.insert(spec.alias.clone().unwrap_or(spec.name.clone()));
+                    }
+                    if let Some(name) = &decl.default_import {
+                        top_level_names.insert(name.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let defaults: Vec<&DefaultExportDecl> = program
+            .items
+            .iter()
+            .filter_map(|item| match &item.kind {
+                ItemKind::DefaultExport(decl) => Some(decl),
+                _ => None,
+            })
+            .collect();
+
+        for decl in defaults.iter().skip(1) {
+            self.emit_error_with_help(
+                "a module can have at most one default export",
+                decl.name_span,
+                ErrorCode::InvalidDefaultExport,
+                "duplicate `export default`",
+                "remove this declaration — only the first default export is kept",
+            );
+        }
+
+        for decl in &defaults {
+            if !top_level_names.contains(&decl.name) {
+                self.emit_error_with_help(
+                    format!(
+                        "cannot default-export `{}` — no such binding in this module",
+                        decl.name
+                    ),
+                    decl.name_span,
+                    ErrorCode::InvalidDefaultExport,
+                    "unknown binding",
+                    "declare it with `let`, `type`, or `import` before referencing it here",
+                );
+            }
+        }
+    }
+
+    /// Walk nested blocks and error on any `export default` that sneaks in.
+    /// Top-level items are handled by `check_default_exports`; this covers
+    /// the "block expression happens to accept items" gap.
+    fn check_nested_default_exports(&mut self, items: &[Item]) {
+        use crate::walk;
+        for item in items {
+            match &item.kind {
+                ItemKind::Const(d) => {
+                    walk::walk_expr(&d.value, &mut |e| self.flag_nested_default(e))
+                }
+                ItemKind::Function(d) => {
+                    walk::walk_expr(&d.body, &mut |e| self.flag_nested_default(e))
+                }
+                ItemKind::ForBlock(b) => {
+                    for f in &b.functions {
+                        walk::walk_expr(&f.body, &mut |e| self.flag_nested_default(e));
+                    }
+                }
+                ItemKind::TraitDecl(d) => {
+                    for m in &d.methods {
+                        if let Some(body) = &m.body {
+                            walk::walk_expr(body, &mut |e| self.flag_nested_default(e));
+                        }
+                    }
+                }
+                ItemKind::Expr(e) => walk::walk_expr(e, &mut |e| self.flag_nested_default(e)),
+                _ => {}
+            }
+        }
+    }
+
+    fn flag_nested_default(&mut self, expr: &Expr) {
+        let items = match &expr.kind {
+            ExprKind::Block(items) | ExprKind::Collect(items) => items,
+            _ => return,
+        };
+        for item in items {
+            if let ItemKind::DefaultExport(decl) = &item.kind {
+                self.emit_error_with_help(
+                    "`export default` is only valid at module level",
+                    decl.name_span,
+                    ErrorCode::InvalidDefaultExport,
+                    "nested default export",
+                    "move this statement to the top of the file",
+                );
+            }
+        }
+    }
+
     // ── Item Checking ────────────────────────────────────────────
 
     pub(crate) fn check_item(&mut self, item: &Item) {
@@ -21,6 +141,11 @@ impl Checker {
             ItemKind::Import(decl) => self.check_import(decl, item.span),
             ItemKind::ReExport(_) => {
                 // Re-exports don't introduce names into the current scope
+            }
+            ItemKind::DefaultExport(_) => {
+                // `export default foo` is validated once per program in
+                // `check_default_exports` so the duplicate / unknown-binding
+                // diagnostics fire with full-program context.
             }
             ItemKind::Const(decl) => self.check_const(decl, item.span),
             ItemKind::Function(decl) => self.check_function(decl, item.span),

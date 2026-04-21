@@ -2,7 +2,7 @@
 
 import pytest
 
-from .conftest import URI, def_locations, open_doc
+from .conftest import URI, at, def_locations, open_doc
 from . import fixtures as F
 
 
@@ -75,3 +75,21 @@ class TestGotoDefQualifiedVariant:
         open_doc(lsp, URI,F.QUALIFIED_VARIANT)
         locs = def_locations(lsp.goto_definition(URI, 3, 11))
         assert len(locs) > 0
+
+
+class TestGotoDefDefaultExport:
+    """#1297: clicking the identifier in `export default foo` should jump to
+    the `let foo = ...` declaration."""
+
+    SRC = (
+        'let app = 42\n'
+        'export default app\n'
+    )
+
+    def test_default_export_jumps_to_binding(self, lsp):
+        open_doc(lsp, URI, self.SRC)
+        line, col = at(self.SRC, "app", nth=1)
+        locs = def_locations(lsp.goto_definition(URI, line, col + 1))
+        assert len(locs) > 0, "Expected goto-def from default export to resolve"
+        target_line = locs[0].get("range", {}).get("start", {}).get("line", -1)
+        assert target_line == 0, f"Expected jump to line 0 (the `let app` binding), got {target_line}"

@@ -116,6 +116,7 @@ impl Attacher<'_> {
         match kind {
             ItemKind::Import(d) => ItemKind::Import(d),
             ItemKind::ReExport(d) => ItemKind::ReExport(d),
+            ItemKind::DefaultExport(d) => ItemKind::DefaultExport(d),
             ItemKind::Const(c) => ItemKind::Const(self.const_decl(c)),
             ItemKind::Function(f) => ItemKind::Function(self.function_decl(f)),
             ItemKind::TypeDecl(t) => ItemKind::TypeDecl(self.type_decl(t)),

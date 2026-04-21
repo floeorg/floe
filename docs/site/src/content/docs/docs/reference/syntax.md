@@ -336,6 +336,33 @@ import { for Array, for Map } from "./collections"
 import { Todo, Filter, for Array } from "./todo"
 ```
 
+## Exports
+
+```floe
+// Named exports — prefix any top-level declaration
+export let greet(name: string) -> string = { "hi ${name}" }
+export type User = { id: string, name: string }
+export let PI = 3.14
+
+// Default export — only the bare-identifier form is allowed. Required by
+// Cloudflare Workers, Vite/Astro configs, Next.js pages, and anything else
+// that loads `default` by shape.
+let app = 42
+export default app
+// → compiles to: export { app as default };
+
+// Anonymous default forms are parse errors — they are the TS foot-gun.
+// export default 1                // ❌
+// export default { k: v }         // ❌ bind the object first
+// export default function() { }   // ❌ (`function` is also banned)
+
+// Re-export from another module without importing into scope
+export { Card, CardContent } from "@heroui/react"
+export { Todo as TodoItem } from "./types"
+```
+
+At most one `export default` per module. The referenced name must be declared in the same module (`let`, `type`, or `import`). A non-exported local is fine — the `export default` itself counts as the export.
+
 ## Patterns
 
 Patterns appear inside `match` arms. The forms are:

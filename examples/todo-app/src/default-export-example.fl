@@ -1,0 +1,13 @@
+// Exercises the `export default <name>` form end-to-end through parse,
+// check, and codegen. The shape mirrors a typical runtime entry point
+// (e.g. Cloudflare Workers) where the runtime loads `default` from the
+// compiled module.
+
+type AppConfig = {
+    name: string,
+    version: string,
+}
+
+let config = AppConfig(name: "todo-app", version: "1.0.0")
+
+export default config

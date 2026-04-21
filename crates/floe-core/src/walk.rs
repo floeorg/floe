@@ -42,6 +42,7 @@ pub fn walk_item_mut<T>(item: &mut Item<T>, f: &mut impl FnMut(&mut Expr<T>)) {
         }
         ItemKind::Import(_)
         | ItemKind::ReExport(_)
+        | ItemKind::DefaultExport(_)
         | ItemKind::TypeDecl(_)
         | ItemKind::TraitDecl(_) => {}
     }

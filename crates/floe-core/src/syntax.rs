@@ -38,6 +38,9 @@ pub enum SyntaxKind {
     KW_USE,
     KW_TYPEOF,
     KW_ASYNC,
+    /// Contextual — remapped in the parser from the `default` identifier in
+    /// `export default <name>`. Not a lexer keyword.
+    KW_DEFAULT,
 
     // Built-in constructors
     KW_VALUE,
@@ -119,6 +122,8 @@ pub enum SyntaxKind {
     USE_DECL,
     REEXPORT_DECL,
     REEXPORT_SPECIFIER,
+    /// `export default foo` — promote a binding to the module's default export.
+    DEFAULT_EXPORT_DECL,
     TEST_BLOCK,
     ASSERT_EXPR,
     RECORD_FIELD,

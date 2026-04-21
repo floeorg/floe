@@ -538,8 +538,10 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                     }
                 }
             }
-            ItemKind::ReExport(_) | ItemKind::TestBlock(_) => {
-                // Re-exports and test blocks don't contribute symbols
+            ItemKind::ReExport(_) | ItemKind::DefaultExport(_) | ItemKind::TestBlock(_) => {
+                // Re-exports, default re-exports, and test blocks don't
+                // contribute symbols on their own — the target binding is
+                // already indexed where it was originally declared.
             }
             ItemKind::Expr(expr) => {
                 collect_expr(expr, symbols);

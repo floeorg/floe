@@ -521,6 +521,25 @@ class TestHoverImportShadowsStdlib:
         assert "router" in h, f"Expected `router` in hover, got: {h}"
 
 
+class TestHoverDefaultExport:
+    """#1297: hovering the identifier inside `export default <name>` should
+    resolve to the original binding so the user sees the same type info as
+    hovering the declaration site."""
+
+    SRC = (
+        'let app = 42\n'
+        'export default app\n'
+    )
+
+    def test_hover_default_export_identifier(self, lsp):
+        open_doc(lsp, URI, self.SRC)
+        # Cursor on the `app` in `export default app`.
+        line, col = at(self.SRC, "app", nth=1)
+        h = hover_text(lsp.hover(URI, line, col + 1))
+        assert h is not None, "Expected hover on default-export identifier"
+        assert "app" in h, f"Expected `app` in hover, got: {h}"
+
+
 class TestHoverChainCallSignature:
     """#1284 Bug B: chain-call hover must synthesize a signature from the
     enclosing Call. Without this, probe-style chain resolutions render as

@@ -440,3 +440,20 @@ fn _test() -> () {
               (primary_expression
                 (string
                   (string_content))))))))))
+
+===
+Default export
+===
+
+let app = 1
+export default app
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (primary_expression
+      (number)))
+  (default_export_declaration
+    name: (identifier)))

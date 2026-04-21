@@ -92,7 +92,7 @@
         },
         {
           "name": "keyword.control.import.floe",
-          "match": "\\b(import|from|export|trusted)\\b"
+          "match": "\\b(import|from|export|trusted|as|default)\\b"
         },
         {
           "name": "keyword.other.floe",
@@ -108,7 +108,7 @@
         },
         {
           "name": "invalid.illegal.keyword.floe",
-          "match": "\\b(var|class|enum|throw|null|undefined|any|as|function)\\b"
+          "match": "\\b(var|class|enum|throw|null|undefined|any|function)\\b"
         }
       ]
     },

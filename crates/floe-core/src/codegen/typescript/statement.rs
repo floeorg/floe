@@ -13,6 +13,9 @@ impl<'a> TypeScriptGenerator<'a> {
         match &item.kind {
             ItemKind::Import(decl) => self.emit_import(decl),
             ItemKind::ReExport(decl) => self.emit_reexport(decl),
+            ItemKind::DefaultExport(decl) => {
+                pretty::str(format!("export {{ {} as default }};", decl.name))
+            }
             ItemKind::Const(decl) => self.emit_const(decl),
             ItemKind::Function(decl) => self.emit_function(decl),
             ItemKind::TypeDecl(decl) => self.emit_type_decl(decl),

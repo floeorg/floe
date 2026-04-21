@@ -1785,6 +1785,74 @@ fn reexport_with_alias() {
     }
 }
 
+// ── Default Exports ─────────────────────────────────────────
+
+#[test]
+fn default_export_named_form() {
+    let program = parse_ok("let app = 1\nexport default app");
+    let kinds: Vec<_> = program.items.iter().map(|i| &i.kind).collect();
+    match kinds.last().unwrap() {
+        ItemKind::DefaultExport(decl) => assert_eq!(decl.name, "app"),
+        other => panic!("expected DefaultExport, got {other:?}"),
+    }
+}
+
+#[test]
+fn default_export_anonymous_expr_is_rejected() {
+    let errs = parse("export default 1").unwrap_err();
+    let msg = errs
+        .iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        msg.contains("`export default` must be followed by a named binding"),
+        "expected anonymous-default diagnostic, got: {msg}"
+    );
+}
+
+#[test]
+fn default_export_anonymous_object_is_rejected() {
+    let errs = parse("export default { fetch: handler }").unwrap_err();
+    let msg = errs
+        .iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        msg.contains("`export default` must be followed by a named binding"),
+        "got: {msg}"
+    );
+}
+
+#[test]
+fn default_export_function_keyword_is_rejected() {
+    let errs = parse("export function() { 1 }").unwrap_err();
+    let msg = errs
+        .iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        msg.contains("`export function` and `export class` are not supported"),
+        "got: {msg}"
+    );
+}
+
+#[test]
+fn default_export_class_keyword_is_rejected() {
+    let errs = parse("export class {}").unwrap_err();
+    let msg = errs
+        .iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        msg.contains("`export function` and `export class` are not supported"),
+        "got: {msg}"
+    );
+}
+
 // ── Test Blocks ─────────────────────────────────────────────
 
 #[test]
