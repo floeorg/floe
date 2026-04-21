@@ -984,6 +984,34 @@ fn match_arm_block_iife_returns_last_expr() {
     );
 }
 
+#[test]
+fn match_with_awaited_subject_and_bindings_emits_async_iife() {
+    let result = emit_with_types(
+        "type R = Ok(number) | Err(string)\n\
+         let f() -> Promise<number> = { match fetchResult() |> await { Ok(value) -> value, Err(message) -> 0 } }",
+    );
+    assert!(
+        result.contains("await (async () => {"),
+        "match arms with awaited subject must wrap bindings in async IIFE, got: {result}"
+    );
+}
+
+#[test]
+fn match_without_await_keeps_sync_iife() {
+    let result = emit_with_types(
+        "type R = Ok(number) | Err(string)\n\
+         let f() -> number = { match getResult() { Ok(value) -> value, Err(message) -> 0 } }",
+    );
+    assert!(
+        result.contains("(() => {"),
+        "match without await should stay sync, got: {result}"
+    );
+    assert!(
+        !result.contains("async () =>"),
+        "match without await must not produce async IIFE, got: {result}"
+    );
+}
+
 // ── Implicit Return ──────────────────────────────────────────
 
 #[test]
