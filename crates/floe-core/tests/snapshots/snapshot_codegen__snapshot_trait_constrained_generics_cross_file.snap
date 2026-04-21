@@ -1,0 +1,20 @@
+---
+source: crates/floe-core/tests/snapshot_codegen.rs
+assertion_line: 233
+expression: output
+---
+interface Repo {
+  findById(id: number): string;
+}
+import {  } from "./repo";
+
+import { type DrizzleRepo, DrizzleRepo__make } from "./impl";
+
+function doWork<R extends Repo>(repo: R, id: number): string {
+  return repo.findById(id);
+}
+
+export function run(): string {
+  const repo = DrizzleRepo__make({ db: "x" });
+  return doWork(repo, 1);
+}
