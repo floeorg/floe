@@ -142,6 +142,13 @@ impl<'a> TypeScriptGenerator<'a> {
             first = false;
             s.push_str(name);
         }
+        for factory_name in self.resolve_factory_import_names(decl) {
+            if !first {
+                s.push_str(", ");
+            }
+            first = false;
+            s.push_str(&factory_name);
+        }
         s.push_str(&format!(" }} from \"{}\";", decl.source));
         pretty::str(s)
     }
@@ -431,32 +438,26 @@ impl<'a> TypeScriptGenerator<'a> {
             }
             docs.push(self.emit_for_block_function(func, &block.type_name));
         }
-        if let Some(trait_name) = &block.trait_name
-            && self
-                .ctx
-                .traits_needing_interface
-                .contains(trait_name.as_str())
+        if block.trait_name.is_some()
+            && let TypeExprKind::Named { name, .. } = &block.type_name.kind
+            && !self.emitted_factories.contains(name)
         {
+            self.emitted_factories.insert(name.clone());
             docs.push(pretty::str("\n"));
-            docs.push(self.emit_trait_impl_factory(block));
+            docs.push(self.emit_trait_impl_factory(name, &block.type_name));
         }
         pretty::concat(docs)
     }
 
-    fn emit_trait_impl_factory(&mut self, block: &TypedForBlock) -> Document {
-        let type_name = match &block.type_name.kind {
-            TypeExprKind::Named { name, .. } => name.clone(),
-            _ => return pretty::nil(),
-        };
-
+    fn emit_trait_impl_factory(&mut self, type_name: &str, type_expr: &TypedTypeExpr) -> Document {
         let factory_name = format!("{type_name}__make");
         let mut docs = vec![
-            pretty::str("function "),
+            pretty::str("export function "),
             pretty::str(&factory_name),
             pretty::str("(__data: "),
-            self.emit_type_expr(&block.type_name),
+            self.emit_type_expr(type_expr),
             pretty::str("): "),
-            self.emit_type_expr(&block.type_name),
+            self.emit_type_expr(type_expr),
             pretty::str(" {"),
         ];
 
@@ -466,38 +467,44 @@ impl<'a> TypeScriptGenerator<'a> {
         return_inner.push(pretty::line());
         return_inner.push(pretty::str("...__data,"));
 
-        for func in &block.functions {
-            let non_self_params: Vec<&TypedParam> =
-                func.params.iter().filter(|p| p.name != "self").collect();
-            let mangled = for_block_fn_name(&block.type_name, &func.name);
+        let Some(blocks) = self.ctx.trait_impl_blocks.get(type_name).cloned() else {
+            return pretty::nil();
+        };
+        for block in &blocks {
+            for func in &block.functions {
+                let non_self_params: Vec<&TypedParam> =
+                    func.params.iter().filter(|p| p.name != "self").collect();
+                let mangled = for_block_fn_name(&block.type_name, &func.name);
 
-            return_inner.push(pretty::line());
-            let mut param_parts = Vec::new();
-            for (i, param) in non_self_params.iter().enumerate() {
-                if i > 0 {
-                    param_parts.push(", ".to_string());
+                return_inner.push(pretty::line());
+                let mut param_parts = Vec::new();
+                for (i, param) in non_self_params.iter().enumerate() {
+                    if i > 0 {
+                        param_parts.push(", ".to_string());
+                    }
+                    let mut p = param.name.clone();
+                    if let Some(ta) = &param.type_ann {
+                        p.push_str(": ");
+                        let type_doc = self.emit_type_expr(ta);
+                        p.push_str(&Self::doc_to_string(&type_doc));
+                    }
+                    param_parts.push(p);
                 }
-                let mut p = param.name.clone();
-                if let Some(ta) = &param.type_ann {
-                    p.push_str(": ");
-                    let type_doc = self.emit_type_expr(ta);
-                    p.push_str(&Self::doc_to_string(&type_doc));
-                }
-                param_parts.push(p);
+                let params_str = param_parts.join("");
+
+                let call_args: Vec<String> =
+                    non_self_params.iter().map(|p| p.name.clone()).collect();
+                let call_args_str = if call_args.is_empty() {
+                    String::new()
+                } else {
+                    format!(", {}", call_args.join(", "))
+                };
+
+                return_inner.push(pretty::str(format!(
+                    "{}: ({params_str}) => {mangled}(__data{call_args_str}),",
+                    func.name
+                )));
             }
-            let params_str = param_parts.join("");
-
-            let call_args: Vec<String> = non_self_params.iter().map(|p| p.name.clone()).collect();
-            let call_args_str = if call_args.is_empty() {
-                String::new()
-            } else {
-                format!(", {}", call_args.join(", "))
-            };
-
-            return_inner.push(pretty::str(format!(
-                "{}: ({params_str}) => {mangled}(__data{call_args_str}),",
-                func.name
-            )));
         }
 
         inner.push(pretty::nest(2, pretty::concat(return_inner)));
@@ -853,6 +860,31 @@ impl<'a> TypeScriptGenerator<'a> {
                         }
                     }
                 }
+            }
+        }
+        names
+    }
+
+    /// Factory `__make` functions for imported types that have a trait impl.
+    /// The factory lives in the impl module and wraps the data with bound
+    /// methods; consumers need it in scope when they construct the type
+    /// (via `T(field: value)` syntax) so the returned object carries the
+    /// trait methods.
+    pub(super) fn resolve_factory_import_names(&self, decl: &ImportDecl) -> Vec<String> {
+        let Some(resolved) = self.ctx.resolved_imports.get(&decl.source) else {
+            return Vec::new();
+        };
+        let mut names = Vec::new();
+        for spec in &decl.specifiers {
+            let has_trait_impl = resolved.for_blocks.iter().any(|block| {
+                block.trait_name.is_some()
+                    && matches!(
+                        &block.type_name.kind,
+                        TypeExprKind::Named { name, .. } if name == &spec.name
+                    )
+            });
+            if has_trait_impl {
+                names.push(format!("{}__make", spec.name));
             }
         }
         names

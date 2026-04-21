@@ -7,6 +7,8 @@ use floe_core::checker::{self, Checker};
 use floe_core::codegen::Codegen;
 use floe_core::desugar;
 use floe_core::parser::Parser;
+use floe_core::resolve::{ResolvedImports, TsconfigPaths};
+use std::collections::HashMap;
 
 fn compile(source: &str) -> String {
     let mut program = Parser::new(source)
@@ -16,6 +18,31 @@ fn compile(source: &str) -> String {
     desugar::desugar_program(&mut program, &std::collections::HashMap::new());
     let typed = checker::attach_types(program, &expr_types, &std::collections::HashSet::new());
     Codegen::new().generate(&typed).code
+}
+
+/// Compile `consumer` in a temp directory that also contains the named
+/// sibling `.fl` files (for cross-file `import { ... } from "./name"`).
+/// Returns the consumer's TypeScript output.
+fn compile_cross_file(consumer: &str, siblings: &[(&str, &str)]) -> String {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    for (name, source) in siblings {
+        std::fs::write(root.join(format!("{name}.fl")), source).expect("write sibling");
+    }
+    let consumer_path = root.join("use.fl");
+    std::fs::write(&consumer_path, consumer).expect("write consumer");
+
+    let mut program = Parser::new(consumer)
+        .parse_program()
+        .expect("consumer should parse");
+    let tsconfig = TsconfigPaths::default();
+    let resolved: HashMap<String, ResolvedImports> =
+        floe_core::resolve::resolve_imports(&consumer_path, &program, &tsconfig);
+
+    let (_, expr_types, _) = Checker::with_imports(resolved.clone()).check_full(&program);
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
+    let typed = checker::attach_types(program, &expr_types, &std::collections::HashSet::new());
+    Codegen::with_imports(&resolved).generate(&typed).code
 }
 
 fn compile_fixture(name: &str) -> String {
@@ -160,6 +187,49 @@ fn snapshot_trusted_import() {
 #[test]
 fn snapshot_traits() {
     let output = compile_fixture("traits");
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_trait_constrained_generics_cross_file() {
+    let output = compile_cross_file(
+        r#"
+import { for Repo } from "./repo"
+import { DrizzleRepo } from "./impl"
+
+let doWork<R: Repo>(repo: R, id: number) -> string = {
+    repo |> findById(id)
+}
+
+export let run() -> string = {
+    let repo = DrizzleRepo(db: "x")
+    doWork(repo, 1)
+}
+"#,
+        &[
+            (
+                "repo",
+                r#"
+export trait Repo {
+    let findById(self, id: number) -> string
+}
+"#,
+            ),
+            (
+                "impl",
+                r#"
+import { for Repo } from "./repo"
+export type DrizzleRepo = { db: string }
+
+for DrizzleRepo: Repo {
+    export let findById(self, id: number) -> string = {
+        "found"
+    }
+}
+"#,
+            ),
+        ],
+    );
     insta::assert_snapshot!(output);
 }
 

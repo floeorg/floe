@@ -54,6 +54,11 @@ pub(crate) struct TypeContext {
     pub trait_decls: HashMap<String, TypedTraitDecl>,
     pub type_trait_impls: HashMap<String, Vec<String>>,
     pub traits_needing_interface: HashSet<String>,
+    /// All local `for T: Trait { ... }` blocks grouped by the implementing
+    /// type name. Used to emit a single `T__make` factory per type that
+    /// wires up every trait method, rather than one factory per for-block
+    /// (which would collide when a type has multiple trait impls).
+    pub trait_impl_blocks: HashMap<String, Vec<TypedForBlock>>,
 }
 
 impl TypeContext {
@@ -80,6 +85,7 @@ impl TypeContext {
             trait_decls: HashMap::new(),
             type_trait_impls: HashMap::new(),
             traits_needing_interface: HashSet::new(),
+            trait_impl_blocks: HashMap::new(),
         };
 
         // Pre-register union variant info and type defs from imported types.
@@ -124,6 +130,18 @@ impl TypeContext {
                     if let Some(resolved) = ctx.resolved_imports.get(&decl.source).cloned() {
                         for block in &resolved.for_blocks {
                             ctx.register_for_block_fns(block);
+                            if let Some(trait_name) = &block.trait_name
+                                && let TypeExprKind::Named { name, .. } = &block.type_name.kind
+                            {
+                                ctx.type_trait_impls
+                                    .entry(name.clone())
+                                    .or_default()
+                                    .push(trait_name.clone());
+                            }
+                        }
+                        for decl in &resolved.trait_decls {
+                            let typed = crate::checker::attach_trait_decl_shallow(decl);
+                            ctx.trait_decls.entry(typed.name.clone()).or_insert(typed);
                         }
                     }
                 }
@@ -139,6 +157,10 @@ impl TypeContext {
                             .entry(name.clone())
                             .or_default()
                             .push(trait_name.clone());
+                        ctx.trait_impl_blocks
+                            .entry(name.clone())
+                            .or_default()
+                            .push(block.clone());
                     }
                 }
                 ItemKind::TraitDecl(decl) => {
@@ -222,6 +244,9 @@ pub(crate) struct TypeScriptGenerator<'a> {
     pub(super) needs_deep_equal: bool,
     pub(super) has_jsx: bool,
     pub(super) unwrap_counter: usize,
+    /// Types whose `{T}__make` factory has already been emitted, so
+    /// subsequent trait-impl for-blocks for the same type don't re-emit it.
+    pub(super) emitted_factories: HashSet<String>,
 }
 
 impl<'a> TypeScriptGenerator<'a> {
@@ -233,6 +258,7 @@ impl<'a> TypeScriptGenerator<'a> {
             needs_deep_equal: false,
             has_jsx: false,
             unwrap_counter: 0,
+            emitted_factories: HashSet::new(),
         }
     }
 

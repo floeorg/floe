@@ -16,7 +16,7 @@ export function DrizzleRepo__create(self: DrizzleRepo, input: string): string {
 export function DrizzleRepo__findById(self: DrizzleRepo, id: number): string {
   return "found";
 }
-function DrizzleRepo__make(__data: DrizzleRepo): DrizzleRepo {
+export function DrizzleRepo__make(__data: DrizzleRepo): DrizzleRepo {
   return {
     ...__data,
     create: (input: string) => DrizzleRepo__create(__data, input),
