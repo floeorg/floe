@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::*;
 
 use floe_core::checker::Type;
+use floe_core::interop::{DtsExport, TsType, ts_type_to_string};
 
 use super::index::SymbolIndex;
 
@@ -239,6 +240,7 @@ pub(super) fn dot_access_completions(
     prefix: &str,
     type_map: &HashMap<String, String>,
     index: &SymbolIndex,
+    dts_imports: &HashMap<String, Vec<DtsExport>>,
 ) -> Vec<CompletionItem> {
     let mut items = Vec::new();
 
@@ -303,6 +305,50 @@ pub(super) fn dot_access_completions(
                         ..Default::default()
                     });
                 }
+            }
+        }
+    }
+
+    // Strategy 4: imported type from a .d.ts module (e.g. `Context<...>` from
+    // Hono). The obj_type's base name is looked up across every cached dts
+    // import; if one exports an interface/type-alias whose resolved shape is
+    // an `Object`, enumerate its fields. Lets `c.` pop up `env`, `req`, `res`,
+    // `json`, ... on a parameter typed as an imported generic.
+    if items.is_empty() {
+        let base = base_type_name(obj_type);
+        for exports in dts_imports.values() {
+            let Some(export) = exports.iter().find(|e| e.name == base) else {
+                continue;
+            };
+            let TsType::Object(fields) = &export.ts_type else {
+                continue;
+            };
+            for field in fields {
+                if !prefix.is_empty() && !field.name.starts_with(prefix) {
+                    continue;
+                }
+                if items.iter().any(|i: &CompletionItem| i.label == field.name) {
+                    continue;
+                }
+                let rendered = ts_type_to_string(&field.ty);
+                let kind = if matches!(&field.ty, TsType::Function { .. }) {
+                    CompletionItemKind::METHOD
+                } else {
+                    CompletionItemKind::PROPERTY
+                };
+                items.push(CompletionItem {
+                    label: field.name.clone(),
+                    kind: Some(kind),
+                    detail: Some(format!("(property) {}: {}", field.name, rendered)),
+                    insert_text: Some(field.name.clone()),
+                    insert_text_format: Some(InsertTextFormat::PLAIN_TEXT),
+                    ..Default::default()
+                });
+            }
+            // First matching module wins — prevents duplicate items when the
+            // same name is re-exported across related packages.
+            if !items.is_empty() {
+                break;
             }
         }
     }
