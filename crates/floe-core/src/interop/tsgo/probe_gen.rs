@@ -1139,13 +1139,25 @@ fn emit_per_handler_chain_probes(
 /// Scan pipe-chain method calls of the shape `router_method(path, handler)`
 /// and record `handler -> path`. Handlers registered by an inline lambda
 /// are skipped (no name to correlate with a function declaration).
+///
+/// The shape match is heuristic — any call where arg 0 is a string
+/// starting with `/` and arg 1 is an identifier qualifies. False
+/// positives (e.g. `fs.readFile("/etc/hosts", cb)`) produce a bogus
+/// per-function probe block; tsgo emits `any` for mismatched
+/// instantiations and the checker's per-function chain lookup silently
+/// falls back to the global key. Harmless in practice, but a stricter
+/// check (verify the callee is actually a router method) could come
+/// later if false positives cause noise.
+///
+/// First registration per handler wins — if the same function is
+/// registered at multiple routes, only the first path is threaded into
+/// its chain base. Refining this requires per-registration bases.
 fn collect_handler_paths(program: &Program) -> HashMap<String, String> {
     let mut out: HashMap<String, String> = HashMap::new();
     crate::walk::walk_program(program, &mut |expr| {
         let ExprKind::Call { args, .. } = &expr.kind else {
             return;
         };
-        // Two positional args: string literal path, then handler identifier.
         if args.len() < 2 {
             return;
         }
