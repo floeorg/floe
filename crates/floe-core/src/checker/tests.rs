@@ -9257,3 +9257,82 @@ export let id: OrderId = 42
         "nominal newtype must keep rejecting raw payload values"
     );
 }
+
+// ── `use x <- …` with piped RHS (regression: #1286) ──────────
+
+#[test]
+fn use_piped_into_result_guard_infers_ok_binding() {
+    let diags = check(
+        r#"
+let _run(r: Result<number, string>) -> number = {
+    use body <- r |> Result.guard((_) -> 0)
+    body + 1
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "piped use-into Result.guard should infer the binding as the Ok type, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_warning_containing(&diags, "unknown type"),
+        "no unknown-type warning should fire for the `use` binding, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn use_piped_into_result_guard_rejects_wrong_body_type() {
+    // Mismatched return type is the observable signal that `body` was
+    // inferred as `number` (not `unknown`) — without the fix the binding
+    // stays unknown and no such error fires.
+    let diags = check(
+        r#"
+let _run(r: Result<number, string>) -> string = {
+    use body <- r |> Result.guard((_) -> "err")
+    body
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "expected return type `string`, found `number`"),
+        "wrong use-body type should error once the binding is properly inferred, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn use_chained_pipe_preserves_binding_inference() {
+    let diags = check(
+        r#"
+let stepA(r: Result<number, string>) -> Result<number, string> = { r }
+let _run(r: Result<number, string>) -> number = {
+    use body <- r |> stepA |> Result.guard((_) -> 0)
+    body + 1
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "chained pipe into Result.guard should still infer binding, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn use_unpiped_call_still_works() {
+    let diags = check(
+        r#"
+let _run(r: Result<number, string>) -> number = {
+    use body <- Result.guard(r, (_) -> 0)
+    body + 1
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "unpiped use-into Result.guard must still infer binding, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

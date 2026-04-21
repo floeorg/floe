@@ -915,6 +915,17 @@ impl<'src> Lowerer<'src> {
         );
 
         // Append the lambda as the last argument to the call
+        Some(self.append_use_continuation(call_expr, lambda, use_span))
+    }
+
+    /// Thread the `use`-generated continuation into the RHS of `<-`.
+    ///
+    /// For pipes, the continuation must land on the piped-into function so the
+    /// checker's lambda-param hints (derived from that function's signature)
+    /// flow into the continuation. Wrapping the whole pipe as a callee —
+    /// `(a |> f(x))(continuation)` — strands the continuation outside the
+    /// hint-bearing call and the parameter types come back as `unknown`.
+    fn append_use_continuation(&self, call_expr: Expr, lambda: Expr, use_span: Span) -> Expr {
         match call_expr.kind {
             ExprKind::Call {
                 callee,
@@ -922,24 +933,35 @@ impl<'src> Lowerer<'src> {
                 mut args,
             } => {
                 args.push(Arg::Positional(lambda));
-                Some(self.expr(
+                self.expr(
                     ExprKind::Call {
                         callee,
                         type_args,
                         args,
                     },
                     use_span,
-                ))
+                )
             }
-            // If it's not a call (e.g. just an identifier), wrap it as a call with the lambda
-            _ => Some(self.expr(
+            ExprKind::Pipe { left, right } => {
+                let pipe_span = call_expr.span;
+                let new_right = self.append_use_continuation(*right, lambda, use_span);
+                self.expr(
+                    ExprKind::Pipe {
+                        left,
+                        right: Box::new(new_right),
+                    },
+                    pipe_span,
+                )
+            }
+            // Bare identifier / member / other: wrap it as a call with the lambda.
+            _ => self.expr(
                 ExprKind::Call {
                     callee: Box::new(call_expr),
                     type_args: Vec::new(),
                     args: vec![Arg::Positional(lambda)],
                 },
                 use_span,
-            )),
+            ),
         }
     }
 

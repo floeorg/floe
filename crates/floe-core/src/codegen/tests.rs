@@ -2015,6 +2015,48 @@ fn use_chained() {
 }
 
 #[test]
+fn use_piped_call_appends_continuation_to_inner_call() {
+    let result = emit(
+        r#"let _test() -> number = {
+    use x <- 1 |> doSomething(42)
+    x
+}"#,
+    );
+    assert!(
+        result.contains("doSomething(1, 42, (x)"),
+        "piped use should expand into the piped-into call, got: {result}"
+    );
+}
+
+#[test]
+fn use_piped_bare_identifier_appends_continuation() {
+    let result = emit(
+        r#"let _test() -> number = {
+    use x <- 1 |> doSomething
+    x
+}"#,
+    );
+    assert!(
+        result.contains("doSomething(1, (x)"),
+        "piped-into bare identifier should receive the continuation, got: {result}"
+    );
+}
+
+#[test]
+fn use_chained_pipe_threads_continuation_to_final_call() {
+    let result = emit(
+        r#"let _test() -> number = {
+    use x <- 1 |> stepA |> stepB(42)
+    x
+}"#,
+    );
+    assert!(
+        result.contains("stepB(stepA(1), 42, (x)"),
+        "continuation should reach the final piped-into call, got: {result}"
+    );
+}
+
+#[test]
 fn use_callback_block_returns_last_expr() {
     let result = emit(
         r#"let _test() -> number = {
