@@ -1,8 +1,5 @@
 """Tests for textDocument/hover."""
 
-import os
-import time
-
 from .conftest import URI, at, hover_text, open_doc
 from . import fixtures as F
 
@@ -525,44 +522,29 @@ class TestHoverImportShadowsStdlib:
 
 
 class TestHoverChainCallSignature:
-    """#1284 Bug B: chain-call hover must show a usable signature."""
+    """#1284 Bug B: chain-call hover must synthesize a signature from the
+    enclosing Call. Without this, probe-style chain resolutions render as
+    `(property) param: <probe-path>` or mangled `(()) -> string`, dropping
+    the actually-passed arguments."""
 
-    REPO_ROOT = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..")
-    )
-    HONO_MAIN = os.path.join(REPO_ROOT, "examples", "hono-api", "src", "main.fl")
-    HONO_URI = f"file://{HONO_MAIN}"
-    HONO_SRC = (
-        'import trusted { router, get, post, Router } from "@floeorg/hono"\n'
+    CHAIN_SRC = (
+        'type Req = { param: (string) -> string }\n'
+        'type Ctx = { req: Req }\n'
         '\n'
-        'type Env = { greeting: string }\n'
-        '\n'
-        'export let build() -> Router<Env> = {\n'
-        '    router<Env>()\n'
-        '        |> get("/hello/:name", (c) -> {\n'
-        '            let code: string = c.req.param("name")\n'
-        '            Response(code)\n'
-        '        })\n'
-        '        |> post("/echo", (_c) -> Response("echo"))\n'
+        'export let handler(c: Ctx) -> string = {\n'
+        '    c.req.param("code")\n'
         '}\n'
     )
 
     def test_chain_call_shows_signature_with_args(self, lsp):
-        """Hover on `param` in `c.req.param("name")` must include the arg list."""
-        if not os.path.exists(self.HONO_MAIN):
-            return
-        lsp.open_doc(self.HONO_URI, self.HONO_SRC)
-        # Give tsgo time to resolve @floeorg/hono.
-        lsp.collect_notifications("textDocument/publishDiagnostics", timeout=10.0)
-        time.sleep(1.0)
-        line, col = at(self.HONO_SRC, "param(")
-        h = hover_text(lsp.hover(self.HONO_URI, line, col + 1, timeout=10.0))
+        """Hover on the final `param` in `c.req.param("code")` must render
+        a method signature that includes the arg type."""
+        open_doc(lsp, URI, self.CHAIN_SRC)
+        line, col = at(self.CHAIN_SRC, "param(\"code\")")
+        h = hover_text(lsp.hover(URI, line, col + 1))
         assert h is not None, "Expected a hover result, got None"
-        # The arg list must not be dropped — `(())` (empty-tuple rendering)
-        # or a bare probe path like `Context.req.param` are the bugs.
-        assert "(())" not in h, f"Hover must not drop the arg list, got: {h}"
-        assert "Context.req.param" not in h, (
-            f"Hover must render a signature, not the chain-probe path, got: {h}"
-        )
         assert "param" in h, f"Hover should mention `param`, got: {h}"
+        assert "(method)" in h, f"Hover should render a method signature, got: {h}"
+        # Arg list must not be dropped — the whole point of the synthesis.
         assert "string" in h, f"Hover should include the arg type, got: {h}"
+        assert "(())" not in h, f"Hover must not drop the arg list, got: {h}"
