@@ -50,7 +50,7 @@ for Array<CartItem> {
         existing |> match {
             None -> self |> Array.append(CartItem(product:, quantity: qty)),
             Some(_) -> self |> Array.map((item) -> match item.product.id == product.id {
-                    true -> CartItem(..item, quantity: item.quantity + qty),
+                    true -> CartItem(quantity: item.quantity + qty, ..item),
                     false -> item,
                 }),
         }
@@ -64,7 +64,7 @@ for Array<CartItem> {
         qty |> match {
             0 -> self |> removeItem(productId),
             _ -> self |> Array.map((item) -> match item.product.id == productId {
-                    true -> CartItem(..item, quantity: qty),
+                    true -> CartItem(quantity: qty, ..item),
                     false -> item,
                 }),
         }

@@ -490,8 +490,8 @@ fn format_record_spread() {
 #[test]
 fn format_spread_in_construct() {
     assert_fmt(
-        "let x = Todo(..t, done: true)",
-        "let x = Todo(..t, done: true)",
+        "let x = Todo(done: true, ..t)",
+        "let x = Todo(done: true, ..t)",
     );
 }
 

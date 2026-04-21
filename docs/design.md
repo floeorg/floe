@@ -226,7 +226,7 @@ todos |> Array.filter(.id != id)       // filter(todos, x -> x.id != id)
 todos |> Array.map(.text)              // map(todos, x -> x.text)
 
 // Closures — arrow syntax for when you need a named param
-todos |> Array.map((t) -> Todo(..t, done: true))
+todos |> Array.map((t) -> Todo(done: true, ..t))
 items |> Array.reduce((acc, x) -> acc + x.price, 0)
 
 // tap — call a function for side effects, pass value through
@@ -944,11 +944,13 @@ let user = User(
   nickname: None,
 )
 
-// Update with spread — ..existing then override
-let updated = User(..user, nickname: Some("Ry"))
-let updated = User(..user,
+// Update with spread — explicit fields first, `..base` last.
+// Explicit fields always win; `..base` only fills fields you didn't name.
+let updated = User(nickname: Some("Ry"), ..user)
+let updated = User(
   name: "Ryan Updated",
   nickname: Some("Ry"),
+  ..user,
 )
 // Compiles to: { ...user, name: "Ryan Updated", nickname: "Ry" }
 

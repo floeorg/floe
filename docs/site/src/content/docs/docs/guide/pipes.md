@@ -61,7 +61,7 @@ users |> Array.sortBy(.name)
 For anything more complex, use an arrow closure:
 
 ```floe
-todos |> Array.map((t) -> Todo(..t, done: !t.done))
+todos |> Array.map((t) -> Todo(done: !t.done, ..t))
 ```
 
 ## Method-Style Pipes

@@ -47,10 +47,10 @@ Construct records with the type name:
 let user = User(name: "Alice", email: "a@b.com", age: 30)
 ```
 
-Update with spread:
+Update with spread — explicit fields first, `..base` last, explicit wins:
 
 ```floe
-let updated = User(..user, age: 31)
+let updated = User(age: 31, ..user)
 ```
 
 Two types with identical fields are NOT interchangeable. `User` is not `Product` even if both have `name: string`.

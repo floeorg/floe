@@ -535,7 +535,7 @@ fn constructor_named() {
 #[test]
 fn constructor_with_spread() {
     assert_eq!(
-        emit(r#"User(..user, name: "New")"#),
+        emit(r#"User(name: "New", ..user)"#),
         r#"{ ...user, name: "New" };"#
     );
 }

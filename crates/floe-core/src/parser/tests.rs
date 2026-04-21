@@ -379,7 +379,7 @@ fn constructor() {
 
 #[test]
 fn constructor_with_spread() {
-    let expr = first_expr(r#"User(..user, name: "New")"#);
+    let expr = first_expr(r#"User(name: "New", ..user)"#);
     match expr {
         ExprKind::Construct { spread, args, .. } => {
             assert!(spread.is_some());
@@ -387,6 +387,19 @@ fn constructor_with_spread() {
         }
         _ => panic!("expected construct"),
     }
+}
+
+#[test]
+fn constructor_with_spread_first_errors() {
+    let diags = crate::parser::Parser::new(r#"let _ = User(..user, name: "New")"#)
+        .parse_program()
+        .err()
+        .unwrap_or_default();
+    assert!(
+        diags.iter().any(|d| d.message.contains("must come last")),
+        "spread-first should produce 'must come last' diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }
 
 // ── Result/Option Constructors ───────────────────────────────

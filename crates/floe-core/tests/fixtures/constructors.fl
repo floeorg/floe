@@ -4,7 +4,7 @@ type Point = {
 }
 
 let origin = Point(x: 0, y: 0)
-let moved = Point(..origin, x: 10)
+let moved = Point(x: 10, ..origin)
 
 let x = 5
 let y = 10
