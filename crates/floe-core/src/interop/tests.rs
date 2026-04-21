@@ -1110,7 +1110,7 @@ export type Env<E> = E["Bindings"]
 
 #[test]
 fn evaluate_indexed_access_concrete_object() {
-    use super::evaluate_indexed_access;
+    use super::wrapper::evaluate_indexed_access;
     let obj = TsType::Object(vec![
         ObjectField {
             name: "DB".to_string(),
@@ -1129,7 +1129,7 @@ fn evaluate_indexed_access_concrete_object() {
 
 #[test]
 fn evaluate_indexed_access_missing_key_is_none() {
-    use super::evaluate_indexed_access;
+    use super::wrapper::evaluate_indexed_access;
     let obj = TsType::Object(vec![ObjectField {
         name: "DB".to_string(),
         ty: TsType::Primitive("string".to_string()),
@@ -1141,7 +1141,7 @@ fn evaluate_indexed_access_missing_key_is_none() {
 
 #[test]
 fn evaluate_indexed_access_abstract_object_is_none() {
-    use super::evaluate_indexed_access;
+    use super::wrapper::evaluate_indexed_access;
     // `E["Bindings"]` where `E` is still a type parameter — cannot
     // evaluate yet, so the helper returns `None` and callers fall
     // back to `unknown`.

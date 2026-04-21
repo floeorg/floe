@@ -145,9 +145,27 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
         // stages (checker-side generic substitution) should have
         // already reduced `E["Bindings"]` to `X["Bindings"]` when `E`
         // is bound to `X`; here we just finish the lookup.
-        TsType::IndexedAccess { object, index } => super::evaluate_indexed_access(object, index)
+        TsType::IndexedAccess { object, index } => evaluate_indexed_access(object, index)
             .map(|ts| wrap_boundary_type(&ts))
             .unwrap_or(Type::Unknown),
+    }
+}
+
+/// Evaluate `object[index]` when both sides are concrete enough. Returns
+/// `Some(field_type)` for `Object`-plus-`StringLiteral` matches and for
+/// bottom-out `Any`/`Unknown` objects (widest answer preserved). Returns
+/// `None` when the lookup can't be decided yet — callers fall back to
+/// `Type::Unknown`, matching TypeScript's own deferred-evaluation
+/// behavior for abstract type params.
+pub(super) fn evaluate_indexed_access(object: &TsType, index: &TsType) -> Option<TsType> {
+    let TsType::StringLiteral(key) = index else {
+        return None;
+    };
+    match object {
+        TsType::Object(fields) => fields.iter().find(|f| &f.name == key).map(|f| f.ty.clone()),
+        TsType::Any => Some(TsType::Any),
+        TsType::Unknown => Some(TsType::Unknown),
+        _ => None,
     }
 }
 

@@ -664,6 +664,13 @@ pub(super) fn generate_probe(
     // full form in `declare const __chain_base_X: Y;` so tsgo sees the
     // concrete generic args and can resolve chains like `c.env.DB` instead
     // of collapsing to the default parameter's `any`.
+    //
+    // Limitation: if two parameters in the same file annotate the same base
+    // type with different instantiations (`c1: Context<A>` and `c2: Context<B>`),
+    // only the first wins and the second parameter's chain resolves against
+    // the first's generic args. Multi-instantiation support would need
+    // per-parameter chain bases — not yet required by any real-world
+    // pattern we've seen.
     let mut type_annotation_map: HashMap<String, String> = HashMap::new();
     let param_type_map: HashMap<String, String> = {
         // Collect type declarations for field type lookups

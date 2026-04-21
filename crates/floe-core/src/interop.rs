@@ -35,26 +35,6 @@ pub use ts_types::{FunctionParam, ObjectField, TsType, ts_type_to_string};
 pub use tsgo::{TsgoResolver, TsgoResult};
 pub use wrapper::wrap_boundary_type;
 
-/// Evaluate an indexed-access type `object[index]` when both sides are
-/// concrete enough to resolve. Returns `Some(field_type)` when `object`
-/// is an `Object` with a field matching the `StringLiteral` `index`, or
-/// when the lookup bottoms out at an `Any`/`Unknown` (where we preserve
-/// the widest answer). Returns `None` when the lookup can't be decided
-/// — callers fall back to `Type::Unknown`, matching TypeScript's own
-/// "can't evaluate yet" behavior.
-pub(crate) fn evaluate_indexed_access(object: &TsType, index: &TsType) -> Option<TsType> {
-    let key = match index {
-        TsType::StringLiteral(s) => s.clone(),
-        _ => return None,
-    };
-    match object {
-        TsType::Object(fields) => fields.iter().find(|f| f.name == key).map(|f| f.ty.clone()),
-        TsType::Any => Some(TsType::Any),
-        TsType::Unknown => Some(TsType::Unknown),
-        _ => None,
-    }
-}
-
 // Re-export internal helpers so tests (and sibling submodules) can access via `use super::*`
 #[cfg(test)]
 #[allow(unused_imports)]
