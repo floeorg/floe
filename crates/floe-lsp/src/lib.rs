@@ -53,6 +53,49 @@ fn find_expr_type_at_offset(program: &TypedProgram, offset: usize) -> Option<(us
     best
 }
 
+/// If the cursor is on the `field` of a Call's Member callee, return the
+/// call's argument types and resolved return type. Used by hover to
+/// synthesize a method signature when the Member's own stored type is
+/// an internal chain-probe marker (like `Context.req.param`) rather
+/// than a proper function type.
+fn find_enclosing_call_method_sig(
+    program: &TypedProgram,
+    offset: usize,
+    field_name: &str,
+) -> Option<(Vec<Type>, Type)> {
+    use floe_core::parser::ast::{Arg, ExprKind, TypedExpr};
+
+    let mut best: Option<(usize, Vec<Type>, Type)> = None;
+
+    let mut check = |expr: &TypedExpr| {
+        let ExprKind::Call { callee, args, .. } = &expr.kind else {
+            return;
+        };
+        let ExprKind::Member { field, .. } = &callee.kind else {
+            return;
+        };
+        if field != field_name {
+            return;
+        }
+        if offset < callee.span.start || offset > callee.span.end {
+            return;
+        }
+        let callee_width = callee.span.end - callee.span.start;
+        if best.as_ref().is_none_or(|(w, _, _)| callee_width < *w) {
+            let arg_tys: Vec<Type> = args
+                .iter()
+                .map(|a| match a {
+                    Arg::Positional(e) | Arg::Named { value: e, .. } => (*e.ty).clone(),
+                })
+                .collect();
+            best = Some((callee_width, arg_tys, (*expr.ty).clone()));
+        }
+    };
+
+    floe_core::walk::walk_program(program, &mut check);
+    best.map(|(_, args, ret)| (args, ret))
+}
+
 /// Find the type of the left-hand side of a pipe expression at the given offset.
 /// Used for hover on `|>` to show what value is being piped.
 fn find_pipe_input_type_at_offset(program: &TypedProgram, offset: usize) -> Option<Type> {

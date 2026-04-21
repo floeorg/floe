@@ -1,8 +1,13 @@
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
+use floe_core::checker::Type;
+
 use super::stdlib_hover;
-use super::{FloeLsp, find_expr_type_at_offset, position_to_offset, word_at_offset};
+use super::{
+    FloeLsp, find_enclosing_call_method_sig, find_expr_type_at_offset, position_to_offset,
+    word_at_offset,
+};
 
 impl FloeLsp {
     pub(super) async fn handle_hover(&self, params: HoverParams) -> Result<Option<Hover>> {
@@ -130,6 +135,27 @@ impl FloeLsp {
                 }));
             }
 
+            // The Member's stored type for chain probes is an internal marker
+            // (e.g. `Context.req.param`) that renders uselessly — synthesize
+            // from the enclosing Call's args and return type instead.
+            if let Some(ref typed_program) = doc.typed_program
+                && let Some((arg_tys, ret_ty)) =
+                    find_enclosing_call_method_sig(typed_program, offset, word)
+            {
+                let params = arg_tys
+                    .iter()
+                    .map(Type::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!("```floe\n(method) {word}({params}) -> {ret_ty}\n```"),
+                    }),
+                    range: None,
+                }));
+            }
+
             // Resolve field type from type_map: look for __field_{type}_{field}
             // or fall back to showing the object type
             if let Some(obj_ty) = doc.type_map.get(obj_name) {
@@ -189,6 +215,29 @@ impl FloeLsp {
                 }),
                 range: None,
             }));
+        }
+
+        // In-file bindings shadow stdlib — without this, hovering on an
+        // imported `post` would show `Http.post` via the fallback below.
+        if !is_member_access && !is_import_line && !symbols.is_empty() {
+            if let Some((_, ref ty)) = typed_ast {
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!("```floe\n{word}: {}\n```", ty),
+                    }),
+                    range: None,
+                }));
+            }
+            if let Some(sym) = symbols.first() {
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!("```floe\n{}\n```", sym.detail),
+                    }),
+                    range: None,
+                }));
+            }
         }
 
         // Check bare stdlib function names (for pipe context only, not member access)

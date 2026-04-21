@@ -1,5 +1,8 @@
 """Tests for textDocument/hover."""
 
+import os
+import time
+
 from .conftest import URI, at, hover_text, open_doc
 from . import fixtures as F
 
@@ -482,3 +485,84 @@ class TestHoverUseBind:
         assert h is not None and "number" in h and "->" in h, (
             f"Expected function signature for `use` identifier, got: {h}"
         )
+
+
+class TestHoverImportShadowsStdlib:
+    """#1284 Bug A: hover on an imported name must show the import, not the stdlib."""
+
+    HELPER_URI = "file:///tmp/hono_shim.fl"
+    MAIN_URI = "file:///tmp/hono_main.fl"
+    HELPER_SRC = (
+        'export let post(path: string, handler: (string) -> string) -> string = { path }\n'
+        'export let router(name: string) -> string = { name }\n'
+    )
+    MAIN_SRC = (
+        'import { post, router } from "./hono_shim"\n'
+        '\n'
+        'export let app = router("r") |> post("/foo", (c) -> c)\n'
+    )
+
+    def test_imported_post_shadows_stdlib_http_post(self, lsp):
+        """Hovering `post` at the pipe usage must not show `Http.post`."""
+        open_doc(lsp, self.HELPER_URI, self.HELPER_SRC)
+        open_doc(lsp, self.MAIN_URI, self.MAIN_SRC)
+        line, col = at(self.MAIN_SRC, "post(")
+        h = hover_text(lsp.hover(self.MAIN_URI, line, col))
+        assert h is not None, f"Expected a hover result, got None"
+        assert "Http.post" not in h, (
+            f"Imported `post` must shadow stdlib `Http.post` in hover, got: {h}"
+        )
+        assert "Http" not in h or "hono_shim" in h, f"Got: {h}"
+
+    def test_non_colliding_import_unchanged(self, lsp):
+        """Imports with no stdlib collision should still render as imports."""
+        open_doc(lsp, self.HELPER_URI, self.HELPER_SRC)
+        open_doc(lsp, self.MAIN_URI, self.MAIN_SRC)
+        line, col = at(self.MAIN_SRC, 'router("r")')
+        h = hover_text(lsp.hover(self.MAIN_URI, line, col))
+        assert h is not None, f"Expected a hover result, got None"
+        assert "router" in h, f"Expected `router` in hover, got: {h}"
+
+
+class TestHoverChainCallSignature:
+    """#1284 Bug B: chain-call hover must show a usable signature."""
+
+    REPO_ROOT = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..")
+    )
+    HONO_MAIN = os.path.join(REPO_ROOT, "examples", "hono-api", "src", "main.fl")
+    HONO_URI = f"file://{HONO_MAIN}"
+    HONO_SRC = (
+        'import trusted { router, get, post, Router } from "@floeorg/hono"\n'
+        '\n'
+        'type Env = { greeting: string }\n'
+        '\n'
+        'export let build() -> Router<Env> = {\n'
+        '    router<Env>()\n'
+        '        |> get("/hello/:name", (c) -> {\n'
+        '            let code: string = c.req.param("name")\n'
+        '            Response(code)\n'
+        '        })\n'
+        '        |> post("/echo", (_c) -> Response("echo"))\n'
+        '}\n'
+    )
+
+    def test_chain_call_shows_signature_with_args(self, lsp):
+        """Hover on `param` in `c.req.param("name")` must include the arg list."""
+        if not os.path.exists(self.HONO_MAIN):
+            return
+        lsp.open_doc(self.HONO_URI, self.HONO_SRC)
+        # Give tsgo time to resolve @floeorg/hono.
+        lsp.collect_notifications("textDocument/publishDiagnostics", timeout=10.0)
+        time.sleep(1.0)
+        line, col = at(self.HONO_SRC, "param(")
+        h = hover_text(lsp.hover(self.HONO_URI, line, col + 1, timeout=10.0))
+        assert h is not None, "Expected a hover result, got None"
+        # The arg list must not be dropped — `(())` (empty-tuple rendering)
+        # or a bare probe path like `Context.req.param` are the bugs.
+        assert "(())" not in h, f"Hover must not drop the arg list, got: {h}"
+        assert "Context.req.param" not in h, (
+            f"Hover must render a signature, not the chain-probe path, got: {h}"
+        )
+        assert "param" in h, f"Hover should mention `param`, got: {h}"
+        assert "string" in h, f"Hover should include the arg type, got: {h}"
