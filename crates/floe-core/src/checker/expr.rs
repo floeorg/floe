@@ -214,19 +214,29 @@ impl Checker {
                 let inner_ty = self.check_expr(inner);
                 Type::Settable(Arc::new(inner_ty))
             }
-            ExprKind::Clear => Type::Settable(Arc::new(Type::Unknown)),
-            ExprKind::Unchanged => Type::Settable(Arc::new(Type::Unknown)),
+            ExprKind::Clear => self
+                .resolve_shadowed_keyword(expr.id, "clear", expr.span)
+                .unwrap_or_else(|| Type::Settable(Arc::new(Type::Unknown))),
+            ExprKind::Unchanged => self
+                .resolve_shadowed_keyword(expr.id, "unchanged", expr.span)
+                .unwrap_or_else(|| Type::Settable(Arc::new(Type::Unknown))),
             ExprKind::Todo => {
-                self.emit_warning_with_help(
-                    "`todo` is a placeholder that will panic at runtime",
-                    expr.span,
-                    ErrorCode::TodoPlaceholder,
-                    "not yet implemented",
-                    "replace with actual implementation before shipping",
-                );
-                Type::Never
+                if let Some(ty) = self.resolve_shadowed_keyword(expr.id, "todo", expr.span) {
+                    ty
+                } else {
+                    self.emit_warning_with_help(
+                        "`todo` is a placeholder that will panic at runtime",
+                        expr.span,
+                        ErrorCode::TodoPlaceholder,
+                        "not yet implemented",
+                        "replace with actual implementation before shipping",
+                    );
+                    Type::Never
+                }
             }
-            ExprKind::Unreachable => Type::Never,
+            ExprKind::Unreachable => self
+                .resolve_shadowed_keyword(expr.id, "unreachable", expr.span)
+                .unwrap_or(Type::Never),
             ExprKind::Unit => Type::Unit,
             ExprKind::Jsx(element) => {
                 self.check_jsx(element);
@@ -276,6 +286,23 @@ impl Checker {
     }
 
     // ── Extracted Expression Checkers ────────────────────────────────
+
+    /// When `name` resolves to a local binding, return its type and flag
+    /// the expression for rewrite by `attach_types`.
+    fn resolve_shadowed_keyword(
+        &mut self,
+        expr_id: ExprId,
+        name: &'static str,
+        span: Span,
+    ) -> Option<Type> {
+        let ty = self.env.lookup(name).cloned()?;
+        if let Some(def_span) = self.env.lookup_def_span(name) {
+            self.references.record(def_span, span);
+        }
+        self.unused.used_names.insert(name.to_string());
+        self.shadowed_keyword_exprs.insert(expr_id, name);
+        Some(ty)
+    }
 
     fn check_identifier(&mut self, name: &str, span: Span) -> Type {
         self.unused.used_names.insert(name.to_string());
