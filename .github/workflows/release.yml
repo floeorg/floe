@@ -238,16 +238,59 @@ jobs:
       - name: Install publishing tools
         run: npm install -g ovsx @vscode/vsce
 
+      # VS Code Marketplace rejects semver prerelease suffixes like
+      # `-alpha.N`; versions must be integer-only M.N.P. We map Floe's
+      # tag to an odd-even-minor VSCode version (Microsoft's recommended
+      # pre-release convention):
+      #   Floe M.N.P-pre.K  →  VSCode M.(2N+1).K   (published --pre-release)
+      #   Floe M.N.P stable →  VSCode M.(2N+2).P   (published as stable)
+      # This is monotonic forever, matches how rust-analyzer/deno handle
+      # the same conflict, and applies to both Open VSX and the Marketplace
+      # so a user can install the same extension version from either.
+      - name: Compute VSCode extension version
+        id: vscode_version
+        run: |
+          TAG="${{ inputs.tag_name }}"
+          VER="${TAG#v}"
+          if [[ "$VER" == *-* ]]; then
+            BASE="${VER%%-*}"
+            PRE="${VER#*-}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+            COUNTER="${PRE##*.}"
+            VSCODE_VER="${MAJOR}.$((MINOR * 2 + 1)).${COUNTER}"
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VER"
+            VSCODE_VER="${MAJOR}.$((MINOR * 2 + 2)).${PATCH}"
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VSCODE_VER" >> "$GITHUB_OUTPUT"
+          echo "Derived VSCode version: $VSCODE_VER (prerelease=${{ inputs.tag_name }} → $VSCODE_VER)"
+
+      - name: Rewrite package.json to VSCode version
+        working-directory: editors/vscode
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json'));
+            p.version = '${{ steps.vscode_version.outputs.version }}';
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+
       - name: Publish to Open VSX
         working-directory: editors/vscode
-        run: ovsx publish -p ${{ secrets.OVSX_TOKEN }}
+        run: |
+          if [[ "${{ steps.vscode_version.outputs.is_prerelease }}" == "true" ]]; then
+            ovsx publish --pre-release -p ${{ secrets.OVSX_TOKEN }}
+          else
+            ovsx publish -p ${{ secrets.OVSX_TOKEN }}
+          fi
 
-      # VS Code Marketplace does not accept semver prerelease suffixes like
-      # `-alpha.1`; it uses Microsoft's own integer-only pre-release model
-      # (odd-even minor convention + `--pre-release` flag). Until Floe hits
-      # a stable release, alpha extensions are available only on Open VSX
-      # and via manual .vsix download from the GitHub Release.
       - name: Publish to VS Code Marketplace
-        if: ${{ !contains(inputs.tag_name, '-') }}
         working-directory: editors/vscode
-        run: vsce publish -p ${{ secrets.VSCE_PAT }}
+        run: |
+          if [[ "${{ steps.vscode_version.outputs.is_prerelease }}" == "true" ]]; then
+            vsce publish --pre-release -p ${{ secrets.VSCE_PAT }}
+          else
+            vsce publish -p ${{ secrets.VSCE_PAT }}
+          fi
