@@ -146,7 +146,7 @@ for User {
 Prefix the whole block with `export` to export every method at once. This is the natural shape for trait implementations, where all methods are part of the contract:
 
 ```floe
-export for User: Display {
+export impl Display for User {
   let display(self) -> string = {
     `${self.name} (${self.age})`
   }
