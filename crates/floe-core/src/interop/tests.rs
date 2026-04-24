@@ -1376,3 +1376,60 @@ fn wrap_generic_preserves_boolean_literal() {
     };
     assert_eq!(name, "Flag<true>");
 }
+
+// ── `declare module "node:X"` extraction ─────────────────────
+
+#[test]
+fn parse_dts_exports_for_node_scheme_specifier() {
+    let dts = r#"
+declare module "node:crypto" {
+    export function randomUUID(): string;
+    export interface Hash {
+        update(data: string): Hash;
+        digest(encoding: string): string;
+    }
+}
+declare module "crypto" {
+    export * from "node:crypto";
+}
+"#;
+
+    let exports = parse_dts_exports_for_specifier_from_str(dts, "node:crypto").unwrap();
+
+    assert!(
+        exports.iter().any(|e| e.name == "randomUUID"),
+        "expected randomUUID export, got {:?}",
+        exports.iter().map(|e| &e.name).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn parse_dts_exports_for_specifier_unknown_module_is_empty() {
+    // Must not fall back to top-level exports when the specifier doesn't
+    // match any declare module block — top-level is also empty here, so
+    // a naive fallback would silently succeed with zero exports.
+    let dts = r#"
+declare module "node:crypto" {
+    export function randomUUID(): string;
+}
+"#;
+
+    let exports = parse_dts_exports_for_specifier_from_str(dts, "node:fs").unwrap();
+    assert!(exports.is_empty(), "expected no exports, got {exports:?}");
+}
+
+#[test]
+fn parse_dts_exports_for_specifier_falls_back_to_top_level() {
+    // Most @types/* packages declare exports at the top level rather than
+    // inside declare module blocks — the common path must still work.
+    let dts = r#"
+export function useState<S>(initialState: S): [S, (s: S) => void];
+"#;
+
+    let exports = parse_dts_exports_for_specifier_from_str(dts, "react").unwrap();
+    assert!(
+        exports.iter().any(|e| e.name == "useState"),
+        "expected useState fallback to top-level, got {:?}",
+        exports.iter().map(|e| &e.name).collect::<Vec<_>>()
+    );
+}

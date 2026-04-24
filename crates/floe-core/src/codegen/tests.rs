@@ -21,6 +21,7 @@ fn emit(input: &str) -> String {
         program,
         &crate::checker::ExprTypeMap::new(),
         &std::collections::HashSet::new(),
+        &std::collections::HashMap::new(),
     );
     let output = Codegen::new().generate(&typed);
     output.code.trim().to_string()
@@ -40,8 +41,9 @@ fn emit_typed(input: &str) -> String {
         )
     });
     desugar::desugar_program(&mut program, &std::collections::HashMap::new());
-    let (_diags, expr_types, invalid_exprs) = crate::checker::Checker::new().check_full(&program);
-    let typed = crate::checker::attach_types(program, &expr_types, &invalid_exprs);
+    let (_diags, expr_types, invalid_exprs, shadowed) =
+        crate::checker::Checker::new().check_full(&program);
+    let typed = crate::checker::attach_types(program, &expr_types, &invalid_exprs, &shadowed);
     let output = Codegen::new().generate(&typed);
     output.code.trim().to_string()
 }
@@ -791,6 +793,7 @@ fn jsx_detection() {
         program,
         &crate::checker::ExprTypeMap::new(),
         &std::collections::HashSet::new(),
+        &std::collections::HashMap::new(),
     );
     let output = Codegen::new().generate(&typed);
     assert!(output.has_jsx);
@@ -803,6 +806,7 @@ fn no_jsx_detection() {
         program,
         &crate::checker::ExprTypeMap::new(),
         &std::collections::HashSet::new(),
+        &std::collections::HashMap::new(),
     );
     let output = Codegen::new().generate(&typed);
     assert!(!output.has_jsx);
@@ -1352,12 +1356,16 @@ fn emit_with_types(input: &str) -> String {
                 .join("\n")
         )
     });
-    let (_, expr_types, _) = crate::checker::Checker::new().check_full(&program);
+    let (_, expr_types, _, shadowed) = crate::checker::Checker::new().check_full(&program);
     let mut program = program;
     crate::checker::mark_async_functions(&mut program);
     desugar::desugar_program(&mut program, &std::collections::HashMap::new());
-    let typed =
-        crate::checker::attach_types(program, &expr_types, &std::collections::HashSet::new());
+    let typed = crate::checker::attach_types(
+        program,
+        &expr_types,
+        &std::collections::HashSet::new(),
+        &shadowed,
+    );
     Codegen::new().generate(&typed).code.trim().to_string()
 }
 
@@ -1646,6 +1654,7 @@ fn emit_test_mode(input: &str) -> String {
         program,
         &crate::checker::ExprTypeMap::new(),
         &std::collections::HashSet::new(),
+        &std::collections::HashMap::new(),
     );
     let output = Codegen::new().with_test_mode().generate(&typed);
     output.code.trim().to_string()
@@ -1687,6 +1696,45 @@ test "math" {
     assert!(result.contains("math"), "test name should appear in output");
     assert!(result.contains("PASS"), "should have pass reporting");
     assert!(result.contains("FAIL"), "should have fail reporting");
+}
+
+// ── Contextual keyword shadowing ────────────────────────────
+
+#[test]
+fn bare_todo_without_shadow_still_panics() {
+    let result = emit_typed("todo");
+    assert!(
+        result.contains("throw new Error"),
+        "expected throw, got: {result}"
+    );
+}
+
+#[test]
+fn local_todo_binding_shadows_keyword() {
+    let result = emit_typed(
+        r#"let todo = 5
+let used = todo"#,
+    );
+    assert!(
+        !result.contains("not yet implemented"),
+        "shadowed todo should not emit panic, got: {result}"
+    );
+    assert!(
+        result.contains("const used = todo"),
+        "shadowed todo should compile to identifier read, got: {result}"
+    );
+}
+
+#[test]
+fn local_unreachable_binding_shadows_keyword() {
+    let result = emit_typed(
+        r#"let unreachable = 42
+let out = unreachable"#,
+    );
+    assert!(
+        result.contains("const out = unreachable"),
+        "shadowed unreachable should compile to identifier read, got: {result}"
+    );
 }
 
 // (Inline for-declaration tests removed — only block form is supported)

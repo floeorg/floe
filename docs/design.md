@@ -198,6 +198,47 @@ The last expression in a block is the return value — no `return` keyword.
 | `if`/`else` | Redundant control flow | `match` expression |
 | `return` | Implicit returns — last expression is the value | Omit `return`; the last expression in a block is the return value |
 
+### Contextual keywords
+
+Several keywords are **contextual** — they're only recognized as keywords at
+their specific syntactic position, and parse as ordinary identifiers
+elsewhere. This unblocks idiomatic names that collide with framework
+conventions (DOM `type`, React `todo`-style fields, JSON discriminators).
+
+| Keyword | Acts as keyword when… |
+|---|---|
+| `type` | At item-declaration position (`type X = ...`, including `opaque type`) |
+| `opaque` | Immediately before `type` (`opaque type X = ...`) |
+| `trusted` | Modifier on `import` (`import trusted { ... }`) |
+| `deriving` | Tail of a record type (`type X = { ... } deriving (Display)`) |
+| `mock`, `parse` | Followed by `<` (`mock<User>`, `parse<T>(value)`) |
+| `collect` | Followed by `{` (`collect { ... }`) |
+| `todo`, `unreachable`, `clear`, `unchanged` | No local binding with the same name is in scope |
+
+Positions that accept contextual keywords as identifiers: `let`/`fn` binders,
+function parameter names, record type field names, record/object literal
+field names, record pattern field names, destructuring field names, named
+constructor arguments, and JSX attribute names.
+
+Shadowing semantics: when a local binding has the same name as a
+no-argument keyword (`todo`, `unreachable`, `clear`, `unchanged`), the local
+wins for the remainder of its scope. `let todo = 5; todo` reads the local
+`5`, not the panic placeholder.
+
+Implementation:
+1. Lexer still emits the keyword's dedicated `TokenKind` for all occurrences.
+2. Parser, at each identifier-accepting position, bumps the token with a
+   remapped `SyntaxKind::IDENT` so the green tree and lowering see a normal
+   identifier. For `mock`/`parse`/`collect`, the keyword branch is gated on
+   the lookahead token (`<` or `{`); otherwise the parser falls through to
+   the identifier branch.
+3. Checker, on `ExprKind::Todo`/`Unreachable`/`Clear`/`Unchanged`, first
+   looks up the keyword's name in the current scope. If bound, it records
+   the `ExprId` in a shadowed-keyword map and returns the local's type.
+4. `attach_types` consults the map and rewrites shadowed nodes to
+   `ExprKind::Identifier(name)` so codegen emits a variable read instead of
+   the keyword's runtime form.
+
 ---
 
 ## Syntax Examples

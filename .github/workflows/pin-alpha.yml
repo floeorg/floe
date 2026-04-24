@@ -1,0 +1,113 @@
+name: Pin Alpha Version
+
+# During the pre-1.0 alpha phase, Floe pins the base version at 0.1.0 and only
+# rolls the alpha counter. release-please does not do this automatically, so
+# this workflow appends an empty `Release-As: 0.1.0-alpha.N+1` commit after
+# every user-authored push to main, which release-please then reads as an
+# override. When Floe graduates to stable, remove this workflow.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  pin-alpha:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Decide whether to skip. We parse actual git trailers rather than
+      # substring-matching the commit message, because PR bodies often mention
+      # the trailer name in prose and would false-positive a substring check.
+      - name: Check skip conditions
+        id: check
+        run: |
+          author=$(git log -1 --format=%an)
+          subject=$(git log -1 --format=%s)
+          trailer=$(git log -1 --format='%(trailers:key=Release-As,valueonly)' | tr -d '[:space:]')
+
+          echo "author=$author"
+          echo "subject=$subject"
+          echo "trailer=$trailer"
+
+          if [ "$author" = "github-actions[bot]" ]; then
+            echo "skip=true (bot-authored)" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -n "$trailer" ]; then
+            echo "skip=true (commit already has the override trailer: $trailer)" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "$subject" in
+            "chore(main): release "*)
+              echo "skip=true (release-please release commit)" >> "$GITHUB_STEP_SUMMARY"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Compute next alpha version
+        if: steps.check.outputs.skip != 'true'
+        id: version
+        run: |
+          current=$(jq -r '."."' .github/release-please-manifest.json)
+          echo "current=$current"
+
+          if [[ ! "$current" =~ ^0\.1\.0-alpha\.([0-9]+)$ ]]; then
+            echo "::error::Manifest version '$current' is not on the 0.1.0-alpha.N line. Either alpha graduated (remove this workflow) or something bumped the base. Aborting."
+            exit 1
+          fi
+
+          n="${BASH_REMATCH[1]}"
+          next="0.1.0-alpha.$((n + 1))"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "Next alpha: $next"
+
+      - name: Append override commit
+        if: steps.check.outputs.skip != 'true'
+        env:
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Retry on race: another push may have landed between our checkout
+          # and push. Up to 5 tries with a rebase each time.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+
+            # If a concurrent run beat us to it, the head commit now carries
+            # the override trailer and we can exit cleanly.
+            existing=$(git log -1 --format='%(trailers:key=Release-As,valueonly)' | tr -d '[:space:]')
+            if [ -n "$existing" ]; then
+              echo "Head already has override trailer ($existing), skipping."
+              exit 0
+            fi
+
+            git commit --allow-empty \
+              -m "chore: release as $NEXT" \
+              -m "Release-As: $NEXT"
+
+            if git push origin main; then
+              echo "Pushed pin for $NEXT (attempt $attempt)"
+              exit 0
+            fi
+            echo "Push failed on attempt $attempt, retrying..."
+            sleep 2
+          done
+
+          echo "::error::Failed to push override commit after 5 attempts"
+          exit 1
