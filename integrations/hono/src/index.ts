@@ -1,4 +1,10 @@
-import { Hono, type Context } from "hono";
+import {
+  Hono,
+  type Context,
+  type ErrorHandler,
+  type MiddlewareHandler,
+  type NotFoundHandler,
+} from "hono";
 
 type Env = Record<string, unknown>;
 
@@ -21,6 +27,21 @@ export type Router<E extends Env = Env> = {
 export type Handler<E extends Env = Env> = (
   c: Context<{ Bindings: E }>,
 ) => Response | Promise<Response>;
+
+export type Middleware<E extends Env = Env> = MiddlewareHandler<{
+  Bindings: E;
+}>;
+
+export type ErrorResponder<E extends Env = Env> = ErrorHandler<{
+  Bindings: E;
+}>;
+
+export type NotFoundResponder<E extends Env = Env> = NotFoundHandler<{
+  Bindings: E;
+}>;
+
+type MountApplicationHandler = Parameters<Hono["mount"]>[1];
+type MountOptions = Parameters<Hono["mount"]>[2];
 
 export function router<E extends Env = Env>(): Router<E> {
   const inner = new Hono<{ Bindings: E }>();
@@ -74,10 +95,90 @@ export function del<E extends Env>(
   return r;
 }
 
+export function all<E extends Env>(
+  r: Router<E>,
+  path: string,
+  handler: Handler<E>,
+): Router<E> {
+  r.__inner.all(path, handler);
+  return r;
+}
+
+export function on<E extends Env>(
+  r: Router<E>,
+  method: string,
+  path: string,
+  handler: Handler<E>,
+): Router<E> {
+  r.__inner.on(method, path, handler);
+  return r;
+}
+
+export function use<E extends Env>(
+  r: Router<E>,
+  path: string,
+  handler: Middleware<E>,
+): Router<E> {
+  r.__inner.use(path, handler);
+  return r;
+}
+
+export function route<E extends Env>(
+  r: Router<E>,
+  path: string,
+  sub: Router<E>,
+): Router<E> {
+  r.__inner.route(path, sub.__inner);
+  return r;
+}
+
+export function basePath<E extends Env>(
+  r: Router<E>,
+  path: string,
+): Router<E> {
+  const rebased = r.__inner.basePath(path) as Hono<{ Bindings: E }>;
+  return { __inner: rebased, fetch: rebased.fetch.bind(rebased) };
+}
+
+export function onError<E extends Env>(
+  r: Router<E>,
+  handler: ErrorResponder<E>,
+): Router<E> {
+  r.__inner.onError(handler);
+  return r;
+}
+
+export function notFound<E extends Env>(
+  r: Router<E>,
+  handler: NotFoundResponder<E>,
+): Router<E> {
+  r.__inner.notFound(handler);
+  return r;
+}
+
+export function mount<E extends Env>(
+  r: Router<E>,
+  path: string,
+  handler: MountApplicationHandler,
+  options?: MountOptions,
+): Router<E> {
+  r.__inner.mount(path, handler, options);
+  return r;
+}
+
 export function handle<E extends Env>(
   r: Router<E>,
   request: Request,
   env: E,
 ): Response | Promise<Response> {
   return r.__inner.fetch(request, env);
+}
+
+export function request<E extends Env>(
+  r: Router<E>,
+  input: Request | string | URL,
+  init?: RequestInit,
+  env?: E,
+): Response | Promise<Response> {
+  return r.__inner.request(input, init, env);
 }
