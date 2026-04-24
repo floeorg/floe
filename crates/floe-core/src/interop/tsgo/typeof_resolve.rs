@@ -59,15 +59,7 @@ pub(super) fn resolve_typeof_types(
 
         let module_exports = module_cache
             .entry(module_source.clone())
-            .or_insert_with(|| {
-                // Try npm package .d.ts (follows `export *` re-exports)
-                if let Some(dts_path) = find_package_dts(project_dir, &module_source)
-                    && let Ok(exports) = super::super::dts::parse_dts_exports(&dts_path)
-                {
-                    return exports;
-                }
-                Vec::new()
-            });
+            .or_insert_with(|| load_dts_exports_for(project_dir, &module_source));
 
         // Look for the typeof name in the module exports
         if let Some(found) = module_exports.iter().find(|e| e.name == typeof_name)
@@ -93,14 +85,9 @@ pub(super) fn resolve_typeof_types(
                 .any(|e| e.name == *name && matches!(e.ts_type, TsType::Any))
         });
         if needs_parsing {
-            module_cache.entry(source.clone()).or_insert_with(|| {
-                if let Some(dts_path) = find_package_dts(project_dir, source)
-                    && let Ok(exports) = super::super::dts::parse_dts_exports(&dts_path)
-                {
-                    return exports;
-                }
-                Vec::new()
-            });
+            module_cache
+                .entry(source.clone())
+                .or_insert_with(|| load_dts_exports_for(project_dir, source));
         }
     }
 
@@ -153,9 +140,41 @@ fn is_resolvable_type(ty: &TsType) -> bool {
     }
 }
 
+/// Load exports for an import specifier from its backing .d.ts file.
+/// `node:X` specifiers read from the `declare module "node:X"` block;
+/// all others read top-level exports. Returns an empty vec if the package
+/// can't be located or the parser fails.
+fn load_dts_exports_for(project_dir: &Path, specifier: &str) -> Vec<DtsExport> {
+    let Some(dts_path) = find_package_dts(project_dir, specifier) else {
+        return Vec::new();
+    };
+    let parsed = if specifier.starts_with("node:") {
+        super::super::dts::parse_dts_exports_for_specifier(&dts_path, specifier)
+    } else {
+        super::super::dts::parse_dts_exports(&dts_path)
+    };
+    parsed.unwrap_or_default()
+}
+
 /// Find the main .d.ts file for an npm package by reading its package.json.
 /// Checks both `node_modules/<pkg>` and `node_modules/@types/<pkg>`.
 pub(super) fn find_package_dts(project_dir: &Path, module_name: &str) -> Option<PathBuf> {
+    // `node:X` imports live inside `@types/node/X.d.ts` (or its index fallback)
+    // as `declare module "node:X"` blocks. Callers pair this with
+    // `parse_dts_exports_for_specifier` to surface the block's exports.
+    if let Some(submodule) = module_name.strip_prefix("node:") {
+        let at_node = project_dir.join("node_modules/@types/node");
+        let sub_dts = at_node.join(format!("{submodule}.d.ts"));
+        if sub_dts.exists() {
+            return Some(sub_dts);
+        }
+        let index_dts = at_node.join("index.d.ts");
+        if index_dts.exists() {
+            return Some(index_dts);
+        }
+        return None;
+    }
+
     // Try the package itself first, then @types
     let candidates = [
         project_dir.join("node_modules").join(module_name),

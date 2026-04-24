@@ -30,6 +30,7 @@ use crate::checker::Type;
 // Re-export public API
 pub use dts::{
     DtsExport, GenericParamInfo, collect_generic_param_defs_from_source, parse_dts_exports,
+    parse_dts_exports_for_specifier,
 };
 pub use ts_types::{FunctionParam, ObjectField, TsType, ts_type_to_string};
 pub use tsgo::{TsgoResolver, TsgoResult};
@@ -39,8 +40,8 @@ pub use wrapper::wrap_boundary_type;
 #[cfg(test)]
 #[allow(unused_imports)]
 use dts::{
-    parse_const_export, parse_dts_exports_from_str, parse_function_export, parse_interface_export,
-    parse_type_export,
+    parse_const_export, parse_dts_exports_for_specifier_from_str, parse_dts_exports_from_str,
+    parse_function_export, parse_interface_export, parse_type_export,
 };
 #[cfg(test)]
 #[allow(unused_imports)]
