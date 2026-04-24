@@ -1,6 +1,6 @@
 import trusted { useState } from "react"
 import { CartItem, Product, ProductId, OrderStatus, OrderId } from "../types"
-import { for Array, formatPrice } from "../product"
+import { Array, formatPrice } from "../product"
 
 // ── Prop types ─────────────────────────────────────────
 

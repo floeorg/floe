@@ -1,8 +1,8 @@
-import { ApiError, for Display } from "./types"
+import { ApiError, Display } from "./types"
 
 // ── Multi-depth match on nested error unions ───────────
 
-export for ApiError: Display {
+export impl Display for ApiError {
     let display(self) -> string = {
         self |> match {
             Network(Timeout { ms }) -> `Request timed out after ${ms}ms`,

@@ -3,7 +3,7 @@ import trusted { useSuspenseQuery, QueryErrorResetBoundary } from "@tanstack/rea
 import trusted { ErrorBoundary } from "react-error-boundary"
 import trusted { Link } from "@tanstack/react-router"
 import { Product, ProductId, Review } from "../types"
-import { for Product, formatPrice } from "../product"
+import { Product, formatPrice } from "../product"
 import { fetchProduct } from "../api"
 
 // ── Prop types ─────────────────────────────────────────

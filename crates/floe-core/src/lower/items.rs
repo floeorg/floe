@@ -57,6 +57,14 @@ impl<'src> Lowerer<'src> {
                         span,
                     });
                 }
+                SyntaxKind::IMPL_BLOCK => {
+                    let exported = self.has_keyword(node, SyntaxKind::KW_EXPORT);
+                    let block = self.lower_impl_block(&child, exported)?;
+                    return Some(Item {
+                        kind: ItemKind::ForBlock(block),
+                        span,
+                    });
+                }
                 SyntaxKind::TRAIT_DECL => {
                     let decl = self.lower_trait_decl(&child, node)?;
                     return Some(Item {
@@ -461,6 +469,54 @@ impl<'src> Lowerer<'src> {
 
         TypeDef::Alias(TypeExpr {
             kind: TypeExprKind::Intersection(parts),
+            span,
+        })
+    }
+
+    /// Lower an `impl Trait for Type { ... }` CST node into a ForBlock
+    /// with `trait_name = Some(trait)`. Reusing the ForBlock shape keeps
+    /// codegen/checker uniform — a trait impl is still "register
+    /// pipe-functions on Type that satisfy Trait's contract."
+    fn lower_impl_block(&mut self, node: &SyntaxNode, item_exported: bool) -> Option<ForBlock> {
+        let span = self.node_span(node);
+
+        let mut trait_name = None;
+        let mut trait_name_span = None;
+        let mut type_name = None;
+        let mut functions = Vec::new();
+        let mut next_exported = false;
+
+        for child_or_token in node.children_with_tokens() {
+            match child_or_token {
+                rowan::NodeOrToken::Token(token) => {
+                    if token.kind() == SyntaxKind::KW_EXPORT {
+                        next_exported = true;
+                    } else if trait_name.is_none() && token.kind() == SyntaxKind::IDENT {
+                        trait_name = Some(token.text().to_string());
+                        trait_name_span = Some(self.token_span(&token));
+                    }
+                }
+                rowan::NodeOrToken::Node(child) => match child.kind() {
+                    SyntaxKind::TYPE_EXPR if type_name.is_none() => {
+                        type_name = self.lower_type_expr(&child);
+                    }
+                    SyntaxKind::FUNCTION_DECL => {
+                        if let Some(mut decl) = self.lower_for_block_function(&child) {
+                            decl.exported = next_exported || item_exported;
+                            functions.push(decl);
+                        }
+                        next_exported = false;
+                    }
+                    _ => {}
+                },
+            }
+        }
+
+        Some(ForBlock {
+            type_name: type_name?,
+            trait_name,
+            trait_name_span,
+            functions,
             span,
         })
     }

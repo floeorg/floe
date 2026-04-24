@@ -1,14 +1,14 @@
-import { Product, ProductId, CartItem, SortOrder, PriceRange, for Display, for Discountable } from "./types"
+import { Product, ProductId, CartItem, SortOrder, PriceRange, Display, Discountable } from "./types"
 
 // ── Trait implementations ──────────────────────────────
 
-export for Product: Display {
+export impl Display for Product {
     let display(self) -> string = {
         `${self.title} - $${self.price}`
     }
 }
 
-export for Product: Discountable {
+export impl Discountable for Product {
     let effectivePrice(self) -> number = {
         self.price * (1 - self.discountPercentage / 100)
     }

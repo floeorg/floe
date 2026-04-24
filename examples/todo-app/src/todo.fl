@@ -1,4 +1,4 @@
-import { Todo, Filter, Validation, for Display } from "./types"
+import { Todo, Filter, Validation, Display } from "./types"
 
 for string {
     export let validate(self) -> Validation = {
@@ -14,7 +14,7 @@ for string {
     }
 }
 
-export for Todo: Display {
+export impl Display for Todo {
     let display(self) -> string = {
         match self.done {
             true -> `[x] ${self.text}`,

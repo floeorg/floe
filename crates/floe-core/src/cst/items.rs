@@ -105,6 +105,12 @@ impl<'src> CstParser<'src> {
                 self.parse_for_block();
                 self.builder.finish_node();
             }
+            Some(TokenKind::Impl) => {
+                self.builder
+                    .start_node_at(checkpoint, SyntaxKind::ITEM.into());
+                self.parse_impl_block();
+                self.builder.finish_node();
+            }
             Some(TokenKind::Trait) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
@@ -228,15 +234,22 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
-    /// Parse either a regular import specifier or a `for Type` import specifier.
+    /// Parse an import specifier. The old `import { for X }` form is
+    /// rejected with a diagnostic — trait-in-scope now activates impls
+    /// automatically, and inherent methods travel with the type.
     fn parse_import_specifier_or_for(&mut self) {
         if self.at(TokenKind::For) {
-            // `for Type` import specifier
-            self.builder
-                .start_node(SyntaxKind::IMPORT_FOR_SPECIFIER.into());
+            self.builder.start_node(SyntaxKind::ERROR.into());
+            self.error(
+                "`import { for X }` is no longer valid. \
+                 Importing a trait (`import { TraitName }`) activates its \
+                 impls automatically; inherent methods travel with the type",
+            );
             self.bump(); // `for`
             self.eat_trivia();
-            self.expect_ident(); // type name
+            if self.peek_is_ident() {
+                self.bump(); // consume the type name so parsing continues
+            }
             self.builder.finish_node();
         } else {
             self.parse_import_specifier();
@@ -771,7 +784,9 @@ impl<'src> CstParser<'src> {
 
     // ── For Blocks ──────────────────────────────────────────────
 
-    /// Parse a for-block: `for Type { fn ... }`.
+    /// Parse a for-block: `for Type { fn ... }` (inherent pipe-functions).
+    /// The old `for Type: Trait { ... }` syntax is rejected here with a
+    /// diagnostic pointing at `impl Trait for Type { ... }`.
     fn parse_for_block(&mut self) {
         self.builder.start_node(SyntaxKind::FOR_BLOCK.into());
 
@@ -782,11 +797,18 @@ impl<'src> CstParser<'src> {
         self.parse_type_expr();
         self.eat_trivia();
 
-        // Optional trait bound: `for User: Display { ... }`
+        // `for Type: Trait { ... }` was the old trait-impl form. It's now
+        // written as `impl Trait for Type { ... }`. Reject with a clear
+        // migration hint rather than silently accepting.
         if self.at(TokenKind::Colon) {
+            self.error(
+                "`for Type: Trait { ... }` is no longer valid. \
+                 Use `impl Trait for Type { ... }` for trait impls; \
+                 `for Type { ... }` is reserved for inherent pipe-functions",
+            );
             self.bump(); // :
             self.eat_trivia();
-            self.expect_ident(); // trait name
+            self.expect_ident(); // trait name (consume so parsing can continue)
             self.eat_trivia();
         }
 
@@ -810,6 +832,52 @@ impl<'src> CstParser<'src> {
         }
 
         self.expect(TokenKind::RightBrace);
+
+        self.builder.finish_node();
+    }
+
+    /// Parse an impl block: `impl Trait for Type { fn ... }` or
+    /// `impl Trait for Type` (empty impl — legal if trait has all defaults).
+    fn parse_impl_block(&mut self) {
+        self.builder.start_node(SyntaxKind::IMPL_BLOCK.into());
+
+        self.expect(TokenKind::Impl);
+        self.eat_trivia();
+
+        // Trait name (identifier). Placed first so the node order is
+        // `IMPL_BLOCK > trait-ident, FOR, type-expr, body`.
+        self.expect_ident();
+        self.eat_trivia();
+
+        self.expect(TokenKind::For);
+        self.eat_trivia();
+
+        // Target type (e.g., `User`, `Array<number>`)
+        self.parse_type_expr();
+        self.eat_trivia();
+
+        // Optional body. Absence = empty impl (trait defaults).
+        if self.at(TokenKind::LeftBrace) {
+            self.bump();
+            self.eat_trivia();
+
+            while !self.at(TokenKind::RightBrace) && !self.at_end() {
+                if self.at(TokenKind::Export) {
+                    self.bump();
+                    self.eat_trivia();
+                }
+                if self.at(TokenKind::Let) || self.at(TokenKind::Async) {
+                    self.parse_for_block_function();
+                    self.eat_trivia();
+                } else {
+                    self.error("expected `let` inside impl block");
+                    self.bump();
+                    self.eat_trivia();
+                }
+            }
+
+            self.expect(TokenKind::RightBrace);
+        }
 
         self.builder.finish_node();
     }

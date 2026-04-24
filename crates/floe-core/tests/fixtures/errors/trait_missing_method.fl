@@ -8,7 +8,7 @@ type User = {
 }
 
 // Missing required method `display`
-for User: Display {
+impl Display for User {
   let toString(self) -> string = {
     "wrong method name"
   }

@@ -3,7 +3,7 @@ type User = {
 }
 
 // Implementing a trait that doesn't exist
-for User: NonExistentTrait {
+impl NonExistentTrait for User {
   let display(self) -> string = {
     self.name
   }

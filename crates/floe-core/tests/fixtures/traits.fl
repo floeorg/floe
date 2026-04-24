@@ -18,14 +18,14 @@ type User = {
 }
 
 // Implementing a trait for a type
-for User: Display {
+impl Display for User {
   let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }
 
 // Implementing another trait
-for User: Eq {
+impl Eq for User {
   let eq(self, other: string) -> boolean = {
     self.name == other
   }
