@@ -9548,3 +9548,22 @@ for Array<number> {
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Structural-type impls rejected (E057) ───────────────────
+
+#[test]
+fn impl_for_tuple_is_structural_impl_error() {
+    let diags = check(
+        r#"
+trait Show { let show(self) -> string }
+impl Show for (number, string) {
+    let show(self) -> string = { "x" }
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::StructuralImpl),
+        "expected StructuralImpl for tuple target: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

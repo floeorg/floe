@@ -13,25 +13,6 @@ fn last_expr_span(body: &Expr) -> Span {
     body.span
 }
 
-/// Return the base identifier for the orphan-rule and impl-dedup keys.
-/// `Array<T>`, `Map<K, V>` collapse to `Array`, `Map` — coherence is per
-/// outer constructor, not per instantiation, so impls of `Display for
-/// Array<X>` and `Display for Array<Y>` still trip the duplicate check.
-/// Returns `None` for shapes that can't carry a name (tuples, records,
-/// functions, intersections) — callers treat that as "can't apply the
-/// rule" and skip the check for this block.
-fn base_type_name<T>(expr: &TypeExpr<T>) -> Option<String> {
-    match &expr.kind {
-        TypeExprKind::Named { name, .. } => Some(name.clone()),
-        TypeExprKind::Array(_) => Some("Array".to_string()),
-        TypeExprKind::TypeOf(_)
-        | TypeExprKind::Record(_)
-        | TypeExprKind::Function { .. }
-        | TypeExprKind::Tuple(_)
-        | TypeExprKind::Intersection(_) => None,
-        _ => None,
-    }
-}
 
 impl Checker {
     // ── Default Exports ──────────────────────────────────────────
@@ -850,19 +831,39 @@ impl Checker {
 
     pub(crate) fn check_for_block(&mut self, block: &ForBlock, _span: Span) {
         let for_type = self.resolve_type(&block.type_name);
-        let type_name = base_type_name(&block.type_name);
+        let type_name = block.type_name.base_name();
 
         // If this is a trait impl block, validate the trait contract +
         // enforce the orphan rule (at least one of Trait or Type must be
-        // declared in this module) + reject duplicate impls.
+        // declared in this module) + reject structural-type impls + reject
+        // duplicate impls.
         if let Some(ref trait_name) = block.trait_name {
             self.unused.used_names.insert(trait_name.clone());
+
+            // Structural types (tuples, inline records, function types,
+            // intersections) have no nominal anchor for coherence. Reject
+            // outright rather than silently skipping the orphan check.
+            if type_name.is_none() {
+                self.emit_error_with_help(
+                    format!(
+                        "cannot `impl {trait_name} for <structural type>`: only nominal \
+                         types can anchor a trait impl"
+                    ),
+                    block.trait_name_span.unwrap_or(block.span),
+                    ErrorCode::StructuralImpl,
+                    "impl target is structural, not nominal",
+                    format!(
+                        "wrap the shape in a `type` declaration and implement `{trait_name}` for that",
+                    ),
+                );
+                return;
+            }
 
             let trait_is_local = self.local_trait_names.contains(trait_name);
             let type_is_local = type_name
                 .as_deref()
                 .is_some_and(|n| self.local_type_names.contains(n));
-            if !trait_is_local && !type_is_local && type_name.is_some() {
+            if !trait_is_local && !type_is_local {
                 let t = type_name.as_deref().unwrap();
                 self.emit_error_with_help(
                     format!(

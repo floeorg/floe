@@ -2,17 +2,6 @@ use std::sync::Arc;
 
 use super::*;
 
-/// Same base-type extractor used by the orphan rule in `items.rs` —
-/// duplicated here because the two files are compiled separately and
-/// this one doesn't otherwise depend on the orphan-rule module.
-fn base_type_name_of<T>(expr: &TypeExpr<T>) -> Option<String> {
-    match &expr.kind {
-        TypeExprKind::Named { name, .. } => Some(name.clone()),
-        TypeExprKind::Array(_) => Some("Array".to_string()),
-        _ => None,
-    }
-}
-
 impl Checker {
     pub(crate) fn check_import(&mut self, decl: &ImportDecl, item_span: Span) {
         // If this import targets a .ts/.tsx file and tsgo is not installed,
@@ -293,7 +282,7 @@ impl Checker {
         let Some(trait_name) = &block.trait_name else {
             return;
         };
-        let Some(base) = base_type_name_of(&block.type_name) else {
+        let Some(base) = block.type_name.base_name() else {
             return;
         };
         let key = (base, trait_name.clone());

@@ -146,6 +146,10 @@ pub enum ErrorCode {
     /// Duplicate `impl Trait for Type` — same trait implemented on the
     /// same type by two different modules in scope.
     DuplicateImpl,
+    /// `impl Trait for <structural type>` — tuples, inline records,
+    /// function types, intersections can't anchor an impl. Wrap in a
+    /// named `type` first.
+    StructuralImpl,
 }
 
 impl ErrorCode {
@@ -211,6 +215,7 @@ impl ErrorCode {
             Self::InvalidDefaultExport => "E054",
             Self::OrphanImpl => "E055",
             Self::DuplicateImpl => "E056",
+            Self::StructuralImpl => "E057",
         }
     }
 }
