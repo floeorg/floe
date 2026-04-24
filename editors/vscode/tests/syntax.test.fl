@@ -33,3 +33,30 @@ const x = true
 
 function bad() {}
 // <-- invalid.illegal.keyword.floe
+
+// `use` is a contextual keyword — colored only at the head of a bind statement.
+
+let x = use(promise)
+//      ^^^ -keyword.control.use.floe
+
+let y = foo.use
+//          ^^^ -keyword.control.use.floe
+
+import trusted { use, get } from "@floeorg/hono"
+//               ^^^ -keyword.control.use.floe
+
+let f() = {
+    use db <- Option.guard(maybeDb, fallback)
+//  ^^^ keyword.control.use.floe
+
+    use <- Timer.delay(1000)
+//  ^^^ keyword.control.use.floe
+
+    use (a, b) <- pair
+//  ^^^ keyword.control.use.floe
+
+    use { a, b } <- record
+//  ^^^ keyword.control.use.floe
+
+    db
+}
