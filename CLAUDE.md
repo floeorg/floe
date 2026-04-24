@@ -86,7 +86,53 @@ integrations, following the same pattern as Gleam.
 
 ### Pre-1.0 strategy
 
-While pre-1.0, breaking changes bump minor (0.1 -> 0.2) not major. Go to 1.0.0 when the language syntax is stable and people are using it in real projects.
+Floe is in **alpha**. All pre-stable releases ship as `0.1.0-alpha.N`, `0.1.0-beta.N`, `0.1.0-rc.N` — never as a bare `0.x.y` stable. Release-please is configured with `prerelease: true` + `prerelease-type: "alpha"` so merges automatically roll the alpha counter.
+
+When a release cycle breaks things (`feat!:` in a PR), the base version bumps too: `0.1.0-alpha.5` → `0.2.0-alpha.1`. The alpha counter resets; the minor bump signals the breaking change. Breaking changes during alpha are normal and expected.
+
+**First stable release is `1.0.0`.** We skip stable `0.x` entirely — no `0.1.0`, no `0.2.0`, no pre-1.0 stable at all. Reasons:
+
+1. **Version collision**: npm still has our original `0.1.0` through `0.7.0` as deprecated-but-published artifacts (see below). Those slots are permanently occupied — we can't re-publish any of them.
+2. **Nobody remembers pre-1.0 numbers anyway.** The narrative that matters is "Floe hit 1.0 after N months of alpha." Whether we went `0.1 → 0.2 → ... → 1.0` or skipped straight to 1.0 is a detail nobody remembers six months later.
+3. **Matches Node.js's precedent** — they jumped `0.x → 4.0` and the ecosystem is fine.
+
+Graduation path:
+```
+0.1.0-alpha.N  (current — iterations)
+0.1.0-alpha.N+1
+...
+0.1.0-beta.1   (feature-freeze when ready)
+0.1.0-rc.1     (bug-fix only, testing)
+1.0.0          (first real public release)
+1.0.1, 1.1.0, 2.0.0 ... (standard semver post-1.0)
+```
+
+### Pre-reset version history (deprecated, permanently occupied)
+
+Floe originally shipped `0.1.0` through `0.7.0` as stable releases during an automated release-please + conventional-commits + squash-merge setup that bumped minor on every `feat!:`. Those versions were early iteration, not meaningful milestones. On 2026-04-24 the versioning was reset to `0.1.0-alpha.N` to match the project's actual maturity.
+
+What happened to the old versions:
+
+- **npm** (`@floeorg/core`, `@floeorg/register`, `@floeorg/hono`, `@floeorg/vite-plugin`, `@floeorg/esbuild-plugin`): `0.1.0 - 0.7.0` deprecated via `npm deprecate "pkg@*" "..."`. Couldn't unpublish — past npm's 72-hour window and above the downloads threshold. The versions still exist in the registry with deprecation warnings pointing at the alpha line.
+- **VS Code Marketplace** (`floeorg.floe`): entire extension deleted. Re-publishes will be fresh.
+- **Open VSX** (`floeorg.floe`): entire extension deleted. Re-publishes will be fresh.
+- **GitHub Releases**: all 63 releases + tags deleted via `gh release delete ... --cleanup-tag`.
+
+Practical consequences for future releases:
+
+- **npm won't let us re-publish stable `0.1.0` through `0.7.0`** (and `0.8.0`+ for packages that published beyond 0.7). Those version slots are taken. Even after unpublish (if npm ever let us), republishing the same version is blocked. This is why we skip straight to `1.0.0` for stable.
+- **Prereleases in the 0.x range are fine**: `0.1.0-alpha.N`, `0.2.0-beta.N`, etc. have distinct version strings from stable `0.1.0` / `0.2.0` and don't collide.
+- **Don't attempt to publish stable `0.N.0` for any N ≤ 7.** It will 403. Go straight to 1.0.0 when graduating from alpha.
+
+### VS Code Marketplace + semver prerelease
+
+VS Code Marketplace does not accept semver prerelease suffixes like `-alpha.1` — versions must be integer-only `MAJOR.MINOR.PATCH` and pre-release is signaled via `--pre-release` flag + Microsoft's odd-even minor convention. During alpha, we **skip VS Code Marketplace publication** and ship only to Open VSX (which supports `-alpha` suffixes natively). The `.vsix` is still attached to the GitHub Release for manual install.
+
+When Floe hits a stable version (first one will be `1.0.0`), VS Code Marketplace publication resumes automatically — the release workflow's `if: !contains(inputs.tag_name, '-')` guard lets stable tags through.
+
+### npm dist-tag handling for prereleases
+
+`npm publish` rejects prerelease versions without an explicit `--tag`. Our release workflow publishes prereleases under the `alpha` dist-tag AND repoints `latest` at the newly-published version, so `npm install @floeorg/X` picks up the alpha instead of the deprecated 0.7.0 that would otherwise occupy `latest`. See `.github/workflows/release.yml` for the logic.
 <!-- glb-agent-instructions -->
 ## Task Tracking with glb
 

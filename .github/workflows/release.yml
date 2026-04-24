@@ -109,6 +109,12 @@ jobs:
     name: Publish to npm
     needs: release
     runs-on: ubuntu-latest
+    # NPM_TOKEN is a granular token scoped to @floeorg with read+write.
+    # `npm publish --provenance` uses GitHub's OIDC for publish auth (the
+    # token isn't strictly required for that step), but `npm dist-tag add`
+    # falls back to NODE_AUTH_TOKEN and needs a token with write scope.
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -132,10 +138,11 @@ jobs:
         working-directory: integrations/core
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. Publish under `alpha`,
+          # then repoint `latest` at the new version so `npm install @floeorg/X`
+          # picks up the alpha instead of the deprecated 0.7.0. `dist-tag add`
+          # uses NODE_AUTH_TOKEN (set at the job level), which is scoped for
+          # @floeorg read+write.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
             PKG=$(node -p "require('./package.json').name")
             VER=$(node -p "require('./package.json').version")
@@ -149,10 +156,11 @@ jobs:
         working-directory: integrations/register
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. Publish under `alpha`,
+          # then repoint `latest` at the new version so `npm install @floeorg/X`
+          # picks up the alpha instead of the deprecated 0.7.0. `dist-tag add`
+          # uses NODE_AUTH_TOKEN (set at the job level), which is scoped for
+          # @floeorg read+write.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
             PKG=$(node -p "require('./package.json').name")
             VER=$(node -p "require('./package.json').version")
@@ -166,10 +174,11 @@ jobs:
         working-directory: integrations/vite-plugin-floe
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. Publish under `alpha`,
+          # then repoint `latest` at the new version so `npm install @floeorg/X`
+          # picks up the alpha instead of the deprecated 0.7.0. `dist-tag add`
+          # uses NODE_AUTH_TOKEN (set at the job level), which is scoped for
+          # @floeorg read+write.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
             PKG=$(node -p "require('./package.json').name")
             VER=$(node -p "require('./package.json').version")
@@ -183,10 +192,11 @@ jobs:
         working-directory: integrations/hono
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. Publish under `alpha`,
+          # then repoint `latest` at the new version so `npm install @floeorg/X`
+          # picks up the alpha instead of the deprecated 0.7.0. `dist-tag add`
+          # uses NODE_AUTH_TOKEN (set at the job level), which is scoped for
+          # @floeorg read+write.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
             PKG=$(node -p "require('./package.json').name")
             VER=$(node -p "require('./package.json').version")
@@ -200,10 +210,11 @@ jobs:
         working-directory: integrations/esbuild-plugin
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. Publish under `alpha`,
+          # then repoint `latest` at the new version so `npm install @floeorg/X`
+          # picks up the alpha instead of the deprecated 0.7.0. `dist-tag add`
+          # uses NODE_AUTH_TOKEN (set at the job level), which is scoped for
+          # @floeorg read+write.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
             PKG=$(node -p "require('./package.json').name")
             VER=$(node -p "require('./package.json').version")

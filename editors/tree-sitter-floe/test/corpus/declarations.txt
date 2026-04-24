@@ -52,7 +52,7 @@ import { a, b, c } from "mod"
 Function declaration
 ===
 
-fn greet(name: string) -> string {
+let greet(name: string) -> string = {
     name
 }
 
@@ -75,7 +75,7 @@ fn greet(name: string) -> string {
 Function with uppercase name
 ===
 
-fn HomePage() -> JSX.Element {
+let HomePage() -> JSX.Element = {
     return ()
 }
 
@@ -98,7 +98,7 @@ fn HomePage() -> JSX.Element {
 Generic function declaration
 ===
 
-fn identity<T>(x: T) -> T {
+let identity<T>(x: T) -> T = {
     x
 }
 
@@ -123,7 +123,7 @@ fn identity<T>(x: T) -> T {
 Generic function with multiple type parameters
 ===
 
-fn pair<A, B>(a: A, b: B) -> A {
+let pair<A, B>(a: A, b: B) -> A = {
     a
 }
 
@@ -152,7 +152,7 @@ fn pair<A, B>(a: A, b: B) -> A {
 Const declaration
 ===
 
-const x = 42
+let x = 42
 
 ---
 
@@ -166,7 +166,7 @@ const x = 42
 Const with type annotation
 ===
 
-const name: string = "hello"
+let name: string = "hello"
 
 ---
 
@@ -182,16 +182,31 @@ const name: string = "hello"
 Const with array pattern is an error
 ===
 
-const [a, b] = pair
+let [a, b] = pair
 
 ---
 
 (source_file
-  (ERROR
-    (identifier)
-    (identifier))
   (const_declaration
-    (identifier)
+    (invalid_array_pattern
+      (identifier)
+      (identifier))
+    (primary_expression
+      (identifier))))
+
+===
+Const with tuple pattern
+===
+
+let (a, b) = pair
+
+---
+
+(source_file
+  (const_declaration
+    (tuple_pattern
+      (identifier)
+      (identifier))
     (primary_expression
       (identifier))))
 
@@ -199,7 +214,7 @@ const [a, b] = pair
 Const with destructuring object
 ===
 
-const { x, y } = point
+let { x, y } = point
 
 ---
 
@@ -215,7 +230,7 @@ const { x, y } = point
 Type declaration - record
 ===
 
-type Todo {
+type Todo = {
     id: string,
     text: string,
     done: boolean,
@@ -241,7 +256,7 @@ type Todo {
 Type declaration - union
 ===
 
-type Filter
+type Filter =
     | All
     | Active
     | Completed
@@ -263,7 +278,7 @@ type Filter
 Type declaration - union with fields
 ===
 
-type Validation
+type Validation =
     | Valid { text: string }
     | TooShort
     | Empty
@@ -288,7 +303,7 @@ type Validation
 Export function
 ===
 
-export fn hello() -> string {
+export let hello() -> string = {
     "world"
 }
 
@@ -310,7 +325,7 @@ export fn hello() -> string {
 Export const
 ===
 
-export const pi = 3
+export let pi = 3
 
 ---
 
@@ -325,7 +340,7 @@ export const pi = 3
 Generic type
 ===
 
-type Box<T> {
+type Box<T> = {
     value: T,
 }
 
@@ -345,7 +360,7 @@ type Box<T> {
 Use bind with single binding
 ===
 
-fn _test() -> string {
+let _test() -> string = {
     use x <- doSomething(42)
     x
 }
@@ -375,7 +390,7 @@ fn _test() -> string {
 Use bind with object destructure
 ===
 
-fn _test() -> number {
+let _test() -> number = {
     use { a, b } <- provideValues()
     a + b
 }
@@ -408,7 +423,7 @@ fn _test() -> number {
 Use bind with zero binding
 ===
 
-fn _test() -> () {
+let _test() -> () = {
     use <- delay(1000)
     Console.log("done")
 }

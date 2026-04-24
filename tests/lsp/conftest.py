@@ -169,6 +169,24 @@ class LspClient:
         )
         return self.wait_response(msg_id)
 
+    def prepare_rename(self, uri: str, line: int, char: int) -> dict | None:
+        msg_id = self.send(
+            "textDocument/prepareRename",
+            {"textDocument": {"uri": uri}, "position": {"line": line, "character": char}},
+        )
+        return self.wait_response(msg_id)
+
+    def rename(self, uri: str, line: int, char: int, new_name: str) -> dict | None:
+        msg_id = self.send(
+            "textDocument/rename",
+            {
+                "textDocument": {"uri": uri},
+                "position": {"line": line, "character": char},
+                "newName": new_name,
+            },
+        )
+        return self.wait_response(msg_id)
+
     def document_symbols(self, uri: str) -> dict | None:
         msg_id = self.send("textDocument/documentSymbol", {"textDocument": {"uri": uri}})
         return self.wait_response(msg_id)

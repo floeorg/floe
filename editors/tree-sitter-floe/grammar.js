@@ -34,6 +34,7 @@ module.exports = grammar({
     [$.assert_statement, $.binary_expression],
     [$.assert_statement, $.index_expression],
     [$.primary_expression, $.lambda_parameter],
+    [$.unit_value, $.arrow_closure],
   ],
 
   precedences: ($) => [
@@ -299,7 +300,12 @@ module.exports = grammar({
     const_declaration: ($) =>
       seq(
         "let",
-        choice($.identifier, $.object_pattern),
+        choice(
+          $.identifier,
+          $.object_pattern,
+          $.tuple_pattern,
+          $.invalid_array_pattern,
+        ),
         optional(seq(":", $._type_expression)),
         "=",
         $._expression,
@@ -308,24 +314,42 @@ module.exports = grammar({
     object_pattern: ($) =>
       seq("{", commaSep1($.identifier), "}"),
 
+    tuple_pattern: ($) =>
+      seq("(", commaSep1($.identifier), optional(","), ")"),
+
+    // `let [a, b] = ...` is not valid Floe (use tuple form `(a, b)` instead).
+    // Parsing it as a dedicated node gives the LSP a targeted diagnostic
+    // anchor rather than a generic ERROR.
+    invalid_array_pattern: ($) =>
+      seq("[", commaSep1($.identifier), optional(","), "]"),
+
     // ── Use (callback flattening) ───────────────────────────
 
+    // `use` is a contextual keyword. Inside a block, `use x <- expr` is a
+    // bind statement; bare `use` and `use(x)` / `foo.use` / `import { use }`
+    // are plain identifier uses (React 19's `use()` hook, `@floeorg/hono`
+    // middleware registration, etc). prec.dynamic(-1) lets call_expression
+    // win when both would parse — which is only the case when there's no
+    // `<-`, i.e. the non-bind reading.
     use_declaration: ($) =>
-      seq(
-        "use",
-        optional(
-          choice(
-            field("binding", $.identifier),
-            seq(
-              "(",
-              commaSep1(field("binding", $.identifier)),
-              ")",
+      prec.dynamic(
+        -1,
+        seq(
+          "use",
+          optional(
+            choice(
+              field("binding", $.identifier),
+              seq(
+                "(",
+                commaSep1(field("binding", $.identifier)),
+                ")",
+              ),
+              field("binding", $.object_pattern),
             ),
-            field("binding", $.object_pattern),
           ),
+          "<-",
+          field("call", $._expression),
         ),
-        "<-",
-        field("call", $._expression),
       ),
 
     // ── Expressions ─────────────────────────────────────────

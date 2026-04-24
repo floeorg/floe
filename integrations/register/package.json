@@ -1,6 +1,6 @@
 {
   "name": "@floeorg/register",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.3",
   "description": "Node.js loader hook for Floe - resolve .fl imports at runtime",
   "type": "module",
   "main": "dist/index.js",

@@ -2,7 +2,7 @@
 Pipe expression
 ===
 
-const result = text |> String.trim
+let result = text |> String.trim
 
 ---
 
@@ -21,7 +21,7 @@ const result = text |> String.trim
 Chained pipe expression
 ===
 
-fn count(todos: Array<Todo>) -> number {
+let count(todos: Array<Todo>) -> number = {
     todos
         |> Array.filter(.done == false)
         |> Array.length
@@ -97,7 +97,7 @@ match len {
 Arrow closure
 ===
 
-const f = (x) => x
+let f = (x) -> x
 
 ---
 
@@ -114,7 +114,7 @@ const f = (x) => x
 Zero-arg arrow closure
 ===
 
-const f = () => handleAdd()
+let f = () -> handleAdd()
 
 ---
 
@@ -131,7 +131,7 @@ const f = () => handleAdd()
 Call expression
 ===
 
-const r = foo(1, 2)
+let r = foo(1, 2)
 
 ---
 
@@ -153,7 +153,7 @@ const r = foo(1, 2)
 Labeled arguments
 ===
 
-const t = Todo(id: v4(), text: text, done: false)
+let t = Todo(id: v4(), text: text, done: false)
 
 ---
 
@@ -183,7 +183,7 @@ const t = Todo(id: v4(), text: text, done: false)
 Member expression
 ===
 
-const v = obj.field
+let v = obj.field
 
 ---
 
@@ -199,7 +199,7 @@ const v = obj.field
 Variant expression
 ===
 
-const f = Filter.All
+let f = Filter.All
 
 ---
 
@@ -214,7 +214,7 @@ const f = Filter.All
 Dot shorthand
 ===
 
-const f = .done == true
+let f = .done == true
 
 ---
 
@@ -232,7 +232,7 @@ const f = .done == true
 Binary expression
 ===
 
-const r = a + b * c
+let r = a + b * c
 
 ---
 
@@ -254,7 +254,7 @@ const r = a + b * c
 Unary expression
 ===
 
-const r = !done
+let r = !done
 
 ---
 
@@ -270,7 +270,7 @@ const r = !done
 Template literal
 ===
 
-const s = `hello ${name}`
+let s = `hello ${name}`
 
 ---
 
@@ -288,7 +288,7 @@ const s = `hello ${name}`
 Tagged template expression
 ===
 
-const q = sql`select ${id}`
+let q = sql`select ${id}`
 
 ---
 
@@ -308,7 +308,7 @@ const q = sql`select ${id}`
 Array literal
 ===
 
-const a = [1, 2, 3]
+let a = [1, 2, 3]
 
 ---
 
@@ -328,7 +328,7 @@ const a = [1, 2, 3]
 Return statement
 ===
 
-fn foo() -> number {
+let foo() -> number = {
     return 42
 }
 
@@ -349,7 +349,7 @@ fn foo() -> number {
 Spread in constructor
 ===
 
-const t = Todo(..old, done: true)
+let t = Todo(..old, done: true)
 
 ---
 
@@ -364,4 +364,54 @@ const t = Todo(..old, done: true)
         name: (identifier)
         value: (primary_expression
           (boolean))))))
+
+===
+Use as identifier in call position (React 19 use() hook)
+===
+
+let data = use(promise)
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (call_expression
+      function: (primary_expression
+        (identifier))
+      (argument_list
+        (argument
+          (primary_expression
+            (identifier)))))))
+
+===
+Use as identifier in member position
+===
+
+let x = foo.use
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (member_expression
+      object: (primary_expression
+        (identifier))
+      property: (identifier))))
+
+===
+Use as identifier in import specifier
+===
+
+import { use } from "react"
+
+---
+
+(source_file
+  (import_declaration
+    (import_specifier
+      (identifier))
+    (string
+      (string_content))))
 
