@@ -581,6 +581,15 @@ impl Checker {
         result
     }
 
+    /// True if `name` was brought in by any `import` declaration — Floe, npm,
+    /// or relative TS. Used when `resolve_named_type` needs to distinguish a
+    /// locally-declared Floe function (not a type) from an imported alias
+    /// like hono's `Next`, which bind identically in the value namespace but
+    /// only the latter should be usable in type position.
+    pub(crate) fn is_imported_name(&self, name: &str) -> bool {
+        self.unused.imported_names.iter().any(|(n, _)| n == name)
+    }
+
     /// Push a new scope, run `f`, then pop the scope.
     pub(crate) fn in_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
         self.env.push_scope();

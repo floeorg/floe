@@ -512,6 +512,101 @@ let _x = capitalize("hello")
 }
 
 #[test]
+fn function_type_alias_import_usable_in_type_position() {
+    // Regression for #1326. When a dts import resolves to a function-type
+    // alias (hono's `export type Next = () => Promise<void>`), the name must
+    // be usable as a type annotation *and* calls on values typed with it
+    // must be arity-checked — the alternative is the old erased-to-`any`
+    // behaviour that silently warned `W004` on every middleware call.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Next } from "hono"
+let _useNext(next: Next) -> Promise<()> = {
+    next()
+    ()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let next_export = DtsExport {
+        name: "Next".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Promise".to_string(),
+                args: vec![TsType::Primitive("void".to_string())],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("hono".to_string(), vec![next_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _types, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        !has_error_containing(&diags, "is a value, not a type"),
+        "Next should be usable in type position, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_warning_containing(&diags, "has unknown type - arguments are not type-checked"),
+        "calling next() should be arity-checked, not fall back to Foreign W004, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn function_type_alias_call_rejects_extra_arg() {
+    // Companion to the regression above: the real win is that `next()` is
+    // arity-checked. Passing an extra arg should now surface as a concrete
+    // arity error instead of being swallowed by the old `any` escape hatch.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Next } from "hono"
+let _useNext(next: Next) -> Promise<()> = {
+    next("unexpected")
+    ()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let next_export = DtsExport {
+        name: "Next".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Promise".to_string(),
+                args: vec![TsType::Primitive("void".to_string())],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("hono".to_string(), vec![next_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    let messages: Vec<_> = diags.iter().map(|d| d.message.clone()).collect();
+    assert!(
+        messages
+            .iter()
+            .any(|m| { m.contains("argument") || m.contains("arity") || m.contains("expects") }),
+        "expected an arg-count diagnostic from `next(\"unexpected\")`, got: {messages:?}"
+    );
+}
+
+#[test]
 fn trusted_module_without_types_warns() {
     let diags = check(
         r#"
