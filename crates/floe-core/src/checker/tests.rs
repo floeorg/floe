@@ -3936,7 +3936,6 @@ let f() -> Result<number, Array<string>> = {
     );
 }
 
-
 // ── Single-variant union newtypes ───────────────────────────
 
 #[test]

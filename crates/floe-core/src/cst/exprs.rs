@@ -399,9 +399,9 @@ impl<'src> CstParser<'src> {
 
             // These are keywords only at item-declaration positions; in
             // expression position they're plain identifier reads.
-            Some(
-                TokenKind::Type | TokenKind::Opaque | TokenKind::Trusted,
-            ) => self.bump_remap(SyntaxKind::IDENT),
+            Some(TokenKind::Type | TokenKind::Opaque | TokenKind::Trusted) => {
+                self.bump_remap(SyntaxKind::IDENT)
+            }
 
             Some(TokenKind::Identifier(name)) => {
                 let name = name.clone();

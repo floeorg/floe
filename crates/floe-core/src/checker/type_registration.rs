@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::*;
 
 impl Checker {
@@ -389,6 +387,5 @@ impl Checker {
                 }
             }
         }
-
     }
 }

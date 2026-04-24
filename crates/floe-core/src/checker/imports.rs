@@ -295,9 +295,7 @@ impl Checker {
             Some(existing) => {
                 let (t, tr) = &key;
                 let message = if existing == "this module" {
-                    format!(
-                        "`impl {tr} for {t}` is defined here and also imported from `{source}`"
-                    )
+                    format!("`impl {tr} for {t}` is defined here and also imported from `{source}`")
                 } else if source == "this module" {
                     format!(
                         "`impl {tr} for {t}` is imported from `{existing}` and also defined here"

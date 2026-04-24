@@ -13,7 +13,6 @@ fn last_expr_span(body: &Expr) -> Span {
     body.span
 }
 
-
 impl Checker {
     // ── Default Exports ──────────────────────────────────────────
 
