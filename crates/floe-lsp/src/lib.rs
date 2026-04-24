@@ -5,6 +5,7 @@ mod goto_def;
 mod handlers;
 mod hover;
 mod index;
+mod rename;
 mod resolution;
 mod stdlib_hover;
 
@@ -169,22 +170,30 @@ fn position_to_offset(source: &str, position: Position) -> usize {
 }
 
 fn word_at_offset(source: &str, offset: usize) -> &str {
-    let bytes = source.as_bytes();
-    if offset >= bytes.len() {
-        return "";
+    match word_range_at_offset(source, offset) {
+        Some((start, end)) => &source[start..end],
+        None => "",
     }
+}
 
+fn word_range_at_offset(source: &str, offset: usize) -> Option<(usize, usize)> {
+    let bytes = source.as_bytes();
+    if offset > bytes.len() {
+        return None;
+    }
     let mut start = offset;
     while start > 0 && is_word_char(bytes[start - 1]) {
         start -= 1;
     }
-
     let mut end = offset;
     while end < bytes.len() && is_word_char(bytes[end]) {
         end += 1;
     }
-
-    &source[start..end]
+    if start == end {
+        None
+    } else {
+        Some((start, end))
+    }
 }
 
 /// Get the word prefix before the cursor (for completion filtering).

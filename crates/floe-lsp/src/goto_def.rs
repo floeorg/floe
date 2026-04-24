@@ -31,10 +31,11 @@ impl FloeLsp {
             return Ok(None);
         }
 
-        // Reference-tracker lookup for intra-module identifiers. Imports
-        // and member accesses fall through to the name-based index below,
-        // which knows how to resolve them.
-        if let Some(def_span) = doc.references.definition_at_offset(offset) {
+        // Imports resolve through to the source file via the index path below;
+        // a tracker hit on an import would land on the local rebinding.
+        if let Some(def_span) = doc.references.definition_at_offset(offset)
+            && !doc.index.covers_import(def_span.start, def_span.end)
+        {
             return Ok(Some(GotoDefinitionResponse::Scalar(Location {
                 uri: uri.clone(),
                 range: offset_to_range(&doc.content, def_span.start, def_span.end),
