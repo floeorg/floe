@@ -187,17 +187,28 @@ let [a, b] = pair
 ---
 
 (source_file
-  (ERROR)
-  (expression_statement
-    (assignment_expression
-      left: (primary_expression
-        (array_literal
-          (primary_expression
-            (identifier))
-          (primary_expression
-            (identifier))))
-      right: (primary_expression
-        (identifier)))))
+  (const_declaration
+    (invalid_array_pattern
+      (identifier)
+      (identifier))
+    (primary_expression
+      (identifier))))
+
+===
+Const with tuple pattern
+===
+
+let (a, b) = pair
+
+---
+
+(source_file
+  (const_declaration
+    (tuple_pattern
+      (identifier)
+      (identifier))
+    (primary_expression
+      (identifier))))
 
 ===
 Const with destructuring object
