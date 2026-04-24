@@ -3024,6 +3024,24 @@ impl Checker {
         expected: &Type,
         found: &Type,
     ) -> Option<(String, String)> {
+        // `Promise<T>` supplied where `T` expected — the call was not
+        // awaited. Without this branch the fn-return mismatch renders as
+        // `expected Promise<()>, found Promise<()>` (the fn-return check
+        // auto-unwraps `Promise<T>` on the declared side before comparing,
+        // so the printed sides match even though the types don't).
+        if let Type::Promise(inner) = found
+            && !matches!(expected, Type::Promise(_))
+            && self.types_compatible(expected, inner)
+        {
+            return Some((
+                format!(
+                    "expected `{}`, found `{}` — did you forget `|> await`?",
+                    expected, found
+                ),
+                format!("expected `{}`", expected),
+            ));
+        }
+
         // Bare `T` supplied where `Option<T>` expected: TS users coming from
         // `T | undefined` subtyping hit this constantly; point them at the
         // constructors instead of a bare `expected X, found Y`.

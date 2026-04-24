@@ -1167,6 +1167,108 @@ fn wrap_indexed_access_concrete_returns_field_type() {
     assert_eq!(wrap_boundary_type(&ty), Type::String);
 }
 
+/// Write the given `(filename, contents)` pairs into a fresh tempdir and
+/// parse `index.d.ts` as the entry point, following any `export type { … }
+/// from './…'` re-exports into the other files.
+fn parse_dts_entry(files: &[(&str, &str)]) -> Vec<super::DtsExport> {
+    let dir = tempfile::TempDir::new().unwrap();
+    for (name, contents) in files {
+        std::fs::write(dir.path().join(name), contents).unwrap();
+    }
+    super::dts::parse_dts_exports(&dir.path().join("index.d.ts")).expect("parse")
+}
+
+#[test]
+fn function_type_alias_reexport_preserves_signature() {
+    // Regression for #1326. Packages like hono curate their entry point as
+    // `export type { Next } from './types'` where `Next` is a function-type
+    // alias (`type Next = () => Promise<void>`). The parser must follow the
+    // re-export and attach the full Function signature under the re-exported
+    // name so downstream stages (boundary wrap, call arg checking) have the
+    // real shape instead of an erased `any`.
+    let exports = parse_dts_entry(&[
+        ("types.d.ts", r#"export type Next = () => Promise<void>;"#),
+        ("index.d.ts", r#"export type { Next } from './types';"#),
+    ]);
+    let next = exports
+        .iter()
+        .find(|e| e.name == "Next")
+        .expect("Next should be re-exported");
+    match &next.ts_type {
+        TsType::Function {
+            params,
+            return_type,
+        } => {
+            assert!(
+                params.is_empty(),
+                "Next should take no params, got {params:?}"
+            );
+            match return_type.as_ref() {
+                TsType::Generic { name, args } if name == "Promise" && args.len() == 1 => {
+                    assert!(
+                        matches!(&args[0], TsType::Primitive(p) if p == "void"),
+                        "Next should return Promise<void>, got {return_type:?}"
+                    );
+                }
+                other => panic!("expected Promise<void> return, got {other:?}"),
+            }
+        }
+        other => panic!("expected TsType::Function for re-exported Next, got {other:?}"),
+    }
+}
+
+#[test]
+fn record_type_alias_reexport_preserves_fields() {
+    // Companion to #1326. Plain record-shaped type aliases re-exported via
+    // `export type { X } from './y'` must also preserve their field list.
+    let exports = parse_dts_entry(&[
+        (
+            "types.d.ts",
+            r#"export type Config = { host: string; port: number };"#,
+        ),
+        ("index.d.ts", r#"export type { Config } from './types';"#),
+    ]);
+    let config = exports
+        .iter()
+        .find(|e| e.name == "Config")
+        .expect("Config should be re-exported");
+    match &config.ts_type {
+        TsType::Object(fields) => {
+            let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+            assert!(
+                names.contains(&"host") && names.contains(&"port"),
+                "expected Config fields host + port, got {names:?}"
+            );
+        }
+        other => panic!("expected TsType::Object for re-exported Config, got {other:?}"),
+    }
+}
+
+#[test]
+fn two_hop_reexport_chain_resolves() {
+    // `index.d.ts` → `public.d.ts` → `internal.d.ts`. Each hop is an
+    // `export type { X } from './…'` and the last file is where the real
+    // declaration lives. The loader has to keep following until it bottoms
+    // out on a concrete declaration.
+    let exports = parse_dts_entry(&[
+        (
+            "internal.d.ts",
+            r#"export type Next = () => Promise<void>;"#,
+        ),
+        ("public.d.ts", r#"export type { Next } from './internal';"#),
+        ("index.d.ts", r#"export type { Next } from './public';"#),
+    ]);
+    let next = exports
+        .iter()
+        .find(|e| e.name == "Next")
+        .expect("Next should be reachable across two re-export hops");
+    assert!(
+        matches!(next.ts_type, TsType::Function { .. }),
+        "expected Function after two re-export hops, got {:?}",
+        next.ts_type
+    );
+}
+
 #[test]
 fn named_reexport_pulls_in_full_interface_body() {
     // Regression for #1302. Packages like hono expose their entry point

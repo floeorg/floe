@@ -46,11 +46,9 @@ pub(super) fn resolve_typeof_types(
         })
         .collect();
 
-    if to_resolve.is_empty() {
-        return;
-    }
-
-    // Cache parsed exports to avoid re-parsing the same module
+    // Cache parsed exports to avoid re-parsing the same module. Populated by
+    // both the `typeof`-resolution loop below and the Any-fallback pass further
+    // down (which runs even when there are no typeof references to resolve).
     let mut module_cache: HashMap<String, Vec<DtsExport>> = HashMap::new();
 
     for (specifier, export_name, typeof_name) in to_resolve {
@@ -106,8 +104,11 @@ pub(super) fn resolve_typeof_types(
         }
     }
 
-    // Register type/interface definitions from ALL parsed npm packages so the
-    // checker can resolve Foreign type member access (e.g. DropResult.droppableId).
+    // Register type definitions from ALL parsed npm packages so the checker
+    // can resolve Foreign member access (e.g. DropResult.droppableId) and
+    // function-typed aliases like hono's `export type Next = () => Promise<void>`.
+    // tsgo's probe emits `any` for type-only imports because they can't appear
+    // as values; the dts fallback here supplies the real structural shape.
     for (module_source, module_exports) in &module_cache {
         let specifier = import_sources
             .iter()
@@ -116,8 +117,8 @@ pub(super) fn resolve_typeof_types(
             .unwrap_or_else(|| module_source.clone());
         let entry = result.entry(specifier).or_default();
         for export in module_exports {
-            if matches!(export.ts_type, TsType::Object(_)) {
-                // Replace Any entries with richer Object definitions
+            if is_resolvable_type(&export.ts_type) {
+                // Replace Any entries with richer definitions
                 if let Some(existing) = entry.iter_mut().find(|e| e.name == export.name) {
                     if matches!(existing.ts_type, TsType::Any) {
                         existing.ts_type = export.ts_type.clone();
@@ -127,6 +128,28 @@ pub(super) fn resolve_typeof_types(
                 }
             }
         }
+    }
+}
+
+/// Types rich enough to be worth registering as replacements for a tsgo-erased
+/// `Any`. Excludes `Any`/`Unknown`/bare `Named`/`This` — those add no
+/// information over what the probe already produced.
+fn is_resolvable_type(ty: &TsType) -> bool {
+    match ty {
+        TsType::Object(_)
+        | TsType::Function { .. }
+        | TsType::Generic { .. }
+        | TsType::Array(_)
+        | TsType::Tuple(_)
+        | TsType::Union(_)
+        | TsType::Primitive(_)
+        | TsType::StringLiteral(_)
+        | TsType::NumberLiteral(_)
+        | TsType::BooleanLiteral(_)
+        | TsType::Null
+        | TsType::Undefined
+        | TsType::IndexedAccess { .. } => true,
+        TsType::Any | TsType::Unknown | TsType::Named(_) | TsType::This => false,
     }
 }
 

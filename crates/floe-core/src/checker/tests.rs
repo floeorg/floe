@@ -512,6 +512,145 @@ let _x = capitalize("hello")
 }
 
 #[test]
+fn function_type_alias_import_usable_in_type_position() {
+    // Regression for #1326. When a dts import resolves to a function-type
+    // alias (hono's `export type Next = () => Promise<void>`), the name must
+    // be usable as a type annotation *and* calls on values typed with it
+    // must be arity-checked — the alternative is the old erased-to-`any`
+    // behaviour that silently warned `W004` on every middleware call.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Next } from "hono"
+let _useNext(next: Next) -> Promise<()> = {
+    next()
+    ()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let next_export = DtsExport {
+        name: "Next".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Promise".to_string(),
+                args: vec![TsType::Primitive("void".to_string())],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("hono".to_string(), vec![next_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _types, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        !has_error_containing(&diags, "is a value, not a type"),
+        "Next should be usable in type position, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_warning_containing(&diags, "has unknown type - arguments are not type-checked"),
+        "calling next() should be arity-checked, not fall back to Foreign W004, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn function_type_alias_call_rejects_extra_arg() {
+    // Companion to the regression above: the real win is that `next()` is
+    // arity-checked. Passing an extra arg should now surface as a concrete
+    // arity error instead of being swallowed by the old `any` escape hatch.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Next } from "hono"
+let _useNext(next: Next) -> Promise<()> = {
+    next("unexpected")
+    ()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let next_export = DtsExport {
+        name: "Next".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Promise".to_string(),
+                args: vec![TsType::Primitive("void".to_string())],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("hono".to_string(), vec![next_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "expected an arg-count TypeMismatch from `next(\"unexpected\")`, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn missing_await_emits_targeted_hint() {
+    // With #1326's fix the body of `next()` has its real `Promise<()>` shape
+    // instead of erased `Unknown`. The pre-existing fn-return check
+    // auto-unwraps `Promise<T>` on the DECLARED side before comparing, so
+    // a missing `|> await` renders as the nonsensical
+    // `expected Promise<()>, found Promise<()>`. The new detail path adds
+    // an await hint whenever `found` is a `Promise` whose inner matches the
+    // expected type.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Next } from "hono"
+let _useNext(next: Next) -> Promise<()> = {
+    next()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let next_export = DtsExport {
+        name: "Next".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Promise".to_string(),
+                args: vec![TsType::Primitive("void".to_string())],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("hono".to_string(), vec![next_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        has_error_containing(&diags, "did you forget `|> await`?"),
+        "expected missing-await hint, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn trusted_module_without_types_warns() {
     let diags = check(
         r#"
