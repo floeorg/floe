@@ -49,6 +49,13 @@ pub enum Document {
     /// Force the enclosing `Group` to render as broken even if its content
     /// fits on one line.
     ForceBroken(Box<Document>),
+
+    /// Pick one of two documents based on the enclosing `Group`'s mode.
+    /// Renders `broken` when the group is broken, `unbroken` when it fits.
+    IfBroken {
+        broken: Box<Document>,
+        unbroken: Box<Document>,
+    },
 }
 
 impl Document {
@@ -125,6 +132,14 @@ fn fits(limit: isize, mut current: isize, initial: Vec<(isize, Mode, &Document)>
             }
 
             Document::ForceBroken(_) => return false,
+
+            Document::IfBroken { broken, unbroken } => {
+                let chosen = match mode {
+                    Mode::Broken => broken,
+                    Mode::Unbroken => unbroken,
+                };
+                stack.push((indent, mode, chosen));
+            }
         }
     }
     current <= limit
@@ -190,6 +205,14 @@ fn render(out: &mut impl fmt::Write, limit: isize, top: &Document) -> fmt::Resul
                 // fits() has already short-circuited to false, putting the
                 // parent into Broken mode, so we just pass the mode through.
                 stack.push((indent, mode, inner));
+            }
+
+            Document::IfBroken { broken, unbroken } => {
+                let chosen = match mode {
+                    Mode::Broken => broken,
+                    Mode::Unbroken => unbroken,
+                };
+                stack.push((indent, mode, chosen));
             }
         }
     }
@@ -263,6 +286,17 @@ pub fn force_broken(doc: Document) -> Document {
 /// anything itself. Place inside a Group to unconditionally break it.
 pub fn force_break() -> Document {
     force_broken(nil())
+}
+
+/// Render `broken` when the enclosing Group is in broken mode, `unbroken`
+/// when it fits on one line. Unlike `break_`, neither branch emits its own
+/// newline — this is for content that should differ by mode without adding
+/// a line transition.
+pub fn if_broken(broken: Document, unbroken: Document) -> Document {
+    Document::IfBroken {
+        broken: Box::new(broken),
+        unbroken: Box::new(unbroken),
+    }
 }
 
 // -- Tests ------------------------------------------------------------------
@@ -396,5 +430,27 @@ mod tests {
         // Limit equals unbroken width: should fit.
         let doc = group(concat([str("ab"), soft_space(), str("cd")]));
         assert_eq!(doc.pretty_print(5), "ab cd");
+    }
+
+    #[test]
+    fn if_broken_picks_broken_doc_in_broken_group() {
+        let doc = group(concat([
+            str("aaaa"),
+            soft_space(),
+            if_broken(str("B"), str("U")),
+            str("bbbb"),
+        ]));
+        assert_eq!(doc.pretty_print(5), "aaaa\nBbbbb");
+    }
+
+    #[test]
+    fn if_broken_picks_unbroken_doc_in_unbroken_group() {
+        let doc = group(concat([
+            str("a"),
+            soft_space(),
+            if_broken(str("B"), str("U")),
+            str("b"),
+        ]));
+        assert_eq!(doc.pretty_print(80), "a Ub");
     }
 }

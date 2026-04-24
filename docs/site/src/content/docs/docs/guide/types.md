@@ -132,6 +132,8 @@ type Color =
 type Shape = Circle(number) | Rect(number, number) | Point
 ```
 
+`floe fmt` keeps the whole declaration on one line when it fits within the 100-column line width; otherwise it splits every variant onto its own `|` line. Single-variant newtypes and short enums stay inline.
+
 `|` at the top level of a `type` declaration always declares fresh constructors. If you want a structural string union instead, use `OneOf<>`.
 
 ### Qualified Variants

@@ -113,13 +113,16 @@ type UpdateUser = {
 // Variant fields: `(Type, ...)` is positional-only (no field names);
 // `{ name: Type, ... }` is named-only. Mixing the two forms is a parse error.
 // The leading `|` is optional.
+//
+// `floe fmt` keeps the declaration on one line when the whole `type Foo = ...`
+// fits in 100 columns; otherwise it splits every variant onto its own `|` line.
 type Route =
     | Home
     | Profile(string)
     | Settings { tab: string }
     | NotFound
 
-// Inline form is also fine
+// Short unions stay inline
 type Validation = Valid(string) | TooShort | TooLong | Empty
 
 // Nested sums

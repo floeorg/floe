@@ -4,16 +4,9 @@ export type Todo = {
     done: boolean,
 }
 
-export type Filter =
-    | All
-    | Active
-    | Completed
+export type Filter = All | Active | Completed
 
-export type Validation =
-    | Valid { text: string }
-    | TooShort
-    | TooLong
-    | Empty
+export type Validation = Valid { text: string } | TooShort | TooLong | Empty
 
 export type Timestamped = {
     createdAt: number,

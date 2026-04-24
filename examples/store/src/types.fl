@@ -1,11 +1,9 @@
 // ── Newtype wrappers ───────────────────────────────────
 // Single-variant sums carry nominal identity (Gleam/Rust style).
 
-export type ProductId =
-    | ProductId(number)
+export type ProductId = ProductId(number)
 
-export type OrderId =
-    | OrderId(number)
+export type OrderId = OrderId(number)
 
 // ── Shared field groups ────────────────────────────────
 
@@ -48,10 +46,7 @@ export type CartItem = {
 
 // ── Nested error sums ──────────────────────────────────
 
-export type NetworkError =
-    | Timeout { ms: number }
-    | DnsFailure { host: string }
-    | ConnectionRefused
+export type NetworkError = Timeout { ms: number } | DnsFailure { host: string } | ConnectionRefused
 
 export type ApiError =
     | Network(NetworkError)
@@ -61,11 +56,7 @@ export type ApiError =
 
 // ── Sort + Filter ──────────────────────────────────────
 
-export type SortOrder =
-    | PriceLow
-    | PriceHigh
-    | Rating
-    | Name
+export type SortOrder = PriceLow | PriceHigh | Rating | Name
 
 export type PriceRange =
     | Any

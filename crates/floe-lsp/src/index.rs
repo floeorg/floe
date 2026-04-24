@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tower_lsp::lsp_types::*;
 
 use floe_core::checker::{Type, simple_resolve_type_expr};
+use floe_core::formatter;
 use floe_core::parser::ast::*;
 
 pub(super) fn symbol_kind_to_completion(kind: SymbolKind) -> CompletionItemKind {
@@ -313,11 +314,11 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                         (body, "[record — nominal]".to_string())
                     }
                     TypeDef::Union(variants) => {
-                        let vs: Vec<String> = variants
+                        let rendered: Vec<String> = variants
                             .iter()
                             .map(|v| {
                                 if v.fields.is_empty() {
-                                    format!("    | {}", v.name)
+                                    v.name.clone()
                                 } else {
                                     let fs: Vec<String> = v
                                         .fields
@@ -334,11 +335,20 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                                             }
                                         })
                                         .collect();
-                                    format!("    | {}({})", v.name, fs.join(", "))
+                                    format!("{}({})", v.name, fs.join(", "))
                                 }
                             })
                             .collect();
-                        let body = format!(" =\n{}", vs.join("\n"));
+                        let inline = rendered.join(" | ");
+                        let one_line =
+                            format!("{vis}{opaque}type {}{type_params} = {inline}", decl.name);
+                        let body = if one_line.chars().count() <= formatter::MAX_WIDTH {
+                            format!(" = {inline}")
+                        } else {
+                            let vs: Vec<String> =
+                                rendered.iter().map(|v| format!("    | {v}")).collect();
+                            format!(" =\n{}", vs.join("\n"))
+                        };
                         let tag = if variants.len() == 1 && variants[0].name == decl.name {
                             "[newtype — nominal]".to_string()
                         } else {

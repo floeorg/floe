@@ -1974,6 +1974,8 @@ floe migrate file.tsx     # attempt to convert .tsx to .fl
 
 The formatter enforces a canonical style. Key conventions:
 
+- **Width-adaptive tagged sums:** Union type declarations stay on one line when the whole `type Foo = A | B | C` fits in the 100-column budget; otherwise every variant splits onto its own `| ` line with a 4-space indent. There is no middle ground. LSP hover uses the same rule.
+
 - **Blank line before final expression:** In multi-statement blocks (2+ statements/expressions), the formatter inserts a blank line before the last expression (the implicit return value). Single-expression bodies are unaffected.
 
 ```floe

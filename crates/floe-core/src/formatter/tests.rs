@@ -56,11 +56,67 @@ fn format_type_record() {
 }
 
 #[test]
-fn format_type_union() {
+fn format_short_union_stays_on_one_line() {
     assert_fmt(
         "type Route = |Home|Profile{id:string}|NotFound",
-        "type Route =\n    | Home\n    | Profile { id: string }\n    | NotFound",
+        "type Route = Home | Profile { id: string } | NotFound",
     );
+}
+
+#[test]
+fn format_single_variant_newtype_stays_on_one_line() {
+    assert_fmt(
+        "export type SnippetCode =\n    | SnippetCode(string)",
+        "export type SnippetCode = SnippetCode(string)",
+    );
+}
+
+#[test]
+fn format_enum_like_union_stays_on_one_line() {
+    assert_fmt(
+        "export type ExpiryOption = ONE_HOUR | ONE_DAY | ONE_WEEK",
+        "export type ExpiryOption = ONE_HOUR | ONE_DAY | ONE_WEEK",
+    );
+}
+
+#[test]
+fn format_long_union_splits_to_one_variant_per_line() {
+    // Over the 100-column threshold: every variant on its own `|` line.
+    let input = "type Shape = Circle(number) | Rectangle(number, number) | \
+                 Triangle(number, number, number) | Trapezoid(number, number, number, number)";
+    let expected = "type Shape =\n    \
+                    | Circle(number)\n    \
+                    | Rectangle(number, number)\n    \
+                    | Triangle(number, number, number)\n    \
+                    | Trapezoid(number, number, number, number)";
+    assert_fmt(input, expected);
+}
+
+#[test]
+fn format_union_exactly_at_column_boundary_stays_inline() {
+    // `type Roo = A | B | ... | W` is exactly 100 chars. At the boundary
+    // the width check uses `<=`, so it should stay on one line.
+    let input = "type Roo = A | B | C | D | E | F | G | H | I | J | K | L | M | \
+                 N | O | P | Q | R | S | T | U | V | W";
+    let expected = "type Roo = A | B | C | D | E | F | G | H | I | J | K | L | M | \
+                    N | O | P | Q | R | S | T | U | V | W";
+    assert_eq!(input.len(), 100);
+    assert_fmt(input, expected);
+}
+
+#[test]
+fn format_union_one_char_over_boundary_splits() {
+    // Same variants, name padded by one character — now 101 chars total,
+    // one over the budget, so the whole declaration splits.
+    let input = "type Root = A | B | C | D | E | F | G | H | I | J | K | L | M | \
+                 N | O | P | Q | R | S | T | U | V | W";
+    assert_eq!(input.len(), 101);
+    let expected = "type Root =\n    \
+                    | A\n    | B\n    | C\n    | D\n    | E\n    | F\n    | G\n    \
+                    | H\n    | I\n    | J\n    | K\n    | L\n    | M\n    | N\n    \
+                    | O\n    | P\n    | Q\n    | R\n    | S\n    | T\n    | U\n    \
+                    | V\n    | W";
+    assert_fmt(input, expected);
 }
 
 #[test]
