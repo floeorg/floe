@@ -22,11 +22,13 @@ fn extract_chain_segments(expr: &Expr) -> Option<Vec<String>> {
 
 /// Build the chain probe key for a member access on a call result.
 /// For `db.insert(...).values`, returns `Some("db$insert$values")`.
-/// Returns `None` if the expression is not a valid import chain (depth < 3).
+/// For depth-2 terminal calls like `c.json` the key is still built
+/// (`c$json`) — the variable-rooted probe isn't emitted for those, but
+/// the caller's cascade falls through to the type-rooted key which is.
 fn extract_chain_key(object: &Expr, field: &str) -> Option<String> {
     let mut segments = extract_chain_segments(object)?;
     segments.push(field.to_string());
-    if segments.len() >= 3 {
+    if segments.len() >= 2 {
         Some(segments.join("$"))
     } else {
         None
@@ -34,6 +36,16 @@ fn extract_chain_key(object: &Expr, field: &str) -> Option<String> {
 }
 
 use super::hydrator::is_single_uppercase as is_generic_param;
+
+/// Chain-call probe lookups try the `__<fp>` fingerprinted suffix first
+/// (so literal-narrowed overloads land on their specific variant), then
+/// the bare key (backward compat for probes that don't yet include
+/// arg-tuple fingerprints).
+fn fp_then_bare(fp: Option<&str>) -> impl Iterator<Item = String> + use<'_> {
+    fp.map(|s| format!("__{s}"))
+        .into_iter()
+        .chain(std::iter::once(String::new()))
+}
 
 /// Strip generic arguments from a Foreign type name for chain-probe lookup.
 /// `Context<unknown>` -> `Context`, `Router<A, B>` -> `Router`, `Foo` -> `Foo`.
@@ -955,7 +967,7 @@ impl Checker {
         // captures `.field(null! as any)`, so arg-vs-param checks would be
         // against `any` anyway.
         if let ExprKind::Member { object, field } = &callee.kind
-            && let Some(ty) = self.lookup_chain_call_probe(object, field)
+            && let Some(ty) = self.lookup_chain_call_probe(object, field, args)
         {
             return ty;
         }
@@ -2479,7 +2491,7 @@ impl Checker {
     fn chain_key_by_root_type(&self, object: &Expr, field: &str) -> Option<String> {
         let mut segments = extract_chain_segments(object)?;
         segments.push(field.to_string());
-        if segments.len() < 3 {
+        if segments.len() < 2 {
             return None;
         }
 
@@ -2559,40 +2571,63 @@ impl Checker {
     /// type-rooted key (e.g. `Database$insert$values`). `prefix` selects the
     /// probe family: `"__chain_call_"` for overload-resolved call results,
     /// `"__chain_await_"` for awaited chain results.
+    ///
+    /// `call_site_fp` is the arg-tuple fingerprint for `__chain_call_`
+    /// lookups — when set, each base key is first probed with the
+    /// `__{fp}` suffix so literal-narrowed overloads (e.g. hono's
+    /// `c.json(body, 201)`) land on their narrow variant instead of the
+    /// generic `null! as any` fallback.
     fn lookup_prefixed_chain_probe(
         &mut self,
         prefix: &str,
         object: &Expr,
         field: &str,
+        call_site_fp: Option<&str>,
     ) -> Option<Type> {
         let chain_key = extract_chain_key(object, field)?;
-        // Per-function scoped probe first — the probe generator emits a
-        // `__chain_{prefix}{fn}__{chain_key}` entry for handlers registered
-        // to a specific route, which threads the path into Context's P
-        // parameter and lets tsgo narrow `c.req.param("code")` to `string`.
-        if let Some(fn_name) = self.ctx.current_function.as_deref()
-            && let Some(ty) = self.lookup_dts_probe(&format!("{prefix}{fn_name}__{chain_key}"))
-        {
-            return Some(ty);
+        let fn_name = self.ctx.current_function.clone();
+        // Try every base key with the fingerprint suffix first (one pass),
+        // then fall back to the bare keys. Each variant goes through the
+        // same per-function / type-rooted cascade the bare lookup used.
+        for suffix in fp_then_bare(call_site_fp) {
+            if let Some(ref fn_name) = fn_name
+                && let Some(ty) =
+                    self.lookup_dts_probe(&format!("{prefix}{fn_name}__{chain_key}{suffix}"))
+            {
+                return Some(ty);
+            }
+            if let Some(ty) = self.lookup_dts_probe(&format!("{prefix}{chain_key}{suffix}")) {
+                return Some(ty);
+            }
+            let Some(type_key) = self.chain_key_by_root_type(object, field) else {
+                continue;
+            };
+            if let Some(ref fn_name) = fn_name
+                && let Some(ty) =
+                    self.lookup_dts_probe(&format!("{prefix}{fn_name}__{type_key}{suffix}"))
+            {
+                return Some(ty);
+            }
+            if let Some(ty) = self.lookup_dts_probe(&format!("{prefix}{type_key}{suffix}")) {
+                return Some(ty);
+            }
         }
-        if let Some(ty) = self.lookup_dts_probe(&format!("{prefix}{chain_key}")) {
-            return Some(ty);
-        }
-        let type_key = self.chain_key_by_root_type(object, field)?;
-        if let Some(fn_name) = self.ctx.current_function.as_deref()
-            && let Some(ty) = self.lookup_dts_probe(&format!("{prefix}{fn_name}__{type_key}"))
-        {
-            return Some(ty);
-        }
-        self.lookup_dts_probe(&format!("{prefix}{type_key}"))
+        None
     }
 
     /// Look up the call-result chain probe for a Member chain callee
     /// (e.g. `c.req.param("code")` → `__chain_call_Context$req$param`).
     /// tsgo has already resolved the correct overload, so the probe type
     /// is the concrete return value.
-    fn lookup_chain_call_probe(&mut self, object: &Expr, field: &str) -> Option<Type> {
-        self.lookup_prefixed_chain_probe("__chain_call_", object, field)
+    fn lookup_chain_call_probe(
+        &mut self,
+        object: &Expr,
+        field: &str,
+        args: &[Arg],
+    ) -> Option<Type> {
+        let rendered = interop::tsgo::probe_gen::render_call_args(args);
+        let fp = interop::tsgo::probe_gen::chain_call_fingerprint(&rendered);
+        self.lookup_prefixed_chain_probe("__chain_call_", object, field, Some(&fp))
     }
 
     /// Look up the awaited chain probe for a chain call expression
@@ -2610,7 +2645,7 @@ impl Checker {
         let ExprKind::Member { object, field } = &callee.kind else {
             return None;
         };
-        self.lookup_prefixed_chain_probe("__chain_await_", object, field)
+        self.lookup_prefixed_chain_probe("__chain_await_", object, field, None)
     }
 
     /// Resolve a member type without emitting diagnostics (for probe key lookups).

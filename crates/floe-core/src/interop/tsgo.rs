@@ -5,7 +5,7 @@
 //! 2. Parsing .d.ts / .ts files directly for type definitions
 //! 3. Querying tsgo LSP (hover) for richer type resolution
 
-mod probe_gen;
+pub(crate) mod probe_gen;
 #[cfg(feature = "native")]
 mod probe_run;
 mod specifier_map;
@@ -1453,6 +1453,76 @@ export let app = router<Bindings>()
         assert!(
             !probe.contains("__chain_handler__Context$env"),
             "bare `c.env` should not emit a depth-1 chain probe, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_threads_literal_args_into_call_probe() {
+        // Regression for #1352. hono's `c.json(body, status)` narrows its
+        // return via the literal status value — `201` picks
+        // `JSONRespondReturn<T, 201>`. The pre-existing probe passed a
+        // single `null! as any`, losing the literal. One `__chain_call_`
+        // variant per distinct rendered arg tuple now threads real
+        // literal values so tsgo resolves the matching overload.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handleCreate(c: Context<{ Bindings: Bindings }>) -> Response = {
+    c.json("hi", 201)
+}
+
+export let app = router<Bindings>()
+    |> get("/c", handleCreate)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains("__chain_base_handleCreate__Context.json(\"hi\", 201)"),
+            "literal args should appear verbatim in the call probe, got:\n{probe}"
+        );
+        let fp = probe_gen::chain_call_fingerprint(&["\"hi\"".to_string(), "201".to_string()]);
+        assert!(
+            probe.contains(&format!(
+                "export let __chain_call_handleCreate__Context$json__{fp} ="
+            )),
+            "fingerprinted probe variant missing, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_emits_distinct_fingerprints_per_literal_tuple() {
+        // A handler with two `c.json(_, status)` calls at different
+        // statuses must produce two distinct `__chain_call_` probes so
+        // tsgo narrows each to its own `JSONRespondReturn<T, S>` — a
+        // single probe would only capture one overload result.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handleUpdate(c: Context<{ Bindings: Bindings }>) -> Response = {
+    match c.req.param("id") {
+        None -> c.json({ error: "missing" }, 400),
+        Some(_) -> c.json({ ok: true }, 200),
+    }
+}
+
+export let app = router<Bindings>()
+    |> get("/u/:id", handleUpdate)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        let fp200 =
+            probe_gen::chain_call_fingerprint(&["null! as any".to_string(), "200".to_string()]);
+        let fp400 =
+            probe_gen::chain_call_fingerprint(&["null! as any".to_string(), "400".to_string()]);
+        assert_ne!(fp200, fp400);
+        assert!(
+            probe.contains(&format!("__chain_call_handleUpdate__Context$json__{fp200}"))
+                && probe.contains(&format!("__chain_call_handleUpdate__Context$json__{fp400}")),
+            "expected one probe per distinct literal tuple (200, 400), got:\n{probe}"
         );
     }
 
