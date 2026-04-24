@@ -1063,7 +1063,15 @@ fn index_signature_kv(idx: &oxc_ast::ast::TSIndexSignature<'_>) -> Option<(TsTyp
 /// Merge intersection members. Object members' fields are concatenated
 /// (later wins on name collision); non-object members collapse through
 /// the `T & {}` no-op pattern. When only one non-empty member survives,
-/// emit it directly to avoid a spurious union-like wrapper.
+/// emit it directly to avoid a spurious union-like wrapper. When
+/// several non-object members remain, prefer the one carrying the most
+/// structural information — a `Generic<args>` beats a bare `Named`
+/// beats everything else. hono's `c.json(body, S)` return type is
+/// `Response & TypedResponse<body, S, "json">`: the intersection-with-
+/// Response is an `instanceof` assertion and the narrow literal
+/// information lives on the `TypedResponse<…>` half. Dropping the
+/// Generic would leak the full Response into the checker and erase
+/// the literal status overload that tsgo already resolved.
 fn merge_intersection(parts: Vec<TsType>) -> TsType {
     let mut merged_fields: Vec<ObjectField> = Vec::new();
     let mut field_index: HashMap<String, usize> = HashMap::new();
@@ -1088,12 +1096,53 @@ fn merge_intersection(parts: Vec<TsType>) -> TsType {
         (true, 0) => TsType::Object(Vec::new()),
         (true, 1) => non_object.into_iter().next().unwrap(),
         (false, 0) => TsType::Object(merged_fields),
-        // Mixed: surface the object side (the dominant case for npm patterns
-        // like `SomeClass & { extra: X }`). The non-object halves are
-        // usually opaque class references we can't structurally merge.
         (false, _) => TsType::Object(merged_fields),
-        (true, _) => non_object.into_iter().next().unwrap(),
+        (true, _) => pick_most_specific(non_object),
     }
+}
+
+/// Rank intersection members so the carrier with the most structural
+/// information wins. Used only when every member is non-object (there's
+/// nothing to merge by fields); the first member of the highest rank
+/// is returned.
+fn intersection_member_rank(ty: &TsType) -> u8 {
+    match ty {
+        TsType::Generic { .. }
+        | TsType::Function { .. }
+        | TsType::Array(_)
+        | TsType::Tuple(_)
+        | TsType::Union(_)
+        | TsType::IndexedAccess { .. } => 3,
+        TsType::StringLiteral(_) | TsType::NumberLiteral(_) | TsType::BooleanLiteral(_) => 2,
+        TsType::Named(_) | TsType::This => 1,
+        TsType::Primitive(_)
+        | TsType::Object(_)
+        | TsType::Null
+        | TsType::Undefined
+        | TsType::Any
+        | TsType::Unknown => 0,
+    }
+}
+
+fn pick_most_specific(non_object: Vec<TsType>) -> TsType {
+    // Fold left so at equal rank the FIRST member wins — preserves the
+    // pre-existing "first-of-many" behavior for ambient cases like
+    // `Window & typeof globalThis` (both sides rank as `Named`, no
+    // narrow winner) while still letting a `Generic<args>` override a
+    // bare `Named` when one side is clearly richer.
+    let mut iter = non_object.into_iter();
+    let Some(mut best) = iter.next() else {
+        return TsType::Object(Vec::new());
+    };
+    let mut best_rank = intersection_member_rank(&best);
+    for ty in iter {
+        let rank = intersection_member_rank(&ty);
+        if rank > best_rank {
+            best = ty;
+            best_rank = rank;
+        }
+    }
+    best
 }
 
 /// `keyof T` — when `T` is a concrete object type, yield the union of its
@@ -1751,6 +1800,49 @@ pub(super) fn collect_and_resolve_interfaces(
     }
 
     bodies
+}
+
+/// Collect top-level and `declare global` type aliases (`type Foo = ...`).
+/// Used alongside `collect_and_resolve_interfaces` so ambient lib types like
+/// `AlgorithmIdentifier` or `BufferSource` register without a backing value.
+pub(super) fn collect_type_aliases(stmts: &[Statement<'_>]) -> HashMap<String, TsType> {
+    let mut aliases: HashMap<String, TsType> = HashMap::new();
+    for stmt in stmts {
+        collect_type_alias_info(stmt, &mut aliases);
+    }
+    aliases
+}
+
+fn collect_type_alias_info(stmt: &Statement<'_>, aliases: &mut HashMap<String, TsType>) {
+    match stmt {
+        Statement::TSTypeAliasDeclaration(type_decl) => {
+            let name = type_decl.id.name.to_string();
+            aliases
+                .entry(name)
+                .or_insert_with(|| convert_oxc_type(&type_decl.type_annotation));
+        }
+        Statement::ExportNamedDeclaration(export_decl) => {
+            if let Some(Declaration::TSTypeAliasDeclaration(type_decl)) = &export_decl.declaration {
+                let name = type_decl.id.name.to_string();
+                aliases
+                    .entry(name)
+                    .or_insert_with(|| convert_oxc_type(&type_decl.type_annotation));
+            }
+        }
+        Statement::TSModuleDeclaration(ns_decl) => {
+            if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
+                for inner_stmt in &block.body {
+                    collect_type_alias_info(inner_stmt, aliases);
+                }
+            }
+        }
+        Statement::TSGlobalDeclaration(global_decl) => {
+            for inner_stmt in &global_decl.body.body {
+                collect_type_alias_info(inner_stmt, aliases);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Collect type alias default values from statements.

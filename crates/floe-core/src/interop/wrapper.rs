@@ -73,8 +73,16 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                     if wrapped_args.iter().any(contains_placeholder_param) {
                         return Type::foreign(name.clone());
                     }
-                    let args_str: Vec<String> =
-                        wrapped_args.iter().map(|a| a.to_string()).collect();
+                    // Render arg strings from the raw TsType (not the wrapped
+                    // Floe Type) so numeric/boolean literals survive the
+                    // boundary. Floe's `Type` has a `StringLiteral` variant
+                    // but no `NumberLiteral` / `BooleanLiteral`, so wrapping
+                    // `TsType::NumberLiteral(201)` through `wrap_boundary_type`
+                    // widens it to `Type::Number` and the encoded name
+                    // becomes `TypedResponse<…, number, …>` — the exact
+                    // status literal that hono's narrow overloads pivot on
+                    // is erased. Direct TS-shape rendering preserves `201`.
+                    let args_str: Vec<String> = args.iter().map(render_generic_arg_ts).collect();
                     Type::foreign(format!("{}<{}>", name, args_str.join(", ")))
                 }
             }
@@ -148,6 +156,25 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
         TsType::IndexedAccess { object, index } => evaluate_indexed_access(object, index)
             .map(|ts| wrap_boundary_type(&ts))
             .unwrap_or(Type::Unknown),
+    }
+}
+
+/// Render a generic argument for the Foreign name string, preserving
+/// numeric/boolean/string literals that Floe's `Type` can't carry
+/// natively. For non-literal shapes we fall back to the wrapped Type's
+/// string form (e.g. `Array<string>`, `Foo<Bar>`).
+fn render_generic_arg_ts(arg: &TsType) -> String {
+    match arg {
+        TsType::NumberLiteral(n) => {
+            if n.fract() == 0.0 && n.is_finite() {
+                format!("{}", *n as i64)
+            } else {
+                format!("{n}")
+            }
+        }
+        TsType::BooleanLiteral(b) => b.to_string(),
+        TsType::StringLiteral(s) => format!("\"{s}\""),
+        _ => wrap_boundary_type(arg).to_string(),
     }
 }
 

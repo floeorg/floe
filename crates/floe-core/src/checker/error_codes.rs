@@ -29,8 +29,6 @@ pub enum ErrorCode {
     InvalidComparison,
     /// Unused import.
     UnusedImport,
-    /// Exported function must declare a return type.
-    MissingReturnType,
     /// Function must return a value of the declared type.
     MissingReturnValue,
 
@@ -165,7 +163,9 @@ impl ErrorCode {
             Self::FieldAccessOnResult => "E007",
             Self::InvalidComparison => "E008",
             Self::UnusedImport => "E009",
-            Self::MissingReturnType => "E010",
+            // E010 (`MissingReturnType`) retired — Floe now infers and
+            // exports return types from the body, including narrow
+            // tsgo-resolved shapes a user couldn't write manually.
             Self::MissingReturnValue => "E011",
             Self::ModuleNotFound => "E012",
             Self::PackageNotFound => "E013",

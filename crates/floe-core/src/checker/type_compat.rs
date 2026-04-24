@@ -27,6 +27,23 @@ fn split_foreign_name(foreign_name: &str) -> Option<(&str, Vec<&str>)> {
     Some((base, args))
 }
 
+/// Strip generic arguments from a Foreign type name for base-name
+/// comparisons. `Context<unknown>` → `Context`, `Router<A, B>` →
+/// `Router`, `Foo` → `Foo`.
+pub(crate) fn foreign_base(name: &str) -> &str {
+    name.split('<').next().unwrap_or(name)
+}
+
+/// True if two Foreign names share a base (e.g. `TypedResponse<_, 201, _>`
+/// and `TypedResponse<_, 400, _>` both have base `TypedResponse`). Used
+/// by match-arm unification to decide when two different narrow
+/// instantiations should form a `TsUnion` rather than emit an
+/// incompatible-arm error.
+pub(crate) fn same_foreign_base(a: &str, b: &str) -> bool {
+    let a_base = foreign_base(a);
+    !a_base.is_empty() && a_base == foreign_base(b)
+}
+
 /// True if a Foreign type name like `Router<E>` contains an arg that looks
 /// like an unresolved type parameter (single uppercase letter). Used to stay
 /// permissive for same-base-name Foreigns when the checker hasn't yet
@@ -131,6 +148,19 @@ impl Checker {
                         .zip(b.iter())
                         .all(|(x, y)| self.types_unifiable(x, y))
             }
+            // Same-base Foreigns with different instantiations (e.g. hono's
+            // `TypedResponse<_, 201, "json">` vs `TypedResponse<_, 400, "json">`
+            // across match arms) unify into a TsUnion in `merge_types` —
+            // callers treat them as unifiable so the match arm check doesn't
+            // reject before the union can be formed.
+            (Type::Foreign { name: a_name, .. }, Type::Foreign { name: b_name, .. })
+                if same_foreign_base(a_name, b_name) =>
+            {
+                true
+            }
+            (Type::TsUnion(parts), other) | (other, Type::TsUnion(parts)) => {
+                parts.iter().any(|p| self.types_unifiable(p, other))
+            }
             _ => self.types_compatible(a, b),
         }
     }
@@ -142,6 +172,27 @@ impl Checker {
         match (a, b) {
             (Type::Unknown | Type::Error, _) => b.clone(),
             (_, Type::Unknown | Type::Error) => a.clone(),
+            (Type::Foreign { name: a_name, .. }, Type::Foreign { name: b_name, .. })
+                if a_name != b_name && same_foreign_base(a_name, b_name) =>
+            {
+                Type::TsUnion(vec![a.clone(), b.clone()])
+            }
+            (Type::TsUnion(parts), other) => {
+                let mut merged = parts.clone();
+                if !merged.iter().any(|p| p == other) {
+                    merged.push(other.clone());
+                }
+                Type::TsUnion(merged)
+            }
+            (other, Type::TsUnion(parts)) => {
+                let mut merged = vec![other.clone()];
+                for p in parts {
+                    if !merged.iter().any(|m| m == p) {
+                        merged.push(p.clone());
+                    }
+                }
+                Type::TsUnion(merged)
+            }
             (a, b) if a.is_result() && b.is_result() => {
                 let ok = Self::merge_types(
                     a.result_ok().unwrap_or(&Type::Unknown),

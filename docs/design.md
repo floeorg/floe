@@ -1393,7 +1393,6 @@ These are enforced at compile time with clear error messages.
 
 | Rule | Error | Fix |
 |------|-------|-----|
-| Exported functions must declare return types | `ERROR: missing return type` | Add `-> ReturnType` |
 | `const name = (x) => ...` | `ERROR: use fn instead` | `fn name(x) => T { ... }` |
 | No unused variables | `ERROR: x is never used` | Remove or prefix with `_` |
 | No unused imports | `ERROR: useRef is never used` | Remove the import |
