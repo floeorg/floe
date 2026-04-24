@@ -26,34 +26,25 @@ local function check_binary(cmd)
 end
 
 local function check_treesitter()
+  local parser_files = vim.api.nvim_get_runtime_file("parser/floe.so", true)
+  if #parser_files > 0 then
+    h_ok("tree-sitter parser: " .. parser_files[1])
+    return
+  end
+
   local has_nts, parsers = pcall(require, "nvim-treesitter.parsers")
-  if not has_nts then
-    h_warn("nvim-treesitter is not installed", {
-      "Install nvim-treesitter for syntax highlighting: https://github.com/nvim-treesitter/nvim-treesitter",
-    })
-    return
-  end
-
-  local registered
-  if type(parsers.get_parser_configs) == "function" then
-    registered = parsers.get_parser_configs().floe ~= nil
-  else
-    registered = rawget(parsers, "floe") ~= nil
-  end
-
-  if not registered then
-    h_error("Floe tree-sitter parser is not registered with nvim-treesitter")
-    h_info("Call `require('floe').setup()` in your config")
-    return
-  end
-
-  if #vim.api.nvim_get_runtime_file("parser/floe.so", true) > 0 then
-    h_ok("tree-sitter parser for floe is installed")
-  else
+  if has_nts and type(parsers.get_parser_configs) == "function" then
     h_warn("tree-sitter parser for floe is not installed", {
       "Run `:TSInstall floe` to install it",
     })
+    return
   end
+
+  h_warn("tree-sitter parser for floe is not installed", {
+    "nvim-treesitter v1.x (main branch) does not install out-of-registry parsers.",
+    "Build manually: cd <floe-repo>/editors/tree-sitter-floe && cc -shared -fPIC -I src -o ~/.local/share/nvim/site/parser/floe.so src/parser.c",
+    "Or install nvim-treesitter master branch and run :TSInstall floe",
+  })
 end
 
 local function check_queries()

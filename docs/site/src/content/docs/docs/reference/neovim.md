@@ -80,6 +80,23 @@ require("floe").setup({
 })
 ```
 
+## Tree-sitter parser
+
+### nvim-treesitter master branch (legacy)
+
+`:TSInstall floe` — floe.nvim registers the parser config and, when `auto_install_parser = true`, runs the installer on first open.
+
+### nvim-treesitter main branch (v1.x — current LazyVim default)
+
+`nvim-treesitter` v1.x only installs parsers from its upstream registry. Until floe is accepted upstream, build the parser yourself and drop it on your runtime path:
+
+```bash
+cd <floe-repo>/editors/tree-sitter-floe
+cc -shared -fPIC -I src -o ~/.local/share/nvim/site/parser/floe.so src/parser.c
+```
+
+floe.nvim detects the parser on the runtime path and attaches tree-sitter highlighting via `vim.treesitter.start` — no further configuration required.
+
 ## Health check
 
 Run `:checkhealth floe` to verify your setup. It reports the status of the `floe` binary, filetype registration, highlight queries on the runtime path, and the tree-sitter parser.
