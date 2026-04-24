@@ -94,11 +94,13 @@ pub fn analyse_parsed(
     }
     let (diagnostics, name_types, expr_types, invalid_exprs) = checker.check_all(&program);
     let name_type_map = checker.take_name_type_map();
+    let shadowed_keywords = checker.take_shadowed_keyword_exprs();
     let references = std::mem::take(&mut checker.references);
     let typed = lower_to_typed(
         program,
         &expr_types,
         &invalid_exprs,
+        &shadowed_keywords,
         &inputs.resolved_imports,
     );
     AnalysedModule {

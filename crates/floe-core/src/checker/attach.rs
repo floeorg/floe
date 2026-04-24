@@ -23,6 +23,9 @@ static EMPTY_TYPES: LazyLock<ExprTypeMap> = LazyLock::new(ExprTypeMap::new);
 /// Shared empty invalid-exprs set for shallow import converters.
 static EMPTY_INVALID: LazyLock<HashSet<ExprId>> = LazyLock::new(HashSet::new);
 
+/// Shared empty shadowed-keyword map for shallow import converters.
+static EMPTY_SHADOWED: LazyLock<HashMap<ExprId, &'static str>> = LazyLock::new(HashMap::new);
+
 /// Convert an untyped program into a typed program, attaching each
 /// expression's resolved type from `types`. Expressions whose IDs
 /// appear in `invalid_exprs` are replaced with `ExprKind::Invalid`
@@ -34,10 +37,12 @@ pub fn attach_types(
     program: UntypedProgram,
     types: &ExprTypeMap,
     invalid_exprs: &HashSet<ExprId>,
+    shadowed_keywords: &HashMap<ExprId, &'static str>,
 ) -> TypedProgram {
     Attacher {
         types,
         invalid_exprs,
+        shadowed_keywords,
     }
     .program(program)
 }
@@ -57,11 +62,12 @@ pub fn lower_to_typed(
     mut program: UntypedProgram,
     expr_types: &ExprTypeMap,
     invalid_exprs: &HashSet<ExprId>,
+    shadowed_keywords: &HashMap<ExprId, &'static str>,
     resolved: &HashMap<String, ResolvedImports>,
 ) -> TypedProgram {
     crate::checker::mark_async_functions(&mut program);
     crate::desugar::desugar_program(&mut program, resolved);
-    attach_types(program, expr_types, invalid_exprs)
+    attach_types(program, expr_types, invalid_exprs, shadowed_keywords)
 }
 
 /// Convert an untyped `TypeDecl` (e.g. from the resolver's list of
@@ -76,6 +82,7 @@ pub fn attach_type_decl_shallow(decl: &TypeDecl<()>) -> TypedTypeDecl {
     Attacher {
         types: &EMPTY_TYPES,
         invalid_exprs: &EMPTY_INVALID,
+        shadowed_keywords: &EMPTY_SHADOWED,
     }
     .type_decl(decl.clone())
 }
@@ -88,6 +95,7 @@ pub fn attach_trait_decl_shallow(decl: &TraitDecl<()>) -> TypedTraitDecl {
     Attacher {
         types: &EMPTY_TYPES,
         invalid_exprs: &EMPTY_INVALID,
+        shadowed_keywords: &EMPTY_SHADOWED,
     }
     .trait_decl(decl.clone())
 }
@@ -95,6 +103,10 @@ pub fn attach_trait_decl_shallow(decl: &TraitDecl<()>) -> TypedTraitDecl {
 struct Attacher<'a> {
     types: &'a ExprTypeMap,
     invalid_exprs: &'a HashSet<ExprId>,
+    /// ExprIds of keyword-placeholder exprs (`Todo`, `Unreachable`, `Clear`,
+    /// `Unchanged`) that are shadowed by a local binding with the same name.
+    /// Rewritten to `ExprKind::Identifier` during attach (issue #1226).
+    shadowed_keywords: &'a HashMap<ExprId, &'static str>,
 }
 
 impl Attacher<'_> {
@@ -357,6 +369,20 @@ impl Attacher<'_> {
             .get(&expr.id)
             .cloned()
             .unwrap_or_else(|| Arc::clone(&UNKNOWN));
+
+        // Keyword expressions (`todo`, `unreachable`, `clear`, `unchanged`)
+        // shadowed by a local binding were flagged by the checker. Rewrite
+        // them to a plain identifier read so codegen emits the variable
+        // instead of the keyword's runtime form (issue #1226).
+        if let Some(&name) = self.shadowed_keywords.get(&expr.id) {
+            return Expr {
+                id: expr.id,
+                kind: ExprKind::Identifier(name.to_string()),
+                ty,
+                span: expr.span,
+            };
+        }
+
         Expr {
             id: expr.id,
             kind: self.expr_kind(expr.kind),
@@ -578,6 +604,7 @@ mod tests {
             program,
             &ExprTypeMap::new(),
             &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
         );
         assert!(typed.items.is_empty());
     }
@@ -604,6 +631,7 @@ mod tests {
             program,
             &ExprTypeMap::new(),
             &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
         );
         let ItemKind::Expr(e) = &typed.items[0].kind else {
             panic!("expected Expr item");
@@ -630,7 +658,12 @@ mod tests {
             }],
             span: span(),
         };
-        let typed = attach_types(program, &types, &std::collections::HashSet::new());
+        let typed = attach_types(
+            program,
+            &types,
+            &std::collections::HashSet::new(),
+            &std::collections::HashMap::new(),
+        );
         let ItemKind::Expr(e) = &typed.items[0].kind else {
             panic!("expected Expr item");
         };

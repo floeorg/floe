@@ -62,7 +62,8 @@ fn compile_inner(source: &str) -> CompileResult {
     };
 
     // Type check
-    let (check_diags, expr_types, invalid_exprs) = Checker::new().check_full(&program);
+    let (check_diags, expr_types, invalid_exprs, shadowed_keywords) =
+        Checker::new().check_full(&program);
     let has_errors = check_diags
         .iter()
         .any(|d| d.severity == diagnostic::Severity::Error);
@@ -78,7 +79,8 @@ fn compile_inner(source: &str) -> CompileResult {
     }
 
     // Convert to typed AST for codegen (even with type errors, for playground preview).
-    let typed_program = floe_core::checker::attach_types(program, &expr_types, &invalid_exprs);
+    let typed_program =
+        floe_core::checker::attach_types(program, &expr_types, &invalid_exprs, &shadowed_keywords);
     let output = Codegen::new().generate(&typed_program);
 
     CompileResult {

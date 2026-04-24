@@ -268,7 +268,10 @@ impl<'src> CstParser<'src> {
                 self.builder.finish_node();
             }
 
-            Some(TokenKind::Parse) => {
+            // `parse` is keyword only when followed by `<` (issue #1226).
+            // Without the angle-bracket, it parses as an identifier reference
+            // so users can bind local `parse` variables.
+            Some(TokenKind::Parse) if self.peek_is(TokenKind::LessThan) => {
                 self.builder.start_node(SyntaxKind::PARSE_EXPR.into());
                 self.bump(); // parse
                 self.eat_trivia();
@@ -289,8 +292,10 @@ impl<'src> CstParser<'src> {
                 }
                 self.builder.finish_node();
             }
+            Some(TokenKind::Parse) => self.bump_remap(SyntaxKind::IDENT),
 
-            Some(TokenKind::Mock) => {
+            // `mock` is keyword only when followed by `<` (issue #1226).
+            Some(TokenKind::Mock) if self.peek_is(TokenKind::LessThan) => {
                 self.builder.start_node(SyntaxKind::MOCK_EXPR.into());
                 self.bump(); // mock
                 self.eat_trivia();
@@ -319,15 +324,18 @@ impl<'src> CstParser<'src> {
                 }
                 self.builder.finish_node();
             }
+            Some(TokenKind::Mock) => self.bump_remap(SyntaxKind::IDENT),
 
             Some(TokenKind::Match) => self.parse_match_expr(),
-            Some(TokenKind::Collect) => {
+            // `collect` is keyword only when followed by `{` (issue #1226).
+            Some(TokenKind::Collect) if self.peek_is(TokenKind::LeftBrace) => {
                 self.builder.start_node(SyntaxKind::COLLECT_EXPR.into());
                 self.bump(); // collect
                 self.eat_trivia();
                 self.parse_block_expr();
                 self.builder.finish_node();
             }
+            Some(TokenKind::Collect) => self.bump_remap(SyntaxKind::IDENT),
             Some(TokenKind::LeftBrace) => {
                 if self.is_object_literal() {
                     self.parse_object_literal();
@@ -393,6 +401,15 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::SelfKw) => {
                 self.bump();
             }
+
+            // Contextual keywords with no expression-form semantics — they
+            // are only keywords at their specific item-level positions (type
+            // declarations, import modifiers, type derives). In expression
+            // position they parse as identifier references so users can bind
+            // and read locals with these names (issue #1226).
+            Some(
+                TokenKind::Type | TokenKind::Opaque | TokenKind::Trusted | TokenKind::Deriving,
+            ) => self.bump_remap(SyntaxKind::IDENT),
 
             Some(TokenKind::Identifier(name)) => {
                 let name = name.clone();
@@ -531,9 +548,15 @@ impl<'src> CstParser<'src> {
     fn parse_call_arg(&mut self) {
         self.builder.start_node(SyntaxKind::ARG.into());
 
-        // Named arg: `label: expr` or punned `label:`
-        if self.is_ident() && self.peek_is(TokenKind::Colon) {
-            self.bump(); // label
+        // Named arg: `label: expr` or punned `label:`. Contextual keywords
+        // are accepted as labels (issue #1226, e.g. `Message(type: "click")`).
+        if (self.is_ident() || self.is_contextual_ident_keyword()) && self.peek_is(TokenKind::Colon)
+        {
+            if matches!(self.current_kind(), Some(TokenKind::Identifier(_))) {
+                self.bump(); // label
+            } else {
+                self.bump_remap(SyntaxKind::IDENT);
+            }
             self.eat_trivia();
             self.bump(); // :
 
@@ -833,7 +856,7 @@ impl<'src> CstParser<'src> {
     }
 
     fn parse_record_pattern_field(&mut self) {
-        self.expect_ident();
+        self.expect_ident_flex();
         self.eat_trivia();
         if self.at(TokenKind::Colon) {
             self.bump();
@@ -847,7 +870,7 @@ impl<'src> CstParser<'src> {
     fn parse_named_variant_pattern_field(&mut self) {
         self.builder
             .start_node(SyntaxKind::VARIANT_FIELD_PATTERN.into());
-        self.expect_ident();
+        self.expect_ident_flex();
         self.eat_trivia();
         if self.at(TokenKind::Colon) {
             self.bump();
@@ -870,8 +893,23 @@ impl<'src> CstParser<'src> {
         if i >= self.tokens.len() {
             return false;
         }
-        // Must be an identifier (not a keyword)
-        if !matches!(self.tokens[i].kind, TokenKind::Identifier(_)) {
+        // The first entry must be an identifier or a contextual keyword that
+        // can appear as a field name (e.g. `{ type: ... }`).
+        if !matches!(
+            &self.tokens[i].kind,
+            TokenKind::Identifier(_)
+                | TokenKind::Type
+                | TokenKind::Todo
+                | TokenKind::Unreachable
+                | TokenKind::Mock
+                | TokenKind::Parse
+                | TokenKind::Clear
+                | TokenKind::Unchanged
+                | TokenKind::Trusted
+                | TokenKind::Opaque
+                | TokenKind::Collect
+                | TokenKind::Deriving
+        ) {
             return false;
         }
         // Next non-trivia token after the ident must be `:` (key: value) or `,` or `}` (shorthand)
@@ -899,7 +937,7 @@ impl<'src> CstParser<'src> {
 
     fn parse_object_field(&mut self) {
         self.builder.start_node(SyntaxKind::OBJECT_FIELD.into());
-        self.expect_ident();
+        self.expect_ident_flex();
         self.eat_trivia();
         if self.at(TokenKind::Colon) {
             self.bump(); // :

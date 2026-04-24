@@ -2724,3 +2724,125 @@ fn parse_lossy_module_exposes_extra_even_when_errors() {
     assert_eq!(extra.comments.len(), 1);
     assert!(extra.new_lines.contains(&10));
 }
+
+// ── Contextual keywords (issue #1226) ────────────────────────
+// Keywords like `type`, `todo`, `mock` may appear as identifiers in
+// unambiguous positions (field names, binders, parameter names). The
+// parser remaps them to IDENT when consumed in those positions.
+
+fn const_name(item: ItemKind) -> String {
+    match item {
+        ItemKind::Const(c) => match c.binding {
+            ConstBinding::Name(n) => n,
+            other => panic!("expected simple-name binding, got {other:?}"),
+        },
+        ItemKind::Function(f) => f.name,
+        other => panic!("expected Const or Function, got {other:?}"),
+    }
+}
+
+#[test]
+fn let_binder_accepts_type_keyword() {
+    assert_eq!(const_name(first_item("let type = 5")), "type");
+}
+
+#[test]
+fn let_binder_accepts_todo_keyword() {
+    assert_eq!(const_name(first_item("let todo = 5")), "todo");
+}
+
+#[test]
+fn let_binder_accepts_mock_keyword() {
+    assert_eq!(const_name(first_item("let mock = 5")), "mock");
+}
+
+#[test]
+fn let_binder_accepts_parse_keyword() {
+    assert_eq!(const_name(first_item("let parse = 5")), "parse");
+}
+
+#[test]
+fn fn_name_accepts_type_keyword() {
+    assert_eq!(
+        const_name(first_item("let type(x: number) -> number = { x }")),
+        "type"
+    );
+}
+
+#[test]
+fn fn_param_accepts_type_keyword() {
+    let ItemKind::Function(f) = first_item("let f(type: number) -> number = { 0 }") else {
+        panic!("expected Function");
+    };
+    assert_eq!(f.params[0].name, "type");
+}
+
+#[test]
+fn fn_param_accepts_todo_keyword() {
+    let ItemKind::Function(f) = first_item("let save(todo: string) -> string = { todo }") else {
+        panic!("expected Function");
+    };
+    assert_eq!(f.params[0].name, "todo");
+}
+
+#[test]
+fn record_type_accepts_type_as_field_name() {
+    let prog = parse_ok("type Message = { type: string, body: string }");
+    let ItemKind::TypeDecl(decl) = &prog.items[0].kind else {
+        panic!("expected TypeDecl");
+    };
+    let TypeDef::Record(entries) = &decl.def else {
+        panic!("expected Record def");
+    };
+    let names: Vec<&str> = entries
+        .iter()
+        .filter_map(|e| match e {
+            RecordEntry::Field(f) => Some(f.name.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(names, vec!["type", "body"]);
+}
+
+#[test]
+fn record_literal_accepts_type_as_field_name() {
+    let ExprKind::Object(fields) = first_expr(r#"{ type: "click", x: 1 }"#) else {
+        panic!("expected Object literal");
+    };
+    assert_eq!(fields[0].0, "type");
+    assert_eq!(fields[1].0, "x");
+}
+
+#[test]
+fn record_pattern_accepts_type_as_field_name() {
+    // Inside a match arm, `{ type: "click" }` matches a record with a `type`
+    // field. The parser must not reject `type` here.
+    let expr = first_expr(r#"match e { { type: "click" } -> 1, _ -> 0 }"#);
+    let ExprKind::Match { arms, .. } = expr else {
+        panic!("expected Match");
+    };
+    assert_eq!(arms.len(), 2);
+}
+
+#[test]
+fn jsx_prop_accepts_type_keyword() {
+    let expr = first_expr(r#"<input type="text" />"#);
+    assert!(matches!(expr, ExprKind::Jsx(_)));
+}
+
+#[test]
+fn type_decl_still_parses_as_type_decl() {
+    let prog = parse_ok("type User = { name: string }");
+    assert!(matches!(prog.items[0].kind, ItemKind::TypeDecl { .. }));
+}
+
+#[test]
+fn bare_todo_is_still_placeholder() {
+    // Without a shadowing local, `todo` remains the panic placeholder.
+    assert_eq!(first_expr("todo"), ExprKind::Todo);
+}
+
+#[test]
+fn bare_unreachable_is_still_placeholder() {
+    assert_eq!(first_expr("unreachable"), ExprKind::Unreachable);
+}

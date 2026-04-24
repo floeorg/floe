@@ -208,6 +208,57 @@ impl<'src> CstParser<'src> {
         )
     }
 
+    /// True when the current token is a keyword that can appear as an
+    /// identifier in unambiguous identifier positions (record field names,
+    /// binders, parameter names, JSX attributes, etc.). See issue #1226 for
+    /// the decision to make these contextual.
+    fn is_contextual_ident_keyword(&self) -> bool {
+        matches!(
+            self.current_kind(),
+            Some(
+                TokenKind::Type
+                    | TokenKind::Todo
+                    | TokenKind::Unreachable
+                    | TokenKind::Mock
+                    | TokenKind::Parse
+                    | TokenKind::Clear
+                    | TokenKind::Unchanged
+                    | TokenKind::Trusted
+                    | TokenKind::Opaque
+                    | TokenKind::Collect
+                    | TokenKind::Deriving
+            )
+        )
+    }
+
+    /// Accept the current token as an identifier, allowing contextual
+    /// keywords. Keyword tokens are remapped to `IDENT` in the green tree so
+    /// downstream lowering treats them uniformly.
+    fn is_ident_flex(&self) -> bool {
+        self.is_ident() || self.is_contextual_ident_keyword()
+    }
+
+    /// Consume the current token as an identifier, remapping contextual
+    /// keywords to `IDENT`. On a non-identifier token, records an error but
+    /// does not bump.
+    fn expect_ident_flex(&mut self) {
+        if matches!(self.current_kind(), Some(TokenKind::Identifier(_))) {
+            self.bump();
+        } else if self.is_contextual_ident_keyword() {
+            self.bump_remap(SyntaxKind::IDENT);
+        } else {
+            self.error_kind(
+                &format!("expected identifier, found {:?}", self.current_kind()),
+                CstErrorKind::UnexpectedToken,
+            );
+        }
+    }
+
+    /// `parse_comma_separated`-compatible wrapper for `expect_ident_flex`.
+    fn expect_ident_flex_item(&mut self) {
+        self.expect_ident_flex();
+    }
+
     /// Check if the current token is a keyword that could appear as a JSX prop name
     /// (e.g., `type`, `for`, `match`, `fn`, `const`, etc.).
     fn is_keyword(&self) -> bool {
@@ -222,6 +273,16 @@ impl<'src> CstParser<'src> {
                     | TokenKind::Import
                     | TokenKind::Export
                     | TokenKind::Trait
+                    | TokenKind::Todo
+                    | TokenKind::Unreachable
+                    | TokenKind::Mock
+                    | TokenKind::Parse
+                    | TokenKind::Clear
+                    | TokenKind::Unchanged
+                    | TokenKind::Trusted
+                    | TokenKind::Opaque
+                    | TokenKind::Collect
+                    | TokenKind::Deriving
             )
         )
     }
@@ -576,8 +637,13 @@ impl<'src> CstParser<'src> {
     }
 
     fn expect_ident(&mut self) {
-        if self.is_ident() {
+        if matches!(self.current_kind(), Some(TokenKind::Identifier(_))) {
             self.bump();
+        } else if self.at(TokenKind::Parse) {
+            // `parse` was historically accepted as an identifier but bumped
+            // with its keyword SyntaxKind — remap so lowering sees IDENT
+            // uniformly with other contextual keywords.
+            self.bump_remap(SyntaxKind::IDENT);
         } else {
             self.error_kind(
                 &format!("expected identifier, found {:?}", self.current_kind()),
@@ -604,12 +670,12 @@ impl<'src> CstParser<'src> {
 
     /// Parse a destructuring field: `ident` or `ident: ident` (with rename).
     fn parse_destructure_field(&mut self) {
-        self.expect_ident();
+        self.expect_ident_flex();
         self.eat_trivia();
         if self.at(TokenKind::Colon) {
             self.bump(); // eat ':'
             self.eat_trivia();
-            self.expect_ident(); // alias
+            self.expect_ident_flex(); // alias
         }
     }
 

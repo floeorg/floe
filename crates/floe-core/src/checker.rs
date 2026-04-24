@@ -272,6 +272,12 @@ pub struct Checker {
     /// program. LSP features (go-to-definition, find-references, rename)
     /// query this side-table instead of re-walking the AST.
     pub(crate) references: crate::reference::ReferenceTracker,
+    /// ExprIds of `ExprKind::Todo`/`Unreachable`/`Clear`/`Unchanged` expressions
+    /// that turned out to be references to a local binding with the same name
+    /// (issue #1226). `attach_types` rewrites these to `ExprKind::Identifier`
+    /// so codegen emits a variable read rather than the keyword's runtime
+    /// panic / Settable sentinel.
+    pub(crate) shadowed_keyword_exprs: HashMap<ExprId, &'static str>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -480,6 +486,7 @@ impl Checker {
             ts_imports_missing_tsgo: HashSet::new(),
             active_type_params: HashMap::new(),
             references: crate::reference::ReferenceTracker::new(),
+            shadowed_keyword_exprs: HashMap::new(),
         }
     }
 
@@ -610,9 +617,15 @@ impl Checker {
     pub fn check_full(
         mut self,
         program: &Program,
-    ) -> (Vec<Diagnostic>, ExprTypeMap, HashSet<ExprId>) {
+    ) -> (
+        Vec<Diagnostic>,
+        ExprTypeMap,
+        HashSet<ExprId>,
+        HashMap<ExprId, &'static str>,
+    ) {
         let (diags, _, expr_types, invalid) = self.check_all(program);
-        (diags, expr_types, invalid)
+        let shadowed = self.take_shadowed_keyword_exprs();
+        (diags, expr_types, invalid, shadowed)
     }
 
     /// Check a program and return diagnostics, name_type_map, expr_type_map,
@@ -645,6 +658,14 @@ impl Checker {
     /// Take the checker's top-level `name -> Arc<Type>` map.
     pub fn take_name_type_map(&mut self) -> HashMap<String, std::sync::Arc<Type>> {
         std::mem::take(&mut self.name_type_map)
+    }
+
+    /// Take the set of keyword-expression IDs (`todo`, `unreachable`, `clear`,
+    /// `unchanged`) that turned out to be references to a local binding with
+    /// the same name. `attach_types` consumes this to rewrite them into
+    /// plain identifier reads (issue #1226).
+    pub fn take_shadowed_keyword_exprs(&mut self) -> HashMap<ExprId, &'static str> {
+        std::mem::take(&mut self.shadowed_keyword_exprs)
     }
 
     /// Run all checks and return all maps. Takes `&mut self` so callers
