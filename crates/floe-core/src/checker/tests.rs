@@ -605,6 +605,52 @@ let _useNext(next: Next) -> Promise<()> = {
 }
 
 #[test]
+fn missing_await_emits_targeted_hint() {
+    // With #1326's fix the body of `next()` has its real `Promise<()>` shape
+    // instead of erased `Unknown`. The pre-existing fn-return check
+    // auto-unwraps `Promise<T>` on the DECLARED side before comparing, so
+    // a missing `|> await` renders as the nonsensical
+    // `expected Promise<()>, found Promise<()>`. The new detail path adds
+    // an await hint whenever `found` is a `Promise` whose inner matches the
+    // expected type.
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Next } from "hono"
+let _useNext(next: Next) -> Promise<()> = {
+    next()
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let next_export = DtsExport {
+        name: "Next".to_string(),
+        ts_type: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Generic {
+                name: "Promise".to_string(),
+                args: vec![TsType::Primitive("void".to_string())],
+            }),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("hono".to_string(), vec![next_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        has_error_containing(&diags, "did you forget `|> await`?"),
+        "expected missing-await hint, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn trusted_module_without_types_warns() {
     let diags = check(
         r#"
