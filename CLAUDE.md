@@ -82,13 +82,16 @@ integrations, following the same pattern as Gleam.
 | `.github/release-please-manifest.json` | current version tracking |
 | `.github/workflows/release-please.yml` | workflow that opens Release PRs |
 | `.github/workflows/release.yml` | workflow that builds binaries on tag push |
+| `.github/workflows/pin-alpha.yml` | appends `Release-As: 0.1.0-alpha.N+1` commits to keep the alpha base pinned (remove when graduating to stable) |
 | `CHANGELOG.md` | auto-maintained changelog |
 
 ### Pre-1.0 strategy
 
-Floe is in **alpha**. All pre-stable releases ship as `0.1.0-alpha.N`, `0.1.0-beta.N`, `0.1.0-rc.N` — never as a bare `0.x.y` stable. Release-please is configured with `prerelease: true` + `prerelease-type: "alpha"` so merges automatically roll the alpha counter.
+Floe is in **alpha**. All pre-stable releases ship as `0.1.0-alpha.N`, `0.1.0-beta.N`, `0.1.0-rc.N` — never as a bare `0.x.y` stable. The base stays pinned at `0.1.0` for the entire alpha phase; only the `alpha.N` counter rolls.
 
-When a release cycle breaks things (`feat!:` in a PR), the base version bumps too: `0.1.0-alpha.5` → `0.2.0-alpha.1`. The alpha counter resets; the minor bump signals the breaking change. Breaking changes during alpha are normal and expected.
+**This is not release-please's default behavior.** Release-please with `prerelease: true` still bumps the base version on `feat:` / `fix:` commits, which would give `0.1.1-alpha`, `0.2.0-alpha`, etc. To keep the base pinned, we use a custom workflow (`.github/workflows/pin-alpha.yml`) that runs on every push to `main` and appends an empty `Release-As: 0.1.0-alpha.N+1` commit. Release-please reads that footer and proposes the pinned version in the next Release PR.
+
+**Breaking changes (`feat!:`) during alpha stay pinned too.** Breaking changes are expected during alpha; we communicate them through CHANGELOG entries rather than version bumps. Version signal (breaking vs. non-breaking) resumes at stable post-1.0.
 
 **First stable release is `1.0.0`.** We skip stable `0.x` entirely — no `0.1.0`, no `0.2.0`, no pre-1.0 stable at all. Reasons:
 
