@@ -23,6 +23,7 @@ export trait Display {
 }
 
 // Impl lives with the trait (orphan rule — Display is local here, Todo too)
+
 impl Display for Todo {
     let display(self) -> string = {
         match self.done {

@@ -142,7 +142,9 @@ impl Display for ApiError {
             Network(Timeout { ms }) -> `Request timed out after ${ms}ms`,
             Network(DnsFailure { host }) -> `Cannot resolve ${host}`,
             Network(ConnectionRefused) -> "Server is not responding",
-            NotFound { id } -> match id { ProductId(n) -> `Product ${n} not found` },
+            NotFound { id } -> match id {
+                ProductId(n) -> `Product ${n} not found`,
+            },
             BadResponse { status, body } -> `HTTP ${status}: ${body}`,
             ParseError { message } -> `Parse error: ${message}`,
         }
