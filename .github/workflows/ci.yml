@@ -135,6 +135,32 @@ jobs:
       - name: LSP integration tests
         run: python3 -m pytest tests/lsp/ --floe-bin=./floe -v --tb=short
 
+  tree-sitter:
+    name: Tree-sitter grammar (generate + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install tree-sitter-cli
+        run: cargo install tree-sitter-cli --locked --version 0.26.8
+
+      - name: Regenerate parser
+        working-directory: editors/tree-sitter-floe
+        run: tree-sitter generate
+
+      - name: Fail if grammar.js drifted from committed artifacts
+        working-directory: editors/tree-sitter-floe
+        run: |
+          if ! git diff --exit-code src/; then
+            echo "::error::grammar.js has drifted from committed src/ artifacts."
+            echo "::error::Run 'pnpm --filter tree-sitter-floe regen' and commit src/."
+            exit 1
+          fi
+
+      - name: Run corpus tests
+        working-directory: editors/tree-sitter-floe
+        run: tree-sitter test
+
   install-script:
     name: Install script smoke test (${{ matrix.os }})
     # install.sh fetches the latest GitHub release. Release-please PRs run

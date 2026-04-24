@@ -752,8 +752,17 @@
           ]
         },
         {
-          "type": "STRING",
-          "value": "type"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "type"
+            },
+            {
+              "type": "STRING",
+              "value": "typealias"
+            }
+          ]
         },
         {
           "type": "FIELD",
@@ -4261,6 +4270,10 @@
     [
       "primary_expression",
       "lambda_parameter"
+    ],
+    [
+      "unit_value",
+      "arrow_closure"
     ]
   ],
   "precedences": [

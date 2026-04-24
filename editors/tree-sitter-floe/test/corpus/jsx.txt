@@ -2,7 +2,7 @@
 JSX element
 ===
 
-const e = <div>hello</div>
+let e = <div>hello</div>
 
 ---
 
@@ -20,7 +20,7 @@ const e = <div>hello</div>
 JSX self-closing
 ===
 
-const e = <input />
+let e = <input />
 
 ---
 
@@ -34,7 +34,7 @@ const e = <input />
 JSX fragment
 ===
 
-const e = <>hello</>
+let e = <>hello</>
 
 ---
 
@@ -48,7 +48,7 @@ const e = <>hello</>
 JSX with string attribute
 ===
 
-const e = <div className="foo">text</div>
+let e = <div className="foo">text</div>
 
 ---
 
@@ -70,7 +70,7 @@ const e = <div className="foo">text</div>
 JSX with expression attribute
 ===
 
-const e = <div onClick={handler}>text</div>
+let e = <div onClick={handler}>text</div>
 
 ---
 
@@ -93,7 +93,7 @@ const e = <div onClick={handler}>text</div>
 JSX with expression child
 ===
 
-const e = <p>{name}</p>
+let e = <p>{name}</p>
 
 ---
 
@@ -113,7 +113,7 @@ const e = <p>{name}</p>
 JSX with component name
 ===
 
-const e = <MyComponent />
+let e = <MyComponent />
 
 ---
 
@@ -127,7 +127,7 @@ const e = <MyComponent />
 JSX member expression
 ===
 
-const e = <Select.Trigger>Open</Select.Trigger>
+let e = <Select.Trigger>Open</Select.Trigger>
 
 ---
 
@@ -149,7 +149,7 @@ const e = <Select.Trigger>Open</Select.Trigger>
 JSX member expression self-closing
 ===
 
-const e = <Select.Value />
+let e = <Select.Value />
 
 ---
 
@@ -165,7 +165,7 @@ const e = <Select.Value />
 JSX boolean attribute
 ===
 
-const e = <input disabled />
+let e = <input disabled />
 
 ---
 
@@ -181,7 +181,7 @@ const e = <input disabled />
 JSX nested elements
 ===
 
-const e = <div><span>hi</span></div>
+let e = <div><span>hi</span></div>
 
 ---
 

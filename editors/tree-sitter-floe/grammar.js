@@ -34,6 +34,7 @@ module.exports = grammar({
     [$.assert_statement, $.binary_expression],
     [$.assert_statement, $.index_expression],
     [$.primary_expression, $.lambda_parameter],
+    [$.unit_value, $.arrow_closure],
   ],
 
   precedences: ($) => [
