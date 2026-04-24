@@ -16,25 +16,55 @@ permissions:
 jobs:
   pin-alpha:
     runs-on: ubuntu-latest
-    # Skip our own empty commits and any commit that already carries a
-    # Release-As footer (manual overrides, release-please release commits).
-    if: >-
-      github.actor != 'github-actions[bot]' &&
-      !contains(github.event.head_commit.message, 'Release-As:') &&
-      !startsWith(github.event.head_commit.message, 'chore(main): release')
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Decide whether to skip. We parse actual git trailers rather than
+      # substring-matching the commit message, because PR bodies often mention
+      # the trailer name in prose and would false-positive a substring check.
+      - name: Check skip conditions
+        id: check
+        run: |
+          author=$(git log -1 --format=%an)
+          subject=$(git log -1 --format=%s)
+          trailer=$(git log -1 --format='%(trailers:key=Release-As,valueonly)' | tr -d '[:space:]')
+
+          echo "author=$author"
+          echo "subject=$subject"
+          echo "trailer=$trailer"
+
+          if [ "$author" = "github-actions[bot]" ]; then
+            echo "skip=true (bot-authored)" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -n "$trailer" ]; then
+            echo "skip=true (commit already has the override trailer: $trailer)" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "$subject" in
+            "chore(main): release "*)
+              echo "skip=true (release-please release commit)" >> "$GITHUB_STEP_SUMMARY"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
       - name: Compute next alpha version
+        if: steps.check.outputs.skip != 'true'
         id: version
         run: |
           current=$(jq -r '."."' .github/release-please-manifest.json)
-          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "current=$current"
 
-          # Expect the form 0.1.0-alpha.N. If we're not on that line, bail loud.
           if [[ ! "$current" =~ ^0\.1\.0-alpha\.([0-9]+)$ ]]; then
             echo "::error::Manifest version '$current' is not on the 0.1.0-alpha.N line. Either alpha graduated (remove this workflow) or something bumped the base. Aborting."
             exit 1
@@ -45,7 +75,8 @@ jobs:
           echo "next=$next" >> "$GITHUB_OUTPUT"
           echo "Next alpha: $next"
 
-      - name: Append Release-As commit
+      - name: Append override commit
+        if: steps.check.outputs.skip != 'true'
         env:
           NEXT: ${{ steps.version.outputs.next }}
         run: |
@@ -58,11 +89,11 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # If someone else already pinned (e.g. a concurrent run beat us to
-            # it), the head commit will contain Release-As and we can exit.
-            head_msg=$(git log -1 --format=%B)
-            if grep -q "^Release-As:" <<<"$head_msg"; then
-              echo "Head already has Release-As footer, skipping."
+            # If a concurrent run beat us to it, the head commit now carries
+            # the override trailer and we can exit cleanly.
+            existing=$(git log -1 --format='%(trailers:key=Release-As,valueonly)' | tr -d '[:space:]')
+            if [ -n "$existing" ]; then
+              echo "Head already has override trailer ($existing), skipping."
               exit 0
             fi
 
@@ -78,5 +109,5 @@ jobs:
             sleep 2
           done
 
-          echo "::error::Failed to push Release-As commit after 5 attempts"
+          echo "::error::Failed to push override commit after 5 attempts"
           exit 1
