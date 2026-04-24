@@ -140,7 +140,7 @@ trait Eq {
 }
 
 // Implement a trait
-for User: Display {
+impl Display for User {
   let display(self) -> string = {
     `${self.name} (${self.age})`
   }
