@@ -8,7 +8,7 @@
     "test": "tree-sitter test",
     "build": "tree-sitter generate && tree-sitter build",
     "regen": "tree-sitter generate && tree-sitter test",
-    "check": "tree-sitter generate && git diff --exit-code src/ && tree-sitter test"
+    "check:drift": "tree-sitter generate && git diff --exit-code src/ && tree-sitter test"
   },
   "keywords": [
     "tree-sitter",

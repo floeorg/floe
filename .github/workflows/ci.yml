@@ -142,7 +142,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Install tree-sitter-cli
-        run: cargo install tree-sitter-cli --locked --version 0.26.8
+        uses: taiki-e/install-action@v2
+        with:
+          tool: tree-sitter-cli@0.26.8
 
       - name: Regenerate parser
         working-directory: editors/tree-sitter-floe
