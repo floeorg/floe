@@ -1226,7 +1226,12 @@ fn collect_param_rooted_chains(body: &Expr, param_name: &str) -> Vec<(Vec<String
         let Some(steps) = collect_member_chain(member_expr, param_name) else {
             return;
         };
-        if steps.len() < 2 {
+        // Bare `c.env` / `c.req` reads are already resolved via the parent
+        // Context probe, so depth-1 member access adds nothing. Depth-1
+        // *calls* (`c.json(body, 201)`, `c.text(...)`, `c.html(...)`) are
+        // different — tsgo narrows the return type per-overload, and that
+        // only reaches the checker via a `__chain_call_` probe.
+        if steps.len() < 2 && !is_call {
             return;
         }
         let key = steps.join("$");

@@ -1401,6 +1401,62 @@ export let app = router<Bindings>()
     }
 
     #[test]
+    fn generate_probe_emits_depth_1_terminal_call_chain() {
+        // Regression for #1351. hono's `c.json(body, status)` call chain is
+        // only one member step deep — `collect_param_rooted_chains` used to
+        // filter it out alongside bare `c.env` reads, and the per-function
+        // walker never emitted `__chain_call_Context$json`. Without that
+        // probe, tsgo's narrow `JSONRespondReturn<T, S>` return type can't
+        // reach the checker. The depth-1 exclusion now applies only to bare
+        // member accesses — terminal calls always emit.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handleCreate(c: Context<{ Bindings: Bindings }>) -> string = {
+    c.json("hi", 201)
+}
+
+export let app = router<Bindings>()
+    |> get("/x", handleCreate)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains(
+                "export let __chain_call_handleCreate__Context$json = __chain_base_handleCreate__Context.json(null! as any);"
+            ),
+            "depth-1 terminal-call chain must emit __chain_call_ probe, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_skips_depth_1_bare_member_access() {
+        // Complement to the depth-1 terminal-call regression: a bare member
+        // read like `c.env` still adds nothing beyond the parent Context
+        // probe, so the depth-1 exclusion is preserved for non-call chains.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handler(c: Context<{ Bindings: Bindings }>) -> unknown = {
+    c.env
+}
+
+export let app = router<Bindings>()
+    |> get("/x", handler)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            !probe.contains("__chain_handler__Context$env"),
+            "bare `c.env` should not emit a depth-1 chain probe, got:\n{probe}"
+        );
+    }
+
+    #[test]
     fn generate_probe_preserves_nested_generic_type_argument() {
         // Regression for #1276. Without the full type annotation in the probe,
         // `c.env.DB` on `Context<{ Bindings: Bindings }>` collapses to the
