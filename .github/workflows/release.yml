@@ -132,15 +132,14 @@ jobs:
         working-directory: integrations/core
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. We use `latest` so that
+          # `npm install @floeorg/X` picks up the alpha instead of the
+          # deprecated 0.7.0. `npm dist-tag add` as a separate step would be
+          # the clean way to split this, but it requires NODE_AUTH_TOKEN scope
+          # that the OIDC/provenance flow doesn't supply — publishing with
+          # --tag latest sets the tag in the same authenticated call.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
-            PKG=$(node -p "require('./package.json').name")
-            VER=$(node -p "require('./package.json').version")
-            npx npm@latest publish --access public --provenance --tag alpha
-            npx npm@latest dist-tag add "$PKG@$VER" latest
+            npx npm@latest publish --access public --provenance --tag latest
           else
             npx npm@latest publish --access public --provenance
           fi
@@ -149,15 +148,14 @@ jobs:
         working-directory: integrations/register
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. We use `latest` so that
+          # `npm install @floeorg/X` picks up the alpha instead of the
+          # deprecated 0.7.0. `npm dist-tag add` as a separate step would be
+          # the clean way to split this, but it requires NODE_AUTH_TOKEN scope
+          # that the OIDC/provenance flow doesn't supply — publishing with
+          # --tag latest sets the tag in the same authenticated call.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
-            PKG=$(node -p "require('./package.json').name")
-            VER=$(node -p "require('./package.json').version")
-            npx npm@latest publish --access public --provenance --tag alpha
-            npx npm@latest dist-tag add "$PKG@$VER" latest
+            npx npm@latest publish --access public --provenance --tag latest
           else
             npx npm@latest publish --access public --provenance
           fi
@@ -166,15 +164,14 @@ jobs:
         working-directory: integrations/vite-plugin-floe
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. We use `latest` so that
+          # `npm install @floeorg/X` picks up the alpha instead of the
+          # deprecated 0.7.0. `npm dist-tag add` as a separate step would be
+          # the clean way to split this, but it requires NODE_AUTH_TOKEN scope
+          # that the OIDC/provenance flow doesn't supply — publishing with
+          # --tag latest sets the tag in the same authenticated call.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
-            PKG=$(node -p "require('./package.json').name")
-            VER=$(node -p "require('./package.json').version")
-            npx npm@latest publish --access public --provenance --tag alpha
-            npx npm@latest dist-tag add "$PKG@$VER" latest
+            npx npm@latest publish --access public --provenance --tag latest
           else
             npx npm@latest publish --access public --provenance
           fi
@@ -183,15 +180,14 @@ jobs:
         working-directory: integrations/hono
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. We use `latest` so that
+          # `npm install @floeorg/X` picks up the alpha instead of the
+          # deprecated 0.7.0. `npm dist-tag add` as a separate step would be
+          # the clean way to split this, but it requires NODE_AUTH_TOKEN scope
+          # that the OIDC/provenance flow doesn't supply — publishing with
+          # --tag latest sets the tag in the same authenticated call.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
-            PKG=$(node -p "require('./package.json').name")
-            VER=$(node -p "require('./package.json').version")
-            npx npm@latest publish --access public --provenance --tag alpha
-            npx npm@latest dist-tag add "$PKG@$VER" latest
+            npx npm@latest publish --access public --provenance --tag latest
           else
             npx npm@latest publish --access public --provenance
           fi
@@ -200,15 +196,14 @@ jobs:
         working-directory: integrations/esbuild-plugin
         run: |
           pnpm build
-          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
-          # publish under the `alpha` dist-tag AND point `latest` at it so
-          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
-          # versions are deprecated but still occupy `latest` otherwise).
+          # Prereleases require an explicit --tag. We use `latest` so that
+          # `npm install @floeorg/X` picks up the alpha instead of the
+          # deprecated 0.7.0. `npm dist-tag add` as a separate step would be
+          # the clean way to split this, but it requires NODE_AUTH_TOKEN scope
+          # that the OIDC/provenance flow doesn't supply — publishing with
+          # --tag latest sets the tag in the same authenticated call.
           if [[ "${{ inputs.tag_name }}" == *-* ]]; then
-            PKG=$(node -p "require('./package.json').name")
-            VER=$(node -p "require('./package.json').version")
-            npx npm@latest publish --access public --provenance --tag alpha
-            npx npm@latest dist-tag add "$PKG@$VER" latest
+            npx npm@latest publish --access public --provenance --tag latest
           else
             npx npm@latest publish --access public --provenance
           fi
