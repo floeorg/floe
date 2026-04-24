@@ -5,6 +5,13 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-alpha.2](https://github.com/floeorg/floe/compare/v0.1.0-alpha.1...v0.1.0-alpha.2) (2026-04-24)
+
+
+### Miscellaneous Chores
+
+* release as 0.1.0-alpha.2 ([1979389](https://github.com/floeorg/floe/commit/1979389dd5099f3046fc5281a3925f840e5a8f95))
+
 ## [0.1.0-alpha.1](https://github.com/floeorg/floe/releases/tag/v0.1.0-alpha.1) (2026-04-24)
 
 Public alpha begins. Versioning was reset — prior `0.1.0`–`0.7.0` releases are early iteration, deprecated on npm and no longer published. The full history is preserved below for reference.
