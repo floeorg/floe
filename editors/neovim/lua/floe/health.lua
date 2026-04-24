@@ -34,13 +34,20 @@ local function check_treesitter()
     return
   end
 
-  if not parsers.get_parser_configs().floe then
-    h_error("Floe tree-sitter parser is not registered")
+  local registered
+  if type(parsers.get_parser_configs) == "function" then
+    registered = parsers.get_parser_configs().floe ~= nil
+  else
+    registered = rawget(parsers, "floe") ~= nil
+  end
+
+  if not registered then
+    h_error("Floe tree-sitter parser is not registered with nvim-treesitter")
     h_info("Call `require('floe').setup()` in your config")
     return
   end
 
-  if parsers.has_parser("floe") then
+  if #vim.api.nvim_get_runtime_file("parser/floe.so", true) > 0 then
     h_ok("tree-sitter parser for floe is installed")
   else
     h_warn("tree-sitter parser for floe is not installed", {
