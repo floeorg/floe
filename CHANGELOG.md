@@ -5,6 +5,19 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1](https://github.com/floeorg/floe/compare/v0.7.0...v0.7.1) (2026-04-24)
+
+
+### Features
+
+* [[#1319](https://github.com/floeorg/floe/issues/1319)] wrap remaining Hono router methods in @floeorg/hono ([#1320](https://github.com/floeorg/floe/issues/1320)) ([68049c3](https://github.com/floeorg/floe/commit/68049c32c254f8dd43ecdf1a3f90c1b86b7b35f5))
+
+
+### Bug Fixes
+
+* [[#1201](https://github.com/floeorg/floe/issues/1201)] make `use` contextual in TextMate grammar ([#1322](https://github.com/floeorg/floe/issues/1322)) ([c0273bc](https://github.com/floeorg/floe/commit/c0273bcfcd3b3cfdcc16cb72ed87c79cec5e0cc7))
+* [[#1278](https://github.com/floeorg/floe/issues/1278)] keep short union types on one line ([#1318](https://github.com/floeorg/floe/issues/1318)) ([0c6cc0a](https://github.com/floeorg/floe/commit/0c6cc0a6ed0ee12794bbed6b5434a77ba3ff563c))
+
 ## [0.7.0](https://github.com/floeorg/floe/compare/v0.6.1...v0.7.0) (2026-04-21)
 
 
