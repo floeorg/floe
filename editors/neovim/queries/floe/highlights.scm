@@ -114,11 +114,17 @@
 (variant_field
   name: (identifier) @property)
 
+(variant_field
+  name: (type_identifier) @property)
+
 (variant_pattern
   name: (type_identifier) @constructor)
 
 (variant_field_pattern
   name: (identifier) @property)
+
+(variant_field_pattern
+  name: (type_identifier) @property)
 
 (variant_expression
   variant: (type_identifier) @constructor)
@@ -136,6 +142,9 @@
 ; ── Record fields ────────────────────────────────────────
 (record_field
   name: (identifier) @property)
+
+(record_field
+  name: (type_identifier) @property)
 
 ; ── Match ────────────────────────────────────────────────
 (match_arm
