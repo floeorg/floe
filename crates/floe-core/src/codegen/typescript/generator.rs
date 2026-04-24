@@ -103,11 +103,6 @@ impl TypeContext {
                 ItemKind::TypeDecl(decl) => {
                     ctx.register_union_variants(decl);
                     ctx.type_defs.insert(decl.name.clone(), decl.def.clone());
-                    for trait_name in &decl.deriving {
-                        if trait_name.as_str() == "Display" {
-                            ctx.local_names.insert("display".to_string());
-                        }
-                    }
                 }
                 ItemKind::Function(decl) => {
                     ctx.local_names.insert(decl.name.clone());

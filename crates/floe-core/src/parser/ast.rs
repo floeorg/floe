@@ -298,8 +298,6 @@ pub struct TypeDecl<T = ()> {
     pub name: String,
     pub type_params: Vec<String>,
     pub def: TypeDef<T>,
-    /// `deriving (Display)` — auto-derive trait implementations for record types.
-    pub deriving: Vec<String>,
 }
 
 /// The right-hand side of a type declaration.
@@ -455,6 +453,20 @@ pub enum TestStatement<T = ()> {
 pub struct TypeExpr<T = ()> {
     pub kind: TypeExprKind<T>,
     pub span: Span,
+}
+
+impl<T> TypeExpr<T> {
+    /// Outermost nominal constructor name, used as the coherence key for
+    /// the orphan rule and duplicate-impl detection. `Array<T>` collapses
+    /// to `"Array"`; tuples, records, functions, intersections, and other
+    /// structural shapes return `None` (they can't anchor an impl).
+    pub fn base_name(&self) -> Option<String> {
+        match &self.kind {
+            TypeExprKind::Named { name, .. } => Some(name.clone()),
+            TypeExprKind::Array(_) => Some("Array".to_string()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -1,12 +1,11 @@
 ---
 source: crates/floe-core/tests/snapshot_codegen.rs
-assertion_line: 233
 expression: output
 ---
 interface Repo {
   findById(id: number): string;
 }
-import {  } from "./repo";
+import { Repo } from "./repo";
 
 import { type DrizzleRepo, DrizzleRepo__make } from "./impl";
 

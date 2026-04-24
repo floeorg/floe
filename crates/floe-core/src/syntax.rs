@@ -29,13 +29,13 @@ pub enum SyntaxKind {
     KW_TYPEALIAS,
     KW_OPAQUE,
     KW_FOR,
+    KW_IMPL,
     KW_SELF,
     KW_TRUSTED,
     KW_TRAIT,
     KW_ASSERT,
     KW_WHEN,
     KW_COLLECT,
-    KW_DERIVING,
     KW_USE,
     KW_TYPEOF,
     KW_ASYNC,
@@ -118,7 +118,7 @@ pub enum SyntaxKind {
     TYPE_DEF_ALIAS,
     TYPE_DEF_STRING_UNION,
     FOR_BLOCK,
-    DERIVING_CLAUSE,
+    IMPL_BLOCK,
     TRAIT_DECL,
     USE_DECL,
     REEXPORT_DECL,
@@ -225,7 +225,7 @@ impl SyntaxKind {
                 | Self::KW_FN
                 | Self::KW_TRAIT
                 | Self::KW_COLLECT
-                | Self::KW_DERIVING
+                | Self::KW_IMPL
                 | Self::KW_WHEN
                 | Self::KW_SELF
                 | Self::KW_VALUE
@@ -319,13 +319,13 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::Typealias => SyntaxKind::KW_TYPEALIAS,
         TokenKind::Opaque => SyntaxKind::KW_OPAQUE,
         TokenKind::For => SyntaxKind::KW_FOR,
+        TokenKind::Impl => SyntaxKind::KW_IMPL,
         TokenKind::SelfKw => SyntaxKind::KW_SELF,
         TokenKind::Trusted => SyntaxKind::KW_TRUSTED,
         TokenKind::Trait => SyntaxKind::KW_TRAIT,
         TokenKind::Assert => SyntaxKind::KW_ASSERT,
         TokenKind::When => SyntaxKind::KW_WHEN,
         TokenKind::Collect => SyntaxKind::KW_COLLECT,
-        TokenKind::Deriving => SyntaxKind::KW_DERIVING,
         TokenKind::Typeof => SyntaxKind::KW_TYPEOF,
         TokenKind::Async => SyntaxKind::KW_ASYNC,
         TokenKind::Value => SyntaxKind::KW_VALUE,

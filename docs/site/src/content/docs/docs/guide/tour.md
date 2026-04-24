@@ -85,7 +85,7 @@ for Array<Todo> {
 }
 
 trait Display { let display(self) -> string }
-for User: Display {
+impl Display for User {
     let display(self) -> string = { `${self.name} (${self.email})` }
 }
 ```

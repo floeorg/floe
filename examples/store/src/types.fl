@@ -28,7 +28,7 @@ export type Product = {
     brand: string,
     thumbnail: string,
     images: Array<string>,
-} deriving (Display)
+}
 
 export type Review = {
     ...WithRating,
@@ -119,4 +119,34 @@ export trait Display {
 
 export trait Discountable {
     let effectivePrice(self) -> number
+}
+
+// ── Impls (colocated because the orphan rule requires Trait OR Type to be local,
+//    and all of Display, Discountable, Product are declared here)
+
+impl Display for Product {
+    let display(self) -> string = {
+        `${self.title} - $${self.price}`
+    }
+}
+
+impl Discountable for Product {
+    let effectivePrice(self) -> number = {
+        self.price * (1 - self.discountPercentage / 100)
+    }
+}
+
+impl Display for ApiError {
+    let display(self) -> string = {
+        self |> match {
+            Network(Timeout { ms }) -> `Request timed out after ${ms}ms`,
+            Network(DnsFailure { host }) -> `Cannot resolve ${host}`,
+            Network(ConnectionRefused) -> "Server is not responding",
+            NotFound { id } -> match id {
+                ProductId(n) -> `Product ${n} not found`,
+            },
+            BadResponse { status, body } -> `HTTP ${status}: ${body}`,
+            ParseError { message } -> `Parse error: ${message}`,
+        }
+    }
 }

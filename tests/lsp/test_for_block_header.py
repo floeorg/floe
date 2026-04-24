@@ -1,4 +1,4 @@
-"""Tests for LSP support on `for Type: Trait { ... }` headers.
+"""Tests for LSP support on `impl Trait for Type { ... }` headers.
 
 Covers three gaps fixed in #1271:
 - Hover on the type name in a for-block header
@@ -25,8 +25,8 @@ trait Greeter {
     let hello(self) -> string
 }
 
-for Container: Greeter {
-    export let hello(self) -> string = {
+impl Greeter for Container {
+    let hello(self) -> string = {
         self.label
     }
 }
@@ -39,13 +39,13 @@ class TestForBlockHeaderHover:
         open_doc(lsp, uri, SINGLE_FILE)
         line, col = at(SINGLE_FILE, "for Container", offset=4)
         h = hover_text(lsp.hover(uri, line, col))
-        assert h is not None, "expected hover on type name in for-header"
+        assert h is not None, "expected hover on type name in impl-header"
         assert "Container" in h, f"expected Container in hover, got: {h}"
 
     def test_hover_on_trait_name(self, lsp):
         uri = "file:///tmp/for_hover_trait.fl"
         open_doc(lsp, uri, SINGLE_FILE)
-        line, col = at(SINGLE_FILE, ": Greeter", offset=2)
+        line, col = at(SINGLE_FILE, "impl Greeter", offset=5)
         h = hover_text(lsp.hover(uri, line, col))
         assert h is not None, "expected hover on trait name in for-header"
         assert "Greeter" in h, f"expected Greeter in hover, got: {h}"
@@ -66,10 +66,10 @@ class TestForBlockHeaderGotoDef:
             "}\n"
         )
         impl_src = (
-            'import { for Greeter } from "./greeter"\n'
+            'import { Greeter } from "./greeter"\n'
             "export type MyGreeter = { prefix: string }\n"
-            "for MyGreeter: Greeter {\n"
-            "    export let hello(self) -> string = { self.prefix }\n"
+            "impl Greeter for MyGreeter {\n"
+            "    let hello(self) -> string = { self.prefix }\n"
             "}\n"
         )
         trait_path = tmp_path / "greeter.fl"
@@ -81,7 +81,7 @@ class TestForBlockHeaderGotoDef:
         open_doc(lsp, trait_uri, trait_src)
         open_doc(lsp, impl_uri, impl_src)
 
-        line, col = at(impl_src, ": Greeter", offset=2)
+        line, col = at(impl_src, "impl Greeter", offset=5)
         locs = def_locations(lsp.goto_definition(impl_uri, line, col))
         assert locs, "goto-def on imported trait name returned nothing"
         target = locs[0].get("uri", "")
@@ -106,10 +106,10 @@ class TestDependentRecheck:
             "}\n"
         )
         impl_src = (
-            'import { for Greeter } from "./greeter"\n'
+            'import { Greeter } from "./greeter"\n'
             "export type MyGreeter = { prefix: string }\n"
-            "for MyGreeter: Greeter {\n"
-            "    export let hello(self) -> string = { self.prefix }\n"
+            "impl Greeter for MyGreeter {\n"
+            "    let hello(self) -> string = { self.prefix }\n"
             "}\n"
         )
         trait_path = tmp_path / "greeter.fl"

@@ -272,6 +272,16 @@ pub struct Checker {
     /// program. LSP features (go-to-definition, find-references, rename)
     /// query this side-table instead of re-walking the AST.
     pub(crate) references: crate::reference::ReferenceTracker,
+    /// Names of types declared in the current module (not imported). Used
+    /// by the orphan rule on `impl Trait for Type { ... }` — at least one
+    /// of Trait or Type must be local to avoid coherence chaos.
+    pub(crate) local_type_names: HashSet<String>,
+    /// Names of traits declared in the current module.
+    pub(crate) local_trait_names: HashSet<String>,
+    /// Tracks `(type_name, trait_name)` pairs already implemented in the
+    /// transitive import closure — used to reject duplicate impls at
+    /// import time with a focused diagnostic.
+    pub(crate) impl_sources: HashMap<(String, String), String>,
     /// `ExprId`s of `Todo`/`Unreachable`/`Clear`/`Unchanged` that resolved
     /// to a local binding of the same name. `attach_types` rewrites them
     /// to `ExprKind::Identifier` so codegen emits the variable read.
@@ -484,6 +494,9 @@ impl Checker {
             ts_imports_missing_tsgo: HashSet::new(),
             active_type_params: HashMap::new(),
             references: crate::reference::ReferenceTracker::new(),
+            local_type_names: HashSet::new(),
+            local_trait_names: HashSet::new(),
+            impl_sources: HashMap::new(),
             shadowed_keyword_exprs: HashMap::new(),
         }
     }
@@ -675,6 +688,21 @@ impl Checker {
         ExprTypeMap,
         HashSet<ExprId>,
     ) {
+        // First pass: collect the names of types and traits declared in
+        // this module so the orphan rule on `impl Trait for Type` has
+        // something to check against.
+        for item in &program.items {
+            match &item.kind {
+                ItemKind::TypeDecl(decl) => {
+                    self.local_type_names.insert(decl.name.clone());
+                }
+                ItemKind::TraitDecl(decl) => {
+                    self.local_trait_names.insert(decl.name.clone());
+                }
+                _ => {}
+            }
+        }
+
         // Pre-register types, traits, and functions from resolved imports
         self.registering_types = true;
         // Register foreign (npm) type names first so they're in scope when

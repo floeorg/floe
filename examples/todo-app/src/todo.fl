@@ -1,7 +1,7 @@
-import { Todo, Filter, Validation, for Display } from "./types"
+import { Todo, Filter, Validation } from "./types"
 
-for string {
-    export let validate(self) -> Validation = {
+export for string {
+    let validate(self) -> Validation = {
         let trimmed = self |> trim
         let len = trimmed |> String.length
 
@@ -14,17 +14,8 @@ for string {
     }
 }
 
-export for Todo: Display {
-    let display(self) -> string = {
-        match self.done {
-            true -> `[x] ${self.text}`,
-            false -> `[ ] ${self.text}`,
-        }
-    }
-}
-
-for Array<Todo> {
-    export let filterBy(self, f: Filter) -> Array<Todo> = {
+export for Array<Todo> {
+    let filterBy(self, f: Filter) -> Array<Todo> = {
         match f {
             All -> self,
             Active -> self |> filter(.done == false),
@@ -32,18 +23,18 @@ for Array<Todo> {
         }
     }
 
-    export let remaining(self) -> number = {
+    let remaining(self) -> number = {
         self
             |> filter(.done == false)
             |> tap((active) -> Console.log("active todos:", active))
             |> length
     }
 
-    export let stats(self) -> (number, number) = {
+    let stats(self) -> (number, number) = {
         (self |> length, self |> filter(.done == true) |> length)
     }
 
-    export let search(self, _query: string) -> Array<Todo> = {
+    let search(self, _query: string) -> Array<Todo> = {
         todo
     }
 }

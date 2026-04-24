@@ -1502,7 +1502,6 @@ fn duplicate_import_floe_resolved_same_name_errors() {
             default: None,
             span: dummy_span,
         }))]),
-        deriving: vec![],
     };
 
     let mut fl_imports = HashMap::new();
@@ -2811,7 +2810,7 @@ trait Display {
   let display(self) -> string
 }
 type User = { name: string }
-for User: Display {
+impl Display for User {
   let display(self) -> string = {
     self.name
   }
@@ -2837,7 +2836,7 @@ trait Display {
   let display(self) -> string
 }
 type User = { name: string }
-for User: Display {
+impl Display for User {
   let toString(self) -> string = {
     "wrong"
   }
@@ -2856,7 +2855,7 @@ fn trait_unknown_trait() {
     let diags = check(
         r#"
 type User = { name: string }
-for User: NonExistent {
+impl NonExistent for User {
   let display(self) -> string = {
     self.name
   }
@@ -2966,7 +2965,7 @@ trait Eq {
   }
 }
 type User = { name: string }
-for User: Eq {
+impl Eq for User {
   let eq(self, other: string) -> boolean = {
     self.name == other
   }
@@ -3016,7 +3015,7 @@ trait Printable {
   let prettyPrint(self) -> string
 }
 type User = { name: string }
-for User: Printable {
+impl Printable for User {
   let print(self) -> string = {
     self.name
   }
@@ -3046,7 +3045,7 @@ trait Printable {
   let prettyPrint(self) -> string
 }
 type User = { name: string }
-for User: Printable {
+impl Printable for User {
   let print(self) -> string = {
     self.name
   }
@@ -3068,7 +3067,7 @@ trait Display {
   let display(self) -> string
 }
 type User = { name: string }
-for User: Display {
+impl Display for User {
   let display() -> string = {
     "hello"
   }
@@ -3091,7 +3090,7 @@ trait Greet {
   let greet(name: string) -> string
 }
 type User = {}
-for User: Greet {
+impl Greet for User {
   let greet(self, name: string) -> string = {
     name
   }
@@ -3157,41 +3156,8 @@ fn resolved_module_with_display_trait() -> ResolvedImports {
             default: None,
             span: dummy_span,
         }))]),
-        deriving: vec![],
     });
     resolved
-}
-
-#[test]
-fn trait_imported_without_for_errors() {
-    use std::collections::HashMap;
-
-    let mut imports = HashMap::new();
-    imports.insert("./types".to_string(), resolved_module_with_display_trait());
-
-    let source = r#"
-import { User, Display } from "./types"
-
-for User: Display {
-    let display(self) -> string = {
-        self.name
-    }
-}
-"#;
-
-    let program = Parser::new(source)
-        .parse_program()
-        .expect("parse should succeed");
-    let diags = Checker::with_imports(imports).check(&program);
-    assert!(
-        has_error(&diags, ErrorCode::TraitImportWithoutFor),
-        "expected TraitImportWithoutFor, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-    assert!(has_error_containing(
-        &diags,
-        "trait `Display` must be imported with `import { for Display }`"
-    ));
 }
 
 #[test]
@@ -3202,9 +3168,9 @@ fn trait_imported_with_for_accepted() {
     imports.insert("./types".to_string(), resolved_module_with_display_trait());
 
     let source = r#"
-import { User, for Display } from "./types"
+import { User, Display } from "./types"
 
-for User: Display {
+impl Display for User {
     let display(self) -> string = {
         self.name
     }
@@ -3235,7 +3201,7 @@ fn for_import_of_missing_type_errors() {
     imports.insert("./types".to_string(), resolved_module_with_display_trait());
 
     let source = r#"
-import { User, for PeePeePooPoo } from "./types"
+import { User, PeePeePooPoo } from "./types"
 "#;
 
     let program = Parser::new(source)
@@ -3929,7 +3895,6 @@ fn cross_file_spread_resolved_via_imports() {
         exported: true,
         opaque: false,
         type_params: vec![],
-        deriving: vec![],
     };
 
     let mut imports = std::collections::HashMap::new();
@@ -3999,90 +3964,6 @@ let f() -> Result<number, Array<string>> = {
     assert!(
         has_error(&diags, ErrorCode::InvalidTryOperator),
         "expected E005 for ? on non-Result, got: {diags:?}"
-    );
-}
-
-// ── Deriving ────────────────────────────────────────────────
-
-#[test]
-fn deriving_eq_is_error() {
-    let diags = check(
-        r#"
-type Point = {
-  x: number,
-  y: number,
-} deriving (Eq)
-"#,
-    );
-    assert!(
-        has_error_containing(&diags, "structural equality is built-in"),
-        "deriving Eq should error: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn deriving_display_on_record_type() {
-    let diags = check(
-        r#"
-type User = {
-  name: string,
-  age: number,
-} deriving (Display)
-"#,
-    );
-    assert!(
-        diags.iter().all(|d| d.severity != Severity::Error),
-        "deriving Display on record should not error: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn deriving_eq_and_display_errors_on_eq() {
-    let diags = check(
-        r#"
-type User = {
-  name: string,
-  age: number,
-} deriving (Eq, Display)
-"#,
-    );
-    assert!(
-        has_error_containing(&diags, "structural equality is built-in"),
-        "deriving Eq should error even when combined with Display: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn deriving_on_union_type_is_error() {
-    let diags = check(
-        r#"
-type Shape = | Circle { radius: number } | Square { side: number } deriving (Display)
-"#,
-    );
-    assert!(
-        has_error_containing(&diags, "can only be used on record types"),
-        "deriving on union should error: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn deriving_unknown_trait_is_error() {
-    let diags = check(
-        r#"
-type Point = {
-  x: number,
-  y: number,
-} deriving (Hash)
-"#,
-    );
-    assert!(
-        has_error_containing(&diags, "cannot be derived"),
-        "deriving unknown trait should error: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
@@ -5046,7 +4927,6 @@ fn for_block_same_fn_name_different_types_no_conflict() {
             default: None,
             span: dummy_span,
         }))]),
-        deriving: vec![],
     });
 
     // Simulate: for Accent { export fn fromRow() -> Accent { ... } }
@@ -7367,7 +7247,6 @@ fn named_import_not_in_resolved_fl_module_errors() {
             default: None,
             span: dummy_span,
         }))]),
-        deriving: vec![],
     });
 
     let mut fl_imports = HashMap::new();
@@ -8037,7 +7916,6 @@ let createItem(db: Database, input: CreateItemInput) -> Promise<Array<string>> =
             },
             span: dummy_span,
         }),
-        deriving: vec![],
     };
     let mut fl_imports = HashMap::new();
     let mut resolved_db = ResolvedImports::default();
@@ -9773,6 +9651,86 @@ export default something
     assert!(
         !has_error(&diags, ErrorCode::InvalidDefaultExport),
         "got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+// ── Orphan rule on impl blocks ──────────────────────────────
+
+#[test]
+fn impl_local_trait_for_foreign_type_ok() {
+    let diags = check(
+        r#"
+trait Summable {
+    let sum(self) -> number
+}
+impl Summable for Array<number> {
+    let sum(self) -> number = { 0 }
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::OrphanImpl),
+        "local trait + foreign type should be OK: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn impl_foreign_trait_for_local_type_ok() {
+    use std::collections::HashMap;
+    let mut imports = HashMap::new();
+    imports.insert("./types".to_string(), resolved_module_with_display_trait());
+
+    let source = r#"
+import { Display } from "./types"
+type User = { name: string }
+impl Display for User {
+    let display(self) -> string = { self.name }
+}
+"#;
+    let program = Parser::new(source).parse_program().expect("parse");
+    let diags = Checker::with_imports(imports).check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::OrphanImpl),
+        "foreign trait + local type should be OK: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn impl_inherent_foreign_type_ok_under_weakened_rule() {
+    // Inherent `for Type { ... }` is allowed on any type — it's just
+    // pipe-function registration, not a trait contract.
+    let diags = check(
+        r#"
+for Array<number> {
+    let total(self) -> number = { 0 }
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::OrphanImpl),
+        "inherent for-block should be OK even on foreign types: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+// ── Structural-type impls rejected (E057) ───────────────────
+
+#[test]
+fn impl_for_tuple_is_structural_impl_error() {
+    let diags = check(
+        r#"
+trait Show { let show(self) -> string }
+impl Show for (number, string) {
+    let show(self) -> string = { "x" }
+}
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::StructuralImpl),
+        "expected StructuralImpl for tuple target: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

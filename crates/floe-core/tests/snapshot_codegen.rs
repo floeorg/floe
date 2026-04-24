@@ -204,7 +204,7 @@ fn snapshot_traits() {
 fn snapshot_trait_constrained_generics_cross_file() {
     let output = compile_cross_file(
         r#"
-import { for Repo } from "./repo"
+import { Repo } from "./repo"
 import { DrizzleRepo } from "./impl"
 
 let doWork<R: Repo>(repo: R, id: number) -> string = {
@@ -228,10 +228,10 @@ export trait Repo {
             (
                 "impl",
                 r#"
-import { for Repo } from "./repo"
+import { Repo } from "./repo"
 export type DrizzleRepo = { db: string }
 
-for DrizzleRepo: Repo {
+impl Repo for DrizzleRepo {
     export let findById(self, id: number) -> string = {
         "found"
     }
@@ -256,7 +256,7 @@ type DrizzleRepo = {
   db: string,
 }
 
-for DrizzleRepo: Repo {
+impl Repo for DrizzleRepo {
   export let create(self, input: string) -> string = {
     input
   }
@@ -307,12 +307,6 @@ fn snapshot_array_patterns() {
 #[test]
 fn snapshot_collect() {
     let output = compile_fixture("collect");
-    insta::assert_snapshot!(output);
-}
-
-#[test]
-fn snapshot_deriving() {
-    let output = compile_fixture("deriving");
     insta::assert_snapshot!(output);
 }
 

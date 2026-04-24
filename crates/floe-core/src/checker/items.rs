@@ -816,14 +816,71 @@ impl Checker {
 
     pub(crate) fn check_for_block(&mut self, block: &ForBlock, _span: Span) {
         let for_type = self.resolve_type(&block.type_name);
-        let type_name = match &block.type_name.kind {
-            TypeExprKind::Named { name, .. } => name.clone(),
-            _ => String::new(),
-        };
+        let type_name = block.type_name.base_name();
 
-        // If this is a trait impl block, validate the trait contract
+        // If this is a trait impl block, validate the trait contract +
+        // enforce the orphan rule (at least one of Trait or Type must be
+        // declared in this module) + reject structural-type impls + reject
+        // duplicate impls.
         if let Some(ref trait_name) = block.trait_name {
             self.unused.used_names.insert(trait_name.clone());
+
+            // Structural types (tuples, inline records, function types,
+            // intersections) have no nominal anchor for coherence. Reject
+            // outright rather than silently skipping the orphan check.
+            if type_name.is_none() {
+                self.emit_error_with_help(
+                    format!(
+                        "cannot `impl {trait_name} for <structural type>`: only nominal \
+                         types can anchor a trait impl"
+                    ),
+                    block.trait_name_span.unwrap_or(block.span),
+                    ErrorCode::StructuralImpl,
+                    "impl target is structural, not nominal",
+                    format!(
+                        "wrap the shape in a `type` declaration and implement `{trait_name}` for that",
+                    ),
+                );
+                return;
+            }
+
+            let trait_is_local = self.local_trait_names.contains(trait_name);
+            let type_is_local = type_name
+                .as_deref()
+                .is_some_and(|n| self.local_type_names.contains(n));
+            if !trait_is_local && !type_is_local {
+                let t = type_name.as_deref().unwrap();
+                self.emit_error_with_help(
+                    format!(
+                        "cannot `impl {trait_name} for {t}`: both are declared outside this module",
+                    ),
+                    block.trait_name_span.unwrap_or(block.span),
+                    ErrorCode::OrphanImpl,
+                    "neither trait nor type is local",
+                    format!(
+                        "declare `{trait_name}` or a newtype wrapping `{t}` in this \
+                         module, or implement the trait where the type is defined"
+                    ),
+                );
+            }
+
+            if let Some(type_str) = type_name.as_deref() {
+                let key = (type_str.to_string(), trait_name.clone());
+                if let Some(existing_source) = self.impl_sources.get(&key).cloned() {
+                    self.emit_error_with_help(
+                        format!(
+                            "`impl {trait_name} for {type_str}` is already defined by {existing_source}",
+                        ),
+                        block.trait_name_span.unwrap_or(block.span),
+                        ErrorCode::DuplicateImpl,
+                        "duplicate trait implementation",
+                        "remove one of the two impls, or narrow the import to avoid bringing both into scope",
+                    );
+                } else {
+                    self.impl_sources.insert(key, "this module".to_string());
+                }
+            }
+
             let type_display = for_type.to_string();
             self.check_trait_impl(&type_display, trait_name, &block.functions, block.span);
         }
@@ -863,11 +920,12 @@ impl Checker {
             };
             // Allow for-block functions with the same name on different types
             // (e.g. Entry.fromRow and Accent.fromRow are not in conflict)
+            let current_type_key = type_name.clone().unwrap_or_default();
             let is_different_for_block = self
                 .for_block_overloads
                 .get(&func.name)
                 .and_then(|o| o.last())
-                .is_some_and(|(existing_type, _)| *existing_type != type_name);
+                .is_some_and(|(existing_type, _)| *existing_type != current_type_key);
             if !is_different_for_block {
                 self.check_no_redefinition(&func.name, block.span);
             }
@@ -878,7 +936,7 @@ impl Checker {
             self.for_block_overloads
                 .entry(func.name.clone())
                 .or_default()
-                .push((type_name.clone(), fn_type));
+                .push((current_type_key, fn_type));
 
             // Track required (non-default) parameter count
             let required_params = func.params.iter().filter(|p| p.default.is_none()).count();

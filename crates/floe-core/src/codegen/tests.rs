@@ -1965,28 +1965,6 @@ let f() -> Result<number, Array<string>> = {
     );
 }
 
-// ── Deriving ────────────────────────────────────────────────
-
-#[test]
-fn deriving_display_generates_string() {
-    let result = emit(
-        r#"
-type User = {
-  name: string,
-  age: number,
-} deriving (Display)
-"#,
-    );
-    assert!(
-        result.contains("function display(self: User): string"),
-        "should generate display function, got: {result}"
-    );
-    assert!(
-        result.contains("User(name: ${self.name}, age: ${self.age})"),
-        "should format all fields, got: {result}"
-    );
-}
-
 // ── Parse<T> Built-in ────────────────────────────────────────
 
 #[test]

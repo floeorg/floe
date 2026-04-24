@@ -2,9 +2,8 @@ import trusted { useState, Suspense } from "react"
 import trusted { useSuspenseQuery, QueryErrorResetBoundary } from "@tanstack/react-query"
 import trusted { ErrorBoundary } from "react-error-boundary"
 import trusted { Link } from "@tanstack/react-router"
-import { Product, SortOrder, PriceRange, ApiError } from "../types"
-import { for Product, for Array, sortProducts, matchesPrice, formatPrice } from "../product"
-import { for ApiError } from "../errors"
+import { Product, SortOrder, PriceRange, Discountable } from "../types"
+import { for Product, sortProducts, matchesPrice, formatPrice } from "../product"
 import { fetchProducts, fetchCategories, CategoryResponse } from "../api"
 
 // ── Prop types ─────────────────────────────────────────

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::*;
 
 impl Checker {
@@ -388,77 +386,6 @@ impl Checker {
                     self.env.define(&decl.name, ty);
                 }
             }
-        }
-
-        // Validate and register deriving clause
-        if !decl.deriving.is_empty() {
-            self.check_deriving(decl);
-        }
-    }
-
-    /// Validate a `deriving` clause and register the derived functions.
-    pub(crate) fn check_deriving(&mut self, decl: &TypeDecl) {
-        let span = Span::new(0, 0, 0, 0); // deriving doesn't have its own span yet
-
-        // deriving only works on record types
-        if !matches!(&decl.def, TypeDef::Record(_)) {
-            self.emit_error_with_help(
-                format!(
-                    "`deriving` can only be used on record types, but `{}` is not a record",
-                    decl.name
-                ),
-                span,
-                ErrorCode::InvalidDerive,
-                "not a record type",
-                "remove the `deriving` clause or change this to a record type",
-            );
-            return;
-        }
-
-        let type_name = &decl.name;
-
-        for trait_name in &decl.deriving {
-            match trait_name.as_str() {
-                "Eq" => {
-                    self.emit_error_with_help(
-                        "`Eq` cannot be derived — structural equality is built-in for all types via `==`".to_string(),
-                        span,
-                        ErrorCode::InvalidDerive,
-                        "not needed",
-                        "remove `Eq` from the deriving clause — use `==` for equality comparison",
-                    );
-                }
-                "Display" => {
-                    // Register display function: fn display(self) -> string
-                    let fn_name = "display".to_string();
-                    let self_type = Type::Named(type_name.clone());
-                    let fn_type = Type::Function {
-                        params: vec![self_type],
-                        return_type: Arc::new(Type::String),
-                        required_params: 1,
-                    };
-                    self.env.define(&fn_name, fn_type);
-                    self.unused
-                        .defined_sources
-                        .insert(fn_name.clone(), format!("derived Display for {type_name}"));
-                    self.unused.used_names.insert(fn_name.clone());
-                    self.traits
-                        .trait_impls
-                        .insert((type_name.clone(), "Display".to_string()));
-                }
-                _ => {
-                    self.emit_error_with_help(
-                        format!("trait `{trait_name}` cannot be derived"),
-                        span,
-                        ErrorCode::InvalidDerive,
-                        "not a derivable trait",
-                        "only `Display` can be derived",
-                    );
-                }
-            }
-
-            // Mark the trait name as used
-            self.unused.used_names.insert(trait_name.clone());
         }
     }
 }

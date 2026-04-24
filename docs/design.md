@@ -1164,7 +1164,7 @@ for User {
 }
 
 // Block-level export — the natural shape for trait impls
-export for User: Display {
+export impl Display for User {
   let display(self) -> string = { self.name }
 }
 ```
@@ -1217,14 +1217,14 @@ trait Eq {
   }
 }
 
-// Implement a trait for a type using `for Type: Trait`
-for User: Display {
+// Implement a trait for a type using `impl Trait for Type`
+impl Display for User {
   let display(self) -> string = {
     `${self.name} (${self.age})`
   }
 }
 
-for User: Eq {
+impl Eq for User {
   let eq(self, other: User) -> boolean = {
     self.id == other.id
   }
@@ -1235,48 +1235,18 @@ for User: Eq {
 Trait rules:
 
 1. Traits contain method signatures with optional default bodies
-2. `for Type: Trait { ... }` implements a trait — all required methods must be provided
+2. `impl Trait for Type { ... }` implements a trait — all required methods must be provided
 3. Methods with default bodies are optional — implementors inherit them unless overridden
-4. Traits are erased at compile time — `for Type: Trait` emits the same code as `for Type`
+4. Traits are erased at compile time — `impl Trait for Type` emits the same code as `for Type`
 5. No orphan rules — scoping via imports handles conflicts
 6. No associated types — generics + structural typing cover those cases
 7. No trait objects / dynamic dispatch — traits are a static checking tool
 
 ### Deriving Traits
 
-Record types can auto-derive trait implementations with `deriving`:
+Floe has no built-in `deriving` clause. Derives will come from the #1338 macro system as `@derive(Trait)` annotations on type declarations, expanded at compile time into generated `impl Trait for Type { ... }` blocks. Until macros land, write the impl by hand — three lines for `Display`, worth it to keep the surface small.
 
-```floe
-type User = {
-  id: string,
-  name: string,
-  email: string,
-} deriving (Display)
-```
-
-This generates the same code as a handwritten `for` block with no runtime cost.
-
-**Note:** `Eq` is not derivable — structural equality is built-in for all types via `==` (emits `__floeEq` deep comparison). Writing `deriving (Eq)` is a compile error.
-
-**Derivable traits:**
-
-| Trait | Generated implementation |
-|---|---|
-| `Display` | String representation: `fn display(self) => string` producing `TypeName(field1: val1, field2: val2)` |
-
-**Codegen output** for `deriving (Display)`:
-
-```typescript
-function display(self: User): string {
-  return `User(id: ${self.id}, name: ${self.name}, email: ${self.email})`;
-}
-```
-
-Deriving rules:
-
-1. `deriving` only works on record types — compile error on unions, aliases, or string literal unions
-2. A handwritten `for` block overrides a derived implementation
-3. Only `Display` is derivable — attempting to derive anything else (including `Eq`) is a compile error
+`Eq` is also not derivable: structural equality is built-in for all types via `==` (emits `__floeEq` deep comparison), so an `Eq` impl never needs to be written.
 
 ### Inline Test Blocks
 
@@ -1686,7 +1656,7 @@ enum ItemKind {
     },
     ForBlock {                 // for Type { fn f(self) ... }
         type_name: TypeExpr,
-        trait_name: Option<String>,  // for Type: Trait { ... }
+        trait_name: Option<String>,  // impl Trait for Type { ... }
         functions: Vec<FunctionDecl>,
     },
     TraitDecl {                // trait Name { fn method(self) ... }
@@ -1924,7 +1894,7 @@ Emits clean, readable `.tsx`. Zero runtime imports.
 | `opaque type X = X(T)` | `T` (erased, access controlled at compile time) |
 | `for User { fn display(self) => string { ... } }` | `function display(self: User): string { ... }` |
 | `trait Display { fn display(self) => string }` | *(erased — no output)* |
-| `for User: Display { fn display(self) => string { ... } }` | `function display(self: User): string { ... }` (same as plain for block) |
+| `impl Display for User { fn display(self) => string { ... } }` | `function display(self: User): string { ... }` (same as plain for block) |
 | `test "name" { assert expr }` | stripped in build mode; self-executing test in test mode |
 
 ---

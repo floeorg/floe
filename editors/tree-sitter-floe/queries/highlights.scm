@@ -13,13 +13,13 @@
 "default" @keyword
 "trusted" @keyword
 "for" @keyword
+"impl" @keyword
 "trait" @keyword
 "opaque" @keyword
 "test" @keyword
 "assert" @keyword
 "when" @keyword
 "collect" @keyword
-"deriving" @keyword
 "use" @keyword
 
 ; ── Self ────────────────────────────────────────────────

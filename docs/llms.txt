@@ -565,18 +565,25 @@ let data = fetchData()         // Result<T, Error> — auto-wrapped (untrusted)
 // Use ? to unwrap untrusted results
 let parsed = fetchData()?      // unwraps or returns Err early
 
-// Importing for-block extensions and traits
-import { for User } from "./user-helpers"
-import { Todo, Filter, for Array, for string } from "./todo"
+// Importing types + their for-blocks
+import { User } from "./types"                  // User + any for User { ... } in types.fl
+import { Todo, Filter } from "./todo"           // named imports
 
-// Traits are behaviour — require the `for` prefix just like for-blocks
-import { User, for Display } from "./types"      // OK
-// import { User, Display } from "./types"       // ERROR E053 — use `for Display`
+// Importing a trait activates every `impl Trait for T { ... }` in the
+// same module — no `for` prefix needed on the trait name.
+import { Display, Eq } from "./std"
+
+// `import { for X }` — pull inherent `for X { ... }` extensions from a
+// specific module. Needed when X is foreign (e.g. `Array<T>`, `string`)
+// or when a type defined elsewhere has extra extensions in THIS module.
+import { for Array, for string } from "./todo"
+import { Product } from "./types"
+import { for Product } from "./product"         // product.fl adds more methods
 ```
 
 Rule of thumb:
-- `import { Name }` — data (type / const / function)
-- `import { for Name }` — behaviour (for-block methods OR trait contract)
+- `import { Name }` — type / trait / function / value (traits auto-activate impls)
+- `import { for Type }` — bring in `for Type { ... }` inherent extensions from the named source module
 
 ## Exports
 
@@ -715,27 +722,33 @@ trait Eq {
     }
 }
 
-// Implement a trait
-for User: Display {
+// Implement a trait — Rust-style `impl Trait for Type`
+impl Display for User {
     let display(self) -> string = {
         `${self.name} (${self.age})`
     }
 }
 
-// `export for` exports every method in the block at once — the natural
+// `export impl` exports every method in the block at once — the natural
 // shape for trait impls where all methods are part of the contract
-export for User: Display {
+export impl Display for User {
     let display(self) -> string = {
         `${self.name} (${self.age})`
     }
 }
 
-// Auto-derive traits for record types (only Display — Eq is built-in via ==)
-type Point = {
-    x: number,
-    y: number,
-} deriving (Display)
-// Generates display(self) -> string
+// Empty impl — legal only if every method has a default. For `Eq` above,
+// `eq` is covered by the compiler's built-in structural equality and
+// `neq` has a default, so the body can be omitted.
+impl Eq for User
+
+// Orphan rule: `impl Trait for Type` is legal iff at least one of Trait
+// or Type is declared in the current module. `impl StdTrait for StdType`
+// where both are foreign is rejected (E055 OrphanImpl) — wrap in a
+// newtype or implement the trait where the type is defined.
+//
+// Inherent `for Type { ... }` has no orphan rule — always legal. See
+// "For Blocks" above.
 ```
 
 ## JSX / React Components

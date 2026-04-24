@@ -1,26 +1,10 @@
-import { ApiError, for Display } from "./types"
+import { ApiError } from "./types"
 
-// ── Multi-depth match on nested error unions ───────────
+// `impl Display for ApiError` lives in ./types (orphan rule — Display
+// and ApiError both declared there). This module adds inherent helpers.
 
-export for ApiError: Display {
-    let display(self) -> string = {
-        self |> match {
-            Network(Timeout { ms }) -> `Request timed out after ${ms}ms`,
-            Network(DnsFailure { host }) -> `Cannot resolve ${host}`,
-            Network(ConnectionRefused) -> "Server is not responding",
-            NotFound { id } -> `Product #${id} not found`,
-            BadResponse { status, body: _ } -> status |> match {
-                400..499 -> `Client error (${status})`,
-                500..599 -> `Server error (${status})`,
-                s -> `Unexpected status ${s}`,
-            },
-            ParseError { message } -> `Invalid response: ${message}`,
-        }
-    }
-}
-
-for ApiError {
-    export let isRetryable(self) -> boolean = {
+export for ApiError {
+    let isRetryable(self) -> boolean = {
         self |> match {
             Network(_) -> true,
             BadResponse { status, body: _ } -> status |> match {

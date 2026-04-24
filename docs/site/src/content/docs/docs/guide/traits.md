@@ -16,12 +16,12 @@ trait Display {
 
 ## Implementing a Trait
 
-Use `for Type: Trait` to implement a trait for a type:
+Use `impl Trait for Type` to implement a trait for a type:
 
 ```floe
 type User = { name: string, age: number }
 
-for User: Display {
+impl Display for User {
   let display(self) -> string = {
     `${self.name} (${self.age})`
   }
@@ -42,7 +42,7 @@ trait Eq {
   }
 }
 
-for User: Eq {
+impl Eq for User {
   let eq(self, other: string) -> boolean = {
     self.name == other
   }
@@ -61,7 +61,7 @@ export trait Display {
 }
 
 // Export every method in a trait impl at once
-export for User: Display {
+export impl Display for User {
   let display(self) -> string = { self.name }
 }
 ```
@@ -71,7 +71,7 @@ Import traits with the `for` prefix -- the same syntax used to pull in cross-fil
 ```floe
 import { User, for Display } from "./types"
 
-for User: Display {
+impl Display for User {
   let display(self) -> string = { self.name }
 }
 ```
@@ -83,52 +83,30 @@ Writing `import { Display }` for a trait is an error -- the compiler asks you to
 A type can implement multiple traits:
 
 ```floe
-for User: Display {
+impl Display for User {
   let display(self) -> string = { self.name }
 }
 
-for User: Eq {
+impl Eq for User {
   let eq(self, other: string) -> boolean = { self.name == other }
 }
 ```
 
 ## Deriving Traits
 
-Record types can auto-derive trait implementations with `deriving`. This generates the same code as a handwritten `for` block with no runtime cost:
-
-```floe
-type User = {
-  id: string,
-  name: string,
-  email: string,
-} deriving (Display)
-```
-
-This generates `display(self) => string` with a string representation like `User(id: abc, name: Ryan, email: r@t.com)`.
+Floe has no built-in `deriving` syntax. Derives will arrive via the macro system as `@derive(Trait)` attributes on type declarations, expanding at compile time into generated `impl Trait for Type { ... }` blocks. Until macros land, write the impl by hand — three lines for `Display` is a small price for a simpler surface.
 
 :::note
-`Eq` is not derivable -- structural equality is built-in for all types via `==`.
+`Eq` is special — it's never derivable and never needs a hand-written impl, because structural equality is built-in for all types via `==`.
 :::
-
-### Derivable traits
-
-| Trait | Generated implementation |
-|---|---|
-| `Display` | `TypeName(field1: val1, field2: val2)` format |
-
-### Deriving rules
-
-1. `deriving` only works on record types (not unions)
-2. A handwritten `for` block overrides a derived implementation
-3. Only `Display` is derivable -- `Eq` is built-in via `==`
 
 ## What It Compiles To
 
-Traits are **erased at compile time**. `for User: Display` compiles to exactly the same TypeScript as `for User` -- the trait just tells the checker that a contract is satisfied.
+Traits are **erased at compile time**. `impl Display for User` compiles to exactly the same TypeScript as `for User` -- the trait just tells the checker that a contract is satisfied.
 
 ```floe
 // Floe
-for User: Display {
+impl Display for User {
   let display(self) -> string = { self.name }
 }
 ```

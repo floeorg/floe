@@ -284,7 +284,7 @@ type Dog = {
     breed: string,
 }
 
-for Dog: Printable {
+impl Printable for Dog {
     let print(self) -> string = {
         `${self.name} (${self.breed})`
     }
@@ -670,7 +670,11 @@ trait Display {
 type Point = {
     x: number,
     y: number,
-} deriving (Display)
+}
+
+impl Display for Point {
+    let display(self) -> string = { "point" }
+}
 """
 
 TEST_BLOCK = """\

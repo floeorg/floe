@@ -512,12 +512,17 @@ fn resolve_from_source(
     // Flatten spreads in all type decls so importers get fully resolved records.
     let flattened_map = flatten_spreads_in_type_decls(&type_map);
 
-    // Collect exported for-blocks first so we can find their type dependencies
+    // Collect exported for-blocks first so we can find their type dependencies.
+    // Trait impls (`impl T for X`) are always fully exported — their visibility
+    // is the trait's, not per-method. Inherent `for X` blocks still filter by
+    // per-method `export`.
     let mut exported_for_blocks = Vec::new();
     for item in &program.items {
         if let ItemKind::ForBlock(block) = &item.kind {
             let mut exported_block = block.clone();
-            exported_block.functions.retain(|f| f.exported);
+            if block.trait_name.is_none() {
+                exported_block.functions.retain(|f| f.exported);
+            }
             if !exported_block.functions.is_empty() {
                 exported_for_blocks.push(exported_block);
             }
@@ -1039,7 +1044,7 @@ mod tests {
             ),
         ]);
         let main_path = base.join("main.fl");
-        let program = parse_program("import { for User } from \"./ext\"");
+        let program = parse_program("import { User } from \"./ext\"");
         let result = resolve_imports(&main_path, &program, &TsconfigPaths::default());
         let resolved = result.get("./ext").unwrap();
         // The exported for-block function should be present
@@ -1059,7 +1064,7 @@ mod tests {
             ),
         ]);
         let main_path = base.join("main.fl");
-        let program = parse_program("import { for User } from \"./ext\"");
+        let program = parse_program("import { User } from \"./ext\"");
         let result = resolve_imports(&main_path, &program, &TsconfigPaths::default());
         let resolved = result.get("./ext").unwrap();
         assert_eq!(resolved.for_blocks.len(), 1);

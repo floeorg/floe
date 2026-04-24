@@ -44,8 +44,10 @@ pub enum TokenKind {
     Type,
     Typealias,
     Opaque,
-    /// `for` — for block keyword (grouping functions under a type)
+    /// `for` — inherent block keyword (grouping pipe-functions under a local type)
     For,
+    /// `impl` — trait impl keyword (`impl Trait for Type { ... }`)
+    Impl,
     /// `self` — explicit receiver parameter in for blocks
     SelfKw,
     /// `trusted` — marks an import as safe to call without Result wrapping
@@ -58,8 +60,6 @@ pub enum TokenKind {
     When,
     /// `collect` — error accumulation block
     Collect,
-    /// `deriving` — auto-derive trait implementations for record types
-    Deriving,
     /// `typeof` — type-level operator to extract the type of a value binding
     Typeof,
     /// `async` — marks a function as async (return type is implicitly wrapped in `Promise<T>`)
@@ -203,7 +203,6 @@ impl TokenKind {
                 | Self::Trusted
                 | Self::Opaque
                 | Self::Collect
-                | Self::Deriving
         )
     }
 }
@@ -292,13 +291,13 @@ pub fn lookup_keyword(word: &str) -> Option<TokenKind> {
         "typealias" => Some(TokenKind::Typealias),
         "opaque" => Some(TokenKind::Opaque),
         "for" => Some(TokenKind::For),
+        "impl" => Some(TokenKind::Impl),
         "self" => Some(TokenKind::SelfKw),
         "trusted" => Some(TokenKind::Trusted),
         "trait" => Some(TokenKind::Trait),
         "assert" => Some(TokenKind::Assert),
         "when" => Some(TokenKind::When),
         "collect" => Some(TokenKind::Collect),
-        "deriving" => Some(TokenKind::Deriving),
         "typeof" => Some(TokenKind::Typeof),
         "async" => Some(TokenKind::Async),
         "true" => Some(TokenKind::Bool(true)),
@@ -351,6 +350,7 @@ mod tests {
         assert_eq!(lookup_keyword("Some"), None);
         assert_eq!(lookup_keyword("None"), None);
         assert_eq!(lookup_keyword("for"), Some(TokenKind::For));
+        assert_eq!(lookup_keyword("impl"), Some(TokenKind::Impl));
         assert_eq!(lookup_keyword("self"), Some(TokenKind::SelfKw));
         assert_eq!(lookup_keyword("when"), Some(TokenKind::When));
         assert_eq!(lookup_keyword("collect"), Some(TokenKind::Collect));

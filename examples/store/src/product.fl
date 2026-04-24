@@ -1,31 +1,17 @@
-import { Product, ProductId, CartItem, SortOrder, PriceRange, for Display, for Discountable } from "./types"
+import { Product, ProductId, CartItem, SortOrder, PriceRange, Discountable } from "./types"
 
-// ── Trait implementations ──────────────────────────────
+// ── Product helpers ─────────────────────────────────────
 
-export for Product: Display {
-    let display(self) -> string = {
-        `${self.title} - $${self.price}`
-    }
-}
-
-export for Product: Discountable {
-    let effectivePrice(self) -> number = {
-        self.price * (1 - self.discountPercentage / 100)
-    }
-}
-
-// ── Product helpers ────────────────────────────────────
-
-for Product {
-    export let savings(self) -> number = {
+export for Product {
+    let savings(self) -> number = {
         self.price - (self |> effectivePrice)
     }
 
-    export let inStock(self) -> boolean = {
+    let inStock(self) -> boolean = {
         self.stock > 0
     }
 
-    export let stockLabel(self) -> string = {
+    let stockLabel(self) -> string = {
         self.stock |> match {
             0 -> "Out of stock",
             n when n < 5 -> `Only ${n} left!`,
@@ -34,17 +20,17 @@ for Product {
         }
     }
 
-    export let ratingStars(self) -> string = {
+    let ratingStars(self) -> string = {
         let full = Math.floor(self.rating)
 
         "*" |> String.repeat(full)
     }
 }
 
-// ── Cart operations ────────────────────────────────────
+// ── Cart operations ─────────────────────────────────────
 
-for Array<CartItem> {
-    export let addItem(self, product: Product, qty: number = 1) -> Array<CartItem> = {
+export for Array<CartItem> {
+    let addItem(self, product: Product, qty: number = 1) -> Array<CartItem> = {
         let existing = self |> Array.findIndex((item) -> item.product.id == product.id)
 
         existing |> match {
@@ -56,11 +42,11 @@ for Array<CartItem> {
         }
     }
 
-    export let removeItem(self, productId: ProductId) -> Array<CartItem> = {
+    let removeItem(self, productId: ProductId) -> Array<CartItem> = {
         self |> Array.filter((item) -> item.product.id != productId)
     }
 
-    export let updateQuantity(self, productId: ProductId, qty: number) -> Array<CartItem> = {
+    let updateQuantity(self, productId: ProductId, qty: number) -> Array<CartItem> = {
         qty |> match {
             0 -> self |> removeItem(productId),
             _ -> self |> Array.map((item) -> match item.product.id == productId {
@@ -70,7 +56,7 @@ for Array<CartItem> {
         }
     }
 
-    export let totals(self) -> (number, number, number) = {
+    let totals(self) -> (number, number, number) = {
         let subtotal = self
             |> Array.reduce(
             (acc: number, item: CartItem) -> acc + item.product.price * item.quantity,
@@ -86,11 +72,11 @@ for Array<CartItem> {
         (subtotal, subtotal - discounted, discounted)
     }
 
-    export let itemCount(self) -> number = {
+    let itemCount(self) -> number = {
         self |> Array.reduce((acc, item) -> acc + item.quantity, 0)
     }
 
-    export let isEmpty(self) -> boolean = {
+    let isEmpty(self) -> boolean = {
         self |> Array.isEmpty
     }
 }

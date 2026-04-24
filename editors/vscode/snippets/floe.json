@@ -146,25 +146,25 @@
     "prefix": "for",
     "body": [
       "for ${1:Type} {",
-      "\texport fn ${2:name}(self) -> ${3:ReturnType} {",
+      "\texport let ${2:name}(self) -> ${3:ReturnType} = {",
       "\t\t$0",
       "\t}",
       "}"
     ],
-    "description": "For block - group functions under a type"
+    "description": "For block - register inherent pipe-functions on a type"
   },
   "Import For Type": {
     "prefix": "impfor",
     "body": [
       "import { for ${2:Type} } from \"${1:module}\""
     ],
-    "description": "Import for-block functions by type"
+    "description": "Import a for-block's inherent methods by type"
   },
   "Trait Declaration": {
     "prefix": "trait",
     "body": [
       "trait ${1:Name} {",
-      "\tfn ${2:method}(self) -> ${3:ReturnType}",
+      "\tlet ${2:method}(self) -> ${3:ReturnType}",
       "}"
     ],
     "description": "Trait declaration"
@@ -172,8 +172,8 @@
   "Trait Implementation": {
     "prefix": "impl",
     "body": [
-      "for ${1:Type}: ${2:Trait} {",
-      "\tfn ${3:method}(self) -> ${4:ReturnType} {",
+      "impl ${1:Trait} for ${2:Type} {",
+      "\tlet ${3:method}(self) -> ${4:ReturnType} = {",
       "\t\t$0",
       "\t}",
       "}"
@@ -212,15 +212,6 @@
       "}"
     ],
     "description": "Collect block for error accumulation"
-  },
-  "Type with Deriving": {
-    "prefix": "typed",
-    "body": [
-      "type ${1:Name} = {",
-      "\t${2:field}: ${3:Type},",
-      "} deriving (${4:Display})"
-    ],
-    "description": "Record type with deriving clause"
   },
   "Todo Placeholder": {
     "prefix": "todo",

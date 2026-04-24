@@ -35,6 +35,7 @@ module.exports = grammar({
     [$.assert_statement, $.index_expression],
     [$.primary_expression, $.lambda_parameter],
     [$.unit_value, $.arrow_closure],
+    [$.impl_block],
   ],
 
   precedences: ($) => [
@@ -67,6 +68,7 @@ module.exports = grammar({
         $.type_declaration,
         $.const_declaration,
         $.for_block,
+        $.impl_block,
         $.trait_declaration,
         $.test_block,
         $.use_declaration,
@@ -99,10 +101,23 @@ module.exports = grammar({
         optional("export"),
         "for",
         field("type", $._type_expression),
-        optional(seq(":", field("trait", $.type_identifier))),
         "{",
         repeat(seq(optional("export"), $.function_declaration)),
         "}",
+      ),
+
+    impl_block: ($) =>
+      seq(
+        optional("export"),
+        "impl",
+        field("trait", $.type_identifier),
+        "for",
+        field("type", $._type_expression),
+        optional(seq(
+          "{",
+          repeat(seq(optional("export"), $.function_declaration)),
+          "}",
+        )),
       ),
 
     // ── Traits ──────────────────────────────────────────────

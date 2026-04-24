@@ -469,12 +469,6 @@ impl Formatter<'_> {
                     parts.push(pretty::str(" = "));
                     parts.push(self.fmt_type_alias_def(&child));
                 }
-                SyntaxKind::DERIVING_CLAUSE => {
-                    parts.push(pretty::str(" deriving ("));
-                    let deriving_idents = self.collect_idents(&child);
-                    parts.push(pretty::str(deriving_idents.join(", ")));
-                    parts.push(pretty::str(")"));
-                }
                 _ => {}
             }
         }
@@ -666,6 +660,59 @@ impl Formatter<'_> {
         if self.has_token(node, SyntaxKind::COLON) {
             parts.push(pretty::str(": "));
             parts.push(self.fmt_expr_after_keyword(node, SyntaxKind::COLON));
+        }
+
+        parts.push(pretty::str(" {"));
+
+        let mut methods: Vec<(bool, SyntaxNode)> = Vec::new();
+        let mut next_is_export = false;
+        for child_or_tok in node.children_with_tokens() {
+            if let Some(tok) = child_or_tok.as_token()
+                && tok.kind() == SyntaxKind::KW_EXPORT
+            {
+                next_is_export = true;
+            }
+            if let Some(child) = child_or_tok.into_node()
+                && child.kind() == SyntaxKind::FUNCTION_DECL
+            {
+                methods.push((next_is_export, child));
+                next_is_export = false;
+            }
+        }
+
+        parts.push(self.fmt_method_list(&methods));
+
+        pretty::concat(parts)
+    }
+
+    // ── Impl Block ──────────────────────────────────────────────
+
+    pub(crate) fn fmt_impl_block(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = vec![pretty::str("impl ")];
+
+        // First IDENT token is the trait name
+        if let Some(trait_name) = node
+            .children_with_tokens()
+            .filter_map(|t| t.into_token())
+            .find(|t| t.kind() == SyntaxKind::IDENT)
+        {
+            parts.push(pretty::str(trait_name.text().to_string()));
+        }
+
+        parts.push(pretty::str(" for "));
+
+        if let Some(type_expr) = node.children().find(|c| c.kind() == SyntaxKind::TYPE_EXPR) {
+            parts.push(self.fmt_type_expr(&type_expr));
+        }
+
+        // Body is optional — empty impl means "use trait defaults"
+        let has_body = node.children_with_tokens().any(|t| {
+            t.as_token()
+                .is_some_and(|tok| tok.kind() == SyntaxKind::L_BRACE)
+        });
+
+        if !has_body {
+            return pretty::concat(parts);
         }
 
         parts.push(pretty::str(" {"));
