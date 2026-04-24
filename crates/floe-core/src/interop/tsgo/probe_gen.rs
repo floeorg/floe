@@ -1136,14 +1136,20 @@ fn emit_per_handler_chain_probes(
     }
 }
 
-/// Scan pipe-chain method calls of the shape `router_method(path, handler)`
-/// and record `handler -> path`. Handlers registered by an inline lambda
-/// are skipped (no name to correlate with a function declaration).
+/// Scan method calls for handler registrations of the shape
+/// `..., "/path", handler, ...` and record `handler -> path`. Handlers
+/// registered by an inline lambda are skipped (no name to correlate
+/// with a function declaration).
 ///
-/// The shape match is heuristic — any call where arg 0 is a string
-/// starting with `/` and arg 1 is an identifier qualifies. False
-/// positives (e.g. `fs.readFile("/etc/hosts", cb)`) produce a bogus
-/// per-function probe block; tsgo emits `any` for mismatched
+/// The shape match is heuristic — we look for the first positional
+/// string arg starting with `/` followed immediately by a positional
+/// identifier arg. That covers both hono-native (`app.get("/x", h)`,
+/// and the pipe form `|> get("/x", h)` whose RHS Call still has the
+/// path at arg 0) and the `@floeorg/hono` functional wrapper
+/// (`get(r, "/x", h)` — path at arg 1, handler at arg 2).
+///
+/// False positives (e.g. `fs.readFile("/etc/hosts", cb)`) produce a
+/// bogus per-function probe block; tsgo emits `any` for mismatched
 /// instantiations and the checker's per-function chain lookup silently
 /// falls back to the global key. Harmless in practice, but a stricter
 /// check (verify the callee is actually a router method) could come
@@ -1158,26 +1164,26 @@ fn collect_handler_paths(program: &Program) -> HashMap<String, String> {
         let ExprKind::Call { args, .. } = &expr.kind else {
             return;
         };
-        if args.len() < 2 {
+        for i in 0..args.len().saturating_sub(1) {
+            let Arg::Positional(path_arg) = &args[i] else {
+                continue;
+            };
+            let ExprKind::String(path) = &path_arg.kind else {
+                continue;
+            };
+            if !path.starts_with('/') {
+                continue;
+            }
+            let Arg::Positional(handler_arg) = &args[i + 1] else {
+                continue;
+            };
+            let ExprKind::Identifier(handler_name) = &handler_arg.kind else {
+                continue;
+            };
+            out.entry(handler_name.clone())
+                .or_insert_with(|| path.clone());
             return;
         }
-        let Arg::Positional(path_arg) = &args[0] else {
-            return;
-        };
-        let Arg::Positional(handler_arg) = &args[1] else {
-            return;
-        };
-        let ExprKind::String(path) = &path_arg.kind else {
-            return;
-        };
-        if !path.starts_with('/') {
-            return;
-        }
-        let ExprKind::Identifier(handler_name) = &handler_arg.kind else {
-            return;
-        };
-        out.entry(handler_name.clone())
-            .or_insert_with(|| path.clone());
     });
     out
 }
