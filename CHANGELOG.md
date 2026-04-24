@@ -5,6 +5,22 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1-alpha.3](https://github.com/floeorg/floe/compare/v0.1.0-alpha.3...v0.1.1-alpha.3) (2026-04-24)
+
+
+### Features
+
+* [[#1226](https://github.com/floeorg/floe/issues/1226)] make keywords contextual - allow `type`, `todo`, `mock` as identifiers ([#1362](https://github.com/floeorg/floe/issues/1362)) ([01db1a5](https://github.com/floeorg/floe/commit/01db1a57f18dd0cecd5050b8893b2784015e18a0))
+* [[#1345](https://github.com/floeorg/floe/issues/1345)] ship floe.nvim as an installable Neovim plugin ([#1349](https://github.com/floeorg/floe/issues/1349)) ([e72c0e7](https://github.com/floeorg/floe/commit/e72c0e77d67dd559ff7005f3a2b8737d1f30ac14))
+* [[#1351](https://github.com/floeorg/floe/issues/1351)] emit chain probes for depth-1 terminal calls ([#1354](https://github.com/floeorg/floe/issues/1354)) ([c7f218c](https://github.com/floeorg/floe/commit/c7f218c7d960d5cb78f310e3bb0d3ab51722f589))
+* [[#1352](https://github.com/floeorg/floe/issues/1352)] thread literal args into chain-call probes ([#1359](https://github.com/floeorg/floe/issues/1359)) ([378c751](https://github.com/floeorg/floe/commit/378c7510f36454c239a9b78eb859c0e258086b54))
+
+
+### Bug Fixes
+
+* [[#1201](https://github.com/floeorg/floe/issues/1201)] make `use` contextual in tree-sitter grammar (Neovim) ([#1335](https://github.com/floeorg/floe/issues/1335)) ([7b9a226](https://github.com/floeorg/floe/commit/7b9a226001577048386d4e4ae0c4236f5f3fd9a7))
+* [[#1326](https://github.com/floeorg/floe/issues/1326)] interop resolves export type re-exports as unknown (W004) ([#1334](https://github.com/floeorg/floe/issues/1334)) ([dc58e7e](https://github.com/floeorg/floe/commit/dc58e7e79f68aeceaa1f5d34e7ca4f9942fcdae1))
+
 ## [0.1.0-alpha.3](https://github.com/floeorg/floe/compare/v0.1.0-alpha.2...v0.1.0-alpha.3) (2026-04-24)
 
 
