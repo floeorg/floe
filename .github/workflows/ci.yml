@@ -137,6 +137,13 @@ jobs:
 
   install-script:
     name: Install script smoke test (${{ matrix.os }})
+    # install.sh fetches the latest GitHub release. Release-please PRs run
+    # *before* any release exists for the new version, so the smoke test
+    # would 404 on `releases/latest` when there are no releases at all (or
+    # pass against an outdated tarball that doesn't match the PR's version).
+    # Skip on release-please PRs; the post-merge push-to-main run covers
+    # the real validation once the release exists.
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
