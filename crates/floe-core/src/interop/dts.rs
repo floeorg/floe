@@ -1802,6 +1802,49 @@ pub(super) fn collect_and_resolve_interfaces(
     bodies
 }
 
+/// Collect top-level and `declare global` type aliases (`type Foo = ...`).
+/// Used alongside `collect_and_resolve_interfaces` so ambient lib types like
+/// `AlgorithmIdentifier` or `BufferSource` register without a backing value.
+pub(super) fn collect_type_aliases(stmts: &[Statement<'_>]) -> HashMap<String, TsType> {
+    let mut aliases: HashMap<String, TsType> = HashMap::new();
+    for stmt in stmts {
+        collect_type_alias_info(stmt, &mut aliases);
+    }
+    aliases
+}
+
+fn collect_type_alias_info(stmt: &Statement<'_>, aliases: &mut HashMap<String, TsType>) {
+    match stmt {
+        Statement::TSTypeAliasDeclaration(type_decl) => {
+            let name = type_decl.id.name.to_string();
+            aliases
+                .entry(name)
+                .or_insert_with(|| convert_oxc_type(&type_decl.type_annotation));
+        }
+        Statement::ExportNamedDeclaration(export_decl) => {
+            if let Some(Declaration::TSTypeAliasDeclaration(type_decl)) = &export_decl.declaration {
+                let name = type_decl.id.name.to_string();
+                aliases
+                    .entry(name)
+                    .or_insert_with(|| convert_oxc_type(&type_decl.type_annotation));
+            }
+        }
+        Statement::TSModuleDeclaration(ns_decl) => {
+            if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
+                for inner_stmt in &block.body {
+                    collect_type_alias_info(inner_stmt, aliases);
+                }
+            }
+        }
+        Statement::TSGlobalDeclaration(global_decl) => {
+            for inner_stmt in &global_decl.body.body {
+                collect_type_alias_info(inner_stmt, aliases);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Collect type alias default values from statements.
 /// For `type DraggableId<TId extends string = string> = TId`, records
 /// DraggableId → Primitive("string") (the default type parameter value).

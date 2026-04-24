@@ -18,7 +18,10 @@ use oxc_ast::ast::Statement;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
-use super::dts::{collect_and_resolve_interfaces, convert_function, convert_variable_declarator};
+use super::dts::{
+    collect_and_resolve_interfaces, collect_type_aliases, convert_function,
+    convert_variable_declarator,
+};
 use super::wrapper::wrap_boundary_type;
 use crate::checker::Type;
 
@@ -382,9 +385,18 @@ fn parse_ambient_lib(content: &str) -> AmbientDeclarations {
         return AmbientDeclarations::default();
     }
 
-    // Phase 1: Collect and resolve all interface definitions
+    // Phase 1: Collect and resolve all interface + type-alias definitions.
+    // Aliases lose to interfaces on name collision — interface members are
+    // richer (resolved inheritance chain, call signatures), so when a lib
+    // file declares both `interface X` and `type X = ...` the interface
+    // wins.
     let interface_bodies = collect_and_resolve_interfaces(&ret.program.body);
     let mut types: HashMap<String, Type> = HashMap::new();
+    for (name, ts_type) in collect_type_aliases(&ret.program.body) {
+        if !interface_bodies.contains_key(&name) {
+            types.insert(name, wrap_boundary_type(&ts_type));
+        }
+    }
     for (name, fields) in &interface_bodies {
         let ts_type = super::TsType::Object(fields.clone());
         types.insert(name.clone(), wrap_boundary_type(&ts_type));
@@ -626,5 +638,45 @@ interface Foo { x: number; }
         assert_eq!(refs.len(), 2);
         assert_eq!(refs[0], "globals.d.ts");
         assert_eq!(refs[1], "web-globals/fetch.d.ts");
+    }
+
+    #[test]
+    fn top_level_type_alias_registers_as_ambient_type() {
+        let content = r#"
+            type AlgorithmIdentifier = string | { name: string };
+        "#;
+        let result = parse_ambient_lib(content);
+        assert!(
+            result.types.contains_key("AlgorithmIdentifier"),
+            "expected AlgorithmIdentifier in types, got {:?}",
+            result.types.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn type_alias_inside_declare_global_registers() {
+        let content = r#"
+            declare global {
+                type MyToken = string;
+            }
+        "#;
+        let result = parse_ambient_lib(content);
+        assert!(result.types.contains_key("MyToken"));
+    }
+
+    #[test]
+    fn interface_wins_when_name_collides_with_type_alias() {
+        // lib files sometimes declare both an interface and an alias by the
+        // same name. The interface has richer member info — keep it.
+        let content = r#"
+            type Foo = string;
+            interface Foo { bar: number; }
+        "#;
+        let result = parse_ambient_lib(content);
+        let ty = result.types.get("Foo").expect("Foo should be present");
+        assert!(
+            matches!(ty, Type::Record(_) | Type::Foreign { .. }),
+            "expected the interface body to win, got {ty:?}"
+        );
     }
 }

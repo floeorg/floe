@@ -9776,3 +9776,33 @@ export default something
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Ambient type aliases (#1357) ─────────────────────────────
+
+#[test]
+fn ambient_type_alias_resolves_as_type() {
+    use crate::interop::ambient::AmbientDeclarations;
+
+    let mut ambient = AmbientDeclarations::default();
+    ambient
+        .types
+        .insert("AlgorithmIdentifier".to_string(), Type::String);
+
+    let source = "export let f(v: AlgorithmIdentifier) -> number = { 0 }";
+    let program = Parser::new(source).parse_program().expect("parse");
+    let checker = Checker::from_context(
+        HashMap::new(),
+        HashMap::new(),
+        Some(ambient),
+        HashSet::new(),
+    );
+    let diags = checker.check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::UndefinedName),
+        "pure type alias from ambient should resolve, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}
