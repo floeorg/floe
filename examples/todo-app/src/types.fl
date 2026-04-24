@@ -21,3 +21,13 @@ export type TodoWithTimestamp = {
 export trait Display {
     let display(self) -> string
 }
+
+// Impl lives with the trait (orphan rule — Display is local here, Todo too)
+impl Display for Todo {
+    let display(self) -> string = {
+        match self.done {
+            true -> `[x] ${self.text}`,
+            false -> `[ ] ${self.text}`,
+        }
+    }
+}

@@ -2,6 +2,17 @@ use std::sync::Arc;
 
 use super::*;
 
+/// Same base-type extractor used by the orphan rule in `items.rs` —
+/// duplicated here because the two files are compiled separately and
+/// this one doesn't otherwise depend on the orphan-rule module.
+fn base_type_name_of<T>(expr: &TypeExpr<T>) -> Option<String> {
+    match &expr.kind {
+        TypeExprKind::Named { name, .. } => Some(name.clone()),
+        TypeExprKind::Array(_) => Some("Array".to_string()),
+        _ => None,
+    }
+}
+
 impl Checker {
     pub(crate) fn check_import(&mut self, decl: &ImportDecl, item_span: Span) {
         // If this import targets a .ts/.tsx file and tsgo is not installed,
@@ -71,7 +82,7 @@ impl Checker {
             if let Some(ref resolved) = resolved
                 && let Some(trait_decl) = resolved.trait_decls.iter().find(|t| t.name == spec.name)
             {
-                self.activate_trait_impls(trait_decl, resolved);
+                self.activate_trait_impls(trait_decl, resolved, &decl.source);
                 continue;
             }
 
@@ -204,15 +215,12 @@ impl Checker {
             // already in scope. A trait impl lives either with the trait or
             // with the type; importing either makes the impl visible, so we
             // pick up impls from any imported module where the trait has been
-            // registered.
+            // registered. Deduped against `impl_sources` so the same impl
+            // reached via multiple specifiers (trait + type from same module)
+            // doesn't double-register.
             for block in &resolved.for_blocks {
-                if let Some(trait_name) = &block.trait_name
-                    && self.traits.trait_defs.contains_key(trait_name)
-                {
-                    self.check_for_block_imported_with_source(block, &decl.source);
-                    for func in &block.functions {
-                        self.unused.used_names.insert(func.name.clone());
-                    }
+                if block.trait_name.is_some() {
+                    self.activate_impl_block(block, &decl.source);
                 }
             }
 
@@ -265,6 +273,7 @@ impl Checker {
         &mut self,
         trait_decl: &TraitDecl,
         resolved: &crate::resolve::ResolvedImports,
+        source: &str,
     ) {
         // Register the trait itself so later bound-checks + impl-matching
         // find it.
@@ -272,11 +281,49 @@ impl Checker {
 
         for block in &resolved.for_blocks {
             if block.trait_name.as_deref() == Some(trait_decl.name.as_str()) {
-                self.check_for_block_imported_with_source(block, "<trait activation>");
-                for func in &block.functions {
-                    self.unused.used_names.insert(func.name.clone());
-                }
+                self.activate_impl_block(block, source);
             }
+        }
+    }
+
+    /// Shared activation helper that dedupes via `impl_sources` and
+    /// emits **E056 DuplicateImpl** when the same `(Type, Trait)` pair
+    /// is reachable from two different sources.
+    fn activate_impl_block(&mut self, block: &ForBlock, source: &str) {
+        let Some(trait_name) = &block.trait_name else {
+            return;
+        };
+        let Some(base) = base_type_name_of(&block.type_name) else {
+            return;
+        };
+        let key = (base, trait_name.clone());
+
+        match self.impl_sources.get(&key) {
+            Some(existing) if existing == source => {
+                // Already activated via this source — diamond import, dedupe.
+                return;
+            }
+            Some(existing) => {
+                let (t, tr) = &key;
+                self.emit_error_with_help(
+                    format!(
+                        "`impl {tr} for {t}` is reachable from both `{existing}` and `{source}`",
+                    ),
+                    block.trait_name_span.unwrap_or(block.span),
+                    ErrorCode::DuplicateImpl,
+                    "trait impl defined by two different modules in scope",
+                    "narrow one of the imports so only one impl activates, or remove the duplicate impl",
+                );
+                return;
+            }
+            None => {
+                self.impl_sources.insert(key, source.to_string());
+            }
+        }
+
+        self.check_for_block_imported_with_source(block, source);
+        for func in &block.functions {
+            self.unused.used_names.insert(func.name.clone());
         }
     }
 
