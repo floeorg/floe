@@ -37,6 +37,11 @@
           "type": "json",
           "path": "integrations/esbuild-plugin/package.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "editors/vscode/package.json",
+          "jsonpath": "$.version"
         }
       ]
     }
