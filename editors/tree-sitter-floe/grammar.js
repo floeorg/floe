@@ -300,7 +300,12 @@ module.exports = grammar({
     const_declaration: ($) =>
       seq(
         "let",
-        choice($.identifier, $.object_pattern),
+        choice(
+          $.identifier,
+          $.object_pattern,
+          $.tuple_pattern,
+          $.invalid_array_pattern,
+        ),
         optional(seq(":", $._type_expression)),
         "=",
         $._expression,
@@ -308,6 +313,15 @@ module.exports = grammar({
 
     object_pattern: ($) =>
       seq("{", commaSep1($.identifier), "}"),
+
+    tuple_pattern: ($) =>
+      seq("(", commaSep1($.identifier), optional(","), ")"),
+
+    // `let [a, b] = ...` is not valid Floe (use tuple form `(a, b)` instead).
+    // Parsing it as a dedicated node gives the LSP a targeted diagnostic
+    // anchor rather than a generic ERROR.
+    invalid_array_pattern: ($) =>
+      seq("[", commaSep1($.identifier), optional(","), "]"),
 
     // ── Use (callback flattening) ───────────────────────────
 
