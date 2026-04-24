@@ -1457,6 +1457,35 @@ export let app = router<Bindings>()
     }
 
     #[test]
+    fn generate_probe_recognizes_functional_handler_registration() {
+        // Regression for #1353. `collect_handler_paths` previously required
+        // the path string at arg 0 — fine for hono-native `app.get(path, h)`
+        // and for the pipe form `|> get(path, h)` (whose RHS Call still has
+        // path at arg 0), but the `@floeorg/hono` wrapper uses functional
+        // signatures like `get(router, "/x", handler)` where the path is at
+        // arg 1 and the handler at arg 2. Without a match, no
+        // `__chain_base_<fn>__<Base>` was emitted, so per-function chain
+        // probes never fired for the direct-call style.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handleUser(c: Context<{ Bindings: Bindings }>) -> string = {
+    c.req.param("id")
+}
+
+export let app = get(router<Bindings>(), "/users/:id", handleUser)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains("declare const __chain_base_handleUser__Context: Context<{ Bindings: Bindings }, \"/users/:id\">;"),
+            "functional handler registration should populate the per-function chain base, got:\n{probe}"
+        );
+    }
+
+    #[test]
     fn generate_probe_preserves_nested_generic_type_argument() {
         // Regression for #1276. Without the full type annotation in the probe,
         // `c.env.DB` on `Context<{ Bindings: Bindings }>` collapses to the
