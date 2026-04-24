@@ -1,6 +1,6 @@
 {
   "name": "@floeorg/hono",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Immutable router API for Hono, consumable from Floe via pipe operators",
   "type": "module",
   "main": "dist/index.js",
