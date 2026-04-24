@@ -479,20 +479,6 @@ impl Checker {
     }
 
     pub(crate) fn check_function(&mut self, decl: &FunctionDecl, span: Span) {
-        // Rule: Exported functions must declare return types
-        if decl.exported && decl.return_type.is_none() {
-            self.emit_error_with_help(
-                format!(
-                    "exported function `{}` must declare a return type",
-                    decl.name
-                ),
-                span,
-                ErrorCode::MissingReturnType,
-                "missing return type",
-                "add `-> ReturnType` after the parameter list",
-            );
-        }
-
         // Hydrate the fn's generic type parameters into `Generic` vars. Each
         // unconstrained name (`T`, `U`, …) becomes a unique Generic variable
         // shared across every occurrence inside the signature. Trait-bounded

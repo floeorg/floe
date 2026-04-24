@@ -1318,3 +1318,61 @@ export type { Context } from './context';
         other => panic!("expected TsType::Object for re-exported Context, got {other:?}"),
     }
 }
+
+#[test]
+fn intersection_prefers_generic_over_bare_named() {
+    let dts = r#"
+        export type Foo = Bar & TypedResponse<number, 201, "json">;
+    "#;
+    let exports = super::dts::parse_dts_exports_from_str(dts).unwrap();
+    let foo = exports.iter().find(|e| e.name == "Foo").unwrap();
+    match &foo.ts_type {
+        TsType::Generic { name, args } => {
+            assert_eq!(name, "TypedResponse");
+            assert_eq!(args.len(), 3);
+            assert!(
+                matches!(&args[1], TsType::NumberLiteral(n) if (*n - 201.0).abs() < f64::EPSILON),
+                "expected 201 literal at position 1, got {:?}",
+                args[1]
+            );
+        }
+        other => panic!("expected Generic TypedResponse<…>, got {other:?}"),
+    }
+}
+
+#[test]
+fn wrap_generic_preserves_number_literal_in_foreign_name() {
+    let ts = TsType::Generic {
+        name: "TypedResponse".to_string(),
+        args: vec![
+            TsType::Any,
+            TsType::NumberLiteral(201.0),
+            TsType::StringLiteral("json".to_string()),
+        ],
+    };
+    let wrapped = wrap_boundary_type(&ts);
+    let Type::Foreign { name, .. } = &wrapped else {
+        panic!("expected Foreign, got {wrapped:?}");
+    };
+    assert!(
+        name.contains("201") && name.contains("\"json\""),
+        "expected 201 and \"json\" preserved, got {name:?}"
+    );
+    assert!(
+        !name.contains(", number,") && !name.contains("<number,"),
+        "status literal 201 should not widen to `number`, got {name:?}"
+    );
+}
+
+#[test]
+fn wrap_generic_preserves_boolean_literal() {
+    let ts = TsType::Generic {
+        name: "Flag".to_string(),
+        args: vec![TsType::BooleanLiteral(true)],
+    };
+    let wrapped = wrap_boundary_type(&ts);
+    let Type::Foreign { name, .. } = &wrapped else {
+        panic!("expected Foreign, got {wrapped:?}");
+    };
+    assert_eq!(name, "Flag<true>");
+}
