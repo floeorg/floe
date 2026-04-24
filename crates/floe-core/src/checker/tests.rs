@@ -597,12 +597,10 @@ let _useNext(next: Next) -> Promise<()> = {
     let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
     let (diags, _, _, _) = checker.check_with_types(&program);
 
-    let messages: Vec<_> = diags.iter().map(|d| d.message.clone()).collect();
     assert!(
-        messages
-            .iter()
-            .any(|m| { m.contains("argument") || m.contains("arity") || m.contains("expects") }),
-        "expected an arg-count diagnostic from `next(\"unexpected\")`, got: {messages:?}"
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "expected an arg-count TypeMismatch from `next(\"unexpected\")`, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 

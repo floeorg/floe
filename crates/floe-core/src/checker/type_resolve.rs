@@ -238,13 +238,10 @@ impl Checker {
                     if matches!(ty, Type::Union { .. } | Type::Record(_) | Type::Named(_)) {
                         Type::Named(name.to_string())
                     } else if matches!(ty, Type::Function { .. }) && self.is_imported_name(name) {
-                        // Imported function-type aliases like hono's
-                        // `export type Next = () => Promise<void>` land in the
-                        // value namespace because every import does; returning
-                        // the signature here lets `next: Next` flow a real
-                        // `Type::Function` into call sites so `next()` is
-                        // properly arity-checked instead of hitting the
-                        // Foreign-callee W004 fallback.
+                        // Imported function-type aliases (hono's `type Next =
+                        // () => Promise<void>`) are usable in type position;
+                        // locally-declared Floe fns are not (hence the
+                        // import-only guard).
                         ty.clone()
                     } else {
                         self.emit_error_with_help(

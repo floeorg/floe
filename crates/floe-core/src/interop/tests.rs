@@ -1167,6 +1167,17 @@ fn wrap_indexed_access_concrete_returns_field_type() {
     assert_eq!(wrap_boundary_type(&ty), Type::String);
 }
 
+/// Write the given `(filename, contents)` pairs into a fresh tempdir and
+/// parse `index.d.ts` as the entry point, following any `export type { … }
+/// from './…'` re-exports into the other files.
+fn parse_dts_entry(files: &[(&str, &str)]) -> Vec<super::DtsExport> {
+    let dir = tempfile::TempDir::new().unwrap();
+    for (name, contents) in files {
+        std::fs::write(dir.path().join(name), contents).unwrap();
+    }
+    super::dts::parse_dts_exports(&dir.path().join("index.d.ts")).expect("parse")
+}
+
 #[test]
 fn function_type_alias_reexport_preserves_signature() {
     // Regression for #1326. Packages like hono curate their entry point as
@@ -1175,22 +1186,10 @@ fn function_type_alias_reexport_preserves_signature() {
     // re-export and attach the full Function signature under the re-exported
     // name so downstream stages (boundary wrap, call arg checking) have the
     // real shape instead of an erased `any`.
-    use super::dts::parse_dts_exports;
-    use tempfile::TempDir;
-
-    let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("types.d.ts"),
-        r#"export type Next = () => Promise<void>;"#,
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("index.d.ts"),
-        r#"export type { Next } from './types';"#,
-    )
-    .unwrap();
-
-    let exports = parse_dts_exports(&dir.path().join("index.d.ts")).expect("parse");
+    let exports = parse_dts_entry(&[
+        ("types.d.ts", r#"export type Next = () => Promise<void>;"#),
+        ("index.d.ts", r#"export type { Next } from './types';"#),
+    ]);
     let next = exports
         .iter()
         .find(|e| e.name == "Next")
@@ -1222,22 +1221,13 @@ fn function_type_alias_reexport_preserves_signature() {
 fn record_type_alias_reexport_preserves_fields() {
     // Companion to #1326. Plain record-shaped type aliases re-exported via
     // `export type { X } from './y'` must also preserve their field list.
-    use super::dts::parse_dts_exports;
-    use tempfile::TempDir;
-
-    let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("types.d.ts"),
-        r#"export type Config = { host: string; port: number };"#,
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("index.d.ts"),
-        r#"export type { Config } from './types';"#,
-    )
-    .unwrap();
-
-    let exports = parse_dts_exports(&dir.path().join("index.d.ts")).expect("parse");
+    let exports = parse_dts_entry(&[
+        (
+            "types.d.ts",
+            r#"export type Config = { host: string; port: number };"#,
+        ),
+        ("index.d.ts", r#"export type { Config } from './types';"#),
+    ]);
     let config = exports
         .iter()
         .find(|e| e.name == "Config")
@@ -1260,27 +1250,14 @@ fn two_hop_reexport_chain_resolves() {
     // `export type { X } from './…'` and the last file is where the real
     // declaration lives. The loader has to keep following until it bottoms
     // out on a concrete declaration.
-    use super::dts::parse_dts_exports;
-    use tempfile::TempDir;
-
-    let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("internal.d.ts"),
-        r#"export type Next = () => Promise<void>;"#,
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("public.d.ts"),
-        r#"export type { Next } from './internal';"#,
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("index.d.ts"),
-        r#"export type { Next } from './public';"#,
-    )
-    .unwrap();
-
-    let exports = parse_dts_exports(&dir.path().join("index.d.ts")).expect("parse");
+    let exports = parse_dts_entry(&[
+        (
+            "internal.d.ts",
+            r#"export type Next = () => Promise<void>;"#,
+        ),
+        ("public.d.ts", r#"export type { Next } from './internal';"#),
+        ("index.d.ts", r#"export type { Next } from './public';"#),
+    ]);
     let next = exports
         .iter()
         .find(|e| e.name == "Next")
