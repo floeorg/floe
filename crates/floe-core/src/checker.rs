@@ -282,6 +282,10 @@ pub struct Checker {
     /// transitive import closure — used to reject duplicate impls at
     /// import time with a focused diagnostic.
     pub(crate) impl_sources: HashMap<(String, String), String>,
+    /// `ExprId`s of `Todo`/`Unreachable`/`Clear`/`Unchanged` that resolved
+    /// to a local binding of the same name. `attach_types` rewrites them
+    /// to `ExprKind::Identifier` so codegen emits the variable read.
+    pub(crate) shadowed_keyword_exprs: HashMap<ExprId, &'static str>,
 }
 
 /// Signature of a trait method (for checking implementations).
@@ -493,6 +497,7 @@ impl Checker {
             local_type_names: HashSet::new(),
             local_trait_names: HashSet::new(),
             impl_sources: HashMap::new(),
+            shadowed_keyword_exprs: HashMap::new(),
         }
     }
 
@@ -623,9 +628,15 @@ impl Checker {
     pub fn check_full(
         mut self,
         program: &Program,
-    ) -> (Vec<Diagnostic>, ExprTypeMap, HashSet<ExprId>) {
+    ) -> (
+        Vec<Diagnostic>,
+        ExprTypeMap,
+        HashSet<ExprId>,
+        HashMap<ExprId, &'static str>,
+    ) {
         let (diags, _, expr_types, invalid) = self.check_all(program);
-        (diags, expr_types, invalid)
+        let shadowed = self.take_shadowed_keyword_exprs();
+        (diags, expr_types, invalid, shadowed)
     }
 
     /// Check a program and return diagnostics, name_type_map, expr_type_map,
@@ -658,6 +669,10 @@ impl Checker {
     /// Take the checker's top-level `name -> Arc<Type>` map.
     pub fn take_name_type_map(&mut self) -> HashMap<String, std::sync::Arc<Type>> {
         std::mem::take(&mut self.name_type_map)
+    }
+
+    pub fn take_shadowed_keyword_exprs(&mut self) -> HashMap<ExprId, &'static str> {
+        std::mem::take(&mut self.shadowed_keyword_exprs)
     }
 
     /// Run all checks and return all maps. Takes `&mut self` so callers

@@ -245,7 +245,7 @@ module.exports = grammar({
     // Floe parser rejects type-only fields inside `{ ... }` variants.
     variant_field: ($) =>
       seq(
-        field("name", $.identifier),
+        field("name", $._field_name),
         ":",
         field("type", $._type_expression),
       ),
@@ -254,11 +254,15 @@ module.exports = grammar({
 
     record_field: ($) =>
       seq(
-        field("name", $.identifier),
+        field("name", $._field_name),
         ":",
         field("type", $._type_expression),
         optional(seq("=", field("default", $._expression))),
       ),
+
+    // Floe accepts both lowercase (standard identifier) and uppercase
+    // (type_identifier) names in field-name position.
+    _field_name: ($) => choice($.identifier, $.type_identifier),
 
     _type_expression: ($) =>
       choice(
@@ -570,7 +574,7 @@ module.exports = grammar({
 
     variant_field_pattern: ($) =>
       seq(
-        field("name", $.identifier),
+        field("name", $._field_name),
         optional(seq(":", field("pattern", $._pattern))),
       ),
 
@@ -586,7 +590,7 @@ module.exports = grammar({
 
     record_pattern_field: ($) =>
       seq(
-        field("name", $.identifier),
+        field("name", $._field_name),
         optional(seq(":", field("pattern", $._pattern))),
       ),
 
@@ -645,7 +649,7 @@ module.exports = grammar({
       )),
 
     construct_field: ($) =>
-      seq(field("name", $.identifier), ":", field("value", $._expression)),
+      seq(field("name", $._field_name), ":", field("value", $._expression)),
 
     variant_expression: ($) =>
       choice(

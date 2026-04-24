@@ -7705,6 +7705,66 @@ export let handler(c: Context<unknown>) -> string = {
 }
 
 #[test]
+fn chain_call_probe_resolves_per_literal_arg_tuple() {
+    // Regression for #1352. When a handler calls `c.json(body, 201)`,
+    // the fingerprinted `__chain_call_Context$json__<fp>` probe captures
+    // the narrow `TypedResponse<any, 201, "json">`. The checker must
+    // prefer it over the bare probe (still emitted as a fallback) —
+    // we prove it by giving the two probes disjoint field sets and
+    // accessing the narrow-only field: a lookup that went to the bare
+    // probe would report "has no field".
+    use crate::interop::tsgo::probe_gen;
+    use crate::interop::{DtsExport, ObjectField, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Context } from "hono"
+
+export let handler(c: Context<unknown>) -> string = {
+    c.json("ok", 201).narrowOnly
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let context_export = DtsExport {
+        name: "Context".to_string(),
+        ts_type: TsType::Any,
+    };
+    let bare = DtsExport {
+        name: "__chain_call_Context$json".to_string(),
+        ts_type: TsType::Object(vec![ObjectField {
+            name: "bareOnly".to_string(),
+            ty: TsType::Primitive("string".to_string()),
+            optional: false,
+        }]),
+    };
+    let fp = probe_gen::chain_call_fingerprint(&["\"ok\"".to_string(), "201".to_string()]);
+    let narrow = DtsExport {
+        name: format!("__chain_call_Context$json__{fp}"),
+        ts_type: TsType::Object(vec![ObjectField {
+            name: "narrowOnly".to_string(),
+            ty: TsType::Primitive("string".to_string()),
+            optional: false,
+        }]),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("hono".to_string(), vec![context_export, bare, narrow]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+
+    assert!(
+        !has_error_containing(&diags, "has no field"),
+        "fingerprinted probe should win lookup — accessing narrowOnly must succeed, got errors: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn chain_probe_resolves_for_fl_alias_type_param() {
     // When a function parameter is typed as a Floe type alias (e.g. db: Database
     // where `type Database = DrizzleType`), chain probes keyed by type name should resolve

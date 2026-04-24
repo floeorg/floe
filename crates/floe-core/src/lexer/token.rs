@@ -187,6 +187,26 @@ pub enum TokenKind {
     BlockComment,
 }
 
+impl TokenKind {
+    /// True for keywords that are reserved only in their specific syntactic
+    /// position and parse as identifiers elsewhere.
+    pub fn is_contextual_ident(&self) -> bool {
+        matches!(
+            self,
+            Self::Type
+                | Self::Todo
+                | Self::Unreachable
+                | Self::Mock
+                | Self::Parse
+                | Self::Clear
+                | Self::Unchanged
+                | Self::Trusted
+                | Self::Opaque
+                | Self::Collect
+        )
+    }
+}
+
 /// Template literal parts: either a raw string segment or an interpolation hole.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TemplatePart {

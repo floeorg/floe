@@ -266,6 +266,41 @@ mock<T>                           // generate test data from type, returns T
 mock<User>(name: "Alice")         // with field overrides
 ```
 
+### Contextual keywords
+
+Some keywords are only reserved in specific positions so they don't block
+common names in user code (`type` as a JSON/DOM field, `todo` as a variable,
+etc.). Outside those positions they parse as ordinary identifiers.
+
+| Keyword | Acts as keyword when… |
+|---|---|
+| `type` | Starts an item (`type X = ...`, including `opaque type`) |
+| `opaque` | Precedes `type` |
+| `trusted` | Modifies an `import` (`import trusted { ... }`) |
+| `deriving` | Tails a record type (`... deriving (Display)`) |
+| `mock`, `parse` | Followed by `<` (e.g. `parse<User>(value)`) |
+| `collect` | Followed by `{` (`collect { ... }`) |
+| `todo`, `unreachable`, `clear`, `unchanged` | No local binding with the same name is in scope |
+
+```floe
+// `type` as a record field and a parameter name — both fine
+type Message = {
+    type: string,
+    body: string,
+}
+
+let make(type: string, body: string) -> Message = {
+    Message(type: type, body: body)
+}
+
+// JSX attribute
+<input type="text" />
+
+// `todo` is shadowed by the local binding
+let todo = validateTodo(text)?
+saveTodo(todo)   // reads the local — not the panic placeholder
+```
+
 ### Qualified Variants
 
 ```floe

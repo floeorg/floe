@@ -268,7 +268,7 @@ impl<'src> CstParser<'src> {
                 self.builder.finish_node();
             }
 
-            Some(TokenKind::Parse) => {
+            Some(TokenKind::Parse) if self.peek_is(TokenKind::LessThan) => {
                 self.builder.start_node(SyntaxKind::PARSE_EXPR.into());
                 self.bump(); // parse
                 self.eat_trivia();
@@ -289,8 +289,9 @@ impl<'src> CstParser<'src> {
                 }
                 self.builder.finish_node();
             }
+            Some(TokenKind::Parse) => self.bump_remap(SyntaxKind::IDENT),
 
-            Some(TokenKind::Mock) => {
+            Some(TokenKind::Mock) if self.peek_is(TokenKind::LessThan) => {
                 self.builder.start_node(SyntaxKind::MOCK_EXPR.into());
                 self.bump(); // mock
                 self.eat_trivia();
@@ -319,15 +320,17 @@ impl<'src> CstParser<'src> {
                 }
                 self.builder.finish_node();
             }
+            Some(TokenKind::Mock) => self.bump_remap(SyntaxKind::IDENT),
 
             Some(TokenKind::Match) => self.parse_match_expr(),
-            Some(TokenKind::Collect) => {
+            Some(TokenKind::Collect) if self.peek_is(TokenKind::LeftBrace) => {
                 self.builder.start_node(SyntaxKind::COLLECT_EXPR.into());
                 self.bump(); // collect
                 self.eat_trivia();
                 self.parse_block_expr();
                 self.builder.finish_node();
             }
+            Some(TokenKind::Collect) => self.bump_remap(SyntaxKind::IDENT),
             Some(TokenKind::LeftBrace) => {
                 if self.is_object_literal() {
                     self.parse_object_literal();
@@ -393,6 +396,12 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::SelfKw) => {
                 self.bump();
             }
+
+            // These are keywords only at item-declaration positions; in
+            // expression position they're plain identifier reads.
+            Some(
+                TokenKind::Type | TokenKind::Opaque | TokenKind::Trusted,
+            ) => self.bump_remap(SyntaxKind::IDENT),
 
             Some(TokenKind::Identifier(name)) => {
                 let name = name.clone();
@@ -531,9 +540,9 @@ impl<'src> CstParser<'src> {
     fn parse_call_arg(&mut self) {
         self.builder.start_node(SyntaxKind::ARG.into());
 
-        // Named arg: `label: expr` or punned `label:`
-        if self.is_ident() && self.peek_is(TokenKind::Colon) {
-            self.bump(); // label
+        // Named arg: `label: expr` or punned `label:`.
+        if self.is_ident_flex() && self.peek_is(TokenKind::Colon) {
+            self.expect_ident_flex();
             self.eat_trivia();
             self.bump(); // :
 
@@ -833,7 +842,7 @@ impl<'src> CstParser<'src> {
     }
 
     fn parse_record_pattern_field(&mut self) {
-        self.expect_ident();
+        self.expect_ident_flex();
         self.eat_trivia();
         if self.at(TokenKind::Colon) {
             self.bump();
@@ -847,7 +856,7 @@ impl<'src> CstParser<'src> {
     fn parse_named_variant_pattern_field(&mut self) {
         self.builder
             .start_node(SyntaxKind::VARIANT_FIELD_PATTERN.into());
-        self.expect_ident();
+        self.expect_ident_flex();
         self.eat_trivia();
         if self.at(TokenKind::Colon) {
             self.bump();
@@ -870,8 +879,8 @@ impl<'src> CstParser<'src> {
         if i >= self.tokens.len() {
             return false;
         }
-        // Must be an identifier (not a keyword)
-        if !matches!(self.tokens[i].kind, TokenKind::Identifier(_)) {
+        let first = &self.tokens[i].kind;
+        if !matches!(first, TokenKind::Identifier(_)) && !first.is_contextual_ident() {
             return false;
         }
         // Next non-trivia token after the ident must be `:` (key: value) or `,` or `}` (shorthand)
@@ -899,7 +908,7 @@ impl<'src> CstParser<'src> {
 
     fn parse_object_field(&mut self) {
         self.builder.start_node(SyntaxKind::OBJECT_FIELD.into());
-        self.expect_ident();
+        self.expect_ident_flex();
         self.eat_trivia();
         if self.at(TokenKind::Colon) {
             self.bump(); // :

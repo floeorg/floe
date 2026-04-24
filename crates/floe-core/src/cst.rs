@@ -208,22 +208,42 @@ impl<'src> CstParser<'src> {
         )
     }
 
-    /// Check if the current token is a keyword that could appear as a JSX prop name
-    /// (e.g., `type`, `for`, `match`, `fn`, `const`, etc.).
+    fn is_ident_flex(&self) -> bool {
+        matches!(self.current_kind(), Some(TokenKind::Identifier(_)))
+            || self.current_kind().is_some_and(|k| k.is_contextual_ident())
+    }
+
+    fn expect_ident_flex(&mut self) {
+        match self.current_kind() {
+            Some(TokenKind::Identifier(_)) => self.bump(),
+            Some(k) if k.is_contextual_ident() => self.bump_remap(SyntaxKind::IDENT),
+            _ => self.error_kind(
+                &format!("expected identifier, found {:?}", self.current_kind()),
+                CstErrorKind::UnexpectedToken,
+            ),
+        }
+    }
+
+    fn expect_ident_flex_item(&mut self) {
+        self.expect_ident_flex();
+    }
+
+    /// Keywords accepted as JSX prop names (`<input type="text" />`,
+    /// `<label for="..." />`).
     fn is_keyword(&self) -> bool {
-        matches!(
-            self.current_kind(),
+        match self.current_kind() {
+            Some(k) if k.is_contextual_ident() => true,
             Some(
-                TokenKind::Type
-                    | TokenKind::For
-                    | TokenKind::Match
-                    | TokenKind::Fn
-                    | TokenKind::Let
-                    | TokenKind::Import
-                    | TokenKind::Export
-                    | TokenKind::Trait
-            )
-        )
+                TokenKind::For
+                | TokenKind::Match
+                | TokenKind::Fn
+                | TokenKind::Let
+                | TokenKind::Import
+                | TokenKind::Export
+                | TokenKind::Trait,
+            ) => true,
+            _ => false,
+        }
     }
 
     /// Check if the current token maps to a SyntaxKind that is a valid member
@@ -576,13 +596,13 @@ impl<'src> CstParser<'src> {
     }
 
     fn expect_ident(&mut self) {
-        if self.is_ident() {
-            self.bump();
-        } else {
-            self.error_kind(
+        match self.current_kind() {
+            Some(TokenKind::Identifier(_)) => self.bump(),
+            Some(TokenKind::Parse) => self.bump_remap(SyntaxKind::IDENT),
+            _ => self.error_kind(
                 &format!("expected identifier, found {:?}", self.current_kind()),
                 CstErrorKind::UnexpectedToken,
-            );
+            ),
         }
     }
 
@@ -604,12 +624,12 @@ impl<'src> CstParser<'src> {
 
     /// Parse a destructuring field: `ident` or `ident: ident` (with rename).
     fn parse_destructure_field(&mut self) {
-        self.expect_ident();
+        self.expect_ident_flex();
         self.eat_trivia();
         if self.at(TokenKind::Colon) {
             self.bump(); // eat ':'
             self.eat_trivia();
-            self.expect_ident(); // alias
+            self.expect_ident_flex(); // alias
         }
     }
 

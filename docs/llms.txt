@@ -848,6 +848,28 @@ match key {
 }
 ```
 
+## Contextual keywords
+
+These keywords are recognized only in their specific positions — everywhere
+else they parse as ordinary identifiers so names don't collide with user code
+(JSX attrs, React/DOM/JSON fields, idiomatic variable names):
+
+| Keyword | Keyword only when… | Identifier elsewhere (examples) |
+|---|---|---|
+| `type` | At item start (`type X = ...`) | `{ type: "click" }`, `<input type="text" />`, `fn f(type: string)` |
+| `opaque` | Before `type` (`opaque type X = ...`) | `let opaque = 1` |
+| `trusted` | In imports (`import trusted { ... }`) | `let trusted = true` |
+| `deriving` | After a record type (`... deriving (Display)`) | `let deriving = []` |
+| `mock` | Followed by `<` (`mock<User>(...)`) | `let mock = fakeUser()` |
+| `parse` | Followed by `<` (`parse<T>(value)`) | `let parse = decoder` |
+| `collect` | Followed by `{` (`collect { ... }`) | `let collect = reducer` |
+| `todo`, `unreachable`, `clear`, `unchanged` | No local binding of the same name in scope | `let todo = "wip"; let note = todo` — reads the local |
+
+Shadowing rule for the last row: a local binding with the same name wins. Once
+you write `let todo = ...`, every later mention of `todo` in that scope reads
+the local — the panic-placeholder meaning returns only after the binding goes
+out of scope.
+
 ## Differences from TypeScript
 
 | TypeScript | Floe equivalent |

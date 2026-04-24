@@ -12,7 +12,15 @@ use super::index::SymbolIndex;
 
 /// Resolve an npm package specifier to its .d.ts file path.
 /// Walks node_modules looking for package.json types/typings field.
+///
+/// `node:X` imports route to `@types/node/X.d.ts` (or `index.d.ts`) — the
+/// actual declarations live inside `declare module "node:X" { ... }` blocks,
+/// which the caller reads via `parse_dts_exports_for_specifier`.
 pub(super) fn resolve_npm_dts(specifier: &str, project_dir: &Path) -> Option<PathBuf> {
+    if let Some(submodule) = specifier.strip_prefix("node:") {
+        return resolve_node_builtin_dts(submodule, project_dir);
+    }
+
     // Walk up directories looking for node_modules
     let mut dir = project_dir.to_path_buf();
     loop {
@@ -49,6 +57,29 @@ pub(super) fn resolve_npm_dts(specifier: &str, project_dir: &Path) -> Option<Pat
             }
         }
 
+        if !dir.pop() {
+            break;
+        }
+    }
+    None
+}
+
+/// Resolve a `node:X` scheme specifier to the matching `@types/node/X.d.ts`
+/// (preferred) or the package's `index.d.ts` (fallback).
+fn resolve_node_builtin_dts(submodule: &str, project_dir: &Path) -> Option<PathBuf> {
+    let mut dir = project_dir.to_path_buf();
+    loop {
+        let at_node = dir.join("node_modules").join("@types").join("node");
+        if at_node.is_dir() {
+            let sub_dts = at_node.join(format!("{submodule}.d.ts"));
+            if sub_dts.exists() {
+                return Some(sub_dts);
+            }
+            let index_dts = at_node.join("index.d.ts");
+            if index_dts.exists() {
+                return Some(index_dts);
+            }
+        }
         if !dir.pop() {
             break;
         }
@@ -134,7 +165,7 @@ pub(super) fn enrich_from_imports<T>(
         let exports = if let Some(cached) = dts_cache.get(specifier) {
             cached.clone()
         } else if let Some(dts_path) = resolve_npm_dts(specifier, project_dir) {
-            match interop::parse_dts_exports(&dts_path) {
+            match interop::parse_dts_exports_for_specifier(&dts_path, specifier) {
                 Ok(exports) => exports,
                 Err(_) => continue,
             }
@@ -176,4 +207,54 @@ pub(super) fn enrich_from_imports<T>(
     }
 
     (import_diags, new_cache)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Simulate a minimal `@types/node` layout and verify that `node:X`
+    /// specifiers route through to `@types/node/X.d.ts`. Regression for #1356.
+    #[test]
+    fn resolve_npm_dts_routes_node_scheme_to_types_node() {
+        let dir = tempfile::tempdir().unwrap();
+        let at_node = dir.path().join("node_modules/@types/node");
+        std::fs::create_dir_all(&at_node).unwrap();
+        std::fs::write(
+            at_node.join("crypto.d.ts"),
+            "declare module \"node:crypto\" {}",
+        )
+        .unwrap();
+        std::fs::write(at_node.join("index.d.ts"), "").unwrap();
+
+        let resolved = resolve_npm_dts("node:crypto", dir.path()).expect("should resolve");
+        assert!(
+            resolved.ends_with("crypto.d.ts"),
+            "expected crypto.d.ts, got {}",
+            resolved.display()
+        );
+    }
+
+    #[test]
+    fn resolve_npm_dts_node_scheme_falls_back_to_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let at_node = dir.path().join("node_modules/@types/node");
+        std::fs::create_dir_all(&at_node).unwrap();
+        // No crypto.d.ts — only index.d.ts.
+        std::fs::write(at_node.join("index.d.ts"), "").unwrap();
+
+        let resolved = resolve_npm_dts("node:crypto", dir.path()).expect("should resolve");
+        assert!(
+            resolved.ends_with("index.d.ts"),
+            "expected index.d.ts fallback, got {}",
+            resolved.display()
+        );
+    }
+
+    #[test]
+    fn resolve_npm_dts_node_scheme_missing_types_node_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        // No @types/node installed at all.
+        assert!(resolve_npm_dts("node:crypto", dir.path()).is_none());
+    }
 }

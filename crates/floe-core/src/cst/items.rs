@@ -293,7 +293,7 @@ impl<'src> CstParser<'src> {
         if self.looks_like_let_function_binding() {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::FUNCTION_DECL.into());
-            self.expect_ident();
+            self.expect_ident_flex();
             self.eat_trivia();
             self.parse_let_function_body();
             self.builder.finish_node();
@@ -311,7 +311,7 @@ impl<'src> CstParser<'src> {
             self.error("expected identifier, `{`, or `(`");
             self.bump();
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightBracket);
+            self.parse_comma_separated(Self::expect_ident_flex_item, TokenKind::RightBracket);
             self.expect(TokenKind::RightBracket);
         } else if self.at(TokenKind::LeftBrace) {
             self.bump();
@@ -321,10 +321,10 @@ impl<'src> CstParser<'src> {
         } else if self.at(TokenKind::LeftParen) && self.is_const_tuple_destructuring() {
             self.bump();
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightParen);
+            self.parse_comma_separated(Self::expect_ident_flex_item, TokenKind::RightParen);
             self.expect(TokenKind::RightParen);
         } else {
-            self.expect_ident();
+            self.expect_ident_flex();
         }
         self.eat_trivia();
 
@@ -346,7 +346,7 @@ impl<'src> CstParser<'src> {
     /// In def-form, params follow immediately after the name (with optional
     /// generics in between) — no `=` between them.
     fn looks_like_let_function_binding(&self) -> bool {
-        if !self.is_ident() {
+        if !self.is_ident_flex() {
             return false;
         }
         let mut i = self.pos + 1;
@@ -460,7 +460,7 @@ impl<'src> CstParser<'src> {
             // Tuple destructured param: (a, b)
             self.bump(); // (
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightParen);
+            self.parse_comma_separated(Self::expect_ident_flex_item, TokenKind::RightParen);
             self.expect(TokenKind::RightParen);
             self.eat_trivia();
         } else if self.at(TokenKind::SelfKw) {
@@ -470,7 +470,7 @@ impl<'src> CstParser<'src> {
             self.bump(); // _
             self.eat_trivia();
         } else {
-            self.expect_ident();
+            self.expect_ident_flex();
             self.eat_trivia();
         }
 
@@ -761,7 +761,7 @@ impl<'src> CstParser<'src> {
 
     fn parse_record_field(&mut self) {
         self.builder.start_node(SyntaxKind::RECORD_FIELD.into());
-        self.expect_ident();
+        self.expect_ident_flex();
         self.eat_trivia();
         self.expect(TokenKind::Colon);
         self.eat_trivia();

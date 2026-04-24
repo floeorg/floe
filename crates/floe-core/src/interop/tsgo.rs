@@ -5,7 +5,7 @@
 //! 2. Parsing .d.ts / .ts files directly for type definitions
 //! 3. Querying tsgo LSP (hover) for richer type resolution
 
-mod probe_gen;
+pub(crate) mod probe_gen;
 #[cfg(feature = "native")]
 mod probe_run;
 mod specifier_map;
@@ -1397,6 +1397,161 @@ export let app = router<Bindings>()
                 "export let __chain_call_handleUser__Context$req$param = __chain_base_handleUser__Context.req.param(null! as any);"
             ),
             "per-function chain call probe missing for handler body, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_emits_depth_1_terminal_call_chain() {
+        // Regression for #1351. hono's `c.json(body, status)` call chain is
+        // only one member step deep — `collect_param_rooted_chains` used to
+        // filter it out alongside bare `c.env` reads, and the per-function
+        // walker never emitted `__chain_call_Context$json`. Without that
+        // probe, tsgo's narrow `JSONRespondReturn<T, S>` return type can't
+        // reach the checker. The depth-1 exclusion now applies only to bare
+        // member accesses — terminal calls always emit.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handleCreate(c: Context<{ Bindings: Bindings }>) -> string = {
+    c.json("hi", 201)
+}
+
+export let app = router<Bindings>()
+    |> get("/x", handleCreate)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains(
+                "export let __chain_call_handleCreate__Context$json = __chain_base_handleCreate__Context.json(null! as any);"
+            ),
+            "depth-1 terminal-call chain must emit __chain_call_ probe, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_skips_depth_1_bare_member_access() {
+        // Complement to the depth-1 terminal-call regression: a bare member
+        // read like `c.env` still adds nothing beyond the parent Context
+        // probe, so the depth-1 exclusion is preserved for non-call chains.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handler(c: Context<{ Bindings: Bindings }>) -> unknown = {
+    c.env
+}
+
+export let app = router<Bindings>()
+    |> get("/x", handler)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            !probe.contains("__chain_handler__Context$env"),
+            "bare `c.env` should not emit a depth-1 chain probe, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_threads_literal_args_into_call_probe() {
+        // Regression for #1352. hono's `c.json(body, status)` narrows its
+        // return via the literal status value — `201` picks
+        // `JSONRespondReturn<T, 201>`. The pre-existing probe passed a
+        // single `null! as any`, losing the literal. One `__chain_call_`
+        // variant per distinct rendered arg tuple now threads real
+        // literal values so tsgo resolves the matching overload.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handleCreate(c: Context<{ Bindings: Bindings }>) -> Response = {
+    c.json("hi", 201)
+}
+
+export let app = router<Bindings>()
+    |> get("/c", handleCreate)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains("__chain_base_handleCreate__Context.json(\"hi\", 201)"),
+            "literal args should appear verbatim in the call probe, got:\n{probe}"
+        );
+        let fp = probe_gen::chain_call_fingerprint(&["\"hi\"".to_string(), "201".to_string()]);
+        assert!(
+            probe.contains(&format!(
+                "export let __chain_call_handleCreate__Context$json__{fp} ="
+            )),
+            "fingerprinted probe variant missing, got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_emits_distinct_fingerprints_per_literal_tuple() {
+        // A handler with two `c.json(_, status)` calls at different
+        // statuses must produce two distinct `__chain_call_` probes so
+        // tsgo narrows each to its own `JSONRespondReturn<T, S>` — a
+        // single probe would only capture one overload result.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handleUpdate(c: Context<{ Bindings: Bindings }>) -> Response = {
+    match c.req.param("id") {
+        None -> c.json({ error: "missing" }, 400),
+        Some(_) -> c.json({ ok: true }, 200),
+    }
+}
+
+export let app = router<Bindings>()
+    |> get("/u/:id", handleUpdate)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        let fp200 =
+            probe_gen::chain_call_fingerprint(&["null! as any".to_string(), "200".to_string()]);
+        let fp400 =
+            probe_gen::chain_call_fingerprint(&["null! as any".to_string(), "400".to_string()]);
+        assert_ne!(fp200, fp400);
+        assert!(
+            probe.contains(&format!("__chain_call_handleUpdate__Context$json__{fp200}"))
+                && probe.contains(&format!("__chain_call_handleUpdate__Context$json__{fp400}")),
+            "expected one probe per distinct literal tuple (200, 400), got:\n{probe}"
+        );
+    }
+
+    #[test]
+    fn generate_probe_recognizes_functional_handler_registration() {
+        // Regression for #1353. `collect_handler_paths` previously required
+        // the path string at arg 0 — fine for hono-native `app.get(path, h)`
+        // and for the pipe form `|> get(path, h)` (whose RHS Call still has
+        // path at arg 0), but the `@floeorg/hono` wrapper uses functional
+        // signatures like `get(router, "/x", handler)` where the path is at
+        // arg 1 and the handler at arg 2. Without a match, no
+        // `__chain_base_<fn>__<Base>` was emitted, so per-function chain
+        // probes never fired for the direct-call style.
+        let source = r#"import trusted { router, get, Context } from "hono"
+
+type Bindings = { DB: string }
+
+let handleUser(c: Context<{ Bindings: Bindings }>) -> string = {
+    c.req.param("id")
+}
+
+export let app = get(router<Bindings>(), "/users/:id", handleUser)
+"#;
+        let program = Parser::new(source).parse_program().unwrap();
+        let probe = generate_probe(&program, &HashMap::new(), &HashMap::new());
+
+        assert!(
+            probe.contains("declare const __chain_base_handleUser__Context: Context<{ Bindings: Bindings }, \"/users/:id\">;"),
+            "functional handler registration should populate the per-function chain base, got:\n{probe}"
         );
     }
 

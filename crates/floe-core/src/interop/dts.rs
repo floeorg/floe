@@ -186,6 +186,11 @@ struct ParseResult {
     exports: Vec<DtsExport>,
     reexport_sources: Vec<String>,
     named_reexports: Vec<NamedReexport>,
+    /// Exports collected from `declare module "X" { ... }` blocks, keyed by
+    /// the module specifier. `@types/node` and similar ambient-module-style
+    /// packages put everything inside these blocks; the top-level exports
+    /// are empty. See `parse_dts_exports_for_specifier_from_str`.
+    module_block_exports: HashMap<String, Vec<DtsExport>>,
 }
 
 fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
@@ -418,6 +423,7 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
         exports,
         reexport_sources,
         named_reexports,
+        module_block_exports: namespace_exports,
     })
 }
 
@@ -432,6 +438,47 @@ pub(super) fn parse_dts_exports_from_str(content: &str) -> Result<Vec<DtsExport>
         strip_import_sentinels(&mut export.ts_type);
     }
     Ok(exports)
+}
+
+/// Parse .d.ts exports intended for a specific import specifier. Returns
+/// exports from the matching `declare module "<specifier>" { ... }` block
+/// when one exists, otherwise falls back to top-level exports.
+///
+/// `@types/node` wraps every built-in module (`crypto`, `fs`, `url`, ...)
+/// in a pair of `declare module "node:X"` and `declare module "X"` blocks,
+/// so top-level exports are empty. Without this helper, LSP symbol
+/// enrichment for `import trusted { ... } from "node:crypto"` would see
+/// zero exports and leave the symbols typed as opaque Foreign, triggering
+/// W004 on every call.
+pub(super) fn parse_dts_exports_for_specifier_from_str(
+    content: &str,
+    specifier: &str,
+) -> Result<Vec<DtsExport>, String> {
+    let mut result = parse_dts_content(content)?;
+
+    if let Some(module_exports) = result.module_block_exports.remove(specifier) {
+        let mut exports = module_exports;
+        for export in &mut exports {
+            strip_import_sentinels(&mut export.ts_type);
+        }
+        return Ok(exports);
+    }
+
+    let mut exports = result.exports;
+    for export in &mut exports {
+        strip_import_sentinels(&mut export.ts_type);
+    }
+    Ok(exports)
+}
+
+/// File-reading variant of `parse_dts_exports_for_specifier_from_str`.
+pub fn parse_dts_exports_for_specifier(
+    dts_path: &Path,
+    specifier: &str,
+) -> Result<Vec<DtsExport>, String> {
+    let content = std::fs::read_to_string(dts_path)
+        .map_err(|e| format!("failed to read {}: {e}", dts_path.display()))?;
+    parse_dts_exports_for_specifier_from_str(&content, specifier)
 }
 
 /// Variant of `parse_dts_exports_from_str` that preserves the

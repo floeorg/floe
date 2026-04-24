@@ -1112,17 +1112,35 @@ fn emit_per_handler_chain_probes(
         // then emit one probe per chain (plus `_call_` and `_await_` variants)
         // using the per-function scoped base.
         let chains = collect_param_rooted_chains(&decl.body, &param_name);
-        for (steps, is_call) in chains {
+        for ChainSite {
+            steps,
+            call_arg_tuples,
+        } in chains
+        {
             let chain_key = format!("{chain_prefix}${}", steps.join("$"));
             let mut expr = base_name.clone();
             for step in &steps {
                 expr = format!("{expr}.{step}");
             }
             lines.push(format!("export let __chain_{chain_key} = {expr};"));
-            if is_call {
+            // One `__chain_call_` per distinct call-site arg tuple so
+            // literal-narrowed overloads (hono's `c.json(body, 201)` →
+            // `JSONRespondReturn<T, 201>`) reach the checker with their
+            // narrow type. The bare `__chain_call_{key}` is kept as a
+            // fallback for chains where literal threading isn't relevant
+            // (e.g. existing `c.req.param(id)` tests register the bare key
+            // directly; a checker-side fallback lookup preserves those).
+            if !call_arg_tuples.is_empty() {
                 lines.push(format!(
                     "export let __chain_call_{chain_key} = {expr}(null! as any);"
                 ));
+                for rendered in &call_arg_tuples {
+                    let fp = chain_call_fingerprint(rendered);
+                    lines.push(format!(
+                        "export let __chain_call_{chain_key}__{fp} = {expr}({});",
+                        rendered.join(", ")
+                    ));
+                }
             }
             lines.push(format!("export let __chain_called_{chain_key} = {expr}();"));
             let await_fn = format!("__chain_await_{chain_key}_fn");
@@ -1136,14 +1154,20 @@ fn emit_per_handler_chain_probes(
     }
 }
 
-/// Scan pipe-chain method calls of the shape `router_method(path, handler)`
-/// and record `handler -> path`. Handlers registered by an inline lambda
-/// are skipped (no name to correlate with a function declaration).
+/// Scan method calls for handler registrations of the shape
+/// `..., "/path", handler, ...` and record `handler -> path`. Handlers
+/// registered by an inline lambda are skipped (no name to correlate
+/// with a function declaration).
 ///
-/// The shape match is heuristic — any call where arg 0 is a string
-/// starting with `/` and arg 1 is an identifier qualifies. False
-/// positives (e.g. `fs.readFile("/etc/hosts", cb)`) produce a bogus
-/// per-function probe block; tsgo emits `any` for mismatched
+/// The shape match is heuristic — we look for the first positional
+/// string arg starting with `/` followed immediately by a positional
+/// identifier arg. That covers both hono-native (`app.get("/x", h)`,
+/// and the pipe form `|> get("/x", h)` whose RHS Call still has the
+/// path at arg 0) and the `@floeorg/hono` functional wrapper
+/// (`get(r, "/x", h)` — path at arg 1, handler at arg 2).
+///
+/// False positives (e.g. `fs.readFile("/etc/hosts", cb)`) produce a
+/// bogus per-function probe block; tsgo emits `any` for mismatched
 /// instantiations and the checker's per-function chain lookup silently
 /// falls back to the global key. Harmless in practice, but a stricter
 /// check (verify the callee is actually a router method) could come
@@ -1158,26 +1182,26 @@ fn collect_handler_paths(program: &Program) -> HashMap<String, String> {
         let ExprKind::Call { args, .. } = &expr.kind else {
             return;
         };
-        if args.len() < 2 {
+        for i in 0..args.len().saturating_sub(1) {
+            let Arg::Positional(path_arg) = &args[i] else {
+                continue;
+            };
+            let ExprKind::String(path) = &path_arg.kind else {
+                continue;
+            };
+            if !path.starts_with('/') {
+                continue;
+            }
+            let Arg::Positional(handler_arg) = &args[i + 1] else {
+                continue;
+            };
+            let ExprKind::Identifier(handler_name) = &handler_arg.kind else {
+                continue;
+            };
+            out.entry(handler_name.clone())
+                .or_insert_with(|| path.clone());
             return;
         }
-        let Arg::Positional(path_arg) = &args[0] else {
-            return;
-        };
-        let Arg::Positional(handler_arg) = &args[1] else {
-            return;
-        };
-        let ExprKind::String(path) = &path_arg.kind else {
-            return;
-        };
-        if !path.starts_with('/') {
-            return;
-        }
-        let ExprKind::Identifier(handler_name) = &handler_arg.kind else {
-            return;
-        };
-        out.entry(handler_name.clone())
-            .or_insert_with(|| path.clone());
     });
     out
 }
@@ -1211,35 +1235,102 @@ fn handler_param_with_path(
     Some((param.name.clone(), base_type.clone(), threaded_ann))
 }
 
-/// Walk `body` collecting chain expressions rooted in `param_name`. Each
-/// chain is returned once with a flag indicating whether any occurrence
-/// invoked the terminal step — that determines whether we emit the
-/// `__chain_call_` variant alongside the base `__chain_` probes.
-fn collect_param_rooted_chains(body: &Expr, param_name: &str) -> Vec<(Vec<String>, bool)> {
-    let mut by_key: HashMap<String, (Vec<String>, bool)> = HashMap::new();
+/// One chain expression rooted in a handler parameter, plus every
+/// distinct call-site argument tuple observed for its terminal call
+/// (if any). Each tuple is rendered for the probe so literal args
+/// thread through — hono's `c.json(body, 201)` overload needs the
+/// literal `201` to narrow the return type to `JSONRespondReturn<T,
+/// 201>`; `null! as any` alone loses that.
+pub(crate) struct ChainSite {
+    pub(crate) steps: Vec<String>,
+    /// Rendered arg lists, one per distinct call-site tuple. Empty
+    /// when the chain was only observed as a bare member read
+    /// (`c.env`), i.e. no `__chain_call_` variants to emit.
+    pub(crate) call_arg_tuples: Vec<Vec<String>>,
+}
+
+/// Walk `body` collecting chain expressions rooted in `param_name`.
+fn collect_param_rooted_chains(body: &Expr, param_name: &str) -> Vec<ChainSite> {
+    struct Entry {
+        steps: Vec<String>,
+        // BTreeSet keeps insertion-order-independent dedup *and* a stable
+        // iteration order for probe emission — different programs with the
+        // same arg tuples produce the same probe output.
+        tuples: std::collections::BTreeSet<Vec<String>>,
+    }
+    let mut by_key: HashMap<String, Entry> = HashMap::new();
     crate::walk::walk_expr(body, &mut |expr| {
-        let (member_expr, is_call) = match &expr.kind {
-            ExprKind::Call { callee, .. } => (callee.as_ref(), true),
-            ExprKind::Member { .. } => (expr, false),
+        let (member_expr, call_args): (&Expr, Option<&[Arg]>) = match &expr.kind {
+            ExprKind::Call { callee, args, .. } => (callee.as_ref(), Some(args)),
+            ExprKind::Member { .. } => (expr, None),
             _ => return,
         };
         let Some(steps) = collect_member_chain(member_expr, param_name) else {
             return;
         };
-        if steps.len() < 2 {
+        // Bare `c.env` / `c.req` reads are already resolved via the parent
+        // Context probe, so depth-1 member access adds nothing. Depth-1
+        // *calls* (`c.json(body, 201)`, `c.text(...)`, `c.html(...)`) are
+        // different — tsgo narrows the return type per-overload, and that
+        // only reaches the checker via a `__chain_call_` probe.
+        if steps.len() < 2 && call_args.is_none() {
             return;
         }
         let key = steps.join("$");
-        by_key
-            .entry(key)
-            .and_modify(|(_, flag)| {
-                if is_call {
-                    *flag = true;
-                }
-            })
-            .or_insert((steps, is_call));
+        let entry = by_key.entry(key).or_insert_with(|| Entry {
+            steps: steps.clone(),
+            tuples: std::collections::BTreeSet::new(),
+        });
+        if let Some(args) = call_args {
+            entry.tuples.insert(render_call_args(args));
+        }
     });
-    by_key.into_values().collect()
+    by_key
+        .into_values()
+        .map(|e| ChainSite {
+            steps: e.steps,
+            call_arg_tuples: e.tuples.into_iter().collect(),
+        })
+        .collect()
+}
+
+/// Render a handler call site's arg list for a `__chain_call_` probe.
+/// Literal values (numbers, strings, booleans) pass through so tsgo
+/// narrows via literal-based overload resolution (hono's `c.json(body,
+/// 201)` → `JSONRespondReturn<T, 201>`). Non-literal expressions
+/// render as `null! as any` — their value doesn't affect overload
+/// selection for the hono/db patterns we care about, and threading
+/// concrete expressions through would drag the caller's whole type
+/// graph into the probe.
+pub(crate) fn render_call_args(args: &[Arg]) -> Vec<String> {
+    args.iter().map(render_call_arg).collect()
+}
+
+fn render_call_arg(arg: &Arg) -> String {
+    let expr = match arg {
+        Arg::Positional(e) | Arg::Named { value: e, .. } => e,
+    };
+    match &expr.kind {
+        ExprKind::Number(n) => n.clone(),
+        ExprKind::String(s) => {
+            let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("\"{escaped}\"")
+        }
+        ExprKind::Bool(b) => b.to_string(),
+        _ => "null! as any".to_string(),
+    }
+}
+
+/// Identifier-safe fingerprint for a rendered arg tuple — suffixes a
+/// `__chain_call_` probe so distinct literal tuples produce distinct
+/// probes (and distinct narrow return types from tsgo). Deterministic
+/// within a single `floe` invocation, which is all the probe-gen and
+/// checker-lookup paths need to agree on.
+pub(crate) fn chain_call_fingerprint(rendered: &[String]) -> String {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    rendered.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
 }
 
 /// If `expr` is a Member chain rooted in `param_name`, return the field
