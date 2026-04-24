@@ -472,3 +472,43 @@ export default app
       (number)))
   (default_export_declaration
     name: (identifier)))
+
+===
+Impl trait for type
+===
+
+impl Display for User {
+    let display(self) -> string = { self.name }
+}
+
+---
+
+(source_file
+  (impl_block
+    trait: (type_identifier)
+    type: (type_identifier)
+    (function_declaration
+      name: (identifier)
+      parameters: (parameter_list
+        (parameter
+          name: (identifier)))
+      return_type: (primitive_type)
+      body: (block
+        (expression_statement
+          (member_expression
+            object: (primary_expression
+              (self))
+            property: (identifier)))))))
+
+===
+Empty impl for trait defaults
+===
+
+impl Eq for User
+
+---
+
+(source_file
+  (impl_block
+    trait: (type_identifier)
+    type: (type_identifier)))
