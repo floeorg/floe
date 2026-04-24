@@ -199,15 +199,32 @@ fn unused_import_error() {
 // ── Rule 10: Exported function return types ─────────────────
 
 #[test]
-fn exported_function_needs_return_type() {
+fn exported_function_without_return_type_infers_it() {
+    // Floe moved from Rust-style ("exported fns must declare return
+    // types") to TS/OCaml-style ("inference exports what it infers")
+    // to let Hono handlers export their narrow tsgo-resolved returns
+    // without a widening annotation. Plain returns like `a: number`
+    // infer `number` and compile clean.
     let diags = check("export let add(a: number, b: number) = { a }");
-    assert!(has_error_containing(&diags, "must declare a return type"));
+    assert!(
+        !has_error_containing(&diags, "must declare a return type"),
+        "missing-return-type diagnostic should no longer fire, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }
 
 #[test]
 fn exported_function_with_return_type_ok() {
     let diags = check("export let add(a: number, b: number) -> number = { a }");
-    assert!(!has_error(&diags, ErrorCode::MissingReturnType));
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "annotated exported fn should compile clean, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }
 
 // ── Return type mismatch ─────────────────────────────────────
@@ -237,14 +254,28 @@ let greet() -> string = { "hello" }
 }
 
 #[test]
-fn non_exported_function_return_type_not_required() {
-    // Non-exported functions can omit -> return type
+fn function_return_type_not_required() {
+    // Return-type annotations are always optional — Floe infers and
+    // exports what it infers. Prior versions required annotations on
+    // exported functions; that rule was retired when handler inference
+    // from tsgo probes started producing narrow types (e.g. hono's
+    // `TypedResponse<_, 201, "json">`) that users couldn't write
+    // manually.
     let diags = check(
         r#"
 let helper(x: number) = { x * 2 }
+export let pub_helper(x: number) = { x * 2 }
 "#,
     );
-    assert!(!has_error(&diags, ErrorCode::MissingReturnType));
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "both exported and non-exported fns should infer their return, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 }
 
 // ── Rule 12: String concat warning ──────────────────────────
@@ -7881,6 +7912,83 @@ export let handler(c: Context<unknown>) -> string = {
         !has_error_containing(&diags, "has no field"),
         "fingerprinted probe should win lookup — accessing narrowOnly must succeed, got errors: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn handler_match_branches_infer_to_ts_union() {
+    // A handler whose match arms call `c.json(_, S1)` and `c.json(_, S2)`
+    // should infer its return as the union of each call's narrow shape.
+    // Without this, the match-arm check either errors on incompatible
+    // types (first narrow vs second narrow) or collapses to the first
+    // arm's shape — both erase half the status-code surface the RPC
+    // client consumer needs.
+    use crate::interop::tsgo::probe_gen;
+    use crate::interop::{DtsExport, TsType};
+    use std::collections::HashMap;
+
+    let program = crate::parser::Parser::new(
+        r#"
+import trusted { Context } from "hono"
+
+export let handler(c: Context<unknown>) = {
+    match c.req.param("code") {
+        "ok" -> c.json("ok", 200),
+        _ -> c.json("bad", 400),
+    }
+}
+"#,
+    )
+    .parse_program()
+    .expect("should parse");
+
+    let context_export = DtsExport {
+        name: "Context".to_string(),
+        ts_type: TsType::Any,
+    };
+    let fp_200 = probe_gen::chain_call_fingerprint(&["\"ok\"".to_string(), "200".to_string()]);
+    let fp_400 = probe_gen::chain_call_fingerprint(&["\"bad\"".to_string(), "400".to_string()]);
+    let narrow = |status: u16| TsType::Generic {
+        name: "TypedResponse".to_string(),
+        args: vec![
+            TsType::Any,
+            TsType::NumberLiteral(f64::from(status)),
+            TsType::StringLiteral("json".to_string()),
+        ],
+    };
+    let probe_200 = DtsExport {
+        name: format!("__chain_call_handler__Context$json__{fp_200}"),
+        ts_type: narrow(200),
+    };
+    let probe_400 = DtsExport {
+        name: format!("__chain_call_handler__Context$json__{fp_400}"),
+        ts_type: narrow(400),
+    };
+
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert(
+        "hono".to_string(),
+        vec![context_export, probe_200, probe_400],
+    );
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let (diags, types, _, _) = checker.check_with_types(&program);
+
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "handler with narrow match branches should compile, got: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let inferred = types.get("handler").expect("handler should be in types");
+    assert!(
+        inferred.contains("TypedResponse<unknown, 200, \"json\">")
+            && inferred.contains("TypedResponse<unknown, 400, \"json\">")
+            && inferred.contains("|"),
+        "handler type should be TsUnion of both narrow variants, got: {inferred}"
     );
 }
 

@@ -47,11 +47,7 @@ fn fp_then_bare(fp: Option<&str>) -> impl Iterator<Item = String> + use<'_> {
         .chain(std::iter::once(String::new()))
 }
 
-/// Strip generic arguments from a Foreign type name for chain-probe lookup.
-/// `Context<unknown>` -> `Context`, `Router<A, B>` -> `Router`, `Foo` -> `Foo`.
-fn foreign_base(name: &str) -> &str {
-    name.split('<').next().unwrap_or(name)
-}
+use super::type_compat::foreign_base;
 
 /// When a destructured param's type is unresolved, use heuristics for known field names.
 /// The "error" field maps to Error because Floe's error-handling callbacks (use blocks,
