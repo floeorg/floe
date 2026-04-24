@@ -140,6 +140,12 @@ pub enum ErrorCode {
     /// `export default <name>` references a name that isn't declared at the
     /// top of this module, or the module declares more than one default export.
     InvalidDefaultExport,
+    /// `impl Trait for Type` where both Trait and Type are foreign — at
+    /// least one must be declared locally (orphan rule).
+    OrphanImpl,
+    /// Duplicate `impl Trait for Type` — same trait implemented on the
+    /// same type by two different modules in scope.
+    DuplicateImpl,
 }
 
 impl ErrorCode {
@@ -203,6 +209,8 @@ impl ErrorCode {
             Self::BareStringLiteralUnion => "E201",
             Self::InlineRecordTypeInSignature => "E202",
             Self::InvalidDefaultExport => "E054",
+            Self::OrphanImpl => "E055",
+            Self::DuplicateImpl => "E056",
         }
     }
 }

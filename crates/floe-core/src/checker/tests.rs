@@ -9487,3 +9487,64 @@ export default something
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Orphan rule on impl blocks ──────────────────────────────
+
+#[test]
+fn impl_local_trait_for_foreign_type_ok() {
+    let diags = check(
+        r#"
+trait Summable {
+    let sum(self) -> number
+}
+impl Summable for Array<number> {
+    let sum(self) -> number = { 0 }
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::OrphanImpl),
+        "local trait + foreign type should be OK: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn impl_foreign_trait_for_local_type_ok() {
+    use std::collections::HashMap;
+    let mut imports = HashMap::new();
+    imports.insert("./types".to_string(), resolved_module_with_display_trait());
+
+    let source = r#"
+import { Display } from "./types"
+type User = { name: string }
+impl Display for User {
+    let display(self) -> string = { self.name }
+}
+"#;
+    let program = Parser::new(source).parse_program().expect("parse");
+    let diags = Checker::with_imports(imports).check(&program);
+    assert!(
+        !has_error(&diags, ErrorCode::OrphanImpl),
+        "foreign trait + local type should be OK: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn impl_inherent_foreign_type_ok_under_weakened_rule() {
+    // Inherent `for Type { ... }` is allowed on any type — it's just
+    // pipe-function registration, not a trait contract.
+    let diags = check(
+        r#"
+for Array<number> {
+    let total(self) -> number = { 0 }
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::OrphanImpl),
+        "inherent for-block should be OK even on foreign types: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

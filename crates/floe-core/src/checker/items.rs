@@ -835,9 +835,52 @@ impl Checker {
             _ => String::new(),
         };
 
-        // If this is a trait impl block, validate the trait contract
+        // If this is a trait impl block, validate the trait contract +
+        // enforce the orphan rule (at least one of Trait or Type must be
+        // declared in this module) + reject duplicate impls.
         if let Some(ref trait_name) = block.trait_name {
             self.unused.used_names.insert(trait_name.clone());
+
+            let trait_is_local = self.local_trait_names.contains(trait_name);
+            let type_is_local = !type_name.is_empty()
+                && self.local_type_names.contains(&type_name);
+            if !trait_is_local && !type_is_local && !type_name.is_empty() {
+                self.emit_error_with_help(
+                    format!(
+                        "cannot `impl {} for {}`: both are declared outside this module",
+                        trait_name, type_name
+                    ),
+                    block
+                        .trait_name_span
+                        .unwrap_or(block.span),
+                    ErrorCode::OrphanImpl,
+                    "neither trait nor type is local",
+                    format!(
+                        "declare `{trait_name}` or a newtype wrapping `{type_name}` in this \
+                         module, or implement the trait where the type is defined"
+                    ),
+                );
+            }
+
+            if !type_name.is_empty() {
+                let key = (type_name.clone(), trait_name.clone());
+                if let Some(existing_source) = self.impl_sources.get(&key).cloned() {
+                    self.emit_error_with_help(
+                        format!(
+                            "`impl {} for {}` is already defined by {}",
+                            trait_name, type_name, existing_source
+                        ),
+                        block.trait_name_span.unwrap_or(block.span),
+                        ErrorCode::DuplicateImpl,
+                        "duplicate trait implementation",
+                        "remove one of the two impls, or narrow the import to avoid bringing both into scope",
+                    );
+                } else {
+                    self.impl_sources
+                        .insert(key, "this module".to_string());
+                }
+            }
+
             let type_display = for_type.to_string();
             self.check_trait_impl(&type_display, trait_name, &block.functions, block.span);
         }
