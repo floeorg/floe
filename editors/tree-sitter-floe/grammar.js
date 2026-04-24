@@ -325,22 +325,31 @@ module.exports = grammar({
 
     // ── Use (callback flattening) ───────────────────────────
 
+    // `use` is a contextual keyword. Inside a block, `use x <- expr` is a
+    // bind statement; bare `use` and `use(x)` / `foo.use` / `import { use }`
+    // are plain identifier uses (React 19's `use()` hook, `@floeorg/hono`
+    // middleware registration, etc). prec.dynamic(-1) lets call_expression
+    // win when both would parse — which is only the case when there's no
+    // `<-`, i.e. the non-bind reading.
     use_declaration: ($) =>
-      seq(
-        "use",
-        optional(
-          choice(
-            field("binding", $.identifier),
-            seq(
-              "(",
-              commaSep1(field("binding", $.identifier)),
-              ")",
+      prec.dynamic(
+        -1,
+        seq(
+          "use",
+          optional(
+            choice(
+              field("binding", $.identifier),
+              seq(
+                "(",
+                commaSep1(field("binding", $.identifier)),
+                ")",
+              ),
+              field("binding", $.object_pattern),
             ),
-            field("binding", $.object_pattern),
           ),
+          "<-",
+          field("call", $._expression),
         ),
-        "<-",
-        field("call", $._expression),
       ),
 
     // ── Expressions ─────────────────────────────────────────
