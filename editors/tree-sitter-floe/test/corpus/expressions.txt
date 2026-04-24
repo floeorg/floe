@@ -365,3 +365,53 @@ let t = Todo(..old, done: true)
         value: (primary_expression
           (boolean))))))
 
+===
+Use as identifier in call position (React 19 use() hook)
+===
+
+let data = use(promise)
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (call_expression
+      function: (primary_expression
+        (identifier))
+      (argument_list
+        (argument
+          (primary_expression
+            (identifier)))))))
+
+===
+Use as identifier in member position
+===
+
+let x = foo.use
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (member_expression
+      object: (primary_expression
+        (identifier))
+      property: (identifier))))
+
+===
+Use as identifier in import specifier
+===
+
+import { use } from "react"
+
+---
+
+(source_file
+  (import_declaration
+    (import_specifier
+      (identifier))
+    (string
+      (string_content))))
+
