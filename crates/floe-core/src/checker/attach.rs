@@ -103,9 +103,8 @@ pub fn attach_trait_decl_shallow(decl: &TraitDecl<()>) -> TypedTraitDecl {
 struct Attacher<'a> {
     types: &'a ExprTypeMap,
     invalid_exprs: &'a HashSet<ExprId>,
-    /// ExprIds of keyword-placeholder exprs (`Todo`, `Unreachable`, `Clear`,
-    /// `Unchanged`) that are shadowed by a local binding with the same name.
-    /// Rewritten to `ExprKind::Identifier` during attach (issue #1226).
+    /// Keyword-placeholder exprs (`Todo`/`Unreachable`/`Clear`/`Unchanged`)
+    /// shadowed by a local binding — rewritten to `ExprKind::Identifier`.
     shadowed_keywords: &'a HashMap<ExprId, &'static str>,
 }
 
@@ -370,10 +369,6 @@ impl Attacher<'_> {
             .cloned()
             .unwrap_or_else(|| Arc::clone(&UNKNOWN));
 
-        // Keyword expressions (`todo`, `unreachable`, `clear`, `unchanged`)
-        // shadowed by a local binding were flagged by the checker. Rewrite
-        // them to a plain identifier read so codegen emits the variable
-        // instead of the keyword's runtime form (issue #1226).
         if let Some(&name) = self.shadowed_keywords.get(&expr.id) {
             return Expr {
                 id: expr.id,

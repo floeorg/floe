@@ -2725,10 +2725,7 @@ fn parse_lossy_module_exposes_extra_even_when_errors() {
     assert!(extra.new_lines.contains(&10));
 }
 
-// ── Contextual keywords (issue #1226) ────────────────────────
-// Keywords like `type`, `todo`, `mock` may appear as identifiers in
-// unambiguous positions (field names, binders, parameter names). The
-// parser remaps them to IDENT when consumed in those positions.
+// ── Contextual keywords ──────────────────────────────────────
 
 fn const_name(item: ItemKind) -> String {
     match item {
@@ -2815,8 +2812,6 @@ fn record_literal_accepts_type_as_field_name() {
 
 #[test]
 fn record_pattern_accepts_type_as_field_name() {
-    // Inside a match arm, `{ type: "click" }` matches a record with a `type`
-    // field. The parser must not reject `type` here.
     let expr = first_expr(r#"match e { { type: "click" } -> 1, _ -> 0 }"#);
     let ExprKind::Match { arms, .. } = expr else {
         panic!("expected Match");
@@ -2838,7 +2833,6 @@ fn type_decl_still_parses_as_type_decl() {
 
 #[test]
 fn bare_todo_is_still_placeholder() {
-    // Without a shadowing local, `todo` remains the panic placeholder.
     assert_eq!(first_expr("todo"), ExprKind::Todo);
 }
 

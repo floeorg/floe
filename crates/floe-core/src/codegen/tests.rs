@@ -1698,12 +1698,11 @@ test "math" {
     assert!(result.contains("FAIL"), "should have fail reporting");
 }
 
-// ── Contextual keywords: shadowing (issue #1226) ────────────────────
+// ── Contextual keyword shadowing ────────────────────────────
 
 #[test]
 fn bare_todo_without_shadow_still_panics() {
     let result = emit_typed("todo");
-    // With no binding in scope, `todo` keeps its panic-placeholder meaning.
     assert!(
         result.contains("throw new Error"),
         "expected throw, got: {result}"
@@ -1712,8 +1711,6 @@ fn bare_todo_without_shadow_still_panics() {
 
 #[test]
 fn local_todo_binding_shadows_keyword() {
-    // `let todo = 5` binds a local. A bare `todo` reference in the same
-    // scope should resolve to the binding, not the keyword placeholder.
     let result = emit_typed(
         r#"let todo = 5
 let used = todo"#,

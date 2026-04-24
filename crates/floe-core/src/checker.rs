@@ -272,11 +272,9 @@ pub struct Checker {
     /// program. LSP features (go-to-definition, find-references, rename)
     /// query this side-table instead of re-walking the AST.
     pub(crate) references: crate::reference::ReferenceTracker,
-    /// ExprIds of `ExprKind::Todo`/`Unreachable`/`Clear`/`Unchanged` expressions
-    /// that turned out to be references to a local binding with the same name
-    /// (issue #1226). `attach_types` rewrites these to `ExprKind::Identifier`
-    /// so codegen emits a variable read rather than the keyword's runtime
-    /// panic / Settable sentinel.
+    /// `ExprId`s of `Todo`/`Unreachable`/`Clear`/`Unchanged` that resolved
+    /// to a local binding of the same name. `attach_types` rewrites them
+    /// to `ExprKind::Identifier` so codegen emits the variable read.
     pub(crate) shadowed_keyword_exprs: HashMap<ExprId, &'static str>,
 }
 
@@ -660,10 +658,6 @@ impl Checker {
         std::mem::take(&mut self.name_type_map)
     }
 
-    /// Take the set of keyword-expression IDs (`todo`, `unreachable`, `clear`,
-    /// `unchanged`) that turned out to be references to a local binding with
-    /// the same name. `attach_types` consumes this to rewrite them into
-    /// plain identifier reads (issue #1226).
     pub fn take_shadowed_keyword_exprs(&mut self) -> HashMap<ExprId, &'static str> {
         std::mem::take(&mut self.shadowed_keyword_exprs)
     }

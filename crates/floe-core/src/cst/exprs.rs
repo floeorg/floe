@@ -268,9 +268,6 @@ impl<'src> CstParser<'src> {
                 self.builder.finish_node();
             }
 
-            // `parse` is keyword only when followed by `<` (issue #1226).
-            // Without the angle-bracket, it parses as an identifier reference
-            // so users can bind local `parse` variables.
             Some(TokenKind::Parse) if self.peek_is(TokenKind::LessThan) => {
                 self.builder.start_node(SyntaxKind::PARSE_EXPR.into());
                 self.bump(); // parse
@@ -294,7 +291,6 @@ impl<'src> CstParser<'src> {
             }
             Some(TokenKind::Parse) => self.bump_remap(SyntaxKind::IDENT),
 
-            // `mock` is keyword only when followed by `<` (issue #1226).
             Some(TokenKind::Mock) if self.peek_is(TokenKind::LessThan) => {
                 self.builder.start_node(SyntaxKind::MOCK_EXPR.into());
                 self.bump(); // mock
@@ -327,7 +323,6 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::Mock) => self.bump_remap(SyntaxKind::IDENT),
 
             Some(TokenKind::Match) => self.parse_match_expr(),
-            // `collect` is keyword only when followed by `{` (issue #1226).
             Some(TokenKind::Collect) if self.peek_is(TokenKind::LeftBrace) => {
                 self.builder.start_node(SyntaxKind::COLLECT_EXPR.into());
                 self.bump(); // collect
@@ -402,11 +397,8 @@ impl<'src> CstParser<'src> {
                 self.bump();
             }
 
-            // Contextual keywords with no expression-form semantics — they
-            // are only keywords at their specific item-level positions (type
-            // declarations, import modifiers, type derives). In expression
-            // position they parse as identifier references so users can bind
-            // and read locals with these names (issue #1226).
+            // These are keywords only at item-declaration positions; in
+            // expression position they're plain identifier reads.
             Some(
                 TokenKind::Type | TokenKind::Opaque | TokenKind::Trusted | TokenKind::Deriving,
             ) => self.bump_remap(SyntaxKind::IDENT),
@@ -548,15 +540,9 @@ impl<'src> CstParser<'src> {
     fn parse_call_arg(&mut self) {
         self.builder.start_node(SyntaxKind::ARG.into());
 
-        // Named arg: `label: expr` or punned `label:`. Contextual keywords
-        // are accepted as labels (issue #1226, e.g. `Message(type: "click")`).
-        if (self.is_ident() || self.is_contextual_ident_keyword()) && self.peek_is(TokenKind::Colon)
-        {
-            if matches!(self.current_kind(), Some(TokenKind::Identifier(_))) {
-                self.bump(); // label
-            } else {
-                self.bump_remap(SyntaxKind::IDENT);
-            }
+        // Named arg: `label: expr` or punned `label:`.
+        if self.is_ident_flex() && self.peek_is(TokenKind::Colon) {
+            self.expect_ident_flex();
             self.eat_trivia();
             self.bump(); // :
 
@@ -893,23 +879,8 @@ impl<'src> CstParser<'src> {
         if i >= self.tokens.len() {
             return false;
         }
-        // The first entry must be an identifier or a contextual keyword that
-        // can appear as a field name (e.g. `{ type: ... }`).
-        if !matches!(
-            &self.tokens[i].kind,
-            TokenKind::Identifier(_)
-                | TokenKind::Type
-                | TokenKind::Todo
-                | TokenKind::Unreachable
-                | TokenKind::Mock
-                | TokenKind::Parse
-                | TokenKind::Clear
-                | TokenKind::Unchanged
-                | TokenKind::Trusted
-                | TokenKind::Opaque
-                | TokenKind::Collect
-                | TokenKind::Deriving
-        ) {
+        let first = &self.tokens[i].kind;
+        if !matches!(first, TokenKind::Identifier(_)) && !first.is_contextual_ident() {
             return false;
         }
         // Next non-trivia token after the ident must be `:` (key: value) or `,` or `}` (shorthand)

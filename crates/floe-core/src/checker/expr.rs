@@ -275,10 +275,8 @@ impl Checker {
 
     // ── Extracted Expression Checkers ────────────────────────────────
 
-    /// If `name` is bound in the current scope, treat the keyword expression
-    /// `expr_id` as a reference to that local instead of a keyword. Records
-    /// the shadowing so `attach_types` can rewrite the `ExprKind` to
-    /// `Identifier` (issue #1226).
+    /// When `name` resolves to a local binding, return its type and flag
+    /// the expression for rewrite by `attach_types`.
     fn resolve_shadowed_keyword(
         &mut self,
         expr_id: ExprId,

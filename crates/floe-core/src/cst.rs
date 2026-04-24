@@ -208,83 +208,42 @@ impl<'src> CstParser<'src> {
         )
     }
 
-    /// True when the current token is a keyword that can appear as an
-    /// identifier in unambiguous identifier positions (record field names,
-    /// binders, parameter names, JSX attributes, etc.). See issue #1226 for
-    /// the decision to make these contextual.
-    fn is_contextual_ident_keyword(&self) -> bool {
-        matches!(
-            self.current_kind(),
-            Some(
-                TokenKind::Type
-                    | TokenKind::Todo
-                    | TokenKind::Unreachable
-                    | TokenKind::Mock
-                    | TokenKind::Parse
-                    | TokenKind::Clear
-                    | TokenKind::Unchanged
-                    | TokenKind::Trusted
-                    | TokenKind::Opaque
-                    | TokenKind::Collect
-                    | TokenKind::Deriving
-            )
-        )
-    }
-
-    /// Accept the current token as an identifier, allowing contextual
-    /// keywords. Keyword tokens are remapped to `IDENT` in the green tree so
-    /// downstream lowering treats them uniformly.
     fn is_ident_flex(&self) -> bool {
-        self.is_ident() || self.is_contextual_ident_keyword()
+        matches!(self.current_kind(), Some(TokenKind::Identifier(_)))
+            || self.current_kind().is_some_and(|k| k.is_contextual_ident())
     }
 
-    /// Consume the current token as an identifier, remapping contextual
-    /// keywords to `IDENT`. On a non-identifier token, records an error but
-    /// does not bump.
     fn expect_ident_flex(&mut self) {
-        if matches!(self.current_kind(), Some(TokenKind::Identifier(_))) {
-            self.bump();
-        } else if self.is_contextual_ident_keyword() {
-            self.bump_remap(SyntaxKind::IDENT);
-        } else {
-            self.error_kind(
+        match self.current_kind() {
+            Some(TokenKind::Identifier(_)) => self.bump(),
+            Some(k) if k.is_contextual_ident() => self.bump_remap(SyntaxKind::IDENT),
+            _ => self.error_kind(
                 &format!("expected identifier, found {:?}", self.current_kind()),
                 CstErrorKind::UnexpectedToken,
-            );
+            ),
         }
     }
 
-    /// `parse_comma_separated`-compatible wrapper for `expect_ident_flex`.
     fn expect_ident_flex_item(&mut self) {
         self.expect_ident_flex();
     }
 
-    /// Check if the current token is a keyword that could appear as a JSX prop name
-    /// (e.g., `type`, `for`, `match`, `fn`, `const`, etc.).
+    /// Keywords accepted as JSX prop names (`<input type="text" />`,
+    /// `<label for="..." />`).
     fn is_keyword(&self) -> bool {
-        matches!(
-            self.current_kind(),
+        match self.current_kind() {
+            Some(k) if k.is_contextual_ident() => true,
             Some(
-                TokenKind::Type
-                    | TokenKind::For
-                    | TokenKind::Match
-                    | TokenKind::Fn
-                    | TokenKind::Let
-                    | TokenKind::Import
-                    | TokenKind::Export
-                    | TokenKind::Trait
-                    | TokenKind::Todo
-                    | TokenKind::Unreachable
-                    | TokenKind::Mock
-                    | TokenKind::Parse
-                    | TokenKind::Clear
-                    | TokenKind::Unchanged
-                    | TokenKind::Trusted
-                    | TokenKind::Opaque
-                    | TokenKind::Collect
-                    | TokenKind::Deriving
-            )
-        )
+                TokenKind::For
+                | TokenKind::Match
+                | TokenKind::Fn
+                | TokenKind::Let
+                | TokenKind::Import
+                | TokenKind::Export
+                | TokenKind::Trait,
+            ) => true,
+            _ => false,
+        }
     }
 
     /// Check if the current token maps to a SyntaxKind that is a valid member
@@ -637,18 +596,13 @@ impl<'src> CstParser<'src> {
     }
 
     fn expect_ident(&mut self) {
-        if matches!(self.current_kind(), Some(TokenKind::Identifier(_))) {
-            self.bump();
-        } else if self.at(TokenKind::Parse) {
-            // `parse` was historically accepted as an identifier but bumped
-            // with its keyword SyntaxKind — remap so lowering sees IDENT
-            // uniformly with other contextual keywords.
-            self.bump_remap(SyntaxKind::IDENT);
-        } else {
-            self.error_kind(
+        match self.current_kind() {
+            Some(TokenKind::Identifier(_)) => self.bump(),
+            Some(TokenKind::Parse) => self.bump_remap(SyntaxKind::IDENT),
+            _ => self.error_kind(
                 &format!("expected identifier, found {:?}", self.current_kind()),
                 CstErrorKind::UnexpectedToken,
-            );
+            ),
         }
     }
 
