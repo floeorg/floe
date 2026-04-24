@@ -305,10 +305,21 @@ impl Checker {
             }
             Some(existing) => {
                 let (t, tr) = &key;
-                self.emit_error_with_help(
+                let message = if existing == "this module" {
                     format!(
-                        "`impl {tr} for {t}` is reachable from both `{existing}` and `{source}`",
-                    ),
+                        "`impl {tr} for {t}` is defined here and also imported from `{source}`"
+                    )
+                } else if source == "this module" {
+                    format!(
+                        "`impl {tr} for {t}` is imported from `{existing}` and also defined here"
+                    )
+                } else {
+                    format!(
+                        "`impl {tr} for {t}` is reachable from both `{existing}` and `{source}`"
+                    )
+                };
+                self.emit_error_with_help(
+                    message,
                     block.trait_name_span.unwrap_or(block.span),
                     ErrorCode::DuplicateImpl,
                     "trait impl defined by two different modules in scope",
