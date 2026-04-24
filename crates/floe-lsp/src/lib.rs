@@ -5,6 +5,7 @@ mod goto_def;
 mod handlers;
 mod hover;
 mod index;
+mod rename;
 mod resolution;
 mod stdlib_hover;
 

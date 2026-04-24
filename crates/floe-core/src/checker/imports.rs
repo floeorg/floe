@@ -41,7 +41,8 @@ impl Checker {
             } else {
                 Type::foreign(default_name.clone())
             };
-            self.env.define(default_name, ty);
+            self.env.define_with_span(default_name, ty, item_span);
+            self.references.register_definition(default_name, item_span);
             self.unused.defined_sources.insert(
                 default_name.clone(),
                 format!("import from \"{}\"", decl.source),
@@ -167,7 +168,9 @@ impl Checker {
                     "already defined",
                 );
             }
-            self.env.define(effective_name, ty);
+            self.env.define_with_span(effective_name, ty, spec.span);
+            self.references
+                .register_definition(effective_name, spec.span);
             self.unused.defined_sources.insert(
                 effective_name.to_string(),
                 format!("import from \"{}\"", decl.source),

@@ -2,7 +2,8 @@ use tower_lsp::LanguageServer;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
-use super::{FloeLsp, is_word_char, offset_to_range, position_to_offset, word_at_offset};
+use super::rename::resolve_def_span;
+use super::{FloeLsp, offset_to_range, position_to_offset, word_at_offset};
 
 #[tower_lsp::async_trait]
 impl LanguageServer for FloeLsp {
@@ -27,6 +28,10 @@ impl LanguageServer for FloeLsp {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                })),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -99,6 +104,7 @@ impl LanguageServer for FloeLsp {
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
         let uri = params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
+        let include_decl = params.context.include_declaration;
 
         let docs = self.documents.read().await;
         let Some(doc) = docs.get(&uri) else {
@@ -107,34 +113,38 @@ impl LanguageServer for FloeLsp {
 
         let offset = position_to_offset(&doc.content, position);
         let word = word_at_offset(&doc.content, offset);
-
         if word.is_empty() {
+            return Ok(None);
+        }
+
+        if resolve_def_span(&doc.references, offset, word).is_none() {
             return Ok(None);
         }
 
         let mut locations = Vec::new();
 
-        // Find all occurrences in all open documents
-        for (doc_uri, doc) in docs.iter() {
-            let source = &doc.content;
-            let mut search_from = 0;
-            while let Some(pos) = source[search_from..].find(word) {
-                let abs_pos = search_from + pos;
-                let end_pos = abs_pos + word.len();
-
-                // Check it's a whole word match
-                let before_ok = abs_pos == 0 || !is_word_char(source.as_bytes()[abs_pos - 1]);
-                let after_ok = end_pos >= source.len() || !is_word_char(source.as_bytes()[end_pos]);
-
-                if before_ok && after_ok {
-                    let range = offset_to_range(source, abs_pos, end_pos);
-                    locations.push(Location {
-                        uri: doc_uri.clone(),
-                        range,
-                    });
-                }
-
-                search_from = abs_pos + 1;
+        // Each open document has its own tracker. Imports rebind the source
+        // symbol locally, so the importing doc's tracker treats the import
+        // declaration as a definition. Walking every doc with a same-named
+        // entry yields the union of intra-file and cross-file uses.
+        for (other_uri, other_doc) in docs.iter() {
+            let Some(other_def) = other_doc.references.definition_for_name(word) else {
+                continue;
+            };
+            for ref_span in other_doc.references.find_references(other_def) {
+                locations.push(Location {
+                    uri: other_uri.clone(),
+                    range: offset_to_range(&other_doc.content, ref_span.start, ref_span.end),
+                });
+            }
+            if include_decl
+                && let Some((s, e)) =
+                    super::rename::name_range_in_def(&other_doc.content, other_def, word)
+            {
+                locations.push(Location {
+                    uri: other_uri.clone(),
+                    range: offset_to_range(&other_doc.content, s, e),
+                });
             }
         }
 
@@ -143,6 +153,19 @@ impl LanguageServer for FloeLsp {
         } else {
             Ok(Some(locations))
         }
+    }
+
+    // ── Rename ──────────────────────────────────────────────────
+
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> Result<Option<PrepareRenameResponse>> {
+        self.handle_prepare_rename(params).await
+    }
+
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        self.handle_rename(params).await
     }
 
     // ── Document Symbols ────────────────────────────────────────

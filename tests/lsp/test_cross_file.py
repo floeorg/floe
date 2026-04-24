@@ -1,6 +1,6 @@
 """Tests for cross-file LSP features (multiple documents open)."""
 
-from .conftest import def_locations, completion_labels, result_list, open_doc
+from .conftest import at, def_locations, completion_labels, result_list, open_doc
 
 
 URI_A = "file:///tmp/types.fl"
@@ -18,12 +18,14 @@ def _open_both(lsp):
 class TestCrossFile:
     def test_references_across_files(self, lsp):
         _open_both(lsp)
-        refs = result_list(lsp.references(URI_A, 0, 14))
+        line, col = at(TYPES_SRC, "makeRed")
+        refs = result_list(lsp.references(URI_A, line, col))
         assert len(refs) >= 2, f"Got {len(refs)} refs"
 
     def test_references_include_other_file(self, lsp):
         _open_both(lsp)
-        refs = result_list(lsp.references(URI_A, 0, 14))
+        line, col = at(TYPES_SRC, "makeRed")
+        refs = result_list(lsp.references(URI_A, line, col))
         cross_file = [r for r in refs if r.get("uri") != URI_A]
         assert len(cross_file) > 0, "No cross-file refs found"
 

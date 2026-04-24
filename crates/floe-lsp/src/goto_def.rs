@@ -32,13 +32,18 @@ impl FloeLsp {
         }
 
         // Reference-tracker lookup for intra-module identifiers. Imports
-        // and member accesses fall through to the name-based index below,
-        // which knows how to resolve them.
+        // resolve through to the source file via the index path below
+        // (jumping to the import declaration would land in the same file).
         if let Some(def_span) = doc.references.definition_at_offset(offset) {
-            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                uri: uri.clone(),
-                range: offset_to_range(&doc.content, def_span.start, def_span.end),
-            })));
+            let is_import = doc.index.symbols.iter().any(|s| {
+                s.import_source.is_some() && s.start <= def_span.start && s.end >= def_span.end
+            });
+            if !is_import {
+                return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                    uri: uri.clone(),
+                    range: offset_to_range(&doc.content, def_span.start, def_span.end),
+                })));
+            }
         }
 
         // Search current document
