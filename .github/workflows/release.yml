@@ -132,31 +132,86 @@ jobs:
         working-directory: integrations/core
         run: |
           pnpm build
-          npx npm@latest publish --access public --provenance
+          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
+          # publish under the `alpha` dist-tag AND point `latest` at it so
+          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
+          # versions are deprecated but still occupy `latest` otherwise).
+          if [[ "${{ inputs.tag_name }}" == *-* ]]; then
+            PKG=$(node -p "require('./package.json').name")
+            VER=$(node -p "require('./package.json').version")
+            npx npm@latest publish --access public --provenance --tag alpha
+            npx npm@latest dist-tag add "$PKG@$VER" latest
+          else
+            npx npm@latest publish --access public --provenance
+          fi
 
       - name: Build and publish register package
         working-directory: integrations/register
         run: |
           pnpm build
-          npx npm@latest publish --access public --provenance
+          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
+          # publish under the `alpha` dist-tag AND point `latest` at it so
+          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
+          # versions are deprecated but still occupy `latest` otherwise).
+          if [[ "${{ inputs.tag_name }}" == *-* ]]; then
+            PKG=$(node -p "require('./package.json').name")
+            VER=$(node -p "require('./package.json').version")
+            npx npm@latest publish --access public --provenance --tag alpha
+            npx npm@latest dist-tag add "$PKG@$VER" latest
+          else
+            npx npm@latest publish --access public --provenance
+          fi
 
       - name: Build and publish Vite plugin
         working-directory: integrations/vite-plugin-floe
         run: |
           pnpm build
-          npx npm@latest publish --access public --provenance
+          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
+          # publish under the `alpha` dist-tag AND point `latest` at it so
+          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
+          # versions are deprecated but still occupy `latest` otherwise).
+          if [[ "${{ inputs.tag_name }}" == *-* ]]; then
+            PKG=$(node -p "require('./package.json').name")
+            VER=$(node -p "require('./package.json').version")
+            npx npm@latest publish --access public --provenance --tag alpha
+            npx npm@latest dist-tag add "$PKG@$VER" latest
+          else
+            npx npm@latest publish --access public --provenance
+          fi
 
       - name: Build and publish Hono shim
         working-directory: integrations/hono
         run: |
           pnpm build
-          npx npm@latest publish --access public --provenance
+          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
+          # publish under the `alpha` dist-tag AND point `latest` at it so
+          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
+          # versions are deprecated but still occupy `latest` otherwise).
+          if [[ "${{ inputs.tag_name }}" == *-* ]]; then
+            PKG=$(node -p "require('./package.json').name")
+            VER=$(node -p "require('./package.json').version")
+            npx npm@latest publish --access public --provenance --tag alpha
+            npx npm@latest dist-tag add "$PKG@$VER" latest
+          else
+            npx npm@latest publish --access public --provenance
+          fi
 
       - name: Build and publish esbuild plugin
         working-directory: integrations/esbuild-plugin
         run: |
           pnpm build
-          npx npm@latest publish --access public --provenance
+          # Prereleases (e.g. 0.1.0-alpha.1) require an explicit --tag. We
+          # publish under the `alpha` dist-tag AND point `latest` at it so
+          # that `npm install @floeorg/X` picks up the alpha (the old 0.x
+          # versions are deprecated but still occupy `latest` otherwise).
+          if [[ "${{ inputs.tag_name }}" == *-* ]]; then
+            PKG=$(node -p "require('./package.json').name")
+            VER=$(node -p "require('./package.json').version")
+            npx npm@latest publish --access public --provenance --tag alpha
+            npx npm@latest dist-tag add "$PKG@$VER" latest
+          else
+            npx npm@latest publish --access public --provenance
+          fi
 
   publish-extension:
     name: Publish VS Code Extension
@@ -187,6 +242,12 @@ jobs:
         working-directory: editors/vscode
         run: ovsx publish -p ${{ secrets.OVSX_TOKEN }}
 
+      # VS Code Marketplace does not accept semver prerelease suffixes like
+      # `-alpha.1`; it uses Microsoft's own integer-only pre-release model
+      # (odd-even minor convention + `--pre-release` flag). Until Floe hits
+      # a stable release, alpha extensions are available only on Open VSX
+      # and via manual .vsix download from the GitHub Release.
       - name: Publish to VS Code Marketplace
+        if: ${{ !contains(inputs.tag_name, '-') }}
         working-directory: editors/vscode
         run: vsce publish -p ${{ secrets.VSCE_PAT }}
