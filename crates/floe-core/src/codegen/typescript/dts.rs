@@ -214,19 +214,6 @@ impl<'a> TypeScriptGenerator<'a> {
         };
         out.push_str(&Self::doc_to_string(&type_doc));
         out.push(';');
-
-        if !decl.deriving.is_empty()
-            && let TypeDef::Record(_) = &decl.def
-        {
-            for trait_name in &decl.deriving {
-                if trait_name.as_str() == "Display" {
-                    out.push_str(&format!(
-                        "\nexport declare function display(self: {}): string;",
-                        decl.name
-                    ));
-                }
-            }
-        }
     }
 
     fn emit_dts_function(&mut self, out: &mut String, decl: &TypedFunctionDecl) {

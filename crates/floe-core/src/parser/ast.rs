@@ -298,8 +298,6 @@ pub struct TypeDecl<T = ()> {
     pub name: String,
     pub type_params: Vec<String>,
     pub def: TypeDef<T>,
-    /// `deriving (Display)` — auto-derive trait implementations for record types.
-    pub deriving: Vec<String>,
 }
 
 /// The right-hand side of a type declaration.

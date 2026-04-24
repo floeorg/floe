@@ -531,7 +531,6 @@ impl<'src> Lowerer<'src> {
             | SyntaxKind::VARIANT
             | SyntaxKind::VARIANT_FIELD
             | SyntaxKind::MATCH_GUARD
-            | SyntaxKind::DERIVING_CLAUSE
             | SyntaxKind::OBJECT_FIELD => None,
 
             // For other kinds, try to extract token-level expressions

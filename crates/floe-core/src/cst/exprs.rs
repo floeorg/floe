@@ -166,7 +166,7 @@ impl<'src> CstParser<'src> {
                                 | Some(TokenKind::Fn)
                                 | Some(TokenKind::Trait)
                                 | Some(TokenKind::Collect)
-                                | Some(TokenKind::Deriving)
+                                | Some(TokenKind::Impl)
                                 | Some(TokenKind::When)
                                 | Some(TokenKind::SelfKw)
                                 | Some(TokenKind::Value)

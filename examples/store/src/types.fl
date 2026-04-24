@@ -28,7 +28,7 @@ export type Product = {
     brand: string,
     thumbnail: string,
     images: Array<string>,
-} deriving (Display)
+}
 
 export type Review = {
     ...WithRating,

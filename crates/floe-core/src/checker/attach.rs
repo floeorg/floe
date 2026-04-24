@@ -165,7 +165,6 @@ impl Attacher<'_> {
             name: decl.name,
             type_params: decl.type_params,
             def: self.type_def(decl.def),
-            deriving: decl.deriving,
         }
     }
 
@@ -644,7 +643,6 @@ mod tests {
             opaque: false,
             name: "Point".to_string(),
             type_params: vec![],
-            deriving: vec![],
             def: TypeDef::Record(vec![RecordEntry::Field(Box::new(RecordField {
                 name: "x".to_string(),
                 type_ann: TypeExpr {

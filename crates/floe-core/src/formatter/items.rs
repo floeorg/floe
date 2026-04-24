@@ -469,12 +469,6 @@ impl Formatter<'_> {
                     parts.push(pretty::str(" = "));
                     parts.push(self.fmt_type_alias_def(&child));
                 }
-                SyntaxKind::DERIVING_CLAUSE => {
-                    parts.push(pretty::str(" deriving ("));
-                    let deriving_idents = self.collect_idents(&child);
-                    parts.push(pretty::str(deriving_idents.join(", ")));
-                    parts.push(pretty::str(")"));
-                }
                 _ => {}
             }
         }

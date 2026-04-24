@@ -724,43 +724,7 @@ impl<'a> TypeScriptGenerator<'a> {
 
         docs.push(pretty::str(";"));
 
-        if !decl.deriving.is_empty()
-            && let TypeDef::Record(_) = &decl.def
-        {
-            let fields = decl.def.record_fields();
-            for trait_name in &decl.deriving {
-                if trait_name.as_str() == "Display" {
-                    docs.push(pretty::str("\n\n"));
-                    docs.push(self.emit_derived_display(&decl.name, &fields));
-                }
-            }
-        }
-
         pretty::concat(docs)
-    }
-
-    fn emit_derived_display(&self, type_name: &str, fields: &[&TypedRecordField]) -> Document {
-        let mut field_parts = Vec::new();
-        for (i, field) in fields.iter().enumerate() {
-            if i > 0 {
-                field_parts.push(", ".to_string());
-            }
-            field_parts.push(format!("{}: ${{self.{}}}", field.name, field.name));
-        }
-        let fields_str = field_parts.join("");
-
-        pretty::concat([
-            pretty::str(format!("function display(self: {type_name}): string {{")),
-            pretty::nest(
-                2,
-                pretty::concat([
-                    pretty::line(),
-                    pretty::str(format!("return `{type_name}({fields_str})`;")),
-                ]),
-            ),
-            pretty::line(),
-            pretty::str("}"),
-        ])
     }
 
     pub(super) fn emit_record_type_entries(&mut self, entries: &[TypedRecordEntry]) -> Document {

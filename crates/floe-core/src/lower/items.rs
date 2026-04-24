@@ -368,7 +368,6 @@ impl<'src> Lowerer<'src> {
         let type_params = idents[1..].to_vec();
 
         let mut def = None;
-        let mut deriving = Vec::new();
         for child in node.children() {
             match child.kind() {
                 SyntaxKind::TYPE_DEF_RECORD => {
@@ -393,9 +392,6 @@ impl<'src> Lowerer<'src> {
                 SyntaxKind::TYPE_DEF_STRING_UNION => {
                     def = Some(self.lower_type_def_string_literal_union(&child));
                 }
-                SyntaxKind::DERIVING_CLAUSE => {
-                    deriving = self.collect_idents_direct(&child);
-                }
                 _ => {}
             }
         }
@@ -406,7 +402,6 @@ impl<'src> Lowerer<'src> {
             name,
             type_params,
             def: def?,
-            deriving,
         })
     }
 

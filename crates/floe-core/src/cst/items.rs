@@ -538,25 +538,6 @@ impl<'src> CstParser<'src> {
             );
         }
 
-        // Optional deriving clause: `deriving (Display)`
-        self.eat_trivia();
-        if self.at(TokenKind::Deriving) {
-            if is_typealias {
-                self.error(
-                    "`deriving` requires a nominal `type` declaration; \
-                     `typealias` names a structural shape and cannot derive traits",
-                );
-            }
-            self.builder.start_node(SyntaxKind::DERIVING_CLAUSE.into());
-            self.bump(); // consume `deriving`
-            self.eat_trivia();
-            self.expect(TokenKind::LeftParen);
-            self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightParen);
-            self.expect(TokenKind::RightParen);
-            self.builder.finish_node();
-        }
-
         self.builder.finish_node();
     }
 
