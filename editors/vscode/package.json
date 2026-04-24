@@ -2,7 +2,7 @@
   "name": "floe",
   "displayName": "Floe",
   "description": "Language support for Floe (.fl) - syntax highlighting, diagnostics, and LSP integration",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "license": "MIT",
   "publisher": "floeorg",
   "icon": "icons/floe-icon.png",

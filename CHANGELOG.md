@@ -5,6 +5,18 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-alpha.3](https://github.com/floeorg/floe/compare/v0.1.0-alpha.2...v0.1.0-alpha.3) (2026-04-24)
+
+
+### Features
+
+* [[#1328](https://github.com/floeorg/floe/issues/1328)] scope-aware rename + rewrite references via ReferenceTracker ([#1332](https://github.com/floeorg/floe/issues/1332)) ([8c1896c](https://github.com/floeorg/floe/commit/8c1896c618d94db6811fd3d8d2f39e3a4ee276b4))
+
+
+### Miscellaneous Chores
+
+* release as 0.1.0-alpha.3 ([cd5ea44](https://github.com/floeorg/floe/commit/cd5ea441dbb9a5cac2454f64a60e9c8cec20ed4e))
+
 ## [0.1.0-alpha.2](https://github.com/floeorg/floe/compare/v0.1.0-alpha.1...v0.1.0-alpha.2) (2026-04-24)
 
 
