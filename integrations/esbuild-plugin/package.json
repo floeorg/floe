@@ -1,6 +1,6 @@
 {
   "name": "@floeorg/esbuild-plugin",
-  "version": "0.7.0",
+  "version": "0.1.0-alpha.1",
   "description": "esbuild plugin for Floe - resolves and compiles .fl imports for wrangler, Bun, tsup, and raw esbuild",
   "type": "module",
   "main": "dist/index.js",
