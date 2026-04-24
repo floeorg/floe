@@ -2,7 +2,7 @@ use tower_lsp::LanguageServer;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
-use super::rename::resolve_def_span;
+use super::rename::{for_each_symbol_site, resolve_def_span};
 use super::{FloeLsp, offset_to_range, position_to_offset, word_at_offset};
 
 #[tower_lsp::async_trait]
@@ -122,31 +122,12 @@ impl LanguageServer for FloeLsp {
         }
 
         let mut locations = Vec::new();
-
-        // Each open document has its own tracker. Imports rebind the source
-        // symbol locally, so the importing doc's tracker treats the import
-        // declaration as a definition. Walking every doc with a same-named
-        // entry yields the union of intra-file and cross-file uses.
-        for (other_uri, other_doc) in docs.iter() {
-            let Some(other_def) = other_doc.references.definition_for_name(word) else {
-                continue;
-            };
-            for ref_span in other_doc.references.find_references(other_def) {
-                locations.push(Location {
-                    uri: other_uri.clone(),
-                    range: offset_to_range(&other_doc.content, ref_span.start, ref_span.end),
-                });
-            }
-            if include_decl
-                && let Some((s, e)) =
-                    super::rename::name_range_in_def(&other_doc.content, other_def, word)
-            {
-                locations.push(Location {
-                    uri: other_uri.clone(),
-                    range: offset_to_range(&other_doc.content, s, e),
-                });
-            }
-        }
+        for_each_symbol_site(&docs, word, include_decl, |site_uri, source, start, end| {
+            locations.push(Location {
+                uri: site_uri.clone(),
+                range: offset_to_range(source, start, end),
+            });
+        });
 
         if locations.is_empty() {
             Ok(None)

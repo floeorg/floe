@@ -6,7 +6,9 @@ use tower_lsp::lsp_types::*;
 use floe_core::lexer::span::Span;
 use floe_core::reference::ReferenceTracker;
 
-use super::{Document, FloeLsp, offset_to_range, position_to_offset, word_at_offset};
+use super::{
+    Document, FloeLsp, offset_to_range, position_to_offset, word_at_offset, word_range_at_offset,
+};
 
 impl FloeLsp {
     pub(super) async fn handle_prepare_rename(
@@ -64,33 +66,13 @@ impl FloeLsp {
             return Ok(None);
         }
 
-        // Walk every open doc with a same-named registered symbol. Each
-        // importing module rebinds the source symbol, so its tracker holds
-        // the import declaration as a definition with its own use list —
-        // collecting from every doc covers both intra-file and cross-file
-        // uses without a separate import-resolution pass.
         let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
-        for (other_uri, other_doc) in docs.iter() {
-            let Some(other_def) = other_doc.references.definition_for_name(word) else {
-                continue;
-            };
-            let mut edits = Vec::new();
-            if let Some((s, e)) = name_range_in_def(&other_doc.content, other_def, word) {
-                edits.push(TextEdit {
-                    range: offset_to_range(&other_doc.content, s, e),
-                    new_text: params.new_name.clone(),
-                });
-            }
-            for ref_span in other_doc.references.find_references(other_def) {
-                edits.push(TextEdit {
-                    range: offset_to_range(&other_doc.content, ref_span.start, ref_span.end),
-                    new_text: params.new_name.clone(),
-                });
-            }
-            if !edits.is_empty() {
-                changes.insert(other_uri.clone(), edits);
-            }
-        }
+        for_each_symbol_site(&docs, word, true, |site_uri, source, start, end| {
+            changes.entry(site_uri.clone()).or_default().push(TextEdit {
+                range: offset_to_range(source, start, end),
+                new_text: params.new_name.clone(),
+            });
+        });
 
         if changes.is_empty() {
             return Ok(None);
@@ -107,8 +89,8 @@ impl FloeLsp {
 ///
 /// Two cases: the cursor is on a recorded reference (tracker maps it directly),
 /// or the cursor is on the definition's own name. Definition spans cover the
-/// whole declaration, so for the second case we also require the cursor word
-/// to match the registered name — otherwise any cursor inside an item body
+/// whole declaration, so the second case also requires the cursor word to
+/// match the registered name — otherwise any cursor inside an item body
 /// would resolve to that item's def.
 pub(super) fn resolve_def_span(refs: &ReferenceTracker, offset: usize, word: &str) -> Option<Span> {
     if let Some(def_span) = refs.definition_at_offset(offset) {
@@ -124,11 +106,7 @@ pub(super) fn resolve_def_span(refs: &ReferenceTracker, offset: usize, word: &st
 /// not just the identifier. The name is the first occurrence of `name` inside
 /// that span — for any well-formed declaration the name appears before the
 /// body, so a recursive use like `fn foo() = foo()` still finds the def site.
-pub(super) fn name_range_in_def(
-    source: &str,
-    def_span: Span,
-    name: &str,
-) -> Option<(usize, usize)> {
+fn name_range_in_def(source: &str, def_span: Span, name: &str) -> Option<(usize, usize)> {
     let end = def_span.end.min(source.len());
     if def_span.start >= end {
         return None;
@@ -138,9 +116,34 @@ pub(super) fn name_range_in_def(
     Some((start, start + name.len()))
 }
 
-/// Same name-range lookup, but also returns the cursor's reference span when
-/// the cursor is on a use site rather than the definition. Used by
-/// `prepareRename` to highlight the exact identifier the editor will edit.
+/// Visit every occurrence of `word` across open documents that the
+/// reference tracker can resolve — definition name plus all uses, in
+/// every doc that has a same-named registered symbol. Each importing
+/// module rebinds the source symbol locally, so walking every doc's
+/// tracker covers both intra-file and cross-file occurrences without a
+/// separate import-resolution pass.
+pub(super) fn for_each_symbol_site<F>(
+    docs: &HashMap<Url, Document>,
+    word: &str,
+    include_decl: bool,
+    mut visit: F,
+) where
+    F: FnMut(&Url, &str, usize, usize),
+{
+    for (other_uri, other_doc) in docs.iter() {
+        let Some(other_def) = other_doc.references.definition_for_name(word) else {
+            continue;
+        };
+        if include_decl && let Some((s, e)) = name_range_in_def(&other_doc.content, other_def, word)
+        {
+            visit(other_uri, &other_doc.content, s, e);
+        }
+        for ref_span in other_doc.references.find_references(other_def) {
+            visit(other_uri, &other_doc.content, ref_span.start, ref_span.end);
+        }
+    }
+}
+
 fn renameable_word_range(doc: &Document, offset: usize, word: &str) -> Option<(usize, usize)> {
     let def_span = resolve_def_span(&doc.references, offset, word)?;
     if let Some(name_range) = name_range_in_def(&doc.content, def_span, word)
@@ -149,22 +152,7 @@ fn renameable_word_range(doc: &Document, offset: usize, word: &str) -> Option<(u
     {
         return Some(name_range);
     }
-    // Cursor is on a reference, not the definition. Find the enclosing
-    // word at the cursor — the editor will highlight that range.
-    let bytes = doc.content.as_bytes();
-    let mut start = offset;
-    while start > 0 && super::is_word_char(bytes[start - 1]) {
-        start -= 1;
-    }
-    let mut end = offset;
-    while end < bytes.len() && super::is_word_char(bytes[end]) {
-        end += 1;
-    }
-    if start == end {
-        None
-    } else {
-        Some((start, end))
-    }
+    word_range_at_offset(&doc.content, offset)
 }
 
 fn is_valid_identifier(s: &str) -> bool {
@@ -218,9 +206,8 @@ mod tests {
         let def = sp(0, 20);
         refs.register_definition("foo", def);
 
-        // Cursor is inside the def span but on a different word — must not
-        // match, otherwise every identifier inside an item body would resolve
-        // to that item's definition.
+        // Otherwise every identifier inside an item body would resolve to
+        // that item's definition.
         assert_eq!(resolve_def_span(&refs, 10, "bar"), None);
     }
 

@@ -112,6 +112,16 @@ impl SymbolIndex {
         self.symbols.iter().filter(|s| s.name == name).collect()
     }
 
+    /// True if `span` falls inside an import declaration. Used by features
+    /// that resolve a tracker hit (where every importing module rebinds the
+    /// name) and need to follow through to the source file instead of
+    /// landing on the local rebinding.
+    pub(super) fn covers_import(&self, start: usize, end: usize) -> bool {
+        self.symbols
+            .iter()
+            .any(|s| s.import_source.is_some() && s.start <= start && s.end >= end)
+    }
+
     pub(super) fn all_completions(&self) -> Vec<&Symbol> {
         self.symbols.iter().collect()
     }
