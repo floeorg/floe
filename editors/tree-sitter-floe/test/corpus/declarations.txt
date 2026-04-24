@@ -472,3 +472,28 @@ export default app
       (number)))
   (default_export_declaration
     name: (identifier)))
+
+===
+Record type with uppercase field names
+===
+
+type Bindings = {
+    DB: Option<D1Database>,
+    API: string,
+}
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    definition: (record_type
+      (record_field
+        name: (type_identifier)
+        type: (generic_type
+          (type_identifier)
+          (type_arguments
+            (type_identifier))))
+      (record_field
+        name: (type_identifier)
+        type: (primitive_type)))))

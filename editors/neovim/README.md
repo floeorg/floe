@@ -1,109 +1,134 @@
-# Floe for Neovim
+# floe.nvim
 
-## Quick Setup
+Neovim plugin for [Floe](https://floe.dev): filetype detection, LSP, and tree-sitter highlighting.
 
-### 1. File detection
+## Requirements
 
-Add to your Neovim config (`init.lua` or a file in `after/ftdetect/`):
+- Neovim 0.9+
+- [`floe`](https://floe.dev) on your `$PATH`
+- [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) (for syntax highlighting)
+
+## Install
+
+Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
-vim.filetype.add({
-  extension = {
-    fl = "floe",
-  },
+{
+  "floeorg/floe",
+  dir = vim.fn.stdpath("data") .. "/lazy/floe/editors/neovim",
+  opts = {},
+  main = "floe",
+  ft = "floe",
+  dependencies = { "nvim-treesitter/nvim-treesitter" },
+}
+```
+
+Using [packer.nvim](https://github.com/wbthomason/packer.nvim):
+
+```lua
+use({
+  "floeorg/floe",
+  rtp = "editors/neovim",
+  config = function()
+    require("floe").setup({})
+  end,
+  requires = { "nvim-treesitter/nvim-treesitter" },
 })
 ```
 
-Or copy `ftdetect/floe.lua` into `~/.config/nvim/ftdetect/`.
+Using [vim-plug](https://github.com/junegunn/vim-plug):
 
-### 2. LSP configuration
+```vim
+Plug 'floeorg/floe', { 'rtp': 'editors/neovim' }
 
-Using **nvim-lspconfig** (recommended):
-
-```lua
-local lspconfig = require("lspconfig")
-local configs = require("lspconfig.configs")
-
--- Register the Floe LSP if not already defined
-if not configs.floe then
-  configs.floe = {
-    default_config = {
-      cmd = { "floe", "lsp" },
-      filetypes = { "floe" },
-      root_dir = lspconfig.util.root_pattern("floe.toml", ".git"),
-      settings = {},
-    },
-  }
-end
-
-lspconfig.floe.setup({})
+lua require('floe').setup({})
 ```
 
-Without nvim-lspconfig (built-in `vim.lsp.start`):
+That single `setup({})` call replaces the five manual steps (filetype registration, LSP autocmd, tree-sitter parser config, query files, `:TSInstall`).
+
+## Configuration
+
+All options are optional. Defaults:
 
 ```lua
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = "floe",
-  callback = function()
-    vim.lsp.start({
-      name = "floe",
-      cmd = { "floe", "lsp" },
-      root_dir = vim.fs.dirname(vim.fs.find({ "floe.toml", ".git" }, { upward = true })[1]),
-    })
+require("floe").setup({
+  cmd = { "floe", "lsp" },             -- command to start the LSP
+  root_markers = { "floe.toml", ".git" }, -- used to locate project root
+  auto_install_parser = true,           -- run :TSInstall floe on first .fl open
+  on_attach = nil,                      -- function(client, bufnr) for keymaps
+  capabilities = nil,                   -- override LSP capabilities (e.g. nvim-cmp)
+})
+```
+
+### Dev builds
+
+Point `cmd` at a local build:
+
+```lua
+require("floe").setup({
+  cmd = { "/path/to/floe/target/debug/floe", "lsp" },
+})
+```
+
+### Integrate with nvim-cmp
+
+```lua
+require("floe").setup({
+  capabilities = require("cmp_nvim_lsp").default_capabilities(),
+  on_attach = function(_, bufnr)
+    vim.keymap.set("n", "K", vim.lsp.buf.hover, { buffer = bufnr })
+    vim.keymap.set("n", "gd", vim.lsp.buf.definition, { buffer = bufnr })
   end,
 })
 ```
 
-### 3. Syntax highlighting
+## Tree-sitter parser
 
-#### Option A: Tree-sitter (recommended)
+### nvim-treesitter master branch (legacy)
 
-Neovim has native tree-sitter support via [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter). Since the Floe parser is not yet in the nvim-treesitter registry, you need to register it manually.
+`:TSInstall floe` — floe.nvim registers the parser with `nvim-treesitter` and `auto_install_parser = true` runs the install on first open.
 
-Add this to your Neovim config:
+### nvim-treesitter main branch (v1.x — current LazyVim default)
 
-```lua
-local parser_config = require("nvim-treesitter.parsers").get_parser_configs()
-
-parser_config.floe = {
-  install_info = {
-    url = "https://github.com/floeorg/floe",
-    location = "editors/tree-sitter-floe",
-    files = { "src/parser.c" },
-    branch = "main",
-  },
-  filetype = "floe",
-}
-```
-
-Then install the parser:
-
-```
-:TSInstall floe
-```
-
-Finally, copy the query files into your Neovim runtime path so tree-sitter knows how to highlight Floe:
+`nvim-treesitter` v1.x only installs parsers from its upstream registry (follow-up #1346 tracks submission). Until then, build and drop the parser on your runtime path:
 
 ```bash
-# From the repo root:
-cp -r editors/neovim/queries/floe ~/.config/nvim/queries/floe
+cd <floe-repo>/editors/tree-sitter-floe
+cc -shared -fPIC -I src -o ~/.local/share/nvim/site/parser/floe.so src/parser.c
 ```
 
-This copies `queries/floe/highlights.scm` which tells tree-sitter how to map AST nodes to highlight groups.
+floe.nvim will auto-attach tree-sitter highlighting via `vim.treesitter.start` once the parser is available on the runtime path — no nvim-treesitter-specific configuration needed.
+
+## Health check
+
+Run `:checkhealth floe` to verify:
+
+- `floe` is on `$PATH` and executable
+- `.fl` filetype is registered
+- highlight queries are on the runtime path
+- tree-sitter parser is installed
 
 ## Features
 
-Once configured, you get:
-
 - **Diagnostics** - parse and type errors shown inline
-- **Hover** - type info and documentation on hover (`K`)
-- **Completions** - symbols, keywords, builtins, cross-file with auto-import
-- **Go to Definition** - jump to symbol definition (`gd`)
-- **Find References** - find all usages (`gr`)
-- **Document Symbols** - outline view (`:Telescope lsp_document_symbols` or similar)
+- **Hover** (`K`) - type signatures and documentation
+- **Completions** - symbols, keywords, builtins, cross-file auto-import
+- **Go to Definition** (`gd`)
+- **Find References** (`gr`)
+- **Document Symbols** - outline for Telescope / fzf-lua
+- **Syntax highlighting** via tree-sitter
 
-## Requirements
+## Structure
 
-- `floe` must be in your `$PATH` (install via `cargo install floe` or build from source)
-- Neovim 0.8+ (for native LSP support)
-- [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) (for tree-sitter highlighting)
+```
+editors/neovim/
+├── lua/floe/
+│   ├── init.lua          - setup() entry point
+│   ├── filetype.lua      - .fl filetype registration
+│   ├── lsp.lua           - LSP autocmd + vim.lsp.start
+│   ├── treesitter.lua    - nvim-treesitter parser registration
+│   └── health.lua        - :checkhealth floe
+├── ftdetect/floe.lua     - fallback filetype registration
+├── plugin/floe.lua       - loaded on startup (pre-setup filetype)
+└── queries/floe/highlights.scm
+```
