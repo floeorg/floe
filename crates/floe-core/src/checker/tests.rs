@@ -2779,7 +2779,7 @@ trait Display {
   let display(self) -> string
 }
 type User = { name: string }
-for User: Display {
+impl Display for User {
   let display(self) -> string = {
     self.name
   }
@@ -2805,7 +2805,7 @@ trait Display {
   let display(self) -> string
 }
 type User = { name: string }
-for User: Display {
+impl Display for User {
   let toString(self) -> string = {
     "wrong"
   }
@@ -2824,7 +2824,7 @@ fn trait_unknown_trait() {
     let diags = check(
         r#"
 type User = { name: string }
-for User: NonExistent {
+impl NonExistent for User {
   let display(self) -> string = {
     self.name
   }
@@ -2934,7 +2934,7 @@ trait Eq {
   }
 }
 type User = { name: string }
-for User: Eq {
+impl Eq for User {
   let eq(self, other: string) -> boolean = {
     self.name == other
   }
@@ -2984,7 +2984,7 @@ trait Printable {
   let prettyPrint(self) -> string
 }
 type User = { name: string }
-for User: Printable {
+impl Printable for User {
   let print(self) -> string = {
     self.name
   }
@@ -3014,7 +3014,7 @@ trait Printable {
   let prettyPrint(self) -> string
 }
 type User = { name: string }
-for User: Printable {
+impl Printable for User {
   let print(self) -> string = {
     self.name
   }
@@ -3036,7 +3036,7 @@ trait Display {
   let display(self) -> string
 }
 type User = { name: string }
-for User: Display {
+impl Display for User {
   let display() -> string = {
     "hello"
   }
@@ -3059,7 +3059,7 @@ trait Greet {
   let greet(name: string) -> string
 }
 type User = {}
-for User: Greet {
+impl Greet for User {
   let greet(self, name: string) -> string = {
     name
   }
@@ -3130,7 +3130,7 @@ fn resolved_module_with_display_trait() -> ResolvedImports {
 }
 
 #[test]
-fn trait_imported_without_for_errors() {
+fn trait_imported_with_for_accepted() {
     use std::collections::HashMap;
 
     let mut imports = HashMap::new();
@@ -3139,39 +3139,7 @@ fn trait_imported_without_for_errors() {
     let source = r#"
 import { User, Display } from "./types"
 
-for User: Display {
-    let display(self) -> string = {
-        self.name
-    }
-}
-"#;
-
-    let program = Parser::new(source)
-        .parse_program()
-        .expect("parse should succeed");
-    let diags = Checker::with_imports(imports).check(&program);
-    assert!(
-        has_error(&diags, ErrorCode::TraitImportWithoutFor),
-        "expected TraitImportWithoutFor, got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-    assert!(has_error_containing(
-        &diags,
-        "trait `Display` must be imported with `import { for Display }`"
-    ));
-}
-
-#[test]
-fn trait_imported_with_for_accepted() {
-    use std::collections::HashMap;
-
-    let mut imports = HashMap::new();
-    imports.insert("./types".to_string(), resolved_module_with_display_trait());
-
-    let source = r#"
-import { User, for Display } from "./types"
-
-for User: Display {
+impl Display for User {
     let display(self) -> string = {
         self.name
     }
@@ -3202,7 +3170,7 @@ fn for_import_of_missing_type_errors() {
     imports.insert("./types".to_string(), resolved_module_with_display_trait());
 
     let source = r#"
-import { User, for PeePeePooPoo } from "./types"
+import { User, PeePeePooPoo } from "./types"
 "#;
 
     let program = Parser::new(source)

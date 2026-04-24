@@ -1,6 +1,6 @@
 import { Todo, Filter, Validation, Display } from "./types"
 
-for string {
+export for string {
     export let validate(self) -> Validation = {
         let trimmed = self |> trim
         let len = trimmed |> String.length
@@ -23,7 +23,7 @@ export impl Display for Todo {
     }
 }
 
-for Array<Todo> {
+export for Array<Todo> {
     export let filterBy(self, f: Filter) -> Array<Todo> = {
         match f {
             All -> self,

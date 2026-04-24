@@ -14,9 +14,9 @@ export impl Discountable for Product {
     }
 }
 
-// ── Product helpers ────────────────────────────────────
+// ── Product helpers ─────────────────────────────────────
 
-for Product {
+export for Product {
     export let savings(self) -> number = {
         self.price - (self |> effectivePrice)
     }
@@ -41,9 +41,9 @@ for Product {
     }
 }
 
-// ── Cart operations ────────────────────────────────────
+// ── Cart operations ─────────────────────────────────────
 
-for Array<CartItem> {
+export for Array<CartItem> {
     export let addItem(self, product: Product, qty: number = 1) -> Array<CartItem> = {
         let existing = self |> Array.findIndex((item) -> item.product.id == product.id)
 

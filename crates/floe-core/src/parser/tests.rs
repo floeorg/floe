@@ -1749,7 +1749,7 @@ fn export_for_trait_impl_marks_all_methods_exported() {
     let input = r#"
 type User = { name: string }
 trait Display { let display(self) -> string }
-export for User: Display {
+export impl Display for User {
     let display(self) -> string = { self.name }
 }
 "#;
@@ -1768,7 +1768,7 @@ fn for_block_trait_name_span_points_at_identifier() {
     let input = r#"
 type User = { name: string }
 trait Display { let display(self) -> string }
-for User: Display {
+impl Display for User {
     let display(self) -> string = { self.name }
 }
 "#;
@@ -1803,52 +1803,6 @@ for User {
 }
 
 // (Inline for-declaration tests removed — only block form is supported)
-
-// ── Import { for Type } ────────────────────────────────────
-
-#[test]
-fn import_for_type() {
-    let input = r#"import { for User } from "./helpers""#;
-    match first_item(input) {
-        ItemKind::Import(decl) => {
-            assert!(decl.specifiers.is_empty());
-            assert_eq!(decl.for_specifiers.len(), 1);
-            assert_eq!(decl.for_specifiers[0].type_name, "User");
-            assert_eq!(decl.source, "./helpers");
-        }
-        other => panic!("expected import, got {other:?}"),
-    }
-}
-
-#[test]
-fn import_multiple_for_types() {
-    let input = r#"import { for Array, for Map } from "./todo""#;
-    match first_item(input) {
-        ItemKind::Import(decl) => {
-            assert!(decl.specifiers.is_empty());
-            assert_eq!(decl.for_specifiers.len(), 2);
-            assert_eq!(decl.for_specifiers[0].type_name, "Array");
-            assert_eq!(decl.for_specifiers[1].type_name, "Map");
-        }
-        other => panic!("expected import, got {other:?}"),
-    }
-}
-
-#[test]
-fn import_mixed_names_and_for_types() {
-    let input = r#"import { Todo, Filter, for Array, for string } from "./todo""#;
-    match first_item(input) {
-        ItemKind::Import(decl) => {
-            assert_eq!(decl.specifiers.len(), 2);
-            assert_eq!(decl.specifiers[0].name, "Todo");
-            assert_eq!(decl.specifiers[1].name, "Filter");
-            assert_eq!(decl.for_specifiers.len(), 2);
-            assert_eq!(decl.for_specifiers[0].type_name, "Array");
-            assert_eq!(decl.for_specifiers[1].type_name, "string");
-        }
-        other => panic!("expected import, got {other:?}"),
-    }
-}
 
 // ── Re-exports ──────────────────────────────────────────────
 

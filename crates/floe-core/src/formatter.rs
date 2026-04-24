@@ -132,6 +132,7 @@ impl<'src> Formatter<'src> {
             SyntaxKind::TYPE_DEF_ALIAS => self.fmt_type_alias_def(node),
             SyntaxKind::TYPE_EXPR => self.fmt_type_expr(node),
             SyntaxKind::FOR_BLOCK => self.fmt_for_block(node),
+            SyntaxKind::IMPL_BLOCK => self.fmt_impl_block(node),
             SyntaxKind::TRAIT_DECL => self.fmt_trait_decl(node),
             SyntaxKind::COLLECT_EXPR | SyntaxKind::TEST_BLOCK | SyntaxKind::ASSERT_EXPR => {
                 self.fmt_verbatim(node)

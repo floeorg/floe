@@ -234,22 +234,17 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
-    /// Parse an import specifier. The old `import { for X }` form is
-    /// rejected with a diagnostic — trait-in-scope now activates impls
-    /// automatically, and inherent methods travel with the type.
+    /// Parse an import specifier. Two forms:
+    /// - `{ Name }` or `{ Name as Alias }` — import the named value/type/trait
+    /// - `{ for Type }` — import the for-block extension methods for Type
+    ///   (needed for foreign-type inherent like `for Array<T>` or `for string`)
     fn parse_import_specifier_or_for(&mut self) {
         if self.at(TokenKind::For) {
-            self.builder.start_node(SyntaxKind::ERROR.into());
-            self.error(
-                "`import { for X }` is no longer valid. \
-                 Importing a trait (`import { TraitName }`) activates its \
-                 impls automatically; inherent methods travel with the type",
-            );
+            self.builder
+                .start_node(SyntaxKind::IMPORT_FOR_SPECIFIER.into());
             self.bump(); // `for`
             self.eat_trivia();
-            if self.peek_is_ident() {
-                self.bump(); // consume the type name so parsing continues
-            }
+            self.expect_ident(); // type name
             self.builder.finish_node();
         } else {
             self.parse_import_specifier();

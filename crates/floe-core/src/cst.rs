@@ -757,11 +757,6 @@ mod tests {
         assert_eq!(text, "import { foo as f } from \"./module\"");
     }
 
-    #[test]
-    fn import_for_specifier() {
-        assert_no_errors("import { for User } from \"./helpers\"");
-    }
-
     // ── Exports ───────────────────────────────────────────────────
 
     #[test]
@@ -1008,8 +1003,13 @@ mod tests {
     }
 
     #[test]
-    fn for_block_with_trait() {
-        assert_no_errors("for User: Display { let show(self) -> string = { self.name } }");
+    fn impl_block() {
+        assert_no_errors("impl Display for User { let show(self) -> string = { self.name } }");
+    }
+
+    #[test]
+    fn impl_block_empty_body() {
+        assert_no_errors("impl Eq for User");
     }
 
     // ── Trait declarations ────────────────────────────────────────

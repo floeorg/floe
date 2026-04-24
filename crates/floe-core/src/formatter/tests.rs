@@ -889,8 +889,8 @@ fn format_for_block_basic() {
 #[test]
 fn format_for_block_with_trait() {
     assert_fmt(
-        "for  User :  Display  {\nlet display(self) -> string = {\n`${self.name}`\n}\n}",
-        "for User: Display {\n    let display(self) -> string = {\n        `${self.name}`\n    }\n}",
+        "impl Display for User {\nlet display(self) -> string = {\n`${self.name}`\n}\n}",
+        "impl Display for User {\n    let display(self) -> string = {\n        `${self.name}`\n    }\n}",
     );
 }
 
@@ -936,7 +936,7 @@ fn format_trait_decl_with_default_impl() {
 
 #[test]
 fn idempotent_for_block() {
-    let formatted = "for User: Display {\n    export let display(self) -> string = {\n        `${self.name}`\n    }\n}";
+    let formatted = "impl Display for User {\n    export let display(self) -> string = {\n        `${self.name}`\n    }\n}";
     assert_fmt(formatted, formatted);
 }
 

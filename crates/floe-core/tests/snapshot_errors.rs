@@ -196,7 +196,7 @@ trait Eq {
 
 type User = { name: string }
 
-for User: Eq {
+impl Eq for User {
   export let eq(self, other: string) -> boolean = {
     self.name == other
   }

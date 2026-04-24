@@ -1039,7 +1039,7 @@ mod tests {
             ),
         ]);
         let main_path = base.join("main.fl");
-        let program = parse_program("import { for User } from \"./ext\"");
+        let program = parse_program("import { User } from \"./ext\"");
         let result = resolve_imports(&main_path, &program, &TsconfigPaths::default());
         let resolved = result.get("./ext").unwrap();
         // The exported for-block function should be present
@@ -1059,7 +1059,7 @@ mod tests {
             ),
         ]);
         let main_path = base.join("main.fl");
-        let program = parse_program("import { for User } from \"./ext\"");
+        let program = parse_program("import { User } from \"./ext\"");
         let result = resolve_imports(&main_path, &program, &TsconfigPaths::default());
         let resolved = result.get("./ext").unwrap();
         assert_eq!(resolved.for_blocks.len(), 1);

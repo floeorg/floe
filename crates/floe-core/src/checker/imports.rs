@@ -65,23 +65,13 @@ impl Checker {
             // the resulting type.
             let spec_untrusted = is_npm && !decl.trusted && !spec.trusted;
 
-            // Traits are behaviour, not data — importing them as plain
-            // specifiers silently let them resolve as types. Short-circuit
-            // before `lookup_resolved_symbol` so the user gets one targeted
-            // diagnostic instead of cascading "type-used-as-value" errors.
+            // Trait imports: plain `import { Display }` now activates
+            // every `impl Display for T { ... }` in the import's transitive
+            // closure. No separate `import { for Display }` needed.
             if let Some(ref resolved) = resolved
-                && resolved.trait_decls.iter().any(|t| t.name == spec.name)
+                && let Some(trait_decl) = resolved.trait_decls.iter().find(|t| t.name == spec.name)
             {
-                self.emit_error_with_help(
-                    format!(
-                        "trait `{}` must be imported with `import {{ for {} }}`",
-                        spec.name, spec.name
-                    ),
-                    spec.span,
-                    ErrorCode::TraitImportWithoutFor,
-                    "traits require the `for` prefix",
-                    format!("change to `for {}`", spec.name),
-                );
+                self.activate_trait_impls(trait_decl, resolved);
                 continue;
             }
 
@@ -209,50 +199,82 @@ impl Checker {
                     }
                 }
             }
-        }
 
-        // Handle `for Type` import specifiers (cross-file for-blocks)
-        if !decl.for_specifiers.is_empty()
-            && let Some(ref resolved) = resolved
-        {
+            // Also activate any trait impls from this module whose trait is
+            // already in scope. A trait impl lives either with the trait or
+            // with the type; importing either makes the impl visible, so we
+            // pick up impls from any imported module where the trait has been
+            // registered.
+            for block in &resolved.for_blocks {
+                if let Some(trait_name) = &block.trait_name
+                    && self.traits.trait_defs.contains_key(trait_name)
+                {
+                    self.check_for_block_imported_with_source(block, &decl.source);
+                    for func in &block.functions {
+                        self.unused.used_names.insert(func.name.clone());
+                    }
+                }
+            }
+
+            // `import { for X } from "./mod"` — bring in every inherent
+            // for-block defined in ./mod for type X. Used for foreign-type
+            // inherent extensions where X can't be imported as a value (e.g.
+            // `for Array<T>` or `for string`).
             for for_spec in &decl.for_specifiers {
-                let mut attached = false;
+                let mut matched = false;
                 for block in &resolved.for_blocks {
+                    if block.trait_name.is_some() {
+                        continue; // trait impls activate via trait import
+                    }
                     let base_type_name = match &block.type_name.kind {
                         TypeExprKind::Named { name, .. } => name.clone(),
                         _ => continue,
                     };
                     if base_type_name == for_spec.type_name {
-                        attached = true;
+                        matched = true;
                         self.check_for_block_imported_with_source(block, &decl.source);
                         for func in &block.functions {
                             self.unused.used_names.insert(func.name.clone());
                         }
                     }
                 }
-                // `for X` is legal if X is a trait or type declared in the
-                // module, even when the module attaches no for-block to it —
-                // callers still need to name X to implement the trait locally
-                // or to import the type's methods once they exist.
-                let exists = attached
-                    || resolved
-                        .trait_decls
-                        .iter()
-                        .any(|t| t.name == for_spec.type_name)
-                    || resolved
-                        .type_decls
-                        .iter()
-                        .any(|t| t.name == for_spec.type_name);
-                if !exists {
-                    self.emit_error(
+                if !matched {
+                    self.emit_error_with_help(
                         format!(
-                            "module \"{}\" has no export named `{}`",
+                            "module \"{}\" has no `for {}` extension block",
                             decl.source, for_spec.type_name
                         ),
                         for_spec.span,
                         ErrorCode::ExportNotFound,
-                        "not found in module",
+                        "no inherent methods defined for this type here",
+                        format!(
+                            "check that `./{}` defines a `for {} {{ ... }}` block, or drop the `for {}` specifier",
+                            decl.source.trim_start_matches("./"), for_spec.type_name, for_spec.type_name
+                        ),
                     );
+                }
+            }
+        }
+    }
+
+    /// When a trait is imported, activate every `impl Trait for T { ... }`
+    /// block in the imported module's transitive closure. This replaces
+    /// the old explicit `import { for Display }` specifier — trait
+    /// impls now flow with trait imports.
+    fn activate_trait_impls(
+        &mut self,
+        trait_decl: &TraitDecl,
+        resolved: &crate::resolve::ResolvedImports,
+    ) {
+        // Register the trait itself so later bound-checks + impl-matching
+        // find it.
+        self.register_trait_decl(trait_decl);
+
+        for block in &resolved.for_blocks {
+            if block.trait_name.as_deref() == Some(trait_decl.name.as_str()) {
+                self.check_for_block_imported_with_source(block, "<trait activation>");
+                for func in &block.functions {
+                    self.unused.used_names.insert(func.name.clone());
                 }
             }
         }
