@@ -28,8 +28,8 @@ let handleDelete(id: string) = {
 //    ^^^ entity.name.tag.floe
 }
 
-const x = true
-//        ^^^^ constant.language.boolean.floe
+let x = true
+//      ^^^^ constant.language.boolean.floe
 
 function bad() {}
 // <-- invalid.illegal.keyword.floe

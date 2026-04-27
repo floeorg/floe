@@ -20,7 +20,7 @@ Floe is designed to be familiar to TypeScript developers.
 | `function` | `fn` | `fn greet(name: string) => string { ... }` |
 | `: ReturnType` | `-> ReturnType` | `fn add(a: number, b: number) => number` |
 | `.filter().map()` | `\|> filter \|> map` | `items \|> filter(.active) \|> map(.name)` |
-| `let` / `const` | `const` only | No mutation |
+| `let` / `const` | `let` only | No mutation |
 | `===` | `==` | `==` compiles to `===` |
 | `switch` | `match` | Exhaustive, no fall-through |
 | `try/catch` | Untrusted imports (default) | `import { parseYaml } from "yaml-lib"` (auto-wrapped in Result) |
@@ -33,7 +33,7 @@ Floe is designed to be familiar to TypeScript developers.
 
 | Feature | Why | Alternative |
 |---------|-----|-------------|
-| `let` / `var` | Mutation bugs | `const` only |
+| `let` / `var` | Mutation bugs | `let` only (always immutable) |
 | `class` | Complex inheritance hierarchies | Functions + records |
 | `this` | Implicit context bugs | Explicit parameters |
 | `any` | Type safety escape | `unknown` + narrowing |

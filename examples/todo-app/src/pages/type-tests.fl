@@ -22,15 +22,15 @@ let _name = item.text
 let _done = item.done
 
 // ✓ hover: boolean
-// const _bad = item.nonexistent // ✗ uncomment → "type `Todo` has no field `nonexistent`"
+// let _bad = item.nonexistent // ✗ uncomment → "type `Todo` has no field `nonexistent`"
 // ── Constructor validation ───────────────────────────────
 // Wrong field types should error
 
 let _good = Todo(id: "1", text: "hi", done: false)
 
 // ✓
-// const _bad1 = Todo(id: 42, text: "hi", done: false)   // ✗ uncomment → field `id`: expected `string`, found `number`
-// const _bad2 = Todo(id: "1", text: "hi", done: "yes")  // ✗ uncomment → field `done`: expected `boolean`, found `string`
+// let _bad1 = Todo(id: 42, text: "hi", done: false)   // ✗ uncomment → field `id`: expected `string`, found `number`
+// let _bad2 = Todo(id: "1", text: "hi", done: "yes")  // ✗ uncomment → field `done`: expected `boolean`, found `string`
 // ── Match arm consistency ────────────────────────────────
 // All arms must return the same type
 
@@ -68,12 +68,12 @@ let double(x: number) -> number = {
 let _piped = 5 |> double
 
 // ✓
-// const _badPipe = "hi" |> double  // ✗ uncomment → expected `number`, found `string`
+// let _badPipe = "hi" |> double  // ✗ uncomment → expected `number`, found `string`
 // ── Shadowing ────────────────────────────────────────────
 
 let myVal = 5
 
-// const myVal = 10  // ✗ uncomment → already defined and cannot be shadowed
+// let myVal = 10  // ✗ uncomment → already defined and cannot be shadowed
 // ── Return type mismatch ─────────────────────────────────
 
 let greet() -> string = {

@@ -12,7 +12,7 @@ let describe(n: number) -> string = {
   }
 }
 
-// todo in const
+// todo in let
 let placeholder = todo
 
 // unreachable as expression
