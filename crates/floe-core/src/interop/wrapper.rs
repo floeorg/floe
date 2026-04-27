@@ -113,7 +113,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
         TsType::Array(inner) => Type::Array(Arc::new(wrap_boundary_type(inner))),
 
         TsType::Object(fields) => {
-            let wrapped: Vec<(String, Type)> = fields
+            let mut wrapped: Vec<(String, Type)> = fields
                 .iter()
                 .map(|f| {
                     let ty = if f.optional && f.ty.is_nullable() {
@@ -130,6 +130,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                     (f.name.clone(), ty)
                 })
                 .collect();
+            inject_implicit_object_methods(&mut wrapped);
             Type::Record(wrapped)
         }
 
@@ -193,6 +194,45 @@ pub(super) fn evaluate_indexed_access(object: &TsType, index: &TsType) -> Option
         TsType::Any => Some(TsType::Any),
         TsType::Unknown => Some(TsType::Unknown),
         _ => None,
+    }
+}
+
+/// Append the methods that TypeScript inherits from `Object` to every interface
+/// (`toString`, `toLocaleString`, `valueOf`). TS treats every interface as
+/// implicitly extending `Object`, but Floe's interop only collects the members
+/// written in the interface body — so legitimate calls like `url.toString()`
+/// or `date.toLocaleString()` would otherwise miss. Existing fields with the
+/// same name win, so an interface that explicitly overrides `toString` keeps
+/// its declared signature.
+pub fn inject_implicit_object_methods(fields: &mut Vec<(String, Type)>) {
+    let to_string = (
+        "toString".to_string(),
+        Type::Function {
+            params: vec![],
+            return_type: Arc::new(Type::String),
+            required_params: 0,
+        },
+    );
+    let to_locale_string = (
+        "toLocaleString".to_string(),
+        Type::Function {
+            params: vec![],
+            return_type: Arc::new(Type::String),
+            required_params: 0,
+        },
+    );
+    let value_of = (
+        "valueOf".to_string(),
+        Type::Function {
+            params: vec![],
+            return_type: Arc::new(Type::Unknown),
+            required_params: 0,
+        },
+    );
+    for implicit in [to_string, to_locale_string, value_of] {
+        if !fields.iter().any(|(n, _)| n == &implicit.0) {
+            fields.push(implicit);
+        }
     }
 }
 
