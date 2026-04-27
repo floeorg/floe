@@ -202,7 +202,7 @@ use { user, session } <- Context.guard(ctx, <LoginPage />)
 // user and session are unwrapped from the Context result
 ```
 
-Renames work the same way as in `const`:
+Renames work the same way as in `let`:
 
 ```floe
 use { user: currentUser, session: sess } <- Context.guard(ctx, fallback)

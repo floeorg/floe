@@ -1,10 +1,10 @@
 ---
-title: Functions & Const
+title: Functions & Let
 ---
 
-## Const Declarations
+## Let Declarations
 
-All bindings are immutable. Use `const`:
+All bindings are immutable. Use `let`:
 
 ```floe
 let name = "Floe"
@@ -26,7 +26,7 @@ let (left, right) = getPair()      // `()` — tuple
 let { name, age } = getUser()      // `{}` — record
 ```
 
-Array destructuring (`const [a, b] = arr`) is a parse error in `const`
+Array destructuring (`let [a, b] = arr`) is a parse error in `let`
 bindings — it would lie about runtime length. Use `Array.get(arr, i) =>
 Option<T>` or a match pattern:
 
@@ -117,7 +117,7 @@ todos |> Array.map(.text)
 users |> Array.sortBy(.name)
 ```
 
-**`const name = (x) => ...` is a compile error.** If it has a name, use `fn`:
+**`let name = (x) => ...` is a compile error.** If it has a name, use `fn`:
 
 ```floe
 // COMPILE ERROR
@@ -197,7 +197,7 @@ Console.log("done")
 
 ## What's Not Here
 
-- **No `let` or `var`** - all bindings are `const`
+- **No `const` or `var`** - all bindings use `let` and are always immutable
 - **No `class`** - use functions and records
 - **No `this`** - functions are pure by default
 - **No `function*` generators** - use arrays and pipes

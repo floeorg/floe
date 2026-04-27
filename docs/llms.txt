@@ -46,7 +46,7 @@ let y = x + 1
 ## Variables
 
 ```floe
-// Only const — no let, no var
+// Only let — no const, no var
 let name = "Ryan"
 let count = 42
 
@@ -227,7 +227,7 @@ let err = ApiError.Network(NetworkError.Timeout(ms: 3000))
 
 // Qualified variants required when ambiguous:
 // type Color = | Red | Green and type Light = | Red | Yellow
-// const c = Red        // Error: ambiguous
+// let c = Red          // Error: ambiguous
 let c = Color.Red     // OK — qualified
 // Bare variants work when unambiguous or in match arms
 
@@ -876,7 +876,7 @@ out of scope.
 |------------|----------------|
 | `any` | `unknown` + narrowing |
 | `null`, `undefined` | `Option<T>` with `Some`/`None` |
-| `let`, `var` | `const` |
+| `let`, `var` | `let` (always immutable) |
 | `class` | Functions + types |
 | `enum` | `type Name = { \| A \| B }` variants |
 | `throw` | Return `Result<T, E>` |
@@ -948,5 +948,5 @@ floe lsp                     # start language server (used by editors)
 13. **Implicit returns** — last expression in a block is the return value; no `return` keyword
 14. **Blank line before final expression** — `floe fmt` inserts a blank line before the last expression in multi-statement blocks (2+ statements) to visually separate the return value
 15. **Call argument rules** — positional must precede named; named may be in any order (reordered at compile time); every required param must be covered; no slot can be covered twice; defaulted params must be passed by name, not positionally
-16. **No array destructure in `const`** — `[a, b]` is a parse error in a `const` binding because it would lie about runtime length on arrays and hide the shape on tuples. Tuples: `const (a, b) = pair`. Arrays: `Array.get(arr, i)` (returns `Option<T>`) or `match arr { [a, b, ..] -> ..., _ -> ... }`. `useState(0)` returns a tuple, so `const (count, setCount) = useState(0)`
+16. **No array destructure in `let`** — `[a, b]` is a parse error in a `let` binding because it would lie about runtime length on arrays and hide the shape on tuples. Tuples: `let (a, b) = pair`. Arrays: `Array.get(arr, i)` (returns `Option<T>`) or `match arr { [a, b, ..] -> ..., _ -> ... }`. `useState(0)` returns a tuple, so `let (count, setCount) = useState(0)`
 17. **`__` is Floe's fingerprint in emitted TypeScript** — tagged-union discriminators compile to `__tag`, for-block methods mangle to `Type__method`. User records are free to use a plain `tag` field without colliding

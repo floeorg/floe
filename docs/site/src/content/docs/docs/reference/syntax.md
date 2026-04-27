@@ -22,7 +22,7 @@ export let PI = 3.14159
 // Destructuring
 let (a, b) = pair             // tuple
 let { name, age } = user      // record
-// (array destructuring not allowed in `const`; use `Array.get` or a match pattern)
+// (array destructuring not allowed in `let`; use `Array.get` or a match pattern)
 ```
 
 ### Function
