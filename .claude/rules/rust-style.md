@@ -36,3 +36,7 @@
 ## Error handling
 - `thiserror` for domain/application/infrastructure error types
 - `anyhow` only at edges (`main.rs`, CLI entry points)
+
+## Local build config
+- Do NOT commit `.cargo/config.toml` to projects. Pinning `linker` / `-fuse-ld=...` breaks CI (cross containers, release runners without mold, etc.).
+- Devs who want fast linkers or a shared `target-dir` should put it in their user-level `~/.cargo/config.toml` — cargo merges user + project config, so per-machine setup stays out of the repo.

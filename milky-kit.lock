@@ -1,6 +1,6 @@
 kit_version = "0.1.0"
-kit_commit = "1253348"
-last_sync = "2026-04-12T03:38:22Z"
+kit_commit = "141e2cb"
+last_sync = "2026-04-27T13:21:09Z"
 managed = [
     ".claude/rules/worktrees.md",
     ".claude/rules/general.md",

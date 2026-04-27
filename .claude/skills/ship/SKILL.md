@@ -39,13 +39,15 @@ If anything is ✗, finish it before proceeding.
 
 ## Step 3: Code review
 
-Run self-checks in order:
+Run in order:
 
-1. **`/simplify`** — review changed code for reuse, quality, and efficiency
-2. **`/rulify`** — cross-check changes against `.claude/rules/`
-3. **Clean removals, no half-migrations** — scan the diff for legacy debris: dead branches, commented-out blocks, stub/unused functions, backcompat shims, re-exports kept "just in case", `// TODO remove later` markers. Delete them all. If old code was replaced, the old code must be fully gone — no in-between states.
+1. **`/simplify`** — reuse, quality, efficiency.
+2. **`/rulify`** — cross-check `.claude/rules/`.
+3. **Clean removals** — no dead branches, commented-out blocks, unused stubs, backcompat shims, `// TODO remove later`. If old code was replaced, it must be fully gone.
 
-Commit any fixes from this step.
+Commit any fixes.
+
+**Skipping `/simplify` is only OK for trivial diffs** (docs-only, version bumps, pure renames, mechanical lint/format fixes). If you skip, announce it + one-line reason before pushing.
 
 ## Step 4: Quality gates
 
@@ -143,6 +145,7 @@ gh pr ready <pr-number>
 Tell the user:
 
 1. **PR URL** — always link the PR.
-2. Remind them to say "merged" when the PR is merged so `/land` can clean up.
+2. **`/simplify` status** — state explicitly whether you ran `/simplify` in step 3. If you did not, say so and give the reason. Do not omit this line.
+3. Remind them to say "merged" when the PR is merged so `/land` can clean up.
 
 **Never run `gh pr merge`.**

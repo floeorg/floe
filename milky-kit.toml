@@ -1,7 +1,6 @@
 [project]
 name = "floe"
 worktree_dir = "floe-worktrees"
-ignore = [".cargo/config.toml"]
 
 [stack]
 languages = ["rust"]
