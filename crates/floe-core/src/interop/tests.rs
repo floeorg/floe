@@ -340,6 +340,36 @@ fn wrap_required_nullable_stays_option() {
     );
 }
 
+#[test]
+fn explicit_to_string_overrides_implicit() {
+    // An interface that declares its own `toString` keeps that signature
+    // — the implicit injection must not clobber a user-declared method.
+    let ts = TsType::Object(vec![ObjectField {
+        name: "toString".to_string(),
+        ty: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Primitive("number".to_string())),
+        },
+        optional: false,
+    }]);
+    let wrapped = wrap_boundary_type(&ts);
+    let Type::Record(fields) = wrapped else {
+        panic!("expected Record, got {wrapped:?}");
+    };
+    let to_string_count = fields.iter().filter(|(n, _)| n == "toString").count();
+    assert_eq!(to_string_count, 1, "toString must not be duplicated");
+    let (_, ty) = fields.iter().find(|(n, _)| n == "toString").unwrap();
+    assert_eq!(
+        ty,
+        &Type::Function {
+            params: vec![],
+            return_type: Arc::new(Type::Number),
+            required_params: 0,
+        },
+        "explicit toString signature should win over the implicit string-returning one",
+    );
+}
+
 // ── .d.ts Parsing ───────────────────────────────────────────
 
 #[test]
