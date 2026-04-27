@@ -1,13 +1,7 @@
 use std::sync::Arc;
 
 use super::*;
-
-/// Names that the interop boundary injects on every Record because TypeScript
-/// implicitly extends every interface from `Object`. Source records may omit
-/// them and target records may carry them without breaking assignability.
-fn is_implicit_object_method(name: &str) -> bool {
-    matches!(name, "toString" | "toLocaleString" | "valueOf")
-}
+use crate::interop::is_implicit_object_method;
 
 /// Split a Foreign type name like `Foo<a, b<c>>` into a (base, args) pair
 /// where args are the top-level comma-separated segments. Returns `None`
