@@ -9,7 +9,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "node --test --experimental-strip-types src/*.test.ts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "floe",
