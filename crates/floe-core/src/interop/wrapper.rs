@@ -113,7 +113,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
         TsType::Array(inner) => Type::Array(Arc::new(wrap_boundary_type(inner))),
 
         TsType::Object(fields) => {
-            let wrapped: Vec<(String, Type)> = fields
+            let mut wrapped: Vec<(String, Type)> = fields
                 .iter()
                 .map(|f| {
                     let ty = if f.optional && f.ty.is_nullable() {
@@ -130,6 +130,7 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
                     (f.name.clone(), ty)
                 })
                 .collect();
+            inject_implicit_object_methods(&mut wrapped);
             Type::Record(wrapped)
         }
 
@@ -193,6 +194,45 @@ pub(super) fn evaluate_indexed_access(object: &TsType, index: &TsType) -> Option
         TsType::Any => Some(TsType::Any),
         TsType::Unknown => Some(TsType::Unknown),
         _ => None,
+    }
+}
+
+/// Names of the methods that TypeScript inherits from `Object` onto every
+/// interface. Single source of truth for both the wrapper (which injects them)
+/// and the assignability check (which knows to skip them).
+pub const IMPLICIT_OBJECT_METHOD_NAMES: &[&str] = &["toString", "toLocaleString", "valueOf"];
+
+/// True if `name` is one of `IMPLICIT_OBJECT_METHOD_NAMES`.
+pub fn is_implicit_object_method(name: &str) -> bool {
+    IMPLICIT_OBJECT_METHOD_NAMES.contains(&name)
+}
+
+/// Append the methods that TypeScript inherits from `Object` to every interface
+/// (`toString`, `toLocaleString`, `valueOf`). TS treats every interface as
+/// implicitly extending `Object`, but Floe's interop only collects the members
+/// written in the interface body — so legitimate calls like `url.toString()`
+/// or `date.toLocaleString()` would otherwise miss. Existing fields with the
+/// same name win, so an interface that explicitly overrides `toString` keeps
+/// its declared signature.
+pub fn inject_implicit_object_methods(fields: &mut Vec<(String, Type)>) {
+    for name in IMPLICIT_OBJECT_METHOD_NAMES {
+        if fields.iter().any(|(n, _)| n == name) {
+            continue;
+        }
+        // `valueOf` returns `Object` in TS — widen to `unknown` so the user
+        // narrows before use. The other two return `string`.
+        let return_type = match *name {
+            "valueOf" => Type::Unknown,
+            _ => Type::String,
+        };
+        fields.push((
+            (*name).to_string(),
+            Type::Function {
+                params: vec![],
+                return_type: Arc::new(return_type),
+                required_params: 0,
+            },
+        ));
     }
 }
 

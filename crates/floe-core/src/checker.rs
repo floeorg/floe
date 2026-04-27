@@ -318,7 +318,7 @@ impl Checker {
         // importing. Defined as Records so member access works through
         // the normal type-checking path.
 
-        let response_record = Type::Record(vec![
+        let mut response_fields = vec![
             (
                 "json".to_string(),
                 Type::Function {
@@ -340,15 +340,19 @@ impl Checker {
             ("statusText".to_string(), Type::String),
             ("headers".to_string(), Type::Named("Headers".to_string())),
             ("url".to_string(), Type::String),
-        ]);
+        ];
+        crate::interop::inject_implicit_object_methods(&mut response_fields);
+        let response_record = Type::Record(response_fields);
 
-        let error_record = Type::Record(vec![
+        let mut error_fields = vec![
             ("message".to_string(), Type::String),
             ("name".to_string(), Type::String),
             ("stack".to_string(), Type::option_of(Type::String)),
-        ]);
+        ];
+        crate::interop::inject_implicit_object_methods(&mut error_fields);
+        let error_record = Type::Record(error_fields);
 
-        let event_record = Type::Record(vec![
+        let mut event_fields = vec![
             (
                 "target".to_string(),
                 Type::Record(vec![
@@ -374,7 +378,9 @@ impl Checker {
                     required_params: 0,
                 },
             ),
-        ]);
+        ];
+        crate::interop::inject_implicit_object_methods(&mut event_fields);
+        let event_record = Type::Record(event_fields);
 
         // Register as named types that display nicely and resolve to
         // records for member access via resolve_type_to_concrete

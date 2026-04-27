@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use super::*;
+use crate::interop::is_implicit_object_method;
 
 /// Split a Foreign type name like `Foo<a, b<c>>` into a (base, args) pair
 /// where args are the top-level comma-separated segments. Returns `None`
@@ -247,13 +248,17 @@ impl Checker {
                     false
                 }
             } else {
-                // Field omitted — OK if it's Settable or Option
-                ty.is_settable() || ty.is_option()
+                // Field omitted — OK if it's Settable, Option, or one of the implicit
+                // Object.prototype methods that the interop boundary injects on every
+                // Record. Every JS object inherits these, so a Floe value lacking them
+                // explicitly is still assignable to a parameter shape that does.
+                ty.is_settable() || ty.is_option() || is_implicit_object_method(name)
             }
         })
-        // No extra fields in actual that aren't in expected
+        // No extra fields in actual that aren't in expected — implicit Object methods
+        // on the actual side don't count as "extra" for the same reason.
         && actual.iter().all(|(name, _)| {
-            expected.iter().any(|(n, _)| n == name)
+            expected.iter().any(|(n, _)| n == name) || is_implicit_object_method(name)
         })
     }
 

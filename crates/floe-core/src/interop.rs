@@ -34,7 +34,10 @@ pub use dts::{
 };
 pub use ts_types::{FunctionParam, ObjectField, TsType, ts_type_to_string};
 pub use tsgo::{TsgoResolver, TsgoResult};
-pub use wrapper::wrap_boundary_type;
+pub use wrapper::{
+    IMPLICIT_OBJECT_METHOD_NAMES, inject_implicit_object_methods, is_implicit_object_method,
+    wrap_boundary_type,
+};
 
 // Re-export internal helpers so tests (and sibling submodules) can access via `use super::*`
 #[cfg(test)]

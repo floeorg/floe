@@ -9764,3 +9764,95 @@ fn ambient_type_alias_resolves_as_type() {
             .collect::<Vec<_>>()
     );
 }
+
+// ── Implicit Object methods on interop records (#1380) ──────
+
+#[test]
+fn ambient_record_exposes_to_string() {
+    use crate::interop::ObjectField;
+    use crate::interop::TsType;
+    use crate::interop::ambient::AmbientDeclarations;
+
+    // Mirror @types/node's `URL` interface: declares `href` but not
+    // `toString`. Without the implicit Object-method injection,
+    // `url.toString()` fails with E021 even though every JS object
+    // has `toString` via `Object.prototype`.
+    let url_type = crate::interop::wrap_boundary_type(&TsType::Object(vec![ObjectField {
+        name: "href".to_string(),
+        ty: TsType::Primitive("string".to_string()),
+        optional: false,
+    }]));
+    let mut ambient = AmbientDeclarations::default();
+    ambient.types.insert("URL".to_string(), url_type);
+
+    let source = r#"
+export let f(u: URL) -> string = {
+    u.toString()
+}
+"#;
+    let program = Parser::new(source).parse_program().expect("parse");
+    let checker = Checker::from_context(
+        HashMap::new(),
+        HashMap::new(),
+        Some(ambient),
+        HashSet::new(),
+    );
+    let diags = checker.check(&program);
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "url.toString() should typecheck; diags: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn implicit_object_methods_do_not_block_assignment() {
+    use crate::interop::ObjectField;
+    use crate::interop::TsType;
+    use crate::interop::{DtsExport, FunctionParam};
+
+    // Foreign function expects `{ code: string }`. After interop wrapping
+    // the parameter shape gains `toString`/`toLocaleString`/`valueOf`, but
+    // the user passes a plain Floe record without them — assignability
+    // must still succeed. Exact pattern caught by #1380's regression.
+    let program = Parser::new(
+        r#"
+import trusted { write } from "some-lib"
+type Row = { code: string }
+let _u = write(Row(code: "abc"))
+"#,
+    )
+    .parse_program()
+    .expect("parse");
+
+    let export = DtsExport {
+        name: "write".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Object(vec![ObjectField {
+                    name: "code".to_string(),
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                }]),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Primitive("void".to_string())),
+        },
+    };
+    let mut dts = HashMap::new();
+    dts.insert("some-lib".to_string(), vec![export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts);
+    let (diags, _, _, _) = checker.check_with_types(&program);
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "plain Floe record should still be assignable to wrapped param; diags: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}

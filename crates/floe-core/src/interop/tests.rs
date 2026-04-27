@@ -3,6 +3,15 @@ use std::sync::Arc;
 
 use super::*;
 
+/// Build a `Type::Record` with the implicit Object methods (`toString`,
+/// `toLocaleString`, `valueOf`) appended. Mirrors what `wrap_boundary_type`
+/// produces for `TsType::Object`, so boundary tests can express the
+/// declared fields without restating the implicit ones every time.
+fn record_with_object_methods(mut fields: Vec<(String, Type)>) -> Type {
+    inject_implicit_object_methods(&mut fields);
+    Type::Record(fields)
+}
+
 // ── Type Parsing ────────────────────────────────────────────
 
 #[test]
@@ -270,7 +279,7 @@ fn wrap_object_wraps_fields() {
     let wrapped = wrap_boundary_type(&ts);
     assert_eq!(
         wrapped,
-        Type::Record(vec![
+        record_with_object_methods(vec![
             ("name".to_string(), Type::String),
             ("value".to_string(), Type::option_of(Type::Number)),
         ])
@@ -288,7 +297,7 @@ fn wrap_optional_nullable_becomes_settable() {
     let wrapped = wrap_boundary_type(&ts);
     assert_eq!(
         wrapped,
-        Type::Record(vec![(
+        record_with_object_methods(vec![(
             "email".to_string(),
             Type::Settable(Arc::new(Type::String))
         ),])
@@ -306,7 +315,7 @@ fn wrap_optional_non_nullable_becomes_option() {
     let wrapped = wrap_boundary_type(&ts);
     assert_eq!(
         wrapped,
-        Type::Record(vec![(
+        record_with_object_methods(vec![(
             "nickname".to_string(),
             Type::option_of(Type::String),
         )])
@@ -324,10 +333,40 @@ fn wrap_required_nullable_stays_option() {
     let wrapped = wrap_boundary_type(&ts);
     assert_eq!(
         wrapped,
-        Type::Record(vec![(
+        record_with_object_methods(vec![(
             "deletedAt".to_string(),
             Type::option_of(Type::String),
         )])
+    );
+}
+
+#[test]
+fn explicit_to_string_overrides_implicit() {
+    // An interface that declares its own `toString` keeps that signature
+    // — the implicit injection must not clobber a user-declared method.
+    let ts = TsType::Object(vec![ObjectField {
+        name: "toString".to_string(),
+        ty: TsType::Function {
+            params: vec![],
+            return_type: Box::new(TsType::Primitive("number".to_string())),
+        },
+        optional: false,
+    }]);
+    let wrapped = wrap_boundary_type(&ts);
+    let Type::Record(fields) = wrapped else {
+        panic!("expected Record, got {wrapped:?}");
+    };
+    let to_string_count = fields.iter().filter(|(n, _)| n == "toString").count();
+    assert_eq!(to_string_count, 1, "toString must not be duplicated");
+    let (_, ty) = fields.iter().find(|(n, _)| n == "toString").unwrap();
+    assert_eq!(
+        ty,
+        &Type::Function {
+            params: vec![],
+            return_type: Arc::new(Type::Number),
+            required_params: 0,
+        },
+        "explicit toString signature should win over the implicit string-returning one",
     );
 }
 
