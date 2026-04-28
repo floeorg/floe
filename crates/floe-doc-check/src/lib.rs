@@ -1,19 +1,24 @@
-//! Syntax-check Floe code samples embedded in Markdown documentation.
+//! Syntax-check Floe code samples embedded in documentation.
 //!
-//! Walks a set of Markdown files, extracts every ```floe fenced code block,
-//! and runs each through the Floe parser. Reports parse errors as
+//! Walks a set of doc files (Markdown and Astro), extracts every Floe code
+//! sample, and runs each through the Floe parser. Reports parse errors as
 //! `path:line:column: message` with line numbers rewritten back to the
-//! original Markdown file so editors can jump straight to the bad sample.
+//! original source file so editors can jump straight to the bad sample.
+//!
+//! Markdown sources contribute every ```floe fenced block. Astro sources
+//! contribute every template literal preceded by an `@floe-check` marker
+//! comment — see `extract_astro` for the rationale.
 
 use std::path::{Path, PathBuf};
 
 use floe_core::parser::Parser;
 
 pub mod extract;
+pub mod extract_astro;
 
 pub use extract::{CodeBlock, extract_blocks};
+pub use extract_astro::extract_astro_blocks;
 
-/// A parse error reported against its original position in the Markdown file.
 #[derive(Debug, Clone)]
 pub struct BlockError {
     pub path: PathBuf,
@@ -35,7 +40,6 @@ impl std::fmt::Display for BlockError {
     }
 }
 
-/// Parse the code in a block and map any errors back to the Markdown file.
 pub fn check_block(block: &CodeBlock) -> Vec<BlockError> {
     match Parser::parse(&block.code) {
         Ok(_) => Vec::new(),
@@ -51,38 +55,51 @@ pub fn check_block(block: &CodeBlock) -> Vec<BlockError> {
     }
 }
 
-/// Recursively find Markdown files under `root`.
-///
-/// Includes `*.md` and `*.mdx`. Symlinks are not followed, to avoid cycles.
-pub fn find_markdown_files(root: &Path) -> Vec<PathBuf> {
+/// Recursively collect every file under `root` whose extension matches one
+/// of `extensions`. Symlinks are not followed, to avoid cycles.
+pub fn find_files_with_extensions(root: &Path, extensions: &[&str]) -> Vec<PathBuf> {
+    let matches_ext = |p: &Path| {
+        p.extension()
+            .and_then(|s| s.to_str())
+            .is_some_and(|e| extensions.contains(&e))
+    };
+
     if root.is_file() {
-        return vec![root.to_path_buf()];
+        return if matches_ext(root) {
+            vec![root.to_path_buf()]
+        } else {
+            Vec::new()
+        };
     }
+
     walkdir::WalkDir::new(root)
         .follow_links(false)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .map(|e| e.into_path())
-        .filter(|p| {
-            matches!(
-                p.extension().and_then(|s| s.to_str()),
-                Some("md") | Some("mdx")
-            )
-        })
+        .filter(|p| matches_ext(p))
         .collect()
 }
 
-/// Check every ```floe block in every Markdown file under `roots`.
-///
-/// Returns the full error list. An empty vector means every sample parsed.
 pub fn check_paths(roots: &[PathBuf]) -> std::io::Result<Vec<BlockError>> {
     let mut errors = Vec::new();
-    let mut files: Vec<PathBuf> = roots.iter().flat_map(|r| find_markdown_files(r)).collect();
-    files.sort();
-    files.dedup();
 
-    for path in &files {
+    let mut markdown_files: Vec<PathBuf> = roots
+        .iter()
+        .flat_map(|r| find_files_with_extensions(r, &["md", "mdx"]))
+        .collect();
+    markdown_files.sort();
+    markdown_files.dedup();
+
+    let mut astro_files: Vec<PathBuf> = roots
+        .iter()
+        .flat_map(|r| find_files_with_extensions(r, &["astro"]))
+        .collect();
+    astro_files.sort();
+    astro_files.dedup();
+
+    for path in &markdown_files {
         let source = std::fs::read_to_string(path)?;
         for block in extract_blocks(&source, path) {
             if block.is_ignored() {
@@ -91,5 +108,13 @@ pub fn check_paths(roots: &[PathBuf]) -> std::io::Result<Vec<BlockError>> {
             errors.extend(check_block(&block));
         }
     }
+
+    for path in &astro_files {
+        let source = std::fs::read_to_string(path)?;
+        for block in extract_astro_blocks(&source, path) {
+            errors.extend(check_block(&block));
+        }
+    }
+
     Ok(errors)
 }

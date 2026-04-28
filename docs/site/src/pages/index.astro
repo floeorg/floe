@@ -492,6 +492,7 @@ import floeLang from "../../../../editors/vscode/syntaxes/floe.tmLanguage.json";
             <span class="dot dot-fl"></span>
             app.fl
           </div>
+          {/* @floe-check */}
           <Code
             code={`import { useState } from "react"
 
@@ -506,8 +507,8 @@ type Status =
   | Failed(string)
   | Ready(Array<User>)
 
-export fn Dashboard() -> JSX.Element {
-  const (status, setStatus) = useState<Status>(Loading)
+export let Dashboard() -> JSX.Element = {
+  let (status, setStatus) = useState<Status>(Loading)
 
   status |> match {
     Loading -> <Spinner />,
@@ -519,7 +520,7 @@ export fn Dashboard() -> JSX.Element {
 
       <div>
         <h2>{active |> length} active</h2>
-        {active |> map((u) =>
+        {active |> map((u) ->
           <Card key={u.name} title={u.name} badge={u.role} />
         )}
       </div>
@@ -594,6 +595,7 @@ export function Dashboard(): JSX.Element {
           <span class="dot dot-fl"></span>
           pipeline.fl
         </div>
+        {/* @floe-check */}
         <Code
           code={`// Dot shorthand — .field becomes an accessor function
 let activeNames = users
@@ -629,14 +631,15 @@ users
             <span class="dot dot-fl"></span>
             route.fl
           </div>
+          {/* @floe-check */}
           <Code
-            code={`type Route = 
+            code={`type Route =
   | Home
   | Profile(string)
   | Settings
   | NotFound
 
-fn render(route: Route) -> JSX.Element {
+let render(route: Route) -> JSX.Element = {
   match route {
     Home -> <HomePage />,
     Profile(id) -> <ProfilePage id={id} />,
@@ -663,8 +666,9 @@ fn render(route: Route) -> JSX.Element {
           <span class="dot dot-fl"></span>
           user.fl
         </div>
+        {/* @floe-check */}
         <Code
-          code={`fn getUser(id: string) -> Promise<Result<User, ApiError>> {
+          code={`let getUser(id: string) -> Promise<Result<User, ApiError>> = {
   let response = fetch("/api/users/{id}") |> await?
   let user = response.json() |> await?
 

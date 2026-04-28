@@ -1036,11 +1036,11 @@ let config = Config(baseUrl: "https://api.example.com", timeout: 10000)
 // timeout overridden, rest defaulted
 
 // On functions
-fn fetchUsers(
+let fetchUsers(
   page: number = 1,
   limit: number = 20,
   sort: SortOrder = Ascending,
-): Result<Array<User>, ApiError> {
+) -> Result<Array<User>, ApiError> = {
   // page, limit, sort are always concrete values — never Option, never undefined
 }
 
@@ -1781,7 +1781,7 @@ let user = fetchUser(id) |> await
 // user: Result<User, Error>
 
 // Compose with |> await? for concise async error handling.
-// `async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type:
+// `async let f() -> T = { ... }` is sugar for `let f() -> Promise<T> = { ... }` — write the inner type:
 async let loadProfile(id: string) -> Result<Profile, Error> = {
   let user = fetchUser(id) |> await?
   let posts = fetchPosts(user.id) |> await?

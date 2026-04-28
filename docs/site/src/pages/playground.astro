@@ -450,7 +450,8 @@
     ]));
 
     // ===== Default code =====
-    let defaultCode = `fn greet(name: string) -> string {
+    // @floe-check
+    let defaultCode = `let greet(name: string) -> string = {
   \`Hello, \${name}!\`
 }
 
@@ -461,7 +462,7 @@ type Color = | Red
   | Green
   | Blue
 
-fn describe(color: Color) -> string {
+let describe(color: Color) -> string = {
   match color {
     Red -> "red",
     Green -> "green",
@@ -469,7 +470,7 @@ fn describe(color: Color) -> string {
   }
 }
 
-fn safeDivide(a: number, b: number) -> Result<number, string> {
+let safeDivide(a: number, b: number) -> Result<number, string> = {
   match b {
     0 -> Err("division by zero"),
     _ -> Ok(a / b),
