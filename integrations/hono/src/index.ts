@@ -9,20 +9,21 @@ import {
 type Env = Record<string, unknown>;
 
 /**
- * An immutable-looking handle around a Hono instance. Every routing
- * helper below returns a `Router<E>` so Floe code can chain them with
- * the pipe operator. The underlying Hono instance is stored on a
- * double-underscore field to signal "compiler fingerprint — do not
- * reach into this directly".
+ * Pipe-friendly alias for Hono. Floe code calls standalone helpers
+ * (`get`, `post`, `route`, …) on a `Router<E>`, which is just a real
+ * `Hono<{ Bindings: E }>` so it interops cleanly with stock Hono code:
  *
- * `fetch` is exposed at the top level so the router value satisfies
- * runtimes like Cloudflare Workers directly — `export default app`
- * works without a wrapping `{ fetch: ... }` adapter.
+ * ```ts
+ * const app = new Hono();
+ * app.route("/x", createFloeProvider());   // works — no wrapper unwrap
+ * ```
+ *
+ * Earlier versions wrapped Hono in `{ __inner, fetch }` to "abstract
+ * over internals." That broke `app.route(path, sub)` because stock
+ * Hono reads `sub.routes` and the wrapper hid it. The wrapper bought
+ * nothing real and cost interop, so it's gone.
  */
-export type Router<E extends Env = Env> = {
-  readonly __inner: Hono<{ Bindings: E }>;
-  fetch: Hono<{ Bindings: E }>["fetch"];
-};
+export type Router<E extends Env = Env> = Hono<{ Bindings: E }>;
 
 export type Handler<E extends Env = Env> = (
   c: Context<{ Bindings: E }>,
@@ -44,8 +45,7 @@ type MountApplicationHandler = Parameters<Hono["mount"]>[1];
 type MountOptions = Parameters<Hono["mount"]>[2];
 
 export function router<E extends Env = Env>(): Router<E> {
-  const inner = new Hono<{ Bindings: E }>();
-  return { __inner: inner, fetch: inner.fetch.bind(inner) };
+  return new Hono<{ Bindings: E }>();
 }
 
 export function get<E extends Env>(
@@ -53,7 +53,7 @@ export function get<E extends Env>(
   path: string,
   handler: Handler<E>,
 ): Router<E> {
-  r.__inner.get(path, handler);
+  r.get(path, handler);
   return r;
 }
 
@@ -62,7 +62,7 @@ export function post<E extends Env>(
   path: string,
   handler: Handler<E>,
 ): Router<E> {
-  r.__inner.post(path, handler);
+  r.post(path, handler);
   return r;
 }
 
@@ -71,7 +71,7 @@ export function put<E extends Env>(
   path: string,
   handler: Handler<E>,
 ): Router<E> {
-  r.__inner.put(path, handler);
+  r.put(path, handler);
   return r;
 }
 
@@ -80,7 +80,7 @@ export function patch<E extends Env>(
   path: string,
   handler: Handler<E>,
 ): Router<E> {
-  r.__inner.patch(path, handler);
+  r.patch(path, handler);
   return r;
 }
 
@@ -91,7 +91,7 @@ export function del<E extends Env>(
   path: string,
   handler: Handler<E>,
 ): Router<E> {
-  r.__inner.delete(path, handler);
+  r.delete(path, handler);
   return r;
 }
 
@@ -100,7 +100,7 @@ export function all<E extends Env>(
   path: string,
   handler: Handler<E>,
 ): Router<E> {
-  r.__inner.all(path, handler);
+  r.all(path, handler);
   return r;
 }
 
@@ -110,7 +110,7 @@ export function on<E extends Env>(
   path: string,
   handler: Handler<E>,
 ): Router<E> {
-  r.__inner.on(method, path, handler);
+  r.on(method, path, handler);
   return r;
 }
 
@@ -119,7 +119,7 @@ export function use<E extends Env>(
   path: string,
   handler: Middleware<E>,
 ): Router<E> {
-  r.__inner.use(path, handler);
+  r.use(path, handler);
   return r;
 }
 
@@ -128,7 +128,7 @@ export function route<E extends Env>(
   path: string,
   sub: Router<E>,
 ): Router<E> {
-  r.__inner.route(path, sub.__inner);
+  r.route(path, sub);
   return r;
 }
 
@@ -136,15 +136,14 @@ export function basePath<E extends Env>(
   r: Router<E>,
   path: string,
 ): Router<E> {
-  const rebased = r.__inner.basePath(path) as Hono<{ Bindings: E }>;
-  return { __inner: rebased, fetch: rebased.fetch.bind(rebased) };
+  return r.basePath(path) as Router<E>;
 }
 
 export function onError<E extends Env>(
   r: Router<E>,
   handler: ErrorResponder<E>,
 ): Router<E> {
-  r.__inner.onError(handler);
+  r.onError(handler);
   return r;
 }
 
@@ -152,7 +151,7 @@ export function notFound<E extends Env>(
   r: Router<E>,
   handler: NotFoundResponder<E>,
 ): Router<E> {
-  r.__inner.notFound(handler);
+  r.notFound(handler);
   return r;
 }
 
@@ -162,7 +161,7 @@ export function mount<E extends Env>(
   handler: MountApplicationHandler,
   options?: MountOptions,
 ): Router<E> {
-  r.__inner.mount(path, handler, options);
+  r.mount(path, handler, options);
   return r;
 }
 
@@ -171,7 +170,7 @@ export function handle<E extends Env>(
   request: Request,
   env: E,
 ): Response | Promise<Response> {
-  return r.__inner.fetch(request, env);
+  return r.fetch(request, env);
 }
 
 export function request<E extends Env>(
@@ -180,5 +179,5 @@ export function request<E extends Env>(
   init?: RequestInit,
   env?: E,
 ): Response | Promise<Response> {
-  return r.__inner.request(input, init, env);
+  return r.request(input, init, env);
 }

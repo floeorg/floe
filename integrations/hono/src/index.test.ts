@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { Hono } from "hono";
 
 import {
   router,
@@ -24,10 +25,20 @@ import {
 type TestEnv = { readonly greeting: string };
 
 describe("@floeorg/hono shim", () => {
-  it("router() returns a fresh Router wrapping a Hono instance", () => {
+  it("router() returns a real Hono instance (no wrapper)", () => {
     const r = router<TestEnv>();
-    assert.ok(r.__inner);
-    assert.equal(typeof r.__inner.fetch, "function");
+    assert.ok(r instanceof Hono);
+    assert.equal(typeof r.fetch, "function");
+  });
+
+  it("a Floe-built router mounts cleanly into stock Hono via .route() (#1390)", async () => {
+    const sub = get(router<TestEnv>(), "/ping", () => new Response("pong"));
+    const app = new Hono();
+    app.route("/sub", sub);
+
+    const res = await app.fetch(new Request("http://local/sub/ping"));
+    assert.equal(res.status, 200);
+    assert.equal(await res.text(), "pong");
   });
 
   it("router() exposes fetch at the top level so it works as a Workers default export", async () => {
