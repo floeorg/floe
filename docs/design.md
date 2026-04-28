@@ -1036,11 +1036,11 @@ let config = Config(baseUrl: "https://api.example.com", timeout: 10000)
 // timeout overridden, rest defaulted
 
 // On functions
-fn fetchUsers(
+let fetchUsers(
   page: number = 1,
   limit: number = 20,
   sort: SortOrder = Ascending,
-): Result<Array<User>, ApiError> {
+) -> Result<Array<User>, ApiError> = {
   // page, limit, sort are always concrete values — never Option, never undefined
 }
 
