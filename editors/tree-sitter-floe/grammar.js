@@ -134,12 +134,12 @@ module.exports = grammar({
 
     trait_method: ($) =>
       seq(
-        "fn",
+        "let",
         field("name", $.identifier),
         optional(field("type_parameters", $.type_parameters)),
         field("parameters", $.parameter_list),
         optional(seq("->", field("return_type", $._type_expression))),
-        optional(field("body", $.block)),
+        optional(seq("=", field("body", $.block))),
       ),
 
     self: (_$) => "self",

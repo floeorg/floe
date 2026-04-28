@@ -27,7 +27,7 @@ let { name, age } = getUser()      // `{}` — record
 ```
 
 Array destructuring (`let [a, b] = arr`) is a parse error in `let`
-bindings — it would lie about runtime length. Use `Array.get(arr, i) =>
+bindings — it would lie about runtime length. Use `Array.get(arr, i) ->
 Option<T>` or a match pattern:
 
 ```floe
@@ -101,12 +101,11 @@ let greet(name: string = "world") -> string = {
 
 ### Anonymous Functions (Closures)
 
-Use `(x) => expr` for inline anonymous functions:
+Use `(x) -> expr` for inline anonymous functions:
 
 ```floe
 todos |> Array.map((t) -> t.text)
 items |> Array.reduce((acc, x) -> acc + x.price, 0)
-let handleClick = () -> setCount(count + 1)
 ```
 
 For simple field access, use dot shorthand:
@@ -117,15 +116,33 @@ todos |> Array.map(.text)
 users |> Array.sortBy(.name)
 ```
 
-**`let name = (x) => ...` is a compile error.** If it has a name, use `fn`:
+### Two Ways to Write a Named Function
+
+Floe accepts two forms for binding a function to a name. Both compile to the same TypeScript — pick the one that reads better for the situation.
+
+**Def-form** — params and return type sit inline on the `let`:
 
 ```floe
-// COMPILE ERROR
-let double(x) = x * 2
-
-// correct
-let double(x: number) -> number = { x * 2 }
+let add(a: number, b: number) -> number = a + b
 ```
+
+**Value-binding form** — function expression on the right of `=`:
+
+```floe
+// Plain value binding
+let handleClick = () -> setCount(count + 1)
+
+// With a type annotation on the let — useful when the type is named
+typealias Handler = (Request) -> Promise<Response>
+let placeOrder: Handler = (req) -> req |> validate? |> price |> Ok
+```
+
+**When to pick which:**
+
+- **Def-form** for top-level functions with several parameters or a meaningful return type — params and return read together as a signature, no closure noise.
+- **Value-binding form** when the function implements a named type alias (the type lives once on the `let`, not duplicated in the parameters) or when the body is a one-liner that already reads well as an expression.
+
+Exported functions **must** have a return type annotation regardless of which form you use.
 
 ### Function Types
 
@@ -150,7 +167,7 @@ let fetchUser(id: string) -> Promise<User> = {
 
 For functions without a return type annotation, the compiler infers `Promise<T>` automatically.
 
-**`async fn` sugar.** When the return type is verbose (e.g. `Promise<Result<Option<T>, Error>>`), use `async fn f() => T` to write the inner type directly. The compiler wraps it in `Promise<>`:
+**`async let` sugar.** When the return type is verbose (e.g. `Promise<Result<Option<T>, Error>>`), use `async let f() -> T = { ... }` to write the inner type directly. The compiler wraps it in `Promise<>`:
 
 ```floe
 // Verbose
@@ -164,7 +181,7 @@ async let findUser(id: string) -> Result<Option<User>, Error> = {
 }
 ```
 
-Both forms compile to the same `async function` in TypeScript. Callers still use `|> await` to unwrap. See the [Promise reference](/docs/reference/stdlib/promise/#async-fn-sugar) for details.
+Both forms compile to the same `async function` in TypeScript. Callers still use `|> await` to unwrap. See the [Promise reference](/docs/reference/stdlib/promise/#async-let-sugar) for details.
 
 ## Callback Flattening with `use`
 
@@ -201,7 +218,7 @@ Console.log("done")
 - **No `class`** - use functions and records
 - **No `this`** - functions are pure by default
 - **No `function*` generators** - use arrays and pipes
-- **No `=>` at the statement level** - `(x) => expr` is only for inline anonymous functions; `->` is used for function types like `(T) => U`
-- **No `function` keyword** - use `fn` for named functions
+- **No `=>` anywhere in Floe source** — `->` covers closures, match arms, return types, and function types. `=>` only appears in emitted TypeScript.
+- **No `function` keyword** — use `let` for named functions
 
 These are removed intentionally. See the [introduction](/docs/guide/introduction) for the reasoning.

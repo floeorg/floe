@@ -173,7 +173,7 @@ export let OrderPage(props: OrderPageProps) -> JSX.Element = {
 Guards are just stdlib functions -- no new syntax. `Bool.guard` has this signature:
 
 ```
-Bool.guard(condition: boolean, fallback: T, continuation: () => T) => T
+Bool.guard(condition: boolean, fallback: T, continuation: () -> T) -> T
 ```
 
 When you write `use <- Bool.guard(cond, fallback)`, the `use` keyword takes everything after that line and passes it as the `continuation` callback. If `cond` is false, `fallback` is returned without calling the continuation.
@@ -216,8 +216,8 @@ Context.guard(ctx, fallback, ({ user, session }) => { ... });
 
 Note the distinction between the two parenthesised forms:
 
-- `use (a, b) <- fn(...)` — **multi-parameter callback**: lowers to `fn(..., (a, b) => { ... })`
-- `use { a, b } <- fn(...)` — **single parameter, object-destructured**: lowers to `fn(..., ({ a, b }) => { ... })`
+- `use (a, b) <- f(...)` — **multi-parameter callback**: lowers to `f(..., (a, b) -> { ... })`
+- `use { a, b } <- f(...)` — **single parameter, object-destructured**: lowers to `f(..., ({ a, b }) -> { ... })`
 
 ## Compatibility with React's `use()` hook
 

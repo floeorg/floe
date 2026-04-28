@@ -16,7 +16,6 @@ Always-loaded rules are declared in `opencode.json` (`instructions` field). The 
 - @.claude/rules/claude-meta.md
 - @.claude/rules/clean-architecture.md
 - @.claude/rules/config-and-env.md
-- @.claude/rules/design.md
 - @.claude/rules/docs.md
 - @.claude/rules/example-app.md
 - @.claude/rules/floe-quality.md

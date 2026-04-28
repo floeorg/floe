@@ -1,10 +1,10 @@
 // SYNTAX TEST "source.floe"
 
-fn validate(text: string) => Validation {
+let validate(text: string) -> Validation = {
 // <-- storage.type.floe
 // ^^^^^^^^ entity.name.function.floe
-//                ^^^^^^ support.type.primitive.floe
-//                        ^^ keyword.operator.arrow.floe
+//                  ^^^^^^ support.type.primitive.floe
+//                         ^^ keyword.operator.arrow.floe
 
     match len {
 //  ^^^^^ keyword.control.floe
@@ -17,8 +17,8 @@ let handleDelete(id: string) = {
 // <-- storage.type.floe
 // ^^^^^^^^^^^^ entity.name.function.floe
 
-    return <div>
-//          ^^^ entity.name.tag.floe
+    <div>
+//   ^^^ entity.name.tag.floe
         <button onClick={handleAdd}>
 //       ^^^^^^ entity.name.tag.floe
 //              ^^^^^^^ entity.other.attribute-name.floe
@@ -32,6 +32,9 @@ let x = true
 //      ^^^^ constant.language.boolean.floe
 
 function bad() {}
+// <-- invalid.illegal.keyword.floe
+
+fn alsoBad() {}
 // <-- invalid.illegal.keyword.floe
 
 // `use` is a contextual keyword — colored only at the head of a bind statement.

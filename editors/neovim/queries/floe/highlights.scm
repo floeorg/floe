@@ -1,15 +1,12 @@
 ; ── Keywords ──────────────────────────────────────────────
 "let" @keyword
-"fn" @keyword
 "async" @keyword
 "type" @keyword
 "typealias" @keyword
 "match" @keyword
-"return" @keyword
 "import" @keyword
 "from" @keyword
 "export" @keyword
-"as" @keyword
 "default" @keyword
 "trusted" @keyword
 "for" @keyword
@@ -57,7 +54,7 @@
 (function_declaration
   name: (type_identifier) @function)
 
-; Generic function type parameters: fn identity<T>(...)
+; Generic function type parameters: let identity<T>(...)
 (function_declaration
   type_parameters: (type_parameters
     (type_identifier) @type.parameter))

@@ -5713,10 +5713,6 @@
     "named": false
   },
   {
-    "type": "fn",
-    "named": false
-  },
-  {
     "type": "for",
     "named": false
   },

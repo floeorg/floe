@@ -112,7 +112,7 @@
         },
         {
           "name": "invalid.illegal.keyword.floe",
-          "match": "\\b(var|class|enum|throw|null|undefined|any|function)\\b"
+          "match": "\\b(const|var|class|enum|throw|null|undefined|any|function|fn)\\b"
         }
       ]
     },
@@ -120,7 +120,7 @@
       "patterns": [
         {
           "name": "storage.type.floe",
-          "match": "\\b(let|fn|type|typealias)\\b"
+          "match": "\\b(let|type|typealias)\\b"
         }
       ]
     },
@@ -221,17 +221,7 @@
           }
         },
         {
-          "comment": "For-block / trait method declarations still use `fn`",
-          "match": "\\b(?:(async)\\s+)?(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:<([A-Z][a-zA-Z0-9]*(?:\\s*,\\s*[A-Z][a-zA-Z0-9]*)*)>)?",
-          "captures": {
-            "1": { "name": "storage.modifier.async.floe" },
-            "2": { "name": "storage.type.function.floe" },
-            "3": { "name": "entity.name.function.floe" },
-            "4": { "name": "entity.name.type.parameter.floe" }
-          }
-        },
-        {
-          "comment": "Function calls (including generic calls like fn<Type>(...))",
+          "comment": "Function calls (including generic calls like name<Type>(...))",
           "match": "\\b([a-z_][a-zA-Z0-9_]*)\\s*(?=<[A-Z]|\\()",
           "captures": {
             "1": { "name": "entity.name.function.floe" }

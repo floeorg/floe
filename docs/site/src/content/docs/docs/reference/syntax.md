@@ -49,7 +49,7 @@ let name() -> Promise<T> = {
   expr |> Promise.await
 }
 
-// async fn sugar — `async fn f() -> T` means `fn f() -> Promise<T>`
+// async let sugar — `async let f() -> T = ...` means `let f() -> Promise<T> = ...`
 async let name() -> T = {
   expr |> await
 }

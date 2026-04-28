@@ -57,9 +57,9 @@ let fetchName(id: string) = {
 // Inferred return type: Promise<string>
 ```
 
-## `async fn` sugar
+## `async let` sugar
 
-`async fn f() => T` is sugar for `fn f() => Promise<T>` — write the inner type and the compiler wraps it automatically. This keeps signatures readable when the return type has several layers (`Result<Option<T>, Error>`, etc.):
+`async let f() -> T = { ... }` is sugar for `let f() -> Promise<T> = { ... }` — write the inner type and the compiler wraps it automatically. This keeps signatures readable when the return type has several layers (`Result<Option<T>, Error>`, etc.):
 
 ```floe
 // Verbose — three nested generics
@@ -78,8 +78,8 @@ Behavior:
 - The return type annotation is the **inner** type (what the body actually produces). Callers see `Promise<T>`.
 - The function body returns `T` directly (no manual wrapping).
 - Callers still use `|> await` to unwrap the `Promise<T>`.
-- `async fn f() => Promise<T>` is an error — `async` already implies the wrapper.
-- Plain `fn f() => Promise<T>` still works for cases where you want to be explicit, or for non-async functions that return promises (e.g. storing them in `Array<Promise<T>>`).
+- `async let f() -> Promise<T> = { ... }` is an error — `async` already implies the wrapper.
+- Plain `let f() -> Promise<T> = { ... }` still works for cases where you want to be explicit, or for non-async functions that return promises (e.g. storing them in `Array<Promise<T>>`).
 
 Both forms compile to the same `async function` in TypeScript.
 

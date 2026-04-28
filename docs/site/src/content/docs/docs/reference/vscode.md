@@ -24,11 +24,11 @@ npm run build
 ### Syntax Highlighting
 
 Full TextMate grammar for `.fl` files:
-- Keywords (`let`, `fn`, `match`, `type`, etc.)
-- Operators (`|>`, `->`, `=>`, `?`)
+- Keywords (`let`, `match`, `type`, `typealias`, `for`, `trait`, `impl`, etc.)
+- Operators (`|>`, `->`, `?`)
 - JSX elements and attributes
 - Template literals with interpolation
-- Unsupported keyword highlighting (visual warning for `let`, `class`, etc.)
+- Banned-keyword highlighting (visual warning for `const`, `var`, `function`, `fn`, `class`, etc. — `fn` is reserved and rejected with a "use `let`" error)
 
 ### Language Server
 
@@ -47,8 +47,9 @@ Full IDE features powered by `floe lsp`:
 
 | Prefix | Description |
 |--------|-------------|
-| `fn` | Function declaration |
+| `let` | Function declaration (def-form) |
 | `efn` | Exported function |
+| `afn` | Async function |
 | `match` | Match expression |
 | `matchr` | Match on Result |
 | `matcho` | Match on Option |

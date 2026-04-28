@@ -10,24 +10,24 @@ Functions for working with `Option<T>` (`Some(v)` / `None`) values.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Option.map` | `Option<T>, (T) => U -> Option<U>` | Transform the inner value if present |
-| `Option.flatMap` | `Option<T>, (T) => Option<U> -> Option<U>` | Chain option-returning operations |
-| `Option.unwrapOr` | `Option<T>, T -> T` | Extract value or use default |
-| `Option.isSome` | `Option<T> -> boolean` | Check if value is present |
-| `Option.isNone` | `Option<T> -> boolean` | Check if value is absent |
-| `Option.toResult` | `Option<T>, E -> Result<T, E>` | Convert to Result with error for None |
-| `Option.filter` | `Option<T>, (T) => boolean -> Option<T>` | Keep Some if predicate passes, else None |
-| `Option.or` | `Option<T>, Option<T> -> Option<T>` | Return first Some, else second |
-| `Option.orElse` | `Option<T>, () => Option<T> -> Option<T>` | Lazy fallback chain |
-| `Option.values` | `Array<Option<T>> -> Array<T>` | Extract all Some values, discard None |
-| `Option.mapOr` | `Option<T>, U, (T) => U -> U` | Map + default in one step |
-| `Option.flatten` | `Option<Option<T>> -> Option<T>` | Unwrap nested Options |
-| `Option.zip` | `Option<T>, Option<U> -> Option<(T, U)>` | Combine two Options into a tuple |
-| `Option.inspect` | `Option<T>, (T) => () => Option<T>` | Side-effect without changing the value |
-| `Option.toErr` | `Option<E> -> Result<(), E>` | Convert to Err if present (for `{ data, error }` patterns) |
-| `Option.all` | `Array<Option<T>> -> Option<Array<T>>` | Collect all Some values, None if any missing |
-| `Option.any` | `Array<Option<T>> -> Option<T>` | Return first Some, or None |
-| `Option.guard` | `Option<T>, U, (T) => U -> U` | Bail with fallback on None, continue with unwrapped value (for `use`) |
+| `Option.map` | `(Option<T>, (T) -> U) -> Option<U>` | Transform the inner value if present |
+| `Option.flatMap` | `(Option<T>, (T) -> Option<U>) -> Option<U>` | Chain option-returning operations |
+| `Option.unwrapOr` | `(Option<T>, T) -> T` | Extract value or use default |
+| `Option.isSome` | `(Option<T>) -> boolean` | Check if value is present |
+| `Option.isNone` | `(Option<T>) -> boolean` | Check if value is absent |
+| `Option.toResult` | `(Option<T>, E) -> Result<T, E>` | Convert to Result with error for None |
+| `Option.filter` | `(Option<T>, (T) -> boolean) -> Option<T>` | Keep Some if predicate passes, else None |
+| `Option.or` | `(Option<T>, Option<T>) -> Option<T>` | Return first Some, else second |
+| `Option.orElse` | `(Option<T>, () -> Option<T>) -> Option<T>` | Lazy fallback chain |
+| `Option.values` | `(Array<Option<T>>) -> Array<T>` | Extract all Some values, discard None |
+| `Option.mapOr` | `(Option<T>, U, (T) -> U) -> U` | Map + default in one step |
+| `Option.flatten` | `(Option<Option<T>>) -> Option<T>` | Unwrap nested Options |
+| `Option.zip` | `(Option<T>, Option<U>) -> Option<(T, U)>` | Combine two Options into a tuple |
+| `Option.inspect` | `(Option<T>, (T) -> ()) -> Option<T>` | Side-effect without changing the value |
+| `Option.toErr` | `(Option<E>) -> Result<(), E>` | Convert to Err if present (for `{ data, error }` patterns) |
+| `Option.all` | `(Array<Option<T>>) -> Option<Array<T>>` | Collect all Some values, None if any missing |
+| `Option.any` | `(Array<Option<T>>) -> Option<T>` | Return first Some, or None |
+| `Option.guard` | `(Option<T>, U, (T) -> U) -> U` | Bail with fallback on None, continue with unwrapped value (for `use`) |
 
 ## Examples
 

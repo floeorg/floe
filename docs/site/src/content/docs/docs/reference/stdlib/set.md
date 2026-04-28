@@ -10,17 +10,17 @@ Immutable unique collection operations. All functions return new sets -- they ne
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Set.empty` | `() => Set<T>` | Create an empty set |
-| `Set.fromArray` | `Array<T> -> Set<T>` | Create a set from an array |
-| `Set.toArray` | `Set<T> -> Array<T>` | Convert a set to an array |
-| `Set.add` | `Set<T>, T -> Set<T>` | Add an element |
-| `Set.remove` | `Set<T>, T -> Set<T>` | Remove an element |
-| `Set.has` | `Set<T>, T -> boolean` | Check if an element exists |
-| `Set.size` | `Set<T> -> number` | Number of elements |
-| `Set.isEmpty` | `Set<T> -> boolean` | True if set has no elements |
-| `Set.union` | `Set<T>, Set<T> -> Set<T>` | Union of two sets |
-| `Set.intersect` | `Set<T>, Set<T> -> Set<T>` | Intersection of two sets |
-| `Set.diff` | `Set<T>, Set<T> -> Set<T>` | Difference (elements in first but not second) |
+| `Set.empty` | `() -> Set<T>` | Create an empty set |
+| `Set.fromArray` | `(Array<T>) -> Set<T>` | Create a set from an array |
+| `Set.toArray` | `(Set<T>) -> Array<T>` | Convert a set to an array |
+| `Set.add` | `(Set<T>, T) -> Set<T>` | Add an element |
+| `Set.remove` | `(Set<T>, T) -> Set<T>` | Remove an element |
+| `Set.has` | `(Set<T>, T) -> boolean` | Check if an element exists |
+| `Set.size` | `(Set<T>) -> number` | Number of elements |
+| `Set.isEmpty` | `(Set<T>) -> boolean` | True if set has no elements |
+| `Set.union` | `(Set<T>, Set<T>) -> Set<T>` | Union of two sets |
+| `Set.intersect` | `(Set<T>, Set<T>) -> Set<T>` | Intersection of two sets |
+| `Set.diff` | `(Set<T>, Set<T>) -> Set<T>` | Difference (elements in first but not second) |
 
 ## Examples
 
