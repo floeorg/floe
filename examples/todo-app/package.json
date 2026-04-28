@@ -24,7 +24,7 @@
     "@types/uuid": "^11.0.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.3",
-    "vite": "^8.0.8",
+    "vite": "^8.0.10",
     "@floeorg/vite-plugin": "workspace:*"
   }
 }
