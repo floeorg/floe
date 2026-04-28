@@ -123,7 +123,7 @@ let saveTodo(text: string, id: string) -> Result<Todo, AppError> = {
 }
 ```
 
-`Validation` here is used as a function — equivalent to `fn(e) Validation(errors: e)`. This works for any non-unit variant.
+`Validation` here is used as a function — equivalent to `(e) -> Validation(errors: e)`. This works for any non-unit variant.
 
 ## Option
 

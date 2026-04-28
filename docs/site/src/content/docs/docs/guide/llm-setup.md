@@ -44,11 +44,11 @@ When writing Floe (.fl) files, refer to the language reference at:
 https://floe-lang.dev/llms.txt
 
 Floe compiles to TypeScript. Key differences from TypeScript:
-- Use `fn` instead of `function`
+- Use `let` instead of `function` for named functions
 - Use `|>` pipes for data transformation
 - Use `match` instead of switch/if-else chains
 - Use `Result<T, E>` and `Option<T>` instead of null/exceptions
-- No semicolons, no `let`/`var`, no classes
+- No semicolons, no `const`/`var`, no classes
 ```
 
 ## Other tools

@@ -183,7 +183,7 @@ type SaveError =
 
 // Bare variant name becomes an arrow function
 let toValidation = Validation
-// Equivalent to: fn(errors) Validation(errors: errors)
+// Equivalent to: (errors) -> Validation(errors: errors)
 
 // Qualified syntax works too
 let toApi = SaveError.Api
@@ -360,7 +360,7 @@ For your own data, prefer tagged sums (`type Method = Get | Post`). Reach for `O
 | Code | Trigger | Fix |
 |---|---|---|
 | `E201` | Bare string-literal union (`type M = "a" \| "b"`) | Use `OneOf<"a", "b">` |
-| `E202` | Inline record in a function signature | Name the type: `type Arg = { ... }` then `fn f(x: Arg)` |
+| `E202` | Inline record in a function signature | Name the type: `type Arg = { ... }` then `let f(x: Arg) -> ...` |
 
 ## Differences from TypeScript
 

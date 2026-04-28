@@ -7,8 +7,8 @@ When changing Floe syntax (new keywords, operators, or language features), you M
 2. **TextMate grammar** (VSCode) — `editors/vscode/syntaxes/floe.tmLanguage.json`
 3. **VSCode snippets** — `editors/vscode/snippets/floe.json`
 4. **Neovim queries** — `editors/neovim/queries/floe/highlights.scm` (copy from tree-sitter)
-5. **Design doc** — `docs/design.md`
-6. **Site docs** — `docs/site/src/content/docs/`
+5. **Site docs** — `docs/site/src/content/docs/`
+6. **LLM reference** — `docs/llms.txt`
 
 Also update test fixtures, example code, and README if affected.
 

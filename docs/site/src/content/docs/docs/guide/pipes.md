@@ -141,12 +141,13 @@ Pipes replace nested function calls with a flat, left-to-right sequence:
 
 ## Operators
 
-Floe has three arrow-like operators:
+Floe has two arrow-like operators:
 
 ```
-(x) => closures            (a) => a + 1
-->    match arms / returns / function types  Ok(x) => x, fn add(a) => number, (string) => number
-|>    pipe data             data |> transform
+->    closures, match arms, return types, function types
+      (x) -> x + 1, Ok(x) -> x, let add(a, b) -> number, (string) -> number
+|>    pipe data
+      data |> transform
 ```
 
 Each has a distinct purpose. No ambiguity.

@@ -285,10 +285,10 @@ impl Checker {
             return true;
         }
 
-        // Structural alias unfolding: `type F = () -> string` is a structural
-        // alias per docs/design.md, so `Named("F")` must unfold to its RHS
-        // before comparison. Nominal types (record defs, tagged unions,
-        // newtypes, opaque) stay nominal — only `TypeDef::Alias` unfolds.
+        // Structural alias unfolding: `typealias F = () -> string` names a
+        // structural shape, so `Named("F")` must unfold to its RHS before
+        // comparison. Nominal types (record defs, tagged unions, newtypes,
+        // opaque) stay nominal — only `TypeDef::Alias` unfolds.
         if let Some(unfolded) = self.unfold_structural_alias(expected) {
             return self.types_compatible(&unfolded, actual);
         }

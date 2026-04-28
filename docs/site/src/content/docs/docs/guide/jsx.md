@@ -19,7 +19,7 @@ export let Counter() -> JSX.Element = {
 }
 ```
 
-Components are exported `fn` declarations with a `JSX.Element` return type. The last expression is the return value.
+Components are exported `let` declarations with a `JSX.Element` return type. The last expression is the return value.
 
 ## Props
 

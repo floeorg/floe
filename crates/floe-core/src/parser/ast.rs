@@ -182,8 +182,9 @@ pub struct ReExportSpecifier {
 //
 // Only the bare-identifier form is accepted — the anonymous TS variants
 // (`export default <expr>`, `export default function|class|{ ... }`) are
-// rejected at parse time. See `docs/design.md#default-exports` for the
-// rationale.
+// rejected at parse time. Forcing a named binding keeps the import side
+// stable (downstream importers can't pick arbitrary names) and makes
+// renames mechanical instead of refactor-everywhere.
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DefaultExportDecl {

@@ -43,7 +43,7 @@ let describeFilter(f: Filter) -> string = {
 }
 
 // Uncomment to see error: match arms have incompatible types
-// fn badMatch(f: Filter) -> string {
+// let badMatch(f: Filter) -> string = {
 //     match f {
 //         All -> "all",
 //         Active -> 42,
@@ -82,4 +82,4 @@ let greet() -> string = {
 
 // ✓
 
-// fn badReturn() -> string { 42 }  // ✗ uncomment → return type mismatch
+// let badReturn() -> string = { 42 }  // ✗ uncomment → return type mismatch

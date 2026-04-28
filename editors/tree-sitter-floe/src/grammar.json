@@ -407,7 +407,7 @@
       "members": [
         {
           "type": "STRING",
-          "value": "fn"
+          "value": "let"
         },
         {
           "type": "FIELD",
@@ -470,12 +470,21 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "FIELD",
-              "name": "body",
-              "content": {
-                "type": "SYMBOL",
-                "name": "block"
-              }
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "="
+                },
+                {
+                  "type": "FIELD",
+                  "name": "body",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "block"
+                  }
+                }
+              ]
             },
             {
               "type": "BLANK"

@@ -216,8 +216,8 @@ Context.guard(ctx, fallback, ({ user, session }) => { ... });
 
 Note the distinction between the two parenthesised forms:
 
-- `use (a, b) <- fn(...)` — **multi-parameter callback**: lowers to `fn(..., (a, b) => { ... })`
-- `use { a, b } <- fn(...)` — **single parameter, object-destructured**: lowers to `fn(..., ({ a, b }) => { ... })`
+- `use (a, b) <- f(...)` — **multi-parameter callback**: lowers to `f(..., (a, b) -> { ... })`
+- `use { a, b } <- f(...)` — **single parameter, object-destructured**: lowers to `f(..., ({ a, b }) -> { ... })`
 
 ## Compatibility with React's `use()` hook
 

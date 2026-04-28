@@ -255,7 +255,7 @@ Inline record types (`{ a: T }`) are allowed inside generics and value positions
 | Code | Trigger | Fix |
 |---|---|---|
 | `E201` | Bare string-literal union (`type M = "a" \| "b"`) | Use `OneOf<"a", "b">` |
-| `E202` | Inline record in a function signature (`fn f(x: { a: T })`) | Name the type: `type Arg = { a: T }` then `fn f(x: Arg)` |
+| `E202` | Inline record in a function signature (`let f(x: { a: T })`) | Name the type: `type Arg = { a: T }` then `let f(x: Arg) -> ...` |
 
 ## Differences from TypeScript
 

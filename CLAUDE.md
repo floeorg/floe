@@ -3,8 +3,8 @@
 ## Before Starting Any Issue - MANDATORY
 
 **Read the relevant docs before writing code:**
-- **`docs/design.md`** — design decisions and rationale for language choices
 - **`docs/llms.txt`** — syntax quick reference (what compiles to what)
+- **`docs/site/src/content/docs/`** — user-facing reference and guides
 - **`.claude/rules/architecture.md`** — compiler pipeline and module structure
 
 ## Recommended Crates

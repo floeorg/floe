@@ -52,8 +52,7 @@ jobs:
 
       - name: Check Floe code samples in docs
         # User-facing docs + llms.txt (LLMs generate Floe code from these — they
-        # MUST parse). docs/design.md is excluded; it's an internal compiler
-        # spec with intentional pseudo-code and mixed TS/Floe snippets.
+        # MUST parse).
         run: cargo run --profile ci -p floe-doc-check -- docs/site/ docs/llms.txt README.md
 
       - name: Upload binary

@@ -133,7 +133,7 @@ let remaining = todos |> remaining
 
 ## Export
 
-For-block functions can be exported by placing `export` before `fn` inside the block:
+For-block functions can be exported by placing `export` before `let` inside the block:
 
 ```floe
 for User {
