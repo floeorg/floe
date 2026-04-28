@@ -7,7 +7,7 @@ Floe is a programming language that compiles to TypeScript. It targets TypeScrip
 ## Core Syntax
 
 ```floe
-// Named functions use fn keyword with -> return type.
+// Named functions use let with -> return type.
 // Match arms use ->. Every other type-position arrow uses ->.
 let add(a: number, b: number) -> number = {
     a + b
@@ -79,7 +79,7 @@ The RHS picks what is legal under each keyword:
 
 `opaque type Name = RHS` is a special form: nominal on the outside, wrapping an arbitrary structural shape inside — so `opaque type HashedPw = string` is valid even though bare `type HashedPw = string` is not.
 
-An inline record in a function signature (e.g. `fn f(x: { a: T })`) is **E202** — name the type.
+An inline record in a function signature (e.g. `let f(x: { a: T })`) is **E202** — name the type.
 
 ```floe
 // Record type
@@ -236,7 +236,7 @@ let c = Color.Red     // OK — qualified
 let toValidation = Validation  // (errors) -> ({ __tag: "Validation", errors })
 let toApi = SaveError.Api      // (message) -> ({ __tag: "Api", message })
 // Useful with mapErr:
-result |> Result.mapErr(Validation)  // instead of Result.mapErr(fn(e) Validation(e))
+result |> Result.mapErr(Validation)  // instead of Result.mapErr((e) -> Validation(e))
 ```
 
 ## Pipe Operator
@@ -443,7 +443,7 @@ users |> Array.mapResult(validateUser)          // Result<Array<ValidUser>, Erro
 result |> Result.orElse((e) -> tryFallback(e))   // lazy fallback chain
 
 // Array helpers
-items |> Array.filterMap((x) -> if_valid(x))     // map + filter in one pass (fn returns Option)
+items |> Array.filterMap((x) -> if_valid(x))     // map + filter in one pass (callback returns Option)
 items |> Array.partition(.active)                 // (active, inactive) — split by predicate
 nested |> Array.flatten                           // Array<Array<T>> -> Array<T>
 users |> Array.uniqueBy(.email)                   // deduplicate by key function (keeps first)
@@ -454,10 +454,10 @@ items |> Array.dropWhile(.done)                   // drop while predicate holds
 let joined = ["a", "b", "c"] |> Array.intersperse(", ")  // ["a", ", ", "b", ", ", "c"]
 
 // Promise helpers
-// Promise.await (or bare `await`): Promise<T> -> T (compiles to await, infers async on enclosing fn)
+// Promise.await (or bare `await`): Promise<T> -> T (compiles to await, infers async on enclosing function)
 // Functions using await must return Promise<T> (like ? requires Result<T, E>)
-// `async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type
-//   async fn fetchUser(id: number) -> Result<User, Error> { Http.get(url) |> await? |> parse<User> }
+// `async let f() -> T = { ... }` is sugar for `let f() -> Promise<T> = { ... }` — write the inner type
+//   async let fetchUser(id: number) -> Result<User, Error> = { Http.get(url) |> await? |> parse<User> }
 // Emits TS `async function ...: Promise<T>`. Callers still use `|> await` to unwrap.
 let users = Promise.all([fetchUser(1), fetchUser(2)]) |> await
 let fastest = Promise.race([fetchFromCDN(url), fetchFromOrigin(url)]) |> await
@@ -639,8 +639,8 @@ Console.log("done")
 `use` is a **contextual keyword**. Bind shapes:
 - `use <- expr`                    — zero-binding callback
 - `use x <- expr`                  — single ident
-- `use (a, b) <- expr`             — multi-parameter callback → `fn(a, b) { ... }`
-- `use { a, b } <- expr`           — object-destructured single param → `fn({ a, b }) { ... }`
+- `use (a, b) <- expr`             — multi-parameter callback → `(a, b) -> { ... }`
+- `use { a, b } <- expr`           — object-destructured single param → `({ a, b }) -> { ... }`
 - `use { a: x, b: y } <- expr`     — object destructure with renames
 
 `use(promise)`, `import { use } from "react"`, and `foo.use` are plain identifier uses — so React 19's `use()` hook works unchanged.
@@ -856,7 +856,7 @@ else they parse as ordinary identifiers so names don't collide with user code
 
 | Keyword | Keyword only when… | Identifier elsewhere (examples) |
 |---|---|---|
-| `type` | At item start (`type X = ...`) | `{ type: "click" }`, `<input type="text" />`, `fn f(type: string)` |
+| `type` | At item start (`type X = ...`) | `{ type: "click" }`, `<input type="text" />`, `let f(type: string)` |
 | `opaque` | Before `type` (`opaque type X = ...`) | `let opaque = 1` |
 | `trusted` | In imports (`import trusted { ... }`) | `let trusted = true` |
 | `deriving` | After a record type (`... deriving (Display)`) | `let deriving = []` |
@@ -885,18 +885,18 @@ out of scope.
 | `?.` (optional chain) | `match` on `Option` or `?` |
 | `??` (nullish coalesce) | `Option.unwrapOr` |
 | `->` (arrow function) | `(x) -> expr` closure; function types also use `->`: `(T) -> U` |
-| `function` keyword | `fn` |
+| `function` keyword | `let` (named) or `(params) -> body` (anonymous) |
 | `void` | Unit type `()` |
 | `as` (type assertion) | Type guards or `match` |
 | `return` | Implicit returns — last expression is the return value |
-| `async`/`await` | `\|> await` (or `\|> Promise.await`); return type `Promise<T>` or `async fn f() -> T` (sugar) |
+| `async`/`await` | `\|> await` (or `\|> Promise.await`); return type `Promise<T>` or `async let f() -> T` (sugar) |
 
 ## Compilation Examples
 
 | Floe | TypeScript Output |
 |------|-------------------|
-| `fn f(x: number) -> number { x }` | `function f(x: number): number { return x; }` |
-| `fn f<T>(x: T) -> T { x }` | `function f<T>(x: T): T { return x; }` |
+| `let f(x: number) -> number = { x }` | `function f(x: number): number { return x; }` |
+| `let f<T>(x: T) -> T = { x }` | `function f<T>(x: T): T { return x; }` |
 | `a \|> f(b)` | `f(a, b)` |
 | `a \|> f(b, _, c)` | `f(b, a, c)` |
 | `a \|> match { 1 -> "one", _ -> "other" }` | `match a { ... }` (desugared) |
@@ -912,8 +912,8 @@ out of scope.
 | `Console.log(x)` | `console.log(x)` |
 | `(1, 2)` | `[1, 2] as const` |
 | `()` (unit) | `undefined` |
-| `expr \|> await` | `await expr` (enclosing fn inferred `async`) |
-| `async fn f() -> T { body }` | `async function f(): Promise<T> { return body; }` |
+| `expr \|> await` | `await expr` (enclosing function inferred `async`) |
+| `async let f() -> T = { body }` | `async function f(): Promise<T> { return body; }` |
 | `` tag`a ${x} b` `` | `` tag`a ${x} b` `` (byte-identical tagged template — passes a `TemplateStringsArray` to `tag`) |
 
 ## CLI Commands
@@ -936,7 +936,7 @@ floe lsp                     # start language server (used by editors)
 1. **No semicolons** in Floe source
 2. **Exported functions must have explicit return types** with `->`
 3. **match is exhaustive** — all variants must be handled
-4. **`?` only works** inside functions returning `Result` or `Option`; **`|> await` requires** return type `Promise<T>` (or `async fn`)
+4. **`?` only works** inside functions returning `Result` or `Option`; **`|> await` requires** return type `Promise<T>` (or `async let`)
 5. **`==` is structural equality** — only between same types
 6. **No bracket indexing** — use `Map.get(map, key)` for maps, `Record.get(obj, key)` for plain-object records, `Array.get(arr, i)` for arrays (all return `Option<T>`). `obj[key]` is not valid Floe syntax
 7. **npm imports are untrusted by default** — calls auto-wrap in `Result<T, Error>`; use `import trusted` for safe imports

@@ -1781,7 +1781,7 @@ let user = fetchUser(id) |> await
 // user: Result<User, Error>
 
 // Compose with |> await? for concise async error handling.
-// `async fn f() -> T` is sugar for `fn f() -> Promise<T>` — write the inner type:
+// `async let f() -> T = { ... }` is sugar for `let f() -> Promise<T> = { ... }` — write the inner type:
 async let loadProfile(id: string) -> Result<Profile, Error> = {
   let user = fetchUser(id) |> await?
   let posts = fetchPosts(user.id) |> await?
