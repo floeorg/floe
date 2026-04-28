@@ -56,7 +56,7 @@ todos |> Array.map(.text)
 users |> Array.sortBy(.name)
 ```
 
-`.field` creates an implicit closure. `.done == false` is shorthand for `(t) => t.done == false`.
+`.field` creates an implicit closure. `.done == false` is shorthand for `(t) -> t.done == false`.
 
 For anything more complex, use an arrow closure:
 

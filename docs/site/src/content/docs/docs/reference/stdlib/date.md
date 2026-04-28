@@ -10,17 +10,17 @@ Date construction and accessors. Floe has no `new` keyword, so the `Date` module
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Date.now` | `() => Date` | Current date and time |
-| `Date.from` | `string -> Date` | Parse a date string |
-| `Date.fromMillis` | `number -> Date` | Create from Unix milliseconds |
-| `Date.year` | `Date -> number` | Full year (e.g. 2024) |
-| `Date.month` | `Date -> number` | Month (1-12, 1-indexed!) |
-| `Date.day` | `Date -> number` | Day of month (1-31) |
-| `Date.hour` | `Date -> number` | Hour (0-23) |
-| `Date.minute` | `Date -> number` | Minute (0-59) |
-| `Date.second` | `Date -> number` | Second (0-59) |
-| `Date.millis` | `Date -> number` | Unix timestamp in milliseconds |
-| `Date.toIso` | `Date -> string` | ISO 8601 string |
+| `Date.now` | `() -> Date` | Current date and time |
+| `Date.from` | `(string) -> Date` | Parse a date string |
+| `Date.fromMillis` | `(number) -> Date` | Create from Unix milliseconds |
+| `Date.year` | `(Date) -> number` | Full year (e.g. 2024) |
+| `Date.month` | `(Date) -> number` | Month (1-12, 1-indexed!) |
+| `Date.day` | `(Date) -> number` | Day of month (1-31) |
+| `Date.hour` | `(Date) -> number` | Hour (0-23) |
+| `Date.minute` | `(Date) -> number` | Minute (0-59) |
+| `Date.second` | `(Date) -> number` | Second (0-59) |
+| `Date.millis` | `(Date) -> number` | Unix timestamp in milliseconds |
+| `Date.toIso` | `(Date) -> string` | ISO 8601 string |
 
 ## Examples
 

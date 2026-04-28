@@ -372,4 +372,4 @@ For your own data, prefer tagged sums (`type Method = Get | Post`). Reach for `O
 | `interface` | `type` |
 | `"a" \| "b"` | `OneOf<"a", "b">` |
 | `A & B` | `Intersect<A, B>` (or record spread) |
-| `(x: T) => U` (in types) | `(T) => U` |
+| `(x: T) => U` (in types) | `(T) -> U` |

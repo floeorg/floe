@@ -10,7 +10,7 @@ Functions for working with `boolean` values.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `Bool.guard` | `boolean, T, () => T -> T` | Continue if true, bail with fallback if false (for `use`) |
+| `Bool.guard` | `(boolean, T, () -> T) -> T` | Continue if true, bail with fallback if false (for `use`) |
 
 ## Guard Pattern
 

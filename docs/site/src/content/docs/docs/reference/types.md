@@ -266,6 +266,6 @@ Inline record types (`{ a: T }`) are allowed inside generics and value positions
 | `enum` | Tagged sums |
 | `interface` | `type` |
 | `void` | Unit type `()` |
-| `(x: T) => U` (in types) | `(T) => U` |
+| `(x: T) => U` (in types) | `(T) -> U` |
 | `"a" \| "b"` (string literal union) | `OneOf<"a", "b">` |
 | `A & B` | `Intersect<A, B>` (or `...Spread` in record composition) |
