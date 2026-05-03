@@ -19,6 +19,9 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "brace-expansion@<2.0.3": "^2.0.3"
+    }
   }
 }

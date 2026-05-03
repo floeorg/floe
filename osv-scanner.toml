@@ -1,0 +1,7 @@
+# OSV-Scanner configuration. Mirrors deny.toml's advisories.ignore so
+# we don't get the same finding flagged by two tools. Migration off
+# bincode is tracked in #1403.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0141"
+reason = "bincode unmaintained — no security vulnerability, no migration path. Tracked in #1403."
