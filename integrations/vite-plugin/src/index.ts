@@ -31,7 +31,7 @@ export default function floe(options: FloeOptions = {}): import("vite").Plugin {
   let projectRoot: string;
 
   return {
-    name: "vite-plugin-floe",
+    name: "@floeorg/vite-plugin",
     enforce: "pre" as const,
 
     configResolved(config: { root: string }) {

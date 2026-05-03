@@ -171,7 +171,7 @@ jobs:
           fi
 
       - name: Build and publish Vite plugin
-        working-directory: integrations/vite-plugin-floe
+        working-directory: integrations/vite-plugin
         run: |
           pnpm build
           # Prereleases require an explicit --tag. Publish under `alpha`,
