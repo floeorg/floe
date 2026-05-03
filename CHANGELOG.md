@@ -5,6 +5,50 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-alpha.4](https://github.com/floeorg/floe/compare/v0.1.0-alpha.3...v0.1.0-alpha.4) (2026-04-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* [#1390] @floeorg/hono returns raw Hono instances, drops wrapper ([#1391](https://github.com/floeorg/floe/issues/1391))
+* [#1337] adopt `impl Trait for Type` syntax, retire deriving + old for-impl form ([#1363](https://github.com/floeorg/floe/issues/1363))
+
+### Features
+
+* [[#1226](https://github.com/floeorg/floe/issues/1226)] make keywords contextual - allow `type`, `todo`, `mock` as identifiers ([#1362](https://github.com/floeorg/floe/issues/1362)) ([01db1a5](https://github.com/floeorg/floe/commit/01db1a57f18dd0cecd5050b8893b2784015e18a0))
+* [[#1285](https://github.com/floeorg/floe/issues/1285)] infer narrow handler return types + retire E010 ([#1370](https://github.com/floeorg/floe/issues/1370)) ([f24eef0](https://github.com/floeorg/floe/commit/f24eef0209d8101f0a10d674c9932f8ff585d82a))
+* [[#1337](https://github.com/floeorg/floe/issues/1337)] adopt `impl Trait for Type` syntax, retire deriving + old for-impl form ([#1363](https://github.com/floeorg/floe/issues/1363)) ([2d00cd7](https://github.com/floeorg/floe/commit/2d00cd71fce70b52139864eaf6e7b7971b0db822))
+* [[#1345](https://github.com/floeorg/floe/issues/1345)] ship floe.nvim as an installable Neovim plugin ([#1349](https://github.com/floeorg/floe/issues/1349)) ([e72c0e7](https://github.com/floeorg/floe/commit/e72c0e77d67dd559ff7005f3a2b8737d1f30ac14))
+* [[#1351](https://github.com/floeorg/floe/issues/1351)] emit chain probes for depth-1 terminal calls ([#1354](https://github.com/floeorg/floe/issues/1354)) ([c7f218c](https://github.com/floeorg/floe/commit/c7f218c7d960d5cb78f310e3bb0d3ab51722f589))
+* [[#1352](https://github.com/floeorg/floe/issues/1352)] thread literal args into chain-call probes ([#1359](https://github.com/floeorg/floe/issues/1359)) ([378c751](https://github.com/floeorg/floe/commit/378c7510f36454c239a9b78eb859c0e258086b54))
+* [[#1390](https://github.com/floeorg/floe/issues/1390)] @floeorg/hono returns raw Hono instances, drops wrapper ([#1391](https://github.com/floeorg/floe/issues/1391)) ([82087cc](https://github.com/floeorg/floe/commit/82087cc663c5975db32d536e063d095c4f8b3fcf))
+* cover .astro pages in floe-doc-check and refresh landing samples ([#1389](https://github.com/floeorg/floe/issues/1389)) ([0f2d63f](https://github.com/floeorg/floe/commit/0f2d63fd3949d92ec0e95ba25ec5bb17c7b63e0e))
+
+
+### Bug Fixes
+
+* [[#1201](https://github.com/floeorg/floe/issues/1201)] make `use` contextual in tree-sitter grammar (Neovim) ([#1335](https://github.com/floeorg/floe/issues/1335)) ([7b9a226](https://github.com/floeorg/floe/commit/7b9a226001577048386d4e4ae0c4236f5f3fd9a7))
+* [[#1326](https://github.com/floeorg/floe/issues/1326)] interop resolves export type re-exports as unknown (W004) ([#1334](https://github.com/floeorg/floe/issues/1334)) ([dc58e7e](https://github.com/floeorg/floe/commit/dc58e7e79f68aeceaa1f5d34e7ca4f9942fcdae1))
+* [[#1357](https://github.com/floeorg/floe/issues/1357)] register ambient TS type aliases alongside interfaces ([#1371](https://github.com/floeorg/floe/issues/1371)) ([5327b95](https://github.com/floeorg/floe/commit/5327b9580742c8770a9c98b67e09bbbbb1f31b67))
+* [[#1380](https://github.com/floeorg/floe/issues/1380)] surface implicit Object methods on interop record types ([#1382](https://github.com/floeorg/floe/issues/1382)) ([b8abc8d](https://github.com/floeorg/floe/commit/b8abc8d6a03bbe94c00bda9e1b58c0d436f30a0d))
+* [[#1386](https://github.com/floeorg/floe/issues/1386)] register loader falls back to src/ when sibling missing in .floe/ ([#1387](https://github.com/floeorg/floe/issues/1387)) ([d8c0928](https://github.com/floeorg/floe/commit/d8c09288b31a6e457f23a0bcaabfc8f8580530a1))
+
+
+### Miscellaneous Chores
+
+* release as 0.1.0-alpha.4 ([30e476d](https://github.com/floeorg/floe/commit/30e476d39ad799e98663b25c7081faf519cbf7c0))
+* release as 0.1.0-alpha.4 ([e836914](https://github.com/floeorg/floe/commit/e8369142aef3dda3c2bc31a87eac37d9f55d343e))
+* release as 0.1.0-alpha.4 ([45ddbe3](https://github.com/floeorg/floe/commit/45ddbe3bf475a7018e39b518b440f79a175e91ba))
+* release as 0.1.0-alpha.4 ([b7e4bf7](https://github.com/floeorg/floe/commit/b7e4bf7cb095724e675e5d77e670b44108226b9e))
+* release as 0.1.0-alpha.4 ([e714f3e](https://github.com/floeorg/floe/commit/e714f3e8bae393ae2d5c277100b7cfa3d2d50fec))
+* release as 0.1.0-alpha.4 ([5034905](https://github.com/floeorg/floe/commit/5034905a24114bf644627aa3d8f97499c097b206))
+* release as 0.1.0-alpha.4 ([7125bd4](https://github.com/floeorg/floe/commit/7125bd4b5e5a47bf62fedee4bba8f3bc32e15922))
+* release as 0.1.0-alpha.4 ([b1b6856](https://github.com/floeorg/floe/commit/b1b68560d8d80417db74fdb17f310ca0f51079cb))
+* release as 0.1.0-alpha.4 ([96ef43b](https://github.com/floeorg/floe/commit/96ef43b7952222e061a9e94f2e5cd0181db749b2))
+* release as 0.1.0-alpha.4 ([a7e8dc7](https://github.com/floeorg/floe/commit/a7e8dc70d5d95181c9261d85022bce7929ef0d7d))
+* release as 0.1.0-alpha.4 ([0e36837](https://github.com/floeorg/floe/commit/0e36837956f4ad74d2defd3820205b211a5660a2))
+* release as 0.1.0-alpha.4 ([ac82b76](https://github.com/floeorg/floe/commit/ac82b762047028decffff95ad1f7996480939d2c))
+
 ## [0.1.0-alpha.3](https://github.com/floeorg/floe/compare/v0.1.0-alpha.2...v0.1.0-alpha.3) (2026-04-24)
 
 
