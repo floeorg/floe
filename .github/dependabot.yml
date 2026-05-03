@@ -9,6 +9,11 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
     groups:
       oxc:
         patterns:
@@ -23,6 +28,11 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
     ignore:
       # ovsx publish rejects the VS Code extension when
       # @types/vscode > engines.vscode. Bumping the types without also
@@ -39,3 +49,8 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7

@@ -9,6 +9,7 @@ homepage = "https://github.com/floeorg/floe"
 keywords = ["compiler", "typescript", "react", "programming-language"]
 categories = ["compilers", "development-tools"]
 readme = "../../README.md"
+publish = false
 
 [[bin]]
 name = "floe"
