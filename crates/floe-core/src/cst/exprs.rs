@@ -130,7 +130,6 @@ impl<'src> CstParser<'src> {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     fn parse_postfix_expr(&mut self) {
         let checkpoint = self.builder.checkpoint();
         self.parse_primary_expr();
@@ -144,52 +143,7 @@ impl<'src> CstParser<'src> {
                     self.bump();
                     self.builder.finish_node();
                 }
-                Some(TokenKind::Dot) => {
-                    self.builder
-                        .start_node_at(checkpoint, SyntaxKind::MEMBER_EXPR.into());
-                    self.bump();
-                    self.eat_trivia();
-                    // Accept identifiers, keywords, and numbers after `.`
-                    // (must match SyntaxKind::is_member_name)
-                    if self.is_ident()
-                        || matches!(
-                            self.current_kind(),
-                            Some(
-                                TokenKind::Number(_)
-                                    | TokenKind::Banned(_)
-                                    | TokenKind::Parse
-                                    | TokenKind::Match
-                                    | TokenKind::For
-                                    | TokenKind::From
-                                    | TokenKind::Type
-                                    | TokenKind::Export
-                                    | TokenKind::Import
-                                    | TokenKind::Let
-                                    | TokenKind::Fn
-                                    | TokenKind::Trait
-                                    | TokenKind::Collect
-                                    | TokenKind::Impl
-                                    | TokenKind::When
-                                    | TokenKind::SelfKw
-                                    | TokenKind::Value
-                                    | TokenKind::Clear
-                                    | TokenKind::Unchanged
-                                    | TokenKind::Todo
-                                    | TokenKind::Unreachable
-                                    | TokenKind::Mock
-                                    | TokenKind::Assert
-                                    | TokenKind::Typeof
-                                    | TokenKind::Opaque
-                                    | TokenKind::Trusted
-                            )
-                        )
-                    {
-                        self.bump();
-                    } else {
-                        self.expect_ident();
-                    }
-                    self.builder.finish_node();
-                }
+                Some(TokenKind::Dot) => self.parse_member_expr_postfix(checkpoint),
                 Some(TokenKind::LeftBracket) => {
                     self.builder
                         .start_node_at(checkpoint, SyntaxKind::INDEX_EXPR.into());
@@ -201,39 +155,24 @@ impl<'src> CstParser<'src> {
                     self.builder.finish_node();
                 }
                 Some(TokenKind::LessThan) if self.is_generic_call() => {
-                    // Generic call: `f<T>(args)` or `f<T, U>(args)`
-                    self.builder
-                        .start_node_at(checkpoint, SyntaxKind::CALL_EXPR.into());
-                    self.bump(); // <
-                    self.eat_trivia();
-                    self.parse_comma_separated(Self::parse_type_expr, TokenKind::GreaterThan);
-                    self.expect(TokenKind::GreaterThan);
-                    self.eat_trivia();
-                    self.expect(TokenKind::LeftParen);
-                    self.eat_trivia();
-                    self.parse_comma_separated(Self::parse_call_arg, TokenKind::RightParen);
-                    self.expect(TokenKind::RightParen);
-                    self.builder.finish_node();
+                    self.parse_generic_call_expr_postfix(checkpoint);
                 }
                 Some(TokenKind::LeftParen) => {
-                    // Don't treat `(` on a new line as a call — it's a new expression
                     if self.preceded_by_newline() {
                         break;
                     }
-                    // Check if it's a constructor (uppercase ident) — don't parse as call
                     if self.is_uppercase_ident_at_checkpoint() {
                         break;
                     }
                     self.builder
                         .start_node_at(checkpoint, SyntaxKind::CALL_EXPR.into());
-                    self.bump(); // (
+                    self.bump();
                     self.eat_trivia();
                     self.parse_comma_separated(Self::parse_call_arg, TokenKind::RightParen);
                     self.expect(TokenKind::RightParen);
                     self.builder.finish_node();
                 }
                 Some(TokenKind::TemplateLiteral(_)) => {
-                    // A template on its own line is a standalone expression, not a tag.
                     if self.preceded_by_newline() {
                         break;
                     }
@@ -245,6 +184,68 @@ impl<'src> CstParser<'src> {
                 _ => break,
             }
         }
+    }
+
+    fn parse_member_expr_postfix(&mut self, checkpoint: rowan::Checkpoint) {
+        self.builder
+            .start_node_at(checkpoint, SyntaxKind::MEMBER_EXPR.into());
+        self.bump();
+        self.eat_trivia();
+        // Accept identifiers, keywords, and numbers after `.`
+        // (must match SyntaxKind::is_member_name)
+        if self.is_ident()
+            || matches!(
+                self.current_kind(),
+                Some(
+                    TokenKind::Number(_)
+                        | TokenKind::Banned(_)
+                        | TokenKind::Parse
+                        | TokenKind::Match
+                        | TokenKind::For
+                        | TokenKind::From
+                        | TokenKind::Type
+                        | TokenKind::Export
+                        | TokenKind::Import
+                        | TokenKind::Let
+                        | TokenKind::Fn
+                        | TokenKind::Trait
+                        | TokenKind::Collect
+                        | TokenKind::Impl
+                        | TokenKind::When
+                        | TokenKind::SelfKw
+                        | TokenKind::Value
+                        | TokenKind::Clear
+                        | TokenKind::Unchanged
+                        | TokenKind::Todo
+                        | TokenKind::Unreachable
+                        | TokenKind::Mock
+                        | TokenKind::Assert
+                        | TokenKind::Typeof
+                        | TokenKind::Opaque
+                        | TokenKind::Trusted
+                )
+            )
+        {
+            self.bump();
+        } else {
+            self.expect_ident();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_generic_call_expr_postfix(&mut self, checkpoint: rowan::Checkpoint) {
+        self.builder
+            .start_node_at(checkpoint, SyntaxKind::CALL_EXPR.into());
+        self.bump(); // <
+        self.eat_trivia();
+        self.parse_comma_separated(Self::parse_type_expr, TokenKind::GreaterThan);
+        self.expect(TokenKind::GreaterThan);
+        self.eat_trivia();
+        self.expect(TokenKind::LeftParen);
+        self.eat_trivia();
+        self.parse_comma_separated(Self::parse_call_arg, TokenKind::RightParen);
+        self.expect(TokenKind::RightParen);
+        self.builder.finish_node();
     }
 
     #[allow(clippy::too_many_lines)]
