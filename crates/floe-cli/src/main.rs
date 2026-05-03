@@ -457,15 +457,12 @@ fn cmd_test(path: &Path) -> Result<()> {
                 std::process::Command::new(runner).arg(&temp_file).status()
             };
 
-            match result {
-                Ok(status) => {
-                    if !status.success() {
-                        errors += 1;
-                    }
-                    ran = true;
-                    break;
+            if let Ok(status) = result {
+                if !status.success() {
+                    errors += 1;
                 }
-                Err(_) => {}
+                ran = true;
+                break;
             }
         }
 
