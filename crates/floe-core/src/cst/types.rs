@@ -1,4 +1,4 @@
-use super::*;
+use super::{CstParser, SyntaxKind, TokenKind};
 
 impl<'src> CstParser<'src> {
     // ── Type Expressions ────────────────────────────────────────
@@ -42,7 +42,7 @@ impl<'src> CstParser<'src> {
             self.parse_record_fields();
         }
         // String literal type (e.g. ComponentProps<"div">)
-        else if self.at(TokenKind::String("".into())) {
+        else if self.at(TokenKind::String(String::new())) {
             self.bump();
         }
         // typeof <ident> or typeof Module.value

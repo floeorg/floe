@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    ConstBinding, ConstDecl, DefaultExportDecl, ForBlock, ForImportSpecifier, FunctionDecl,
+    ImportDecl, ImportSpecifier, Item, ItemKind, Lowerer, Param, ParamDestructure, ReExportDecl,
+    ReExportSpecifier, RecordEntry, RecordField, SyntaxKind, SyntaxNode, TestBlock, TestStatement,
+    TraitDecl, TraitMethod, TypeDecl, TypeDef, TypeExpr, TypeExprKind,
+};
 
 impl<'src> Lowerer<'src> {
     pub(super) fn lower_item(&mut self, node: &SyntaxNode) -> Option<Item> {
@@ -8,14 +13,14 @@ impl<'src> Lowerer<'src> {
         for child in node.children() {
             match child.kind() {
                 SyntaxKind::IMPORT_DECL => {
-                    let decl = self.lower_import(&child)?;
+                    let decl = self.lower_import(&child);
                     return Some(Item {
                         kind: ItemKind::Import(decl),
                         span,
                     });
                 }
                 SyntaxKind::REEXPORT_DECL => {
-                    let decl = self.lower_reexport(&child)?;
+                    let decl = self.lower_reexport(&child);
                     return Some(Item {
                         kind: ItemKind::ReExport(decl),
                         span,
@@ -73,7 +78,7 @@ impl<'src> Lowerer<'src> {
                     });
                 }
                 SyntaxKind::TEST_BLOCK => {
-                    let block = self.lower_test_block(&child)?;
+                    let block = self.lower_test_block(&child);
                     return Some(Item {
                         kind: ItemKind::TestBlock(block),
                         span,
@@ -94,7 +99,7 @@ impl<'src> Lowerer<'src> {
         None
     }
 
-    fn lower_import(&mut self, node: &SyntaxNode) -> Option<ImportDecl> {
+    fn lower_import(&mut self, node: &SyntaxNode) -> ImportDecl {
         let mut specifiers = Vec::new();
         let mut for_specifiers = Vec::new();
         let mut source = String::new();
@@ -142,16 +147,16 @@ impl<'src> Lowerer<'src> {
             None
         };
 
-        Some(ImportDecl {
+        ImportDecl {
             trusted: module_trusted,
             default_import,
             specifiers,
             for_specifiers,
             source,
-        })
+        }
     }
 
-    fn lower_reexport(&mut self, node: &SyntaxNode) -> Option<ReExportDecl> {
+    fn lower_reexport(&mut self, node: &SyntaxNode) -> ReExportDecl {
         let mut specifiers = Vec::new();
         let mut source = String::new();
 
@@ -178,7 +183,7 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        Some(ReExportDecl { specifiers, source })
+        ReExportDecl { specifiers, source }
     }
 
     fn lower_default_export(&mut self, node: &SyntaxNode) -> Option<DefaultExportDecl> {
@@ -690,7 +695,7 @@ impl<'src> Lowerer<'src> {
         self.lower_param(node)
     }
 
-    fn lower_test_block(&mut self, node: &SyntaxNode) -> Option<TestBlock> {
+    fn lower_test_block(&mut self, node: &SyntaxNode) -> TestBlock {
         let span = self.node_span(node);
 
         // Find the string token for the test name
@@ -733,6 +738,6 @@ impl<'src> Lowerer<'src> {
             }
         }
 
-        Some(TestBlock { name, body, span })
+        TestBlock { name, body, span }
     }
 }

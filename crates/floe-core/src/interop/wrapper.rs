@@ -1,7 +1,7 @@
 //! Boundary type wrapping: converts TypeScript types to Floe types at the import boundary.
 use std::sync::Arc;
 
-use super::*;
+use super::{TsType, Type};
 use crate::type_layout;
 
 /// Converts a TypeScript type to a Floe type, applying boundary wrapping:
@@ -15,17 +15,15 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
             "string" => Type::String,
             "number" => Type::Number,
             "boolean" => Type::Bool,
-            "void" => Type::Unit,
-            "never" => Type::Unit,
+            "void" | "never" => Type::Unit,
             _ => Type::Unknown,
         },
 
         TsType::Null | TsType::Undefined => Type::Undefined,
 
-        // any -> unknown (forces narrowing in Floe)
-        TsType::Any => Type::Unknown,
-
-        TsType::Unknown => Type::Unknown,
+        // any/unknown/this -> unknown (forces narrowing in Floe;
+        // `this` falls back to Unknown when unresolved)
+        TsType::Any | TsType::Unknown | TsType::This => Type::Unknown,
 
         TsType::Named(name) => {
             // Single uppercase letter = generic type variable (T, U, S)
@@ -143,11 +141,6 @@ pub fn wrap_boundary_type(ts_type: &TsType) -> Type {
         TsType::StringLiteral(s) => Type::StringLiteral(s.clone()),
         TsType::NumberLiteral(_) => Type::Number,
         TsType::BooleanLiteral(_) => Type::Bool,
-
-        // `this` return inside an unresolved context — the caller-side contextual
-        // resolution should have replaced this with the enclosing interface name
-        // before wrapping. If it survived, fall back to Unknown.
-        TsType::This => Type::Unknown,
 
         // Indexed access `Obj["key"]` — evaluate the lookup when the
         // shape is concrete enough, else fall back to Unknown. Earlier

@@ -12,7 +12,10 @@ mod tests;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    Arg, BinOp, ExprKind, ItemKind, JsxChild, JsxElementKind, JsxProp, TemplatePart, TypeExpr,
+    TypeExprKind, TypedArg, TypedExpr, TypedItem, TypedJsxElement, TypedProgram, UnaryOp,
+};
 use crate::resolve::ResolvedImports;
 
 use typescript::generator::{TypeContext, TypeScriptGenerator};
@@ -259,14 +262,14 @@ fn collect_constructors_from_jsx(jsx: &TypedJsxElement, names: &mut HashSet<Stri
                         collect_constructors_from_expr(v, names)
                     }
                     JsxProp::Spread { expr, .. } => collect_constructors_from_expr(expr, names),
-                    _ => {}
+                    JsxProp::Named { .. } => {}
                 }
             }
             for child in children {
                 match child {
                     JsxChild::Expr(e) => collect_constructors_from_expr(e, names),
                     JsxChild::Element(el) => collect_constructors_from_jsx(el, names),
-                    _ => {}
+                    JsxChild::Text(_) => {}
                 }
             }
         }
@@ -275,7 +278,7 @@ fn collect_constructors_from_jsx(jsx: &TypedJsxElement, names: &mut HashSet<Stri
                 match child {
                     JsxChild::Expr(e) => collect_constructors_from_expr(e, names),
                     JsxChild::Element(el) => collect_constructors_from_jsx(el, names),
-                    _ => {}
+                    JsxChild::Text(_) => {}
                 }
             }
         }
@@ -351,10 +354,7 @@ fn collect_value_names_from_expr(expr: &TypedExpr, names: &mut HashSet<String>) 
             collect_value_names_from_expr(right, names);
         }
         ExprKind::Unary { operand, .. } => collect_value_names_from_expr(operand, names),
-        ExprKind::Unwrap(e) => {
-            collect_value_names_from_expr(e, names);
-        }
-        ExprKind::Value(e) => {
+        ExprKind::Unwrap(e) | ExprKind::Value(e) => {
             collect_value_names_from_expr(e, names);
         }
         ExprKind::Match { subject, arms } => {

@@ -110,6 +110,7 @@ impl<'src> Lexer<'src> {
     }
 
     /// Scan a non-trivia token. Assumes we are NOT at whitespace/comment/EOF.
+    #[allow(clippy::too_many_lines)]
     fn scan_non_trivia_token(&mut self) -> Token {
         let start = self.pos;
         let ch = self.advance();
@@ -527,10 +528,7 @@ impl<'src> Lexer<'src> {
     fn skip_whitespace_and_comments(&mut self) {
         loop {
             match self.peek() {
-                Some(b' ' | b'\t' | b'\r') => {
-                    self.advance();
-                }
-                Some(b'\n') => {
+                Some(b' ' | b'\t' | b'\r' | b'\n') => {
                     self.advance();
                 }
                 // Line comment

@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use super::*;
+use super::{
+    Arg, BinOp, Checker, Diagnostic, ErrorCode, Expr, ExprId, ExprKind, HashMap, Item, ItemKind,
+    MatchArm, Param, ParamDestructure, Span, TemplatePart, Type, TypeDef, TypeExpr, UnaryOp,
+    hydrator, interop, unify,
+};
 use crate::type_layout;
 
 /// Extract chain segments from an expression for chain probe lookup.
@@ -102,6 +106,7 @@ impl Checker {
         ty
     }
 
+    #[allow(clippy::too_many_lines)]
     fn check_expr_inner(&mut self, expr: &Expr) -> Type {
         match &expr.kind {
             ExprKind::Number(_) => Type::Number,
@@ -255,13 +260,12 @@ impl Checker {
                 }
                 last_type
             }),
-            ExprKind::Grouped(inner) => self.check_expr(inner),
+            ExprKind::Grouped(inner) | ExprKind::Spread(inner) => self.check_expr(inner),
             ExprKind::Array(elements) => self.check_array(elements),
             ExprKind::Tuple(elements) => {
                 let types: Vec<Type> = elements.iter().map(|el| self.check_expr(el)).collect();
                 Type::Tuple(types)
             }
-            ExprKind::Spread(inner) => self.check_expr(inner),
             ExprKind::Object(fields) => {
                 let field_types: Vec<(String, Type)> = fields
                     .iter()
@@ -372,7 +376,7 @@ impl Checker {
             UnaryOp::Neg => {
                 if !ty.is_numeric() && !ty.is_undetermined() {
                     self.emit_error(
-                        format!("cannot negate type `{}`, expected `number`", ty),
+                        format!("cannot negate type `{ty}`, expected `number`"),
                         span,
                         ErrorCode::TypeMismatch,
                         "expected `number`",
@@ -503,10 +507,7 @@ impl Checker {
             _ if ty.is_option() => ty.unwrap_option(),
             _ => {
                 self.emit_error(
-                    format!(
-                        "`?` can only be used on `Result` or `Option`, found `{}`",
-                        ty
-                    ),
+                    format!("`?` can only be used on `Result` or `Option`, found `{ty}`"),
                     span,
                     ErrorCode::InvalidTryOperator,
                     "not a `Result` or `Option`",
@@ -587,7 +588,7 @@ impl Checker {
                 // Index must be a number
                 if !matches!(idx_ty, Type::Number | Type::Unknown | Type::Error) {
                     self.emit_error(
-                        format!("array index must be `number`, found `{}`", idx_ty),
+                        format!("array index must be `number`, found `{idx_ty}`"),
                         index.span,
                         ErrorCode::InvalidArrayIndex,
                         "expected `number`",
@@ -635,8 +636,9 @@ impl Checker {
                     Type::Error
                 }
             }
-            Type::Unknown | Type::Error | Type::Foreign { .. } | Type::Never => Type::Error,
-            Type::Var(_) => Type::Error,
+            Type::Unknown | Type::Error | Type::Foreign { .. } | Type::Never | Type::Var(_) => {
+                Type::Error
+            }
             _ => {
                 if let Type::Named(name) = &obj_ty
                     && self.env.lookup_type(name).is_none()
@@ -644,7 +646,7 @@ impl Checker {
                     return Type::Error;
                 }
                 self.emit_error(
-                    format!("cannot use bracket access on type `{}`", obj_ty),
+                    format!("cannot use bracket access on type `{obj_ty}`"),
                     span,
                     ErrorCode::InvalidBracketAccess,
                     "not an array or tuple type",
@@ -721,13 +723,11 @@ impl Checker {
                 {
                     self.emit_error(
                         format!(
-                            "match arms have incompatible types: first arm returns `{}`, this arm returns `{}`",
-                            first_type,
-                            arm_type
+                            "match arms have incompatible types: first arm returns `{first_type}`, this arm returns `{arm_type}`"
                         ),
                         arm.body.span,
                         ErrorCode::TypeMismatch,
-                        format!("expected `{}`", first_type),
+                        format!("expected `{first_type}`"),
                     );
                 }
                 result_type = Some(Self::merge_types(first_type, &arm_type));
@@ -845,6 +845,8 @@ impl Checker {
 
     // ── Call Expression Checking ──────────────────────────────────
 
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     fn check_call(
         &mut self,
         callee: &Expr,
@@ -1444,7 +1446,7 @@ impl Checker {
             )
         {
             self.emit_error_with_help(
-                format!("expected boolean operand for `{op}`, found `{}`", ty),
+                format!("expected boolean operand for `{op}`, found `{ty}`"),
                 span,
                 ErrorCode::TypeMismatch,
                 "expected `boolean`",
@@ -1467,7 +1469,7 @@ impl Checker {
                     && !right_ty.is_undetermined()
                 {
                     self.emit_error_with_help(
-                        format!("cannot compare `{}` with `{}`", left_ty, right_ty),
+                        format!("cannot compare `{left_ty}` with `{right_ty}`"),
                         span,
                         ErrorCode::InvalidComparison,
                         "mismatched types",
@@ -1508,6 +1510,8 @@ impl Checker {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     fn check_construct(
         &mut self,
         type_name: &str,
@@ -1723,10 +1727,10 @@ impl Checker {
                     .iter()
                     .filter_map(|a| match a {
                         Arg::Named { label, .. } => Some(label.as_str()),
-                        _ => None,
+                        Arg::Positional(_) => None,
                     })
                     .collect();
-                for arg in args.iter() {
+                for arg in args {
                     if let Arg::Named { label, .. } = arg
                         && spread_keys.contains(&label.as_str())
                     {
@@ -1743,7 +1747,7 @@ impl Checker {
                 // Spread fields overwritten by an explicit arg are skipped —
                 // the explicit arg is checked below with its own span.
                 if let Some(field_types) = &field_type_map {
-                    for (src_name, src_ty) in spread_fields.iter() {
+                    for (src_name, src_ty) in spread_fields {
                         if explicit_labels.contains(&src_name.as_str()) {
                             continue;
                         }
@@ -1754,12 +1758,11 @@ impl Checker {
                         if !self.types_compatible(target_ty, src_ty) {
                             self.emit_error(
                                 format!(
-                                    "field `{src_name}` from spread: expected `{}`, found `{}`",
-                                    target_ty, src_ty
+                                    "field `{src_name}` from spread: expected `{target_ty}`, found `{src_ty}`"
                                 ),
                                 spread_expr.span,
                                 ErrorCode::TypeMismatch,
-                                format!("expected `{}`", target_ty),
+                                format!("expected `{target_ty}`"),
                             );
                         }
                     }
@@ -1806,13 +1809,10 @@ impl Checker {
                         && !arg_ty.is_undetermined()
                     {
                         self.emit_error(
-                            format!(
-                                "field `{label}`: expected `{}`, found `{}`",
-                                expected_ty, arg_ty
-                            ),
+                            format!("field `{label}`: expected `{expected_ty}`, found `{arg_ty}`"),
                             span,
                             ErrorCode::TypeMismatch,
-                            format!("expected `{}`", expected_ty),
+                            format!("expected `{expected_ty}`"),
                         );
                     }
                 }
@@ -1956,6 +1956,7 @@ impl Checker {
         Type::Named(type_name.to_string())
     }
 
+    #[allow(clippy::too_many_lines)]
     fn check_pipe_right(&mut self, left_ty: &Type, right: &Expr) -> Type {
         // Handle `x |> Module.func` or `x |> Module.func(args)` — stdlib member access
         let member_info = match &right.kind {
@@ -2103,7 +2104,7 @@ impl Checker {
                         if !unified && !self.types_compatible(&resolved_first, left_ty) {
                             let (msg, label) = self.type_mismatch_detail(&resolved_first, left_ty);
                             self.emit_error(
-                                format!("argument 1 to `{name}`: {}", msg),
+                                format!("argument 1 to `{name}`: {msg}"),
                                 right.span,
                                 ErrorCode::TypeMismatch,
                                 label,
@@ -2118,8 +2119,7 @@ impl Checker {
                 _ => {
                     self.emit_error(
                         format!(
-                            "cannot pipe into `{name}`: expected a function, found `{}`",
-                            right_ty
+                            "cannot pipe into `{name}`: expected a function, found `{right_ty}`"
                         ),
                         right.span,
                         ErrorCode::TypeMismatch,
@@ -2157,7 +2157,7 @@ impl Checker {
                 let resolved_first = first_param.resolved();
                 let (msg, label) = self.type_mismatch_detail(&resolved_first, left_ty);
                 self.emit_error(
-                    format!("argument 1 to `{display_name}`: {}", msg),
+                    format!("argument 1 to `{display_name}`: {msg}"),
                     right.span,
                     ErrorCode::TypeMismatch,
                     label,
@@ -2718,6 +2718,7 @@ impl Checker {
         None
     }
 
+    #[allow(clippy::too_many_lines)]
     fn resolve_member_type(&mut self, obj_ty: &Type, field: &str, span: Span) -> Type {
         // Rule 6: No property access on unnarrowed unions
         if obj_ty.is_result() {
@@ -2744,10 +2745,7 @@ impl Checker {
         // Error on member access on Promise — must use Promise.await first
         if let Type::Promise(_) = obj_ty {
             self.emit_error(
-                format!(
-                    "cannot access `.{field}` on `{}` — use `Promise.await` first",
-                    obj_ty
-                ),
+                format!("cannot access `.{field}` on `{obj_ty}` — use `Promise.await` first"),
                 span,
                 ErrorCode::AccessOnPromise,
                 "must use `Promise.await` before accessing members",
@@ -2802,7 +2800,7 @@ impl Checker {
         match obj_ty {
             Type::Number | Type::String | Type::Bool | Type::Unit | Type::Function { .. } => {
                 self.emit_error(
-                    format!("cannot access `.{field}` on type `{}`", obj_ty),
+                    format!("cannot access `.{field}` on type `{obj_ty}`"),
                     span,
                     ErrorCode::InvalidFieldAccess,
                     "not a record type",
@@ -2904,7 +2902,7 @@ impl Checker {
 
         // Fallback: type doesn't support member access
         self.emit_error(
-            format!("cannot access `.{field}` on type `{}`", obj_ty),
+            format!("cannot access `.{field}` on type `{obj_ty}`"),
             span,
             ErrorCode::InvalidFieldAccess,
             "this type does not support member access",
@@ -2935,7 +2933,7 @@ impl Checker {
             return Type::Error;
         }
         self.emit_error_with_help(
-            format!("type `{}` has no field `{field}`", obj_ty),
+            format!("type `{obj_ty}` has no field `{field}`"),
             span,
             ErrorCode::InvalidFieldAccess,
             "unknown field",
@@ -2998,7 +2996,7 @@ impl Checker {
                     }
                 } else {
                     self.emit_error(
-                        format!("cannot destructure parameter of type `{}`", ty),
+                        format!("cannot destructure parameter of type `{ty}`"),
                         span,
                         ErrorCode::TypeMismatch,
                         "destructuring requires a record type".to_string(),
@@ -3020,7 +3018,7 @@ impl Checker {
                     }
                 } else {
                     self.emit_error(
-                        format!("cannot array-destructure parameter of type `{}`", ty),
+                        format!("cannot array-destructure parameter of type `{ty}`"),
                         span,
                         ErrorCode::TypeMismatch,
                         "array destructuring requires an array type".to_string(),
@@ -3092,11 +3090,8 @@ impl Checker {
             && self.types_compatible(expected, inner)
         {
             return Some((
-                format!(
-                    "expected `{}`, found `{}` — did you forget `|> await`?",
-                    expected, found
-                ),
-                format!("expected `{}`", expected),
+                format!("expected `{expected}`, found `{found}` — did you forget `|> await`?"),
+                format!("expected `{expected}`"),
             ));
         }
 
@@ -3112,10 +3107,9 @@ impl Checker {
         {
             return Some((
                 format!(
-                    "expected `{}`, found `{}` — wrap with `Some(...)` or use `None`",
-                    expected, found
+                    "expected `{expected}`, found `{found}` — wrap with `Some(...)` or use `None`"
                 ),
-                format!("expected `{}`", expected),
+                format!("expected `{expected}`"),
             ));
         }
 
@@ -3138,16 +3132,13 @@ impl Checker {
                         if compat {
                             None
                         } else if let Some((msg, _)) = self.extra_mismatch_detail(exp_ty, fnd_ty) {
-                            Some(format!("`{}`: {}", name, msg))
+                            Some(format!("`{name}`: {msg}"))
                         } else {
-                            Some(format!(
-                                "`{}`: expected `{}`, found `{}`",
-                                name, exp_ty, fnd_ty
-                            ))
+                            Some(format!("`{name}`: expected `{exp_ty}`, found `{fnd_ty}`"))
                         }
                     }
                     None if !exp_ty.is_settable() && !exp_ty.is_option() => {
-                        Some(format!("`{}` is missing", name))
+                        Some(format!("`{name}` is missing"))
                     }
                     _ => None,
                 })
@@ -3170,8 +3161,8 @@ impl Checker {
             return detail;
         }
         (
-            format!("expected `{}`, found `{}`", expected, found),
-            format!("expected `{}`", expected),
+            format!("expected `{expected}`, found `{found}`"),
+            format!("expected `{expected}`"),
         )
     }
 }
@@ -3260,7 +3251,7 @@ pub fn simple_resolve_type_expr<T>(type_expr: &crate::parser::ast::TypeExpr<T>) 
             let resolved: Vec<Type> = types.iter().map(simple_resolve_type_expr).collect();
             let mut fields = Vec::new();
             let mut all_records = true;
-            for ty in resolved.iter() {
+            for ty in &resolved {
                 if let Type::Record(f) = ty {
                     fields.extend(f.clone());
                 } else {

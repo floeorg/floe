@@ -5,7 +5,7 @@ use std::sync::Arc;
 use floe_core::checker::ErrorCode;
 use floe_core::diagnostic::{self as floe_diag};
 use floe_core::interop;
-use floe_core::parser::ast::*;
+use floe_core::parser::ast::{ItemKind, Program};
 use floe_core::resolve::TsconfigPaths;
 
 use super::index::SymbolIndex;

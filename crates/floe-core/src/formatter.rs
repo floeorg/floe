@@ -209,6 +209,7 @@ impl<'src> Formatter<'src> {
         }
     }
 
+    #[allow(clippy::unused_self)]
     fn inner_decl_kind(&self, node: &SyntaxNode) -> Option<SyntaxKind> {
         match node.kind() {
             SyntaxKind::ITEM => node.children().next().map(|c| c.kind()),
@@ -271,11 +272,13 @@ impl<'src> Formatter<'src> {
 
     // ── CST query helpers ───────────────────────────────────────
 
+    #[allow(clippy::unused_self)]
     pub(crate) fn has_token(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
         node.children_with_tokens()
             .any(|t| t.as_token().is_some_and(|t| t.kind() == kind))
     }
 
+    #[allow(clippy::unused_self)]
     pub(crate) fn first_ident(&self, node: &SyntaxNode) -> Option<String> {
         node.children_with_tokens()
             .filter_map(|t| t.into_token())
@@ -299,6 +302,7 @@ impl<'src> Formatter<'src> {
         self.collect_idents_until(node, |k| k == SyntaxKind::EQUAL || k == SyntaxKind::COLON)
     }
 
+    #[allow(clippy::unused_self)]
     fn collect_idents_until(
         &self,
         node: &SyntaxNode,
@@ -318,6 +322,7 @@ impl<'src> Formatter<'src> {
         idents
     }
 
+    #[allow(clippy::unused_self)]
     pub(crate) fn collect_destructure_fields(&self, node: &SyntaxNode) -> Vec<String> {
         let mut fields = Vec::new();
         let mut current_field: Option<String> = None;
@@ -358,6 +363,7 @@ impl<'src> Formatter<'src> {
         fields
     }
 
+    #[allow(clippy::unused_self)]
     pub(crate) fn has_paren_destructuring(&self, node: &SyntaxNode) -> bool {
         for t in node.children_with_tokens() {
             if let Some(tok) = t.as_token() {
@@ -372,6 +378,7 @@ impl<'src> Formatter<'src> {
         false
     }
 
+    #[allow(clippy::unused_self)]
     pub(crate) fn has_brace_destructuring(&self, node: &SyntaxNode) -> bool {
         for t in node.children_with_tokens() {
             if let Some(tok) = t.as_token() {
@@ -386,6 +393,7 @@ impl<'src> Formatter<'src> {
         false
     }
 
+    #[allow(clippy::unused_self)]
     pub(crate) fn find_expr_after_eq(&self, node: &SyntaxNode) -> Option<SyntaxNode> {
         let mut past_eq = false;
         for child_or_tok in node.children_with_tokens() {
@@ -457,6 +465,7 @@ impl<'src> Formatter<'src> {
     }
 
     /// Get the first non-trivia, non-delimiter token text
+    #[allow(clippy::unused_self)]
     pub(crate) fn first_content_token(&self, node: &SyntaxNode) -> Option<String> {
         node.children_with_tokens()
             .filter_map(|t| t.into_token())

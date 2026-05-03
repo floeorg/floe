@@ -1,9 +1,10 @@
-use super::*;
+use super::{CstParser, SyntaxKind, TokenKind};
 use crate::lexer::token::BannedKeyword;
 
 impl<'src> CstParser<'src> {
     // ── Items ────────────────────────────────────────────────────
 
+    #[allow(clippy::too_many_lines)]
     pub(super) fn parse_item(&mut self) {
         let checkpoint = self.builder.checkpoint();
 
@@ -93,7 +94,7 @@ impl<'src> CstParser<'src> {
                 self.parse_const_decl();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Opaque) | Some(TokenKind::Type) | Some(TokenKind::Typealias) => {
+            Some(TokenKind::Opaque | TokenKind::Type | TokenKind::Typealias) => {
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_type_decl();
@@ -178,7 +179,7 @@ impl<'src> CstParser<'src> {
             self.bump();
             self.eat_trivia();
         }
-        self.expect_kind(TokenKind::String("".into()));
+        self.expect_kind(TokenKind::String(String::new()));
 
         self.builder.finish_node();
     }
@@ -195,7 +196,7 @@ impl<'src> CstParser<'src> {
 
         self.expect(TokenKind::From);
         self.eat_trivia();
-        self.expect_kind(TokenKind::String("".into()));
+        self.expect_kind(TokenKind::String(String::new()));
 
         self.builder.finish_node();
     }
@@ -599,8 +600,7 @@ impl<'src> CstParser<'src> {
         };
 
         match tok {
-            TokenKind::VerticalBar => true,
-            TokenKind::LeftParen => true,
+            TokenKind::VerticalBar | TokenKind::LeftParen => true,
             TokenKind::LeftBrace => {
                 let after = self.skip_balanced(i + 1, |k| match k {
                     TokenKind::LeftBrace => 1,
@@ -682,7 +682,7 @@ impl<'src> CstParser<'src> {
         while self.at(TokenKind::VerticalBar) {
             self.bump(); // |
             self.eat_trivia();
-            if self.at(TokenKind::String("".into())) {
+            if self.at(TokenKind::String(String::new())) {
                 self.bump(); // string
                 self.eat_trivia();
             } else {
@@ -1012,7 +1012,7 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Test name (string literal)
-        self.expect_kind(TokenKind::String("".into()));
+        self.expect_kind(TokenKind::String(String::new()));
         self.eat_trivia();
 
         self.expect(TokenKind::LeftBrace);

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::*;
+use super::{Checker, ErrorCode, Span, Type, TypeExpr, TypeExprKind, expr, type_layout, type_var};
 
 impl Checker {
     pub(crate) fn resolve_type(&mut self, type_expr: &TypeExpr) -> Type {
@@ -109,6 +109,7 @@ impl Checker {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn resolve_named_type(
         &mut self,
         name: &str,

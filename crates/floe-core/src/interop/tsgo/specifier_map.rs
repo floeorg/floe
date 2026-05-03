@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use super::probe_gen::{expr_to_callee_name, unwrap_try_await_expr};
 
-use crate::parser::ast::*;
+use crate::parser::ast::{ConstBinding, ExprKind, ItemKind, Program};
 
 use super::probe_gen::collect_all_consts;
 use super::{DtsExport, TsType};
@@ -15,6 +15,7 @@ use super::{DtsExport, TsType};
 /// The probe uses `_r0`, `_r1`, etc. as export names. We map these back
 /// to the original import specifiers by replaying the same probe generation
 /// logic to know which index corresponds to which import.
+#[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
 pub(super) fn build_specifier_map(
     program: &Program,
     probe_exports: &[DtsExport],
@@ -57,7 +58,7 @@ pub(super) fn build_specifier_map(
                     .entry(specifier.clone())
                     .or_default()
                     .push(DtsExport {
-                        name: format!("__probe_{}", binding_name),
+                        name: format!("__probe_{binding_name}"),
                         ts_type: export.ts_type.clone(),
                     });
             }
@@ -90,7 +91,7 @@ pub(super) fn build_specifier_map(
                         .iter()
                         .enumerate()
                         .map(|(i, _)| {
-                            let elem_name = format!("_r{}_{i}", probe_index);
+                            let elem_name = format!("_r{probe_index}_{i}");
                             probe_exports
                                 .iter()
                                 .find(|e| e.name == elem_name)
@@ -102,7 +103,7 @@ pub(super) fn build_specifier_map(
                         .entry(specifier.clone())
                         .or_default()
                         .push(DtsExport {
-                            name: format!("__probe_{}", binding_name),
+                            name: format!("__probe_{binding_name}"),
                             ts_type: TsType::Tuple(elem_types),
                         });
                 } else if let ConstBinding::Object(fields) = &decl.binding {
@@ -142,13 +143,12 @@ pub(super) fn build_specifier_map(
                             .entry(specifier.clone())
                             .or_default()
                             .push(DtsExport {
-                                name: format!("__probe_{}", binding_name),
+                                name: format!("__probe_{binding_name}"),
                                 ts_type: export.ts_type.clone(),
                             });
                     }
                 }
                 probe_index += 1;
-                continue;
             }
         }
     }

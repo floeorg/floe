@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    ExprKind, ItemKind, LiteralPattern, Pattern, PatternKind, StringPatternSegment, TypedExpr,
+    TypedMatchArm,
+};
 use crate::pretty::{self, Document};
 use crate::type_layout;
 
@@ -106,6 +109,8 @@ impl<'a> TypeScriptGenerator<'a> {
         pretty::concat(docs)
     }
 
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     fn emit_pattern_condition(&mut self, subject: &TypedExpr, pattern: &Pattern) -> Document {
         match &pattern.kind {
             PatternKind::Literal(lit) => {
@@ -300,7 +305,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 .iter()
                 .filter_map(|seg| match seg {
                     StringPatternSegment::Capture(name) => Some(name.as_str()),
-                    _ => None,
+                    StringPatternSegment::Literal(_) => None,
                 })
                 .collect();
 
@@ -387,6 +392,7 @@ impl<'a> TypeScriptGenerator<'a> {
         }
     }
 
+    #[allow(clippy::unused_self)]
     fn emit_literal_pattern(&self, lit: &LiteralPattern) -> Document {
         match lit {
             LiteralPattern::Number(n) => pretty::str(n),
@@ -459,8 +465,10 @@ fn collect_bindings_inner(
                 bindings.push((name.clone(), rest_access));
             }
         }
-        PatternKind::StringPattern { .. } => {}
-        PatternKind::Wildcard | PatternKind::Literal(_) | PatternKind::Range { .. } => {}
+        PatternKind::StringPattern { .. }
+        | PatternKind::Wildcard
+        | PatternKind::Literal(_)
+        | PatternKind::Range { .. } => {}
     }
 }
 

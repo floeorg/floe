@@ -131,23 +131,23 @@ impl SourceMapBuilder {
             first_in_line = false;
 
             // Field 1: generated column (relative to previous in same line)
-            let gen_col_delta = mapping.gen_col as i64 - prev_gen_col;
+            let gen_col_delta = i64::from(mapping.gen_col) - prev_gen_col;
             encode_vlq(&mut result, gen_col_delta);
 
             // Field 2: source index (always 0, delta from previous)
             encode_vlq(&mut result, 0);
 
             // Field 3: source line (relative to previous)
-            let src_line_delta = mapping.src_line as i64 - prev_src_line;
+            let src_line_delta = i64::from(mapping.src_line) - prev_src_line;
             encode_vlq(&mut result, src_line_delta);
 
             // Field 4: source column (relative to previous)
-            let src_col_delta = mapping.src_col as i64 - prev_src_col;
+            let src_col_delta = i64::from(mapping.src_col) - prev_src_col;
             encode_vlq(&mut result, src_col_delta);
 
-            prev_gen_col = mapping.gen_col as i64;
-            prev_src_line = mapping.src_line as i64;
-            prev_src_col = mapping.src_col as i64;
+            prev_gen_col = i64::from(mapping.gen_col);
+            prev_src_line = i64::from(mapping.src_line);
+            prev_src_col = i64::from(mapping.src_col);
         }
 
         result

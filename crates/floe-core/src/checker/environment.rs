@@ -152,7 +152,6 @@ impl TypeEnv {
                     ty.clone()
                 }
             }
-            Type::Promise(_) => ty.clone(),
             _ => ty.clone(),
         }
     }

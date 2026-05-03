@@ -1,5 +1,5 @@
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 
 use floe_core::checker::Type;
 
@@ -10,6 +10,8 @@ use super::{
 };
 
 impl FloeLsp {
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     pub(super) async fn handle_hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
@@ -86,7 +88,7 @@ impl FloeLsp {
                 return Ok(Some(Hover {
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
-                        value: format!("```floe\n{word}: {}\n```", ty),
+                        value: format!("```floe\n{word}: {ty}\n```"),
                     }),
                     range: None,
                 }));
@@ -175,7 +177,7 @@ impl FloeLsp {
                     return Ok(Some(Hover {
                         contents: HoverContents::Markup(MarkupContent {
                             kind: MarkupKind::Markdown,
-                            value: format!("```floe\n(property) {word}: {}\n```", ty),
+                            value: format!("```floe\n(property) {word}: {ty}\n```"),
                         }),
                         range: None,
                     }));
@@ -199,7 +201,7 @@ impl FloeLsp {
                 return Ok(Some(Hover {
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
-                        value: format!("```floe\n(property) {word}: {}\n```", ty),
+                        value: format!("```floe\n(property) {word}: {ty}\n```"),
                     }),
                     range: None,
                 }));
@@ -224,7 +226,7 @@ impl FloeLsp {
                 return Ok(Some(Hover {
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
-                        value: format!("```floe\n{word}: {}\n```", ty),
+                        value: format!("```floe\n{word}: {ty}\n```"),
                     }),
                     range: None,
                 }));
@@ -260,7 +262,7 @@ impl FloeLsp {
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
                     kind: MarkupKind::Markdown,
-                    value: format!("```floe\n{word}: {}\n```", ty),
+                    value: format!("```floe\n{word}: {ty}\n```"),
                 }),
                 range: None,
             }));

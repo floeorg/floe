@@ -1,4 +1,4 @@
-use crate::parser::ast::*;
+use crate::parser::ast::{TypeExprKind, TypedTypeExpr};
 use crate::pretty::{self, Document};
 use crate::type_layout;
 use crate::type_layout::{ERROR_FIELD, OK_FIELD, VALUE_FIELD};

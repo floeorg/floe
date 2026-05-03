@@ -361,6 +361,7 @@ fn cmd_check(path: &Path) -> Result<()> {
 
 // ── Test ─────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_lines)]
 fn cmd_test(path: &Path) -> Result<()> {
     let files = discover_fl_files(path)?;
     if files.is_empty() {
@@ -464,7 +465,7 @@ fn cmd_test(path: &Path) -> Result<()> {
                     ran = true;
                     break;
                 }
-                Err(_) => continue,
+                Err(_) => {}
             }
         }
 

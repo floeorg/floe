@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::parser::ast::*;
+use crate::parser::ast::{ItemKind, Program};
 
 use super::{DtsExport, TsType};
 

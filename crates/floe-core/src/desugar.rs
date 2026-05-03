@@ -11,7 +11,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::parser::ast::*;
+use crate::parser::ast::{Arg, Expr, ExprKind, ItemKind, Param, Program, TypeDef};
 use crate::resolve::ResolvedImports;
 use crate::walk;
 
@@ -175,7 +175,7 @@ fn expand_construct_defaults(expr: &mut Expr, type_defs: &HashMap<String, TypeDe
         .iter()
         .filter_map(|a| match a {
             Arg::Named { label, .. } => Some(label.clone()),
-            _ => None,
+            Arg::Positional(_) => None,
         })
         .collect();
 

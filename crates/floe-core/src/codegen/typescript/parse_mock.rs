@@ -1,4 +1,6 @@
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    Arg, RecordEntry, TypeDef, TypeExprKind, TypedArg, TypedExpr, TypedTypeDef, TypedTypeExpr,
+};
 use crate::pretty::{self, Document};
 use crate::type_layout::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
 
@@ -139,6 +141,7 @@ impl<'a> TypeScriptGenerator<'a> {
         }
     }
 
+    #[allow(clippy::unused_self)]
     fn emit_typeof_check(&self, out: &mut String, accessor: &str, expected: &str, path: &str) {
         let err_prefix = if path.is_empty() {
             String::new()
@@ -161,6 +164,7 @@ impl<'a> TypeScriptGenerator<'a> {
         self.emit_mock_for_type(type_arg, overrides, counter, "")
     }
 
+    #[allow(clippy::too_many_lines)]
     fn emit_mock_for_type(
         &mut self,
         type_expr: &TypedTypeExpr,
@@ -179,11 +183,11 @@ impl<'a> TypeScriptGenerator<'a> {
                     } else {
                         field_name
                     };
-                    pretty::str(format!("\"mock-{label}-{}\"", counter))
+                    pretty::str(format!("\"mock-{label}-{counter}\""))
                 }
                 "number" => {
                     *counter += 1;
-                    pretty::str(format!("{}", counter))
+                    pretty::str(format!("{counter}"))
                 }
                 "boolean" => {
                     let result = if (*counter).is_multiple_of(2) {
@@ -271,6 +275,7 @@ impl<'a> TypeScriptGenerator<'a> {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn emit_mock_for_typedef(
         &mut self,
         type_def: &TypedTypeDef,

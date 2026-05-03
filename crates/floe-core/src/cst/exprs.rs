@@ -1,4 +1,4 @@
-use super::*;
+use super::{CstParser, SyntaxKind, TokenKind};
 
 impl<'src> CstParser<'src> {
     // ── Expressions ─────────────────────────────────────────────
@@ -119,7 +119,7 @@ impl<'src> CstParser<'src> {
 
     fn parse_unary_expr(&mut self) {
         match self.current_kind() {
-            Some(TokenKind::Bang) | Some(TokenKind::Minus) => {
+            Some(TokenKind::Bang | TokenKind::Minus) => {
                 self.builder.start_node(SyntaxKind::UNARY_EXPR.into());
                 self.bump();
                 self.eat_trivia();
@@ -153,32 +153,34 @@ impl<'src> CstParser<'src> {
                     if self.is_ident()
                         || matches!(
                             self.current_kind(),
-                            Some(TokenKind::Number(_))
-                                | Some(TokenKind::Banned(_))
-                                | Some(TokenKind::Parse)
-                                | Some(TokenKind::Match)
-                                | Some(TokenKind::For)
-                                | Some(TokenKind::From)
-                                | Some(TokenKind::Type)
-                                | Some(TokenKind::Export)
-                                | Some(TokenKind::Import)
-                                | Some(TokenKind::Let)
-                                | Some(TokenKind::Fn)
-                                | Some(TokenKind::Trait)
-                                | Some(TokenKind::Collect)
-                                | Some(TokenKind::Impl)
-                                | Some(TokenKind::When)
-                                | Some(TokenKind::SelfKw)
-                                | Some(TokenKind::Value)
-                                | Some(TokenKind::Clear)
-                                | Some(TokenKind::Unchanged)
-                                | Some(TokenKind::Todo)
-                                | Some(TokenKind::Unreachable)
-                                | Some(TokenKind::Mock)
-                                | Some(TokenKind::Assert)
-                                | Some(TokenKind::Typeof)
-                                | Some(TokenKind::Opaque)
-                                | Some(TokenKind::Trusted)
+                            Some(
+                                TokenKind::Number(_)
+                                    | TokenKind::Banned(_)
+                                    | TokenKind::Parse
+                                    | TokenKind::Match
+                                    | TokenKind::For
+                                    | TokenKind::From
+                                    | TokenKind::Type
+                                    | TokenKind::Export
+                                    | TokenKind::Import
+                                    | TokenKind::Let
+                                    | TokenKind::Fn
+                                    | TokenKind::Trait
+                                    | TokenKind::Collect
+                                    | TokenKind::Impl
+                                    | TokenKind::When
+                                    | TokenKind::SelfKw
+                                    | TokenKind::Value
+                                    | TokenKind::Clear
+                                    | TokenKind::Unchanged
+                                    | TokenKind::Todo
+                                    | TokenKind::Unreachable
+                                    | TokenKind::Mock
+                                    | TokenKind::Assert
+                                    | TokenKind::Typeof
+                                    | TokenKind::Opaque
+                                    | TokenKind::Trusted
+                            )
                         )
                     {
                         self.bump();
@@ -244,17 +246,20 @@ impl<'src> CstParser<'src> {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn parse_primary_expr(&mut self) {
         match self.current_kind() {
-            Some(TokenKind::Number(_)) => self.bump(),
-            Some(TokenKind::String(_)) => self.bump(),
-            Some(TokenKind::TemplateLiteral(_)) => self.bump(),
-            Some(TokenKind::Bool(_)) => self.bump(),
-            Some(TokenKind::Underscore) => self.bump(),
-            Some(TokenKind::Clear) => self.bump(),
-            Some(TokenKind::Unchanged) => self.bump(),
-            Some(TokenKind::Todo) => self.bump(),
-            Some(TokenKind::Unreachable) => self.bump(),
+            Some(
+                TokenKind::Number(_)
+                | TokenKind::String(_)
+                | TokenKind::TemplateLiteral(_)
+                | TokenKind::Bool(_)
+                | TokenKind::Underscore
+                | TokenKind::Clear
+                | TokenKind::Unchanged
+                | TokenKind::Todo
+                | TokenKind::Unreachable,
+            ) => self.bump(),
 
             Some(TokenKind::Value) => {
                 self.builder.start_node(SyntaxKind::VALUE_EXPR.into());
@@ -289,8 +294,6 @@ impl<'src> CstParser<'src> {
                 }
                 self.builder.finish_node();
             }
-            Some(TokenKind::Parse) => self.bump_remap(SyntaxKind::IDENT),
-
             Some(TokenKind::Mock) if self.peek_is(TokenKind::LessThan) => {
                 self.builder.start_node(SyntaxKind::MOCK_EXPR.into());
                 self.bump(); // mock
@@ -320,7 +323,6 @@ impl<'src> CstParser<'src> {
                 }
                 self.builder.finish_node();
             }
-            Some(TokenKind::Mock) => self.bump_remap(SyntaxKind::IDENT),
 
             Some(TokenKind::Match) => self.parse_match_expr(),
             Some(TokenKind::Collect) if self.peek_is(TokenKind::LeftBrace) => {
@@ -330,7 +332,6 @@ impl<'src> CstParser<'src> {
                 self.parse_block_expr();
                 self.builder.finish_node();
             }
-            Some(TokenKind::Collect) => self.bump_remap(SyntaxKind::IDENT),
             Some(TokenKind::LeftBrace) => {
                 if self.is_object_literal() {
                     self.parse_object_literal();
@@ -399,9 +400,14 @@ impl<'src> CstParser<'src> {
 
             // These are keywords only at item-declaration positions; in
             // expression position they're plain identifier reads.
-            Some(TokenKind::Type | TokenKind::Opaque | TokenKind::Trusted) => {
-                self.bump_remap(SyntaxKind::IDENT)
-            }
+            Some(
+                TokenKind::Parse
+                | TokenKind::Mock
+                | TokenKind::Collect
+                | TokenKind::Type
+                | TokenKind::Opaque
+                | TokenKind::Trusted,
+            ) => self.bump_remap(SyntaxKind::IDENT),
 
             Some(TokenKind::Identifier(name)) => {
                 let name = name.clone();
@@ -466,7 +472,7 @@ impl<'src> CstParser<'src> {
             _ => {
                 self.builder.start_node(SyntaxKind::ERROR.into());
                 if let Some(kind) = self.current_kind() {
-                    self.error(&format!("unexpected token: {:?}", kind));
+                    self.error(&format!("unexpected token: {kind:?}"));
                     self.bump();
                 }
                 self.builder.finish_node();
@@ -548,10 +554,7 @@ impl<'src> CstParser<'src> {
 
             // Punning: `label:` without a value — next non-trivia is `)` or `,`
             let next = self.next_non_trivia_kind();
-            let is_pun = matches!(
-                next,
-                Some(TokenKind::RightParen) | Some(TokenKind::Comma) | None
-            );
+            let is_pun = matches!(next, Some(TokenKind::RightParen | TokenKind::Comma) | None);
             if !is_pun {
                 self.eat_trivia();
                 self.parse_expr();
@@ -690,17 +693,12 @@ impl<'src> CstParser<'src> {
 
     // ── Pattern ─────────────────────────────────────────────────
 
+    #[allow(clippy::too_many_lines)]
     fn parse_pattern(&mut self) {
         self.builder.start_node(SyntaxKind::PATTERN.into());
 
         match self.current_kind() {
-            Some(TokenKind::Underscore) => {
-                self.bump();
-            }
-            Some(TokenKind::Bool(_)) => {
-                self.bump();
-            }
-            Some(TokenKind::String(_)) => {
+            Some(TokenKind::Underscore | TokenKind::Bool(_) | TokenKind::String(_)) => {
                 self.bump();
             }
             Some(TokenKind::Minus) => {
@@ -746,7 +744,7 @@ impl<'src> CstParser<'src> {
                         // Expect identifier or _ after ..
                         if matches!(
                             self.current_kind(),
-                            Some(TokenKind::Identifier(_)) | Some(TokenKind::Underscore)
+                            Some(TokenKind::Identifier(_) | TokenKind::Underscore)
                         ) {
                             self.bump();
                         } else {

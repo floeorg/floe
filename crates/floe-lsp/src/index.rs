@@ -9,11 +9,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{CompletionItemKind, SymbolKind};
 
 use floe_core::checker::{Type, simple_resolve_type_expr};
 use floe_core::formatter;
-use floe_core::parser::ast::*;
+use floe_core::parser::ast::{
+    Arg, ConstBinding, ExprKind, FunctionDecl, ItemKind, JsxChild, JsxElementKind, JsxProp,
+    LiteralPattern, PatternKind, RecordEntry, TypeDef, TypeExpr, TypeExprKind, TypedArg, TypedExpr,
+    TypedItem, TypedJsxElement, TypedParam, TypedProgram, UnaryOp, VariantField,
+};
 
 pub(super) fn symbol_kind_to_completion(kind: SymbolKind) -> CompletionItemKind {
     match kind {
@@ -127,6 +131,8 @@ impl SymbolIndex {
     }
 }
 
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::cognitive_complexity)]
 fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
     for item in items {
         match &item.kind {
@@ -371,8 +377,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
                         (body, alias_kind_tag(ty))
                     }
                     TypeDef::StringLiteralUnion(variants) => {
-                        let vs: Vec<String> =
-                            variants.iter().map(|v| format!("\"{}\"", v)).collect();
+                        let vs: Vec<String> = variants.iter().map(|v| format!("\"{v}\"")).collect();
                         let body = format!(" = {}", vs.join(" | "));
                         (body, "[union — structural]".to_string())
                     }
@@ -573,7 +578,7 @@ fn collect_items(items: &[TypedItem], symbols: &mut Vec<Symbol>) {
 /// Walk an expression tree to find symbols inside blocks, arrows, etc.
 fn collect_expr(expr: &TypedExpr, symbols: &mut Vec<Symbol>) {
     match &expr.kind {
-        ExprKind::Block(items) => {
+        ExprKind::Block(items) | ExprKind::Collect(items) => {
             collect_items(items, symbols);
         }
         ExprKind::Arrow { params, body, .. } => {
@@ -628,9 +633,6 @@ fn collect_expr(expr: &TypedExpr, symbols: &mut Vec<Symbol>) {
         }
         ExprKind::Member { object, .. } => {
             collect_expr(object, symbols);
-        }
-        ExprKind::Collect(items) => {
-            collect_items(items, symbols);
         }
         ExprKind::Jsx(element) => {
             collect_jsx(element, symbols);
@@ -722,7 +724,7 @@ fn collect_jsx(element: &TypedJsxElement, symbols: &mut Vec<Symbol>) {
                 JsxProp::Named { value: Some(e), .. } | JsxProp::Spread { expr: e, .. } => {
                     collect_expr(e, symbols);
                 }
-                _ => {}
+                JsxProp::Named { .. } => {}
             }
         }
     }
@@ -763,7 +765,7 @@ fn push_param_symbol(param: &TypedParam, symbols: &mut Vec<Symbol>) {
 fn expr_to_short_string(expr: &TypedExpr) -> String {
     match &expr.kind {
         ExprKind::Number(n) => n.clone(),
-        ExprKind::String(s) => format!("\"{}\"", s),
+        ExprKind::String(s) => format!("\"{s}\""),
         ExprKind::Bool(b) => b.to_string(),
         ExprKind::Identifier(name) => name.clone(),
         ExprKind::Array(items) if items.is_empty() => "[]".to_string(),

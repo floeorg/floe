@@ -137,6 +137,7 @@ impl Formatter<'_> {
         pretty::concat(parts)
     }
 
+    #[allow(clippy::unused_self)]
     fn fmt_reexport_specifier(&self, node: &SyntaxNode) -> Document {
         let idents: Vec<_> = node
             .children_with_tokens()
@@ -308,6 +309,7 @@ impl Formatter<'_> {
         pretty::concat(parts)
     }
 
+    #[allow(clippy::unused_self)]
     fn fmt_use_binding(&self, node: &SyntaxNode) -> String {
         let mut out = String::new();
         for child in node.children_with_tokens() {
@@ -348,12 +350,13 @@ impl Formatter<'_> {
                 rowan::NodeOrToken::Token(tok) if !tok.kind().is_trivia() => {
                     parts.push(pretty::str(tok.text().to_string()));
                 }
-                _ => {}
+                rowan::NodeOrToken::Token(_) => {}
             }
         }
         pretty::concat(parts)
     }
 
+    #[allow(clippy::unused_self)]
     fn fmt_type_params(&self, node: &SyntaxNode) -> Document {
         let mut in_angle = false;
         let mut started = false;
@@ -631,6 +634,7 @@ impl Formatter<'_> {
         }
     }
 
+    #[allow(clippy::unused_self)]
     fn fmt_string_union_def(&self, node: &SyntaxNode) -> Document {
         let mut parts = Vec::new();
         let mut first = true;
@@ -798,6 +802,7 @@ impl Formatter<'_> {
         pretty::concat(parts)
     }
 
+    #[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
     pub(crate) fn fmt_type_expr(&mut self, node: &SyntaxNode) -> Document {
         let idents = self.collect_idents(node);
         let has_fat_arrow = self.has_token(node, SyntaxKind::THIN_ARROW);

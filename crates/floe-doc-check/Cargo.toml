@@ -20,3 +20,6 @@ floe-core = { path = "../floe-core" }
 anyhow.workspace = true
 clap.workspace = true
 walkdir = "2"
+
+[lints]
+workspace = true

@@ -1,4 +1,4 @@
-use crate::parser::ast::*;
+use crate::parser::ast::{Arg, ExprKind, TypedArg, TypedExpr};
 use crate::pretty::{self, Document};
 
 use super::super::has_placeholder_arg;
@@ -157,6 +157,7 @@ impl<'a> TypeScriptGenerator<'a> {
         None
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(super) fn emit_pipe(&mut self, left: &TypedExpr, right: &TypedExpr) -> Document {
         match &right.kind {
             ExprKind::Call { callee, args, .. } if !has_placeholder_arg(args) => {

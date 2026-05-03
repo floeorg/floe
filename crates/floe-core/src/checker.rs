@@ -96,8 +96,9 @@ pub(crate) fn body_has_promise_await<T>(expr: &Expr<T>) -> bool {
                         Arg::Positional(e) | Arg::Named { value: e, .. } => walk(e),
                     })
             }
-            ExprKind::Pipe { left, right } => walk(left) || walk(right),
-            ExprKind::Binary { left, right, .. } => walk(left) || walk(right),
+            ExprKind::Pipe { left, right } | ExprKind::Binary { left, right, .. } => {
+                walk(left) || walk(right)
+            }
             ExprKind::Member { object, .. } => walk(object),
             ExprKind::Unary { operand, .. }
             | ExprKind::Grouped(operand)
@@ -108,7 +109,7 @@ pub(crate) fn body_has_promise_await<T>(expr: &Expr<T>) -> bool {
                 match &item.kind {
                     ItemKind::Expr(e) => walk(e),
                     ItemKind::Const(c) => walk(&c.value),
-                    ItemKind::Function(_) => false, // don't descend into nested functions
+                    // don't descend into nested functions
                     _ => false,
                 }
             }),
@@ -117,7 +118,6 @@ pub(crate) fn body_has_promise_await<T>(expr: &Expr<T>) -> bool {
             }
             ExprKind::Array(items) | ExprKind::Tuple(items) => items.iter().any(walk),
             // Don't recurse into nested arrows — they're separate async contexts
-            ExprKind::Arrow { .. } => false,
             _ => false,
         }
     }
@@ -127,7 +127,14 @@ pub(crate) fn body_has_promise_await<T>(expr: &Expr<T>) -> bool {
 use crate::diagnostic::Diagnostic;
 use crate::interop::{self, DtsExport};
 use crate::lexer::span::Span;
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    Arg, BinOp, ConstBinding, ConstDecl, DefaultExportDecl, Expr, ExprKind, ForBlock, FunctionDecl,
+    ImportDecl, Item, ItemKind, JsxChild, JsxElement, JsxElementKind, JsxProp, LiteralPattern,
+    MatchArm, ObjectDestructureField, Param, ParamDestructure, Pattern, PatternKind, Program,
+    RecordEntry, RecordField, StringPatternSegment, TemplatePart, TestBlock, TestStatement,
+    TraitDecl, TypeDecl, TypeDef, TypeExpr, TypeExprKind, UnaryOp, VariantPatternFields,
+    params_have_self,
+};
 use crate::resolve::ResolvedImports;
 use crate::stdlib::StdlibRegistry;
 use crate::type_layout;
@@ -309,6 +316,7 @@ impl Default for Checker {
 }
 
 impl Checker {
+    #[allow(clippy::too_many_lines)]
     pub fn new() -> Self {
         let mut env = TypeEnv::new();
 
@@ -685,6 +693,8 @@ impl Checker {
     /// that need additional state off the checker (references, traits,
     /// etc.) can read it afterward.
     #[allow(clippy::type_complexity)]
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     pub(crate) fn check_all(
         &mut self,
         program: &Program,
@@ -762,7 +772,7 @@ impl Checker {
                 self.env.define(&func.name, fn_type);
                 self.unused
                     .defined_sources
-                    .insert(func.name.clone(), format!("function from \"{}\"", source));
+                    .insert(func.name.clone(), format!("function from \"{source}\""));
                 if required_params < func.params.len() {
                     self.fn_required_params
                         .insert(func.name.clone(), required_params);

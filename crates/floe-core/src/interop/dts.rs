@@ -12,7 +12,10 @@ use oxc_ast::ast::{
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
-use super::*;
+use super::{FunctionParam, HashMap, ObjectField, Path, PathBuf, TsType};
+
+#[cfg(test)]
+use super::ts_types::{find_matching_paren, parse_param_types, parse_type_str};
 
 /// An export entry from a .d.ts file.
 #[derive(Debug, Clone)]
@@ -193,6 +196,7 @@ struct ParseResult {
     module_block_exports: HashMap<String, Vec<DtsExport>>,
 }
 
+#[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
 fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
     let allocator = Allocator::default();
     let source_type = SourceType::d_ts();
@@ -1095,7 +1099,6 @@ fn merge_intersection(parts: Vec<TsType>) -> TsType {
     match (merged_fields.is_empty(), non_object.len()) {
         (true, 0) => TsType::Object(Vec::new()),
         (true, 1) => non_object.into_iter().next().unwrap(),
-        (false, 0) => TsType::Object(merged_fields),
         (false, _) => TsType::Object(merged_fields),
         (true, _) => pick_most_specific(non_object),
     }
@@ -1943,7 +1946,7 @@ pub(super) fn strip_import_sentinels(ty: &mut TsType) {
                 strip_import_sentinels(arg);
             }
         }
-        TsType::Union(parts) => {
+        TsType::Union(parts) | TsType::Tuple(parts) => {
             for p in parts {
                 strip_import_sentinels(p);
             }
@@ -1962,11 +1965,6 @@ pub(super) fn strip_import_sentinels(ty: &mut TsType) {
                 strip_import_sentinels(&mut p.ty);
             }
             strip_import_sentinels(return_type);
-        }
-        TsType::Tuple(parts) => {
-            for p in parts {
-                strip_import_sentinels(p);
-            }
         }
         _ => {}
     }
@@ -2040,7 +2038,7 @@ pub(super) fn expand_cross_module_aliases(
                 expand_cross_module_aliases(ty, aliases_by_module, depth + 1);
             }
         }
-        TsType::Union(parts) => {
+        TsType::Union(parts) | TsType::Tuple(parts) => {
             for p in parts {
                 expand_cross_module_aliases(p, aliases_by_module, depth + 1);
             }
@@ -2059,11 +2057,6 @@ pub(super) fn expand_cross_module_aliases(
                 expand_cross_module_aliases(&mut p.ty, aliases_by_module, depth + 1);
             }
             expand_cross_module_aliases(return_type, aliases_by_module, depth + 1);
-        }
-        TsType::Tuple(parts) => {
-            for p in parts {
-                expand_cross_module_aliases(p, aliases_by_module, depth + 1);
-            }
         }
         _ => {}
     }
@@ -2117,9 +2110,8 @@ pub(super) fn collect_referenced_modules(ty: &TsType, out: &mut HashSet<String>)
 pub(super) fn collect_function_aliases_from_file(
     path: &std::path::Path,
 ) -> HashMap<String, TypeAliasDef> {
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return HashMap::new(),
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return HashMap::new();
     };
     let allocator = Allocator::default();
     let source_type = SourceType::tsx();
@@ -2203,7 +2195,7 @@ fn substitute_type_params(ty: &mut TsType, subst: &HashMap<String, TsType>) {
                 }
             }
         }
-        TsType::Union(parts) => {
+        TsType::Union(parts) | TsType::Tuple(parts) => {
             for p in parts {
                 substitute_type_params(p, subst);
             }
@@ -2222,11 +2214,6 @@ fn substitute_type_params(ty: &mut TsType, subst: &HashMap<String, TsType>) {
                 substitute_type_params(&mut p.ty, subst);
             }
             substitute_type_params(return_type, subst);
-        }
-        TsType::Tuple(parts) => {
-            for p in parts {
-                substitute_type_params(p, subst);
-            }
         }
         _ => {}
     }
@@ -2359,12 +2346,7 @@ fn resolve_generic_params(ty: &mut TsType, bounds: &HashMap<String, TsType>) {
             }
         }
         TsType::Array(inner) => resolve_generic_params(inner, bounds),
-        TsType::Union(parts) => {
-            for part in parts {
-                resolve_generic_params(part, bounds);
-            }
-        }
-        TsType::Tuple(parts) => {
+        TsType::Union(parts) | TsType::Tuple(parts) => {
             for part in parts {
                 resolve_generic_params(part, bounds);
             }

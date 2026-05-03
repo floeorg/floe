@@ -30,7 +30,6 @@ pub struct TypeDisplay<'a> {
 /// Pretty-print a type variable index as a letter (0 -> T, 1 -> U, 2 -> V, ...).
 fn type_var_letter(index: u64) -> &'static str {
     match index {
-        0 => "T",
         1 => "U",
         2 => "V",
         3 => "W",
@@ -39,6 +38,7 @@ fn type_var_letter(index: u64) -> &'static str {
 }
 
 /// Core type formatting logic shared by all display styles.
+#[allow(clippy::too_many_lines)]
 pub(crate) fn fmt_type(
     ty: &Type,
     style: TypeDisplayStyle,

@@ -11,7 +11,11 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    Arg, ConstBinding, ConstDecl, Expr, ExprKind, FunctionDecl, ImportDecl, Item, ItemKind,
+    JsxChild, JsxElement, JsxElementKind, JsxProp, Program, TemplatePart, TypeDecl, TypeDef,
+    TypeExpr, TypeExprKind,
+};
 
 /// Information about a const declaration that calls an imported function.
 pub(super) struct ProbeCall {
@@ -59,9 +63,8 @@ pub(super) fn collect_all_consts(program: &Program) -> Vec<&ConstDecl> {
 /// Also follows `use <-` desugaring: `use x <- f(arg)` becomes `f(arg, |x| { rest })`,
 /// so we recurse into Arrow callback arguments of statement-level Calls.
 fn collect_consts_from_expr<'a>(expr: &'a Expr, consts: &mut Vec<&'a ConstDecl>) {
-    let items = match &expr.kind {
-        ExprKind::Block(stmts) | ExprKind::Collect(stmts) => stmts,
-        _ => return,
+    let (ExprKind::Block(items) | ExprKind::Collect(items)) = &expr.kind else {
+        return;
     };
     for stmt in items {
         match &stmt.kind {
@@ -91,6 +94,7 @@ fn collect_consts_from_expr<'a>(expr: &'a Expr, consts: &mut Vec<&'a ConstDecl>)
 /// `ts_imports` maps relative import sources to their absolute `.ts`/`.tsx`
 /// paths, so the probe can import them using absolute paths that tsgo can
 /// resolve from the temp directory.
+#[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
 pub(super) fn generate_probe(
     program: &Program,
     resolved_imports: &HashMap<String, crate::resolve::ResolvedImports>,
@@ -395,7 +399,6 @@ pub(super) fn generate_probe(
                         "export let __probe_{binding_name}_{inlined_id} = {call_ts};"
                     ));
                 }
-                continue;
             }
         }
     }
@@ -1549,6 +1552,7 @@ fn collect_member_accesses_on_imports(
 }
 
 /// Recursively collect member accesses from an expression.
+#[allow(clippy::too_many_lines)]
 fn collect_member_accesses_expr(
     expr: &Expr,
     imported_names: &HashMap<String, String>,
@@ -1573,11 +1577,7 @@ fn collect_member_accesses_expr(
                 }
             }
         }
-        ExprKind::Binary { left, right, .. } => {
-            collect_member_accesses_expr(left, imported_names, accesses);
-            collect_member_accesses_expr(right, imported_names, accesses);
-        }
-        ExprKind::Pipe { left, right } => {
+        ExprKind::Binary { left, right, .. } | ExprKind::Pipe { left, right } => {
             collect_member_accesses_expr(left, imported_names, accesses);
             collect_member_accesses_expr(right, imported_names, accesses);
         }
@@ -1618,7 +1618,7 @@ fn collect_member_accesses_expr(
                 collect_member_accesses_expr(value, imported_names, accesses);
             }
         }
-        ExprKind::Array(elems) => {
+        ExprKind::Array(elems) | ExprKind::Tuple(elems) => {
             for e in elems {
                 collect_member_accesses_expr(e, imported_names, accesses);
             }
@@ -1666,11 +1666,6 @@ fn collect_member_accesses_expr(
         ExprKind::Jsx(jsx) => {
             collect_member_accesses_jsx(jsx, imported_names, accesses);
         }
-        ExprKind::Tuple(elems) => {
-            for e in elems {
-                collect_member_accesses_expr(e, imported_names, accesses);
-            }
-        }
         _ => {}
     }
 }
@@ -1702,7 +1697,7 @@ fn collect_member_accesses_jsx(
                     JsxChild::Element(el) => {
                         collect_member_accesses_jsx(el, imported_names, accesses)
                     }
-                    _ => {}
+                    JsxChild::Text(_) => {}
                 }
             }
         }
@@ -1713,7 +1708,7 @@ fn collect_member_accesses_jsx(
                     JsxChild::Element(el) => {
                         collect_member_accesses_jsx(el, imported_names, accesses)
                     }
-                    _ => {}
+                    JsxChild::Text(_) => {}
                 }
             }
         }
@@ -1865,7 +1860,6 @@ fn collect_chain_step_args(
 /// `Member { Call { Member { Identifier, "insert" } }, "values" }` → 2
 fn count_chain_depth(expr: &Expr) -> usize {
     match &expr.kind {
-        ExprKind::Identifier(_) => 0,
         ExprKind::Member { object, .. } => match &object.kind {
             ExprKind::Identifier(_) => 1,
             // self.field counts as depth 1 (the field is the root)
@@ -1950,7 +1944,7 @@ pub(super) fn type_decl_to_ts(decl: &TypeDecl) -> String {
             )
         }
         TypeDef::StringLiteralUnion(variants) => {
-            let members: Vec<String> = variants.iter().map(|v| format!("\"{}\"", v)).collect();
+            let members: Vec<String> = variants.iter().map(|v| format!("\"{v}\"")).collect();
             format!("type {}{type_params} = {};", decl.name, members.join(" | "))
         }
     }
@@ -2159,9 +2153,8 @@ fn collect_nested_functions<'a>(
     declared: &mut HashSet<String>,
     functions: &mut HashMap<String, &'a FunctionDecl>,
 ) {
-    let items = match &expr.kind {
-        ExprKind::Block(items) | ExprKind::Collect(items) => items,
-        _ => return,
+    let (ExprKind::Block(items) | ExprKind::Collect(items)) = &expr.kind else {
+        return;
     };
     for item in items {
         if let ItemKind::Function(decl) = &item.kind {

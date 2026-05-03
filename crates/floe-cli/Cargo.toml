@@ -21,3 +21,6 @@ anyhow.workspace = true
 clap.workspace = true
 notify.workspace = true
 tokio.workspace = true
+
+[lints]
+workspace = true

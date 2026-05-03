@@ -284,10 +284,12 @@ impl Formatter<'_> {
         pretty::concat(parts)
     }
 
+    #[allow(clippy::unused_self)]
     fn jsx_tag_name(&self, node: &SyntaxNode) -> Option<String> {
         crate::syntax::jsx_tag_name_from_node(node)
     }
 
+    #[allow(clippy::unused_self)]
     fn jsx_has_children(&self, node: &SyntaxNode) -> bool {
         node.children().any(|c| {
             matches!(
@@ -333,6 +335,7 @@ impl Formatter<'_> {
         })
     }
 
+    #[allow(clippy::unused_self)]
     fn jsx_expr_child_comment(&self, node: &SyntaxNode) -> Option<String> {
         let mut comment = None;
         for child_or_tok in node.children_with_tokens() {
@@ -361,6 +364,7 @@ impl Formatter<'_> {
         !(props.is_empty() || (props.len() <= 3 && self.jsx_props_short(&props)))
     }
 
+    #[allow(clippy::unused_self)]
     fn jsx_props_short(&self, props: &[SyntaxNode]) -> bool {
         let total: usize = props
             .iter()

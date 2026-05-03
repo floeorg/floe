@@ -1,4 +1,9 @@
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    ConstBinding, ExprKind, ImportDecl, ItemKind, ObjectDestructureField, ParamDestructure,
+    ReExportDecl, TestStatement, TypeDef, TypeExprKind, TypeParam, TypedConstDecl, TypedExpr,
+    TypedForBlock, TypedFunctionDecl, TypedItem, TypedParam, TypedRecordEntry, TypedRecordField,
+    TypedRecordSpread, TypedTestBlock, TypedTypeDecl, TypedTypeExpr, TypedVariant,
+};
 use crate::pretty::{self, Document};
 use crate::type_layout;
 use crate::type_layout::TAG_FIELD;
@@ -28,6 +33,7 @@ impl<'a> TypeScriptGenerator<'a> {
 
     // ── Import ───────────────────────────────────────────────────
 
+    #[allow(clippy::too_many_lines)]
     fn emit_import(&mut self, decl: &ImportDecl) -> Document {
         if decl.specifiers.is_empty()
             && decl.for_specifiers.is_empty()
@@ -155,6 +161,7 @@ impl<'a> TypeScriptGenerator<'a> {
 
     // ── Re-export ────────────────────────────────────────────────
 
+    #[allow(clippy::unused_self)]
     fn emit_reexport(&self, decl: &ReExportDecl) -> Document {
         let mut s = String::from("export { ");
         for (i, spec) in decl.specifiers.iter().enumerate() {
@@ -263,6 +270,7 @@ impl<'a> TypeScriptGenerator<'a> {
         pretty::concat(docs)
     }
 
+    #[allow(clippy::unused_self)]
     fn emit_binding(&mut self, binding: &ConstBinding) -> Document {
         match binding {
             ConstBinding::Name(name) => pretty::str(name),
@@ -356,6 +364,7 @@ impl<'a> TypeScriptGenerator<'a> {
         pretty::concat(docs)
     }
 
+    #[allow(clippy::unused_self)]
     fn emit_type_params(&self, type_params: &[TypeParam]) -> Document {
         let mut s = String::from("<");
         for (i, tp) in type_params.iter().enumerate() {
@@ -372,6 +381,7 @@ impl<'a> TypeScriptGenerator<'a> {
         pretty::str(s)
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn emit_object_destructure_fields(
         &self,
         fields: &[ObjectDestructureField],
@@ -807,6 +817,7 @@ impl<'a> TypeScriptGenerator<'a> {
         pretty::concat(docs)
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn emit_string_literal_union_type(&self, variants: &[String]) -> Document {
         let parts: Vec<String> = variants
             .iter()

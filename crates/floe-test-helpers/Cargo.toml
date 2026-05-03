@@ -13,3 +13,6 @@ path = "src/lib.rs"
 
 [dependencies]
 floe-core = { path = "../floe-core" }
+
+[lints]
+workspace = true

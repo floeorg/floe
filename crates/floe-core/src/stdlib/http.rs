@@ -1,4 +1,4 @@
-use super::*;
+use super::{StdlibFn, Type, promise_of, result_of, stdlib_fn};
 
 #[rustfmt::skip]
 pub fn register(fns: &mut Vec<StdlibFn>) {

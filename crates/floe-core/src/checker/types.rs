@@ -371,13 +371,16 @@ impl PartialEq for Type {
             | (Type::Error, Type::Error)
             | (Type::Unit, Type::Unit)
             | (Type::Never, Type::Never) => true,
-            (Type::Named(a), Type::Named(b)) => a == b,
-            (Type::Foreign { name: a, .. }, Type::Foreign { name: b, .. }) => a == b,
-            (Type::Promise(a), Type::Promise(b)) => **a == **b,
+            (Type::Named(a), Type::Named(b))
+            | (Type::Foreign { name: a, .. }, Type::Foreign { name: b, .. })
+            | (Type::StringLiteral(a), Type::StringLiteral(b)) => a == b,
+            (Type::Promise(a), Type::Promise(b))
+            | (Type::Settable(a), Type::Settable(b))
+            | (Type::Array(a), Type::Array(b))
+            | (Type::Set { element: a }, Type::Set { element: b }) => **a == **b,
             (Type::Opaque { name: na, base: ba }, Type::Opaque { name: nb, base: bb }) => {
                 na == nb && **ba == **bb
             }
-            (Type::Settable(a), Type::Settable(b)) => **a == **b,
             (
                 Type::Function {
                     params: pa,
@@ -390,13 +393,11 @@ impl PartialEq for Type {
                     return_type: rtb,
                 },
             ) => pa == pb && ra == rb && **rta == **rtb,
-            (Type::Array(a), Type::Array(b)) => **a == **b,
             (Type::Map { key: ka, value: va }, Type::Map { key: kb, value: vb })
             | (Type::RecordMap { key: ka, value: va }, Type::RecordMap { key: kb, value: vb }) => {
                 **ka == **kb && **va == **vb
             }
-            (Type::Set { element: a }, Type::Set { element: b }) => **a == **b,
-            (Type::Tuple(a), Type::Tuple(b)) => a == b,
+            (Type::Tuple(a), Type::Tuple(b)) | (Type::TsUnion(a), Type::TsUnion(b)) => a == b,
             (Type::Record(a), Type::Record(b)) => a == b,
             (
                 Type::Union {
@@ -408,8 +409,6 @@ impl PartialEq for Type {
                     variants: vb,
                 },
             ) => na == nb && va == vb,
-            (Type::TsUnion(a), Type::TsUnion(b)) => a == b,
-            (Type::StringLiteral(a), Type::StringLiteral(b)) => a == b,
             // Type variables compare by identity: same Arc means same variable.
             (Type::Var(a), Type::Var(b)) => Arc::ptr_eq(a, b),
             _ => false,

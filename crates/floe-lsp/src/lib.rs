@@ -17,7 +17,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{
+    CompletionItem, CompletionItemKind, Diagnostic, DiagnosticSeverity, InsertTextFormat, Location,
+    MessageType, NumberOrString, Position, Range, SymbolKind, TextEdit, Url,
+};
 use tower_lsp::{Client, LspService, Server};
 
 use floe_core::analyse::{self, ExternTypes, ModuleInputs};
@@ -466,16 +469,16 @@ impl FloeLsp {
 
     /// Parse and type-check a document, update symbol index, publish diagnostics.
     async fn update_document(&self, uri: Url, source: &str) {
-        let (program, parse_diags, full_parse_ok) = match Parser::new(source).parse_program() {
-            Ok(program) => (program, Vec::new(), true),
-            Err(_) => {
+        let (program, parse_diags, full_parse_ok) =
+            if let Ok(program) = Parser::new(source).parse_program() {
+                (program, Vec::new(), true)
+            } else {
                 // Full parse failed — use lossy parse to get a partial AST so
                 // we can still build a symbol index for completions/hover.
                 let (program, parse_errors) = Parser::parse_lossy(source);
                 let diags = floe_diag::from_parse_errors(&parse_errors);
                 (program, diags, false)
-            }
-        };
+            };
 
         // Partial trees from lossy parses skip import/extern resolution
         // since the module inputs may be incomplete.
@@ -641,6 +644,7 @@ impl FloeLsp {
     }
 
     /// Convert Floe diagnostics to LSP diagnostics.
+    #[allow(clippy::unused_self)]
     fn convert_diagnostics(
         &self,
         source: &str,
@@ -674,6 +678,7 @@ impl FloeLsp {
 
     /// Generate pipe-aware completions.
     /// Only shows functions (not keywords/types/consts), ranked by first-param compatibility.
+    #[allow(clippy::unused_self)]
     fn pipe_completions(
         &self,
         docs: &HashMap<Url, Document>,
@@ -685,7 +690,7 @@ impl FloeLsp {
         let mut unmatched: Vec<CompletionItem> = Vec::new();
 
         // Collect functions from all open documents
-        for (doc_uri, doc) in docs.iter() {
+        for (doc_uri, doc) in docs {
             let is_current = doc_uri == current_uri;
 
             for sym in &doc.index.symbols {

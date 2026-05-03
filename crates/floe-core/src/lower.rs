@@ -6,7 +6,15 @@ mod types;
 
 use crate::lexer::span::Span;
 use crate::parser::ParseError;
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    Arg, BinOp, ConstBinding, ConstDecl, DefaultExportDecl, Expr, ExprIdGen, ExprKind, FnTypeParam,
+    ForBlock, ForImportSpecifier, FunctionDecl, ImportDecl, ImportSpecifier, Item, ItemKind,
+    JsxChild, JsxElement, JsxElementKind, JsxProp, LiteralPattern, MatchArm,
+    ObjectDestructureField, Param, ParamDestructure, Pattern, PatternKind, Program, ReExportDecl,
+    ReExportSpecifier, RecordEntry, RecordField, RecordSpread, TemplatePart, TestBlock,
+    TestStatement, TraitDecl, TraitMethod, TypeDecl, TypeDef, TypeExpr, TypeExprKind, TypeParam,
+    UnaryOp, Variant, VariantField, VariantPatternFields, parse_string_pattern_segments,
+};
 use crate::syntax::{FloeLang, SyntaxKind, SyntaxNode};
 
 /// Lower a CST `SyntaxNode` (rowan) tree into the existing AST.
@@ -97,6 +105,7 @@ impl<'src> Lowerer<'src> {
 
     /// Parse a template literal source text (including backticks) into AST
     /// `TemplatePart`s, properly lowering interpolated expressions.
+    #[allow(clippy::too_many_lines)]
     pub(super) fn lower_template_literal(
         &self,
         text: &str,
@@ -180,7 +189,7 @@ impl<'src> Lowerer<'src> {
                     parts.push(TemplatePart::Expr(expr));
                 } else {
                     // Fallback: store as raw if parsing fails
-                    parts.push(TemplatePart::Raw(format!("${{{}}}", interp_source)));
+                    parts.push(TemplatePart::Raw(format!("${{{interp_source}}}")));
                 }
 
                 // Skip past the closing `}`
@@ -238,6 +247,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Parse a string of Floe source code as a single expression.
+    #[allow(clippy::unused_self)]
     fn parse_interpolation_expr(&self, source: &str, outer_start: usize) -> Option<Expr> {
         use crate::cst::CstParser;
         use crate::lexer::Lexer;
@@ -305,6 +315,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Collect ident tokens that appear before the `=` sign.
+    #[allow(clippy::unused_self)]
     pub(super) fn collect_idents_before_eq(&self, node: &SyntaxNode) -> Vec<String> {
         let mut idents = Vec::new();
         for token in node.children_with_tokens() {
@@ -323,6 +334,7 @@ impl<'src> Lowerer<'src> {
     /// Collect object destructure fields (with optional `: alias`) from tokens inside `{ }`.
     /// When `stop_at_equal` is true, stops before `=` (for const declarations).
     /// Tokens: `{ data: rows, error }` → [("data", Some("rows")), ("error", None)]
+    #[allow(clippy::unused_self)]
     pub(super) fn collect_object_destructure_fields(
         &self,
         node: &SyntaxNode,
@@ -393,6 +405,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Check if a token kind appears before the `=` sign.
+    #[allow(clippy::unused_self)]
     pub(super) fn has_token_before_eq(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
@@ -407,6 +420,7 @@ impl<'src> Lowerer<'src> {
         false
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn collect_idents(&self, node: &SyntaxNode) -> Vec<String> {
         let mut idents = Vec::new();
         for token in node.children_with_tokens() {
@@ -420,6 +434,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Collect only direct ident tokens (not from child nodes).
+    #[allow(clippy::unused_self)]
     pub(super) fn collect_idents_direct(&self, node: &SyntaxNode) -> Vec<String> {
         let mut idents = Vec::new();
         for token in node.children_with_tokens() {
@@ -434,6 +449,7 @@ impl<'src> Lowerer<'src> {
 
     /// Collect type parameters from `<T, R: Trait>` in function declarations.
     /// Supports optional trait bounds after `:`.
+    #[allow(clippy::unused_self)]
     pub(super) fn collect_type_params(&self, node: &SyntaxNode) -> Vec<TypeParam> {
         let mut params = Vec::new();
         let mut in_angle = false;
@@ -490,6 +506,7 @@ impl<'src> Lowerer<'src> {
 
     /// Collect ident tokens that appear before the first `(` token.
     /// Used for CONSTRUCT_EXPR to handle qualified variants like `Route.Profile(...)`.
+    #[allow(clippy::unused_self)]
     pub(super) fn collect_idents_before_lparen(&self, node: &SyntaxNode) -> Vec<String> {
         let mut idents = Vec::new();
         for token in node.children_with_tokens() {
@@ -505,6 +522,7 @@ impl<'src> Lowerer<'src> {
         idents
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn collect_numbers(&self, node: &SyntaxNode) -> Vec<String> {
         let mut numbers = Vec::new();
         for token in node.children_with_tokens() {
@@ -517,11 +535,13 @@ impl<'src> Lowerer<'src> {
         numbers
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn has_keyword(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
         node.children_with_tokens()
             .any(|t| t.as_token().is_some_and(|t| t.kind() == kind))
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn has_token(&self, node: &SyntaxNode, kind: SyntaxKind) -> bool {
         node.children_with_tokens()
             .any(|t| t.as_token().is_some_and(|t| t.kind() == kind))
@@ -530,6 +550,7 @@ impl<'src> Lowerer<'src> {
     /// Check if a MATCH_EXPR node has no subject expression (used for pipe-into-match).
     /// A subjectless match has `match` keyword followed directly by `{`, with no
     /// expression child nodes before the first MATCH_ARM.
+    #[allow(clippy::unused_self)]
     pub(super) fn is_subjectless_match(&self, node: &SyntaxNode) -> bool {
         // A subjectless match has no child expression nodes — only MATCH_ARM children
         for child in node.children() {
@@ -559,6 +580,7 @@ impl<'src> Lowerer<'src> {
         true
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn unquote_string(&self, text: &str) -> String {
         // Remove surrounding quotes
         if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
@@ -572,7 +594,7 @@ impl<'src> Lowerer<'src> {
                         Some('n') => result.push('\n'),
                         Some('t') => result.push('\t'),
                         Some('r') => result.push('\r'),
-                        Some('\\') => result.push('\\'),
+                        Some('\\') | None => result.push('\\'),
                         Some('"') => result.push('"'),
                         Some('0') => result.push('\0'),
                         Some('u') => {
@@ -587,7 +609,6 @@ impl<'src> Lowerer<'src> {
                             result.push('\\');
                             result.push(c);
                         }
-                        None => result.push('\\'),
                     }
                 } else {
                     result.push(ch);
@@ -637,6 +658,7 @@ impl<'src> Lowerer<'src> {
         }
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn find_binary_op(&self, node: &SyntaxNode) -> Option<BinOp> {
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {
@@ -664,6 +686,7 @@ impl<'src> Lowerer<'src> {
         None
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn find_unary_op(&self, node: &SyntaxNode) -> Option<UnaryOp> {
         for token in node.children_with_tokens() {
             if let Some(token) = token.as_token() {

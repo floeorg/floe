@@ -1,4 +1,4 @@
-use crate::parser::ast::*;
+use crate::parser::ast::{JsxChild, JsxElementKind, JsxProp, TypedJsxChild, TypedJsxElement};
 use crate::pretty::{self, Document};
 
 use super::generator::TypeScriptGenerator;

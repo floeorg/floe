@@ -1,4 +1,4 @@
-use super::*;
+use super::{CstParser, SyntaxKind, TokenKind};
 
 impl<'src> CstParser<'src> {
     // ── JSX ──────────────────────────────────────────────────────
