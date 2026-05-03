@@ -130,6 +130,7 @@ impl<'src> CstParser<'src> {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn parse_postfix_expr(&mut self) {
         let checkpoint = self.builder.checkpoint();
         self.parse_primary_expr();
