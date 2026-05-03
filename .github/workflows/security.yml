@@ -24,7 +24,7 @@ jobs:
       contents: read
       security-events: write
       actions: read
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
     with:
       scan-args: |-
         --lockfile=Cargo.lock
@@ -32,45 +32,30 @@ jobs:
       upload-sarif: true
 
   cargo-deny:
-    name: cargo-deny (advisories · licenses · sources)
+    name: cargo-deny (advisories · licenses · sources · bans)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
         with:
           command: check advisories licenses sources bans
 
-  safe-chain-smoke:
-    # Verifies Aikido safe-chain shims load cleanly against the npm
-    # workspace. The real defensive value is the same step running
-    # before pnpm install in ci.yml; this job catches setup-ci breakage
-    # in isolation so a safe-chain regression doesn't surface as a
-    # cryptic failure inside the integration job.
-    name: Aikido safe-chain smoke
+  zizmor:
+    name: zizmor (GitHub Actions static analysis)
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          version: 10
+          persist-credentials: false
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: "pnpm"
-
-      - name: Setup safe-chain
-        # `pnpm dlx` itself respects minimum-release-age in pnpm 10, which
-        # would refuse to fetch the safe-chain CLI on first run. Disable
-        # the cooldown for this one invocation; the shims it installs are
-        # the actual control we care about.
-        env:
-          npm_config_minimum_release_age: "0"
-        run: pnpm dlx @aikidosec/safe-chain@latest setup-ci
-
-      - name: Verify shims on PATH
-        run: |
-          which pnpm
-          pnpm --version
+      # continue-on-error: existing workflows have findings that are out of
+      # scope for this PR (tracked in #1404). zizmor still uploads SARIF to
+      # the Security tab so findings are visible; flip to blocking once the
+      # cleanup issue lands.
+      - uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3
+        continue-on-error: true
