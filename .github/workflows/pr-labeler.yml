@@ -14,6 +14,8 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
+            if (context.payload.pull_request.user.login === 'dependabot[bot]') return;
+
             const title = context.payload.pull_request.title;
             const labels = [];
 
