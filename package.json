@@ -1,5 +1,9 @@
 {
   "private": true,
+  "packageManager": "pnpm@10.29.3",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "postinstall": "pnpm --filter \"./integrations/*\" build",
     "build:plugin": "pnpm --filter @floeorg/vite-plugin build",
@@ -10,5 +14,11 @@
     "lint": "pnpm -r lint",
     "format": "pnpm -r format",
     "clean": "pnpm -r exec rm -rf node_modules dist out"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp"
+    ]
   }
 }

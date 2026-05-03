@@ -1,0 +1,76 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Re-scan weekly so newly-disclosed CVEs against unchanged
+    # dependencies get caught even when nothing in the repo changed.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  osv-scanner:
+    name: OSV-Scanner (Cargo + npm)
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
+    with:
+      scan-args: |-
+        --lockfile=Cargo.lock
+        --lockfile=pnpm-lock.yaml
+      upload-sarif: true
+
+  cargo-deny:
+    name: cargo-deny (advisories · licenses · sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories licenses sources bans
+
+  safe-chain-smoke:
+    # Verifies Aikido safe-chain shims load cleanly against the npm
+    # workspace. The real defensive value is the same step running
+    # before pnpm install in ci.yml; this job catches setup-ci breakage
+    # in isolation so a safe-chain regression doesn't surface as a
+    # cryptic failure inside the integration job.
+    name: Aikido safe-chain smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Setup safe-chain
+        # `pnpm dlx` itself respects minimum-release-age in pnpm 10, which
+        # would refuse to fetch the safe-chain CLI on first run. Disable
+        # the cooldown for this one invocation; the shims it installs are
+        # the actual control we care about.
+        env:
+          npm_config_minimum_release_age: "0"
+        run: pnpm dlx @aikidosec/safe-chain@latest setup-ci
+
+      - name: Verify shims on PATH
+        run: |
+          which pnpm
+          pnpm --version

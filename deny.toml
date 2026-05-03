@@ -1,0 +1,51 @@
+# cargo-deny configuration. Run `cargo deny check` locally to mirror CI.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+    # bincode 2.x — the maintainers ceased development in 2025 (no
+    # security issue, no migration path). Re-evaluate if a fork or
+    # successor crate (postcard, bitcode, rkyv) becomes a better fit.
+    "RUSTSEC-2025-0141",
+]
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "MPL-2.0",
+    "CC0-1.0",
+    "0BSD",
+    "BSL-1.0",
+]
+confidence-threshold = 0.93
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+# Internal workspace crates use `path = "..."` without a version
+# constraint. cargo-deny flags those as wildcards by default; allow
+# them since they're first-party deps under our control.
+allow-wildcard-paths = true
+highlight = "all"
+
+[sources]
+# Only allow crates from the official registry. A transitive dep pulled
+# from a git URL or local path would bypass crates.io's signing and yank
+# protection; refuse those outright.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

@@ -87,6 +87,18 @@ jobs:
         with:
           version: 10
 
+      - name: Setup Aikido safe-chain
+        # Installs PATH shims that intercept pnpm/npm/yarn/npx and check
+        # every package against Aikido's feed of known-malicious releases
+        # before the install runs. Must come before pnpm install so the
+        # shims are on PATH when packages are fetched.
+        env:
+          # pnpm dlx itself honors minimum-release-age, which would refuse
+          # to fetch the safe-chain CLI. Disable the cooldown for this one
+          # invocation; the shims it installs are the actual control.
+          npm_config_minimum_release_age: "0"
+        run: pnpm dlx @aikidosec/safe-chain@latest setup-ci
+
       - name: Install example dependencies
         run: pnpm install --frozen-lockfile
 
