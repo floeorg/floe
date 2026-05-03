@@ -361,6 +361,7 @@ fn cmd_check(path: &Path) -> Result<()> {
 
 // ── Test ─────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_lines)]
 fn cmd_test(path: &Path) -> Result<()> {
     let files = discover_fl_files(path)?;
     if files.is_empty() {
@@ -456,15 +457,12 @@ fn cmd_test(path: &Path) -> Result<()> {
                 std::process::Command::new(runner).arg(&temp_file).status()
             };
 
-            match result {
-                Ok(status) => {
-                    if !status.success() {
-                        errors += 1;
-                    }
-                    ran = true;
-                    break;
+            if let Ok(status) = result {
+                if !status.success() {
+                    errors += 1;
                 }
-                Err(_) => continue,
+                ran = true;
+                break;
             }
         }
 

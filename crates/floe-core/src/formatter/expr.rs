@@ -55,7 +55,7 @@ impl Formatter<'_> {
                         entries.push(BlockEntry::Comment(comment, false));
                     }
                 }
-                _ => {}
+                rowan::NodeOrToken::Node(_) => {}
             }
         }
 
@@ -109,6 +109,7 @@ impl Formatter<'_> {
     /// Single reverse-walk over descendants to extract both trailing comments
     /// and whether there was a blank line in the trailing trivia. Replaces
     /// separate `trailing_comments_in` + `has_trailing_blank_line`.
+    #[allow(clippy::unused_self)]
     fn trailing_trivia(&self, node: &SyntaxNode) -> (Vec<String>, bool) {
         let mut comments = Vec::new();
         let mut has_blank = false;
@@ -129,7 +130,7 @@ impl Formatter<'_> {
                 SyntaxKind::COMMENT | SyntaxKind::BLOCK_COMMENT => {
                     comments.push(tok.text().to_string());
                 }
-                k if k.is_trivia() => continue,
+                k if k.is_trivia() => {}
                 _ => break,
             }
         }
@@ -374,6 +375,7 @@ impl Formatter<'_> {
         pretty::concat(parts)
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn fmt_pattern(&mut self, node: &SyntaxNode) -> Document {
         let sub_patterns: Vec<_> = node
             .children()
@@ -477,7 +479,7 @@ impl Formatter<'_> {
                                     parts.push(self.fmt_pattern(child));
                                     first_elem = false;
                                 }
-                                _ => {}
+                                rowan::NodeOrToken::Node(_) => {}
                             }
                         }
                         parts.push(pretty::str("]"));
@@ -814,6 +816,7 @@ impl Formatter<'_> {
         }
     }
 
+    #[allow(clippy::unused_self)]
     fn named_arg_value_kind(&self, node: &SyntaxNode) -> NamedArgValue {
         let mut past_colon = false;
         for child_or_tok in node.children_with_tokens() {
@@ -1013,7 +1016,7 @@ impl Formatter<'_> {
                     }
                     _ => {}
                 },
-                _ => {}
+                rowan::NodeOrToken::Node(_) => {}
             }
         }
         pretty::concat(parts)

@@ -33,6 +33,7 @@ pub enum UnifyError {
 /// Unify two types, destructively updating any `Unbound` variables on either
 /// side so they point to the other type. Returns `Ok(())` when the two types
 /// are made equal, or a `UnifyError` when they cannot be reconciled.
+#[allow(clippy::too_many_lines)]
 pub fn unify(a: &Type, b: &Type) -> Result<(), UnifyError> {
     // Fast-path: follow `Link` chains so the outer match never sees them.
     let a = a.resolved();
@@ -96,29 +97,30 @@ pub fn unify(a: &Type, b: &Type) -> Result<(), UnifyError> {
         }),
 
         // Concrete types: match by constructor.
-        (Type::Number, Type::Number)
-        | (Type::Bool, Type::Bool)
-        | (Type::String, Type::String)
-        | (Type::Unit, Type::Unit)
-        | (Type::Undefined, Type::Undefined) => Ok(()),
-
-        (Type::StringLiteral(x), Type::StringLiteral(y)) if x == y => Ok(()),
         // A string literal unifies with `String` (widen): useful when a literal
         // flows into a param typed `String`.
-        (Type::StringLiteral(_), Type::String) | (Type::String, Type::StringLiteral(_)) => Ok(()),
+        (Type::Number, Type::Number)
+        | (Type::Bool, Type::Bool)
+        | (Type::String | Type::StringLiteral(_), Type::String)
+        | (Type::String, Type::StringLiteral(_))
+        | (Type::Unit, Type::Unit)
+        | (Type::Undefined, Type::Undefined)
+        | (Type::Foreign { .. }, _)
+        | (_, Type::Foreign { .. }) => Ok(()),
+
+        (Type::StringLiteral(x), Type::StringLiteral(y)) if x == y => Ok(()),
 
         (Type::Named(x), Type::Named(y)) if x == y => Ok(()),
-        (Type::Foreign { .. }, _) | (_, Type::Foreign { .. }) => Ok(()),
 
-        (Type::Promise(x), Type::Promise(y)) => unify(x, y),
-        (Type::Array(x), Type::Array(y)) => unify(x, y),
-        (Type::Settable(x), Type::Settable(y)) => unify(x, y),
-        (Type::Set { element: x }, Type::Set { element: y }) => unify(x, y),
+        (Type::Promise(x), Type::Promise(y))
+        | (Type::Array(x), Type::Array(y))
+        | (Type::Settable(x), Type::Settable(y))
+        | (Type::Set { element: x }, Type::Set { element: y }) => unify(x, y),
 
-        (Type::Map { key: k1, value: v1 }, Type::Map { key: k2, value: v2 })
-        | (Type::RecordMap { key: k1, value: v1 }, Type::RecordMap { key: k2, value: v2 })
-        | (Type::Map { key: k1, value: v1 }, Type::RecordMap { key: k2, value: v2 })
-        | (Type::RecordMap { key: k1, value: v1 }, Type::Map { key: k2, value: v2 }) => {
+        (
+            Type::Map { key: k1, value: v1 } | Type::RecordMap { key: k1, value: v1 },
+            Type::Map { key: k2, value: v2 } | Type::RecordMap { key: k2, value: v2 },
+        ) => {
             unify(k1, k2)?;
             unify(v1, v2)
         }

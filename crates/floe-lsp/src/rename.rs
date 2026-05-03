@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use tower_lsp::jsonrpc::{Error, Result};
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{
+    PrepareRenameResponse, RenameParams, TextDocumentPositionParams, TextEdit, Url, WorkspaceEdit,
+};
 
 use floe_core::lexer::span::Span;
 use floe_core::reference::ReferenceTracker;
@@ -130,7 +132,7 @@ pub(super) fn for_each_symbol_site<F>(
 ) where
     F: FnMut(&Url, &str, usize, usize),
 {
-    for (other_uri, other_doc) in docs.iter() {
+    for (other_uri, other_doc) in docs {
         let Some(other_def) = other_doc.references.definition_for_name(word) else {
             continue;
         };

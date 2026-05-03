@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    ConstBinding, ForBlock, ItemKind, TypeDef, TypedForBlock, TypedProgram, TypedTraitDecl,
+    TypedTypeDecl, TypedTypeDef,
+};
 use crate::pretty::{self, Document};
 use crate::resolve::ResolvedImports;
 use crate::stdlib::StdlibRegistry;

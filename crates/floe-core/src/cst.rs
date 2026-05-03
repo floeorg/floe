@@ -108,6 +108,7 @@ impl<'src> CstParser<'src> {
             .unwrap_or(Span::new(self.source.len(), self.source.len(), 1, 1))
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn at(&self, kind: TokenKind) -> bool {
         self.current_kind()
             .is_some_and(|k| std::mem::discriminant(&k) == std::mem::discriminant(&kind))
@@ -194,7 +195,7 @@ impl<'src> CstParser<'src> {
     /// Check if we're at a string literal union: `"A" | "B" | ...`
     /// This is true when the current token is a string and the next non-trivia token is `|`.
     fn at_string_literal_union(&self) -> bool {
-        self.at(TokenKind::String("".into()))
+        self.at(TokenKind::String(String::new()))
             && matches!(
                 self.peek_nth_non_trivia_kind(1),
                 Some(TokenKind::VerticalBar)
@@ -339,6 +340,7 @@ impl<'src> CstParser<'src> {
         false
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn peek_is(&self, kind: TokenKind) -> bool {
         // Skip trivia to find the next non-trivia token
         let mut i = self.pos + 1;
@@ -387,11 +389,9 @@ impl<'src> CstParser<'src> {
         // - EOF
         !matches!(
             self.current_kind(),
-            Some(TokenKind::LessThan)
-                | Some(TokenKind::LeftBrace)
-                | Some(TokenKind::RightBrace)
-                | Some(TokenKind::Eof)
-                | None
+            Some(
+                TokenKind::LessThan | TokenKind::LeftBrace | TokenKind::RightBrace | TokenKind::Eof
+            ) | None
         )
     }
 
@@ -491,6 +491,7 @@ impl<'src> CstParser<'src> {
     }
 
     /// Check if the `(` at position `start` has a matching `)` followed by `kind`.
+    #[allow(clippy::needless_pass_by_value)]
     fn is_paren_followed_by_at(&self, start: usize, kind: TokenKind) -> bool {
         let mut depth = 0;
         let mut i = start;
@@ -573,6 +574,7 @@ impl<'src> CstParser<'src> {
         }
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn expect(&mut self, kind: TokenKind) {
         if self.at(kind.clone()) {
             self.bump();
@@ -584,6 +586,7 @@ impl<'src> CstParser<'src> {
         }
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn expect_kind(&mut self, kind: TokenKind) {
         if self.at(kind.clone()) {
             self.bump();
@@ -645,6 +648,7 @@ impl<'src> CstParser<'src> {
         });
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn parse_comma_separated(&mut self, parse_fn: fn(&mut Self), closing: TokenKind) {
         if self.at(closing.clone()) {
             return;

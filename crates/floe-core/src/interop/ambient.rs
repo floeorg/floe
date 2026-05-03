@@ -57,24 +57,18 @@ struct TsAmbientConfig {
 
 /// Parse ambient config from the project's tsconfig.json.
 fn parse_ambient_config(project_dir: &Path) -> TsAmbientConfig {
-    let tsconfig_path = match crate::resolve::find_tsconfig_from(project_dir) {
-        Some(p) => p,
-        None => {
-            return TsAmbientConfig {
-                lib_files: default_lib_files(),
-                types: None,
-            };
-        }
+    let Some(tsconfig_path) = crate::resolve::find_tsconfig_from(project_dir) else {
+        return TsAmbientConfig {
+            lib_files: default_lib_files(),
+            types: None,
+        };
     };
 
-    let content = match std::fs::read_to_string(&tsconfig_path) {
-        Ok(c) => c,
-        Err(_) => {
-            return TsAmbientConfig {
-                lib_files: default_lib_files(),
-                types: None,
-            };
-        }
+    let Ok(content) = std::fs::read_to_string(&tsconfig_path) else {
+        return TsAmbientConfig {
+            lib_files: default_lib_files(),
+            types: None,
+        };
     };
 
     let stripped = crate::resolve::strip_jsonc_comments(&content);

@@ -7,7 +7,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::parser::Parser;
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    ConstBinding, ForBlock, FunctionDecl, ImportDecl, ItemKind, Program, RecordEntry, TraitDecl,
+    TypeDecl, TypeDef, TypeExpr, TypeExprKind,
+};
 
 /// Raw parsed tsconfig.json data (shared between TsconfigPaths and probe tsconfig generation).
 pub struct ParsedTsconfig {
@@ -93,21 +96,18 @@ pub struct TsconfigPaths {
 impl TsconfigPaths {
     /// Parse path aliases from the nearest tsconfig.json.
     pub fn from_project_dir(project_dir: &Path) -> Self {
-        let parsed = match ParsedTsconfig::from_project_dir(project_dir) {
-            Some(p) => p,
-            None => return Self::default(),
+        let Some(parsed) = ParsedTsconfig::from_project_dir(project_dir) else {
+            return Self::default();
         };
 
-        let paths = match parsed.paths {
-            Some(ref map) => map,
-            None => return Self::default(),
+        let Some(ref paths) = parsed.paths else {
+            return Self::default();
         };
 
         let mut mappings = Vec::new();
         for (pattern, targets) in paths {
-            let targets = match targets.as_array() {
-                Some(arr) => arr,
-                None => continue,
+            let Some(targets) = targets.as_array() else {
+                continue;
             };
 
             // Strip trailing "*" from pattern (e.g. "#/*" -> "#/")
@@ -460,6 +460,8 @@ fn resolve_single_import(
 /// Core: given a dep's path and already-read source, parse and extract
 /// its exported symbols. Shared by `resolve_single_import` (reads from
 /// disk) and `resolve_single_cached` (reuses already-hashed bytes).
+#[allow(clippy::cognitive_complexity)]
+#[allow(clippy::too_many_lines)]
 fn resolve_from_source(
     resolved_path: &Path,
     source_code: &str,
@@ -658,9 +660,8 @@ fn flatten_spreads_in_type_decls(
     let mut result = HashMap::new();
 
     for (name, decl) in type_map {
-        let entries = match &decl.def {
-            TypeDef::Record(entries) => entries,
-            _ => continue,
+        let TypeDef::Record(entries) = &decl.def else {
+            continue;
         };
 
         let has_spreads = entries.iter().any(|e| matches!(e, RecordEntry::Spread(_)));

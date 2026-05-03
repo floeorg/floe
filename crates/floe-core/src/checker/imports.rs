@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
-use super::*;
+use super::{
+    Checker, ErrorCode, ForBlock, ImportDecl, ResolvedImports, Span, TraitDecl, Type, TypeExprKind,
+    interop,
+};
 
 impl Checker {
+    #[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
     pub(crate) fn check_import(&mut self, decl: &ImportDecl, item_span: Span) {
         // If this import targets a .ts/.tsx file and tsgo is not installed,
         // emit a hard error instead of silently falling back to unknown types.
@@ -77,20 +81,19 @@ impl Checker {
 
             // Try to find the actual type from resolved imports
             let ty = if let Some(ref resolved) = resolved {
-                match self.lookup_resolved_symbol(&spec.name, resolved) {
-                    Some(ty) => ty,
-                    None => {
-                        self.emit_error(
-                            format!(
-                                "module \"{}\" has no export named `{}`",
-                                decl.source, spec.name
-                            ),
-                            spec.span,
-                            ErrorCode::ExportNotFound,
-                            "not found in module",
-                        );
-                        Type::Error
-                    }
+                if let Some(ty) = self.lookup_resolved_symbol(&spec.name, resolved) {
+                    ty
+                } else {
+                    self.emit_error(
+                        format!(
+                            "module \"{}\" has no export named `{}`",
+                            decl.source, spec.name
+                        ),
+                        spec.span,
+                        ErrorCode::ExportNotFound,
+                        "not found in module",
+                    );
+                    Type::Error
                 }
             } else if let Some(ref exports) = dts_exports {
                 if let Some(dts_export) = exports.iter().find(|e| e.name == spec.name) {
@@ -420,7 +423,7 @@ impl Checker {
             self.env.define(&func.name, fn_type.clone());
             self.unused.defined_sources.insert(
                 func.name.clone(),
-                format!("for-block function from \"{}\"", source),
+                format!("for-block function from \"{source}\""),
             );
             self.for_block_overloads
                 .entry(func.name.clone())

@@ -1,6 +1,16 @@
 use tower_lsp::LanguageServer;
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{
+    CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionOptions,
+    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentSymbolParams,
+    DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, Location,
+    MessageType, OneOf, Position, PrepareRenameResponse, Range, ReferenceParams, RenameOptions,
+    RenameParams, ServerCapabilities, ServerInfo, SymbolInformation, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, WorkDoneProgressOptions,
+    WorkspaceEdit,
+};
 
 use super::rename::{for_each_symbol_site, resolve_def_span};
 use super::{FloeLsp, offset_to_range, position_to_offset, word_at_offset};

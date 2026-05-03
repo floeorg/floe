@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use crate::parser::ast::*;
+use crate::parser::ast::{ItemKind, Program};
 
 use super::DtsExport;
 use super::TsType;
@@ -292,9 +292,8 @@ impl TsgoResolver {
     ) {
         // Parse .ts files for exported + non-exported type definitions
         for (specifier, ts_path) in ts_imports {
-            let ts_content = match std::fs::read_to_string(ts_path) {
-                Ok(c) => c,
-                Err(_) => continue,
+            let Ok(ts_content) = std::fs::read_to_string(ts_path) else {
+                continue;
             };
             // Exported declarations
             if let Ok(ts_exports) = parse_dts_exports_from_str(&ts_content) {
@@ -397,9 +396,8 @@ impl TsgoResolver {
         // Parse .d.ts files to find type/interface definitions
         let mut dts_types: HashMap<String, TsType> = HashMap::new();
         for source_path in import_paths.values() {
-            let content = match std::fs::read_to_string(source_path) {
-                Ok(c) => c,
-                Err(_) => continue,
+            let Ok(content) = std::fs::read_to_string(source_path) else {
+                continue;
             };
             if let Ok(all_types) = super::dts::parse_all_types_from_str(&content) {
                 for t in all_types {
@@ -426,13 +424,14 @@ impl TsgoResolver {
     /// For object destructuring probes that resolved to `any`, resolve the
     /// function's return type via LSP hover and extract per-field types.
     #[cfg(feature = "native")]
+    #[allow(clippy::too_many_lines)]
     fn enhance_object_destructure_probes(
         &mut self,
         result: &mut HashMap<String, Vec<DtsExport>>,
         program: &Program,
         ts_imports: &HashMap<String, PathBuf>,
     ) {
-        use crate::parser::ast::*;
+        use crate::parser::ast::{ConstBinding, ExprKind, ItemKind};
 
         // Build import name → source path mapping
         let mut import_paths: HashMap<String, PathBuf> = HashMap::new();
@@ -764,6 +763,7 @@ fn find_relative_ts_imports(
 mod tests {
     use super::*;
     use crate::parser::Parser;
+    use crate::parser::ast::{Expr, ExprKind, FunctionDecl, Param, TypeExpr, TypeExprKind};
 
     // Re-import sub-module functions needed by tests
     use probe_gen::type_decl_to_ts;

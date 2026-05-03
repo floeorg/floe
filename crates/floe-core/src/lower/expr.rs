@@ -1,6 +1,11 @@
-use super::*;
+use super::{
+    Arg, Expr, ExprKind, FloeLang, Item, ItemKind, Lowerer, Param, ParamDestructure, Span,
+    SyntaxKind, SyntaxNode, TypeExpr,
+};
 
 impl<'src> Lowerer<'src> {
+    #[allow(clippy::cognitive_complexity)]
+    #[allow(clippy::too_many_lines)]
     pub(super) fn lower_expr_node(&mut self, node: &SyntaxNode) -> Option<Expr> {
         let span = self.node_span(node);
 
@@ -488,7 +493,7 @@ impl<'src> Lowerer<'src> {
             }
 
             SyntaxKind::JSX_ELEMENT => {
-                let element = self.lower_jsx_element(node)?;
+                let element = self.lower_jsx_element(node);
                 Some(self.expr(ExprKind::Jsx(element), span))
             }
 
@@ -511,10 +516,9 @@ impl<'src> Lowerer<'src> {
                 Some(self.expr(ExprKind::DotShorthand { field, predicate }, span))
             }
 
-            SyntaxKind::ERROR => None,
-
-            // Type expressions, patterns, and other non-expression nodes
-            SyntaxKind::TYPE_EXPR
+            // Error nodes, type expressions, patterns, and other non-expression nodes
+            SyntaxKind::ERROR
+            | SyntaxKind::TYPE_EXPR
             | SyntaxKind::TYPE_EXPR_FUNCTION
             | SyntaxKind::TYPE_EXPR_RECORD
             | SyntaxKind::TYPE_EXPR_TUPLE
@@ -670,6 +674,7 @@ impl<'src> Lowerer<'src> {
         None
     }
 
+    #[allow(clippy::unused_self)]
     pub(super) fn token_to_expr(&self, token: &rowan::SyntaxToken<FloeLang>) -> Option<Expr> {
         let span = self.token_span(token);
         let text = token.text();
@@ -823,6 +828,7 @@ impl<'src> Lowerer<'src> {
     }
 
     /// Check if an ITEM node contains a USE_DECL child.
+    #[allow(clippy::unused_self)]
     fn item_contains_use(&self, node: &SyntaxNode) -> bool {
         node.children()
             .any(|child| child.kind() == SyntaxKind::USE_DECL)

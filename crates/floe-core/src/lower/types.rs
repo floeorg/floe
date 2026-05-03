@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    FnTypeParam, Lowerer, RecordEntry, RecordField, RecordSpread, SyntaxKind, SyntaxNode, TypeDef,
+    TypeExpr, TypeExprKind, Variant, VariantField,
+};
 
 impl<'src> Lowerer<'src> {
     pub(super) fn lower_type_def_record(&mut self, node: &SyntaxNode) -> TypeDef {
@@ -22,8 +25,9 @@ impl<'src> Lowerer<'src> {
                     let type_name = type_expr
                         .as_ref()
                         .map(|te| match &te.kind {
-                            TypeExprKind::Named { name, .. } => name.clone(),
-                            TypeExprKind::TypeOf(name) => name.clone(),
+                            TypeExprKind::Named { name, .. } | TypeExprKind::TypeOf(name) => {
+                                name.clone()
+                            }
                             _ => String::new(),
                         })
                         .or_else(|| self.collect_idents_direct(&child).first().cloned())
@@ -189,6 +193,7 @@ impl<'src> Lowerer<'src> {
         })
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(super) fn lower_type_expr(&mut self, node: &SyntaxNode) -> Option<TypeExpr> {
         let span = self.node_span(node);
 

@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    ConstBinding, ExprKind, ImportDecl, ItemKind, ReExportDecl, TypeDef, TypeExprKind,
+    TypedConstDecl, TypedFunctionDecl, TypedProgram, TypedTypeDecl, TypedTypeExpr,
+};
 
 use super::super::for_block_fn_name;
 use super::generator::TypeScriptGenerator;
@@ -85,6 +88,7 @@ impl<'a> TypeScriptGenerator<'a> {
         out
     }
 
+    #[allow(clippy::unused_self)]
     fn emit_dts_reexport(&self, out: &mut String, decl: &ReExportDecl) {
         out.push_str("export { ");
         for (i, spec) in decl.specifiers.iter().enumerate() {

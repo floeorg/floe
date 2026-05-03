@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Expr, LiteralPattern, Lowerer, MatchArm, Pattern, PatternKind, SyntaxKind, SyntaxNode,
+    VariantPatternFields, parse_string_pattern_segments,
+};
 
 impl<'src> Lowerer<'src> {
     pub(super) fn lower_match_arm(&mut self, node: &SyntaxNode) -> Option<MatchArm> {
@@ -84,6 +87,7 @@ impl<'src> Lowerer<'src> {
         None
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(super) fn lower_pattern(&mut self, node: &SyntaxNode) -> Option<Pattern> {
         let span = self.node_span(node);
 
@@ -208,12 +212,11 @@ impl<'src> Lowerer<'src> {
                                 },
                                 span,
                             });
-                        } else {
-                            return Some(Pattern {
-                                kind: PatternKind::Binding(name),
-                                span,
-                            });
                         }
+                        return Some(Pattern {
+                            kind: PatternKind::Binding(name),
+                            span,
+                        });
                     }
                     SyntaxKind::L_BRACE => {
                         // Record pattern

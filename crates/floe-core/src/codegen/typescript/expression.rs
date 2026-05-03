@@ -1,4 +1,7 @@
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    Arg, BinOp, ConstBinding, ExprKind, ItemKind, TemplatePart, TypedArg, TypedExpr, TypedItem,
+    TypedTemplatePart,
+};
 use crate::pretty::{self, Document};
 use crate::type_layout::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
 
@@ -15,6 +18,8 @@ pub(super) struct PipeStep {
 impl<'a> TypeScriptGenerator<'a> {
     // ── Expressions ──────────────────────────────────────────────
 
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     pub(super) fn emit_expr(&mut self, expr: &TypedExpr) -> Document {
         match &expr.kind {
             ExprKind::Number(n) => pretty::str(n),
@@ -178,10 +183,9 @@ impl<'a> TypeScriptGenerator<'a> {
 
             ExprKind::Value(inner) => self.emit_expr(inner),
             ExprKind::Clear => pretty::str("null"),
-            ExprKind::Unchanged => pretty::str("undefined"),
+            ExprKind::Unchanged | ExprKind::Unit => pretty::str("undefined"),
             ExprKind::Todo => pretty::str(THROW_NOT_IMPLEMENTED),
             ExprKind::Unreachable => pretty::str(THROW_UNREACHABLE),
-            ExprKind::Unit => pretty::str("undefined"),
 
             ExprKind::Jsx(element) => {
                 self.has_jsx = true;
@@ -195,19 +199,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 pretty::concat([pretty::str("("), self.emit_expr(inner), pretty::str(")")])
             }
 
-            ExprKind::Array(elements) => {
-                let mut docs = vec![pretty::str("[")];
-                for (i, elem) in elements.iter().enumerate() {
-                    if i > 0 {
-                        docs.push(pretty::str(", "));
-                    }
-                    docs.push(self.emit_expr(elem));
-                }
-                docs.push(pretty::str("]"));
-                pretty::concat(docs)
-            }
-
-            ExprKind::Tuple(elements) => {
+            ExprKind::Array(elements) | ExprKind::Tuple(elements) => {
                 let mut docs = vec![pretty::str("[")];
                 for (i, elem) in elements.iter().enumerate() {
                     if i > 0 {
@@ -421,6 +413,7 @@ impl<'a> TypeScriptGenerator<'a> {
 
     // ── Untrusted Call Check ────────────────────────────────────
 
+    #[allow(clippy::unused_self)]
     fn is_untrusted_call(&self, callee: &TypedExpr) -> bool {
         callee.ty.is_untrusted_foreign()
     }
@@ -477,6 +470,7 @@ impl<'a> TypeScriptGenerator<'a> {
 
     // ── Constructor Helpers ─────────────────────────────────────
 
+    #[allow(clippy::unused_self)]
     fn emit_variant_constructor_fn(&self, variant_name: &str, field_names: &[String]) -> Document {
         let params = field_names.join(", ");
         let fields = field_names

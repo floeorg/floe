@@ -1,6 +1,10 @@
-use super::*;
+use super::{
+    Checker, Diagnostic, ErrorCode, RecordEntry, RecordField, Span, Type, TypeDecl, TypeDef,
+    TypeExpr, TypeExprKind, TypeInfo, interop,
+};
 
 impl Checker {
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn register_type_decl(&mut self, decl: &TypeDecl, span: Span) {
         // Enforce naming conventions
         if span.start != 0 || span.end != 0 {
@@ -21,32 +25,28 @@ impl Checker {
                     ),
                 );
             }
-            match &decl.def {
-                TypeDef::Union(variants) => {
-                    for variant in variants {
-                        if variant.name.starts_with(char::is_lowercase) {
-                            self.problems.push(
-                                Diagnostic::error(
-                                    format!(
-                                        "variant name `{}` must start with an uppercase letter",
-                                        variant.name
-                                    ),
-                                    variant.span,
-                                )
-                                .with_help(format!(
-                                    "rename to `{}{}`",
-                                    variant.name[..1].to_uppercase(),
-                                    &variant.name[1..]
-                                ))
-                                .with_error_code(ErrorCode::TypeNameCase),
-                            );
-                        }
+            // Record field names: uppercase fields are already rejected by the parser
+            // (uppercase identifiers are parsed as types/variants, not field names)
+            if let TypeDef::Union(variants) = &decl.def {
+                for variant in variants {
+                    if variant.name.starts_with(char::is_lowercase) {
+                        self.problems.push(
+                            Diagnostic::error(
+                                format!(
+                                    "variant name `{}` must start with an uppercase letter",
+                                    variant.name
+                                ),
+                                variant.span,
+                            )
+                            .with_help(format!(
+                                "rename to `{}{}`",
+                                variant.name[..1].to_uppercase(),
+                                &variant.name[1..]
+                            ))
+                            .with_error_code(ErrorCode::TypeNameCase),
+                        );
                     }
                 }
-                // Record field names: uppercase fields are already rejected by the parser
-                // (uppercase identifiers are parsed as types/variants, not field names)
-                TypeDef::Record(_) => {}
-                _ => {}
             }
 
             // Reject & intersection in record and sum RHSes — it only
@@ -350,7 +350,7 @@ impl Checker {
                                     ),
                                     field.span,
                                     ErrorCode::TypeMismatch,
-                                    format!("expected `{}`", field_ty),
+                                    format!("expected `{field_ty}`"),
                                 );
                             }
                         } else if seen_default {

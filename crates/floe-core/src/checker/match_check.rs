@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use super::*;
+use super::{
+    Checker, ErrorCode, LiteralPattern, MatchArm, Pattern, PatternKind, Span, StringPatternSegment,
+    Type, VariantPatternFields, expr,
+};
 
 // ── Match Exhaustiveness (delegated to exhaustiveness module) ────
 
@@ -28,6 +31,8 @@ impl Checker {
 
     // ── Pattern Checking ─────────────────────────────────────────
 
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     pub(super) fn check_pattern(&mut self, pattern: &Pattern, subject_ty: &Type) {
         // Resolve Named types to their actual definitions via the type namespace for
         // structural checking (variant matching, field access, etc.). Keep the original
@@ -142,7 +147,7 @@ impl Checker {
                 // String patterns require the subject to be a string type
                 if !matches!(subject_ty, Type::String | Type::Unknown) {
                     self.emit_error(
-                        format!("string pattern used on non-string type `{}`", subject_ty),
+                        format!("string pattern used on non-string type `{subject_ty}`"),
                         pattern.span,
                         ErrorCode::StringPatternOnNonString,
                         "expected string type",

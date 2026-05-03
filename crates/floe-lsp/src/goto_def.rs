@@ -1,5 +1,5 @@
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location};
 
 use super::{FloeLsp, is_cursor_on_def_name, offset_to_range, position_to_offset, word_at_offset};
 

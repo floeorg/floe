@@ -67,7 +67,7 @@ impl TsgoLspClient {
         let root_uri = format!("file://{}", project_dir.display());
         let _init_result = client.send_request(
             "initialize",
-            json!({
+            &json!({
                 "processId": std::process::id(),
                 "rootUri": root_uri,
                 "capabilities": {
@@ -80,7 +80,7 @@ impl TsgoLspClient {
             }),
         )?;
 
-        client.send_notification("initialized", json!({}))?;
+        client.send_notification("initialized", &json!({}))?;
 
         Ok(client)
     }
@@ -92,7 +92,7 @@ impl TsgoLspClient {
         let result = self
             .send_request(
                 "textDocument/hover",
-                json!({
+                &json!({
                     "textDocument": { "uri": uri },
                     "position": { "line": line, "character": character },
                 }),
@@ -118,7 +118,7 @@ impl TsgoLspClient {
 
         self.send_notification(
             "textDocument/didOpen",
-            json!({
+            &json!({
                 "textDocument": {
                     "uri": uri,
                     "languageId": if file_path.extension().is_some_and(|e| e == "tsx") {
@@ -138,7 +138,7 @@ impl TsgoLspClient {
         let uri = path_to_uri(file_path);
         self.send_notification(
             "textDocument/didClose",
-            json!({
+            &json!({
                 "textDocument": { "uri": uri }
             }),
         )
@@ -153,7 +153,7 @@ impl TsgoLspClient {
         let uri = path_to_uri(file_path);
         self.send_notification(
             "textDocument/didOpen",
-            json!({
+            &json!({
                 "textDocument": {
                     "uri": uri,
                     "languageId": if file_path.extension().is_some_and(|e| e == "tsx") {
@@ -196,7 +196,7 @@ impl TsgoLspClient {
 
     // ── JSON-RPC transport ─────────────────────────────────────
 
-    fn send_request(&mut self, method: &str, params: Value) -> Result<Value, String> {
+    fn send_request(&mut self, method: &str, params: &Value) -> Result<Value, String> {
         let id = self.next_id;
         self.next_id += 1;
 
@@ -211,7 +211,7 @@ impl TsgoLspClient {
         self.read_response(id)
     }
 
-    fn send_notification(&mut self, method: &str, params: Value) -> Result<(), String> {
+    fn send_notification(&mut self, method: &str, params: &Value) -> Result<(), String> {
         let message = json!({
             "jsonrpc": "2.0",
             "method": method,
@@ -274,7 +274,7 @@ impl TsgoLspClient {
 
             if message["id"].as_i64() == Some(expected_id) {
                 if let Some(error) = message.get("error") {
-                    return Err(format!("LSP error: {}", error));
+                    return Err(format!("LSP error: {error}"));
                 }
                 return Ok(message["result"].clone());
             }

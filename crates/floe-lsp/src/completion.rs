@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind, InsertTextFormat, SymbolKind, Url};
 
 use floe_core::checker::Type;
 use floe_core::interop::{DtsExport, TsType, ts_type_to_string};
@@ -128,13 +128,11 @@ pub(super) fn import_path_completions(
     };
 
     // Get the directory of the current file
-    let current_file = match uri.to_file_path() {
-        Ok(p) => p,
-        Err(_) => return items,
+    let Ok(current_file) = uri.to_file_path() else {
+        return items;
     };
-    let current_dir = match current_file.parent() {
-        Some(d) => d,
-        None => return items,
+    let Some(current_dir) = current_file.parent() else {
+        return items;
     };
 
     // Resolve the partial path relative to current dir
@@ -153,9 +151,8 @@ pub(super) fn import_path_completions(
     };
 
     // List directory contents
-    let entries = match std::fs::read_dir(&search_dir) {
-        Ok(e) => e,
-        Err(_) => return items,
+    let Ok(entries) = std::fs::read_dir(&search_dir) else {
+        return items;
     };
 
     for entry in entries.flatten() {
@@ -542,7 +539,7 @@ fn is_base_name_compatible(fn_base: &str, piped_base: &str) -> bool {
 fn type_base_name(ty: &Type) -> &str {
     match ty {
         Type::Number => "number",
-        Type::String => "string",
+        Type::String | Type::StringLiteral(_) => "string",
         Type::Bool => "boolean",
         Type::Unit => "()",
         Type::Undefined => "undefined",
@@ -558,7 +555,6 @@ fn type_base_name(ty: &Type) -> &str {
         Type::Record(_) => "record",
         Type::Function { .. } => "function",
         Type::TsUnion(_) => "union",
-        Type::StringLiteral(_) => "string",
         Type::Named(name)
         | Type::Foreign { name, .. }
         | Type::Opaque { name, .. }

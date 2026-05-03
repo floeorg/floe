@@ -34,3 +34,6 @@ xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 [dev-dependencies]
 insta.workspace = true
 tempfile.workspace = true
+
+[lints]
+workspace = true

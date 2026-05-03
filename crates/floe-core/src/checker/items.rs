@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use super::*;
+use super::{
+    Arg, Checker, ConstBinding, ConstDecl, DefaultExportDecl, DtsExport, ErrorCode, Expr, ExprKind,
+    ForBlock, FunctionDecl, Item, ItemKind, JsxChild, JsxElement, JsxElementKind, JsxProp,
+    ObjectDestructureField, Program, Span, TestBlock, TestStatement, Type, TypeExprKind, interop,
+    type_layout,
+};
 
 /// Returns the span of the last item in a block body, falling back to the body's own span.
 /// Used to point return-type errors at the actual return value instead of the whole function.
@@ -117,9 +122,8 @@ impl Checker {
     }
 
     fn flag_nested_default(&mut self, expr: &Expr) {
-        let items = match &expr.kind {
-            ExprKind::Block(items) | ExprKind::Collect(items) => items,
-            _ => return,
+        let (ExprKind::Block(items) | ExprKind::Collect(items)) = &expr.kind else {
+            return;
         };
         for item in items {
             if let ItemKind::DefaultExport(decl) = &item.kind {
@@ -139,10 +143,8 @@ impl Checker {
     pub(crate) fn check_item(&mut self, item: &Item) {
         match &item.kind {
             ItemKind::Import(decl) => self.check_import(decl, item.span),
-            ItemKind::ReExport(_) => {
-                // Re-exports don't introduce names into the current scope
-            }
-            ItemKind::DefaultExport(_) => {
+            ItemKind::ReExport(_) | ItemKind::DefaultExport(_) => {
+                // Re-exports don't introduce names into the current scope.
                 // `export default foo` is validated once per program in
                 // `check_default_exports` so the duplicate / unknown-binding
                 // diagnostics fire with full-program context.
@@ -207,7 +209,7 @@ impl Checker {
         });
         let mut final_type = self.resolve_const_type(
             value_type.clone(),
-            declared_type,
+            declared_type.as_ref(),
             &tsgo_type,
             &decl.value,
             span,
@@ -304,7 +306,7 @@ impl Checker {
     fn resolve_const_type(
         &mut self,
         value_type: Type,
-        declared_type: Option<Type>,
+        declared_type: Option<&Type>,
         tsgo_type: &Option<Type>,
         value_expr: &Expr,
         span: Span,
@@ -340,12 +342,11 @@ impl Checker {
             } else {
                 tsgo_ty.clone()
             }
-        } else if let Some(ref declared) = declared_type {
+        } else if let Some(declared) = declared_type {
             if matches!(value_type, Type::Unknown) && !matches!(declared, Type::Unknown) {
                 self.emit_error_with_help(
                     format!(
-                        "cannot narrow `unknown` to `{}` — use runtime validation instead",
-                        declared
+                        "cannot narrow `unknown` to `{declared}` — use runtime validation instead"
                     ),
                     span,
                     ErrorCode::UnsafeNarrowing,
@@ -401,7 +402,6 @@ impl Checker {
     fn tuple_element_type(final_type: &Type, i: usize) -> Type {
         match final_type {
             Type::Tuple(types) => types.get(i).cloned().unwrap_or(Type::Unknown),
-            Type::Unknown | Type::Error | Type::Var(_) => Type::Unknown,
             _ => Type::Unknown,
         }
     }
@@ -478,6 +478,8 @@ impl Checker {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     pub(crate) fn check_function(&mut self, decl: &FunctionDecl, span: Span) {
         // Hydrate the fn's generic type parameters into `Generic` vars. Each
         // unconstrained name (`T`, `U`, …) becomes a unique Generic variable
@@ -659,7 +661,7 @@ impl Checker {
                         ),
                         param.span,
                         ErrorCode::TypeMismatch,
-                        format!("expected `{}`", ty),
+                        format!("expected `{ty}`"),
                     );
                 }
             }
@@ -748,7 +750,7 @@ impl Checker {
                     ),
                     span,
                     ErrorCode::MissingPromiseReturn,
-                    format!("expected `Promise<{}>`", body_type),
+                    format!("expected `Promise<{body_type}>`"),
                     "change the return type to `Promise<T>`, or remove the `await`",
                 );
             }
@@ -778,7 +780,7 @@ impl Checker {
                             "function `{}`: expected return type `{}`, found `{}`",
                             decl.name, resolved, body_type
                         ),
-                        format!("expected `{}`", resolved),
+                        format!("expected `{resolved}`"),
                     )
                 };
                 self.emit_error(
@@ -814,6 +816,7 @@ impl Checker {
         self.active_type_params = prev_type_params;
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn check_for_block(&mut self, block: &ForBlock, _span: Span) {
         let for_type = self.resolve_type(&block.type_name);
         let type_name = block.type_name.base_name();
@@ -988,7 +991,7 @@ impl Checker {
                             ),
                             param.span,
                             ErrorCode::TypeMismatch,
-                            format!("expected `{}`", ty),
+                            format!("expected `{ty}`"),
                         );
                     }
                 }
@@ -1023,7 +1026,7 @@ impl Checker {
                                 "function `{}`: expected return type `{}`, found `{}`",
                                 func.name, resolved, body_type
                             ),
-                            format!("expected `{}`", resolved),
+                            format!("expected `{resolved}`"),
                         )
                     };
                     self.emit_error(
@@ -1052,7 +1055,7 @@ impl Checker {
                     // Ensure assert expression evaluates to boolean
                     if !matches!(ty, Type::Bool | Type::Unknown | Type::Error | Type::Var(_)) {
                         self.emit_error(
-                            format!("assert expression must be boolean, found `{}`", ty),
+                            format!("assert expression must be boolean, found `{ty}`"),
                             *span,
                             ErrorCode::AssertNotBoolean,
                             "expected boolean expression",
@@ -1076,8 +1079,6 @@ impl Checker {
     /// a block is the return value.
     pub(crate) fn body_has_return(&self, body: &Expr) -> bool {
         match &body.kind {
-            // `todo` and `unreachable` are never-returning, so they satisfy return requirements
-            ExprKind::Todo | ExprKind::Unreachable => true,
             ExprKind::Block(items) => {
                 // Check if the last item is an expression (implicit return)
                 items.last().is_some_and(|item| {
@@ -1091,7 +1092,7 @@ impl Checker {
             ExprKind::Match { arms, .. } => {
                 !arms.is_empty() && arms.iter().all(|arm| self.body_has_return(&arm.body))
             }
-            // Any other expression is a value-producing expression
+            // Any other expression (including `todo`/`unreachable`) is value-producing
             _ => true,
         }
     }

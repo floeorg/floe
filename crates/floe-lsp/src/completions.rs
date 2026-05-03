@@ -1,5 +1,8 @@
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, InsertTextFormat,
+    Position, Range, SymbolKind, TextEdit,
+};
 
 use floe_core::stdlib::StdlibRegistry;
 
@@ -26,6 +29,7 @@ use super::stdlib_hover;
 use super::{BUILTINS, FloeLsp, KEYWORDS, position_to_offset, word_prefix_at_offset};
 
 impl FloeLsp {
+    #[allow(clippy::too_many_lines)]
     pub(super) async fn handle_completion(
         &self,
         params: CompletionParams,
@@ -337,7 +341,7 @@ fn find_variants_for_expr(
     for sym in &type_syms {
         if sym.kind == SymbolKind::TYPE_PARAMETER {
             // Found a type — collect its variants from the index
-            let type_prefix = format!("{}.", expr);
+            let type_prefix = format!("{expr}.");
             let variants: Vec<_> = index
                 .symbols
                 .iter()

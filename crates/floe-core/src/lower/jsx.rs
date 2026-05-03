@@ -1,17 +1,17 @@
-use super::*;
+use super::{JsxChild, JsxElement, JsxElementKind, JsxProp, Lowerer, SyntaxKind, SyntaxNode};
 
 impl<'src> Lowerer<'src> {
-    pub(super) fn lower_jsx_element(&mut self, node: &SyntaxNode) -> Option<JsxElement> {
+    pub(super) fn lower_jsx_element(&mut self, node: &SyntaxNode) -> JsxElement {
         let span = self.node_span(node);
 
         let name = crate::syntax::jsx_tag_name_from_node(node);
 
         if name.is_none() {
             let children = self.lower_jsx_children(node);
-            return Some(JsxElement {
+            return JsxElement {
                 kind: JsxElementKind::Fragment { children },
                 span,
-            });
+            };
         }
 
         let name = name.unwrap();
@@ -68,15 +68,14 @@ impl<'src> Lowerer<'src> {
                     }
                 }
                 SyntaxKind::JSX_ELEMENT => {
-                    if let Some(element) = self.lower_jsx_element(&child) {
-                        children.push(JsxChild::Element(element));
-                    }
+                    let element = self.lower_jsx_element(&child);
+                    children.push(JsxChild::Element(element));
                 }
                 _ => {}
             }
         }
 
-        Some(JsxElement {
+        JsxElement {
             kind: JsxElementKind::Element {
                 name,
                 props,
@@ -84,7 +83,7 @@ impl<'src> Lowerer<'src> {
                 self_closing,
             },
             span,
-        })
+        }
     }
 
     pub(super) fn lower_jsx_children(&mut self, node: &SyntaxNode) -> Vec<JsxChild> {
@@ -103,9 +102,8 @@ impl<'src> Lowerer<'src> {
                     }
                 }
                 SyntaxKind::JSX_ELEMENT => {
-                    if let Some(element) = self.lower_jsx_element(&child) {
-                        children.push(JsxChild::Element(element));
-                    }
+                    let element = self.lower_jsx_element(&child);
+                    children.push(JsxChild::Element(element));
                 }
                 _ => {}
             }
@@ -129,6 +127,7 @@ impl<'src> Lowerer<'src> {
 
     /// Collect the full JSX prop name, joining ident/keyword tokens with hyphens.
     /// e.g., `aria-label` → "aria-label", `data-testid` → "data-testid"
+    #[allow(clippy::unused_self)]
     fn collect_jsx_prop_name(&self, node: &SyntaxNode) -> Option<String> {
         let mut name = String::new();
         for child in node.children_with_tokens() {

@@ -12,7 +12,13 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock};
 
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    Arg, ConstDecl, Expr, ExprId, ExprKind, FnTypeParam, ForBlock, FunctionDecl, Item, ItemKind,
+    JsxChild, JsxElement, JsxElementKind, JsxProp, MatchArm, Param, Program, RecordEntry,
+    RecordField, RecordSpread, TemplatePart, TestBlock, TestStatement, TraitDecl, TraitMethod,
+    TypeDecl, TypeDef, TypeExpr, TypeExprKind, TypedExpr, TypedProgram, TypedTraitDecl,
+    TypedTypeDecl, UntypedExpr, UntypedProgram, Variant, VariantField,
+};
 use crate::resolve::ResolvedImports;
 
 use super::{ExprTypeMap, Type, UNKNOWN};
@@ -390,6 +396,7 @@ impl Attacher<'_> {
         Box::new(self.expr(*expr))
     }
 
+    #[allow(clippy::too_many_lines)]
     fn expr_kind(&self, kind: ExprKind<()>) -> ExprKind<Arc<Type>> {
         match kind {
             ExprKind::Number(n) => ExprKind::Number(n),

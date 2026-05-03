@@ -63,6 +63,8 @@ fn check_required_variants<T>(
 ///
 /// `resolve_named` resolves `Type::Named` to its concrete definition.
 /// Returns diagnostics for any missing patterns.
+#[allow(clippy::cognitive_complexity)]
+#[allow(clippy::too_many_lines)]
 pub fn check_match_exhaustiveness<T>(
     subject_ty: &Type,
     arms: &[MatchArm<T>],
@@ -72,7 +74,6 @@ pub fn check_match_exhaustiveness<T>(
     // Resolve Named types to their actual definitions.
     let resolved_ty;
     let subject_ty = match subject_ty {
-        Type::Foreign { .. } | Type::Promise(_) => subject_ty,
         Type::Named(_) => {
             resolved_ty = resolve_named(subject_ty);
             &resolved_ty

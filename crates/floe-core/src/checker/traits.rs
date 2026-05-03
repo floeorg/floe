@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use super::*;
+use super::{
+    Checker, ErrorCode, FunctionDecl, HashMap, Param, Span, TraitDecl, TraitMethodSig, Type,
+    params_have_self,
+};
 
 impl Checker {
     /// Whether `name` refers to a registered trait. Traits don't live
@@ -116,6 +119,7 @@ impl Checker {
     }
 
     /// Validate that a `for Type: Trait` block satisfies the trait contract.
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn check_trait_impl(
         &mut self,
         type_name: &str,
@@ -123,18 +127,17 @@ impl Checker {
         functions: &[FunctionDecl],
         span: Span,
     ) {
-        let trait_methods = match self.traits.trait_defs.get(trait_name) {
-            Some(methods) => methods.clone(),
-            None => {
-                self.emit_error_with_help(
-                    format!("unknown trait `{trait_name}`"),
-                    span,
-                    ErrorCode::UnknownTrait,
-                    "not defined",
-                    "check the spelling or define this trait",
-                );
-                return;
-            }
+        let trait_methods = if let Some(methods) = self.traits.trait_defs.get(trait_name) {
+            methods.clone()
+        } else {
+            self.emit_error_with_help(
+                format!("unknown trait `{trait_name}`"),
+                span,
+                ErrorCode::UnknownTrait,
+                "not defined",
+                "check the spelling or define this trait",
+            );
+            return;
         };
 
         // Build a map from method name to impl function for signature checking
@@ -242,7 +245,7 @@ impl Checker {
                         ),
                         param_span,
                         ErrorCode::TraitMethodSignatureMismatch,
-                        format!("expected `{}`", trait_ty),
+                        format!("expected `{trait_ty}`"),
                         format!("change to match trait `{trait_name}`"),
                     );
                 }
@@ -273,7 +276,7 @@ impl Checker {
                         ),
                         ret_span,
                         ErrorCode::TraitMethodSignatureMismatch,
-                        format!("expected `{}`", trait_ret),
+                        format!("expected `{trait_ret}`"),
                         format!("change to match trait `{trait_name}`"),
                     );
                 }

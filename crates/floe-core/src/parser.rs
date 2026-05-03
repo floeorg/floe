@@ -8,6 +8,9 @@ use crate::lexer::Lexer;
 use crate::lexer::span::Span;
 use crate::lower::{lower_program, lower_program_lossy};
 use crate::parse::ModuleExtra;
+use ast::Program;
+#[cfg(test)]
+#[allow(clippy::wildcard_imports)]
 use ast::*;
 
 pub use crate::cst::CstErrorKind as ParseErrorKind;

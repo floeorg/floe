@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::*;
+use super::{Checker, Type, expr};
 use crate::interop::is_implicit_object_method;
 
 /// Split a Foreign type name like `Foo<a, b<c>>` into a (base, args) pair
@@ -141,8 +141,9 @@ impl Checker {
                     _ => true,
                 }
             }
-            (Type::Promise(a), Type::Promise(b)) => self.types_unifiable(a, b),
-            (Type::Array(a), Type::Array(b)) => self.types_unifiable(a, b),
+            (Type::Promise(a), Type::Promise(b)) | (Type::Array(a), Type::Array(b)) => {
+                self.types_unifiable(a, b)
+            }
             (Type::Tuple(a), Type::Tuple(b)) => {
                 a.len() == b.len()
                     && a.iter()
@@ -262,6 +263,8 @@ impl Checker {
         })
     }
 
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     pub(crate) fn types_compatible(&self, expected: &Type, actual: &Type) -> bool {
         // Error in either position: suppress cascading errors by accepting any type
         if matches!(expected, Type::Error) || matches!(actual, Type::Error) {
@@ -451,8 +454,7 @@ impl Checker {
                 }
             }
             Type::Union { name: exp_name, .. } => match actual {
-                Type::Named(n) => n == exp_name,
-                Type::Union { name: n, .. } => n == exp_name,
+                Type::Named(n) | Type::Union { name: n, .. } => n == exp_name,
                 _ => false,
             },
 

@@ -8,7 +8,10 @@
 //! walker services both `UntypedExpr = Expr<()>` (pre-check) and
 //! `TypedExpr = Expr<Arc<Type>>` (post-check).
 
-use crate::parser::ast::*;
+use crate::parser::ast::{
+    Arg, Expr, ExprKind, FunctionDecl, Item, ItemKind, JsxChild, JsxElement, JsxElementKind,
+    JsxProp, Program, TemplatePart, TestStatement,
+};
 
 /// Walk all expressions in a program, calling `f` on each one.
 /// The callback receives each `&mut Expr` in pre-order (parent before children).
@@ -186,6 +189,7 @@ pub fn walk_expr<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
 }
 
 /// Walk only the children of an expression (not the expression itself).
+#[allow(clippy::too_many_lines)]
 pub fn walk_expr_children<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
     match &expr.kind {
         ExprKind::Binary { left, right, .. } | ExprKind::Pipe { left, right } => {
