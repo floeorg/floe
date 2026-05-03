@@ -15,7 +15,7 @@
         },
         {
           "type": "json",
-          "path": "integrations/vite-plugin-floe/package.json",
+          "path": "integrations/vite-plugin/package.json",
           "jsonpath": "$.version"
         },
         {

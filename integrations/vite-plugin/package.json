@@ -24,7 +24,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/floeorg/floe.git",
-    "directory": "integrations/vite-plugin-floe"
+    "directory": "integrations/vite-plugin"
   },
   "homepage": "https://github.com/floeorg/floe",
   "peerDependencies": {
