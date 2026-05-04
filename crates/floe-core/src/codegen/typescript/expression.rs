@@ -160,10 +160,8 @@ impl<'a> TypeScriptGenerator<'a> {
                 if matches!(body.kind, ExprKind::Block(_)) {
                     docs.push(self.emit_block_expr_with_return(body));
                 } else {
-                    let needs_parens = matches!(
-                        body.kind,
-                        ExprKind::Construct { .. } | ExprKind::Object(_)
-                    );
+                    let needs_parens =
+                        matches!(body.kind, ExprKind::Construct { .. } | ExprKind::Object(_));
                     if needs_parens {
                         docs.push(pretty::str("("));
                     }

@@ -404,14 +404,14 @@ fn constructor_with_spread_first_errors() {
 
 // ── Brace-form Record Construction ───────────────────────────
 
-fn arg_label<'a>(arg: &'a Arg) -> Option<&'a str> {
+fn arg_label(arg: &Arg) -> Option<&str> {
     match arg {
         Arg::Named { label, .. } => Some(label),
         Arg::Positional(_) => None,
     }
 }
 
-fn arg_value<'a>(arg: &'a Arg) -> Option<&'a Expr> {
+fn arg_value(arg: &Arg) -> Option<&Expr> {
     match arg {
         Arg::Named { value, .. } | Arg::Positional(value) => Some(value),
     }

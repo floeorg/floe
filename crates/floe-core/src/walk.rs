@@ -75,10 +75,7 @@ fn walk_args_mut<T>(args: &mut [Arg<T>], f: &mut impl FnMut(&mut Expr<T>)) {
     }
 }
 
-fn walk_template_parts_mut<T>(
-    parts: &mut [TemplatePart<T>],
-    f: &mut impl FnMut(&mut Expr<T>),
-) {
+fn walk_template_parts_mut<T>(parts: &mut [TemplatePart<T>], f: &mut impl FnMut(&mut Expr<T>)) {
     for part in parts {
         if let TemplatePart::Expr(e) = part {
             walk_expr_mut(e, f);
