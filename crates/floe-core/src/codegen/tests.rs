@@ -2687,3 +2687,142 @@ let u = User { id, name }
         "expected punning to expand to `id: id`, got:\n{output}"
     );
 }
+
+// ── URL Stdlib (#1426) ───────────────────────────────────────
+
+#[test]
+fn stdlib_url_parse() {
+    let result = emit(r#"URL.parse("http://example.com")"#);
+    assert!(
+        result.contains("new URL(\"http://example.com\")"),
+        "expected `new URL(...)`, got: {result}"
+    );
+    assert!(
+        result.contains("try") && result.contains("catch"),
+        "expected try/catch wrapper, got: {result}"
+    );
+    assert!(
+        result.contains("ok: true as const") && result.contains("ok: false as const"),
+        "expected Result literal, got: {result}"
+    );
+}
+
+#[test]
+fn stdlib_url_field_accessors_pipe() {
+    let result = emit_typed(
+        r#"
+let host = match URL.parse("http://example.com") {
+    Ok(u) -> u |> URL.host,
+    Err(_) -> "",
+}
+"#,
+    );
+    assert!(
+        result.contains("u.host"),
+        "expected `u.host` for `URL.host` accessor, got: {result}"
+    );
+}
+
+#[test]
+fn stdlib_url_to_string() {
+    let result = emit_typed(
+        r#"
+let s = match URL.parse("http://example.com") {
+    Ok(u) -> u |> URL.toString,
+    Err(_) -> "",
+}
+"#,
+    );
+    assert!(
+        result.contains("u.toString()"),
+        "expected `u.toString()`, got: {result}"
+    );
+}
+
+// ── URLSearchParams Stdlib (#1426) ───────────────────────────
+
+#[test]
+fn stdlib_url_search_params_parse() {
+    let result = emit(r#"URLSearchParams.parse("a=1&b=2")"#);
+    assert!(
+        result.contains("new URLSearchParams(\"a=1&b=2\")"),
+        "expected `new URLSearchParams(...)`, got: {result}"
+    );
+}
+
+#[test]
+fn stdlib_url_search_params_get_coerces_null() {
+    let result = emit_typed(
+        r#"
+let p = URLSearchParams.parse("a=1")
+let v = p |> URLSearchParams.get("a")
+"#,
+    );
+    assert!(
+        result.contains("?? undefined"),
+        "expected `?? undefined` null coercion, got: {result}"
+    );
+}
+
+#[test]
+fn stdlib_url_searchparams_from_url() {
+    let result = emit_typed(
+        r#"
+let p = match URL.parse("http://x.com?a=1") {
+    Ok(u) -> u |> URL.searchParams,
+    Err(_) -> URLSearchParams.parse(""),
+}
+"#,
+    );
+    assert!(
+        result.contains("u.searchParams"),
+        "expected `u.searchParams` accessor, got: {result}"
+    );
+}
+
+// ── RegExp Stdlib (#1426) ────────────────────────────────────
+
+#[test]
+fn stdlib_regexp_compile() {
+    let result = emit(r#"RegExp.compile("^foo", "i")"#);
+    assert!(
+        result.contains("new RegExp(\"^foo\", \"i\")"),
+        "expected `new RegExp(pattern, flags)`, got: {result}"
+    );
+    assert!(
+        result.contains("try") && result.contains("catch"),
+        "expected try/catch wrapper, got: {result}"
+    );
+}
+
+#[test]
+fn stdlib_regexp_test() {
+    let result = emit_typed(
+        r#"
+let isMatch = match RegExp.compile("^[a-z]", "") {
+    Ok(r) -> r |> RegExp.test("foo"),
+    Err(_) -> false,
+}
+"#,
+    );
+    assert!(
+        result.contains("r.test(\"foo\")"),
+        "expected `r.test(\"foo\")`, got: {result}"
+    );
+}
+
+#[test]
+fn stdlib_regexp_match_coerces_null() {
+    let result = emit_typed(
+        r#"
+let captures = match RegExp.compile("(\\d+)", "") {
+    Ok(r) -> r |> RegExp.match("abc 123"),
+    Err(_) -> None,
+}
+"#,
+    );
+    assert!(
+        result.contains("?? undefined"),
+        "expected `?? undefined` null coercion, got: {result}"
+    );
+}
