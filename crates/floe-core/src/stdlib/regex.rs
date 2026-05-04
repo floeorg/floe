@@ -1,4 +1,4 @@
-use super::{StdlibFn, Type, array_of, err_value, ok_value, option_of, result_of, stdlib_fn};
+use super::{StdlibFn, Type, array_of, option_of, result_of, stdlib_fn, try_catch_result};
 
 /// RegExp stdlib module — Floe-side surface over the runtime `RegExp`
 /// (lib.es5.d.ts). Compilation goes through `RegExp.compile(pattern,
@@ -14,11 +14,7 @@ pub fn register(fns: &mut Vec<StdlibFn>) {
             "RegExp", "compile",
             [Type::String, Type::String],
             result_of(re(), Type::Named("ParseError".to_string())),
-            concat!(
-                "(() => { try { return ", ok_value!("new RegExp($0, $1)"), "; ",
-                "} catch (e) { return ", err_value!("{ message: String(e) }"), "; ",
-                "} })()"
-            )
+            try_catch_result!("new RegExp($0, $1)")
         ),
 
         // `test` short-circuits to a boolean.

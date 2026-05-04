@@ -1,4 +1,4 @@
-use super::{StdlibFn, Type, err_value, ok_value, result_of, stdlib_fn};
+use super::{StdlibFn, Type, result_of, stdlib_fn, try_catch_result};
 
 /// URL stdlib module — Floe-side surface over the runtime `URL` type
 /// (lib.dom.d.ts / Node URL). The Floe-side `URL` IS the runtime URL;
@@ -17,11 +17,7 @@ pub fn register(fns: &mut Vec<StdlibFn>) {
             "URL", "parse",
             [Type::String],
             result_of(url(), Type::Named("ParseError".to_string())),
-            concat!(
-                "(() => { try { return ", ok_value!("new URL($0)"), "; ",
-                "} catch (e) { return ", err_value!("{ message: String(e) }"), "; ",
-                "} })()"
-            )
+            try_catch_result!("new URL($0)")
         ),
 
         // Field accessors. Match the runtime URL property names so users

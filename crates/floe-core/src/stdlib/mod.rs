@@ -17,8 +17,8 @@ mod option;
 mod pipe;
 mod promise;
 mod record;
-mod result;
 mod regex;
+mod result;
 mod set;
 mod string;
 mod url;
@@ -195,8 +195,24 @@ macro_rules! try_catch_async_result {
     };
 }
 
+/// Sync sibling of `try_catch_async_result!`. Wraps a synchronous
+/// expression that may throw and produces a Result literal with the
+/// caught error stringified into a `ParseError`-shaped object. Used by
+/// every parse-style stdlib factory (`JSON.parse`, `URL.parse`,
+/// `RegExp.compile`) that surfaces invalid input as `Err`.
+macro_rules! try_catch_result {
+    ($body:expr) => {
+        concat!(
+            "(() => { try { return { ok: true as const, value: ",
+            $body,
+            " }; } catch (e) { return { ok: false as const, ",
+            "error: { message: String(e) } }; } })()"
+        )
+    };
+}
+
 // Make the macros available to submodules.
-use {err_value, ok_value, stdlib_fn, try_catch_async_result};
+use {err_value, ok_value, stdlib_fn, try_catch_async_result, try_catch_result};
 
 /// Build the full stdlib registry.
 fn build_stdlib() -> Vec<StdlibFn> {
