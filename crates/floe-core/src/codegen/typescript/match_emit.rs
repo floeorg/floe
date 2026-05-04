@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::lexer::span::Span;
 use crate::parser::ast::{
     ExprKind, ItemKind, LiteralPattern, Pattern, PatternKind, StringPatternSegment, TypedExpr,
     TypedMatchArm,
@@ -110,7 +111,6 @@ impl<'a> TypeScriptGenerator<'a> {
     }
 
     #[allow(clippy::too_many_lines)]
-    #[allow(clippy::cognitive_complexity)]
     fn emit_pattern_condition(&mut self, subject: &TypedExpr, pattern: &Pattern) -> Document {
         match &pattern.kind {
             PatternKind::Literal(lit) => {
@@ -183,70 +183,26 @@ impl<'a> TypeScriptGenerator<'a> {
                 pretty::concat(docs)
             }
             PatternKind::Record { fields } => {
-                let mut docs = Vec::new();
-                let mut first = true;
-                for (name, pat) in fields {
-                    if matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
-                        continue;
-                    }
-                    if !first {
-                        docs.push(pretty::str(" && "));
-                    }
-                    first = false;
-                    let field_expr = TypedExpr::synthetic_typed(
-                        ExprKind::Identifier(format!(
-                            "{}.{}",
-                            self.emit_expr_string(subject),
-                            name
-                        )),
-                        subject.span,
-                    );
-                    docs.push(self.emit_pattern_condition(&field_expr, pat));
-                }
-                if first {
-                    pretty::str("true")
-                } else {
-                    pretty::concat(docs)
-                }
+                let subj_str = self.emit_expr_string(subject);
+                let items = fields
+                    .iter()
+                    .map(|(name, pat)| (format!("{subj_str}.{name}"), pat));
+                self.emit_field_pattern_conditions(subject.span, items)
             }
             PatternKind::Tuple(patterns) => {
-                let mut docs = Vec::new();
-                let mut first = true;
-                for (i, pat) in patterns.iter().enumerate() {
-                    if matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
-                        continue;
-                    }
-                    if !first {
-                        docs.push(pretty::str(" && "));
-                    }
-                    first = false;
-                    let elem_expr = TypedExpr::synthetic_typed(
-                        ExprKind::Identifier(format!("{}[{}]", self.emit_expr_string(subject), i)),
-                        subject.span,
-                    );
-                    docs.push(self.emit_pattern_condition(&elem_expr, pat));
-                }
-                if first {
-                    pretty::str("true")
-                } else {
-                    pretty::concat(docs)
-                }
+                let subj_str = self.emit_expr_string(subject);
+                let items = patterns
+                    .iter()
+                    .enumerate()
+                    .map(|(i, pat)| (format!("{subj_str}[{i}]"), pat));
+                self.emit_field_pattern_conditions(subject.span, items)
             }
             PatternKind::StringPattern { segments } => {
                 let mut s = String::new();
                 let subj_str = self.emit_expr_string(subject);
                 s.push_str(&subj_str);
                 s.push_str(".match(/^");
-                for segment in segments {
-                    match segment {
-                        StringPatternSegment::Literal(lit) => {
-                            s.push_str(&escape_regex(lit));
-                        }
-                        StringPatternSegment::Capture(_) => {
-                            s.push_str("([^/]+)");
-                        }
-                    }
-                }
+                append_string_pattern_regex_body(&mut s, segments);
                 s.push_str("$/)");
                 pretty::str(s)
             }
@@ -256,36 +212,18 @@ impl<'a> TypeScriptGenerator<'a> {
 
                 if elements.is_empty() && rest.is_none() {
                     docs.push(pretty::str(format!("{subj_str}.length === 0")));
-                } else if rest.is_some() {
-                    docs.push(pretty::str(format!(
-                        "{subj_str}.length >= {}",
-                        elements.len()
-                    )));
-                    for (i, pat) in elements.iter().enumerate() {
-                        if !matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
-                            docs.push(pretty::str(" && "));
-                            let elem_expr = TypedExpr::synthetic_typed(
-                                ExprKind::Identifier(format!("{subj_str}[{i}]")),
-                                subject.span,
-                            );
-                            docs.push(self.emit_pattern_condition(&elem_expr, pat));
-                        }
-                    }
                 } else {
+                    let length_op = if rest.is_some() { ">=" } else { "===" };
                     docs.push(pretty::str(format!(
-                        "{subj_str}.length === {}",
+                        "{subj_str}.length {length_op} {}",
                         elements.len()
                     )));
-                    for (i, pat) in elements.iter().enumerate() {
-                        if !matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
-                            docs.push(pretty::str(" && "));
-                            let elem_expr = TypedExpr::synthetic_typed(
-                                ExprKind::Identifier(format!("{subj_str}[{i}]")),
-                                subject.span,
-                            );
-                            docs.push(self.emit_pattern_condition(&elem_expr, pat));
-                        }
-                    }
+                    self.append_array_element_conditions(
+                        elements,
+                        &subj_str,
+                        subject.span,
+                        &mut docs,
+                    );
                 }
                 pretty::concat(docs)
             }
@@ -315,38 +253,14 @@ impl<'a> TypeScriptGenerator<'a> {
 
             let subj_str = self.emit_expr_string(subject);
             let mut s = format!("(() => {{ const _m = {subj_str}.match(/^");
-            for segment in segments {
-                match segment {
-                    StringPatternSegment::Literal(lit) => s.push_str(&escape_regex(lit)),
-                    StringPatternSegment::Capture(_) => s.push_str("([^/]+)"),
-                }
-            }
+            append_string_pattern_regex_body(&mut s, segments);
             s.push_str("$/); ");
 
             for (i, name) in captures.iter().enumerate() {
                 s.push_str(&format!("const {} = _m![{}]; ", name, i + 1));
             }
 
-            if let ExprKind::Block(items) = &body.kind {
-                for (i, item) in items.iter().enumerate() {
-                    let is_last = i == items.len() - 1;
-                    if is_last && matches!(item.kind, ItemKind::Expr(_)) {
-                        if let ItemKind::Expr(expr) = &item.kind {
-                            s.push_str("return ");
-                            s.push_str(&self.emit_expr_string(expr));
-                            s.push_str("; ");
-                        }
-                    } else {
-                        let item_doc = self.emit_item(item);
-                        s.push_str(&Self::doc_to_string(&item_doc));
-                        s.push(' ');
-                    }
-                }
-            } else {
-                s.push_str("return ");
-                s.push_str(&self.emit_expr_string(body));
-                s.push(';');
-            }
+            self.append_match_body(body, &mut s);
             s.push_str(" })()");
             return pretty::str(s);
         }
@@ -365,26 +279,7 @@ impl<'a> TypeScriptGenerator<'a> {
             for (name, access) in &bindings {
                 s.push_str(&format!("const {name} = {access}; "));
             }
-            if let ExprKind::Block(items) = &body.kind {
-                for (i, item) in items.iter().enumerate() {
-                    let is_last = i == items.len() - 1;
-                    if is_last && matches!(item.kind, ItemKind::Expr(_)) {
-                        if let ItemKind::Expr(expr) = &item.kind {
-                            s.push_str("return ");
-                            s.push_str(&self.emit_expr_string(expr));
-                            s.push_str("; ");
-                        }
-                    } else {
-                        let item_doc = self.emit_item(item);
-                        s.push_str(&Self::doc_to_string(&item_doc));
-                        s.push(' ');
-                    }
-                }
-            } else {
-                s.push_str("return ");
-                s.push_str(&self.emit_expr_string(body));
-                s.push(';');
-            }
+            self.append_match_body(body, &mut s);
             s.push_str(" })()");
             pretty::str(s)
         } else {
@@ -398,6 +293,81 @@ impl<'a> TypeScriptGenerator<'a> {
             LiteralPattern::Number(n) => pretty::str(n),
             LiteralPattern::String(s) => pretty::str(format!("\"{}\"", escape_string(s))),
             LiteralPattern::Bool(b) => pretty::str(if *b { "true" } else { "false" }),
+        }
+    }
+
+    fn emit_field_pattern_conditions<'p>(
+        &mut self,
+        span: Span,
+        items: impl IntoIterator<Item = (String, &'p Pattern)>,
+    ) -> Document {
+        let mut docs = Vec::new();
+        let mut first = true;
+        for (accessor, pat) in items {
+            if matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
+                continue;
+            }
+            if !first {
+                docs.push(pretty::str(" && "));
+            }
+            first = false;
+            let field_expr = TypedExpr::synthetic_typed(ExprKind::Identifier(accessor), span);
+            docs.push(self.emit_pattern_condition(&field_expr, pat));
+        }
+        if first {
+            pretty::str("true")
+        } else {
+            pretty::concat(docs)
+        }
+    }
+
+    fn append_array_element_conditions(
+        &mut self,
+        elements: &[Pattern],
+        subj_str: &str,
+        span: Span,
+        docs: &mut Vec<Document>,
+    ) {
+        for (i, pat) in elements.iter().enumerate() {
+            if matches!(pat.kind, PatternKind::Wildcard | PatternKind::Binding(_)) {
+                continue;
+            }
+            docs.push(pretty::str(" && "));
+            let elem_expr =
+                TypedExpr::synthetic_typed(ExprKind::Identifier(format!("{subj_str}[{i}]")), span);
+            docs.push(self.emit_pattern_condition(&elem_expr, pat));
+        }
+    }
+
+    fn append_match_body(&mut self, body: &TypedExpr, out: &mut String) {
+        if let ExprKind::Block(items) = &body.kind {
+            for (i, item) in items.iter().enumerate() {
+                let is_last = i == items.len() - 1;
+                if is_last && matches!(item.kind, ItemKind::Expr(_)) {
+                    if let ItemKind::Expr(expr) = &item.kind {
+                        out.push_str("return ");
+                        out.push_str(&self.emit_expr_string(expr));
+                        out.push_str("; ");
+                    }
+                } else {
+                    let item_doc = self.emit_item(item);
+                    out.push_str(&Self::doc_to_string(&item_doc));
+                    out.push(' ');
+                }
+            }
+        } else {
+            out.push_str("return ");
+            out.push_str(&self.emit_expr_string(body));
+            out.push(';');
+        }
+    }
+}
+
+fn append_string_pattern_regex_body(s: &mut String, segments: &[StringPatternSegment]) {
+    for segment in segments {
+        match segment {
+            StringPatternSegment::Literal(lit) => s.push_str(&escape_regex(lit)),
+            StringPatternSegment::Capture(_) => s.push_str("([^/]+)"),
         }
     }
 }
