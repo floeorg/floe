@@ -128,12 +128,12 @@ use crate::diagnostic::Diagnostic;
 use crate::interop::{self, DtsExport};
 use crate::lexer::span::Span;
 use crate::parser::ast::{
-    Arg, BinOp, ConstBinding, ConstDecl, DefaultExportDecl, Expr, ExprKind, ForBlock, FunctionDecl,
-    ImportDecl, Item, ItemKind, JsxChild, JsxElement, JsxElementKind, JsxProp, LiteralPattern,
-    MatchArm, ObjectDestructureField, Param, ParamDestructure, Pattern, PatternKind, Program,
-    RecordEntry, RecordField, StringPatternSegment, TemplatePart, TestBlock, TestStatement,
-    TraitDecl, TypeDecl, TypeDef, TypeExpr, TypeExprKind, UnaryOp, VariantPatternFields,
-    params_have_self,
+    Arg, BinOp, ConstBinding, ConstDecl, ConstructSyntax, DefaultExportDecl, Expr, ExprKind,
+    ForBlock, FunctionDecl, ImportDecl, Item, ItemKind, JsxChild, JsxElement, JsxElementKind,
+    JsxProp, LiteralPattern, MatchArm, ObjectDestructureField, Param, ParamDestructure, Pattern,
+    PatternKind, Program, RecordEntry, RecordField, StringPatternSegment, TemplatePart, TestBlock,
+    TestStatement, TraitDecl, TypeDecl, TypeDef, TypeExpr, TypeExprKind, UnaryOp,
+    VariantPatternFields, params_have_self,
 };
 use crate::resolve::ResolvedImports;
 use crate::stdlib::StdlibRegistry;

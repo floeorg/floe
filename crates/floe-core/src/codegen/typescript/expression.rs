@@ -133,13 +133,8 @@ impl<'a> TypeScriptGenerator<'a> {
                 type_name,
                 spread,
                 args,
+                ..
             } => self.emit_construct(type_name, spread.as_deref(), args),
-
-            ExprKind::BraceConstruct {
-                type_name,
-                spread,
-                fields,
-            } => self.emit_brace_construct(type_name, spread.as_deref(), fields),
 
             ExprKind::Member { object, field } => self.emit_member(object, field),
 
@@ -167,9 +162,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 } else {
                     let needs_parens = matches!(
                         body.kind,
-                        ExprKind::Construct { .. }
-                            | ExprKind::BraceConstruct { .. }
-                            | ExprKind::Object(_)
+                        ExprKind::Construct { .. } | ExprKind::Object(_)
                     );
                     if needs_parens {
                         docs.push(pretty::str("("));
@@ -380,26 +373,6 @@ impl<'a> TypeScriptGenerator<'a> {
         }
         docs.push(pretty::str(" }"));
         pretty::concat(docs)
-    }
-
-    /// Emit a brace-form record construction. Brace form is dispatched only
-    /// for record types, so the emitted shape always matches the
-    /// `emit_construct` record path: an object literal, with the
-    /// trait-impl factory function used when available.
-    fn emit_brace_construct(
-        &mut self,
-        type_name: &str,
-        spread: Option<&TypedExpr>,
-        fields: &[crate::parser::ast::BraceField<std::sync::Arc<crate::checker::Type>>],
-    ) -> Document {
-        let args: Vec<TypedArg> = fields
-            .iter()
-            .map(|f| Arg::Named {
-                label: f.name.clone(),
-                value: f.value.clone(),
-            })
-            .collect();
-        self.emit_construct(type_name, spread, &args)
     }
 
     // ── Member Access ───────────────────────────────────────────

@@ -289,6 +289,7 @@ impl<'src> Lowerer<'src> {
                         type_name,
                         spread,
                         args,
+                        syntax: crate::parser::ast::ConstructSyntax::Paren,
                     },
                     span,
                 ))
@@ -308,7 +309,7 @@ impl<'src> Lowerer<'src> {
                 }
 
                 let mut spread = None;
-                let mut fields = Vec::new();
+                let mut args = Vec::new();
 
                 for child in node.children() {
                     match child.kind() {
@@ -317,8 +318,8 @@ impl<'src> Lowerer<'src> {
                             spread = Some(Box::new(inner));
                         }
                         SyntaxKind::BRACE_CONSTRUCT_FIELD => {
-                            if let Some(field) = self.lower_brace_construct_field(&child) {
-                                fields.push(field);
+                            if let Some(arg) = self.lower_brace_construct_field(&child) {
+                                args.push(arg);
                             }
                         }
                         _ => {}
@@ -326,10 +327,11 @@ impl<'src> Lowerer<'src> {
                 }
 
                 Some(self.expr(
-                    ExprKind::BraceConstruct {
+                    ExprKind::Construct {
                         type_name,
                         spread,
-                        fields,
+                        args,
+                        syntax: crate::parser::ast::ConstructSyntax::Brace,
                     },
                     span,
                 ))
@@ -741,23 +743,19 @@ impl<'src> Lowerer<'src> {
         }
     }
 
-    /// Lower a single `BRACE_CONSTRUCT_FIELD` node (`name: expr` or punned `name`).
-    pub(super) fn lower_brace_construct_field(
-        &mut self,
-        node: &SyntaxNode,
-    ) -> Option<crate::parser::ast::BraceField> {
+    /// Lower a `BRACE_CONSTRUCT_FIELD` node into a named `Arg`. Both
+    /// `{ name }` and `{ name: }` desugar to `{ name: name }` here.
+    pub(super) fn lower_brace_construct_field(&mut self, node: &SyntaxNode) -> Option<Arg> {
         let span = self.node_span(node);
         let idents = self.collect_idents_direct(node);
-        let name = idents.first()?.clone();
+        let label = idents.first()?.clone();
         let value = if self.has_token(node, SyntaxKind::COLON) {
-            self.lower_expr_after_colon(node).unwrap_or_else(|| {
-                // Punning shorthand `{ name }` desugars to `{ name: name }`.
-                self.expr(ExprKind::Identifier(name.clone()), span)
-            })
+            self.lower_expr_after_colon(node)
+                .unwrap_or_else(|| self.expr(ExprKind::Identifier(label.clone()), span))
         } else {
-            self.expr(ExprKind::Identifier(name.clone()), span)
+            self.expr(ExprKind::Identifier(label.clone()), span)
         };
-        Some(crate::parser::ast::BraceField { name, value, span })
+        Some(Arg::Named { label, value })
     }
 
     pub(super) fn lower_arg(&mut self, node: &SyntaxNode) -> Option<Arg> {

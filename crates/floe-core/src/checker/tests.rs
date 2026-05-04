@@ -4969,6 +4969,7 @@ fn for_block_same_fn_name_different_types_no_conflict() {
                             span: dummy_span,
                         },
                     }],
+                    syntax: ConstructSyntax::Brace,
                 },
                 ty: (),
                 span: dummy_span,

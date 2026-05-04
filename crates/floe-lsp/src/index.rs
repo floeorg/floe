@@ -611,14 +611,6 @@ fn collect_expr(expr: &TypedExpr, symbols: &mut Vec<Symbol>) {
         } => {
             collect_args(args, symbols);
         }
-        ExprKind::BraceConstruct { fields, spread, .. } => {
-            for f in fields {
-                collect_expr(&f.value, symbols);
-            }
-            if let Some(s) = spread {
-                collect_expr(s, symbols);
-            }
-        }
         ExprKind::Pipe { left, right } | ExprKind::Binary { left, right, .. } => {
             collect_expr(left, symbols);
             collect_expr(right, symbols);

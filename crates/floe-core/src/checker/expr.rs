@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use super::{
-    Arg, BinOp, Checker, Diagnostic, ErrorCode, Expr, ExprId, ExprKind, HashMap, Item, ItemKind,
-    MatchArm, Param, ParamDestructure, Span, TemplatePart, Type, TypeDef, TypeExpr, UnaryOp,
-    hydrator, interop, unify,
+    Arg, BinOp, Checker, ConstructSyntax, Diagnostic, ErrorCode, Expr, ExprId, ExprKind, HashMap,
+    Item, ItemKind, MatchArm, Param, ParamDestructure, Span, TemplatePart, Type, TypeDef, TypeExpr,
+    UnaryOp, hydrator, interop, unify,
 };
 use crate::type_layout;
 
@@ -177,12 +177,8 @@ impl Checker {
                 type_name,
                 spread,
                 args,
-            } => self.check_construct(type_name, spread.as_deref(), args, expr.span, false),
-            ExprKind::BraceConstruct {
-                type_name,
-                spread,
-                fields,
-            } => self.check_brace_construct(type_name, spread.as_deref(), fields, expr.span),
+                syntax,
+            } => self.check_construct(type_name, spread.as_deref(), args, expr.span, *syntax),
             ExprKind::Member { object, field } => self.check_member(object, field, expr.span),
             ExprKind::Index { object, index } => self.check_index(object, index, expr.span),
             ExprKind::Arrow {
@@ -1523,44 +1519,65 @@ impl Checker {
         spread: Option<&Expr>,
         args: &[Arg],
         span: Span,
-        from_brace_form: bool,
+        syntax: ConstructSyntax,
     ) -> Type {
         self.unused.used_names.insert(type_name.to_string());
 
         let type_info = self.env.lookup_type(type_name).cloned();
-        if type_info.is_none() {
-            let is_variant = self
-                .env
-                .lookup(type_name)
-                .is_some_and(|ty| matches!(ty, Type::Union { .. }));
-            let is_known_value = self.env.lookup(type_name).is_some();
-            if !is_variant && !is_known_value {
-                self.emit_error(
+        let is_record = matches!(type_info.as_ref().map(|i| &i.def), Some(TypeDef::Record(_)));
+
+        // Records and non-records take opposite construction operators:
+        // records require brace form so they can resolve via the type
+        // namespace alone, paren form is reserved for value-namespace
+        // constructors (variants, newtypes, opaque types).
+        match (syntax, &type_info) {
+            (ConstructSyntax::Paren, _) if !is_record => {
+                if type_info.is_none() {
+                    let is_variant = self
+                        .env
+                        .lookup(type_name)
+                        .is_some_and(|ty| matches!(ty, Type::Union { .. }));
+                    let is_known_value = self.env.lookup(type_name).is_some();
+                    if !is_variant && !is_known_value {
+                        self.emit_error(
+                            format!("unknown type `{type_name}`"),
+                            span,
+                            ErrorCode::UndefinedName,
+                            "not defined",
+                        );
+                    }
+                }
+            }
+            (ConstructSyntax::Paren, _) => {
+                self.emit_error_with_help(
+                    format!(
+                        "construct record `{type_name}` with brace form: `{type_name} {{ ... }}`"
+                    ),
+                    span,
+                    ErrorCode::TypeMismatch,
+                    "paren-form record construction was removed",
+                    "use `Foo { field: value, ... }` — `Foo(...)` is reserved for the value namespace",
+                );
+            }
+            (ConstructSyntax::Brace, None) => {
+                self.emit_error_with_help(
                     format!("unknown type `{type_name}`"),
                     span,
                     ErrorCode::UndefinedName,
-                    "not defined",
+                    "not a known type",
+                    "brace construction `Name { ... }` only works on record types",
                 );
             }
-        }
-
-        // Hard switch (#1409): paren-form record construction is no longer
-        // valid syntax. Records construct with `Foo { ... }`; the paren
-        // namespace is reserved for value-namespace bindings (functions,
-        // constructors, variants, opaque-module helpers). Variants reach
-        // check_construct via the same node but are not Records.
-        if !from_brace_form
-            && let Some(ref info) = type_info
-            && matches!(info.def, TypeDef::Record(_))
-        {
-            self.emit_error_with_help(
-                format!("construct record `{type_name}` with brace form: `{type_name} {{ ... }}`"),
-                span,
-                ErrorCode::TypeMismatch,
-                "paren-form record construction was removed",
-                "use `Foo { field: value, ... }` — `Foo(...)` is reserved for the value namespace",
-            );
-            // Continue type-checking so nested errors still surface.
+            (ConstructSyntax::Brace, Some(_)) if !is_record => {
+                self.emit_error_with_help(
+                    format!("`{type_name}` is not a record type"),
+                    span,
+                    ErrorCode::TypeMismatch,
+                    "not a record type",
+                    "brace construction `Name { ... }` only works on record types — variants and string unions use their own constructors",
+                );
+            }
+            (ConstructSyntax::Brace, Some(_)) => {}
         }
 
         // Zero-arg reference to non-unit variant → constructor function
@@ -1979,72 +1996,6 @@ impl Checker {
             return ty;
         }
         Type::Named(type_name.to_string())
-    }
-
-    /// Type-check a brace-form record construction `Foo { field: ..., ..base }`.
-    ///
-    /// Brace form looks up the name strictly in the type namespace, so it
-    /// never collides with a same-named function or value binding. Only
-    /// record types — Floe records and ambient TS interfaces — are valid;
-    /// variants, string unions, aliases of non-records, and unknown names
-    /// are rejected with a focused diagnostic.
-    fn check_brace_construct(
-        &mut self,
-        type_name: &str,
-        spread: Option<&Expr>,
-        fields: &[crate::parser::ast::BraceField],
-        span: Span,
-    ) -> Type {
-        self.unused.used_names.insert(type_name.to_string());
-
-        let type_info = self.env.lookup_type(type_name).cloned();
-        let Some(info) = type_info else {
-            self.emit_error_with_help(
-                format!("unknown type `{type_name}`"),
-                span,
-                ErrorCode::UndefinedName,
-                "not a known type",
-                "brace construction `Name { ... }` only works on record types",
-            );
-            // Still walk field values so nested errors are reported.
-            for field in fields {
-                self.check_expr(&field.value);
-            }
-            if let Some(s) = spread {
-                self.check_expr(s);
-            }
-            return Type::Error;
-        };
-
-        if !matches!(info.def, TypeDef::Record(_)) {
-            self.emit_error_with_help(
-                format!("`{type_name}` is not a record type"),
-                span,
-                ErrorCode::TypeMismatch,
-                "not a record type",
-                "brace construction `Name { ... }` only works on record types — variants and string unions use their own constructors",
-            );
-            for field in fields {
-                self.check_expr(&field.value);
-            }
-            if let Some(s) = spread {
-                self.check_expr(s);
-            }
-            return Type::Error;
-        }
-
-        // Reuse the existing record-construction logic by adapting the
-        // brace fields to the named-argument form. Construct's variant /
-        // value-namespace branches are inert for record types.
-        let args: Vec<Arg> = fields
-            .iter()
-            .map(|f| Arg::Named {
-                label: f.name.clone(),
-                value: f.value.clone(),
-            })
-            .collect();
-
-        self.check_construct(type_name, spread, &args, span, true)
     }
 
     #[allow(clippy::too_many_lines)]

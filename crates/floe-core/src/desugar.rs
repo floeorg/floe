@@ -65,6 +65,7 @@ fn desugar_expr(expr: &mut Expr) {
             type_name,
             args,
             spread: None,
+            ..
         } if type_name == crate::type_layout::VARIANT_SOME && args.len() == 1 => {
             if let Some(Arg::Positional(inner)) = args.pop() {
                 expr.kind = inner.kind;
@@ -76,6 +77,7 @@ fn desugar_expr(expr: &mut Expr) {
             type_name,
             args,
             spread: None,
+            ..
         } if type_name == crate::type_layout::VARIANT_NONE && args.is_empty() => {
             expr.kind = ExprKind::Identifier("undefined".to_string());
         }
@@ -92,29 +94,6 @@ fn desugar_expr(expr: &mut Expr) {
         // Clear → null
         ExprKind::Clear => {
             expr.kind = ExprKind::Identifier("null".to_string());
-        }
-        // BraceConstruct (`Foo { ... }`) collapses to Construct here so that
-        // every later pass — default-expansion, codegen — sees one uniform
-        // record-construction node.
-        ExprKind::BraceConstruct {
-            type_name,
-            spread,
-            fields,
-        } => {
-            let type_name = std::mem::take(type_name);
-            let spread = spread.take();
-            let args = std::mem::take(fields)
-                .into_iter()
-                .map(|f| Arg::Named {
-                    label: f.name,
-                    value: f.value,
-                })
-                .collect();
-            expr.kind = ExprKind::Construct {
-                type_name,
-                spread,
-                args,
-            };
         }
         // Unchanged is NOT desugared — codegen detects it and omits the field
         // Ok/Err are now regular Construct expressions — codegen handles them
@@ -181,6 +160,7 @@ fn expand_construct_defaults(expr: &mut Expr, type_defs: &HashMap<String, TypeDe
         type_name,
         spread,
         args,
+        ..
     } = &mut expr.kind
     else {
         return;

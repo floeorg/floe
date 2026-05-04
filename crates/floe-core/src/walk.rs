@@ -105,14 +105,6 @@ pub fn walk_expr_children_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Exp
             }
             walk_args_mut(args, f);
         }
-        ExprKind::BraceConstruct { fields, spread, .. } => {
-            if let Some(s) = spread {
-                walk_expr_mut(s, f);
-            }
-            for field in fields {
-                walk_expr_mut(&mut field.value, f);
-            }
-        }
         ExprKind::Member { object, .. } => walk_expr_mut(object, f),
         ExprKind::Index { object, index } => {
             walk_expr_mut(object, f);
@@ -223,14 +215,6 @@ pub fn walk_expr_children<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
                 walk_expr(s, f);
             }
             walk_args(args, f);
-        }
-        ExprKind::BraceConstruct { fields, spread, .. } => {
-            if let Some(s) = spread {
-                walk_expr(s, f);
-            }
-            for field in fields {
-                walk_expr(&field.value, f);
-            }
         }
         ExprKind::Member { object, .. } => walk_expr(object, f),
         ExprKind::Index { object, index } => {
