@@ -162,8 +162,38 @@ macro_rules! stdlib_fn {
     };
 }
 
-// Make the macro available to submodules.
-use stdlib_fn;
+/// Emit `{ ok: true as const, value: <expr> }` — a successful Result literal.
+macro_rules! ok_value {
+    ($expr:expr) => {
+        concat!("{ ok: true as const, value: ", $expr, " }")
+    };
+}
+
+/// Emit `{ ok: false as const, error: <expr> }` — a failed Result literal.
+macro_rules! err_value {
+    ($expr:expr) => {
+        concat!("{ ok: false as const, error: ", $expr, " }")
+    };
+}
+
+/// Wrap an async expression in the canonical try/catch IIFE that
+/// normalizes the caught error to an `Error` instance and returns a
+/// Result literal. The body is bound to `_r` inside `try`.
+macro_rules! try_catch_async_result {
+    ($body:expr) => {
+        concat!(
+            "(async () => { try { const _r = ",
+            $body,
+            "; return { ok: true as const, value: _r };",
+            " } catch (_e) { return { ok: false as const, ",
+            "error: _e instanceof Error ? _e : new Error(String(_e)) };",
+            " } })()"
+        )
+    };
+}
+
+// Make the macros available to submodules.
+use {err_value, ok_value, stdlib_fn, try_catch_async_result};
 
 /// Build the full stdlib registry.
 fn build_stdlib() -> Vec<StdlibFn> {
