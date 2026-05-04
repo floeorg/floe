@@ -546,6 +546,30 @@ let month = d |> Date.month                 // d.getMonth() + 1 (1-indexed!)
 let day = d |> Date.day                     // d.getDate()
 let ms = d |> Date.millis                   // d.getTime()
 let iso = d |> Date.toIso                   // d.toISOString()
+
+// URL — parse + field access (Result on parse so bad input is `Err`)
+match URL.parse("https://example.com/p?q=1") {
+    Ok(u) -> {
+        let host = u |> URL.host                // "example.com"
+        let path = u |> URL.pathname            // "/p"
+        let q = u |> URL.searchParams |> URLSearchParams.get("q")  // Some("1")
+    },
+    Err(e) -> Console.error(e.message),
+}
+
+// URLSearchParams — read-only query string access
+let p = URLSearchParams.parse("a=1&b=2")
+let a = p |> URLSearchParams.get("a")           // Some("1")
+let pairs = URLSearchParams.fromArray([("q", "floe")])
+
+// RegExp — compile + match (compile is `Result` so bad patterns are `Err`)
+match RegExp.compile("^[a-z]+", "i") {
+    Ok(r) -> {
+        let isWord = r |> RegExp.test("Hello")        // true
+        let captures = r |> RegExp.exec("Hello")      // Some(["Hello"])
+    },
+    Err(e) -> Console.error(e.message),
+}
 ```
 
 ## Imports

@@ -17,9 +17,12 @@ mod option;
 mod pipe;
 mod promise;
 mod record;
+mod regex;
 mod result;
 mod set;
 mod string;
+mod url;
+mod url_search_params;
 
 use std::sync::Arc;
 
@@ -192,8 +195,24 @@ macro_rules! try_catch_async_result {
     };
 }
 
+/// Sync sibling of `try_catch_async_result!`. Wraps a synchronous
+/// expression that may throw and produces a Result literal with the
+/// caught error stringified into a `ParseError`-shaped object. Used by
+/// every parse-style stdlib factory (`JSON.parse`, `URL.parse`,
+/// `RegExp.compile`) that surfaces invalid input as `Err`.
+macro_rules! try_catch_result {
+    ($body:expr) => {
+        concat!(
+            "(() => { try { return { ok: true as const, value: ",
+            $body,
+            " }; } catch (e) { return { ok: false as const, ",
+            "error: { message: String(e) } }; } })()"
+        )
+    };
+}
+
 // Make the macros available to submodules.
-use {err_value, ok_value, stdlib_fn, try_catch_async_result};
+use {err_value, ok_value, stdlib_fn, try_catch_async_result, try_catch_result};
 
 /// Build the full stdlib registry.
 fn build_stdlib() -> Vec<StdlibFn> {
@@ -214,6 +233,9 @@ fn build_stdlib() -> Vec<StdlibFn> {
     bool::register(&mut fns);
     pipe::register(&mut fns);
     json::register(&mut fns);
+    url::register(&mut fns);
+    url_search_params::register(&mut fns);
+    regex::register(&mut fns);
     fns
 }
 
@@ -538,6 +560,9 @@ mod tests {
         assert!(reg.is_module("Http"));
         assert!(reg.is_module("Date"));
         assert!(reg.is_module("Promise"));
+        assert!(reg.is_module("URL"));
+        assert!(reg.is_module("URLSearchParams"));
+        assert!(reg.is_module("RegExp"));
         assert!(!reg.is_module("Foo"));
     }
 
@@ -557,6 +582,9 @@ mod tests {
         assert!(reg.module_functions("Set").len() >= 11);
         assert!(reg.module_functions("Http").len() >= 6);
         assert!(reg.module_functions("Date").len() >= 11);
+        assert!(reg.module_functions("URL").len() >= 11);
+        assert!(reg.module_functions("URLSearchParams").len() >= 9);
+        assert!(reg.module_functions("RegExp").len() >= 5);
     }
 
     #[test]
@@ -607,6 +635,162 @@ mod tests {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Date", "toIso").unwrap();
         assert_eq!(f.codegen, "$0.toISOString()");
+    }
+
+    // ── URL ───────────────────────────────────────────────────
+
+    #[test]
+    fn url_is_module() {
+        let reg = StdlibRegistry::new();
+        assert!(reg.is_module("URL"));
+    }
+
+    #[test]
+    fn lookup_url_parse_wraps_new_url_in_try_catch() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("URL", "parse").unwrap();
+        assert!(
+            f.codegen.contains("new URL($0)"),
+            "URL.parse must construct via `new URL`, got: {}",
+            f.codegen
+        );
+        assert!(
+            f.codegen.contains("try") && f.codegen.contains("catch"),
+            "URL.parse must wrap construction so invalid input surfaces as Err, got: {}",
+            f.codegen
+        );
+        assert!(
+            f.codegen.contains("ok: true") && f.codegen.contains("ok: false"),
+            "URL.parse must return a Result literal, got: {}",
+            f.codegen
+        );
+    }
+
+    #[test]
+    fn lookup_url_field_accessors() {
+        let reg = StdlibRegistry::new();
+        for (name, expected) in [
+            ("href", "$0.href"),
+            ("origin", "$0.origin"),
+            ("protocol", "$0.protocol"),
+            ("host", "$0.host"),
+            ("hostname", "$0.hostname"),
+            ("port", "$0.port"),
+            ("pathname", "$0.pathname"),
+            ("search", "$0.search"),
+            ("hash", "$0.hash"),
+        ] {
+            let f = reg
+                .lookup("URL", name)
+                .unwrap_or_else(|| panic!("URL.{name} missing"));
+            assert_eq!(f.codegen, expected, "URL.{name}");
+        }
+    }
+
+    #[test]
+    fn lookup_url_to_string() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("URL", "toString").unwrap();
+        assert_eq!(f.codegen, "$0.toString()");
+    }
+
+    #[test]
+    fn lookup_url_search_params_returns_named_type() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("URL", "searchParams").unwrap();
+        assert_eq!(f.codegen, "$0.searchParams");
+        assert!(
+            matches!(&f.return_type, Type::Named(n) if n == "URLSearchParams"),
+            "URL.searchParams must return URLSearchParams, got: {:?}",
+            f.return_type
+        );
+    }
+
+    // ── URLSearchParams ───────────────────────────────────────
+
+    #[test]
+    fn url_search_params_is_module() {
+        let reg = StdlibRegistry::new();
+        assert!(reg.is_module("URLSearchParams"));
+    }
+
+    #[test]
+    fn lookup_url_search_params_parse_does_not_wrap_in_result() {
+        // URLSearchParams accepts arbitrary strings without throwing —
+        // no Result wrapper needed (unlike URL.parse / RegExp.compile).
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("URLSearchParams", "parse").unwrap();
+        assert_eq!(f.codegen, "new URLSearchParams($0)");
+        assert!(
+            !f.codegen.contains("try"),
+            "URLSearchParams.parse should not have try/catch, got: {}",
+            f.codegen
+        );
+    }
+
+    #[test]
+    fn lookup_url_search_params_get_coerces_null_to_undefined() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("URLSearchParams", "get").unwrap();
+        assert!(
+            f.codegen.contains("?? undefined"),
+            "URLSearchParams.get must coerce null to undefined for Floe Option, got: {}",
+            f.codegen
+        );
+    }
+
+    #[test]
+    fn lookup_url_search_params_size() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("URLSearchParams", "size").unwrap();
+        assert_eq!(f.codegen, "$0.size");
+    }
+
+    // ── RegExp ────────────────────────────────────────────────
+
+    #[test]
+    fn reg_exp_is_module() {
+        let reg = StdlibRegistry::new();
+        assert!(reg.is_module("RegExp"));
+    }
+
+    #[test]
+    fn lookup_reg_exp_compile_wraps_in_try_catch() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("RegExp", "compile").unwrap();
+        assert!(
+            f.codegen.contains("new RegExp($0, $1)"),
+            "RegExp.compile must construct via `new RegExp(pattern, flags)`, got: {}",
+            f.codegen
+        );
+        assert!(
+            f.codegen.contains("try") && f.codegen.contains("catch"),
+            "RegExp.compile must wrap construction, got: {}",
+            f.codegen
+        );
+    }
+
+    #[test]
+    fn lookup_reg_exp_test() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("RegExp", "test").unwrap();
+        assert_eq!(f.codegen, "$0.test($1)");
+    }
+
+    #[test]
+    fn lookup_reg_exp_exec_coerces_null() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("RegExp", "exec").unwrap();
+        assert!(
+            f.codegen.contains("?? undefined"),
+            "RegExp.exec must coerce null to undefined for Floe Option, got: {}",
+            f.codegen
+        );
+        assert!(
+            f.codegen.contains("$0.exec($1)"),
+            "expected `$0.exec($1)` (regex.exec(string)), got: {}",
+            f.codegen
+        );
     }
 
     #[test]
