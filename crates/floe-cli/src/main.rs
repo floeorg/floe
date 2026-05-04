@@ -150,14 +150,8 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
 
     // Render errors to stderr so the user sees them even when compilation
     // continues (strict reporting is `floe check`'s job).
-    let type_errors: Vec<_> = analysed
-        .diagnostics
-        .iter()
-        .filter(|d| d.severity == diagnostic::Severity::Error)
-        .collect();
-    if !type_errors.is_empty() {
-        let rendered = diagnostic::render_diagnostics(filename, source, &analysed.diagnostics);
-        eprintln!("{rendered}");
+    if has_errors(&analysed.diagnostics) {
+        report_diagnostics(filename, source, &analysed.diagnostics);
     }
 
     Ok(CompileResult {
@@ -223,11 +217,7 @@ fn cmd_build_stdin() -> Result<()> {
 // ── Build ────────────────────────────────────────────────────────
 
 fn cmd_build(path: &Path, out_dir: Option<&Path>) -> Result<()> {
-    let files = discover_fl_files(path)?;
-    if files.is_empty() {
-        bail!("no .fl files found in {}", path.display());
-    }
-
+    let files = ensure_fl_files_found(path)?;
     let cwd = std::env::current_dir().context("failed to get current directory")?;
     let project_dir = find_project_dir(&cwd);
     let default_out_dir = project_dir.join(".floe");
@@ -267,18 +257,12 @@ fn compile_and_write(
     let source = read_fl_file(file)?;
     let compiled = compiler.compile_file(file, source);
 
-    let type_errors: Vec<_> = compiled
-        .diagnostics
-        .iter()
-        .filter(|d| d.severity == diagnostic::Severity::Error)
-        .collect();
-    if !type_errors.is_empty() {
-        let rendered = diagnostic::render_diagnostics(
+    if has_errors(&compiled.diagnostics) {
+        report_diagnostics(
             &file.to_string_lossy(),
             &compiled.source,
             &compiled.diagnostics,
         );
-        eprintln!("{rendered}");
     }
 
     let ext = if compiled.has_jsx { "tsx" } else { "ts" };
@@ -313,10 +297,7 @@ fn compile_and_write(
 // ── Check ────────────────────────────────────────────────────────
 
 fn cmd_check(path: &Path) -> Result<()> {
-    let files = discover_fl_files(path)?;
-    if files.is_empty() {
-        bail!("no .fl files found in {}", path.display());
-    }
+    let files = ensure_fl_files_found(path)?;
 
     // All files in a check run share the project root, so one compiler
     // instance serves the whole pass — ambient types and tsconfig paths
@@ -338,16 +319,11 @@ fn cmd_check(path: &Path) -> Result<()> {
         let source = read_fl_file(file)?;
         let filename = file.to_string_lossy();
         let diagnostics = compiler.check_file(file, &source);
-        let type_errors: Vec<_> = diagnostics
-            .iter()
-            .filter(|d| d.severity == diagnostic::Severity::Error)
-            .collect();
-        if type_errors.is_empty() {
-            checked += 1;
-        } else {
-            let rendered = diagnostic::render_diagnostics(&filename, &source, &diagnostics);
-            eprint!("{rendered}");
+        if has_errors(&diagnostics) {
+            report_diagnostics(&filename, &source, &diagnostics);
             errors += 1;
+        } else {
+            checked += 1;
         }
     }
 
@@ -363,10 +339,7 @@ fn cmd_check(path: &Path) -> Result<()> {
 
 #[allow(clippy::too_many_lines)]
 fn cmd_test(path: &Path) -> Result<()> {
-    let files = discover_fl_files(path)?;
-    if files.is_empty() {
-        bail!("no .fl files found in {}", path.display());
-    }
+    let files = ensure_fl_files_found(path)?;
 
     // Find all files that contain test blocks
     let mut test_files = Vec::new();
@@ -393,8 +366,7 @@ fn cmd_test(path: &Path) -> Result<()> {
                 }
                 Err(errs) => {
                     let diags = diagnostic::from_parse_errors(&errs);
-                    let rendered = diagnostic::render_diagnostics(&filename, &source, &diags);
-                    eprint!("{rendered}");
+                    report_diagnostics(&filename, &source, &diags);
                 }
             }
         }
@@ -419,14 +391,8 @@ fn cmd_test(path: &Path) -> Result<()> {
                 ..Default::default()
             },
         );
-        let type_errors: Vec<_> = analysed
-            .diagnostics
-            .iter()
-            .filter(|d| d.severity == diagnostic::Severity::Error)
-            .collect();
-        if !type_errors.is_empty() {
-            let rendered = diagnostic::render_diagnostics(filename, source, &analysed.diagnostics);
-            eprint!("{rendered}");
+        if has_errors(&analysed.diagnostics) {
+            report_diagnostics(filename, source, &analysed.diagnostics);
             errors += 1;
             continue;
         }
@@ -488,11 +454,7 @@ fn cmd_test(path: &Path) -> Result<()> {
 // ── Fmt ──────────────────────────────────────────────────────────
 
 fn cmd_fmt(path: &Path, check_only: bool) -> Result<()> {
-    let files = discover_fl_files(path)?;
-    if files.is_empty() {
-        bail!("no .fl files found in {}", path.display());
-    }
-
+    let files = ensure_fl_files_found(path)?;
     let mut unformatted = 0;
     let mut formatted = 0;
     let mut skipped = 0;
@@ -665,6 +627,30 @@ fn read_fl_file(path: &Path) -> Result<String> {
 }
 
 // ── File Discovery ───────────────────────────────────────────────
+
+/// Discover .fl files under `path` and bail with a friendly error if
+/// none are found. Use this from any subcommand that needs at least one
+/// .fl file to do its work.
+fn ensure_fl_files_found(path: &Path) -> Result<Vec<PathBuf>> {
+    let files = discover_fl_files(path)?;
+    if files.is_empty() {
+        bail!("no .fl files found in {}", path.display());
+    }
+    Ok(files)
+}
+
+/// Returns `true` if any diagnostic has error severity.
+fn has_errors(diags: &[diagnostic::Diagnostic]) -> bool {
+    diags
+        .iter()
+        .any(|d| d.severity == diagnostic::Severity::Error)
+}
+
+/// Render diagnostics with file context and print them to stderr.
+fn report_diagnostics(filename: &str, source: &str, diags: &[diagnostic::Diagnostic]) {
+    let rendered = diagnostic::render_diagnostics(filename, source, diags);
+    eprint!("{rendered}");
+}
 
 fn discover_fl_files(path: &Path) -> Result<Vec<PathBuf>> {
     if path.is_file() {
