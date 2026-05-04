@@ -303,7 +303,7 @@ type Extended = {
 }
 
 let makeExtended() -> Extended = {
-    Extended(id: "1", name: "test", extra: 42)
+    Extended { id: "1", name: "test", extra: 42 }
 }
 """
 
@@ -315,7 +315,7 @@ type User = {
 }
 
 let updateName(user: User, newName: string) -> User = {
-    User(name: newName, ..user)
+    User { name: newName, ..user }
 }
 """
 
@@ -449,7 +449,7 @@ for Array<Msg> {
 }
 
 export let getMessage() -> Msg = {
-    Msg(text: "hello")
+    Msg { text: "hello" }
 }
 """
 
@@ -708,8 +708,8 @@ let withNew = tags |> Set.add("frontend")
 
 STRUCTURAL_EQ = """\
 type User = { name: string, age: number }
-let a = User(name: "Alice", age: 30)
-let b = User(name: "Alice", age: 30)
+let a = User { name: "Alice", age: 30 }
+let b = User { name: "Alice", age: 30 }
 let same = a == b
 """
 
@@ -798,7 +798,7 @@ type Row = { id: number, rawName: string }
 
 for Row {
     export let toAccent(self) -> Accent = {
-        Accent(id: self.id, name: self.rawName)
+        Accent { id: self.id, name: self.rawName }
     }
 }
 
@@ -831,7 +831,7 @@ type User = {
     age: number,
 }
 
-let user = User(name: "Ryan", age: 30)
+let user = User { name: "Ryan", age: 30 }
 let _name = user.name
 """
 

@@ -41,16 +41,31 @@ type User = {
 }
 ```
 
-Construct records with the type name:
+Construct records with **brace form**, `Type { field: value, ... }`:
 
 ```floe
-let user = User(name: "Alice", email: "a@b.com", age: 30)
+let user = User { name: "Alice", email: "a@b.com", age: 30 }
+```
+
+Brace form resolves the type name in the **type namespace** only. Paren-form
+construction (`User(...)`) is reserved for the **value namespace** — functions,
+variant constructors, opaque-module helpers — so a TypeScript-imported
+`function User` and `interface User` from the same module never collide.
+
+Field punning works for record literals: `{ name }` and `{ name: }` both
+desugar to `{ name: name }`.
+
+```floe
+let name = "Alice"
+let email = "a@b.com"
+let age = 30
+let user = User { name, email, age }
 ```
 
 Update with spread — explicit fields first, `..base` last, explicit wins:
 
 ```floe
-let updated = User(age: 31, ..user)
+let updated = User { age: 31, ..user }
 ```
 
 Two types with identical fields are NOT interchangeable. `User` is not `Product` even if both have `name: string`.
@@ -66,7 +81,7 @@ type Config = {
   retries: number = 3,
 }
 
-let c = Config(baseUrl: "https://api.com")
+let c = Config { baseUrl: "https://api.com" }
 // timeout is 5000, retries is 3
 ```
 
@@ -239,7 +254,7 @@ type UpdateUser = {
 }
 
 // Set name, clear avatar, leave email alone
-let patch = UpdateUser(name: Value("Ryan"), avatar: Clear)
+let patch = UpdateUser { name: Value("Ryan"), avatar: Clear }
 ```
 
 #### What it compiles to
@@ -252,7 +267,7 @@ let patch = UpdateUser(name: Value("Ryan"), avatar: Clear)
 | `Clear` | `null` |
 | `Unchanged` | *(key omitted)* |
 
-So `UpdateUser(name: Value("Ryan"), avatar: Clear)` compiles to `{ name: "Ryan", avatar: null }` -- no `email` key at all.
+So `UpdateUser { name: Value("Ryan"), avatar: Clear }` compiles to `{ name: "Ryan", avatar: null }` -- no `email` key at all.
 
 ### The `?` Operator
 

@@ -289,6 +289,49 @@ impl<'src> Lowerer<'src> {
                         type_name,
                         spread,
                         args,
+                        syntax: crate::parser::ast::ConstructSyntax::Paren,
+                    },
+                    span,
+                ))
+            }
+
+            SyntaxKind::BRACE_CONSTRUCT_EXPR => {
+                let mut type_name = String::new();
+                for tok in node.children_with_tokens() {
+                    if let Some(tok) = tok.as_token() {
+                        if tok.kind() == SyntaxKind::L_BRACE {
+                            break;
+                        }
+                        if tok.kind() == SyntaxKind::IDENT {
+                            type_name = tok.text().to_string();
+                        }
+                    }
+                }
+
+                let mut spread = None;
+                let mut args = Vec::new();
+
+                for child in node.children() {
+                    match child.kind() {
+                        SyntaxKind::SPREAD_EXPR => {
+                            let inner = self.lower_child_exprs(&child).into_iter().next()?;
+                            spread = Some(Box::new(inner));
+                        }
+                        SyntaxKind::BRACE_CONSTRUCT_FIELD => {
+                            if let Some(arg) = self.lower_brace_construct_field(&child) {
+                                args.push(arg);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                Some(self.expr(
+                    ExprKind::Construct {
+                        type_name,
+                        spread,
+                        args,
+                        syntax: crate::parser::ast::ConstructSyntax::Brace,
                     },
                     span,
                 ))
@@ -698,6 +741,21 @@ impl<'src> Lowerer<'src> {
             SyntaxKind::KW_SELF => Some(self.expr(ExprKind::Identifier("self".to_string()), span)),
             _ => None,
         }
+    }
+
+    /// Lower a `BRACE_CONSTRUCT_FIELD` node into a named `Arg`. Both
+    /// `{ name }` and `{ name: }` desugar to `{ name: name }` here.
+    pub(super) fn lower_brace_construct_field(&mut self, node: &SyntaxNode) -> Option<Arg> {
+        let span = self.node_span(node);
+        let idents = self.collect_idents_direct(node);
+        let label = idents.first()?.clone();
+        let value = if self.has_token(node, SyntaxKind::COLON) {
+            self.lower_expr_after_colon(node)
+                .unwrap_or_else(|| self.expr(ExprKind::Identifier(label.clone()), span))
+        } else {
+            self.expr(ExprKind::Identifier(label.clone()), span)
+        };
+        Some(Arg::Named { label, value })
     }
 
     pub(super) fn lower_arg(&mut self, node: &SyntaxNode) -> Option<Arg> {

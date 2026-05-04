@@ -34,9 +34,9 @@ export for Array<CartItem> {
         let existing = self |> Array.findIndex((item) -> item.product.id == product.id)
 
         existing |> match {
-            None -> self |> Array.append(CartItem(product:, quantity: qty)),
+            None -> self |> Array.append(CartItem { product, quantity: qty }),
             Some(_) -> self |> Array.map((item) -> match item.product.id == product.id {
-                    true -> CartItem(quantity: item.quantity + qty, ..item),
+                    true -> CartItem { quantity: item.quantity + qty, ..item },
                     false -> item,
                 }),
         }
@@ -50,7 +50,7 @@ export for Array<CartItem> {
         qty |> match {
             0 -> self |> removeItem(productId),
             _ -> self |> Array.map((item) -> match item.product.id == productId {
-                    true -> CartItem(quantity: qty, ..item),
+                    true -> CartItem { quantity: qty, ..item },
                     false -> item,
                 }),
         }

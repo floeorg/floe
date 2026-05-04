@@ -27,6 +27,7 @@ module.exports = grammar({
     [$.use_declaration, $.index_expression],
     [$.primary_expression, $.construct_expression],
     [$.primary_expression, $.construct_expression, $.variant_expression],
+    [$.primary_expression, $.brace_construct_expression],
     [$.for_block],
     [$.assert_statement, $.call_expression],
     [$.assert_statement, $.tagged_template_expression],
@@ -388,6 +389,7 @@ module.exports = grammar({
         $.member_expression,
         $.index_expression,
         $.construct_expression,
+        $.brace_construct_expression,
         $.variant_expression,
         $.arrow_closure,
         $.dot_shorthand,
@@ -650,6 +652,24 @@ module.exports = grammar({
 
     construct_field: ($) =>
       seq(field("name", $._field_name), ":", field("value", $._expression)),
+
+    // Brace-form record construction: `User { id: "1", name, ..base }`
+    brace_construct_expression: ($) =>
+      prec("construct", seq(
+        field("type", $.type_identifier),
+        "{",
+        commaSep($.brace_construct_field),
+        optional(seq(",", "..", field("spread", $._expression))),
+        optional(","),
+        "}",
+      )),
+
+    brace_construct_field: ($) =>
+      choice(
+        seq(field("name", $._field_name), ":", field("value", $._expression)),
+        // Punning: `{ name }` and `{ name: }` both desugar to `{ name: name }`
+        seq(field("name", $._field_name), optional(":")),
+      ),
 
     variant_expression: ($) =>
       choice(

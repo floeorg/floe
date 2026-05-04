@@ -402,6 +402,129 @@ fn constructor_with_spread_first_errors() {
     );
 }
 
+// ── Brace-form Record Construction ───────────────────────────
+
+fn arg_label(arg: &Arg) -> Option<&str> {
+    match arg {
+        Arg::Named { label, .. } => Some(label),
+        Arg::Positional(_) => None,
+    }
+}
+
+fn arg_value(arg: &Arg) -> Option<&Expr> {
+    match arg {
+        Arg::Named { value, .. } | Arg::Positional(value) => Some(value),
+    }
+}
+
+#[test]
+fn brace_construct_simple() {
+    let expr = first_expr(r#"User { id: "1", name: "Ryan" }"#);
+    match expr {
+        ExprKind::Construct {
+            type_name,
+            spread,
+            args,
+            syntax,
+        } => {
+            assert_eq!(syntax, ConstructSyntax::Brace);
+            assert_eq!(type_name, "User");
+            assert!(spread.is_none());
+            assert_eq!(args.len(), 2);
+            assert_eq!(arg_label(&args[0]), Some("id"));
+            assert_eq!(arg_label(&args[1]), Some("name"));
+        }
+        other => panic!("expected brace Construct, got {other:?}"),
+    }
+}
+
+#[test]
+fn brace_construct_empty() {
+    let expr = first_expr(r#"Empty {}"#);
+    assert!(matches!(
+        expr,
+        ExprKind::Construct {
+            syntax: ConstructSyntax::Brace,
+            ref args,
+            ref spread,
+            ..
+        } if args.is_empty() && spread.is_none()
+    ));
+}
+
+#[test]
+fn brace_construct_with_spread() {
+    let expr = first_expr(r#"User { id: "new", ..base }"#);
+    match expr {
+        ExprKind::Construct {
+            spread,
+            args,
+            syntax,
+            ..
+        } => {
+            assert_eq!(syntax, ConstructSyntax::Brace);
+            assert!(spread.is_some());
+            assert_eq!(args.len(), 1);
+        }
+        other => panic!("expected brace Construct, got {other:?}"),
+    }
+}
+
+#[test]
+fn brace_construct_with_punning() {
+    let expr = first_expr(r#"User { id, name }"#);
+    match expr {
+        ExprKind::Construct {
+            args,
+            syntax: ConstructSyntax::Brace,
+            ..
+        } => {
+            assert_eq!(args.len(), 2);
+            // Punning desugars `name` to `name: name`
+            assert!(matches!(
+                arg_value(&args[0]).map(|e| &e.kind),
+                Some(ExprKind::Identifier(n)) if n == "id"
+            ));
+            assert!(matches!(
+                arg_value(&args[1]).map(|e| &e.kind),
+                Some(ExprKind::Identifier(n)) if n == "name"
+            ));
+        }
+        other => panic!("expected brace Construct, got {other:?}"),
+    }
+}
+
+#[test]
+fn brace_construct_spread_first_errors() {
+    let diags = crate::parser::Parser::new(r#"let _ = User { ..base, id: "x" }"#)
+        .parse_program()
+        .err()
+        .unwrap_or_default();
+    assert!(
+        diags.iter().any(|d| d.message.contains("must come last")),
+        "spread-first should produce 'must come last' diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn brace_construct_disabled_in_match_subject() {
+    // `match Foo { Bar -> baz }` must still parse as a match expression,
+    // not a brace-construct followed by garbage. Suppress in match subject.
+    let parse = crate::parser::Parser::new(
+        r#"
+        type T = | A | B
+        let _ = match T { _ -> 1 }
+        "#,
+    )
+    .parse_program();
+    // Should parse without erroring on the subject
+    assert!(
+        parse.is_ok()
+            || matches!(&parse, Err(diags) if !diags.iter().any(|d| d.message.contains("must come last")))
+    );
+}
+
 // ── Result/Option Constructors ───────────────────────────────
 
 #[test]

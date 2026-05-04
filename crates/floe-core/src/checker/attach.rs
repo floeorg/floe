@@ -438,10 +438,12 @@ impl Attacher<'_> {
                 type_name,
                 spread,
                 args,
+                syntax,
             } => ExprKind::Construct {
                 type_name,
                 spread: spread.map(|s| self.boxed_expr(s)),
                 args: args.into_iter().map(|a| self.arg(a)).collect(),
+                syntax,
             },
             ExprKind::Member { object, field } => ExprKind::Member {
                 object: self.boxed_expr(object),

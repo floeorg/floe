@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use super::{
-    Arg, BinOp, Checker, Diagnostic, ErrorCode, Expr, ExprId, ExprKind, HashMap, Item, ItemKind,
-    MatchArm, Param, ParamDestructure, Span, TemplatePart, Type, TypeDef, TypeExpr, UnaryOp,
-    hydrator, interop, unify,
+    Arg, BinOp, Checker, ConstructSyntax, Diagnostic, ErrorCode, Expr, ExprId, ExprKind, HashMap,
+    Item, ItemKind, MatchArm, Param, ParamDestructure, Span, TemplatePart, Type, TypeDef, TypeExpr,
+    UnaryOp, hydrator, interop, unify,
 };
 use crate::type_layout;
 
@@ -177,7 +177,8 @@ impl Checker {
                 type_name,
                 spread,
                 args,
-            } => self.check_construct(type_name, spread.as_deref(), args, expr.span),
+                syntax,
+            } => self.check_construct(type_name, spread.as_deref(), args, expr.span, *syntax),
             ExprKind::Member { object, field } => self.check_member(object, field, expr.span),
             ExprKind::Index { object, index } => self.check_index(object, index, expr.span),
             ExprKind::Arrow {
@@ -1518,24 +1519,65 @@ impl Checker {
         spread: Option<&Expr>,
         args: &[Arg],
         span: Span,
+        syntax: ConstructSyntax,
     ) -> Type {
         self.unused.used_names.insert(type_name.to_string());
 
         let type_info = self.env.lookup_type(type_name).cloned();
-        if type_info.is_none() {
-            let is_variant = self
-                .env
-                .lookup(type_name)
-                .is_some_and(|ty| matches!(ty, Type::Union { .. }));
-            let is_known_value = self.env.lookup(type_name).is_some();
-            if !is_variant && !is_known_value {
-                self.emit_error(
+        let is_record = matches!(type_info.as_ref().map(|i| &i.def), Some(TypeDef::Record(_)));
+
+        // Records and non-records take opposite construction operators:
+        // records require brace form so they can resolve via the type
+        // namespace alone, paren form is reserved for value-namespace
+        // constructors (variants, newtypes, opaque types).
+        match (syntax, &type_info) {
+            (ConstructSyntax::Paren, _) if !is_record => {
+                if type_info.is_none() {
+                    let is_variant = self
+                        .env
+                        .lookup(type_name)
+                        .is_some_and(|ty| matches!(ty, Type::Union { .. }));
+                    let is_known_value = self.env.lookup(type_name).is_some();
+                    if !is_variant && !is_known_value {
+                        self.emit_error(
+                            format!("unknown type `{type_name}`"),
+                            span,
+                            ErrorCode::UndefinedName,
+                            "not defined",
+                        );
+                    }
+                }
+            }
+            (ConstructSyntax::Paren, _) => {
+                self.emit_error_with_help(
+                    format!(
+                        "construct record `{type_name}` with brace form: `{type_name} {{ ... }}`"
+                    ),
+                    span,
+                    ErrorCode::TypeMismatch,
+                    "paren-form record construction was removed",
+                    "use `Foo { field: value, ... }` — `Foo(...)` is reserved for the value namespace",
+                );
+            }
+            (ConstructSyntax::Brace, None) => {
+                self.emit_error_with_help(
                     format!("unknown type `{type_name}`"),
                     span,
                     ErrorCode::UndefinedName,
-                    "not defined",
+                    "not a known type",
+                    "brace construction `Name { ... }` only works on record types",
                 );
             }
+            (ConstructSyntax::Brace, Some(_)) if !is_record => {
+                self.emit_error_with_help(
+                    format!("`{type_name}` is not a record type"),
+                    span,
+                    ErrorCode::TypeMismatch,
+                    "not a record type",
+                    "brace construction `Name { ... }` only works on record types — variants and string unions use their own constructors",
+                );
+            }
+            (ConstructSyntax::Brace, Some(_)) => {}
         }
 
         // Zero-arg reference to non-unit variant → constructor function

@@ -1589,7 +1589,7 @@ fn member_access_on_record_type_resolves_field() {
     let diags = check(
         r#"
 type User = { name: string, age: number }
-let u = User(name: "hi", age: 21)
+let u = User { name: "hi", age: 21 }
 let _n = u.name
 "#,
     );
@@ -2222,7 +2222,7 @@ fn object_destructuring_gets_field_types() {
     let program = crate::parser::Parser::new(
         r#"
 type User = { name: string, age: number }
-let user = User(name: "hi", age: 21)
+let user = User { name: "hi", age: 21 }
 let { name, age } = user
 let _x = name
 let _y = age
@@ -3717,7 +3717,7 @@ type ButtonProps = {
     label: string,
 }
 
-let btn = ButtonProps(className: "btn", disabled: false, onClick: () -> (), label: "Click")
+let btn = ButtonProps { className: "btn", disabled: false, onClick: () -> (), label: "Click" }
 "#,
     );
     assert!(
@@ -3745,7 +3745,7 @@ type C = {
     z: boolean,
 }
 
-let c = C(x: 1, y: "hello", z: true)
+let c = C { x: 1, y: "hello", z: true }
 "#,
     );
     assert!(
@@ -3813,7 +3813,7 @@ type C = {
     z: boolean,
 }
 
-let c = C(x: 1, y: "hello", z: true)
+let c = C { x: 1, y: "hello", z: true }
 "#,
     );
     assert!(
@@ -3909,7 +3909,7 @@ fn cross_file_spread_resolved_via_imports() {
     let source = r#"
 import { Product } from "./types"
 
-let p = Product(rating: 5, title: "Widget")
+let p = Product { rating: 5, title: "Widget" }
 "#;
     let program = Parser::new(source)
         .parse_program()
@@ -4969,6 +4969,7 @@ fn for_block_same_fn_name_different_types_no_conflict() {
                             span: dummy_span,
                         },
                     }],
+                    syntax: ConstructSyntax::Brace,
                 },
                 ty: (),
                 span: dummy_span,
@@ -5547,14 +5548,14 @@ type Accent = { id: number }
 type Entry = { id: number }
 
 for AccentRow {
-    let toModel(self) -> Accent = { Accent(id: self.id) }
+    let toModel(self) -> Accent = { Accent { id: self.id } }
 }
 
 for EntryRow {
-    let toModel(self) -> Entry = { Entry(id: self.id) }
+    let toModel(self) -> Entry = { Entry { id: self.id } }
 }
 
-let row = AccentRow(id: 1)
+let row = AccentRow { id: 1 }
 let _result = row |> toModel
 "#,
     )
@@ -5589,14 +5590,14 @@ type Accent = { id: number }
 type Entry = { id: number }
 
 for AccentRow {
-    let toModel(self) -> Accent = { Accent(id: self.id) }
+    let toModel(self) -> Accent = { Accent { id: self.id } }
 }
 
 for EntryRow {
-    let toModel(self) -> Entry = { Entry(id: self.id) }
+    let toModel(self) -> Entry = { Entry { id: self.id } }
 }
 
-let row = AccentRow(id: 1)
+let row = AccentRow { id: 1 }
 let _result = toModel(row)
 "#,
     )
@@ -5646,7 +5647,7 @@ typealias Greeter = typeof greet",
 fn typeof_local_record_binding_is_ok() {
     let diags = check(
         "type Config = { baseUrl: string, timeout: number }
-let config = Config(baseUrl: \"https://api.com\", timeout: 5000)
+let config = Config { baseUrl: \"https://api.com\", timeout: 5000 }
 typealias MyConfig = typeof config",
     );
     {
@@ -5766,7 +5767,7 @@ fn spread_source_field_type_match_still_compiles() {
         r#"
         type User = { id: number, name: string }
         let row = { id: 1, name: "hi" }
-        let _u = User(..row)
+        let _u = User { ..row }
     "#,
     );
     assert!(
@@ -5783,7 +5784,7 @@ fn spread_source_overwritten_field_mismatch_is_silent() {
         type SnippetId = SnippetId(number)
         type Snippet = { id: SnippetId, name: string }
         let row = { id: 1, name: "hi" }
-        let _s = Snippet(id: SnippetId(2), ..row)
+        let _s = Snippet { id: SnippetId(2), ..row }
     "#,
     );
     assert!(
@@ -5918,7 +5919,7 @@ typealias D = A & B & { z: boolean }",
 fn intersection_with_local_typeof_is_ok() {
     let diags = check(
         "type Config = { baseUrl: string }
-let config = Config(baseUrl: \"https://api.com\")
+let config = Config { baseUrl: \"https://api.com\" }
 typealias Extended = typeof config & { timeout: number }",
     );
     {
@@ -6313,11 +6314,11 @@ type In = { x: number }
 
 for In {
     let convert(self) -> Out = {
-        Out(value: self.x)
+        Out { value: self.x }
     }
 }
 
-let input = In(x: 42)
+let input = In { x: 42 }
 let _result: Out = input |> In.convert
 "#,
     );
@@ -6853,7 +6854,7 @@ fn dot_shorthand_as_function_argument() {
         r#"
 type Store = { sidebarOpen: boolean, name: string }
 let select(store: Store, f: (Store) -> boolean) -> boolean = { f(store) }
-let store = Store(sidebarOpen: true, name: "test")
+let store = Store { sidebarOpen: true, name: "test" }
 let _r = select(store, .sidebarOpen)
 "#,
     );
@@ -6868,7 +6869,7 @@ type User = { name: string, active: boolean }
 let find(users: Array<User>, f: (User) -> boolean) -> Array<User> = {
     users |> filter(f)
 }
-let users = [User(name: "a", active: true)]
+let users = [User { name: "a", active: true }]
 let _r = find(users, .name == "a")
 "#,
     );
@@ -6881,8 +6882,8 @@ fn dot_shorthand_predicate_with_captured_variable() {
         r#"
 type Column = { id: string }
 type Issue = { status_name: string }
-let columns: Array<Column> = [Column(id: "todo")]
-let issue = Issue(status_name: "todo")
+let columns: Array<Column> = [Column { id: "todo" }]
+let issue = Issue { status_name: "todo" }
 let _r = columns |> Array.find(.id == issue.status_name)
 "#,
     );
@@ -6899,7 +6900,7 @@ fn dot_shorthand_predicate_with_function_call_rhs() {
         r#"
 type User = { name: string, active: boolean }
 let getName() -> string = { "alice" }
-let users: Array<User> = [User(name: "alice", active: true)]
+let users: Array<User> = [User { name: "alice", active: true }]
 let _r = users |> Array.find(.name == getName())
 "#,
     );
@@ -7009,7 +7010,7 @@ fn named_type_satisfies_foreign_object_param() {
         r#"
 import trusted { insert } from "some-db"
 type Row = { code: string, content: string }
-let _r = insert(Row(code: "abc", content: "hello"))
+let _r = insert(Row { code: "abc", content: "hello" })
 "#,
     )
     .parse_program()
@@ -8841,7 +8842,7 @@ let identity<T>(x: T) -> T = { x }
 let tap<T>(x: T) -> T = { x }
 let chain<T>(x: T, _extra: string) -> T = { x }
 
-let _bindings = Bindings(name: "x")
+let _bindings = Bindings { name: "x" }
 let _direct = identity<Bindings>(_bindings)
 let _piped_bare = identity<Bindings>(_bindings) |> tap
 let _piped_call = identity<Bindings>(_bindings) |> chain("extra")
@@ -9822,7 +9823,7 @@ fn implicit_object_methods_do_not_block_assignment() {
         r#"
 import trusted { write } from "some-lib"
 type Row = { code: string }
-let _u = write(Row(code: "abc"))
+let _u = write(Row { code: "abc" })
 "#,
     )
     .parse_program()
@@ -9850,6 +9851,127 @@ let _u = write(Row(code: "abc"))
     assert!(
         diags.iter().all(|d| d.severity != Severity::Error),
         "plain Floe record should still be assignable to wrapped param; diags: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}
+
+// ── Brace-form record construction (#1409) ───────────────────────
+
+#[test]
+fn brace_construct_simple_record() {
+    let diags = check(
+        r#"
+type User = { id: string, name: string }
+let u = User { id: "1", name: "Ryan" }
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "brace construction of a record should type-check; got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn brace_construct_missing_field_errors() {
+    let diags = check(
+        r#"
+type User = { id: string, name: string }
+let u = User { id: "1" }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "missing required field"),
+        "missing field should error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn brace_construct_unknown_field_errors() {
+    let diags = check(
+        r#"
+type User = { id: string, name: string }
+let u = User { id: "1", name: "Ryan", extra: "no" }
+"#,
+    );
+    assert!(has_error(&diags, ErrorCode::UnknownField));
+}
+
+#[test]
+fn brace_construct_wrong_field_type_errors() {
+    let diags = check(
+        r#"
+type User = { id: string, name: string }
+let u = User { id: 42, name: "Ryan" }
+"#,
+    );
+    assert!(has_error(&diags, ErrorCode::TypeMismatch));
+}
+
+#[test]
+fn brace_construct_unknown_type_errors() {
+    let diags = check(r#"let u = NoSuchType { id: "1" }"#);
+    assert!(
+        has_error_containing(&diags, "unknown type"),
+        "unknown type name should error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn brace_construct_on_non_record_errors() {
+    let diags = check(
+        r#"
+type Color = | Red | Green | Blue
+let c = Color { x: 1 }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "not a record type"),
+        "brace form on union should error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn brace_construct_with_spread() {
+    let diags = check(
+        r#"
+type User = { id: string, name: string }
+let base = User { id: "1", name: "Ryan" }
+let updated = User { name: "Sky", ..base }
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "spread brace construction should type-check; got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn brace_construct_with_punning() {
+    let diags = check(
+        r#"
+type User = { id: string, name: string }
+let id = "1"
+let name = "Ryan"
+let u = User { id, name }
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "punning should type-check; got: {:?}",
         diags
             .iter()
             .filter(|d| d.severity == Severity::Error)

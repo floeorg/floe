@@ -133,6 +133,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 type_name,
                 spread,
                 args,
+                ..
             } => self.emit_construct(type_name, spread.as_deref(), args),
 
             ExprKind::Member { object, field } => self.emit_member(object, field),

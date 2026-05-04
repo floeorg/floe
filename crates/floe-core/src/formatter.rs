@@ -115,6 +115,7 @@ impl<'src> Formatter<'src> {
             SyntaxKind::CALL_EXPR => self.fmt_call(node),
             SyntaxKind::TAGGED_TEMPLATE_EXPR => self.fmt_tagged_template(node),
             SyntaxKind::CONSTRUCT_EXPR => self.fmt_construct(node),
+            SyntaxKind::BRACE_CONSTRUCT_EXPR => self.fmt_brace_construct(node),
             SyntaxKind::MEMBER_EXPR => self.fmt_member(node),
             SyntaxKind::INDEX_EXPR => self.fmt_index(node),
             SyntaxKind::UNWRAP_EXPR => self.fmt_unwrap(node),

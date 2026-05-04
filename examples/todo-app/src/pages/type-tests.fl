@@ -13,7 +13,7 @@ import from "../todo"
 // ── Member access ────────────────────────────────────────
 // Hover over .text, .done — should show string, boolean
 
-let item = Todo(id: "1", text: "Buy milk", done: false)
+let item = Todo { id: "1", text: "Buy milk", done: false }
 
 let _name = item.text
 
@@ -26,11 +26,11 @@ let _done = item.done
 // ── Constructor validation ───────────────────────────────
 // Wrong field types should error
 
-let _good = Todo(id: "1", text: "hi", done: false)
+let _good = Todo { id: "1", text: "hi", done: false }
 
 // ✓
-// let _bad1 = Todo(id: 42, text: "hi", done: false)   // ✗ uncomment → field `id`: expected `string`, found `number`
-// let _bad2 = Todo(id: "1", text: "hi", done: "yes")  // ✗ uncomment → field `done`: expected `boolean`, found `string`
+// let _bad1 = Todo { id: 42, text: "hi", done: false }   // ✗ uncomment → field `id`: expected `string`, found `number`
+// let _bad2 = Todo { id: "1", text: "hi", done: "yes" }  // ✗ uncomment → field `done`: expected `boolean`, found `string`
 // ── Match arm consistency ────────────────────────────────
 // All arms must return the same type
 

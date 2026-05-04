@@ -604,11 +604,17 @@ pub enum ExprKind<T = ()> {
         tag: Box<Expr<T>>,
         parts: Vec<TemplatePart<T>>,
     },
-    /// Type constructor: `User(name: "Ryan", email: e)` or `User(..existing, name: "New")`
+    /// Type constructor. Two forms:
+    /// - `User { name: "Ryan", ..existing }` — brace form, records only.
+    ///   Resolves `User` via the type namespace; the value namespace can
+    ///   hold an unrelated `User` function without colliding.
+    /// - `User(name: "Ryan", ..existing)` — paren form, used for variants,
+    ///   newtypes, and opaque-type constructors. Rejected on records.
     Construct {
         type_name: String,
         spread: Option<Box<Expr<T>>>,
         args: Vec<Arg<T>>,
+        syntax: ConstructSyntax,
     },
     /// Member access: `a.b`
     Member { object: Box<Expr<T>>, field: String },
@@ -721,6 +727,17 @@ pub enum Arg<T = ()> {
     Positional(Expr<T>),
     /// Named argument: `name: expr`
     Named { label: String, value: Expr<T> },
+}
+
+/// Which surface syntax produced an `ExprKind::Construct`. Drives the
+/// checker's "use brace form on records" diagnostic; otherwise the two
+/// forms produce identical type checks and identical codegen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ConstructSyntax {
+    /// `Foo(...)` — variants, newtypes, opaque constructors.
+    Paren,
+    /// `Foo { ... }` — record construction in the type namespace.
+    Brace,
 }
 
 // ── Operators ────────────────────────────────────────────────────

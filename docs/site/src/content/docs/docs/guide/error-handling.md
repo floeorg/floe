@@ -102,7 +102,7 @@ let loadConfig(env: Env) -> Result<ApiConfig, Array<ConfigError>> = {
         let apiKey = env |> requireEnv("API_KEY")?
         let timeout = env |> requireEnv("TIMEOUT")? |> Number.parse?
 
-        ApiConfig(baseUrl, apiKey, timeout)
+        ApiConfig { baseUrl, apiKey, timeout }
     }
 }
 // Err([Missing("API_KEY"), ParseError("TIMEOUT: not a number")])

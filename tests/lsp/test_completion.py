@@ -5,7 +5,7 @@ from . import fixtures as F
 
 KEYWORDS = ["fn", "const", "type", "match", "import", "export"]
 
-DOT_ACCESS_SOURCE = 'type User = { name: string, age: number }\nlet u = User(name: "a", age: 1)\nlet n = u.\n'
+DOT_ACCESS_SOURCE = 'type User = { name: string, age: number }\nlet u = User { name: "a", age: 1 }\nlet n = u.\n'
 
 
 class TestCompletionBasic:
@@ -100,7 +100,7 @@ class TestCompletionDotAccess:
         assert "age" in labels, f"Labels: {labels[:15]}"
 
     def test_no_unrelated_fields(self, lsp):
-        source = 'type User = { name: string, age: number }\ntype Item = { title: string }\nconst u = User(name: "a", age: 1)\nconst n = u.\n'
+        source = 'type User = { name: string, age: number }\ntype Item = { title: string }\nconst u = User { name: "a", age: 1 }\nconst n = u.\n'
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 3, 13))
         assert "title" not in labels, f"Item field 'title' leaked into User dot-access: {labels[:15]}"
@@ -113,7 +113,7 @@ class TestCompletionDotAccess:
 
     def test_no_global_vars_in_dot_access(self, lsp):
         """Regression test for #701."""
-        source = 'foo = 42\nconst setFoo = 99\ntype User = { name: string }\nconst u = User(name: "a")\nconst n = u.\n'
+        source = 'foo = 42\nconst setFoo = 99\ntype User = { name: string }\nconst u = User { name: "a" }\nconst n = u.\n'
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 4, 13))
         assert "foo" not in labels, f"Global var 'foo' leaked into dot-access: {labels[:15]}"
@@ -128,7 +128,7 @@ class TestCompletionDotAccess:
             assert kw not in labels, f"Keyword '{kw}' leaked into unresolved dot-access: {labels[:15]}"
 
     def test_spread_record_fields(self, lsp):
-        source = 'type Base = { id: string }\ntype Extended = { ...Base, extra: number }\nlet e = Extended(id: "1", extra: 42)\nlet n = e.\n'
+        source = 'type Base = { id: string }\ntype Extended = { ...Base, extra: number }\nlet e = Extended { id: "1", extra: 42 }\nlet n = e.\n'
         open_doc(lsp, URI, source)
         labels = completion_labels(lsp.completion(URI, 3, 11))
         assert "id" in labels, f"Spread field 'id' missing: {labels[:15]}"

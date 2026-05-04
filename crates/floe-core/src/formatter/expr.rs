@@ -920,6 +920,133 @@ impl Formatter<'_> {
         pretty::concat(parts)
     }
 
+    /// Format brace-form record construction `Foo { field: ..., ..base }`.
+    /// Mirrors `fmt_construct`'s layout policy but uses braces and named
+    /// fields only.
+    pub(crate) fn fmt_brace_construct(&mut self, node: &SyntaxNode) -> Document {
+        let mut parts = Vec::new();
+
+        if let Some(name) = self.first_ident(node) {
+            parts.push(pretty::str(name));
+        }
+        parts.push(pretty::str(" "));
+
+        let spread = node
+            .children()
+            .find(|c| c.kind() == SyntaxKind::SPREAD_EXPR);
+        let fields: Vec<_> = node
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::BRACE_CONSTRUCT_FIELD)
+            .collect();
+
+        if spread.is_none() && fields.is_empty() {
+            parts.push(pretty::str("{}"));
+            return pretty::concat(parts);
+        }
+
+        let mut has_comment = false;
+        let mut inner = vec![pretty::break_("", " ")];
+        let mut first = true;
+        let mut prev_end: Option<u32> = None;
+        for field in &fields {
+            let field_start: u32 = field.text_range().start().into();
+            if !first {
+                inner.push(pretty::break_(",", ", "));
+            }
+            if let Some(prev) = prev_end {
+                for c in self.pop_comments_in_range(prev, field_start) {
+                    inner.push(pretty::str(c.text));
+                    inner.push(pretty::line());
+                    has_comment = true;
+                }
+            }
+            inner.push(self.fmt_brace_construct_field(field));
+            prev_end = Some(field.text_range().end().into());
+            first = false;
+        }
+        if let Some(spread) = &spread {
+            if !first {
+                inner.push(pretty::break_(",", ", "));
+            }
+            if let Some(prev) = prev_end {
+                let spread_start: u32 = spread.text_range().start().into();
+                for c in self.pop_comments_in_range(prev, spread_start) {
+                    inner.push(pretty::str(c.text));
+                    inner.push(pretty::line());
+                    has_comment = true;
+                }
+            }
+            inner.push(self.fmt_spread(spread));
+        }
+
+        let mut group_parts = vec![pretty::str("{")];
+        if has_comment {
+            group_parts.push(pretty::force_break());
+        }
+        group_parts.push(pretty::nest(4, pretty::concat(inner)));
+        group_parts.push(pretty::break_(",", " "));
+        group_parts.push(pretty::str("}"));
+        parts.push(pretty::group(pretty::concat(group_parts)));
+
+        pretty::concat(parts)
+    }
+
+    fn fmt_brace_construct_field(&mut self, node: &SyntaxNode) -> Document {
+        let has_colon = self.has_token(node, SyntaxKind::COLON);
+        let name = self.first_ident(node);
+
+        // Punning: `{ name }` and `{ name: }` (no value) both round-trip
+        // as the bare-shorthand form. Also collapse `{ name: name }` so
+        // explicit and shorthand stay in canonical form after a re-format.
+        if has_colon {
+            let value_kind = self.named_arg_value_kind(node);
+            if let Some(ref label) = name {
+                match &value_kind {
+                    NamedArgValue::Ident(val) if label == val => {
+                        return pretty::str(label.clone());
+                    }
+                    NamedArgValue::None => {
+                        return pretty::str(label.clone());
+                    }
+                    _ => {}
+                }
+            }
+        } else {
+            // Bare shorthand `{ name }`
+            if let Some(name) = name {
+                return pretty::str(name);
+            }
+            return pretty::nil();
+        }
+
+        let mut parts = Vec::new();
+        if let Some(name) = name {
+            parts.push(pretty::str(name));
+            parts.push(pretty::str(": "));
+        }
+
+        let mut past_colon = false;
+        for child_or_tok in node.children_with_tokens() {
+            if let Some(tok) = child_or_tok.as_token() {
+                if tok.kind() == SyntaxKind::COLON {
+                    past_colon = true;
+                    continue;
+                }
+                if past_colon && !tok.kind().is_trivia() {
+                    parts.push(pretty::str(tok.text()));
+                    return pretty::concat(parts);
+                }
+            }
+            if let Some(child) = child_or_tok.into_node()
+                && past_colon
+            {
+                parts.push(self.fmt_node(&child));
+                return pretty::concat(parts);
+            }
+        }
+        pretty::concat(parts)
+    }
+
     fn fmt_spread(&mut self, spread: &SyntaxNode) -> Document {
         let mut parts = vec![pretty::str("..")];
         if let Some(child) = spread.children().next() {

@@ -62,7 +62,7 @@ export let validateTodo(text: string, id: string) -> Result<Todo, Array<string>>
         let validText = toResult(text |> validate)?
         let validId = validateId(id)?
 
-        Todo(id: validId, text: validText, done: false)
+        Todo { id: validId, text: validText, done: false }
     }
 }
 

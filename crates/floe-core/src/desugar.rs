@@ -65,6 +65,7 @@ fn desugar_expr(expr: &mut Expr) {
             type_name,
             args,
             spread: None,
+            ..
         } if type_name == crate::type_layout::VARIANT_SOME && args.len() == 1 => {
             if let Some(Arg::Positional(inner)) = args.pop() {
                 expr.kind = inner.kind;
@@ -76,6 +77,7 @@ fn desugar_expr(expr: &mut Expr) {
             type_name,
             args,
             spread: None,
+            ..
         } if type_name == crate::type_layout::VARIANT_NONE && args.is_empty() => {
             expr.kind = ExprKind::Identifier("undefined".to_string());
         }
@@ -158,6 +160,7 @@ fn expand_construct_defaults(expr: &mut Expr, type_defs: &HashMap<String, TypeDe
         type_name,
         spread,
         args,
+        ..
     } = &mut expr.kind
     else {
         return;

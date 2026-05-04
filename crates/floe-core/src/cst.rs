@@ -53,6 +53,10 @@ pub struct CstParser<'src> {
     /// type of a `let NAME = (...): RET => body` binding so the outer `=>`
     /// belongs to the let-body arrow, not the return type.
     suppress_function_type: bool,
+    /// When set, `Foo { ... }` is NOT parsed as a brace-form record
+    /// construction. Used inside the subject of `match` so the trailing
+    /// `{ arms }` is the match block, not part of the subject expression.
+    no_struct_literal: bool,
 }
 
 impl<'src> CstParser<'src> {
@@ -64,6 +68,7 @@ impl<'src> CstParser<'src> {
             builder: rowan::GreenNodeBuilder::new(),
             errors: Vec::new(),
             suppress_function_type: false,
+            no_struct_literal: false,
         }
     }
 

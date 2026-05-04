@@ -155,6 +155,11 @@ pub enum SyntaxKind {
     CALL_EXPR,
     TAGGED_TEMPLATE_EXPR,
     CONSTRUCT_EXPR,
+    /// Brace-form record construction: `Foo { field: expr, ..base }`.
+    /// Resolves the type name via the type namespace only; the value
+    /// namespace is reserved for `Foo(...)` calls.
+    BRACE_CONSTRUCT_EXPR,
+    BRACE_CONSTRUCT_FIELD,
     MEMBER_EXPR,
     INDEX_EXPR,
     ARROW_EXPR,
