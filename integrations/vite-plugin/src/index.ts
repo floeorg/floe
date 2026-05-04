@@ -1,10 +1,7 @@
-import { compileFloe, readCompiledOutput } from "@floeorg/core";
+import { compileFloe, readCompiledOutput, type FloeOptions } from "@floeorg/core";
 import * as vite from "vite";
 
-export interface FloeOptions {
-  /** Path to the floe binary. Defaults to "floe". */
-  compiler?: string;
-}
+export type { FloeOptions };
 
 /**
  * Vite plugin for Floe.
@@ -54,7 +51,7 @@ export default function floe(options: FloeOptions = {}): import("vite").Plugin {
       if (!cleanId.endsWith(".fl")) return null;
 
       try {
-        // Try reading pre-compiled output from .floe/ (kept fresh by `floe watch`)
+        // .floe/ output is kept fresh by `floe watch`.
         const cached = readCompiledOutput(cleanId, projectRoot);
         if (cached) {
           return transformTsx(cached, cleanId);

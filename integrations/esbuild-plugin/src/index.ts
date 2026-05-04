@@ -1,12 +1,14 @@
-import { compileFloe, findProjectRoot, readCompiledOutput } from "@floeorg/core";
+import {
+  compileFloe,
+  findProjectRoot,
+  readCompiledOutput,
+  type FloeOptions,
+} from "@floeorg/core";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { Plugin } from "esbuild";
 
-export interface FloeOptions {
-  /** Path to the `floe` binary. Defaults to `"floe"`. */
-  compiler?: string;
-}
+export type { FloeOptions };
 
 const JS_TS_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"] as const;
 
