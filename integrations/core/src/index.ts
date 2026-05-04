@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 export interface CompileResult {
   code: string;
@@ -10,6 +10,32 @@ export interface CompileResult {
 export interface CompileOptions {
   /** Path to the floe binary. Defaults to "floe". */
   compiler?: string;
+}
+
+/**
+ * Walk up from `start` to find the project root. Matches the Floe
+ * compiler's `find_project_dir` logic: prefers the nearest ancestor
+ * containing `node_modules`, falling back to the nearest containing
+ * `package.json`, and finally to `start` itself.
+ */
+export function findProjectRoot(start: string): string {
+  let dir = start;
+  let packageJsonDir: string | null = null;
+  while (true) {
+    try {
+      statSync(join(dir, "node_modules"));
+      return dir;
+    } catch {}
+    if (packageJsonDir === null) {
+      try {
+        statSync(join(dir, "package.json"));
+        packageJsonDir = dir;
+      } catch {}
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return packageJsonDir ?? start;
+    dir = parent;
+  }
 }
 
 /**

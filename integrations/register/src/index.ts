@@ -1,31 +1,8 @@
+import { findProjectRoot } from "@floeorg/core";
 import { registerHooks } from "node:module";
 import { statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-
-/**
- * Find the project root by walking up to find node_modules or package.json.
- * Matches the Floe compiler's `find_project_dir` logic.
- */
-function findProjectRoot(start: string): string {
-  let dir = start;
-  let packageJsonDir: string | null = null;
-  while (true) {
-    try {
-      statSync(join(dir, "node_modules"));
-      return dir;
-    } catch {}
-    if (packageJsonDir === null) {
-      try {
-        statSync(join(dir, "package.json"));
-        packageJsonDir = dir;
-      } catch {}
-    }
-    const parent = dirname(dir);
-    if (parent === dir) return packageJsonDir ?? start;
-    dir = parent;
-  }
-}
 
 /**
  * Find the compiled .ts/.tsx output in .floe/ for a given .fl file.

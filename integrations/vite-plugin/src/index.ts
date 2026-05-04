@@ -1,6 +1,4 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { compileFloe, readCompiledOutput } from "@floeorg/core";
 import * as vite from "vite";
 
 export interface FloeOptions {
@@ -62,7 +60,7 @@ export default function floe(options: FloeOptions = {}): import("vite").Plugin {
           return transformTsx(cached, cleanId);
         }
 
-        const compiled = compileFloe(compiler, code, id);
+        const compiled = compileFloe(compiler, id);
         return transformTsx(compiled.code, cleanId);
       } catch (error) {
         const message =
@@ -80,38 +78,6 @@ export default function floe(options: FloeOptions = {}): import("vite").Plugin {
       }
     },
   };
-}
-
-/**
- * Read compiled .ts/.tsx output from .floe/ if it exists and is fresh
- * (newer than the source .fl file). Returns null if missing or stale.
- */
-function readCompiledOutput(
-  flFile: string,
-  projectRoot: string,
-): string | null {
-  const rel = relative(projectRoot, flFile);
-  const floeDir = join(projectRoot, ".floe");
-
-  let sourceMtime: number;
-  try {
-    sourceMtime = statSync(flFile).mtimeMs;
-  } catch {
-    return null;
-  }
-
-  for (const ext of ["tsx", "ts"]) {
-    const outPath = join(floeDir, rel).replace(/\.fl$/, `.${ext}`);
-    try {
-      if (statSync(outPath).mtimeMs >= sourceMtime) {
-        return readFileSync(outPath, "utf-8");
-      }
-    } catch {
-      // File doesn't exist, try next extension
-    }
-  }
-
-  return null;
 }
 
 // Vite 6+ has transformWithOxc, Vite 5 has transformWithEsbuild.
@@ -139,32 +105,3 @@ function transformTsx(code: string, id: string) {
   );
 }
 
-interface CompileResult {
-  code: string;
-  map: string | null;
-}
-
-function compileFloe(
-  compiler: string,
-  _source: string,
-  filename: string,
-): CompileResult {
-  try {
-    const output = execFileSync(compiler, ["build", "--emit-stdout", filename], {
-      encoding: "utf-8",
-      timeout: 30_000,
-      stdio: ["pipe", "pipe", "pipe"], // capture stderr instead of printing
-    });
-
-    return {
-      code: output,
-      map: null,
-    };
-  } catch (error) {
-    if (error && typeof error === "object" && "stderr" in error) {
-      const stderr = (error as { stderr: string | Buffer }).stderr;
-      throw new Error(String(stderr));
-    }
-    throw error;
-  }
-}
