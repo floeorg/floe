@@ -108,10 +108,9 @@ impl<'src> CstParser<'src> {
             .unwrap_or(Span::new(self.source.len(), self.source.len(), 1, 1))
     }
 
-    #[allow(clippy::needless_pass_by_value)]
-    fn at(&self, kind: TokenKind) -> bool {
+    fn at(&self, kind: &TokenKind) -> bool {
         self.current_kind()
-            .is_some_and(|k| std::mem::discriminant(&k) == std::mem::discriminant(&kind))
+            .is_some_and(|k| std::mem::discriminant(&k) == std::mem::discriminant(kind))
     }
 
     fn at_identifier(&self, name: &str) -> bool {
@@ -189,13 +188,13 @@ impl<'src> CstParser<'src> {
     }
 
     fn at_pipe_in_union(&self) -> bool {
-        self.at(TokenKind::VerticalBar)
+        self.at(&TokenKind::VerticalBar)
     }
 
     /// Check if we're at a string literal union: `"A" | "B" | ...`
     /// This is true when the current token is a string and the next non-trivia token is `|`.
     fn at_string_literal_union(&self) -> bool {
-        self.at(TokenKind::String(String::new()))
+        self.at(&TokenKind::String(String::new()))
             && matches!(
                 self.peek_nth_non_trivia_kind(1),
                 Some(TokenKind::VerticalBar)
@@ -256,7 +255,7 @@ impl<'src> CstParser<'src> {
     }
 
     fn at_end(&self) -> bool {
-        self.pos >= self.tokens.len() || self.at(TokenKind::Eof)
+        self.pos >= self.tokens.len() || self.at(&TokenKind::Eof)
     }
 
     /// Check if the previous trivia token contains a newline.
@@ -340,14 +339,13 @@ impl<'src> CstParser<'src> {
         false
     }
 
-    #[allow(clippy::needless_pass_by_value)]
-    fn peek_is(&self, kind: TokenKind) -> bool {
+    fn peek_is(&self, kind: &TokenKind) -> bool {
         // Skip trivia to find the next non-trivia token
         let mut i = self.pos + 1;
         while i < self.tokens.len() {
             if !self.tokens[i].kind.is_trivia() {
                 return std::mem::discriminant(&self.tokens[i].kind)
-                    == std::mem::discriminant(&kind);
+                    == std::mem::discriminant(kind);
             }
             i += 1;
         }
@@ -478,7 +476,7 @@ impl<'src> CstParser<'src> {
         if self.suppress_function_type {
             return false;
         }
-        self.is_paren_followed_by(TokenKind::ThinArrow)
+        self.is_paren_followed_by(&TokenKind::ThinArrow)
     }
 
     /// Heuristic: is the current `(` the start of an arrow closure
@@ -487,12 +485,11 @@ impl<'src> CstParser<'src> {
         if self.suppress_function_type {
             return false;
         }
-        self.is_paren_followed_by(TokenKind::ThinArrow)
+        self.is_paren_followed_by(&TokenKind::ThinArrow)
     }
 
     /// Check if the `(` at position `start` has a matching `)` followed by `kind`.
-    #[allow(clippy::needless_pass_by_value)]
-    fn is_paren_followed_by_at(&self, start: usize, kind: TokenKind) -> bool {
+    fn is_paren_followed_by_at(&self, start: usize, kind: &TokenKind) -> bool {
         let mut depth = 0;
         let mut i = start;
         while i < self.tokens.len() {
@@ -506,7 +503,7 @@ impl<'src> CstParser<'src> {
                         while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
                             i += 1;
                         }
-                        return i < self.tokens.len() && self.tokens[i].kind == kind;
+                        return i < self.tokens.len() && self.tokens[i].kind == *kind;
                     }
                 }
                 TokenKind::Eof => return false,
@@ -518,7 +515,7 @@ impl<'src> CstParser<'src> {
     }
 
     /// Check if the `(` at the current position has a matching `)` followed by `kind`.
-    fn is_paren_followed_by(&self, kind: TokenKind) -> bool {
+    fn is_paren_followed_by(&self, kind: &TokenKind) -> bool {
         self.is_paren_followed_by_at(self.pos, kind)
     }
 
@@ -574,9 +571,8 @@ impl<'src> CstParser<'src> {
         }
     }
 
-    #[allow(clippy::needless_pass_by_value)]
-    fn expect(&mut self, kind: TokenKind) {
-        if self.at(kind.clone()) {
+    fn expect(&mut self, kind: &TokenKind) {
+        if self.at(kind) {
             self.bump();
         } else {
             self.error_kind(
@@ -586,9 +582,8 @@ impl<'src> CstParser<'src> {
         }
     }
 
-    #[allow(clippy::needless_pass_by_value)]
-    fn expect_kind(&mut self, kind: TokenKind) {
-        if self.at(kind.clone()) {
+    fn expect_kind(&mut self, kind: &TokenKind) {
+        if self.at(kind) {
             self.bump();
         } else {
             self.error_kind(
@@ -617,7 +612,7 @@ impl<'src> CstParser<'src> {
     fn parse_type_param(&mut self) {
         self.expect_ident();
         self.eat_trivia();
-        if self.at(TokenKind::Colon) {
+        if self.at(&TokenKind::Colon) {
             self.bump(); // :
             self.eat_trivia();
             self.expect_ident(); // trait name
@@ -629,7 +624,7 @@ impl<'src> CstParser<'src> {
     fn parse_destructure_field(&mut self) {
         self.expect_ident_flex();
         self.eat_trivia();
-        if self.at(TokenKind::Colon) {
+        if self.at(&TokenKind::Colon) {
             self.bump(); // eat ':'
             self.eat_trivia();
             self.expect_ident_flex(); // alias
@@ -648,19 +643,18 @@ impl<'src> CstParser<'src> {
         });
     }
 
-    #[allow(clippy::needless_pass_by_value)]
-    fn parse_comma_separated(&mut self, parse_fn: fn(&mut Self), closing: TokenKind) {
-        if self.at(closing.clone()) {
+    fn parse_comma_separated(&mut self, parse_fn: fn(&mut Self), closing: &TokenKind) {
+        if self.at(closing) {
             return;
         }
 
         parse_fn(self);
         self.eat_trivia();
 
-        while self.at(TokenKind::Comma) {
+        while self.at(&TokenKind::Comma) {
             self.bump();
             self.eat_trivia();
-            if self.at(closing.clone()) {
+            if self.at(closing) {
                 break;
             }
             parse_fn(self);

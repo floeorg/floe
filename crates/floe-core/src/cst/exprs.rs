@@ -11,7 +11,7 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         self.parse_and_expr();
 
-        while self.at(TokenKind::PipePipe) {
+        while self.at(&TokenKind::PipePipe) {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
             self.bump();
@@ -25,7 +25,7 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         self.parse_equality_expr();
 
-        while self.at(TokenKind::AmpAmp) {
+        while self.at(&TokenKind::AmpAmp) {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
             self.bump();
@@ -39,7 +39,7 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         self.parse_pipe_expr();
 
-        while self.at(TokenKind::EqualEqual) || self.at(TokenKind::BangEqual) {
+        while self.at(&TokenKind::EqualEqual) || self.at(&TokenKind::BangEqual) {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
             self.bump();
@@ -53,14 +53,14 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         self.parse_comparison_expr();
 
-        while self.at(TokenKind::Pipe) || self.at(TokenKind::PipeUnwrap) {
+        while self.at(&TokenKind::Pipe) || self.at(&TokenKind::PipeUnwrap) {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::PIPE_EXPR.into());
             self.bump(); // |> or |>?
             self.eat_trivia();
 
             // Pipe into match: `x |> match { ... }`
-            if self.at(TokenKind::Match) {
+            if self.at(&TokenKind::Match) {
                 self.parse_subjectless_match_expr();
             } else {
                 self.parse_comparison_expr();
@@ -74,10 +74,10 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         self.parse_additive_expr();
 
-        while (self.at(TokenKind::LessThan)
-            || self.at(TokenKind::GreaterThan)
-            || self.at(TokenKind::LessEqual)
-            || self.at(TokenKind::GreaterEqual))
+        while (self.at(&TokenKind::LessThan)
+            || self.at(&TokenKind::GreaterThan)
+            || self.at(&TokenKind::LessEqual)
+            || self.at(&TokenKind::GreaterEqual))
             && !self.preceded_by_newline()
         {
             self.builder
@@ -93,7 +93,7 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         self.parse_multiplicative_expr();
 
-        while self.at(TokenKind::Plus) || self.at(TokenKind::Minus) {
+        while self.at(&TokenKind::Plus) || self.at(&TokenKind::Minus) {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
             self.bump();
@@ -107,7 +107,10 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         self.parse_unary_expr();
 
-        while self.at(TokenKind::Star) || self.at(TokenKind::Slash) || self.at(TokenKind::Percent) {
+        while self.at(&TokenKind::Star)
+            || self.at(&TokenKind::Slash)
+            || self.at(&TokenKind::Percent)
+        {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
             self.bump();
@@ -151,7 +154,7 @@ impl<'src> CstParser<'src> {
                     self.eat_trivia();
                     self.parse_expr();
                     self.eat_trivia();
-                    self.expect(TokenKind::RightBracket);
+                    self.expect(&TokenKind::RightBracket);
                     self.builder.finish_node();
                 }
                 Some(TokenKind::LessThan) if self.is_generic_call() => {
@@ -168,8 +171,8 @@ impl<'src> CstParser<'src> {
                         .start_node_at(checkpoint, SyntaxKind::CALL_EXPR.into());
                     self.bump();
                     self.eat_trivia();
-                    self.parse_comma_separated(Self::parse_call_arg, TokenKind::RightParen);
-                    self.expect(TokenKind::RightParen);
+                    self.parse_comma_separated(Self::parse_call_arg, &TokenKind::RightParen);
+                    self.expect(&TokenKind::RightParen);
                     self.builder.finish_node();
                 }
                 Some(TokenKind::TemplateLiteral(_)) => {
@@ -238,13 +241,13 @@ impl<'src> CstParser<'src> {
             .start_node_at(checkpoint, SyntaxKind::CALL_EXPR.into());
         self.bump(); // <
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_type_expr, TokenKind::GreaterThan);
-        self.expect(TokenKind::GreaterThan);
+        self.parse_comma_separated(Self::parse_type_expr, &TokenKind::GreaterThan);
+        self.expect(&TokenKind::GreaterThan);
         self.eat_trivia();
-        self.expect(TokenKind::LeftParen);
+        self.expect(&TokenKind::LeftParen);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_call_arg, TokenKind::RightParen);
-        self.expect(TokenKind::RightParen);
+        self.parse_comma_separated(Self::parse_call_arg, &TokenKind::RightParen);
+        self.expect(&TokenKind::RightParen);
         self.builder.finish_node();
     }
 
@@ -267,24 +270,24 @@ impl<'src> CstParser<'src> {
                 self.builder.start_node(SyntaxKind::VALUE_EXPR.into());
                 self.bump();
                 self.eat_trivia();
-                self.expect(TokenKind::LeftParen);
+                self.expect(&TokenKind::LeftParen);
                 self.eat_trivia();
                 self.parse_expr();
                 self.eat_trivia();
-                self.expect(TokenKind::RightParen);
+                self.expect(&TokenKind::RightParen);
                 self.builder.finish_node();
             }
 
-            Some(TokenKind::Parse) if self.peek_is(TokenKind::LessThan) => {
+            Some(TokenKind::Parse) if self.peek_is(&TokenKind::LessThan) => {
                 self.builder.start_node(SyntaxKind::PARSE_EXPR.into());
                 self.bump(); // parse
                 self.eat_trivia();
                 // parse<T> — type argument
-                self.expect(TokenKind::LessThan);
+                self.expect(&TokenKind::LessThan);
                 self.eat_trivia();
                 self.parse_type_expr();
                 self.eat_trivia();
-                self.expect(TokenKind::GreaterThan);
+                self.expect(&TokenKind::GreaterThan);
                 self.eat_trivia();
                 // Optional (value) — may be absent in pipe context
                 if self.current_kind() == Some(TokenKind::LeftParen) {
@@ -292,20 +295,20 @@ impl<'src> CstParser<'src> {
                     self.eat_trivia();
                     self.parse_expr();
                     self.eat_trivia();
-                    self.expect(TokenKind::RightParen);
+                    self.expect(&TokenKind::RightParen);
                 }
                 self.builder.finish_node();
             }
-            Some(TokenKind::Mock) if self.peek_is(TokenKind::LessThan) => {
+            Some(TokenKind::Mock) if self.peek_is(&TokenKind::LessThan) => {
                 self.builder.start_node(SyntaxKind::MOCK_EXPR.into());
                 self.bump(); // mock
                 self.eat_trivia();
                 // mock<T> — type argument
-                self.expect(TokenKind::LessThan);
+                self.expect(&TokenKind::LessThan);
                 self.eat_trivia();
                 self.parse_type_expr();
                 self.eat_trivia();
-                self.expect(TokenKind::GreaterThan);
+                self.expect(&TokenKind::GreaterThan);
                 self.eat_trivia();
                 // Optional (overrides) — named args for field overrides
                 if self.current_kind() == Some(TokenKind::LeftParen) {
@@ -321,13 +324,13 @@ impl<'src> CstParser<'src> {
                             self.eat_trivia();
                         }
                     }
-                    self.expect(TokenKind::RightParen);
+                    self.expect(&TokenKind::RightParen);
                 }
                 self.builder.finish_node();
             }
 
             Some(TokenKind::Match) => self.parse_match_expr(),
-            Some(TokenKind::Collect) if self.peek_is(TokenKind::LeftBrace) => {
+            Some(TokenKind::Collect) if self.peek_is(&TokenKind::LeftBrace) => {
                 self.builder.start_node(SyntaxKind::COLLECT_EXPR.into());
                 self.bump(); // collect
                 self.eat_trivia();
@@ -346,8 +349,8 @@ impl<'src> CstParser<'src> {
                 self.builder.start_node(SyntaxKind::ARRAY_EXPR.into());
                 self.bump();
                 self.eat_trivia();
-                self.parse_comma_separated(Self::parse_expr, TokenKind::RightBracket);
-                self.expect(TokenKind::RightBracket);
+                self.parse_comma_separated(Self::parse_expr, &TokenKind::RightBracket);
+                self.expect(&TokenKind::RightBracket);
                 self.builder.finish_node();
             }
 
@@ -355,7 +358,7 @@ impl<'src> CstParser<'src> {
                 if self.is_arrow_expr() {
                     // Arrow closure: `(params) => body`
                     self.parse_arrow_closure();
-                } else if self.peek_is(TokenKind::RightParen) {
+                } else if self.peek_is(&TokenKind::RightParen) {
                     // Unit value: ()
                     self.builder.start_node(SyntaxKind::TUPLE_EXPR.into());
                     self.bump(); // (
@@ -367,8 +370,8 @@ impl<'src> CstParser<'src> {
                     self.builder.start_node(SyntaxKind::TUPLE_EXPR.into());
                     self.bump(); // (
                     self.eat_trivia();
-                    self.parse_comma_separated(Self::parse_expr, TokenKind::RightParen);
-                    self.expect(TokenKind::RightParen);
+                    self.parse_comma_separated(Self::parse_expr, &TokenKind::RightParen);
+                    self.expect(&TokenKind::RightParen);
                     self.builder.finish_node();
                 } else {
                     self.builder.start_node(SyntaxKind::GROUPED_EXPR.into());
@@ -376,7 +379,7 @@ impl<'src> CstParser<'src> {
                     self.eat_trivia();
                     self.parse_expr();
                     self.eat_trivia();
-                    self.expect(TokenKind::RightParen);
+                    self.expect(&TokenKind::RightParen);
                     self.builder.finish_node();
                 }
             }
@@ -387,7 +390,7 @@ impl<'src> CstParser<'src> {
                 self.parse_dot_shorthand();
             }
 
-            Some(TokenKind::Fn) if self.peek_is(TokenKind::LeftParen) => {
+            Some(TokenKind::Fn) if self.peek_is(&TokenKind::LeftParen) => {
                 // `fn(params) expr` is the old syntax — emit error pointing to =>
                 self.builder.start_node(SyntaxKind::ERROR.into());
                 self.error("anonymous functions use arrow syntax: `(params) -> body` instead of `fn(params) body`");
@@ -415,14 +418,14 @@ impl<'src> CstParser<'src> {
                 let name = name.clone();
 
                 // Uppercase + ( → constructor
-                if name.starts_with(char::is_uppercase) && self.peek_is(TokenKind::LeftParen) {
+                if name.starts_with(char::is_uppercase) && self.peek_is(&TokenKind::LeftParen) {
                     self.parse_construct_expr();
                     return;
                 }
 
                 // Qualified variant: `Filter.All` or `Route.Profile(id: "123")`
                 if name.starts_with(char::is_uppercase)
-                    && self.peek_is(TokenKind::Dot)
+                    && self.peek_is(&TokenKind::Dot)
                     && let Some(TokenKind::Identifier(variant_name)) =
                         self.peek_nth_non_trivia_kind(2)
                     && variant_name.starts_with(char::is_uppercase)
@@ -441,10 +444,10 @@ impl<'src> CstParser<'src> {
                     self.eat_trivia();
 
                     if has_args {
-                        self.expect(TokenKind::LeftParen);
+                        self.expect(&TokenKind::LeftParen);
                         self.eat_trivia();
                         self.parse_constructor_args();
-                        self.expect(TokenKind::RightParen);
+                        self.expect(&TokenKind::RightParen);
                     }
 
                     self.builder.finish_node();
@@ -488,12 +491,12 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::CONSTRUCT_EXPR.into());
         self.bump(); // TypeName
         self.eat_trivia();
-        self.expect(TokenKind::LeftParen);
+        self.expect(&TokenKind::LeftParen);
         self.eat_trivia();
 
         self.parse_constructor_args();
 
-        self.expect(TokenKind::RightParen);
+        self.expect(&TokenKind::RightParen);
         self.builder.finish_node();
     }
 
@@ -503,8 +506,8 @@ impl<'src> CstParser<'src> {
     /// diagnostic pointing at the bad position.
     fn parse_constructor_args(&mut self) {
         let mut saw_spread = false;
-        while !self.at(TokenKind::RightParen) && !self.at_end() {
-            if self.at(TokenKind::DotDot) {
+        while !self.at(&TokenKind::RightParen) && !self.at_end() {
+            if self.at(&TokenKind::DotDot) {
                 if saw_spread {
                     self.builder.start_node(SyntaxKind::ERROR.into());
                     self.error("only one spread `..base` is allowed per constructor");
@@ -534,7 +537,7 @@ impl<'src> CstParser<'src> {
                 }
             }
             self.eat_trivia();
-            if self.at(TokenKind::Comma) {
+            if self.at(&TokenKind::Comma) {
                 self.bump();
                 self.eat_trivia();
             } else {
@@ -549,7 +552,7 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::ARG.into());
 
         // Named arg: `label: expr` or punned `label:`.
-        if self.is_ident_flex() && self.peek_is(TokenKind::Colon) {
+        if self.is_ident_flex() && self.peek_is(&TokenKind::Colon) {
             self.expect_ident_flex();
             self.eat_trivia();
             self.bump(); // :
@@ -573,25 +576,25 @@ impl<'src> CstParser<'src> {
     /// Parse `.field` or `.field op expr` dot shorthand expression.
     fn parse_dot_shorthand(&mut self) {
         self.builder.start_node(SyntaxKind::DOT_SHORTHAND.into());
-        self.expect(TokenKind::Dot);
+        self.expect(&TokenKind::Dot);
         self.eat_trivia();
         self.expect_ident();
         self.eat_trivia();
 
         // Check for optional binary operator predicate
-        if self.at(TokenKind::EqualEqual)
-            || self.at(TokenKind::BangEqual)
-            || self.at(TokenKind::LessThan)
-            || self.at(TokenKind::GreaterThan)
-            || self.at(TokenKind::LessEqual)
-            || self.at(TokenKind::GreaterEqual)
-            || self.at(TokenKind::AmpAmp)
-            || self.at(TokenKind::PipePipe)
-            || self.at(TokenKind::Plus)
-            || self.at(TokenKind::Minus)
-            || self.at(TokenKind::Star)
-            || self.at(TokenKind::Slash)
-            || self.at(TokenKind::Percent)
+        if self.at(&TokenKind::EqualEqual)
+            || self.at(&TokenKind::BangEqual)
+            || self.at(&TokenKind::LessThan)
+            || self.at(&TokenKind::GreaterThan)
+            || self.at(&TokenKind::LessEqual)
+            || self.at(&TokenKind::GreaterEqual)
+            || self.at(&TokenKind::AmpAmp)
+            || self.at(&TokenKind::PipePipe)
+            || self.at(&TokenKind::Plus)
+            || self.at(&TokenKind::Minus)
+            || self.at(&TokenKind::Star)
+            || self.at(&TokenKind::Slash)
+            || self.at(&TokenKind::Percent)
         {
             self.bump(); // operator
             self.eat_trivia();
@@ -607,12 +610,12 @@ impl<'src> CstParser<'src> {
     fn parse_arrow_closure(&mut self) {
         self.builder.start_node(SyntaxKind::ARROW_EXPR.into());
 
-        self.expect(TokenKind::LeftParen);
+        self.expect(&TokenKind::LeftParen);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
-        self.expect(TokenKind::RightParen);
+        self.parse_comma_separated(Self::parse_param, &TokenKind::RightParen);
+        self.expect(&TokenKind::RightParen);
         self.eat_trivia();
-        self.expect(TokenKind::ThinArrow);
+        self.expect(&TokenKind::ThinArrow);
         self.eat_trivia();
         self.parse_expr();
 
@@ -623,18 +626,18 @@ impl<'src> CstParser<'src> {
 
     fn parse_match_expr(&mut self) {
         self.builder.start_node(SyntaxKind::MATCH_EXPR.into());
-        self.expect(TokenKind::Match);
+        self.expect(&TokenKind::Match);
         self.eat_trivia();
         self.parse_expr();
         self.eat_trivia();
-        self.expect(TokenKind::LeftBrace);
+        self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();
 
-        while !self.at(TokenKind::RightBrace) && !self.at_end() {
+        while !self.at(&TokenKind::RightBrace) && !self.at_end() {
             let prev_pos = self.pos;
             self.parse_match_arm();
             self.eat_trivia();
-            if self.at(TokenKind::Comma) {
+            if self.at(&TokenKind::Comma) {
                 self.bump();
                 self.eat_trivia();
             }
@@ -643,23 +646,23 @@ impl<'src> CstParser<'src> {
             }
         }
 
-        self.expect(TokenKind::RightBrace);
+        self.expect(&TokenKind::RightBrace);
         self.builder.finish_node();
     }
 
     /// Parse `match { arms }` without a subject — used for `x |> match { ... }`.
     fn parse_subjectless_match_expr(&mut self) {
         self.builder.start_node(SyntaxKind::MATCH_EXPR.into());
-        self.expect(TokenKind::Match);
+        self.expect(&TokenKind::Match);
         self.eat_trivia();
-        self.expect(TokenKind::LeftBrace);
+        self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();
 
-        while !self.at(TokenKind::RightBrace) && !self.at_end() {
+        while !self.at(&TokenKind::RightBrace) && !self.at_end() {
             let prev_pos = self.pos;
             self.parse_match_arm();
             self.eat_trivia();
-            if self.at(TokenKind::Comma) {
+            if self.at(&TokenKind::Comma) {
                 self.bump();
                 self.eat_trivia();
             }
@@ -668,7 +671,7 @@ impl<'src> CstParser<'src> {
             }
         }
 
-        self.expect(TokenKind::RightBrace);
+        self.expect(&TokenKind::RightBrace);
         self.builder.finish_node();
     }
 
@@ -678,7 +681,7 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Optional guard: `when expr`
-        if self.at(TokenKind::When) {
+        if self.at(&TokenKind::When) {
             self.builder.start_node(SyntaxKind::MATCH_GUARD.into());
             self.bump(); // consume `when`
             self.eat_trivia();
@@ -687,7 +690,7 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::ThinArrow);
+        self.expect(&TokenKind::ThinArrow);
         self.eat_trivia();
         self.parse_expr();
         self.builder.finish_node();
@@ -716,7 +719,7 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::Number(_)) => {
                 self.bump();
                 self.eat_trivia();
-                if self.at(TokenKind::DotDot) {
+                if self.at(&TokenKind::DotDot) {
                     self.bump();
                     self.eat_trivia();
                     // Expect number after ..
@@ -730,17 +733,20 @@ impl<'src> CstParser<'src> {
             Some(TokenKind::LeftBrace) => {
                 self.bump(); // {
                 self.eat_trivia();
-                self.parse_comma_separated(Self::parse_record_pattern_field, TokenKind::RightBrace);
-                self.expect(TokenKind::RightBrace);
+                self.parse_comma_separated(
+                    Self::parse_record_pattern_field,
+                    &TokenKind::RightBrace,
+                );
+                self.expect(&TokenKind::RightBrace);
             }
             Some(TokenKind::LeftBracket) => {
                 // Array pattern: [], [a, b], [first, ..rest]
                 self.bump(); // [
                 self.eat_trivia();
                 // Parse elements and optional rest pattern
-                while !self.at(TokenKind::RightBracket) && !self.at_end() {
+                while !self.at(&TokenKind::RightBracket) && !self.at_end() {
                     // Check for rest pattern: ..name
-                    if self.at(TokenKind::DotDot) {
+                    if self.at(&TokenKind::DotDot) {
                         self.bump(); // ..
                         self.eat_trivia();
                         // Expect identifier or _ after ..
@@ -753,7 +759,7 @@ impl<'src> CstParser<'src> {
                             self.error("expected identifier after '..' in array pattern");
                         }
                         self.eat_trivia();
-                        if self.at(TokenKind::Comma) {
+                        if self.at(&TokenKind::Comma) {
                             self.bump();
                             self.eat_trivia();
                         }
@@ -761,21 +767,21 @@ impl<'src> CstParser<'src> {
                     }
                     self.parse_pattern();
                     self.eat_trivia();
-                    if self.at(TokenKind::Comma) {
+                    if self.at(&TokenKind::Comma) {
                         self.bump();
                         self.eat_trivia();
                     } else {
                         break;
                     }
                 }
-                self.expect(TokenKind::RightBracket);
+                self.expect(&TokenKind::RightBracket);
             }
             Some(TokenKind::LeftParen) => {
                 // Tuple pattern: (x, y)
                 self.bump(); // (
                 self.eat_trivia();
-                self.parse_comma_separated(Self::parse_pattern, TokenKind::RightParen);
-                self.expect(TokenKind::RightParen);
+                self.parse_comma_separated(Self::parse_pattern, &TokenKind::RightParen);
+                self.expect(&TokenKind::RightParen);
             }
             // Implicit variant pattern: .Variant or .Variant(args)
             Some(TokenKind::Dot) if matches!(self.peek_nth_non_trivia_kind(1), Some(TokenKind::Identifier(n)) if n.starts_with(char::is_uppercase)) =>
@@ -784,11 +790,11 @@ impl<'src> CstParser<'src> {
                 self.eat_trivia();
                 self.bump(); // Variant name
                 self.eat_trivia();
-                if self.at(TokenKind::LeftParen) {
+                if self.at(&TokenKind::LeftParen) {
                     self.bump();
                     self.eat_trivia();
-                    self.parse_comma_separated(Self::parse_pattern, TokenKind::RightParen);
-                    self.expect(TokenKind::RightParen);
+                    self.parse_comma_separated(Self::parse_pattern, &TokenKind::RightParen);
+                    self.expect(&TokenKind::RightParen);
                 }
             }
             Some(TokenKind::Identifier(name)) => {
@@ -797,7 +803,7 @@ impl<'src> CstParser<'src> {
                     self.bump();
                     self.eat_trivia();
                     // Qualified variant pattern: `Type.Variant` or `Type.Variant(...)`
-                    if self.at(TokenKind::Dot) {
+                    if self.at(&TokenKind::Dot) {
                         self.bump(); // .
                         self.eat_trivia();
                         // Accept identifiers after dot
@@ -808,20 +814,20 @@ impl<'src> CstParser<'src> {
                         }
                         self.eat_trivia();
                     }
-                    if self.at(TokenKind::LeftParen) {
+                    if self.at(&TokenKind::LeftParen) {
                         self.bump();
                         self.eat_trivia();
-                        self.parse_comma_separated(Self::parse_pattern, TokenKind::RightParen);
-                        self.expect(TokenKind::RightParen);
-                    } else if self.at(TokenKind::LeftBrace) {
+                        self.parse_comma_separated(Self::parse_pattern, &TokenKind::RightParen);
+                        self.expect(&TokenKind::RightParen);
+                    } else if self.at(&TokenKind::LeftBrace) {
                         // Named-field variant pattern: `Rectangle { width, height: h }`
                         self.bump(); // {
                         self.eat_trivia();
                         self.parse_comma_separated(
                             Self::parse_named_variant_pattern_field,
-                            TokenKind::RightBrace,
+                            &TokenKind::RightBrace,
                         );
-                        self.expect(TokenKind::RightBrace);
+                        self.expect(&TokenKind::RightBrace);
                     }
                 } else {
                     self.bump();
@@ -844,7 +850,7 @@ impl<'src> CstParser<'src> {
     fn parse_record_pattern_field(&mut self) {
         self.expect_ident_flex();
         self.eat_trivia();
-        if self.at(TokenKind::Colon) {
+        if self.at(&TokenKind::Colon) {
             self.bump();
             self.eat_trivia();
             self.parse_pattern();
@@ -858,7 +864,7 @@ impl<'src> CstParser<'src> {
             .start_node(SyntaxKind::VARIANT_FIELD_PATTERN.into());
         self.expect_ident_flex();
         self.eat_trivia();
-        if self.at(TokenKind::Colon) {
+        if self.at(&TokenKind::Colon) {
             self.bump();
             self.eat_trivia();
             self.parse_pattern();
@@ -899,10 +905,10 @@ impl<'src> CstParser<'src> {
 
     fn parse_object_literal(&mut self) {
         self.builder.start_node(SyntaxKind::OBJECT_EXPR.into());
-        self.expect(TokenKind::LeftBrace);
+        self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_object_field, TokenKind::RightBrace);
-        self.expect(TokenKind::RightBrace);
+        self.parse_comma_separated(Self::parse_object_field, &TokenKind::RightBrace);
+        self.expect(&TokenKind::RightBrace);
         self.builder.finish_node();
     }
 
@@ -910,7 +916,7 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::OBJECT_FIELD.into());
         self.expect_ident_flex();
         self.eat_trivia();
-        if self.at(TokenKind::Colon) {
+        if self.at(&TokenKind::Colon) {
             self.bump(); // :
             self.eat_trivia();
             self.parse_expr();
@@ -923,10 +929,10 @@ impl<'src> CstParser<'src> {
 
     pub(super) fn parse_block_expr(&mut self) {
         self.builder.start_node(SyntaxKind::BLOCK_EXPR.into());
-        self.expect(TokenKind::LeftBrace);
+        self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();
 
-        while !self.at(TokenKind::RightBrace) && !self.at_end() {
+        while !self.at(&TokenKind::RightBrace) && !self.at_end() {
             let prev_pos = self.pos;
             self.parse_item();
             self.eat_trivia();
@@ -935,7 +941,7 @@ impl<'src> CstParser<'src> {
             }
         }
 
-        self.expect(TokenKind::RightBrace);
+        self.expect(&TokenKind::RightBrace);
         self.builder.finish_node();
     }
 }

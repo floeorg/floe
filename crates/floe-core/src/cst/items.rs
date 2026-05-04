@@ -9,7 +9,7 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
 
         // Handle export prefix
-        let exported = self.at(TokenKind::Export);
+        let exported = self.at(&TokenKind::Export);
         if exported {
             self.bump(); // export
             self.eat_trivia();
@@ -149,23 +149,23 @@ impl<'src> CstParser<'src> {
 
     fn parse_import(&mut self) {
         self.builder.start_node(SyntaxKind::IMPORT_DECL.into());
-        self.expect(TokenKind::Import);
+        self.expect(&TokenKind::Import);
         self.eat_trivia();
 
         // `import trusted { ... }` — module-level trusted
-        if self.at(TokenKind::Trusted) {
+        if self.at(&TokenKind::Trusted) {
             self.bump(); // trusted
             self.eat_trivia();
         }
 
-        if self.at(TokenKind::LeftBrace) {
+        if self.at(&TokenKind::LeftBrace) {
             self.bump(); // {
             self.eat_trivia();
-            self.parse_comma_separated(Self::parse_import_specifier_or_for, TokenKind::RightBrace);
-            self.expect(TokenKind::RightBrace);
+            self.parse_comma_separated(Self::parse_import_specifier_or_for, &TokenKind::RightBrace);
+            self.expect(&TokenKind::RightBrace);
             self.eat_trivia();
         } else if matches!(self.current_kind(), Some(TokenKind::Identifier(_)))
-            && !self.at(TokenKind::From)
+            && !self.at(&TokenKind::From)
         {
             // Default import: `import [trusted] Ident from "..."`
             self.builder.start_node(SyntaxKind::IMPORT_SPECIFIER.into());
@@ -175,11 +175,11 @@ impl<'src> CstParser<'src> {
         }
 
         // `from` is required with specifiers, optional for bare imports
-        if self.at(TokenKind::From) {
+        if self.at(&TokenKind::From) {
             self.bump();
             self.eat_trivia();
         }
-        self.expect_kind(TokenKind::String(String::new()));
+        self.expect_kind(&TokenKind::String(String::new()));
 
         self.builder.finish_node();
     }
@@ -188,15 +188,15 @@ impl<'src> CstParser<'src> {
 
     fn parse_reexport(&mut self) {
         self.builder.start_node(SyntaxKind::REEXPORT_DECL.into());
-        self.expect(TokenKind::LeftBrace);
+        self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_reexport_specifier, TokenKind::RightBrace);
-        self.expect(TokenKind::RightBrace);
+        self.parse_comma_separated(Self::parse_reexport_specifier, &TokenKind::RightBrace);
+        self.expect(&TokenKind::RightBrace);
         self.eat_trivia();
 
-        self.expect(TokenKind::From);
+        self.expect(&TokenKind::From);
         self.eat_trivia();
-        self.expect_kind(TokenKind::String(String::new()));
+        self.expect_kind(&TokenKind::String(String::new()));
 
         self.builder.finish_node();
     }
@@ -225,7 +225,7 @@ impl<'src> CstParser<'src> {
 
         // Check for `as alias`
         if self.at_identifier("as")
-            || self.at(TokenKind::Banned(crate::lexer::token::BannedKeyword::As))
+            || self.at(&TokenKind::Banned(crate::lexer::token::BannedKeyword::As))
         {
             self.bump();
             self.eat_trivia();
@@ -240,7 +240,7 @@ impl<'src> CstParser<'src> {
     /// - `{ for Type }` — import the for-block extension methods for Type
     ///   (needed for foreign-type inherent like `for Array<T>` or `for string`)
     fn parse_import_specifier_or_for(&mut self) {
-        if self.at(TokenKind::For) {
+        if self.at(&TokenKind::For) {
             self.builder
                 .start_node(SyntaxKind::IMPORT_FOR_SPECIFIER.into());
             self.bump(); // `for`
@@ -255,7 +255,7 @@ impl<'src> CstParser<'src> {
     fn parse_import_specifier(&mut self) {
         self.builder.start_node(SyntaxKind::IMPORT_SPECIFIER.into());
         // `trusted foo` — per-specifier trusted
-        if self.at(TokenKind::Trusted) && self.peek_is_ident() {
+        if self.at(&TokenKind::Trusted) && self.peek_is_ident() {
             self.bump(); // trusted
             self.eat_trivia();
         }
@@ -264,7 +264,7 @@ impl<'src> CstParser<'src> {
 
         // Check for `as alias` — "as" is a banned keyword but used contextually here
         if self.at_identifier("as")
-            || self.at(TokenKind::Banned(crate::lexer::token::BannedKeyword::As))
+            || self.at(&TokenKind::Banned(crate::lexer::token::BannedKeyword::As))
         {
             self.bump();
             self.eat_trivia();
@@ -284,11 +284,11 @@ impl<'src> CstParser<'src> {
         let checkpoint = self.builder.checkpoint();
         // Optional `async` prefix — only legal when the RHS is a function
         // binding; the checkpoint-replay below drops it into FUNCTION_DECL.
-        if self.at(TokenKind::Async) {
+        if self.at(&TokenKind::Async) {
             self.bump();
             self.eat_trivia();
         }
-        self.expect(TokenKind::Let);
+        self.expect(&TokenKind::Let);
         self.eat_trivia();
 
         if self.looks_like_let_function_binding() {
@@ -304,7 +304,7 @@ impl<'src> CstParser<'src> {
         self.builder
             .start_node_at(checkpoint, SyntaxKind::CONST_DECL.into());
 
-        if self.at(TokenKind::LeftBracket) {
+        if self.at(&TokenKind::LeftBracket) {
             // Array destructure `[a, b]` is not a valid const binding: on
             // arrays the runtime length isn't in the type, and on tuples it
             // hides the real shape. Use `(a, b)` for tuples or `Array.get` /
@@ -312,31 +312,31 @@ impl<'src> CstParser<'src> {
             self.error("expected identifier, `{`, or `(`");
             self.bump();
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_flex_item, TokenKind::RightBracket);
-            self.expect(TokenKind::RightBracket);
-        } else if self.at(TokenKind::LeftBrace) {
+            self.parse_comma_separated(Self::expect_ident_flex_item, &TokenKind::RightBracket);
+            self.expect(&TokenKind::RightBracket);
+        } else if self.at(&TokenKind::LeftBrace) {
             self.bump();
             self.eat_trivia();
-            self.parse_comma_separated(Self::parse_destructure_field, TokenKind::RightBrace);
-            self.expect(TokenKind::RightBrace);
-        } else if self.at(TokenKind::LeftParen) && self.is_const_tuple_destructuring() {
+            self.parse_comma_separated(Self::parse_destructure_field, &TokenKind::RightBrace);
+            self.expect(&TokenKind::RightBrace);
+        } else if self.at(&TokenKind::LeftParen) && self.is_const_tuple_destructuring() {
             self.bump();
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_flex_item, TokenKind::RightParen);
-            self.expect(TokenKind::RightParen);
+            self.parse_comma_separated(Self::expect_ident_flex_item, &TokenKind::RightParen);
+            self.expect(&TokenKind::RightParen);
         } else {
             self.expect_ident_flex();
         }
         self.eat_trivia();
 
-        if self.at(TokenKind::Colon) {
+        if self.at(&TokenKind::Colon) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::Equal);
+        self.expect(&TokenKind::Equal);
         self.eat_trivia();
         self.parse_expr();
 
@@ -378,32 +378,32 @@ impl<'src> CstParser<'src> {
     /// Parse def-form body: `[<generics>] (params) [-> Ret] = body`.
     fn parse_let_function_body(&mut self) {
         // Optional `<generics>`
-        if self.at(TokenKind::LessThan) {
+        if self.at(&TokenKind::LessThan) {
             self.bump(); // <
             self.eat_trivia();
-            self.parse_comma_separated(Self::parse_type_param, TokenKind::GreaterThan);
-            self.expect(TokenKind::GreaterThan);
+            self.parse_comma_separated(Self::parse_type_param, &TokenKind::GreaterThan);
+            self.expect(&TokenKind::GreaterThan);
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::LeftParen);
+        self.expect(&TokenKind::LeftParen);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_param, TokenKind::RightParen);
-        self.expect(TokenKind::RightParen);
+        self.parse_comma_separated(Self::parse_param, &TokenKind::RightParen);
+        self.expect(&TokenKind::RightParen);
         self.eat_trivia();
 
         // Optional `-> ReturnType`.
-        if self.at(TokenKind::ThinArrow) {
+        if self.at(&TokenKind::ThinArrow) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::Equal);
+        self.expect(&TokenKind::Equal);
         self.eat_trivia();
 
-        if self.at(TokenKind::LeftBrace) {
+        if self.at(&TokenKind::LeftBrace) {
             self.parse_block_expr();
         } else {
             // Expression body — wrap into a synthetic BLOCK_EXPR { EXPR_ITEM }
@@ -423,24 +423,24 @@ impl<'src> CstParser<'src> {
         self.bump_remap(SyntaxKind::KW_USE);
         self.eat_trivia();
 
-        if !self.at(TokenKind::LeftArrow) {
-            if self.at(TokenKind::LeftParen) {
+        if !self.at(&TokenKind::LeftArrow) {
+            if self.at(&TokenKind::LeftParen) {
                 self.bump();
                 self.eat_trivia();
-                self.parse_comma_separated(Self::expect_ident_item, TokenKind::RightParen);
-                self.expect(TokenKind::RightParen);
-            } else if self.at(TokenKind::LeftBrace) {
+                self.parse_comma_separated(Self::expect_ident_item, &TokenKind::RightParen);
+                self.expect(&TokenKind::RightParen);
+            } else if self.at(&TokenKind::LeftBrace) {
                 self.bump();
                 self.eat_trivia();
-                self.parse_comma_separated(Self::parse_destructure_field, TokenKind::RightBrace);
-                self.expect(TokenKind::RightBrace);
+                self.parse_comma_separated(Self::parse_destructure_field, &TokenKind::RightBrace);
+                self.expect(&TokenKind::RightBrace);
             } else {
                 self.expect_ident();
             }
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::LeftArrow);
+        self.expect(&TokenKind::LeftArrow);
         self.eat_trivia();
         self.parse_expr();
 
@@ -450,24 +450,24 @@ impl<'src> CstParser<'src> {
     pub(super) fn parse_param(&mut self) {
         self.builder.start_node(SyntaxKind::PARAM.into());
 
-        if self.at(TokenKind::LeftBrace) {
+        if self.at(&TokenKind::LeftBrace) {
             // Destructured param: { name, age } or { name: n, age: a }
             self.bump(); // {
             self.eat_trivia();
-            self.parse_comma_separated(Self::parse_destructure_field, TokenKind::RightBrace);
-            self.expect(TokenKind::RightBrace);
+            self.parse_comma_separated(Self::parse_destructure_field, &TokenKind::RightBrace);
+            self.expect(&TokenKind::RightBrace);
             self.eat_trivia();
-        } else if self.at(TokenKind::LeftParen) {
+        } else if self.at(&TokenKind::LeftParen) {
             // Tuple destructured param: (a, b)
             self.bump(); // (
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_flex_item, TokenKind::RightParen);
-            self.expect(TokenKind::RightParen);
+            self.parse_comma_separated(Self::expect_ident_flex_item, &TokenKind::RightParen);
+            self.expect(&TokenKind::RightParen);
             self.eat_trivia();
-        } else if self.at(TokenKind::SelfKw) {
+        } else if self.at(&TokenKind::SelfKw) {
             self.bump(); // self
             self.eat_trivia();
-        } else if self.at(TokenKind::Underscore) {
+        } else if self.at(&TokenKind::Underscore) {
             self.bump(); // _
             self.eat_trivia();
         } else {
@@ -475,14 +475,14 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        if self.at(TokenKind::Colon) {
+        if self.at(&TokenKind::Colon) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();
             self.eat_trivia();
         }
 
-        if self.at(TokenKind::Equal) {
+        if self.at(&TokenKind::Equal) {
             self.bump();
             self.eat_trivia();
             self.parse_expr();
@@ -496,13 +496,13 @@ impl<'src> CstParser<'src> {
     fn parse_type_decl(&mut self) {
         self.builder.start_node(SyntaxKind::TYPE_DECL.into());
 
-        let is_opaque = self.at(TokenKind::Opaque);
+        let is_opaque = self.at(&TokenKind::Opaque);
         if is_opaque {
             self.bump();
             self.eat_trivia();
         }
 
-        let is_typealias = self.at(TokenKind::Typealias);
+        let is_typealias = self.at(&TokenKind::Typealias);
         if is_typealias {
             if is_opaque {
                 self.error(
@@ -512,22 +512,22 @@ impl<'src> CstParser<'src> {
             }
             self.bump(); // typealias
         } else {
-            self.expect(TokenKind::Type);
+            self.expect(&TokenKind::Type);
         }
         self.eat_trivia();
         self.expect_ident();
         self.eat_trivia();
 
         // Optional type parameters: <T, U>
-        if self.at(TokenKind::LessThan) {
+        if self.at(&TokenKind::LessThan) {
             self.bump();
             self.eat_trivia();
-            self.parse_comma_separated(Self::expect_ident_item, TokenKind::GreaterThan);
-            self.expect(TokenKind::GreaterThan);
+            self.parse_comma_separated(Self::expect_ident_item, &TokenKind::GreaterThan);
+            self.expect(&TokenKind::GreaterThan);
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::Equal);
+        self.expect(&TokenKind::Equal);
         self.eat_trivia();
         let def_kind = self.parse_type_def_after_eq();
 
@@ -551,14 +551,14 @@ impl<'src> CstParser<'src> {
     }
 
     fn parse_type_def_after_eq(&mut self) -> SyntaxKind {
-        if self.at(TokenKind::LeftBrace) {
+        if self.at(&TokenKind::LeftBrace) {
             self.builder.start_node(SyntaxKind::TYPE_DEF_RECORD.into());
             self.parse_record_fields();
             self.builder.finish_node();
             return SyntaxKind::TYPE_DEF_RECORD;
         }
 
-        if self.at(TokenKind::VerticalBar) {
+        if self.at(&TokenKind::VerticalBar) {
             self.builder.start_node(SyntaxKind::TYPE_DEF_UNION.into());
             self.parse_union_variants_inner();
             self.builder.finish_node();
@@ -655,17 +655,20 @@ impl<'src> CstParser<'src> {
         // Variant fields: `{ name: Type, ... }` (named) or `(Type, ...)` (positional).
         // Each bracket style accepts exactly one field form — mixing them is a
         // parse error so there is a single canonical way to write each variant.
-        if self.at(TokenKind::LeftBrace) {
+        if self.at(&TokenKind::LeftBrace) {
             self.bump(); // {
             self.eat_trivia();
-            self.parse_comma_separated(Self::parse_named_variant_field, TokenKind::RightBrace);
-            self.expect(TokenKind::RightBrace);
+            self.parse_comma_separated(Self::parse_named_variant_field, &TokenKind::RightBrace);
+            self.expect(&TokenKind::RightBrace);
             self.eat_trivia();
-        } else if self.at(TokenKind::LeftParen) {
+        } else if self.at(&TokenKind::LeftParen) {
             self.bump(); // (
             self.eat_trivia();
-            self.parse_comma_separated(Self::parse_positional_variant_field, TokenKind::RightParen);
-            self.expect(TokenKind::RightParen);
+            self.parse_comma_separated(
+                Self::parse_positional_variant_field,
+                &TokenKind::RightParen,
+            );
+            self.expect(&TokenKind::RightParen);
             self.eat_trivia();
         }
     }
@@ -679,10 +682,10 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Parse remaining `| "string"` pairs
-        while self.at(TokenKind::VerticalBar) {
+        while self.at(&TokenKind::VerticalBar) {
             self.bump(); // |
             self.eat_trivia();
-            if self.at(TokenKind::String(String::new())) {
+            if self.at(&TokenKind::String(String::new())) {
                 self.bump(); // string
                 self.eat_trivia();
             } else {
@@ -701,7 +704,7 @@ impl<'src> CstParser<'src> {
     fn parse_positional_variant_field(&mut self) {
         self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
 
-        if self.is_ident() && self.peek_is(TokenKind::Colon) {
+        if self.is_ident() && self.peek_is(&TokenKind::Colon) {
             self.error(
                 "named fields are not allowed in `(...)` variants; \
                  use `(Type)` for positional fields or `{ name: Type }` for named fields",
@@ -722,7 +725,7 @@ impl<'src> CstParser<'src> {
     fn parse_named_variant_field(&mut self) {
         self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
 
-        if self.is_ident() && self.peek_is(TokenKind::Colon) {
+        if self.is_ident() && self.peek_is(&TokenKind::Colon) {
             self.bump(); // name
             self.eat_trivia();
             self.bump(); // :
@@ -739,15 +742,15 @@ impl<'src> CstParser<'src> {
     }
 
     pub(super) fn parse_record_fields(&mut self) {
-        self.expect(TokenKind::LeftBrace);
+        self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_record_entry, TokenKind::RightBrace);
-        self.expect(TokenKind::RightBrace);
+        self.parse_comma_separated(Self::parse_record_entry, &TokenKind::RightBrace);
+        self.expect(&TokenKind::RightBrace);
     }
 
     fn parse_record_entry(&mut self) {
         // Check for spread: `...TypeName` or `...Generic<T>`
-        if self.at(TokenKind::DotDotDot) {
+        if self.at(&TokenKind::DotDotDot) {
             self.builder.start_node(SyntaxKind::RECORD_SPREAD.into());
             self.bump(); // consume `...`
             self.eat_trivia();
@@ -763,12 +766,12 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::RECORD_FIELD.into());
         self.expect_ident_flex();
         self.eat_trivia();
-        self.expect(TokenKind::Colon);
+        self.expect(&TokenKind::Colon);
         self.eat_trivia();
         self.parse_type_expr();
         self.eat_trivia();
 
-        if self.at(TokenKind::Equal) {
+        if self.at(&TokenKind::Equal) {
             self.bump();
             self.eat_trivia();
             self.parse_expr();
@@ -785,7 +788,7 @@ impl<'src> CstParser<'src> {
     fn parse_for_block(&mut self) {
         self.builder.start_node(SyntaxKind::FOR_BLOCK.into());
 
-        self.expect(TokenKind::For);
+        self.expect(&TokenKind::For);
         self.eat_trivia();
 
         // Parse the type name (e.g., `User`, `Array<T>`)
@@ -795,7 +798,7 @@ impl<'src> CstParser<'src> {
         // `for Type: Trait { ... }` was the old trait-impl form. It's now
         // written as `impl Trait for Type { ... }`. Reject with a clear
         // migration hint rather than silently accepting.
-        if self.at(TokenKind::Colon) {
+        if self.at(&TokenKind::Colon) {
             self.error(
                 "`for Type: Trait { ... }` is no longer valid. \
                  Use `impl Trait for Type { ... }` for trait impls; \
@@ -807,16 +810,16 @@ impl<'src> CstParser<'src> {
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::LeftBrace);
+        self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();
 
         // Parse function declarations inside the block (with optional export)
-        while !self.at(TokenKind::RightBrace) && !self.at_end() {
-            if self.at(TokenKind::Export) {
+        while !self.at(&TokenKind::RightBrace) && !self.at_end() {
+            if self.at(&TokenKind::Export) {
                 self.bump();
                 self.eat_trivia();
             }
-            if self.at(TokenKind::Let) || self.at(TokenKind::Async) {
+            if self.at(&TokenKind::Let) || self.at(&TokenKind::Async) {
                 self.parse_for_block_function();
                 self.eat_trivia();
             } else {
@@ -826,7 +829,7 @@ impl<'src> CstParser<'src> {
             }
         }
 
-        self.expect(TokenKind::RightBrace);
+        self.expect(&TokenKind::RightBrace);
 
         self.builder.finish_node();
     }
@@ -836,7 +839,7 @@ impl<'src> CstParser<'src> {
     fn parse_impl_block(&mut self) {
         self.builder.start_node(SyntaxKind::IMPL_BLOCK.into());
 
-        self.expect(TokenKind::Impl);
+        self.expect(&TokenKind::Impl);
         self.eat_trivia();
 
         // Trait name (identifier). Placed first so the node order is
@@ -844,7 +847,7 @@ impl<'src> CstParser<'src> {
         self.expect_ident();
         self.eat_trivia();
 
-        self.expect(TokenKind::For);
+        self.expect(&TokenKind::For);
         self.eat_trivia();
 
         // Target type (e.g., `User`, `Array<number>`)
@@ -852,16 +855,16 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Optional body. Absence = empty impl (trait defaults).
-        if self.at(TokenKind::LeftBrace) {
+        if self.at(&TokenKind::LeftBrace) {
             self.bump();
             self.eat_trivia();
 
-            while !self.at(TokenKind::RightBrace) && !self.at_end() {
-                if self.at(TokenKind::Export) {
+            while !self.at(&TokenKind::RightBrace) && !self.at_end() {
+                if self.at(&TokenKind::Export) {
                     self.bump();
                     self.eat_trivia();
                 }
-                if self.at(TokenKind::Let) || self.at(TokenKind::Async) {
+                if self.at(&TokenKind::Let) || self.at(&TokenKind::Async) {
                     self.parse_for_block_function();
                     self.eat_trivia();
                 } else {
@@ -871,7 +874,7 @@ impl<'src> CstParser<'src> {
                 }
             }
 
-            self.expect(TokenKind::RightBrace);
+            self.expect(&TokenKind::RightBrace);
         }
 
         self.builder.finish_node();
@@ -882,18 +885,18 @@ impl<'src> CstParser<'src> {
     fn parse_trait_decl(&mut self) {
         self.builder.start_node(SyntaxKind::TRAIT_DECL.into());
 
-        self.expect(TokenKind::Trait);
+        self.expect(&TokenKind::Trait);
         self.eat_trivia();
 
         self.expect_ident(); // trait name
         self.eat_trivia();
 
-        self.expect(TokenKind::LeftBrace);
+        self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();
 
         // Parse method declarations inside the trait
-        while !self.at(TokenKind::RightBrace) && !self.at_end() {
-            if self.at(TokenKind::Let) {
+        while !self.at(&TokenKind::RightBrace) && !self.at_end() {
+            if self.at(&TokenKind::Let) {
                 self.parse_trait_method();
                 self.eat_trivia();
             } else {
@@ -903,7 +906,7 @@ impl<'src> CstParser<'src> {
             }
         }
 
-        self.expect(TokenKind::RightBrace);
+        self.expect(&TokenKind::RightBrace);
 
         self.builder.finish_node();
     }
@@ -911,19 +914,19 @@ impl<'src> CstParser<'src> {
     fn parse_trait_method(&mut self) {
         self.builder.start_node(SyntaxKind::FUNCTION_DECL.into());
 
-        self.expect(TokenKind::Let);
+        self.expect(&TokenKind::Let);
         self.eat_trivia();
         self.expect_ident();
         self.eat_trivia();
 
-        self.expect(TokenKind::LeftParen);
+        self.expect(&TokenKind::LeftParen);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_for_block_param, TokenKind::RightParen);
-        self.expect(TokenKind::RightParen);
+        self.parse_comma_separated(Self::parse_for_block_param, &TokenKind::RightParen);
+        self.expect(&TokenKind::RightParen);
         self.eat_trivia();
 
         // Optional return type
-        if self.at(TokenKind::ThinArrow) {
+        if self.at(&TokenKind::ThinArrow) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();
@@ -931,7 +934,7 @@ impl<'src> CstParser<'src> {
         }
 
         // Optional body (default implementation): `= { ... }`
-        if self.at(TokenKind::Equal) {
+        if self.at(&TokenKind::Equal) {
             self.bump();
             self.eat_trivia();
             self.parse_block_expr();
@@ -944,31 +947,31 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::FUNCTION_DECL.into());
 
         // Optional `async` prefix
-        if self.at(TokenKind::Async) {
+        if self.at(&TokenKind::Async) {
             self.bump(); // async
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::Let);
+        self.expect(&TokenKind::Let);
         self.eat_trivia();
         self.expect_ident();
         self.eat_trivia();
 
-        self.expect(TokenKind::LeftParen);
+        self.expect(&TokenKind::LeftParen);
         self.eat_trivia();
-        self.parse_comma_separated(Self::parse_for_block_param, TokenKind::RightParen);
-        self.expect(TokenKind::RightParen);
+        self.parse_comma_separated(Self::parse_for_block_param, &TokenKind::RightParen);
+        self.expect(&TokenKind::RightParen);
         self.eat_trivia();
 
         // Optional return type
-        if self.at(TokenKind::ThinArrow) {
+        if self.at(&TokenKind::ThinArrow) {
             self.bump();
             self.eat_trivia();
             self.parse_type_expr();
             self.eat_trivia();
         }
 
-        self.expect(TokenKind::Equal);
+        self.expect(&TokenKind::Equal);
         self.eat_trivia();
         self.parse_block_expr();
 
@@ -978,21 +981,21 @@ impl<'src> CstParser<'src> {
     fn parse_for_block_param(&mut self) {
         self.builder.start_node(SyntaxKind::PARAM.into());
 
-        if self.at(TokenKind::SelfKw) {
+        if self.at(&TokenKind::SelfKw) {
             // `self` parameter — bump as an ident-like token
             self.bump();
         } else {
             self.expect_ident();
             self.eat_trivia();
 
-            if self.at(TokenKind::Colon) {
+            if self.at(&TokenKind::Colon) {
                 self.bump();
                 self.eat_trivia();
                 self.parse_type_expr();
                 self.eat_trivia();
             }
 
-            if self.at(TokenKind::Equal) {
+            if self.at(&TokenKind::Equal) {
                 self.bump();
                 self.eat_trivia();
                 self.parse_expr();
@@ -1012,22 +1015,22 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Test name (string literal)
-        self.expect_kind(TokenKind::String(String::new()));
+        self.expect_kind(&TokenKind::String(String::new()));
         self.eat_trivia();
 
-        self.expect(TokenKind::LeftBrace);
+        self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();
 
         // Parse test body: let bindings, assert statements, and expressions
-        while !self.at(TokenKind::RightBrace) && !self.at_end() {
+        while !self.at(&TokenKind::RightBrace) && !self.at_end() {
             let prev_pos = self.pos;
-            if self.at(TokenKind::Let) {
+            if self.at(&TokenKind::Let) {
                 let checkpoint = self.builder.checkpoint();
                 self.builder
                     .start_node_at(checkpoint, SyntaxKind::ITEM.into());
                 self.parse_const_decl();
                 self.builder.finish_node();
-            } else if self.at(TokenKind::Assert) {
+            } else if self.at(&TokenKind::Assert) {
                 self.parse_assert_stmt();
             } else {
                 self.parse_expr();
@@ -1038,7 +1041,7 @@ impl<'src> CstParser<'src> {
             }
         }
 
-        self.expect(TokenKind::RightBrace);
+        self.expect(&TokenKind::RightBrace);
 
         self.builder.finish_node();
     }
@@ -1046,7 +1049,7 @@ impl<'src> CstParser<'src> {
     fn parse_assert_stmt(&mut self) {
         self.builder.start_node(SyntaxKind::ASSERT_EXPR.into());
 
-        self.expect(TokenKind::Assert);
+        self.expect(&TokenKind::Assert);
         self.eat_trivia();
         self.parse_expr();
 
