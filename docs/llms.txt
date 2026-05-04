@@ -566,7 +566,7 @@ let pairs = URLSearchParams.fromArray([("q", "floe")])
 match RegExp.compile("^[a-z]+", "i") {
     Ok(r) -> {
         let isWord = r |> RegExp.test("Hello")        // true
-        let captures = r |> RegExp.match("Hello")     // Some(["Hello"])
+        let captures = r |> RegExp.exec("Hello")      // Some(["Hello"])
     },
     Err(e) -> Console.error(e.message),
 }

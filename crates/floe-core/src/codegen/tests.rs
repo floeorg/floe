@@ -2812,11 +2812,11 @@ let isMatch = match RegExp.compile("^[a-z]", "") {
 }
 
 #[test]
-fn stdlib_regexp_match_coerces_null() {
+fn stdlib_regexp_exec_coerces_null() {
     let result = emit_typed(
         r#"
 let captures = match RegExp.compile("(\\d+)", "") {
-    Ok(r) -> r |> RegExp.match("abc 123"),
+    Ok(r) -> r |> RegExp.exec("abc 123"),
     Err(_) -> None,
 }
 "#,
@@ -2824,5 +2824,9 @@ let captures = match RegExp.compile("(\\d+)", "") {
     assert!(
         result.contains("?? undefined"),
         "expected `?? undefined` null coercion, got: {result}"
+    );
+    assert!(
+        result.contains("r.exec(\"abc 123\")"),
+        "expected `r.exec(...)`, got: {result}"
     );
 }

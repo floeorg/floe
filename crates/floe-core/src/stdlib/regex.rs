@@ -25,13 +25,16 @@ pub fn register(fns: &mut Vec<StdlibFn>) {
             "$0.test($1)"
         ),
 
-        // `match` returns `string.match(regexp)` — `Array<string> | null`
-        // — coerced to Floe's Option<Array<string>>.
+        // Returns the captures array for the first match, or `None`.
+        // Named `exec` after the JS API (`RegExp.prototype.exec`) so the
+        // receiver order maps cleanly to `r.exec(s)` without a swap, and
+        // — incidentally — to avoid a name collision with Floe's `match`
+        // keyword which would leak into bare-name pipe completion.
         stdlib_fn!(
-            "RegExp", "match",
+            "RegExp", "exec",
             [re(), Type::String],
             option_of(array_of(Type::String)),
-            "($1.match($0) ?? undefined)"
+            "($0.exec($1) ?? undefined)"
         ),
 
         // Field accessors.

@@ -778,18 +778,17 @@ mod tests {
     }
 
     #[test]
-    fn lookup_reg_exp_match_coerces_null() {
+    fn lookup_reg_exp_exec_coerces_null() {
         let reg = StdlibRegistry::new();
-        let f = reg.lookup("RegExp", "match").unwrap();
+        let f = reg.lookup("RegExp", "exec").unwrap();
         assert!(
             f.codegen.contains("?? undefined"),
-            "RegExp.match must coerce null to undefined for Floe Option, got: {}",
+            "RegExp.exec must coerce null to undefined for Floe Option, got: {}",
             f.codegen
         );
-        // The receiver is the RegExp ($0), but `match` is called on the string ($1).
         assert!(
-            f.codegen.contains("$1.match($0)"),
-            "expected `$1.match($0)` (string.match(regexp)), got: {}",
+            f.codegen.contains("$0.exec($1)"),
+            "expected `$0.exec($1)` (regex.exec(string)), got: {}",
             f.codegen
         );
     }
