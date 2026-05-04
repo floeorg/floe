@@ -179,7 +179,7 @@ impl<'src> CstParser<'src> {
             self.bump();
             self.eat_trivia();
         }
-        self.expect_kind(&TokenKind::String(String::new()));
+        self.expect(&TokenKind::String(String::new()));
 
         self.builder.finish_node();
     }
@@ -196,7 +196,7 @@ impl<'src> CstParser<'src> {
 
         self.expect(&TokenKind::From);
         self.eat_trivia();
-        self.expect_kind(&TokenKind::String(String::new()));
+        self.expect(&TokenKind::String(String::new()));
 
         self.builder.finish_node();
     }
@@ -1015,7 +1015,7 @@ impl<'src> CstParser<'src> {
         self.eat_trivia();
 
         // Test name (string literal)
-        self.expect_kind(&TokenKind::String(String::new()));
+        self.expect(&TokenKind::String(String::new()));
         self.eat_trivia();
 
         self.expect(&TokenKind::LeftBrace);

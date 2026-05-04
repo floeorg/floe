@@ -118,6 +118,13 @@ impl<'src> CstParser<'src> {
             .is_some_and(|k| std::mem::discriminant(&k) == std::mem::discriminant(kind))
     }
 
+    /// `at` for a set of alternatives. Cleaner than chained `at(...) || at(...)`
+    /// when matching multi-token operator classes (binary operators, keyword
+    /// alternatives, etc.).
+    fn at_any(&self, kinds: &[TokenKind]) -> bool {
+        kinds.iter().any(|k| self.at(k))
+    }
+
     fn at_identifier(&self, name: &str) -> bool {
         matches!(self.current_kind(), Some(TokenKind::Identifier(n)) if n == name)
     }
@@ -577,17 +584,6 @@ impl<'src> CstParser<'src> {
     }
 
     fn expect(&mut self, kind: &TokenKind) {
-        if self.at(kind) {
-            self.bump();
-        } else {
-            self.error_kind(
-                &format!("expected {:?}, found {:?}", kind, self.current_kind()),
-                CstErrorKind::UnexpectedToken,
-            );
-        }
-    }
-
-    fn expect_kind(&mut self, kind: &TokenKind) {
         if self.at(kind) {
             self.bump();
         } else {
