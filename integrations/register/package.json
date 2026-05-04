@@ -31,6 +31,9 @@
   "engines": {
     "node": ">=22.14.0"
   },
+  "dependencies": {
+    "@floeorg/core": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^25.6.0",
     "typescript": "^6.0.3"

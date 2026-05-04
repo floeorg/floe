@@ -1,15 +1,16 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import {
+  compileFloe,
+  findProjectRoot,
+  readCompiledOutput,
+  type FloeOptions,
+} from "@floeorg/core";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import type { Plugin } from "esbuild";
 
-export interface FloeOptions {
-  /** Path to the `floe` binary. Defaults to `"floe"`. */
-  compiler?: string;
-}
+export type { FloeOptions };
 
 const JS_TS_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"] as const;
-const COMPILED_EXTENSIONS = ["tsx", "ts"] as const;
 
 /**
  * esbuild plugin for Floe.
@@ -39,12 +40,12 @@ export default function floe(options: FloeOptions = {}): Plugin {
   return {
     name: "floe",
     setup(build) {
-      const rootCache = new Map<string, string | null>();
-      const findRoot = (flFile: string): string | null => {
+      const rootCache = new Map<string, string>();
+      const findRoot = (flFile: string): string => {
         const key = dirname(flFile);
         const cached = rootCache.get(key);
         if (cached !== undefined) return cached;
-        const found = findProjectRoot(flFile);
+        const found = findProjectRoot(key);
         rootCache.set(key, found);
         return found;
       };
@@ -71,13 +72,14 @@ export default function floe(options: FloeOptions = {}): Plugin {
       build.onLoad({ filter: /\.fl$/ }, (args) => {
         const resolveDir = dirname(args.path);
         const projectRoot = findRoot(args.path);
-        const cached = projectRoot ? readCachedOutput(args.path, projectRoot) : null;
+        const cached = readCompiledOutput(args.path, projectRoot);
         if (cached !== null) {
           return { contents: cached, loader: "ts", resolveDir };
         }
 
         try {
-          return { contents: compileFloe(compiler, args.path), loader: "ts", resolveDir };
+          const { code } = compileFloe(compiler, args.path);
+          return { contents: code, loader: "ts", resolveDir };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           return {
@@ -92,60 +94,4 @@ export default function floe(options: FloeOptions = {}): Plugin {
       });
     },
   };
-}
-
-/**
- * Read pre-compiled `.ts`/`.tsx` output from the `.floe/` mirror if it's
- * fresher than the source `.fl`. Returns null if the mirror is missing
- * or stale.
- */
-function readCachedOutput(flFile: string, projectRoot: string): string | null {
-  let sourceMtime: number;
-  try {
-    sourceMtime = statSync(flFile).mtimeMs;
-  } catch {
-    return null;
-  }
-
-  const rel = relative(projectRoot, flFile);
-  const floeDir = join(projectRoot, ".floe");
-
-  for (const ext of COMPILED_EXTENSIONS) {
-    const outPath = join(floeDir, rel).replace(/\.fl$/, `.${ext}`);
-    try {
-      if (statSync(outPath).mtimeMs >= sourceMtime) {
-        return readFileSync(outPath, "utf-8");
-      }
-    } catch {
-      // try next extension
-    }
-  }
-
-  return null;
-}
-
-function findProjectRoot(start: string): string | null {
-  let dir = isAbsolute(start) ? dirname(start) : resolve(start);
-  while (true) {
-    if (existsSync(join(dir, "package.json"))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-}
-
-function compileFloe(compiler: string, filename: string): string {
-  try {
-    return execFileSync(compiler, ["build", "--emit-stdout", filename], {
-      encoding: "utf-8",
-      timeout: 30_000,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-  } catch (error) {
-    if (error && typeof error === "object" && "stderr" in error) {
-      const stderr = (error as { stderr: string | Buffer }).stderr;
-      throw new Error(String(stderr));
-    }
-    throw error;
-  }
 }

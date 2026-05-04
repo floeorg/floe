@@ -1,15 +1,35 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 
 export interface CompileResult {
   code: string;
   map: string | null;
 }
 
-export interface CompileOptions {
+export interface FloeOptions {
   /** Path to the floe binary. Defaults to "floe". */
   compiler?: string;
+}
+
+/**
+ * Walk up from `start` to find the project root. Matches the Floe
+ * compiler's `find_project_dir` logic: prefers the nearest ancestor
+ * containing `node_modules`, falling back to the nearest containing
+ * `package.json`, and finally to `start` itself.
+ */
+export function findProjectRoot(start: string): string {
+  let dir = start;
+  let packageJsonDir: string | null = null;
+  while (true) {
+    if (existsSync(join(dir, "node_modules"))) return dir;
+    if (packageJsonDir === null && existsSync(join(dir, "package.json"))) {
+      packageJsonDir = dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return packageJsonDir ?? start;
+    dir = parent;
+  }
 }
 
 /**
@@ -36,9 +56,7 @@ export function readCompiledOutput(
       if (statSync(outPath).mtimeMs >= sourceMtime) {
         return readFileSync(outPath, "utf-8");
       }
-    } catch {
-      // File doesn't exist, try next extension
-    }
+    } catch {}
   }
 
   return null;
@@ -79,7 +97,7 @@ export function compileFloe(
 export function resolveFloeFile(
   flFile: string,
   projectRoot: string,
-  options: CompileOptions = {},
+  options: FloeOptions = {},
 ): string {
   const cached = readCompiledOutput(flFile, projectRoot);
   if (cached) return cached;
