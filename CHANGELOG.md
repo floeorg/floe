@@ -5,6 +5,36 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-alpha.5](https://github.com/floeorg/floe/compare/v0.1.0-alpha.4...v0.1.0-alpha.5) (2026-05-04)
+
+
+### Features
+
+* [[#1409](https://github.com/floeorg/floe/issues/1409)] brace-form record construction for nominal types ([#1424](https://github.com/floeorg/floe/issues/1424)) ([6cd3d07](https://github.com/floeorg/floe/commit/6cd3d0750871fced579e29227e1facaced7301bf))
+* [[#1426](https://github.com/floeorg/floe/issues/1426)] URL, URLSearchParams, RegExp stdlib modules ([#1427](https://github.com/floeorg/floe/issues/1427)) ([2513f13](https://github.com/floeorg/floe/commit/2513f1360c74dba75bebaf7f53515a763b55f57b))
+
+
+### Bug Fixes
+
+* [[#1407](https://github.com/floeorg/floe/issues/1407)] remove needless_pass_by_value suppressions in cst.rs ([#1410](https://github.com/floeorg/floe/issues/1410)) ([6f04ea9](https://github.com/floeorg/floe/commit/6f04ea9948ea629fae2b878cda90125c67178ac4))
+
+
+### Miscellaneous Chores
+
+* release as 0.1.0-alpha.5 ([5094b0e](https://github.com/floeorg/floe/commit/5094b0e24f0235454931114c52388d519e84aa96))
+* release as 0.1.0-alpha.5 ([40e856d](https://github.com/floeorg/floe/commit/40e856d41c4d2b9236d74679a5d77d23e840b72d))
+* release as 0.1.0-alpha.5 ([470ee16](https://github.com/floeorg/floe/commit/470ee16f09bf357cbc6e0010ee1e1a9d6be01fcf))
+* release as 0.1.0-alpha.5 ([90ab925](https://github.com/floeorg/floe/commit/90ab9257273eb9b02c23a36e9cc325e3dea12f59))
+* release as 0.1.0-alpha.5 ([478b80d](https://github.com/floeorg/floe/commit/478b80dc8682c416e61e322d586120f38d254e8c))
+* release as 0.1.0-alpha.5 ([a7af703](https://github.com/floeorg/floe/commit/a7af7036fa79cae2e2e1d624ba5ef2b534cfe0a4))
+* release as 0.1.0-alpha.5 ([2c922ce](https://github.com/floeorg/floe/commit/2c922ce51cb1291a991e7b1237a155277f71b902))
+* release as 0.1.0-alpha.5 ([826903c](https://github.com/floeorg/floe/commit/826903c5bb6b3a2c78ad7b22d5810a71fae9f321))
+* release as 0.1.0-alpha.5 ([7fce03c](https://github.com/floeorg/floe/commit/7fce03cece17b42a049ddc2ea1bb5b733a06f40a))
+* release as 0.1.0-alpha.5 ([009294b](https://github.com/floeorg/floe/commit/009294ba2ed5a57a5152b2959682304f47b7b02b))
+* release as 0.1.0-alpha.5 ([528ec9f](https://github.com/floeorg/floe/commit/528ec9f3f0796031843d9d5bb7d72f6b7662a55d))
+* release as 0.1.0-alpha.5 ([6866f99](https://github.com/floeorg/floe/commit/6866f992f53d160a6e0c6e8ae7a60bc1b8f76814))
+* release as 0.1.0-alpha.5 ([5f0970b](https://github.com/floeorg/floe/commit/5f0970b1c698b7893a67413c2310372a02655842))
+
 ## [0.1.0-alpha.4](https://github.com/floeorg/floe/compare/v0.1.0-alpha.3...v0.1.0-alpha.4) (2026-04-28)
 
 
