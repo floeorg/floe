@@ -8,6 +8,6 @@ type AppConfig = {
     version: string,
 }
 
-let config = AppConfig(name: "todo-app", version: "1.0.0")
+let config = AppConfig { name: "todo-app", version: "1.0.0" }
 
 export default config

@@ -123,6 +123,12 @@
 (construct_expression
   type: (type_identifier) @constructor)
 
+(brace_construct_expression
+  type: (type_identifier) @constructor)
+
+(brace_construct_field
+  name: [(identifier) (type_identifier)] @property)
+
 ; ── Traits ──────────────────────────────────────────────
 (trait_declaration
   name: (type_identifier) @type.definition)

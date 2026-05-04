@@ -42,7 +42,7 @@ export async let fetchProduct(id: ProductId) -> Result<(Product, Array<Review>),
         |> Promise.await?
         |> parse<ProductDetailResponse>?
 
-    let product = Product(
+    let product = Product {
         id: ProductId(data.id),
         title: data.title,
         description: data.description,
@@ -55,7 +55,7 @@ export async let fetchProduct(id: ProductId) -> Result<(Product, Array<Review>),
         brand: data.brand,
         thumbnail: data.thumbnail,
         images: data.images,
-    )
+    }
 
     Ok((product, data.reviews))
 }

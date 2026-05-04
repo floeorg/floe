@@ -73,7 +73,7 @@ let first = Array.head([1, 2, 3])  // Some(1)
 let empty = Array.head([])         // None
 
 // Structural equality for contains
-let user1 = User(name: "Ryan")
+let user1 = User { name: "Ryan" }
 let found = Array.contains(users, user1)  // true if any user matches by value
 
 // Pipe chains with dot shorthand

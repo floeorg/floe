@@ -80,6 +80,20 @@
     ],
     "description": "Record type declaration"
   },
+  "Brace Record Construction": {
+    "prefix": "rec",
+    "body": [
+      "${1:TypeName} { ${2:field}: ${0:value} }"
+    ],
+    "description": "Brace-form record construction — `TypeName { field: value }`"
+  },
+  "Record Spread Update": {
+    "prefix": "recspread",
+    "body": [
+      "${1:TypeName} { ${2:field}: ${3:newValue}, ..${0:base} }"
+    ],
+    "description": "Record update with spread — explicit field wins, `..base` provides the rest"
+  },
   "Type Union": {
     "prefix": "union",
     "body": [

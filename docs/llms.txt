@@ -96,8 +96,8 @@ type Config = {
     retries: number = 3,
     headers: Option<string> = None,
 }
-// Config(baseUrl: "https://api.com")           → uses all defaults
-// Config(baseUrl: "https://api.com", timeout: 10000) → overrides timeout
+// Config { baseUrl: "https://api.com" }           → uses all defaults
+// Config { baseUrl: "https://api.com", timeout: 10000 } → overrides timeout
 
 // Settable<T> — three-state type for partial updates (PATCH-style)
 type UpdateUser = {
@@ -105,8 +105,8 @@ type UpdateUser = {
     email: Settable<string> = Unchanged,
 }
 // Value(x) = set, Clear = null, Unchanged = omit key
-// UpdateUser(name: Value("Ryan"), email: Clear)  → { name: "Ryan", email: null }
-// UpdateUser(name: Value("Ryan"))                → { name: "Ryan" }
+// UpdateUser { name: Value("Ryan"), email: Clear }  → { name: "Ryan", email: null }
+// UpdateUser { name: Value("Ryan") }                → { name: "Ryan" }
 
 // Tagged sum type (nominal — `|` declares fresh constructors)
 // Positional fields use ( ), named fields use { }
@@ -213,16 +213,22 @@ let (x, y) = point
 ## Type Constructors and Record Spread
 
 ```floe
-// Positional
-let user = User("1", "Ryan", "r@test.com")
+// Records are constructed with brace form `Type { ... }`.
+// Paren form is reserved for the value namespace (functions, variant
+// constructors, opaque-module helpers) so a TS-imported `function User`
+// and `interface User` never collide.
+let user = User { id: "1", name: "Ryan", email: "r@test.com" }
 
-// Named arguments (any order)
-let user = User(name: "Ryan", id: "1", email: "r@test.com")
+// Field punning: `{ name }` and `{ name: }` both desugar to `{ name: name }`
+let user = User { id, name, email }
 
-// Record spread with double dot — explicit fields first, spread last
-let updated = User(name: "New Name", ..user)
+// Record spread with `..` — explicit fields first, spread last
+let updated = User { name: "New Name", ..user }
 
-// Union variant construction
+// Empty record
+let nothing = Empty {}
+
+// Union variant construction (paren form — variants live in the value namespace)
 let err = ApiError.Network(NetworkError.Timeout(ms: 3000))
 
 // Qualified variants required when ambiguous:
@@ -906,8 +912,9 @@ out of scope.
 | `Err(error)` | `{ ok: false, error }` |
 | `Some(value)` | `value` |
 | `None` | `undefined` |
-| `User(name: "Ry")` | `{ name: "Ry" }` |
-| `User(..u, name: "New")` | `{ ...u, name: "New" }` |
+| `User { name: "Ry" }` | `{ name: "Ry" }` |
+| `User { name: "New", ..u }` | `{ ...u, name: "New" }` |
+| `User { name }` (punning) | `{ name: name }` |
 | `f(name: "x", limit: 10)` | `f("x", 10)` (labels erased, reordered to declared param order) |
 | `Console.log(x)` | `console.log(x)` |
 | `(1, 2)` | `[1, 2] as const` |

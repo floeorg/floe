@@ -18,7 +18,7 @@ export let HomePage() -> JSX.Element = {
             TooShort -> setError("Todo must be at least 2 characters"),
             TooLong -> setError("Todo must be under 100 characters"),
             Valid(text) -> {
-                setTodos(todos |> Array.append(Todo(id: v4(), text:, done: false)))
+                setTodos(todos |> Array.append(Todo { id: v4(), text, done: false }))
                 setInput("")
 
                 setError("")
@@ -28,7 +28,7 @@ export let HomePage() -> JSX.Element = {
 
     let handleToggle(id: string) = {
         setTodos(todos |> map((t) -> match t.id == id {
-                    true -> Todo(done: !t.done, ..t),
+                    true -> Todo { done: !t.done, ..t },
                     false -> t,
                 }))
     }

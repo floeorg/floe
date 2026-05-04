@@ -443,6 +443,22 @@ impl Attacher<'_> {
                 spread: spread.map(|s| self.boxed_expr(s)),
                 args: args.into_iter().map(|a| self.arg(a)).collect(),
             },
+            ExprKind::BraceConstruct {
+                type_name,
+                spread,
+                fields,
+            } => ExprKind::BraceConstruct {
+                type_name,
+                spread: spread.map(|s| self.boxed_expr(s)),
+                fields: fields
+                    .into_iter()
+                    .map(|f| crate::parser::ast::BraceField {
+                        name: f.name,
+                        value: self.expr(f.value),
+                        span: f.span,
+                    })
+                    .collect(),
+            },
             ExprKind::Member { object, field } => ExprKind::Member {
                 object: self.boxed_expr(object),
                 field,

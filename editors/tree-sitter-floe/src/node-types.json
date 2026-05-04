@@ -34,6 +34,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -122,6 +126,10 @@
         },
         {
           "type": "block",
+          "named": true
+        },
+        {
+          "type": "brace_construct_expression",
           "named": true
         },
         {
@@ -232,6 +240,10 @@
         },
         {
           "type": "block",
+          "named": true
+        },
+        {
+          "type": "brace_construct_expression",
           "named": true
         },
         {
@@ -373,6 +385,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -479,6 +495,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -575,6 +595,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -662,6 +686,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -758,6 +786,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -858,6 +890,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -1012,6 +1048,240 @@
     "fields": {}
   },
   {
+    "type": "brace_construct_expression",
+    "named": true,
+    "fields": {
+      "spread": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "arrow_closure",
+            "named": true
+          },
+          {
+            "type": "assignment_expression",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
+            "named": true
+          },
+          {
+            "type": "construct_expression",
+            "named": true
+          },
+          {
+            "type": "dot_shorthand",
+            "named": true
+          },
+          {
+            "type": "index_expression",
+            "named": true
+          },
+          {
+            "type": "jsx_element",
+            "named": true
+          },
+          {
+            "type": "jsx_fragment",
+            "named": true
+          },
+          {
+            "type": "jsx_self_closing",
+            "named": true
+          },
+          {
+            "type": "match_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "primary_expression",
+            "named": true
+          },
+          {
+            "type": "return_statement",
+            "named": true
+          },
+          {
+            "type": "tagged_template_expression",
+            "named": true
+          },
+          {
+            "type": "unary_expression",
+            "named": true
+          },
+          {
+            "type": "unwrap_expression",
+            "named": true
+          },
+          {
+            "type": "variant_expression",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "brace_construct_field",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "brace_construct_field",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "arrow_closure",
+            "named": true
+          },
+          {
+            "type": "assignment_expression",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "collect_expression",
+            "named": true
+          },
+          {
+            "type": "construct_expression",
+            "named": true
+          },
+          {
+            "type": "dot_shorthand",
+            "named": true
+          },
+          {
+            "type": "index_expression",
+            "named": true
+          },
+          {
+            "type": "jsx_element",
+            "named": true
+          },
+          {
+            "type": "jsx_fragment",
+            "named": true
+          },
+          {
+            "type": "jsx_self_closing",
+            "named": true
+          },
+          {
+            "type": "match_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "primary_expression",
+            "named": true
+          },
+          {
+            "type": "return_statement",
+            "named": true
+          },
+          {
+            "type": "tagged_template_expression",
+            "named": true
+          },
+          {
+            "type": "unary_expression",
+            "named": true
+          },
+          {
+            "type": "unwrap_expression",
+            "named": true
+          },
+          {
+            "type": "variant_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "call_expression",
     "named": true,
     "fields": {
@@ -1033,6 +1303,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -1164,6 +1438,10 @@
         },
         {
           "type": "block",
+          "named": true
+        },
+        {
+          "type": "brace_construct_expression",
           "named": true
         },
         {
@@ -1306,6 +1584,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -1443,6 +1725,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -1613,6 +1899,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -1729,6 +2019,10 @@
         },
         {
           "type": "block",
+          "named": true
+        },
+        {
+          "type": "brace_construct_expression",
           "named": true
         },
         {
@@ -2211,6 +2505,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2298,6 +2596,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -2498,6 +2800,10 @@
         },
         {
           "type": "block",
+          "named": true
+        },
+        {
+          "type": "brace_construct_expression",
           "named": true
         },
         {
@@ -2802,6 +3108,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -2938,6 +3248,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -3044,6 +3358,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -3137,6 +3455,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -3367,6 +3689,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -3526,6 +3852,10 @@
           "named": true
         },
         {
+          "type": "brace_construct_expression",
+          "named": true
+        },
+        {
           "type": "call_expression",
           "named": true
         },
@@ -3621,6 +3951,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -3708,6 +4042,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -3925,6 +4263,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -4156,6 +4498,10 @@
           "named": true
         },
         {
+          "type": "brace_construct_expression",
+          "named": true
+        },
+        {
           "type": "call_expression",
           "named": true
         },
@@ -4326,6 +4672,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -4429,6 +4779,10 @@
         },
         {
           "type": "block",
+          "named": true
+        },
+        {
+          "type": "brace_construct_expression",
           "named": true
         },
         {
@@ -4882,6 +5236,10 @@
             "named": true
           },
           {
+            "type": "brace_construct_expression",
+            "named": true
+          },
+          {
             "type": "call_expression",
             "named": true
           },
@@ -5023,6 +5381,10 @@
           "named": true
         },
         {
+          "type": "brace_construct_expression",
+          "named": true
+        },
+        {
           "type": "call_expression",
           "named": true
         },
@@ -5129,6 +5491,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {
@@ -5293,6 +5659,10 @@
           },
           {
             "type": "block",
+            "named": true
+          },
+          {
+            "type": "brace_construct_expression",
             "named": true
           },
           {

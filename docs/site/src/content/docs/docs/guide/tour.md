@@ -54,8 +54,8 @@ type User = { id: string, name: string, email: string }
 type Shape = | Circle { radius: number }
     | Rectangle { width: number, height: number }
 
-let u = User(name: "Alice", id: "1", email: "a@t.com")
-let updated = User(name: "Bob", ..u)
+let u = User { id: "1", name: "Alice", email: "a@t.com" }
+let updated = User { name: "Bob", ..u }
 type UserId = UserId(string)   // newtype
 ```
 

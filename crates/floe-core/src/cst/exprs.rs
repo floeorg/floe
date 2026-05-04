@@ -423,6 +423,17 @@ impl<'src> CstParser<'src> {
                     return;
                 }
 
+                // Uppercase + { → brace-form record construction
+                // (suppressed in match subjects so `match Foo { arm -> ... }`
+                // still parses as a match block, not a struct literal head.)
+                if name.starts_with(char::is_uppercase)
+                    && !self.no_struct_literal
+                    && self.peek_is(&TokenKind::LeftBrace)
+                {
+                    self.parse_brace_construct_expr();
+                    return;
+                }
+
                 // Qualified variant: `Filter.All` or `Route.Profile(id: "123")`
                 if name.starts_with(char::is_uppercase)
                     && self.peek_is(&TokenKind::Dot)
@@ -497,6 +508,89 @@ impl<'src> CstParser<'src> {
         self.parse_constructor_args();
 
         self.expect(&TokenKind::RightParen);
+        self.builder.finish_node();
+    }
+
+    /// Parse brace-form record construction: `Foo { field: expr, ..base }`.
+    /// Fields are named-only (no positional args), with optional shorthand
+    /// punning (`{ name }` → `{ name: name }`) and at most one trailing
+    /// `..base` spread.
+    fn parse_brace_construct_expr(&mut self) {
+        self.builder
+            .start_node(SyntaxKind::BRACE_CONSTRUCT_EXPR.into());
+        self.bump(); // TypeName
+        self.eat_trivia();
+        self.expect(&TokenKind::LeftBrace);
+        self.eat_trivia();
+
+        let mut saw_spread = false;
+        while !self.at(&TokenKind::RightBrace) && !self.at_end() {
+            if self.at(&TokenKind::DotDot) {
+                if saw_spread {
+                    self.builder.start_node(SyntaxKind::ERROR.into());
+                    self.error("only one spread `..base` is allowed per record construction");
+                    self.bump();
+                    self.eat_trivia();
+                    self.parse_expr();
+                    self.builder.finish_node();
+                } else {
+                    self.builder.start_node(SyntaxKind::SPREAD_EXPR.into());
+                    self.bump(); // ..
+                    self.eat_trivia();
+                    self.parse_expr();
+                    self.builder.finish_node();
+                    saw_spread = true;
+                }
+            } else if saw_spread {
+                self.builder.start_node(SyntaxKind::ERROR.into());
+                self.error(
+                    "spread `..base` must come last — write explicit fields first, then `..base`",
+                );
+                self.parse_brace_construct_field();
+                self.builder.finish_node();
+            } else {
+                self.parse_brace_construct_field();
+            }
+            self.eat_trivia();
+            if self.at(&TokenKind::Comma) {
+                self.bump();
+                self.eat_trivia();
+            } else {
+                break;
+            }
+        }
+
+        self.expect(&TokenKind::RightBrace);
+        self.builder.finish_node();
+    }
+
+    /// Parse a single field inside `Foo { ... }`. Three forms: `name: expr`
+    /// (explicit value), `name:` (call-style punning, no value after the
+    /// colon), and `name` (bare-shorthand punning). Both punning forms
+    /// desugar to `name: name` in the lowering layer.
+    fn parse_brace_construct_field(&mut self) {
+        self.builder
+            .start_node(SyntaxKind::BRACE_CONSTRUCT_FIELD.into());
+
+        if self.is_ident_flex() && self.peek_is(&TokenKind::Colon) {
+            self.expect_ident_flex();
+            self.eat_trivia();
+            self.bump(); // :
+
+            // Punning: `name:` followed by `,` or `}` reads back as `name: name`.
+            let next = self.next_non_trivia_kind();
+            let is_pun = matches!(next, Some(TokenKind::RightBrace | TokenKind::Comma) | None);
+            if !is_pun {
+                self.eat_trivia();
+                self.parse_expr();
+            }
+        } else if self.is_ident_flex() {
+            self.expect_ident_flex();
+        } else {
+            self.error("expected a field name in record construction");
+            self.bump();
+        }
+
         self.builder.finish_node();
     }
 
@@ -628,7 +722,10 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::MATCH_EXPR.into());
         self.expect(&TokenKind::Match);
         self.eat_trivia();
+        let prev = self.no_struct_literal;
+        self.no_struct_literal = true;
         self.parse_expr();
+        self.no_struct_literal = prev;
         self.eat_trivia();
         self.expect(&TokenKind::LeftBrace);
         self.eat_trivia();

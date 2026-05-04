@@ -610,6 +610,15 @@ pub enum ExprKind<T = ()> {
         spread: Option<Box<Expr<T>>>,
         args: Vec<Arg<T>>,
     },
+    /// Brace-form record construction: `User { name: "Ryan", ..base }`.
+    /// Only resolves the type name via the type namespace — never the value
+    /// namespace — so it never collides with a same-named function or
+    /// constructor binding.
+    BraceConstruct {
+        type_name: String,
+        spread: Option<Box<Expr<T>>>,
+        fields: Vec<BraceField<T>>,
+    },
     /// Member access: `a.b`
     Member { object: Box<Expr<T>>, field: String },
     /// Index access: `a[0]`
@@ -721,6 +730,16 @@ pub enum Arg<T = ()> {
     Positional(Expr<T>),
     /// Named argument: `name: expr`
     Named { label: String, value: Expr<T> },
+}
+
+/// One field inside a brace-form record construction `Foo { name: expr }`.
+/// `span` covers the whole field (name + optional `: expr`) and is used by
+/// the checker for per-field diagnostics.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BraceField<T = ()> {
+    pub name: String,
+    pub value: Expr<T>,
+    pub span: Span,
 }
 
 // ── Operators ────────────────────────────────────────────────────

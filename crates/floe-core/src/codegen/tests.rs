@@ -2639,3 +2639,51 @@ export let wrap() -> Result<number, Error> = {
         "untrusted call should be wrapped in try/catch, got: {result}"
     );
 }
+
+// ── Brace-form record construction (#1409) ───────────────────────
+
+#[test]
+fn brace_construct_emits_object_literal() {
+    let output = emit_typed(
+        r#"
+type User = { id: string, name: string }
+let u = User { id: "1", name: "Ryan" }
+"#,
+    );
+    // Should emit a plain object literal with named fields.
+    assert!(
+        output.contains(r#"{ id: "1", name: "Ryan" }"#),
+        "expected object literal, got:\n{output}"
+    );
+}
+
+#[test]
+fn brace_construct_with_spread_emits_object_spread() {
+    let output = emit_typed(
+        r#"
+type User = { id: string, name: string }
+let base = User { id: "1", name: "Ryan" }
+let updated = User { name: "Sky", ..base }
+"#,
+    );
+    assert!(
+        output.contains("...base"),
+        "expected JS spread, got:\n{output}"
+    );
+}
+
+#[test]
+fn brace_construct_with_punning_emits_inferred_field() {
+    let output = emit_typed(
+        r#"
+type User = { id: string, name: string }
+let id = "1"
+let name = "Ryan"
+let u = User { id, name }
+"#,
+    );
+    assert!(
+        output.contains("id: id") && output.contains("name: name"),
+        "expected punning to expand to `id: id`, got:\n{output}"
+    );
+}

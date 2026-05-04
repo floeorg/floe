@@ -67,6 +67,25 @@ pub fn walk_expr_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Expr<T>)) {
     walk_expr_children_mut(expr, f);
 }
 
+fn walk_args_mut<T>(args: &mut [Arg<T>], f: &mut impl FnMut(&mut Expr<T>)) {
+    for arg in args {
+        match arg {
+            Arg::Positional(e) | Arg::Named { value: e, .. } => walk_expr_mut(e, f),
+        }
+    }
+}
+
+fn walk_template_parts_mut<T>(
+    parts: &mut [TemplatePart<T>],
+    f: &mut impl FnMut(&mut Expr<T>),
+) {
+    for part in parts {
+        if let TemplatePart::Expr(e) = part {
+            walk_expr_mut(e, f);
+        }
+    }
+}
+
 /// Walk only the children of an expression (not the expression itself).
 /// Useful when the caller needs post-order traversal (children first, then self).
 pub fn walk_expr_children_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Expr<T>)) {
@@ -78,20 +97,20 @@ pub fn walk_expr_children_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Exp
         ExprKind::Unary { operand, .. } => walk_expr_mut(operand, f),
         ExprKind::Call { callee, args, .. } => {
             walk_expr_mut(callee, f);
-            for arg in args {
-                match arg {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => walk_expr_mut(e, f),
-                }
-            }
+            walk_args_mut(args, f);
         }
         ExprKind::Construct { args, spread, .. } => {
             if let Some(s) = spread {
                 walk_expr_mut(s, f);
             }
-            for arg in args {
-                match arg {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => walk_expr_mut(e, f),
-                }
+            walk_args_mut(args, f);
+        }
+        ExprKind::BraceConstruct { fields, spread, .. } => {
+            if let Some(s) = spread {
+                walk_expr_mut(s, f);
+            }
+            for field in fields {
+                walk_expr_mut(&mut field.value, f);
             }
         }
         ExprKind::Member { object, .. } => walk_expr_mut(object, f),
@@ -114,14 +133,7 @@ pub fn walk_expr_children_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Exp
         | ExprKind::Grouped(inner)
         | ExprKind::Spread(inner) => walk_expr_mut(inner, f),
         ExprKind::Parse { value, .. } => walk_expr_mut(value, f),
-        ExprKind::Mock { overrides, .. } => {
-            for arg in overrides {
-                match arg {
-                    Arg::Positional(e) => walk_expr_mut(e, f),
-                    Arg::Named { value, .. } => walk_expr_mut(value, f),
-                }
-            }
-        }
+        ExprKind::Mock { overrides, .. } => walk_args_mut(overrides, f),
         ExprKind::Block(items) | ExprKind::Collect(items) => {
             for item in items {
                 walk_item_mut(item, f);
@@ -138,20 +150,10 @@ pub fn walk_expr_children_mut<T>(expr: &mut Expr<T>, f: &mut impl FnMut(&mut Exp
                 walk_expr_mut(e, f);
             }
         }
-        ExprKind::TemplateLiteral(parts) => {
-            for part in parts {
-                if let TemplatePart::Expr(e) = part {
-                    walk_expr_mut(e, f);
-                }
-            }
-        }
+        ExprKind::TemplateLiteral(parts) => walk_template_parts_mut(parts, f),
         ExprKind::TaggedTemplate { tag, parts } => {
             walk_expr_mut(tag, f);
-            for part in parts {
-                if let TemplatePart::Expr(e) = part {
-                    walk_expr_mut(e, f);
-                }
-            }
+            walk_template_parts_mut(parts, f);
         }
         ExprKind::DotShorthand { predicate, .. } => {
             if let Some((_, rhs)) = predicate {
@@ -188,49 +190,54 @@ pub fn walk_expr<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
     walk_expr_children(expr, f);
 }
 
+fn walk_args<T>(args: &[Arg<T>], f: &mut impl FnMut(&Expr<T>)) {
+    for arg in args {
+        match arg {
+            Arg::Positional(e) | Arg::Named { value: e, .. } => walk_expr(e, f),
+        }
+    }
+}
+
+fn walk_template_parts<T>(parts: &[TemplatePart<T>], f: &mut impl FnMut(&Expr<T>)) {
+    for part in parts {
+        if let TemplatePart::Expr(e) = part {
+            walk_expr(e, f);
+        }
+    }
+}
+
 /// Walk only the children of an expression (not the expression itself).
-#[allow(clippy::too_many_lines)]
 pub fn walk_expr_children<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
     match &expr.kind {
         ExprKind::Binary { left, right, .. } | ExprKind::Pipe { left, right } => {
             walk_expr(left, f);
             walk_expr(right, f);
         }
-        ExprKind::Unary { operand, .. } => {
-            walk_expr(operand, f);
-        }
+        ExprKind::Unary { operand, .. } => walk_expr(operand, f),
         ExprKind::Call { callee, args, .. } => {
             walk_expr(callee, f);
-            for arg in args {
-                match arg {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                        walk_expr(e, f);
-                    }
-                }
-            }
+            walk_args(args, f);
         }
         ExprKind::Construct { args, spread, .. } => {
             if let Some(s) = spread {
                 walk_expr(s, f);
             }
-            for arg in args {
-                match arg {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                        walk_expr(e, f);
-                    }
-                }
+            walk_args(args, f);
+        }
+        ExprKind::BraceConstruct { fields, spread, .. } => {
+            if let Some(s) = spread {
+                walk_expr(s, f);
+            }
+            for field in fields {
+                walk_expr(&field.value, f);
             }
         }
-        ExprKind::Member { object, .. } => {
-            walk_expr(object, f);
-        }
+        ExprKind::Member { object, .. } => walk_expr(object, f),
         ExprKind::Index { object, index } => {
             walk_expr(object, f);
             walk_expr(index, f);
         }
-        ExprKind::Arrow { body, .. } => {
-            walk_expr(body, f);
-        }
+        ExprKind::Arrow { body, .. } => walk_expr(body, f),
         ExprKind::Match { subject, arms } => {
             walk_expr(subject, f);
             for arm in arms {
@@ -243,21 +250,9 @@ pub fn walk_expr_children<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
         ExprKind::Unwrap(inner)
         | ExprKind::Value(inner)
         | ExprKind::Grouped(inner)
-        | ExprKind::Spread(inner) => {
-            walk_expr(inner, f);
-        }
-        ExprKind::Parse { value, .. } => {
-            walk_expr(value, f);
-        }
-        ExprKind::Mock { overrides, .. } => {
-            for arg in overrides {
-                match arg {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => {
-                        walk_expr(e, f);
-                    }
-                }
-            }
-        }
+        | ExprKind::Spread(inner) => walk_expr(inner, f),
+        ExprKind::Parse { value, .. } => walk_expr(value, f),
+        ExprKind::Mock { overrides, .. } => walk_args(overrides, f),
         ExprKind::Block(items) | ExprKind::Collect(items) => {
             for item in items {
                 walk_item(item, f);
@@ -274,20 +269,10 @@ pub fn walk_expr_children<T>(expr: &Expr<T>, f: &mut impl FnMut(&Expr<T>)) {
                 walk_expr(e, f);
             }
         }
-        ExprKind::TemplateLiteral(parts) => {
-            for part in parts {
-                if let TemplatePart::Expr(e) = part {
-                    walk_expr(e, f);
-                }
-            }
-        }
+        ExprKind::TemplateLiteral(parts) => walk_template_parts(parts, f),
         ExprKind::TaggedTemplate { tag, parts } => {
             walk_expr(tag, f);
-            for part in parts {
-                if let TemplatePart::Expr(e) = part {
-                    walk_expr(e, f);
-                }
-            }
+            walk_template_parts(parts, f);
         }
         ExprKind::DotShorthand { predicate, .. } => {
             if let Some((_, rhs)) = predicate {

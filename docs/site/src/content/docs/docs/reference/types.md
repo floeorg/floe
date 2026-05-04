@@ -81,7 +81,7 @@ type Config = {
   retries: number = 3,
 }
 
-let cfg = Config(baseUrl: "https://api.com")
+let cfg = Config { baseUrl: "https://api.com" }
 // timeout is 5000, retries is 3
 ```
 
