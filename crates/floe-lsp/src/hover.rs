@@ -9,9 +9,33 @@ use super::{
     word_at_offset,
 };
 
+/// Wrap a markdown string in the LSP `Hover` envelope. Every hover this
+/// server returns uses the markdown variant with no range — this is the
+/// canonical constructor.
+fn markdown_hover(value: impl Into<String>) -> Hover {
+    Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: value.into(),
+        }),
+        range: None,
+    }
+}
+
+/// Walk back from `offset` over identifier characters (`a-zA-Z0-9_`) and
+/// return the start index of the identifier. Returns `offset` when the
+/// previous byte is not an identifier character.
+fn word_start_at_offset(content: &str, offset: usize) -> usize {
+    let bytes = content.as_bytes();
+    let mut s = offset;
+    while s > 0 && (bytes[s - 1].is_ascii_alphanumeric() || bytes[s - 1] == b'_') {
+        s -= 1;
+    }
+    s
+}
+
 impl FloeLsp {
     #[allow(clippy::too_many_lines)]
-    #[allow(clippy::cognitive_complexity)]
     pub(super) async fn handle_hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
@@ -36,13 +60,9 @@ impl FloeLsp {
                 && let Some(ref typed_program) = doc.typed_program
                 && let Some(pipe_ty) = super::find_pipe_input_type_at_offset(typed_program, offset)
             {
-                return Ok(Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: format!("```floe\n|> {pipe_ty}\n```\nPipe input type"),
-                    }),
-                    range: None,
-                }));
+                return Ok(Some(markdown_hover(format!(
+                    "```floe\n|> {pipe_ty}\n```\nPipe input type"
+                ))));
             }
             return Ok(None);
         }
@@ -56,14 +76,7 @@ impl FloeLsp {
         };
 
         // Compute word start position and whether this is member access (X.word)
-        let word_start = {
-            let mut s = offset;
-            let bytes = doc.content.as_bytes();
-            while s > 0 && (bytes[s - 1].is_ascii_alphanumeric() || bytes[s - 1] == b'_') {
-                s -= 1;
-            }
-            s
-        };
+        let word_start = word_start_at_offset(&doc.content, offset);
         let is_member_access =
             word_start > 0 && doc.content.as_bytes().get(word_start - 1) == Some(&b'.');
 
@@ -85,56 +98,31 @@ impl FloeLsp {
             if let Some((ast_width, ref ty)) = typed_ast
                 && ast_width < sym.end - sym.start
             {
-                return Ok(Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: format!("```floe\n{word}: {ty}\n```"),
-                    }),
-                    range: None,
-                }));
+                return Ok(Some(markdown_hover(format!("```floe\n{word}: {ty}\n```"))));
             }
 
-            return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: format!("```floe\n{}\n```", sym.detail),
-                }),
-                range: None,
-            }));
+            return Ok(Some(markdown_hover(format!(
+                "```floe\n{}\n```",
+                sym.detail
+            ))));
         }
 
         // Check for member access (e.g. z.object, Array.map, user.name)
         if is_member_access {
-            let bytes = doc.content.as_bytes();
             let dot_pos = word_start - 1;
-            let mut obj_start = dot_pos;
-            while obj_start > 0
-                && (bytes[obj_start - 1].is_ascii_alphanumeric() || bytes[obj_start - 1] == b'_')
-            {
-                obj_start -= 1;
-            }
+            let obj_start = word_start_at_offset(&doc.content, dot_pos);
             let obj_name = &doc.content[obj_start..dot_pos];
 
             // Check stdlib module method (e.g., Array.map, String.split)
             if let Some(hover_text) = stdlib_hover::hover_stdlib_method(obj_name, word) {
-                return Ok(Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: hover_text,
-                    }),
-                    range: None,
-                }));
+                return Ok(Some(markdown_hover(hover_text)));
             }
 
             // Check tsgo member probes (npm imports like z.object)
             if let Some(ty) = doc.type_map.get(&format!("__member_{obj_name}_{word}")) {
-                return Ok(Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: format!("```floe\n(property) {obj_name}.{word}: {ty}\n```"),
-                    }),
-                    range: None,
-                }));
+                return Ok(Some(markdown_hover(format!(
+                    "```floe\n(property) {obj_name}.{word}: {ty}\n```"
+                ))));
             }
 
             // The Member's stored type for chain probes is an internal marker
@@ -149,13 +137,9 @@ impl FloeLsp {
                     .map(Type::to_string)
                     .collect::<Vec<_>>()
                     .join(", ");
-                return Ok(Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: format!("```floe\n(method) {word}({params}) -> {ret_ty}\n```"),
-                    }),
-                    range: None,
-                }));
+                return Ok(Some(markdown_hover(format!(
+                    "```floe\n(method) {word}({params}) -> {ret_ty}\n```"
+                ))));
             }
 
             // Resolve field type from type_map: look for __field_{type}_{field}
@@ -163,82 +147,49 @@ impl FloeLsp {
             if let Some(obj_ty) = doc.type_map.get(obj_name) {
                 // Try to find the specific field type
                 if let Some(field_ty) = doc.type_map.get(&format!("__field_{obj_ty}_{word}")) {
-                    return Ok(Some(Hover {
-                        contents: HoverContents::Markup(MarkupContent {
-                            kind: MarkupKind::Markdown,
-                            value: format!("```floe\n(property) {word}: {field_ty}\n```"),
-                        }),
-                        range: None,
-                    }));
+                    return Ok(Some(markdown_hover(format!(
+                        "```floe\n(property) {word}: {field_ty}\n```"
+                    ))));
                 }
 
                 // Check typed AST before falling back to generic display
                 if let Some((_, ref ty)) = typed_ast {
-                    return Ok(Some(Hover {
-                        contents: HoverContents::Markup(MarkupContent {
-                            kind: MarkupKind::Markdown,
-                            value: format!("```floe\n(property) {word}: {ty}\n```"),
-                        }),
-                        range: None,
-                    }));
+                    return Ok(Some(markdown_hover(format!(
+                        "```floe\n(property) {word}: {ty}\n```"
+                    ))));
                 }
 
                 // Fall back to showing object type + member
-                return Ok(Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: format!(
-                            "```floe\n(property) {obj_name}.{word}\n```\n`{obj_name}: {obj_ty}`"
-                        ),
-                    }),
-                    range: None,
-                }));
+                return Ok(Some(markdown_hover(format!(
+                    "```floe\n(property) {obj_name}.{word}\n```\n`{obj_name}: {obj_ty}`"
+                ))));
             }
 
             // Typed AST fallback for member access on call results (e.g. db.insert(...).values)
             // where obj_name can't be extracted from text (preceded by `)` not an identifier)
             if let Some((_, ref ty)) = typed_ast {
-                return Ok(Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: format!("```floe\n(property) {word}: {ty}\n```"),
-                    }),
-                    range: None,
-                }));
+                return Ok(Some(markdown_hover(format!(
+                    "```floe\n(property) {word}: {ty}\n```"
+                ))));
             }
         }
 
         // Check stdlib module names (Array, String, Option, etc.)
         if !is_import_line && let Some(hover_text) = stdlib_hover::hover_stdlib_module(word) {
-            return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: hover_text,
-                }),
-                range: None,
-            }));
+            return Ok(Some(markdown_hover(hover_text)));
         }
 
         // In-file bindings shadow stdlib — without this, hovering on an
         // imported `post` would show `Http.post` via the fallback below.
         if !is_member_access && !is_import_line && !symbols.is_empty() {
             if let Some((_, ref ty)) = typed_ast {
-                return Ok(Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: format!("```floe\n{word}: {ty}\n```"),
-                    }),
-                    range: None,
-                }));
+                return Ok(Some(markdown_hover(format!("```floe\n{word}: {ty}\n```"))));
             }
             if let Some(sym) = symbols.first() {
-                return Ok(Some(Hover {
-                    contents: HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: format!("```floe\n{}\n```", sym.detail),
-                    }),
-                    range: None,
-                }));
+                return Ok(Some(markdown_hover(format!(
+                    "```floe\n{}\n```",
+                    sym.detail
+                ))));
             }
         }
 
@@ -247,25 +198,13 @@ impl FloeLsp {
             && !is_import_line
             && let Some(hover_text) = stdlib_hover::hover_stdlib_function(word)
         {
-            return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: hover_text,
-                }),
-                range: None,
-            }));
+            return Ok(Some(markdown_hover(hover_text)));
         }
 
         // Check typed AST — the single source of truth for expression types.
         // Typed AST fallback — for expressions not matched by symbol index or stdlib.
         if let Some((_, ref ty)) = typed_ast {
-            return Ok(Some(Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: format!("```floe\n{word}: {ty}\n```"),
-                }),
-                range: None,
-            }));
+            return Ok(Some(markdown_hover(format!("```floe\n{word}: {ty}\n```"))));
         }
 
         // Fallback to builtin hover
@@ -287,12 +226,6 @@ impl FloeLsp {
             _ => return Ok(None),
         };
 
-        Ok(Some(Hover {
-            contents: HoverContents::Markup(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: hover_text.to_string(),
-            }),
-            range: None,
-        }))
+        Ok(Some(markdown_hover(hover_text)))
     }
 }

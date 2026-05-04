@@ -1,7 +1,45 @@
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location};
+use tower_lsp::lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Url};
 
-use super::{FloeLsp, is_cursor_on_def_name, offset_to_range, position_to_offset, word_at_offset};
+use super::{
+    Document, FloeLsp, is_cursor_on_def_name, offset_to_range, position_to_offset, word_at_offset,
+};
+
+/// Search a single document's symbol index for `word`. When `cursor_offset`
+/// is `Some`, the search is for the document the cursor is in: imports are
+/// resolved to their source files, and the symbol is skipped if the cursor
+/// sits on its own definition name. When `cursor_offset` is `None`, imports
+/// are skipped entirely (we never want to land on someone else's import
+/// rebinding when searching across files).
+fn find_def_in_doc(
+    doc: &Document,
+    doc_uri: &Url,
+    word: &str,
+    cursor_offset: Option<usize>,
+) -> Option<Location> {
+    for sym in doc.index.find_by_name(word) {
+        if let Some(source_spec) = &sym.import_source {
+            if cursor_offset.is_some()
+                && let Some(location) = FloeLsp::resolve_import_location(doc_uri, source_spec, word)
+            {
+                return Some(location);
+            }
+            continue;
+        }
+
+        if let Some(offset) = cursor_offset
+            && is_cursor_on_def_name(&doc.content, offset, sym)
+        {
+            continue;
+        }
+
+        return Some(Location {
+            uri: doc_uri.clone(),
+            range: offset_to_range(&doc.content, sym.start, sym.end),
+        });
+    }
+    None
+}
 
 impl FloeLsp {
     pub(super) async fn handle_goto_definition(
@@ -42,48 +80,16 @@ impl FloeLsp {
             })));
         }
 
-        // Search current document
-        for sym in doc.index.find_by_name(word) {
-            // If this symbol is an import, resolve to the source file.
-            // Never return the import's own location — that would jump within
-            // the current file instead of going to the definition.
-            if let Some(source_spec) = &sym.import_source {
-                if let Some(location) = Self::resolve_import_location(&uri, source_spec, word) {
-                    return Ok(Some(GotoDefinitionResponse::Scalar(location)));
-                }
-                // Resolution failed — skip this symbol rather than returning
-                // the import declaration's position in the current file.
-                continue;
-            }
-
-            // Skip only when the cursor is on the definition name itself
-            // (not anywhere in the item body). Find the name's position within
-            // the declaration to do a precise check.
-            if is_cursor_on_def_name(&doc.content, offset, sym) {
-                continue;
-            }
-
-            let range = offset_to_range(&doc.content, sym.start, sym.end);
-            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                uri: uri.clone(),
-                range,
-            })));
+        if let Some(location) = find_def_in_doc(doc, &uri, word, Some(offset)) {
+            return Ok(Some(GotoDefinitionResponse::Scalar(location)));
         }
 
-        // Search other open documents
         for (other_uri, other_doc) in docs.iter() {
             if other_uri == &uri {
                 continue;
             }
-            for sym in other_doc.index.find_by_name(word) {
-                if sym.import_source.is_some() {
-                    continue;
-                }
-                let range = offset_to_range(&other_doc.content, sym.start, sym.end);
-                return Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                    uri: other_uri.clone(),
-                    range,
-                })));
+            if let Some(location) = find_def_in_doc(other_doc, other_uri, word, None) {
+                return Ok(Some(GotoDefinitionResponse::Scalar(location)));
             }
         }
 
