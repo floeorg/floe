@@ -85,7 +85,7 @@ jobs:
       - name: Install pnpm
         # No `version:` — action-setup reads packageManager from
         # package.json so local and CI use the exact same pnpm.
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
 
       - name: Setup Aikido safe-chain
         # Installs PATH shims that intercept pnpm/npm/yarn/npx and check
