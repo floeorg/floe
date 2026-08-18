@@ -3,7 +3,7 @@ use super::{
     SyntaxKind, SyntaxNode, TypeExpr,
 };
 
-impl<'src> Lowerer<'src> {
+impl Lowerer<'_, '_> {
     #[allow(clippy::cognitive_complexity)]
     #[allow(clippy::too_many_lines)]
     pub(super) fn lower_expr_node(&mut self, node: &SyntaxNode) -> Option<Expr> {

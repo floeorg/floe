@@ -3,7 +3,7 @@ use super::{
     TypeExpr, TypeExprKind, Variant, VariantField,
 };
 
-impl<'src> Lowerer<'src> {
+impl Lowerer<'_, '_> {
     pub(super) fn lower_type_def_record(&mut self, node: &SyntaxNode) -> TypeDef {
         let mut entries = Vec::new();
         for child in node.children() {

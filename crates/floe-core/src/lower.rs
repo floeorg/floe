@@ -19,10 +19,11 @@ use crate::syntax::{FloeLang, SyntaxKind, SyntaxNode};
 
 /// Lower a CST `SyntaxNode` (rowan) tree into the existing AST.
 pub fn lower_program(root: &SyntaxNode, source: &str) -> Result<Program, Vec<ParseError>> {
+    let id_gen = ExprIdGen::new();
     let mut lowerer = Lowerer {
         source,
         errors: Vec::new(),
-        id_gen: ExprIdGen::new(),
+        id_gen: &id_gen,
     };
     let program = lowerer.lower_root(root);
     if lowerer.errors.is_empty() {
@@ -36,22 +37,29 @@ pub fn lower_program(root: &SyntaxNode, source: &str) -> Result<Program, Vec<Par
 /// successfully parsed along with any errors. Used by the LSP to build a
 /// partial symbol index even when the source contains errors.
 pub fn lower_program_lossy(root: &SyntaxNode, source: &str) -> (Program, Vec<ParseError>) {
+    let id_gen = ExprIdGen::new();
     let mut lowerer = Lowerer {
         source,
         errors: Vec::new(),
-        id_gen: ExprIdGen::new(),
+        id_gen: &id_gen,
     };
     let program = lowerer.lower_root(root);
     (program, lowerer.errors)
 }
 
-struct Lowerer<'src> {
+struct Lowerer<'src, 'id> {
     source: &'src str,
     errors: Vec<ParseError>,
-    id_gen: ExprIdGen,
+    /// Borrowed, not owned, so that a nested lowerer draws from the same
+    /// counter. A template interpolation lowers through its own `Lowerer`,
+    /// and a second counter there restarts every id at 0. The checker keys
+    /// `ExprTypeMap` by `ExprId`, so those ids collide with the ids of the
+    /// file's first expressions and `annotate_types` writes the wrong type
+    /// onto them. See #1530.
+    id_gen: &'id ExprIdGen,
 }
 
-impl<'src> Lowerer<'src> {
+impl Lowerer<'_, '_> {
     /// Create an untyped `Expr` with a fresh unique ID.
     fn expr(&self, kind: ExprKind, span: Span) -> Expr {
         Expr {
@@ -63,7 +71,7 @@ impl<'src> Lowerer<'src> {
     }
 }
 
-impl<'src> Lowerer<'src> {
+impl Lowerer<'_, '_> {
     fn lower_root(&mut self, root: &SyntaxNode) -> Program {
         assert_eq!(root.kind(), SyntaxKind::PROGRAM);
         let span = self.node_span(root);
@@ -257,10 +265,12 @@ impl<'src> Lowerer<'src> {
 
         // Ignore CST errors for interpolations — they may be complex expressions
         let root = cst_parse.syntax();
+        // Draw ids from the outer counter. A fresh counter here restarts
+        // at 0 and collides with the file's first expressions (#1530).
         let mut lowerer = Lowerer {
             source,
             errors: Vec::new(),
-            id_gen: ExprIdGen::new(),
+            id_gen: self.id_gen,
         };
         let program = lowerer.lower_root(&root);
 
@@ -757,6 +767,67 @@ mod tests {
             ItemKind::Expr(e) => e.kind,
             other => panic!("expected Expr, got {other:?}"),
         }
+    }
+
+    // ── Expression ids are unique across the whole file (#1530) ───
+
+    /// Collect every `ExprId` in a program, in walk order.
+    fn expr_ids(source: &str) -> Vec<ExprId> {
+        let program = lower(source);
+        let mut ids = Vec::new();
+        crate::walk::walk_program(&program, &mut |e: &Expr| ids.push(e.id));
+
+        ids
+    }
+
+    /// The checker keys `ExprTypeMap` by `ExprId`, so two expressions with
+    /// one id make `annotate_types` write one expression's type onto the
+    /// other. A nested lowerer with its own counter restarts at 0 and does
+    /// exactly that, which is what #1530 was.
+    fn assert_ids_are_unique(source: &str) {
+        let ids = expr_ids(source);
+        let mut seen = std::collections::HashSet::new();
+        let duplicates: Vec<_> = ids.iter().filter(|id| !seen.insert(**id)).collect();
+        assert!(
+            duplicates.is_empty(),
+            "every expression needs its own id, found {} duplicate(s) among {} \
+             expressions: {duplicates:?}\nsource:\n{source}",
+            duplicates.len(),
+            ids.len(),
+        );
+    }
+
+    #[test]
+    fn ids_are_unique_in_a_plain_file() {
+        assert_ids_are_unique(
+            r#"
+type Color = Red | Green
+export let f() -> Color = { Red }
+export let g(a: number, b: number) -> number = { a + b * 2 }
+"#,
+        );
+    }
+
+    #[test]
+    fn ids_are_unique_across_a_template_interpolation() {
+        assert_ids_are_unique(
+            r#"
+type Color = Red | Green
+export let f() -> Color = { Red }
+export let name(s: string) -> string = { `hi ${s}` }
+"#,
+        );
+    }
+
+    #[test]
+    fn ids_are_unique_across_several_interpolations_and_nesting() {
+        assert_ids_are_unique(
+            r#"
+export let a(x: number, y: number) -> string = { `${x} and ${y}` }
+export let b(x: number) -> string = { `outer ${`inner ${x + 1}`}` }
+export let c(x: number) -> string = { `${x} ${x} ${x}` }
+"#,
+        );
     }
 
     // ── Const declarations ────────────────────────────────────────
