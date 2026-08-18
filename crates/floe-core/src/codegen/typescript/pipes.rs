@@ -164,7 +164,11 @@ impl<'a> TypeScriptGenerator<'a> {
     #[allow(clippy::too_many_lines)]
     pub(super) fn emit_pipe(&mut self, left: &TypedExpr, right: &TypedExpr) -> Document {
         match &right.kind {
-            ExprKind::Call { callee, args, .. } if !has_placeholder_arg(args) => {
+            ExprKind::Call {
+                callee,
+                type_args,
+                args,
+            } if !has_placeholder_arg(args) => {
                 if let Some(output) = self.try_emit_stdlib_pipe(left, callee, args) {
                     return pretty::str(output);
                 }
@@ -203,7 +207,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 } else {
                     self.emit_expr(callee)
                 };
-                let mut docs = vec![callee_doc, pretty::str("(")];
+                let mut docs = vec![callee_doc, self.emit_type_args(type_args), pretty::str("(")];
                 docs.push(self.emit_expr(left));
                 if !args.is_empty() {
                     docs.push(pretty::str(", "));
@@ -228,8 +232,16 @@ impl<'a> TypeScriptGenerator<'a> {
                     pretty::str(")"),
                 ])
             }
-            ExprKind::Call { callee, args, .. } if has_placeholder_arg(args) => {
-                let mut docs = vec![self.emit_expr(callee), pretty::str("(")];
+            ExprKind::Call {
+                callee,
+                type_args,
+                args,
+            } if has_placeholder_arg(args) => {
+                let mut docs = vec![
+                    self.emit_expr(callee),
+                    self.emit_type_args(type_args),
+                    pretty::str("("),
+                ];
                 for (i, arg) in args.iter().enumerate() {
                     if i > 0 {
                         docs.push(pretty::str(", "));
