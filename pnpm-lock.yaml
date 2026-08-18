@@ -65,19 +65,19 @@ importers:
     dependencies:
       '@tanstack/react-query':
         specifier: ^5.99.0
-        version: 5.99.0(react@19.2.5)
+        version: 5.99.0(react@19.2.8)
       '@tanstack/react-router':
         specifier: ^1.168.22
-        version: 1.168.22(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+        version: 1.168.22(react-dom@19.2.6(react@19.2.8))(react@19.2.8)
       react:
-        specifier: ^19.2.5
-        version: 19.2.5
+        specifier: ^19.2.8
+        version: 19.2.8
       react-dom:
         specifier: ^19.2.6
-        version: 19.2.6(react@19.2.5)
+        version: 19.2.6(react@19.2.8)
       react-error-boundary:
         specifier: ^6.1.1
-        version: 6.1.1(react@19.2.5)
+        version: 6.1.1(react@19.2.8)
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -89,11 +89,11 @@ importers:
         specifier: ^4.2.2
         version: 4.2.2(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1))
       '@types/react':
-        specifier: ^19.1.0
-        version: 19.2.14
+        specifier: ^19.2.18
+        version: 19.2.18
       '@types/react-dom':
         specifier: ^19.1.0
-        version: 19.2.3(@types/react@19.2.14)
+        version: 19.2.3(@types/react@19.2.18)
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.0
@@ -108,19 +108,19 @@ importers:
     dependencies:
       '@tanstack/react-query':
         specifier: ^5.99.0
-        version: 5.99.0(react@19.2.5)
+        version: 5.99.0(react@19.2.8)
       '@tanstack/react-router':
         specifier: ^1.168.22
-        version: 1.168.22(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+        version: 1.168.22(react-dom@19.2.6(react@19.2.8))(react@19.2.8)
       react:
-        specifier: ^19.2.5
-        version: 19.2.5
+        specifier: ^19.2.8
+        version: 19.2.8
       react-dom:
         specifier: ^19.2.6
-        version: 19.2.6(react@19.2.5)
+        version: 19.2.6(react@19.2.8)
       react-error-boundary:
         specifier: ^6.1.1
-        version: 6.1.1(react@19.2.5)
+        version: 6.1.1(react@19.2.8)
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -129,11 +129,11 @@ importers:
         specifier: ^4.2.2
         version: 4.2.2(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1))
       '@types/react':
-        specifier: ^19.1.0
-        version: 19.2.14
+        specifier: ^19.2.18
+        version: 19.2.18
       '@types/react-dom':
         specifier: ^19.1.0
-        version: 19.2.3(@types/react@19.2.14)
+        version: 19.2.3(@types/react@19.2.18)
       '@vitejs/plugin-react':
         specifier: ^6.0.1
         version: 6.0.1(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1))
@@ -151,19 +151,19 @@ importers:
     dependencies:
       '@tanstack/react-query':
         specifier: ^5.99.0
-        version: 5.99.0(react@19.2.5)
+        version: 5.99.0(react@19.2.8)
       '@tanstack/react-router':
         specifier: ^1.168.22
-        version: 1.168.22(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+        version: 1.168.22(react-dom@19.2.6(react@19.2.8))(react@19.2.8)
       react:
-        specifier: ^19.2.5
-        version: 19.2.5
+        specifier: ^19.2.8
+        version: 19.2.8
       react-dom:
         specifier: ^19.2.6
-        version: 19.2.6(react@19.2.5)
+        version: 19.2.6(react@19.2.8)
       react-error-boundary:
         specifier: ^6.1.1
-        version: 6.1.1(react@19.2.5)
+        version: 6.1.1(react@19.2.8)
       uuid:
         specifier: ^14.0.0
         version: 14.0.0
@@ -178,11 +178,11 @@ importers:
         specifier: ^4.2.2
         version: 4.2.2(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1))
       '@types/react':
-        specifier: ^19.1.0
-        version: 19.2.14
+        specifier: ^19.2.18
+        version: 19.2.18
       '@types/react-dom':
         specifier: ^19.1.0
-        version: 19.2.3(@types/react@19.2.14)
+        version: 19.2.3(@types/react@19.2.18)
       '@types/uuid':
         specifier: ^11.0.0
         version: 11.0.0
@@ -1400,8 +1400,8 @@ packages:
     peerDependencies:
       '@types/react': ^19.2.0
 
-  '@types/react@19.2.14':
-    resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
+  '@types/react@19.2.18':
+    resolution: {integrity: sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w==}
 
   '@types/sax@1.2.7':
     resolution: {integrity: sha512-rO73L89PJxeYM3s3pPPjiPgVVcymqU490g0YO5n5By0k2Erzj6tay/4lr1CHAAU4JyOWd1rpQ8bCf6cZfHU96A==}
@@ -2326,8 +2326,8 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  react@19.2.5:
-    resolution: {integrity: sha512-llUJLzz1zTUBrskt2pwZgLq59AemifIftw4aB7JxOqf1HY2FDaGDxgwpAPVzHU1kdWabH7FauP4i1oEeer2WCA==}
+  react@19.2.8:
+    resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
 
   readdirp@5.0.0:
@@ -3748,26 +3748,26 @@ snapshots:
 
   '@tanstack/query-core@5.99.0': {}
 
-  '@tanstack/react-query@5.99.0(react@19.2.5)':
+  '@tanstack/react-query@5.99.0(react@19.2.8)':
     dependencies:
       '@tanstack/query-core': 5.99.0
-      react: 19.2.5
+      react: 19.2.8
 
-  '@tanstack/react-router@1.168.22(react-dom@19.2.6(react@19.2.5))(react@19.2.5)':
+  '@tanstack/react-router@1.168.22(react-dom@19.2.6(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@tanstack/history': 1.161.6
-      '@tanstack/react-store': 0.9.3(react-dom@19.2.6(react@19.2.5))(react@19.2.5)
+      '@tanstack/react-store': 0.9.3(react-dom@19.2.6(react@19.2.8))(react@19.2.8)
       '@tanstack/router-core': 1.168.15
       isbot: 5.1.38
-      react: 19.2.5
-      react-dom: 19.2.6(react@19.2.5)
+      react: 19.2.8
+      react-dom: 19.2.6(react@19.2.8)
 
-  '@tanstack/react-store@0.9.3(react-dom@19.2.6(react@19.2.5))(react@19.2.5)':
+  '@tanstack/react-store@0.9.3(react-dom@19.2.6(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@tanstack/store': 0.9.3
-      react: 19.2.5
-      react-dom: 19.2.6(react@19.2.5)
-      use-sync-external-store: 1.6.0(react@19.2.5)
+      react: 19.2.8
+      react-dom: 19.2.6(react@19.2.8)
+      use-sync-external-store: 1.6.0(react@19.2.8)
 
   '@tanstack/router-core@1.168.15':
     dependencies:
@@ -3831,11 +3831,11 @@ snapshots:
     dependencies:
       undici-types: 7.19.2
 
-  '@types/react-dom@19.2.3(@types/react@19.2.14)':
+  '@types/react-dom@19.2.3(@types/react@19.2.18)':
     dependencies:
-      '@types/react': 19.2.14
+      '@types/react': 19.2.18
 
-  '@types/react@19.2.14':
+  '@types/react@19.2.18':
     dependencies:
       csstype: 3.2.3
 
@@ -5229,16 +5229,16 @@ snapshots:
 
   radix3@1.1.2: {}
 
-  react-dom@19.2.6(react@19.2.5):
+  react-dom@19.2.6(react@19.2.8):
     dependencies:
-      react: 19.2.5
+      react: 19.2.8
       scheduler: 0.27.0
 
-  react-error-boundary@6.1.1(react@19.2.5):
+  react-error-boundary@6.1.1(react@19.2.8):
     dependencies:
-      react: 19.2.5
+      react: 19.2.8
 
-  react@19.2.5: {}
+  react@19.2.8: {}
 
   readdirp@5.0.0: {}
 
@@ -5735,9 +5735,9 @@ snapshots:
       ofetch: 1.5.1
       ufo: 1.6.3
 
-  use-sync-external-store@1.6.0(react@19.2.5):
+  use-sync-external-store@1.6.0(react@19.2.8):
     dependencies:
-      react: 19.2.5
+      react: 19.2.8
 
   util-deprecate@1.0.2: {}
 
