@@ -88,6 +88,10 @@ pub(crate) struct TypeContext {
     /// wires up every trait method, rather than one factory per for-block
     /// (which would collide when a type has multiple trait impls).
     pub trait_impl_blocks: HashMap<String, Vec<TypedForBlock>>,
+    /// Mangled names of every for-block method this file declares itself.
+    /// An import must not bring in a name the file already declares, or
+    /// TypeScript reports a duplicate identifier.
+    pub local_for_block_fn_names: HashSet<String>,
 }
 
 impl TypeContext {
@@ -114,6 +118,7 @@ impl TypeContext {
             type_trait_impls: HashMap::new(),
             traits_needing_interface: HashSet::new(),
             trait_impl_blocks: HashMap::new(),
+            local_for_block_fn_names: HashSet::new(),
         };
 
         // Pre-register union variant info and type defs from imported types.
@@ -165,6 +170,10 @@ impl TypeContext {
                 }
                 ItemKind::ForBlock(block) => {
                     ctx.register_for_block_fns(block);
+                    for func in &block.functions {
+                        ctx.local_for_block_fn_names
+                            .insert(for_block_fn_name(&block.type_name, &func.name));
+                    }
                     if let Some(trait_name) = &block.trait_name
                         && let Some(name) = for_block_base_type_name(&block.type_name)
                     {

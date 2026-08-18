@@ -5,9 +5,9 @@ expression: output
 interface Repo {
   findById(id: number): string;
 }
-import { Repo } from "./repo";
+import "./repo";
 
-import { type DrizzleRepo, DrizzleRepo__make } from "./impl";
+import { type DrizzleRepo, DrizzleRepo__findById, DrizzleRepo__make } from "./impl";
 
 function doWork<R extends Repo>(repo: R, id: number): string {
   return repo.findById(id);

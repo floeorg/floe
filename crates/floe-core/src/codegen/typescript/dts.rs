@@ -54,7 +54,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 }
                 ItemKind::ForBlock(block) => {
                     for func in &block.functions {
-                        if !func.exported {
+                        if !block.exports(func) {
                             continue;
                         }
                         if !first {
@@ -121,7 +121,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 }
                 for block in &resolved.for_blocks {
                     for func in &block.functions {
-                        if func.exported {
+                        if block.exports(func) {
                             value_names.push(for_block_fn_name(&block.type_name, &func.name));
                         }
                     }
@@ -162,31 +162,38 @@ impl<'a> TypeScriptGenerator<'a> {
                     HashSet::new()
                 };
 
-            out.push_str("import { ");
-            let mut first = true;
+            // A trait declares nothing TypeScript can import, so the same
+            // function drops it here as in the `.ts`. Both files read
+            // `trait_import_names`, so they cannot name different members.
+            let dropped_names = self.trait_import_names(decl);
+
+            let mut names: Vec<String> = Vec::new();
             for spec in &decl.specifiers {
-                if !first {
-                    out.push_str(", ");
+                if dropped_names.contains(&spec.name) {
+                    continue;
                 }
-                first = false;
+                let mut name = String::new();
                 if type_only_names.contains(&spec.name) {
-                    out.push_str("type ");
+                    name.push_str("type ");
                 }
-                out.push_str(&spec.name);
+                name.push_str(&spec.name);
                 if let Some(alias) = &spec.alias {
-                    out.push_str(" as ");
-                    out.push_str(alias);
+                    name.push_str(" as ");
+                    name.push_str(alias);
                 }
+                names.push(name);
             }
-            let for_func_names = self.resolve_for_import_names(decl);
-            for name in &for_func_names {
-                if !first {
-                    out.push_str(", ");
-                }
-                first = false;
-                out.push_str(name);
+            names.extend(self.resolve_for_import_names(decl));
+            names.extend(self.resolve_trait_impl_import_names(decl));
+
+            if names.is_empty() {
+                return;
             }
-            out.push_str(&format!(" }} from \"{}\";", decl.source));
+            out.push_str(&format!(
+                "import {{ {} }} from \"{}\";",
+                names.join(", "),
+                decl.source
+            ));
         }
     }
 

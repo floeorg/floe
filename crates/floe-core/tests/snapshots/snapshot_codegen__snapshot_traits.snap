@@ -18,7 +18,7 @@ function __floeEq(a: unknown, b: unknown): boolean {
 
 type User = { name: string; age: number };
 
-function User__display(self: User): string {
+export function User__display(self: User): string {
   return `${self.name} (${self.age})`;
 }
 export function User__make(__data: User): User {
@@ -29,7 +29,7 @@ export function User__make(__data: User): User {
   };
 }
 
-function User__eq(self: User, other: string): boolean {
+export function User__eq(self: User, other: string): boolean {
   return __floeEq(self.name, other);
 }
 

@@ -1,8 +1,11 @@
+use std::collections::HashSet;
+
 use crate::parser::ast::{
-    ConstBinding, ExprKind, ImportDecl, ItemKind, ObjectDestructureField, ParamDestructure,
-    ReExportDecl, TestStatement, TypeDef, TypeExprKind, TypeParam, TypedConstDecl, TypedExpr,
-    TypedForBlock, TypedFunctionDecl, TypedItem, TypedParam, TypedRecordEntry, TypedRecordField,
-    TypedRecordSpread, TypedTestBlock, TypedTypeDecl, TypedTypeExpr, TypedVariant,
+    ConstBinding, ExprKind, ImportDecl, ImportSpecifier, ItemKind, ObjectDestructureField,
+    ParamDestructure, ReExportDecl, TestStatement, TypeDef, TypeExprKind, TypeParam,
+    TypedConstDecl, TypedExpr, TypedForBlock, TypedFunctionDecl, TypedItem, TypedParam,
+    TypedRecordEntry, TypedRecordField, TypedRecordSpread, TypedTestBlock, TypedTypeDecl,
+    TypedTypeExpr, TypedVariant,
 };
 use crate::pretty::{self, Document};
 use crate::type_layout;
@@ -49,7 +52,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 }
                 for block in &resolved.for_blocks {
                     for func in &block.functions {
-                        if func.exported {
+                        if block.exports(func) {
                             names.push(for_block_fn_name(&block.type_name, &func.name));
                         }
                     }
@@ -77,7 +80,9 @@ impl<'a> TypeScriptGenerator<'a> {
             return pretty::str(format!("import \"{}\";", decl.source));
         }
 
-        let type_only_names: std::collections::HashSet<String> =
+        let dropped_names = self.trait_import_names(decl);
+
+        let type_only_names: HashSet<String> =
             if let Some(resolved) = self.ctx.resolved_imports.get(&decl.source) {
                 decl.specifiers
                     .iter()
@@ -100,12 +105,18 @@ impl<'a> TypeScriptGenerator<'a> {
                     .collect()
             };
 
+        let kept: Vec<&ImportSpecifier> = decl
+            .specifiers
+            .iter()
+            .filter(|spec| !dropped_names.contains(&spec.name))
+            .collect();
+
         if let Some(ref default_name) = decl.default_import {
             let mut s = format!("import {default_name}");
-            if !decl.specifiers.is_empty() {
+            if !kept.is_empty() {
                 s.push_str(", { ");
                 let mut first = true;
-                for spec in &decl.specifiers {
+                for spec in &kept {
                     if !first {
                         s.push_str(", ");
                     }
@@ -125,39 +136,34 @@ impl<'a> TypeScriptGenerator<'a> {
             return pretty::str(s);
         }
 
-        let mut s = String::from("import { ");
-        let mut first = true;
-        for spec in &decl.specifiers {
-            if !first {
-                s.push_str(", ");
-            }
-            first = false;
+        let mut names: Vec<String> = Vec::new();
+        for spec in &kept {
+            let mut name = String::new();
             if type_only_names.contains(&spec.name) {
-                s.push_str("type ");
+                name.push_str("type ");
             }
-            s.push_str(&spec.name);
+            name.push_str(&spec.name);
             if let Some(alias) = &spec.alias {
-                s.push_str(" as ");
-                s.push_str(alias);
+                name.push_str(" as ");
+                name.push_str(alias);
             }
+            names.push(name);
         }
-        let for_func_names = self.resolve_for_import_names(decl);
-        for name in &for_func_names {
-            if !first {
-                s.push_str(", ");
-            }
-            first = false;
-            s.push_str(name);
+        names.extend(self.resolve_for_import_names(decl));
+        names.extend(self.resolve_trait_impl_import_names(decl));
+        names.extend(self.resolve_factory_import_names(decl));
+
+        // Every name the source listed carried no runtime form, so the
+        // module still runs for its side effects and binds nothing.
+        if names.is_empty() {
+            return pretty::str(format!("import \"{}\";", decl.source));
         }
-        for factory_name in self.resolve_factory_import_names(decl) {
-            if !first {
-                s.push_str(", ");
-            }
-            first = false;
-            s.push_str(&factory_name);
-        }
-        s.push_str(&format!(" }} from \"{}\";", decl.source));
-        pretty::str(s)
+
+        pretty::str(format!(
+            "import {{ {} }} from \"{}\";",
+            names.join(", "),
+            decl.source
+        ))
     }
 
     // ── Re-export ────────────────────────────────────────────────
@@ -480,7 +486,7 @@ impl<'a> TypeScriptGenerator<'a> {
             if i > 0 {
                 docs.push(pretty::str("\n"));
             }
-            docs.push(self.emit_for_block_function(func, &block.type_name));
+            docs.push(self.emit_for_block_function(block, func));
         }
         if block.trait_name.is_some()
             && let Some(name) = for_block_base_type_name(&block.type_name)
@@ -620,11 +626,12 @@ impl<'a> TypeScriptGenerator<'a> {
 
     fn emit_for_block_function(
         &mut self,
+        block: &TypedForBlock,
         func: &TypedFunctionDecl,
-        for_type: &TypedTypeExpr,
     ) -> Document {
+        let for_type = &block.type_name;
         let mut docs = Vec::new();
-        if func.exported {
+        if block.exports(func) {
             docs.push(pretty::str("export "));
         }
         if func.async_fn {
@@ -865,17 +872,93 @@ impl<'a> TypeScriptGenerator<'a> {
         if let Some(resolved) = self.ctx.resolved_imports.get(&decl.source) {
             for for_spec in &decl.for_specifiers {
                 for block in &resolved.for_blocks {
+                    // A trait impl arrives through the trait or the type, not
+                    // through `for X`. `checker::imports` skips it here too.
+                    if block.trait_name.is_some() {
+                        continue;
+                    }
                     let base_type_name = match &block.type_name.kind {
                         TypeExprKind::Named { name, .. } => name.clone(),
                         _ => continue,
                     };
                     if base_type_name == for_spec.type_name {
                         for func in &block.functions {
-                            if func.exported {
+                            if block.exports(func) {
                                 names.push(for_block_fn_name(&block.type_name, &func.name));
                             }
                         }
                     }
+                }
+            }
+        }
+        names
+    }
+
+    /// The import specifiers that name a trait.
+    ///
+    /// A trait has no runtime form and no TypeScript type, so the emitted
+    /// import must drop the name. `import { Discountable } from "./types"`
+    /// named a member `types.ts` never exports, and TypeScript reported
+    /// TS2305 on every such line (#1495).
+    ///
+    /// The name still does work in Floe: `checker::imports` activates every
+    /// `impl Discountable for T` block in that module. The methods those
+    /// blocks emit come in through `resolve_trait_impl_import_names`.
+    pub(super) fn trait_import_names(&self, decl: &ImportDecl) -> HashSet<String> {
+        let Some(resolved) = self.ctx.resolved_imports.get(&decl.source) else {
+            return HashSet::new();
+        };
+
+        decl.specifiers
+            .iter()
+            .filter(|spec| {
+                resolved.trait_decls.iter().any(|t| t.name == spec.name)
+                    && !resolved.type_decls.iter().any(|t| t.name == spec.name)
+                    && !resolved.function_decls.iter().any(|f| f.name == spec.name)
+                    && !resolved.const_names.contains(&spec.name)
+            })
+            .map(|spec| spec.name.clone())
+            .collect()
+    }
+
+    /// The trait impl methods an import brings into scope.
+    ///
+    /// A trait impl emits a free function in the module that declares it,
+    /// so a caller in another module needs the name imported. Naming either
+    /// the trait or the implementing type activates the impl, which is the
+    /// rule `checker::imports` applies, so codegen reads the same rule and
+    /// the two passes cannot part.
+    ///
+    /// A name the file declares itself is left out. TypeScript reports a
+    /// duplicate identifier for a local declaration and an import of one
+    /// name.
+    pub(super) fn resolve_trait_impl_import_names(&self, decl: &ImportDecl) -> Vec<String> {
+        let Some(resolved) = self.ctx.resolved_imports.get(&decl.source) else {
+            return Vec::new();
+        };
+
+        let mut names: Vec<String> = Vec::new();
+        for block in &resolved.for_blocks {
+            let Some(trait_name) = &block.trait_name else {
+                continue;
+            };
+            let Some(type_name) = for_block_base_type_name(&block.type_name) else {
+                continue;
+            };
+            let activated = decl
+                .specifiers
+                .iter()
+                .any(|spec| spec.name == *trait_name || spec.name == type_name);
+            if !activated {
+                continue;
+            }
+            for func in &block.functions {
+                let name = for_block_fn_name(&block.type_name, &func.name);
+                if self.ctx.local_for_block_fn_names.contains(&name) {
+                    continue;
+                }
+                if !names.contains(&name) {
+                    names.push(name);
                 }
             }
         }

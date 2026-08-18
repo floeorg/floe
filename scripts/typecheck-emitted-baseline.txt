@@ -14,10 +14,9 @@
 #   cargo build -p floe
 #   scripts/typecheck-emitted.sh --update-baseline target/debug/floe
 #
-# Total at the time of writing: 72
+# Total at the time of writing: 60
 TS18046 3
-TS2304 10
-TS2305 3
+TS2304 1
 TS2311 4
 TS2322 13
 TS2339 10

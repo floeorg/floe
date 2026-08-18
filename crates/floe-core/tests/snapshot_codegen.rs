@@ -260,6 +260,101 @@ impl Repo for DrizzleRepo {
     insta::assert_snapshot!(output);
 }
 
+/// A trait impl method is called from another module, so the module that
+/// declares it exports it and the module that calls it imports it. Codegen
+/// wrote neither before #1495: `types.ts` emitted a bare `function
+/// Product__effectivePrice`, and `product.ts` called the name with no
+/// import, so TypeScript reported TS2304 nine times over the store example.
+///
+/// Note that the impl method carries no `export` keyword here. A trait impl
+/// exports every method, because the trait is what lets another module name
+/// it.
+#[test]
+fn snapshot_trait_impl_across_modules() {
+    const TYPES: &str = r#"
+export type Product = { price: number, off: number }
+
+export trait Discountable {
+    let effectivePrice(self) -> number
+}
+
+impl Discountable for Product {
+    let effectivePrice(self) -> number = {
+        self.price * (1 - self.off / 100)
+    }
+}
+"#;
+
+    // The module that declares the impl exports the method.
+    let declaring = compile(TYPES);
+    assert!(
+        declaring.contains("export function Product__effectivePrice"),
+        "the impl module must export the method, got:\n{declaring}"
+    );
+
+    // The module that calls it imports the same name.
+    let output = compile_cross_file(
+        r#"
+import { Product, Discountable } from "./types"
+
+export let saving(p: Product) -> number = {
+    p.price - (p |> effectivePrice)
+}
+"#,
+        &[("types", TYPES)],
+    );
+    assert!(
+        output.contains("Product__effectivePrice, "),
+        "the calling module must import the method, got:\n{output}"
+    );
+    insta::assert_snapshot!(output);
+}
+
+/// A trait name in an import list emits no runtime binding. A trait has no
+/// runtime form and no TypeScript type, so `types.ts` exports nothing under
+/// that name and the import line reported TS2305 before #1495.
+///
+/// The name still activates the impl, so the emitted import carries the
+/// impl's method instead of the trait's name.
+#[test]
+fn snapshot_trait_import_emits_no_binding() {
+    let output = compile_cross_file(
+        r#"
+import { Label } from "./label"
+import { Tag } from "./tag"
+
+export let render(t: Tag) -> string = {
+    t |> label
+}
+"#,
+        &[
+            (
+                "label",
+                r#"
+export trait Label {
+    let label(self) -> string
+}
+"#,
+            ),
+            (
+                "tag",
+                r#"
+import { Label } from "./label"
+
+export type Tag = { name: string }
+
+impl Label for Tag {
+    let label(self) -> string = {
+        self.name
+    }
+}
+"#,
+            ),
+        ],
+    );
+    insta::assert_snapshot!(output);
+}
+
 #[test]
 fn snapshot_trait_constrained_generics() {
     let output = compile(
