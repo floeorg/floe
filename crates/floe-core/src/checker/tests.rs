@@ -10081,12 +10081,17 @@ import trusted { z } from "zod"
     );
 }
 
-/// Build a checker whose ambient tables carry `namespaces`, the way
-/// `load_ambient_types` fills them from a TypeScript lib file.
-fn check_with_ambient_namespaces(source: &str, namespaces: &[&str]) -> Vec<Diagnostic> {
+/// Build a checker whose ambient tables carry `interfaces` and `namespaces`,
+/// the way `load_ambient_types` fills them from a TypeScript lib file.
+fn check_with_ambient(source: &str, interfaces: &[&str], namespaces: &[&str]) -> Vec<Diagnostic> {
     use crate::interop::ambient::AmbientDeclarations;
 
     let mut ambient = AmbientDeclarations::default();
+    for name in interfaces {
+        ambient
+            .types
+            .insert((*name).to_string(), Type::Record(Vec::new()));
+    }
     for name in namespaces {
         ambient.namespaces.insert((*name).to_string());
     }
@@ -10099,6 +10104,11 @@ fn check_with_ambient_namespaces(source: &str, namespaces: &[&str]) -> Vec<Diagn
     );
 
     checker.check(&program)
+}
+
+/// Build a checker whose ambient tables carry `namespaces` and no interface.
+fn check_with_ambient_namespaces(source: &str, namespaces: &[&str]) -> Vec<Diagnostic> {
+    check_with_ambient(source, &[], namespaces)
 }
 
 #[test]
@@ -10132,6 +10142,95 @@ type Bad = { t: NotANamespace.Timeout }
     assert!(
         has_error_containing(&diags, "unknown type `NotANamespace.Timeout`"),
         "an unknown namespace root must still error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_ambient_interface_errors() {
+    // `Element` and `Document` are ambient interfaces, not namespaces. An
+    // interface has no members in a type position, so a dotted name under
+    // one is a typo. Accepting an interface root would re-open the hole
+    // that #1429 closed, because nearly every DOM and ES name is one.
+    let diags = check_with_ambient(
+        r#"
+type Bad = {
+    a: Element.Anything.You.Want<number, string>,
+    b: Document.Nope,
+}
+"#,
+        &["Element", "Document"],
+        &[],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Element.Anything.You.Want`"),
+        "an ambient interface root must not accept a dotted name; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Document.Nope`"),
+        "an ambient interface root must not accept a dotted name; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_matches_a_qualified_ambient_namespace() {
+    // `@types/react` 19 declares `namespace React { namespace JSX { ... } }`,
+    // so the loader records the qualified name `React.JSX`. A resolver that
+    // tests the first segment alone never reads that entry.
+    let diags = check_with_ambient_namespaces(
+        r#"
+type Props = { child: React.JSX.Element }
+"#,
+        &["React.JSX"],
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`React.JSX.Element` must match the entry `React.JSX`; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_outside_a_qualified_ambient_namespace_errors() {
+    // The set holds `React.JSX` and not `React`, so `React.Nope` names no
+    // namespace. Matching prefixes is more precise than matching the root.
+    let diags = check_with_ambient_namespaces(
+        r#"
+type Bad = { x: React.Nope }
+"#,
+        &["React.JSX"],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `React.Nope`"),
+        "a prefix that names no namespace must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_an_imported_trait_errors() {
+    // `check_import` takes the trait branch and binds no value name for a
+    // trait specifier, so a trait is not a root a dotted type can stand on.
+    use std::collections::HashMap;
+
+    let mut imports = HashMap::new();
+    imports.insert("./types".to_string(), resolved_module_with_display_trait());
+
+    let source = r#"
+import { Display } from "./types"
+
+type Bad = { x: Display.Whatever }
+"#;
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let diags = Checker::with_imports(imports).check(&program);
+
+    assert!(
+        has_error_containing(&diags, "unknown type `Display.Whatever`"),
+        "an imported trait binds no name, so this must error; got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

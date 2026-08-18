@@ -14,7 +14,9 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{Statement, TSModuleDeclarationBody, TSModuleDeclarationName};
+use oxc_ast::ast::{
+    Declaration, Statement, TSModuleDeclaration, TSModuleDeclarationBody, TSModuleDeclarationName,
+};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
@@ -159,16 +161,42 @@ fn extract_reference_paths(content: &str) -> Vec<String> {
         .collect()
 }
 
+// ── node_modules lookup ─────────────────────────────────────────
+
+/// Every `node_modules` directory that Node searches from `start`, nearest
+/// first.
+///
+/// `find_project_dir` returns the first parent that holds a `node_modules`,
+/// and in an npm or pnpm workspace that is the package directory. A package
+/// directory holds a small local `node_modules`, while `typescript` and the
+/// `@types` packages hoist to the workspace root. A loader that reads one
+/// directory finds nothing there, so it has to walk up the tree the way Node
+/// module resolution does. The walk stops at the filesystem root.
+fn node_modules_dirs(start: &Path) -> impl Iterator<Item = PathBuf> + '_ {
+    start
+        .ancestors()
+        .map(|dir| dir.join("node_modules"))
+        .filter(|dir| dir.is_dir())
+}
+
 // ── TS lib file loading ─────────────────────────────────────────
 
 /// Find the TypeScript lib directory from a project root.
+///
+/// The nearest `node_modules` that holds `typescript` wins, so a package that
+/// pins its own copy gets that copy and not the workspace root copy.
 fn find_ts_lib_dir(project_dir: &Path) -> Option<PathBuf> {
-    let standard = project_dir.join("node_modules/typescript/lib");
+    node_modules_dirs(project_dir).find_map(|node_modules| ts_lib_dir_in(&node_modules))
+}
+
+/// Find the TypeScript lib directory inside one `node_modules`.
+fn ts_lib_dir_in(node_modules: &Path) -> Option<PathBuf> {
+    let standard = node_modules.join("typescript/lib");
     if standard.is_dir() {
         return Some(standard);
     }
 
-    let pnpm_dir = project_dir.join("node_modules/.pnpm");
+    let pnpm_dir = node_modules.join(".pnpm");
     if pnpm_dir.is_dir()
         && let Ok(entries) = std::fs::read_dir(&pnpm_dir)
     {
@@ -221,8 +249,28 @@ fn load_lib_file(
 // ── @types/* package loading ────────────────────────────────────
 
 /// Find all installed `@types/*` package names.
+///
+/// A workspace spreads the `@types` packages over more than one
+/// `node_modules`, so this is the union of every one the walk passes. The
+/// nearest copy of a name wins, and a later duplicate is dropped.
 fn discover_types_packages(project_dir: &Path) -> Vec<String> {
-    let types_dir = project_dir.join("node_modules/@types");
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut names: Vec<String> = Vec::new();
+
+    for node_modules in node_modules_dirs(project_dir) {
+        for name in types_packages_in(&node_modules) {
+            if seen.insert(name.clone()) {
+                names.push(name);
+            }
+        }
+    }
+
+    names
+}
+
+/// Find the `@types/*` package names inside one `node_modules`.
+fn types_packages_in(node_modules: &Path) -> Vec<String> {
+    let types_dir = node_modules.join("@types");
     if !types_dir.is_dir() {
         return Vec::new();
     }
@@ -247,14 +295,23 @@ fn discover_types_packages(project_dir: &Path) -> Vec<String> {
 
 /// Find the entry .d.ts for a types package.
 ///
-/// Searches in `node_modules/@types/{name}` for standard @types packages,
-/// and also directly in `node_modules/{name}` for packages that ship their
-/// own types (e.g., `@cloudflare/workers-types`).
+/// Searches every `node_modules` from the project directory up, nearest
+/// first, so a package that hoists to a workspace root still resolves.
 fn find_types_entry(project_dir: &Path, package_name: &str) -> Option<PathBuf> {
+    node_modules_dirs(project_dir)
+        .find_map(|node_modules| types_entry_in(&node_modules, package_name))
+}
+
+/// Find the entry .d.ts for a types package inside one `node_modules`.
+///
+/// Searches in `@types/{name}` for standard @types packages, and also
+/// directly in `{name}` for packages that ship their own types (e.g.,
+/// `@cloudflare/workers-types`).
+fn types_entry_in(node_modules: &Path, package_name: &str) -> Option<PathBuf> {
     // Try @types/{name} first (standard convention)
-    let at_types_dir = project_dir.join(format!("node_modules/@types/{package_name}"));
+    let at_types_dir = node_modules.join(format!("@types/{package_name}"));
     // Then try the package directly (for packages that ship their own types)
-    let direct_dir = project_dir.join(format!("node_modules/{package_name}"));
+    let direct_dir = node_modules.join(package_name);
 
     let types_dir = if at_types_dir.is_dir() {
         at_types_dir
@@ -432,8 +489,10 @@ fn parse_ambient_lib(content: &str) -> AmbientDeclarations {
 /// `prefix` is the qualified name of the enclosing namespace, so
 /// `namespace A { namespace B { } }` records both `A` and `A.B`.
 ///
-/// A `declare module "pkg"` block carries a string literal name, not an
-/// identifier, and it is a module rather than a namespace, so this skips it.
+/// The statement kinds match `collect_interface_info` and
+/// `collect_type_alias_info` in `dts.rs`. A namespace that those two passes
+/// reach must appear here too, or the resolver rejects a type that the type
+/// tables carry.
 fn collect_namespace_names(
     stmt: &Statement<'_>,
     prefix: Option<&str>,
@@ -441,28 +500,55 @@ fn collect_namespace_names(
 ) {
     match stmt {
         Statement::TSModuleDeclaration(ns_decl) => {
-            let TSModuleDeclarationName::Identifier(ident) = &ns_decl.id else {
-                return;
-            };
-            let qualified = match prefix {
-                Some(outer) => format!("{outer}.{}", ident.name),
-                None => ident.name.to_string(),
-            };
-            if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
-                for inner in &block.body {
-                    collect_namespace_names(inner, Some(&qualified), namespaces);
-                }
-            }
-            namespaces.insert(qualified);
+            collect_namespace_declaration(ns_decl, prefix, namespaces);
         }
+        // `export namespace Foo { ... }` and `export declare namespace Foo
+        // { ... }`. `csstype` and `undici-types` both ship this shape.
+        Statement::ExportNamedDeclaration(export_decl) => {
+            if let Some(Declaration::TSModuleDeclaration(ns_decl)) = &export_decl.declaration {
+                collect_namespace_declaration(ns_decl, prefix, namespaces);
+            }
+        }
+        // `declare global { ... }` adds no name of its own, so its members
+        // keep the prefix they already had.
         Statement::TSGlobalDeclaration(global_decl) => {
-            // `declare global { ... }` adds no name of its own, so its members
-            // keep the prefix they already had.
             for inner in &global_decl.body.body {
                 collect_namespace_names(inner, prefix, namespaces);
             }
         }
         _ => {}
+    }
+}
+
+/// Record one namespace or module declaration, and walk into its body.
+///
+/// A `declare module "pkg"` block carries a string literal name. It is a
+/// module and not a namespace, so it contributes no name of its own, and it
+/// leaves the prefix unchanged for its children, the way `declare global`
+/// does. The walk still enters it, because `@types/node` declares the
+/// `NodeJS` namespace inside `declare module "buffer"` and five more like it.
+fn collect_namespace_declaration(
+    ns_decl: &TSModuleDeclaration<'_>,
+    prefix: Option<&str>,
+    namespaces: &mut HashSet<String>,
+) {
+    let qualified = match &ns_decl.id {
+        TSModuleDeclarationName::Identifier(ident) => match prefix {
+            Some(outer) => Some(format!("{outer}.{}", ident.name)),
+            None => Some(ident.name.to_string()),
+        },
+        TSModuleDeclarationName::StringLiteral(_) => None,
+    };
+
+    let inner_prefix = qualified.as_deref().or(prefix);
+    if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
+        for inner in &block.body {
+            collect_namespace_names(inner, inner_prefix, namespaces);
+        }
+    }
+
+    if let Some(qualified) = qualified {
+        namespaces.insert(qualified);
     }
 }
 
@@ -795,6 +881,169 @@ interface Foo { x: number; }
             result.namespaces.is_empty(),
             "expected no namespaces, got {:?}",
             result.namespaces
+        );
+    }
+}
+
+#[cfg(test)]
+mod fs_tests {
+    //! Loader tests that read real files.
+    //!
+    //! `mod tests` above drives `parse_ambient_lib` with in-memory source
+    //! strings, so it cannot see which directories the loader opens. These
+    //! cases build a real `node_modules` tree with `TempDir`, the way
+    //! `resolve::tests` does, and they drive `load_ambient_types` end to end.
+
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// A minimal TypeScript lib file that declares one namespace.
+    const INTL_LIB: &str = "declare namespace Intl {\n\
+         interface DateTimeFormat { format(d: string): string; }\n\
+     }\n";
+
+    /// An `@types/node` shaped file: a namespace inside `declare global`.
+    const NODE_TYPES: &str = "declare global {\n\
+         namespace NodeJS {\n\
+             interface Timeout { ref(): Timeout; }\n\
+         }\n\
+     }\n\
+     export {};\n";
+
+    /// A tsconfig that asks for one lib file and nothing else.
+    const TSCONFIG_ES2022: &str = r#"{ "compilerOptions": { "lib": ["es2022"] } }"#;
+
+    /// A tsconfig that asks for no lib file, so only `@types` packages load.
+    const TSCONFIG_NO_LIB: &str = r#"{ "compilerOptions": { "lib": [] } }"#;
+
+    /// Write every `(relative path, content)` pair into a fresh temp dir.
+    fn setup_files(files: &[(&str, &str)]) -> (TempDir, PathBuf) {
+        let dir = TempDir::new().unwrap();
+        for (name, content) in files {
+            let path = dir.path().join(name);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(&path, content).unwrap();
+        }
+        let base = dir.path().to_path_buf();
+        (dir, base)
+    }
+
+    #[test]
+    fn workspace_package_loads_the_hoisted_lib_and_types() {
+        // npm and pnpm hoist `typescript` and `@types/node` to the workspace
+        // root, and leave the package with a small local `node_modules`.
+        // `find_project_dir` stops at that local one, so the loader has to
+        // walk up to find either.
+        let (_dir, base) = setup_files(&[
+            ("node_modules/typescript/lib/lib.es2022.d.ts", INTL_LIB),
+            ("node_modules/@types/node/index.d.ts", NODE_TYPES),
+            ("packages/app/node_modules/.bin/placeholder", ""),
+            ("packages/app/tsconfig.json", TSCONFIG_ES2022),
+        ]);
+
+        let ambient = load_ambient_types(&base.join("packages/app"))
+            .expect("the workspace root holds both a lib dir and an @types package");
+
+        assert!(
+            ambient.namespaces.contains("Intl"),
+            "expected the hoisted lib file to load: {:?}",
+            ambient.namespaces
+        );
+        assert!(
+            ambient.namespaces.contains("NodeJS"),
+            "expected the hoisted @types package to load: {:?}",
+            ambient.namespaces
+        );
+    }
+
+    #[test]
+    fn a_pinned_typescript_beats_the_workspace_root_one() {
+        // The nearest `node_modules` wins, so a package that pins its own
+        // `typescript` gets that copy.
+        let (_dir, base) = setup_files(&[
+            (
+                "node_modules/typescript/lib/lib.es2022.d.ts",
+                "declare namespace RootOnly { interface A { x: number; } }",
+            ),
+            (
+                "packages/app/node_modules/typescript/lib/lib.es2022.d.ts",
+                "declare namespace PinnedOnly { interface A { x: number; } }",
+            ),
+            ("packages/app/tsconfig.json", TSCONFIG_ES2022),
+        ]);
+
+        let ambient =
+            load_ambient_types(&base.join("packages/app")).expect("the pinned lib dir loads");
+
+        assert!(
+            ambient.namespaces.contains("PinnedOnly"),
+            "expected the pinned copy to win: {:?}",
+            ambient.namespaces
+        );
+        assert!(
+            !ambient.namespaces.contains("RootOnly"),
+            "expected the workspace root copy to lose: {:?}",
+            ambient.namespaces
+        );
+    }
+
+    #[test]
+    fn exported_namespaces_in_a_types_package_are_recorded() {
+        // `csstype` and `undici-types` both export their namespaces.
+        let (_dir, base) = setup_files(&[
+            (
+                "node_modules/@types/exportsns/index.d.ts",
+                "export namespace Exported { interface Bar { x: number; } }\n\
+                 export declare namespace ExportDeclared { interface Baz { c: number; } }\n",
+            ),
+            ("tsconfig.json", TSCONFIG_NO_LIB),
+        ]);
+
+        let ambient = load_ambient_types(&base).expect("the @types package loads");
+
+        assert!(
+            ambient.namespaces.contains("Exported"),
+            "expected `export namespace` to count: {:?}",
+            ambient.namespaces
+        );
+        assert!(
+            ambient.namespaces.contains("ExportDeclared"),
+            "expected `export declare namespace` to count: {:?}",
+            ambient.namespaces
+        );
+    }
+
+    #[test]
+    fn a_namespace_inside_a_string_named_module_is_recorded() {
+        // `@types/node` writes `NodeJS` in this shape in six files. A string
+        // named module contributes no name of its own, and the walk must
+        // still enter it.
+        let (_dir, base) = setup_files(&[
+            (
+                "node_modules/@types/modulens/index.d.ts",
+                "declare module \"somepkg\" {\n\
+                     global {\n\
+                         namespace OnlyInModuleGlobal { interface Deep { q: number; } }\n\
+                     }\n\
+                 }\n",
+            ),
+            ("tsconfig.json", TSCONFIG_NO_LIB),
+        ]);
+
+        let ambient = load_ambient_types(&base).expect("the @types package loads");
+
+        assert!(
+            ambient.namespaces.contains("OnlyInModuleGlobal"),
+            "expected the walk to enter the module: {:?}",
+            ambient.namespaces
+        );
+        assert!(
+            !ambient.namespaces.contains("somepkg"),
+            "a string named module is not a namespace: {:?}",
+            ambient.namespaces
         );
     }
 }

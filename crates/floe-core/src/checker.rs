@@ -277,6 +277,10 @@ pub struct Checker {
     /// Names bound by an `import` item anywhere in this module, collected
     /// before the item walk. `unused.imported_names` fills during the walk, so
     /// it cannot answer a question asked by an item above the import.
+    ///
+    /// This holds only the names `check_import` really binds. A trait
+    /// specifier binds no name, so a trait is not a root that a dotted type
+    /// name can stand on.
     imported_root_names: HashSet<String>,
     /// Import sources that resolve to `.ts`/`.tsx` files but could not be
     /// resolved because tsgo is not installed.
@@ -731,13 +735,29 @@ impl Checker {
                 ItemKind::Import(decl) => {
                     // Collected here, not during the item walk, so a type
                     // written above its import still sees the import.
+                    //
+                    // This has to bind the same names that `check_import`
+                    // binds. A default import binds its name, and a specifier
+                    // binds its alias, but a specifier that names a trait
+                    // takes the trait branch and binds nothing. A
+                    // `for_specifiers` entry binds nothing either.
+                    let mut bound_names: Vec<String> = Vec::new();
                     if let Some(default_name) = &decl.default_import {
-                        self.imported_root_names.insert(default_name.clone());
+                        bound_names.push(default_name.clone());
                     }
                     for spec in &decl.specifiers {
-                        let bound = spec.alias.as_deref().unwrap_or(&spec.name);
-                        self.imported_root_names.insert(bound.to_string());
+                        let names_a_trait =
+                            self.resolved_imports
+                                .get(&decl.source)
+                                .is_some_and(|resolved| {
+                                    resolved.trait_decls.iter().any(|t| t.name == spec.name)
+                                });
+                        if names_a_trait {
+                            continue;
+                        }
+                        bound_names.push(spec.alias.as_deref().unwrap_or(&spec.name).to_string());
                     }
+                    self.imported_root_names.extend(bound_names);
                 }
                 _ => {}
             }
