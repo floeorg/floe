@@ -249,8 +249,8 @@ result |> Result.mapErr(Validation)  // instead of Result.mapErr((e) -> Validati
 
 ```floe
 // Default: piped value becomes first argument (shorthand)
-users |> filter(.active) |> map(.name) |> sort
-// filter(users, .active) -> map(result, .name) -> sort(result)
+users |> filter(.active) |> map(.name) |> sortWith(compareName)
+// filter(users, .active) -> map(result, .name) -> sortWith(result, compareName)
 
 let result = value
     |> multiply(2)       // multiply(value, 2)

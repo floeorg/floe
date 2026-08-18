@@ -217,6 +217,11 @@ pub struct Checker {
     pub(crate) unused: UnusedTracker,
     /// Trait declarations and implementations.
     pub(crate) traits: TraitRegistry,
+    /// Names this file declares at its own top level, from
+    /// `ast::file_scope_names`. A bare name in a pipe resolves against the
+    /// stdlib only when this set does not hold it, which is the rule
+    /// codegen applies in `try_emit_bare_stdlib_pipe` (glb #1492).
+    local_names: HashSet<String>,
     /// Names of untrusted (external TS) imports — npm imports not marked `trusted`.
     untrusted_imports: HashSet<String>,
     /// Names from npm imports (both trusted and untrusted).
@@ -503,6 +508,7 @@ impl Checker {
             ctx: CheckContext::default(),
             unused: UnusedTracker::default(),
             traits: TraitRegistry::default(),
+            local_names: HashSet::new(),
             untrusted_imports: untrusted_globals,
             npm_imports: HashSet::new(),
             registering_types: false,
@@ -730,6 +736,10 @@ impl Checker {
         ExprTypeMap,
         HashSet<ExprId>,
     ) {
+        // Codegen reads the same set, so both passes agree on whether a bare
+        // name in a pipe means the user's function or a stdlib template.
+        self.local_names = crate::parser::ast::file_scope_names(&program.items);
+
         // First pass: collect the names of types and traits declared in
         // this module so the orphan rule on `impl Trait for Type` has
         // something to check against.

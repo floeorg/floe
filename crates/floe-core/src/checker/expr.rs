@@ -2047,25 +2047,38 @@ impl Checker {
             _ => None,
         };
 
-        // If it's a bare name not locally defined (or is a known stdlib function),
-        // try stdlib resolution
+        // A bare name in a pipe: `xs |> reverse` or `xs |> take(2)`.
+        //
+        // A name the file declares wins over the stdlib, and codegen says the
+        // same: `try_emit_bare_stdlib_pipe` returns early for every name in
+        // its own `local_names`, so it emits the user's function. Both sets
+        // come from `ast::file_scope_names`. The type-directed branch below
+        // used to run even for a declared name, so `[1, 2] |> contains(1, 2)`
+        // typed as `Array.contains` while codegen emitted the user's
+        // `contains`. The two passes disagreed about which function the line
+        // calls, and the arity check made that audible (glb #1492).
         if let Some(name) = bare_name
             && !self.stdlib.is_module(name)
-            && (self.env.lookup(name).is_none() || !self.stdlib.lookup_by_name(name).is_empty())
+            && !self.local_names.contains(name)
         {
-            let module = type_layout::type_to_stdlib_module(left_ty);
-            let fallback_matches = self.stdlib.lookup_by_name(name);
-
-            if let Some(m) = module
+            // Type-directed: the piped type names the module, so
+            // `[1, 2] |> reverse` is `Array.reverse`.
+            if let Some(m) = type_layout::type_to_stdlib_module(left_ty)
                 && let Some(stdlib_fn) = self.stdlib.lookup(m, name).cloned()
             {
-                // Found via type-directed resolution
                 self.unused.used_names.insert(name.to_string());
                 let display = format!("{m}.{name}");
                 return self.validate_stdlib_pipe_call(&stdlib_fn, &display, left_ty, right);
-            } else if !fallback_matches.is_empty() && self.env.lookup(name).is_none() {
-                // Found via name-based fallback (only if not locally defined)
-                let stdlib_fn = fallback_matches[0].clone();
+            }
+
+            // Name-based fallback: the piped type names no module, so take the
+            // first stdlib function that carries the name.
+            if let Some(stdlib_fn) = self
+                .stdlib
+                .lookup_by_name(name)
+                .first()
+                .map(|f| (*f).clone())
+            {
                 self.unused.used_names.insert(name.to_string());
                 return self.validate_stdlib_pipe_call(&stdlib_fn, name, left_ty, right);
             }

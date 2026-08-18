@@ -5560,6 +5560,45 @@ fn stdlib_pipe_accepts_a_variadic_function() {
     );
 }
 
+// glb #1492. A function the file declares wins over a stdlib function of
+// the same name, which is what codegen already emits. The checker used to
+// type this as `Array.contains` and report the wrong arity, while codegen
+// called the user's `contains`.
+#[test]
+fn stdlib_pipe_prefers_a_declared_function_over_the_stdlib() {
+    let diags = check(
+        r#"
+let contains(xs: Array<number>, a: number, b: number) -> boolean = { true }
+let _x = [1, 2] |> contains(1, 2)
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "expects"),
+        "a declared function should win the pipe, got: {:?}",
+        error_messages(&diags)
+    );
+}
+
+// The other side of the same rule. A block-local binding is not a
+// declaration of the file, so it does not shadow the stdlib. Codegen
+// applies the same rule, so both passes emit `[...xs].reverse()`.
+#[test]
+fn stdlib_pipe_ignores_a_block_local_name() {
+    let diags = check(
+        r#"
+let f(xs: Array<number>) -> Array<number> = {
+    let reverse = 5
+    xs |> reverse
+}
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "a block-local name should not shadow the stdlib, got: {:?}",
+        error_messages(&diags)
+    );
+}
+
 #[test]
 fn stdlib_array_map_rejects_non_array_pipe() {
     let diags = check("let _x = 42 |> Array.map((n) -> n)");
