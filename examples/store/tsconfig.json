@@ -6,7 +6,9 @@
     "jsx": "react-jsx",
     "strict": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "allowArbitraryExtensions": true,
+    "rootDirs": ["./src", "./.floe/src"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

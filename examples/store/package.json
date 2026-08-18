@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "floe check src/ && tsc --noEmit"
+    "check": "floe check src/ && floe build src/ && tsc --noEmit"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",
