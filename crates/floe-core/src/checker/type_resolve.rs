@@ -242,11 +242,10 @@ impl Checker {
                             Type::foreign(format!("{}<{}>", name, args_str.join(", ")))
                         }
                     }
-                } else if self.registering_types
-                    || self.env.lookup_type(name).is_some()
-                    || name.contains('.')
-                {
+                } else if self.registering_types || self.env.lookup_type(name).is_some() {
                     Type::Named(name.to_string())
+                } else if name.contains('.') {
+                    self.resolve_dotted_type(name, span)
                 } else if let Some(ty) = self.env.lookup(name) {
                     // Accept values as type names if they represent type-like values:
                     // unions (variant constructors), records (imported TS objects),
@@ -313,6 +312,69 @@ impl Checker {
                 }
             }
         }
+    }
+
+    /// Resolve a dotted type name such as `JSX.Element` or `Intl.DateTimeFormat`.
+    ///
+    /// Floe does not model TypeScript namespaces yet (#848), so the resolver
+    /// cannot walk a dotted name segment by segment. It accepts the name when
+    /// one of these five holds, and it reports E002 for every other dotted
+    /// name:
+    ///
+    /// 1. A TypeScript lib or `@types` package declares the whole name.
+    /// 2. Floe declares the whole name as a built-in, which is `JSX.Element`.
+    /// 3. The first segment names a namespace Floe owns, which is `JSX`.
+    /// 4. A dotted prefix of the name is an ambient namespace, which covers
+    ///    `Intl.DateTimeFormat`, `NodeJS.Timeout` and `React.JSX.Element`.
+    /// 5. The first segment names an import, so `z.ZodString` works after
+    ///    `import trusted { z } from "zod"`.
+    ///
+    /// The first segment is deliberately not looked up as a value, as a Floe
+    /// type, or as an ambient interface. None of the three has members, so
+    /// `Option.Option.Aaa` and `Element.Anything` are both typos, and neither
+    /// must resolve.
+    fn resolve_dotted_type(&mut self, name: &str, span: Span) -> Type {
+        if self.ambient_types.contains_key(name) || type_layout::is_builtin_type(name) {
+            return Type::Named(name.to_string());
+        }
+
+        let root = name.split('.').next().unwrap_or(name);
+        if type_layout::is_builtin_namespace(root)
+            || self.names_an_ambient_namespace(name)
+            || self.imported_root_names.contains(root)
+        {
+            return Type::Named(name.to_string());
+        }
+
+        self.emit_error_with_help(
+            format!("unknown type `{name}`"),
+            span,
+            ErrorCode::UndefinedName,
+            "not defined",
+            format!(
+                "`{root}` is not an imported name and not an ambient namespace — check the spelling, or import the namespace this type comes from"
+            ),
+        );
+
+        Type::Error
+    }
+
+    /// True when a dotted prefix of `name` is an ambient namespace.
+    ///
+    /// The ambient loader records a nested namespace under its qualified
+    /// name, so `@types/react` contributes `React` and `React.JSX`. This
+    /// tests the longest prefix first, so `React.JSX.Element` matches the
+    /// entry `React.JSX` rather than the bare root `React`.
+    fn names_an_ambient_namespace(&self, name: &str) -> bool {
+        let mut prefix_ends: Vec<usize> = name.match_indices('.').map(|(at, _)| at).collect();
+
+        while let Some(end) = prefix_ends.pop() {
+            if self.ambient_namespaces.contains(&name[..end]) {
+                return true;
+            }
+        }
+
+        false
     }
 
     /// True if `ty` contains anywhere in its tree an unresolved type-parameter
