@@ -175,7 +175,7 @@ impl<'a> TypeScriptGenerator<'a> {
 
             ExprKind::Match { subject, arms } => self.emit_match(subject, arms),
 
-            ExprKind::Parse { type_arg, value } => self.emit_parse(type_arg, value),
+            ExprKind::Parse { type_arg, value } => self.emit_parse(type_arg, value, &expr.ty),
 
             ExprKind::Mock {
                 type_arg,
