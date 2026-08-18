@@ -317,64 +317,113 @@ impl Checker {
     /// Resolve a dotted type name such as `JSX.Element` or `Intl.DateTimeFormat`.
     ///
     /// Floe does not model TypeScript namespaces yet (#848), so the resolver
-    /// cannot walk a dotted name segment by segment. It accepts the name when
-    /// one of these five holds, and it reports E002 for every other dotted
-    /// name:
-    ///
-    /// 1. A TypeScript lib or `@types` package declares the whole name.
-    /// 2. Floe declares the whole name as a built-in, which is `JSX.Element`.
-    /// 3. The first segment names a namespace Floe owns, which is `JSX`.
-    /// 4. A dotted prefix of the name is an ambient namespace, which covers
-    ///    `Intl.DateTimeFormat`, `NodeJS.Timeout` and `React.JSX.Element`.
-    /// 5. The first segment names an import, so `z.ZodString` works after
-    ///    `import trusted { z } from "zod"`.
-    ///
-    /// The first segment is deliberately not looked up as a value, as a Floe
-    /// type, or as an ambient interface. None of the three has members, so
-    /// `Option.Option.Aaa` and `Element.Anything` are both typos, and neither
-    /// must resolve.
+    /// cannot walk a dotted name segment by segment. It classifies the name
+    /// against what the loaders recorded, and reports E002 unless a loader
+    /// declared the whole name. See `classify_dotted_type`.
     fn resolve_dotted_type(&mut self, name: &str, span: Span) -> Type {
-        if self.ambient_types.contains_key(name) || type_layout::is_builtin_type(name) {
-            return Type::Named(name.to_string());
-        }
-
-        let root = name.split('.').next().unwrap_or(name);
-        if type_layout::is_builtin_namespace(root)
-            || self.names_an_ambient_namespace(name)
-            || self.imported_root_names.contains(root)
-        {
-            return Type::Named(name.to_string());
-        }
+        let help = match self.classify_dotted_type(name) {
+            DottedType::Declared | DottedType::Unlisted => return Type::Named(name.to_string()),
+            DottedType::UnknownMember { namespace, member } => format!(
+                "`{namespace}` declares no type `{member}`; check the spelling, or the namespace this type comes from"
+            ),
+            DottedType::UnknownRoot { root } => format!(
+                "`{root}` is not an imported name and not an ambient namespace, so check the spelling, or import the namespace this type comes from"
+            ),
+        };
 
         self.emit_error_with_help(
             format!("unknown type `{name}`"),
             span,
             ErrorCode::UndefinedName,
             "not defined",
-            format!(
-                "`{root}` is not an imported name and not an ambient namespace — check the spelling, or import the namespace this type comes from"
-            ),
+            help,
         );
 
         Type::Error
     }
 
-    /// True when a dotted prefix of `name` is an ambient namespace.
+    /// Classify a dotted type name against the namespaces the loaders
+    /// described.
+    ///
+    /// A loader records a namespace member twice: under its bare name, and
+    /// under its qualified name. So a name the tables carry is declared, and
+    /// a name they do not carry is a bad member of a namespace they do
+    /// describe. A namespace that no loader described at all leaves the
+    /// member unchecked, because there is no member list to test it against.
+    ///
+    /// The first segment is deliberately not looked up as a value, as a Floe
+    /// type, or as an ambient interface. None of the three has members, so
+    /// `Option.Option.Aaa` and `Element.Anything` are both typos, and neither
+    /// must resolve.
+    fn classify_dotted_type<'a>(&self, name: &'a str) -> DottedType<'a> {
+        if self.ambient_types.contains_key(name)
+            || type_layout::is_builtin_type(name)
+            || self.dts_imports_declare(name)
+        {
+            return DottedType::Declared;
+        }
+
+        let root = name.split('.').next().unwrap_or(name);
+
+        // `JSX` is the one namespace Floe owns, and its members are Floe
+        // built-ins, which the test above already covered.
+        if type_layout::is_builtin_namespace(root) {
+            return DottedType::unknown_member(name, root);
+        }
+
+        // An ambient namespace always carries its member list, because one
+        // walk records the namespace and its members together.
+        if let Some(namespace) = self.ambient_namespace_prefix(name) {
+            return DottedType::unknown_member(name, namespace);
+        }
+
+        if self.imported_root_names.contains(root) {
+            if self.dts_imports_list_members_of(root) {
+                return DottedType::unknown_member(name, root);
+            }
+
+            return DottedType::Unlisted;
+        }
+
+        DottedType::UnknownRoot { root }
+    }
+
+    /// True when an imported module declares `name` as a namespace member.
+    fn dts_imports_declare(&self, name: &str) -> bool {
+        self.dts_imports
+            .values()
+            .any(|exports| exports.iter().any(|export| export.name == name))
+    }
+
+    /// True when an imported module lists any member of the namespace
+    /// `root`, so a member of `root` that is absent is a typo rather than a
+    /// name the loader never saw.
+    fn dts_imports_list_members_of(&self, root: &str) -> bool {
+        let prefix = format!("{root}.");
+
+        self.dts_imports.values().any(|exports| {
+            exports
+                .iter()
+                .any(|export| export.name.starts_with(&prefix))
+        })
+    }
+
+    /// The longest dotted prefix of `name` that is an ambient namespace.
     ///
     /// The ambient loader records a nested namespace under its qualified
     /// name, so `@types/react` contributes `React` and `React.JSX`. This
     /// tests the longest prefix first, so `React.JSX.Element` matches the
     /// entry `React.JSX` rather than the bare root `React`.
-    fn names_an_ambient_namespace(&self, name: &str) -> bool {
+    fn ambient_namespace_prefix<'a>(&self, name: &'a str) -> Option<&'a str> {
         let mut prefix_ends: Vec<usize> = name.match_indices('.').map(|(at, _)| at).collect();
 
         while let Some(end) = prefix_ends.pop() {
             if self.ambient_namespaces.contains(&name[..end]) {
-                return true;
+                return Some(&name[..end]);
             }
         }
 
-        false
+        None
     }
 
     /// True if `ty` contains anywhere in its tree an unresolved type-parameter
@@ -421,5 +470,33 @@ pub(crate) fn pad_foreign_args_with_defaults(
             break;
         };
         args.push(crate::interop::wrap_boundary_type(default_ts));
+    }
+}
+
+/// How a dotted type name stands against the namespaces the interop loaders
+/// described.
+enum DottedType<'a> {
+    /// A loader recorded the whole name, so the name is a type.
+    Declared,
+    /// A loader described the namespace, and the namespace holds no such
+    /// type.
+    UnknownMember { namespace: &'a str, member: &'a str },
+    /// The first segment names something real, and no loader listed what
+    /// that thing holds. The member stays unchecked.
+    Unlisted,
+    /// Nothing knows the first segment.
+    UnknownRoot { root: &'a str },
+}
+
+impl<'a> DottedType<'a> {
+    /// Build the unknown-member answer for `name` under `namespace`.
+    ///
+    /// `namespace` is a prefix of `name`, so the member is the rest of the
+    /// name after the dot that follows the prefix.
+    fn unknown_member(name: &'a str, namespace: &'a str) -> Self {
+        DottedType::UnknownMember {
+            namespace,
+            member: &name[namespace.len() + 1..],
+        }
     }
 }
