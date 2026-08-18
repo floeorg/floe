@@ -7,53 +7,44 @@ impl<'src> CstParser<'src> {
         self.parse_or_expr();
     }
 
-    fn parse_or_expr(&mut self) {
+    /// Generic left-associative binary parser. Parses `next (op next)*`,
+    /// wrapping each successful op + rhs into a `BINARY_EXPR` rooted at the
+    /// pre-call checkpoint (so the resulting tree is `((a op b) op c) ...`).
+    /// Used by every flat binary precedence level — pipe and comparison opt
+    /// out because they need extra rules (match-into-pipe, newline guard).
+    fn parse_left_assoc(&mut self, ops: &[TokenKind], next: fn(&mut Self)) {
         let checkpoint = self.builder.checkpoint();
-        self.parse_and_expr();
-
-        while self.at(&TokenKind::PipePipe) {
+        next(self);
+        while self.at_any(ops) {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
             self.bump();
             self.eat_trivia();
-            self.parse_and_expr();
+            next(self);
             self.builder.finish_node();
         }
+    }
+
+    fn parse_or_expr(&mut self) {
+        self.parse_left_assoc(&[TokenKind::PipePipe], Self::parse_and_expr);
     }
 
     fn parse_and_expr(&mut self) {
-        let checkpoint = self.builder.checkpoint();
-        self.parse_equality_expr();
-
-        while self.at(&TokenKind::AmpAmp) {
-            self.builder
-                .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
-            self.bump();
-            self.eat_trivia();
-            self.parse_equality_expr();
-            self.builder.finish_node();
-        }
+        self.parse_left_assoc(&[TokenKind::AmpAmp], Self::parse_equality_expr);
     }
 
     fn parse_equality_expr(&mut self) {
-        let checkpoint = self.builder.checkpoint();
-        self.parse_pipe_expr();
-
-        while self.at(&TokenKind::EqualEqual) || self.at(&TokenKind::BangEqual) {
-            self.builder
-                .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
-            self.bump();
-            self.eat_trivia();
-            self.parse_pipe_expr();
-            self.builder.finish_node();
-        }
+        self.parse_left_assoc(
+            &[TokenKind::EqualEqual, TokenKind::BangEqual],
+            Self::parse_pipe_expr,
+        );
     }
 
     fn parse_pipe_expr(&mut self) {
         let checkpoint = self.builder.checkpoint();
         self.parse_comparison_expr();
 
-        while self.at(&TokenKind::Pipe) || self.at(&TokenKind::PipeUnwrap) {
+        while self.at_any(&[TokenKind::Pipe, TokenKind::PipeUnwrap]) {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::PIPE_EXPR.into());
             self.bump(); // |> or |>?
@@ -71,15 +62,18 @@ impl<'src> CstParser<'src> {
     }
 
     fn parse_comparison_expr(&mut self) {
+        // Comparison can't span a newline, otherwise `<` / `>` collide with
+        // JSX. Stays out of `parse_left_assoc` because of this guard.
+        const COMPARISON_OPS: &[TokenKind] = &[
+            TokenKind::LessThan,
+            TokenKind::GreaterThan,
+            TokenKind::LessEqual,
+            TokenKind::GreaterEqual,
+        ];
         let checkpoint = self.builder.checkpoint();
         self.parse_additive_expr();
 
-        while (self.at(&TokenKind::LessThan)
-            || self.at(&TokenKind::GreaterThan)
-            || self.at(&TokenKind::LessEqual)
-            || self.at(&TokenKind::GreaterEqual))
-            && !self.preceded_by_newline()
-        {
+        while self.at_any(COMPARISON_OPS) && !self.preceded_by_newline() {
             self.builder
                 .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
             self.bump();
@@ -90,34 +84,17 @@ impl<'src> CstParser<'src> {
     }
 
     fn parse_additive_expr(&mut self) {
-        let checkpoint = self.builder.checkpoint();
-        self.parse_multiplicative_expr();
-
-        while self.at(&TokenKind::Plus) || self.at(&TokenKind::Minus) {
-            self.builder
-                .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
-            self.bump();
-            self.eat_trivia();
-            self.parse_multiplicative_expr();
-            self.builder.finish_node();
-        }
+        self.parse_left_assoc(
+            &[TokenKind::Plus, TokenKind::Minus],
+            Self::parse_multiplicative_expr,
+        );
     }
 
     fn parse_multiplicative_expr(&mut self) {
-        let checkpoint = self.builder.checkpoint();
-        self.parse_unary_expr();
-
-        while self.at(&TokenKind::Star)
-            || self.at(&TokenKind::Slash)
-            || self.at(&TokenKind::Percent)
-        {
-            self.builder
-                .start_node_at(checkpoint, SyntaxKind::BINARY_EXPR.into());
-            self.bump();
-            self.eat_trivia();
-            self.parse_unary_expr();
-            self.builder.finish_node();
-        }
+        self.parse_left_assoc(
+            &[TokenKind::Star, TokenKind::Slash, TokenKind::Percent],
+            Self::parse_unary_expr,
+        );
     }
 
     fn parse_unary_expr(&mut self) {
@@ -675,21 +652,25 @@ impl<'src> CstParser<'src> {
         self.expect_ident();
         self.eat_trivia();
 
-        // Check for optional binary operator predicate
-        if self.at(&TokenKind::EqualEqual)
-            || self.at(&TokenKind::BangEqual)
-            || self.at(&TokenKind::LessThan)
-            || self.at(&TokenKind::GreaterThan)
-            || self.at(&TokenKind::LessEqual)
-            || self.at(&TokenKind::GreaterEqual)
-            || self.at(&TokenKind::AmpAmp)
-            || self.at(&TokenKind::PipePipe)
-            || self.at(&TokenKind::Plus)
-            || self.at(&TokenKind::Minus)
-            || self.at(&TokenKind::Star)
-            || self.at(&TokenKind::Slash)
-            || self.at(&TokenKind::Percent)
-        {
+        // Optional binary-operator predicate following `.field` —
+        // `.field == 1`, `.field > x`, etc. Any infix operator that
+        // returns a boolean or a refined value is allowed.
+        const DOT_PREDICATE_OPS: &[TokenKind] = &[
+            TokenKind::EqualEqual,
+            TokenKind::BangEqual,
+            TokenKind::LessThan,
+            TokenKind::GreaterThan,
+            TokenKind::LessEqual,
+            TokenKind::GreaterEqual,
+            TokenKind::AmpAmp,
+            TokenKind::PipePipe,
+            TokenKind::Plus,
+            TokenKind::Minus,
+            TokenKind::Star,
+            TokenKind::Slash,
+            TokenKind::Percent,
+        ];
+        if self.at_any(DOT_PREDICATE_OPS) {
             self.bump(); // operator
             self.eat_trivia();
             self.parse_postfix_expr();
