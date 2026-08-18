@@ -14,6 +14,11 @@ use super::generator::{THROW_NOT_IMPLEMENTED, THROW_UNREACHABLE, TypeScriptGener
 /// A single step in a flattened pipe+unwrap chain.
 pub(super) struct PipeStep {
     pub expr: TypedExpr,
+    /// The checker's type for the value this step produces. For a pipe step
+    /// that is the enclosing `Pipe` node, not `expr`: `expr` holds only the
+    /// right side, and the step emits the whole pipe. `emit_const_unwrap`
+    /// reads this to decide whether the step needs `await`.
+    pub ty: std::sync::Arc<crate::checker::Type>,
     pub unwrap: bool,
     pub is_pipe: bool,
 }
@@ -643,11 +648,7 @@ impl<'a> TypeScriptGenerator<'a> {
     // ── Collect Block ───────────────────────────────────────────
 
     fn emit_collect_block(&mut self, items: &[TypedItem]) -> Document {
-        let has_await = items.iter().any(|item| match &item.kind {
-            ItemKind::Expr(e) => expr_contains_await(e),
-            ItemKind::Const(c) => expr_contains_await(&c.value),
-            _ => false,
-        });
+        let has_await = collect_block_is_async(items);
 
         let mut inner = Vec::new();
         inner.push(pretty::line());
@@ -861,6 +862,7 @@ impl<'a> TypeScriptGenerator<'a> {
                     Self::collect_pipe_steps(left, steps);
                     steps.push(PipeStep {
                         expr: (**right).clone(),
+                        ty: inner.ty.clone(),
                         unwrap: true,
                         is_pipe: true,
                     });
@@ -868,6 +870,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 _ => {
                     steps.push(PipeStep {
                         expr: (**inner).clone(),
+                        ty: inner.ty.clone(),
                         unwrap: true,
                         is_pipe: false,
                     });
@@ -877,6 +880,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 Self::collect_pipe_steps(left, steps);
                 steps.push(PipeStep {
                     expr: (**right).clone(),
+                    ty: expr.ty.clone(),
                     unwrap: false,
                     is_pipe: true,
                 });
@@ -884,6 +888,7 @@ impl<'a> TypeScriptGenerator<'a> {
             _ => {
                 steps.push(PipeStep {
                     expr: expr.clone(),
+                    ty: expr.ty.clone(),
                     unwrap: false,
                     is_pipe: false,
                 });
@@ -892,41 +897,36 @@ impl<'a> TypeScriptGenerator<'a> {
     }
 }
 
-/// Check if an expression tree contains a Promise.await stdlib call.
-pub(super) fn expr_contains_await(expr: &TypedExpr) -> bool {
-    match &expr.kind {
-        ExprKind::Member { object, field }
-            if field == "await"
-                && matches!(&object.kind, ExprKind::Identifier(m) if m == "Promise") =>
-        {
-            true
-        }
-        ExprKind::Identifier(name) if name == "await" => true,
-        ExprKind::Call { callee, args, .. } => {
-            expr_contains_await(callee)
-                || args.iter().any(|a| match a {
-                    Arg::Positional(e) | Arg::Named { value: e, .. } => expr_contains_await(e),
-                })
-        }
-        ExprKind::Member { object, .. } => expr_contains_await(object),
-        ExprKind::Pipe { left, right } => expr_contains_await(left) || expr_contains_await(right),
-        ExprKind::Binary { left, right, .. } => {
-            expr_contains_await(left) || expr_contains_await(right)
-        }
-        ExprKind::Unary { operand, .. }
-        | ExprKind::Grouped(operand)
-        | ExprKind::Unwrap(operand)
-        | ExprKind::Spread(operand) => expr_contains_await(operand),
-        ExprKind::Match { subject, arms } => {
-            expr_contains_await(subject) || arms.iter().any(|a| expr_contains_await(&a.body))
-        }
-        ExprKind::Collect(items) | ExprKind::Block(items) => {
-            items.iter().any(|item| match &item.kind {
-                ItemKind::Expr(e) => expr_contains_await(e),
-                ItemKind::Const(c) => expr_contains_await(&c.value),
-                _ => false,
-            })
-        }
+/// Check whether `emit_collect_block` wraps these items in an async IIFE.
+///
+/// A `collect { ... }` block that awaits inside emits `(async () => { ... })()`,
+/// so the emitted expression is a promise. The block's own type stays the
+/// `Result` it collects, so no type read can see that promise. This is the one
+/// async IIFE codegen builds for a reason the checker's type does not record,
+/// and `emit_const_unwrap` reads this same function rather than the emitted
+/// text (glb #1522).
+///
+/// The per-item walk below is the checker's own: each item goes to
+/// [`expr_contains_await`], which is `body_has_promise_await`. So this is not a
+/// third answer to "does this await", it is the checker's answer asked once per
+/// item (glb #1516).
+pub(super) fn collect_block_is_async(items: &[TypedItem]) -> bool {
+    items.iter().any(|item| match &item.kind {
+        ItemKind::Expr(e) => expr_contains_await(e),
+        ItemKind::Const(c) => expr_contains_await(&c.value),
         _ => false,
-    }
+    })
+}
+
+/// True when an expression tree awaits, so the wrapper codegen emits for it
+/// must be `async`.
+///
+/// The checker asks the same question in `body_has_promise_await`, and its
+/// answer decides whether the enclosing function is `async`. Codegen carried
+/// a second copy of the walk, and the copy was narrower: it never descended
+/// into an array or a tuple, so `collect { let xs = [g() |> await] }` typed
+/// as async and emitted `await` inside a plain `(() => {` arrow (glb #1516).
+/// One function, two readers, so the two passes cannot part again.
+pub(super) fn expr_contains_await(expr: &TypedExpr) -> bool {
+    crate::checker::body_has_promise_await(expr)
 }

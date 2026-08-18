@@ -99,16 +99,36 @@ class LspClient:
         return None
 
     def collect_notifications(
-        self, method: str, timeout: float = 2.0, settle: float = 0.1
+        self, method: str, timeout: float = 2.0, settle: float = 0.1, uri: str | None = None
     ) -> list[dict]:
-        """Collect notifications, returning once settled or timed out."""
+        """Collect notifications, returning once settled or timed out.
+
+        Every test in the session shares one client and one notification
+        buffer, so the buffer holds whatever the server published for
+        every document opened so far. Pass `uri` to wait for, and to
+        take, only the notifications that name that document. A
+        notification for another document then stays in the buffer and
+        counts for nothing here.
+
+        Without `uri` this takes every notification of `method`, which is
+        what a caller wants when it watches several documents at once.
+        """
+
+        def mine(notification: dict) -> bool:
+            if notification.get("method") != method:
+                return False
+            if uri is None:
+                return True
+
+            return notification.get("params", {}).get("uri") == uri
+
         deadline = time.time() + timeout
         found_any = False
         settle_deadline = None
         while True:
             now = time.time()
             with self._lock:
-                matches = [n for n in self.notifications if n.get("method") == method]
+                matches = [n for n in self.notifications if mine(n)]
             if matches and not found_any:
                 found_any = True
                 settle_deadline = now + settle
@@ -118,9 +138,47 @@ class LspClient:
                 break
             time.sleep(0.05)
         with self._lock:
-            result = [n for n in self.notifications if n.get("method") == method]
-            self.notifications = [n for n in self.notifications if n.get("method") != method]
+            result = [n for n in self.notifications if mine(n)]
+            self.notifications = [n for n in self.notifications if not mine(n)]
+
         return result
+
+    def drop_notifications(self, method: str) -> None:
+        """Discard every `method` notification already in the buffer.
+
+        The server sent them before whatever the caller does next, so
+        they answer an earlier question. This does not wait: a caller
+        that wants the server to go quiet first calls
+        `drain_notifications`.
+        """
+        with self._lock:
+            self.notifications = [n for n in self.notifications if n.get("method") != method]
+
+    def drain_notifications(
+        self, method: str, quiet: float = 0.5, timeout: float = 5.0
+    ) -> None:
+        """Wait for the server to go quiet on `method`, then drop the lot.
+
+        A test that opens several documents in a row gets one publish per
+        document. Any publish still in flight when the test ends lands in
+        the shared buffer and the next test reads it. Call this when a
+        test stops caring about what it opened, so nothing it produced
+        crosses into another test.
+        """
+        deadline = time.time() + timeout
+        seen = -1
+        quiet_deadline = time.time() + quiet
+        while time.time() < deadline:
+            with self._lock:
+                count = sum(1 for n in self.notifications if n.get("method") == method)
+            if count != seen:
+                seen = count
+                quiet_deadline = time.time() + quiet
+            elif time.time() >= quiet_deadline:
+                break
+            time.sleep(0.05)
+        with self._lock:
+            self.notifications = [n for n in self.notifications if n.get("method") != method]
 
     # ── High-level helpers ────────────────────────────────
 
@@ -315,11 +373,37 @@ class DocDiagnostics:
 
 
 def open_and_diagnose(
-    lsp: LspClient, uri: str, text: str, timeout: float = 2.0
+    lsp: LspClient, uri: str, text: str, timeout: float = 10.0
 ) -> DocDiagnostics:
-    """Open a document and collect its diagnostics."""
+    """Open a document and collect the diagnostics the server publishes for it.
+
+    Two rules keep the answer about this document and no other:
+
+    - Drop what is already in the buffer. The server published it before
+      this document was opened, so it describes an earlier document.
+    - Take only the notifications that name `uri`.
+
+    Both matter because the `lsp` fixture is session scoped. Without
+    them a slow publish makes each test read the previous test's
+    document, every assertion still finds a diagnostic, and only the
+    tests whose neighbour expects something different fail.
+
+    The server publishes for every document it opens, and it publishes
+    an empty list when the document is clean. So no notification means
+    the server gave no answer, which is not the same as "no errors".
+    Fail on it here, or a slow machine turns every "must report no
+    error" assertion into a pass on silence.
+    """
+    lsp.drop_notifications("textDocument/publishDiagnostics")
     lsp.open_doc(uri, text)
-    notifs = lsp.collect_notifications("textDocument/publishDiagnostics", timeout=timeout)
+    notifs = lsp.collect_notifications(
+        "textDocument/publishDiagnostics", timeout=timeout, uri=uri
+    )
+    assert notifs, (
+        f"the server published no diagnostics for {uri} within {timeout}s. "
+        f"An empty answer is silence, not a clean document."
+    )
+
     return DocDiagnostics(
         notifs=notifs,
         errors=diag_errors(notifs),
@@ -364,8 +448,13 @@ def result_list(resp: dict | None) -> list:
     return [result] if isinstance(result, dict) else []
 
 
-def open_doc(lsp: LspClient, uri: str, text: str, timeout: float = 1.0):
-    """Open a document and drain its diagnostics."""
+def open_doc(lsp: LspClient, uri: str, text: str, timeout: float = 10.0):
+    """Open a document and collect the diagnostics published for it.
+
+    The timeout costs nothing when the server answers: the collect
+    returns as soon as the answer settles. It is the budget for a loaded
+    machine, so keep it generous.
+    """
     return open_and_diagnose(lsp, uri, text, timeout=timeout)
 
 

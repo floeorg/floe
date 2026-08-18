@@ -1983,6 +1983,33 @@ let f() -> Result<number, Array<string>> = {
     );
 }
 
+#[test]
+fn collect_awaiting_inside_an_array_emits_async_iife() {
+    // The await sits inside an array literal. Codegen used to carry its own
+    // walk, and that walk never entered an array, so it emitted `await`
+    // inside a plain `(() => {` arrow while the checker read the same body
+    // as async. Both passes now read `body_has_promise_await` (glb #1516).
+    let result = emit_with_types(
+        r#"
+async let g() -> number = { 1 }
+async let f() -> Result<number, Array<Error>> = {
+    collect {
+        let xs = [g() |> await]
+        xs |> length
+    }
+}
+"#,
+    );
+    assert!(
+        result.contains("(async () => {"),
+        "collect block that awaits inside an array must emit an async IIFE, got: {result}"
+    );
+    assert!(
+        result.contains("await g()"),
+        "should still emit the inner await, got: {result}"
+    );
+}
+
 // ── Parse<T> Built-in ────────────────────────────────────────
 
 #[test]
@@ -3282,5 +3309,111 @@ export let g(describe: (a: number) -> string) -> string = { describe(4) }
     assert!(
         !result.contains("Router__describe(4)"),
         "the for-block function must not be called where the checker read the parameter, got: {result}"
+    );
+}
+
+// ── Codegen must not apply a rule the checker never applies (glb #1522) ──
+
+#[test]
+fn receiver_style_emits_the_field_the_checker_resolved() {
+    // The checker has no receiver-style rule. It resolves `x.month` to the
+    // record field, so codegen must emit that call. It used to dispatch on
+    // the receiver's type name and emit `(x.getMonth() + 1)` against a record
+    // with no such method.
+    let result = emit_typed(
+        "type Date = { month: () -> number }\n\
+         export let f(x: Date) -> number = { x.month() }",
+    );
+    assert!(
+        result.contains("x.month()"),
+        "expected the resolved field call `x.month()`, got: {result}"
+    );
+    assert!(
+        !result.contains("getMonth"),
+        "codegen must not route receiver style through the stdlib, got: {result}"
+    );
+}
+
+#[test]
+fn receiver_style_on_a_stdlib_type_keeps_every_argument() {
+    // `Date` names a stdlib module, so this path dropped the argument and
+    // emitted `d.getFullYear()`. The checker counts no arguments here either
+    // (glb #1514), but the argument now reaches the output.
+    let result = emit_typed("let d = Date.now()\nlet _y = d.year(1)");
+    assert!(
+        result.contains("d.year(1)"),
+        "expected the plain member call `d.year(1)`, got: {result}"
+    );
+    assert!(
+        !result.contains("getFullYear"),
+        "codegen must not route receiver style through the stdlib, got: {result}"
+    );
+}
+
+#[test]
+fn unwrap_chain_step_keeps_a_promise_its_type_declares() {
+    // `Http.get` emits an async IIFE and its type is `Promise<...>`, so the
+    // const must bind the promise. The old string test saw `(async ` and
+    // wrote `await`, inside a function codegen never marked `async`.
+    let result = emit_with_types(
+        "export let f(x: Result<string, Error>) -> Result<Promise<Result<Response, Error>>, Error> = {\n\
+         \x20   let r = x? |> Http.get\n\
+         \x20   Ok(r)\n\
+         }",
+    );
+    assert!(
+        result.contains("const _r1 = (async () => {"),
+        "a `Promise` step must stay a promise, got: {result}"
+    );
+    assert!(
+        !result.contains("_r1 = await"),
+        "`f` is not async, so the step must not await, got: {result}"
+    );
+}
+
+#[test]
+fn unwrap_chain_awaits_an_async_collect_block() {
+    // A `collect { ... }` block with an await inside emits an async IIFE and
+    // keeps its `Result` type, so the type cannot report the promise. This is
+    // the one step the temp must await.
+    let result = emit_with_types(
+        "export async let f(u: string) -> Result<string, Error> = {\n\
+         \x20   let a = collect {\n\
+         \x20       let b = Http.get(u) |> Promise.await? |> Http.text |> Promise.await?\n\
+         \x20       b\n\
+         \x20   }?\n\
+         \x20   Ok(a)\n\
+         }",
+    );
+    assert!(
+        result.contains("= await (async () => {"),
+        "an async collect block must be awaited before `.ok` is read, got: {result}"
+    );
+}
+
+#[test]
+fn unwrap_chain_awaits_a_parenthesised_async_collect_block() {
+    // `emit_expr` reaches `emit_collect_block` through `Grouped` too, so a
+    // pair of parentheses builds the same async IIFE. The step rule matched
+    // `Collect` at the top of the step only, so the temp bound the promise,
+    // `_r0.ok` read `undefined`, the guard always returned, and every later
+    // step was skipped without a word (glb #1522).
+    let result = emit_with_types(
+        "export let shout(s: string) -> string = { `${s}!` }\n\
+         export async let f(u: string) -> Result<string, Error> = {\n\
+         \x20   let a = (collect {\n\
+         \x20       let b = Http.get(u) |> Promise.await? |> Http.text |> Promise.await?\n\
+         \x20       b\n\
+         \x20   })? |> shout\n\
+         \x20   Ok(a)\n\
+         }",
+    );
+    assert!(
+        result.contains("const _r0 = await ((async () => {"),
+        "a parenthesised async collect block must be awaited before `.ok` is read, got: {result}"
+    );
+    assert!(
+        result.contains("const _r1 = shout(_r0.value);"),
+        "the step after the collect block must still run, got: {result}"
     );
 }
