@@ -33,6 +33,61 @@ use crate::resolve::{ResolvedImports, TsconfigPaths};
 /// import of `node:crypto` needs that package and no other.
 const NODE_TYPES_PACKAGE: &str = "@types/node";
 
+/// Node's own modules, which resolve with nothing installed.
+///
+/// `import { readFileSync } from "fs"` is the same module as
+/// `node:fs`, and neither is a package. Reading `fs` as a package name
+/// told people to run `npm install fs`, which installs a real,
+/// deprecated stub and breaks the project (#1465, #1509 review). Both
+/// spellings route to `@types/node`, which is the package that actually
+/// types them.
+const NODE_BUILTINS: [&str; 44] = [
+    "assert",
+    "async_hooks",
+    "buffer",
+    "child_process",
+    "cluster",
+    "console",
+    "constants",
+    "crypto",
+    "dgram",
+    "diagnostics_channel",
+    "dns",
+    "domain",
+    "events",
+    "fs",
+    "http",
+    "http2",
+    "https",
+    "inspector",
+    "module",
+    "net",
+    "os",
+    "path",
+    "perf_hooks",
+    "process",
+    "punycode",
+    "querystring",
+    "readline",
+    "repl",
+    "sea",
+    "sqlite",
+    "stream",
+    "string_decoder",
+    "sys",
+    "test",
+    "timers",
+    "tls",
+    "trace_events",
+    "tty",
+    "url",
+    "util",
+    "v8",
+    "vm",
+    "wasi",
+    "worker_threads",
+];
+
 /// The npm package a specifier needs, with any subpath removed.
 ///
 /// - `"react"` needs `"react"`
@@ -40,15 +95,27 @@ const NODE_TYPES_PACKAGE: &str = "@types/node";
 /// - `"@scope/pkg/sub"` needs `"@scope/pkg"`
 /// - every `"node:*"` specifier needs `"@types/node"`
 ///
-/// Returns `None` when the head of the specifier is not a name npm can
-/// publish. No install fixes such an import, but naming a package to
+/// Returns `None` when the specifier does not name an npm package at
+/// all. No install fixes such an import, and naming a package to
 /// install would be nonsense, so this module leaves it to the existing
-/// unknown-type warning.
+/// unknown-type warning. Three kinds land there:
+///
+/// - a head that npm cannot publish, such as `..` or `https:`
+/// - a Node subpath import, `#lib/helper`, which `package.json`
+///   resolves through its own `imports` field
 fn required_package(specifier: &str) -> Option<&str> {
     if specifier.starts_with("node:") {
         return Some(NODE_TYPES_PACKAGE);
     }
+    // `package.json` `imports` owns every `#` specifier. It is a private
+    // alias for a path inside the same package, never a package name.
+    if specifier.starts_with('#') {
+        return None;
+    }
     let (package, _subpath) = split_specifier(specifier);
+    if NODE_BUILTINS.contains(&package) {
+        return Some(NODE_TYPES_PACKAGE);
+    }
     if !is_valid_package_name(package) {
         return None;
     }
@@ -84,7 +151,7 @@ pub(crate) fn install_hint(package: &str) -> String {
 /// The walk upward matters for a workspace: pnpm and npm both hoist a
 /// dependency into the repository root, so the nearest `node_modules`
 /// is often not the one holding the package.
-fn is_installed(package: &str, project_dir: &Path) -> bool {
+pub(crate) fn is_installed(package: &str, project_dir: &Path) -> bool {
     project_dir.ancestors().any(|dir| {
         package_dir_candidates(&dir.join("node_modules"), package)
             .iter()
@@ -97,39 +164,142 @@ fn is_installed(package: &str, project_dir: &Path) -> bool {
 /// emit E013; it holds the package name so the diagnostic can name the
 /// thing to install rather than re-deriving it.
 ///
-/// Relative imports, `.fl` imports and tsconfig path aliases are not
-/// npm packages, so this pass leaves them alone. Their own resolvers
-/// report them.
+/// **E013 says a package is absent, so this pass only speaks when it is
+/// certain.** It stays silent whenever something other than
+/// `node_modules` could resolve the specifier:
+///
+/// - a relative or `.fl` import, which has its own resolver
+/// - a tsconfig `paths` alias or a `baseUrl` path, read from the
+///   project directory and from the source file's own directory,
+///   because a workspace package keeps its tsconfig below the hoisted
+///   `node_modules` that `project_dir` points at
+/// - a Node builtin or a `#` subpath import, which need no package
+/// - a Yarn Plug'n'Play project, which keeps no `node_modules` at all
 pub fn find_missing_packages(
     program: &Program,
     resolved_imports: &HashMap<String, ResolvedImports>,
     tsconfig_paths: &TsconfigPaths,
+    source_dir: &Path,
     project_dir: &Path,
 ) -> HashMap<String, String> {
-    let mut missing = HashMap::new();
+    npm_package_imports(
+        program,
+        resolved_imports,
+        tsconfig_paths,
+        source_dir,
+        project_dir,
+    )
+    .into_iter()
+    .filter(|(_, package)| !is_installed(package, project_dir))
+    .map(|(specifier, package)| (specifier.to_string(), package.to_string()))
+    .collect()
+}
+
+/// The npm packages `program` imports, sorted and deduplicated.
+///
+/// `floe check` stores this beside a module's cached diagnostics. A
+/// clean cached module means every one of these was installed when it
+/// was written, so re-testing them is enough to notice that somebody
+/// has since removed one (#1465).
+pub fn imported_packages(
+    program: &Program,
+    resolved_imports: &HashMap<String, ResolvedImports>,
+    tsconfig_paths: &TsconfigPaths,
+    source_dir: &Path,
+    project_dir: &Path,
+) -> Vec<String> {
+    let mut packages: Vec<String> = npm_package_imports(
+        program,
+        resolved_imports,
+        tsconfig_paths,
+        source_dir,
+        project_dir,
+    )
+    .into_iter()
+    .map(|(_, package)| package.to_string())
+    .collect();
+    packages.sort_unstable();
+    packages.dedup();
+
+    packages
+}
+
+/// Every import in `program` that this module reads as an npm package,
+/// as `(specifier, package)`. Everything another resolver owns has
+/// already dropped out.
+fn npm_package_imports<'a>(
+    program: &'a Program,
+    resolved_imports: &HashMap<String, ResolvedImports>,
+    tsconfig_paths: &TsconfigPaths,
+    source_dir: &Path,
+    project_dir: &Path,
+) -> Vec<(&'a str, &'a str)> {
+    // Yarn Plug'n'Play resolves every package out of a zip index and
+    // keeps no `node_modules` at all, so the walk below would call every
+    // single import absent. Say nothing instead: an empty answer is the
+    // honest one when this module cannot see how the project resolves.
+    //
+    // A project that simply has not been installed yet still reports,
+    // because "the package is not there" is exactly true and `npm
+    // install` is exactly the fix.
+    if uses_plug_n_play(project_dir) {
+        return Vec::new();
+    }
+
+    let mut found = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    // Read only if some specifier gets this far, and only once.
+    let mut source_tsconfig: Option<TsconfigPaths> = None;
+
     for item in &program.items {
         let ItemKind::Import(decl) = &item.kind else {
             continue;
         };
         let specifier = decl.source.as_str();
-        if specifier.starts_with("./") || specifier.starts_with("../") {
+        if is_relative(specifier) {
             continue;
         }
-        if resolved_imports.contains_key(specifier) || tsconfig_paths.matches(specifier) {
+        if resolved_imports.contains_key(specifier) || tsconfig_paths.claims(specifier) {
             continue;
         }
-        if missing.contains_key(specifier) {
+        if !seen.insert(specifier) {
             continue;
         }
         let Some(package) = required_package(specifier) else {
             continue;
         };
-        if !is_installed(package, project_dir) {
-            missing.insert(specifier.to_string(), package.to_string());
+        let source_tsconfig =
+            source_tsconfig.get_or_insert_with(|| TsconfigPaths::from_project_dir(source_dir));
+        if source_tsconfig.claims(specifier) {
+            continue;
         }
+
+        found.push((specifier, package));
     }
 
-    missing
+    found
+}
+
+/// True for a specifier that names a path rather than a package.
+fn is_relative(specifier: &str) -> bool {
+    specifier.starts_with("./") || specifier.starts_with("../")
+}
+
+/// The loader files Yarn writes for Plug'n'Play. Their presence means
+/// packages resolve through the PnP index rather than `node_modules`.
+const PLUG_N_PLAY_MARKERS: [&str; 3] = [".pnp.cjs", ".pnp.js", ".pnp.loader.mjs"];
+
+/// True when a Yarn Plug'n'Play loader sits at or above `project_dir`.
+///
+/// Deno projects resolve their own way too and would need the same
+/// treatment, but no fixture proves that path yet, so this names only
+/// what it has tested.
+fn uses_plug_n_play(project_dir: &Path) -> bool {
+    project_dir.ancestors().any(|dir| {
+        PLUG_N_PLAY_MARKERS
+            .iter()
+            .any(|marker| dir.join(marker).is_file())
+    })
 }
 
 #[cfg(test)]
@@ -162,6 +332,31 @@ mod tests {
     #[test]
     fn required_package_routes_the_node_scheme_to_types_node() {
         assert_eq!(required_package("node:crypto"), Some("@types/node"));
+    }
+
+    #[test]
+    fn required_package_routes_a_bare_node_builtin_to_types_node() {
+        // `import { readFileSync } from "fs"` is the same module as
+        // `node:fs`. Reading `fs` as a package name printed
+        // "npm install fs", which installs a real deprecated stub.
+        assert_eq!(required_package("fs"), Some("@types/node"));
+        assert_eq!(required_package("path"), Some("@types/node"));
+    }
+
+    #[test]
+    fn required_package_routes_a_builtin_subpath_to_types_node() {
+        assert_eq!(required_package("fs/promises"), Some("@types/node"));
+    }
+
+    #[test]
+    fn required_package_refuses_a_node_subpath_import() {
+        // `package.json` `imports` owns `#`, so no install fixes it.
+        assert_eq!(required_package("#lib/helper"), None);
+    }
+
+    #[test]
+    fn required_package_refuses_a_url() {
+        assert_eq!(required_package("https://esm.sh/preact"), None);
     }
 
     #[test]
@@ -263,6 +458,7 @@ mod tests {
             &HashMap::new(),
             &TsconfigPaths::default(),
             root.path(),
+            root.path(),
         );
 
         assert_eq!(
@@ -281,6 +477,7 @@ mod tests {
             &program,
             &HashMap::new(),
             &TsconfigPaths::default(),
+            root.path(),
             root.path(),
         );
 
@@ -301,9 +498,131 @@ mod tests {
             &HashMap::new(),
             &TsconfigPaths::default(),
             root.path(),
+            root.path(),
         );
 
         assert!(missing.is_empty(), "got: {missing:?}");
+    }
+
+    #[test]
+    fn find_missing_packages_stays_silent_under_plug_n_play() {
+        // Yarn PnP keeps no `node_modules`, so the disk walk would call
+        // every import absent. It must say nothing at all instead.
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join(".pnp.cjs"), "// yarn pnp loader").unwrap();
+        let program = program_of("import trusted { shout } from \"any-package\"\n");
+
+        let missing = find_missing_packages(
+            &program,
+            &HashMap::new(),
+            &TsconfigPaths::default(),
+            root.path(),
+            root.path(),
+        );
+
+        assert!(missing.is_empty(), "got: {missing:?}");
+    }
+
+    #[test]
+    fn find_missing_packages_reports_a_project_that_was_never_installed() {
+        // No `node_modules` and no PnP loader. The package really is not
+        // there and `npm install` really is the fix, so this must report.
+        let root = tempfile::tempdir().unwrap();
+        let program = program_of("import trusted { shout } from \"absent-package\"\n");
+
+        let missing = find_missing_packages(
+            &program,
+            &HashMap::new(),
+            &TsconfigPaths::default(),
+            root.path(),
+            root.path(),
+        );
+
+        assert_eq!(
+            missing.get("absent-package").map(String::as_str),
+            Some("absent-package")
+        );
+    }
+
+    #[test]
+    fn find_missing_packages_skips_a_bare_builtin_when_types_node_is_installed() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("node_modules/@types/node")).unwrap();
+        let program = program_of("import trusted { readFileSync } from \"fs\"\n");
+
+        let missing = find_missing_packages(
+            &program,
+            &HashMap::new(),
+            &TsconfigPaths::default(),
+            root.path(),
+            root.path(),
+        );
+
+        assert!(missing.is_empty(), "got: {missing:?}");
+    }
+
+    #[test]
+    fn find_missing_packages_skips_a_node_subpath_import() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("node_modules")).unwrap();
+        let program = program_of("import trusted { shout } from \"#lib/helper\"\n");
+
+        let missing = find_missing_packages(
+            &program,
+            &HashMap::new(),
+            &TsconfigPaths::default(),
+            root.path(),
+            root.path(),
+        );
+
+        assert!(missing.is_empty(), "got: {missing:?}");
+    }
+
+    #[test]
+    fn find_missing_packages_reads_the_tsconfig_beside_the_source_file() {
+        // A workspace package keeps its tsconfig below the hoisted
+        // `node_modules`, so the project directory's tsconfig, which is
+        // what `tsconfig_paths` came from, never sees the alias.
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("node_modules")).unwrap();
+        let app = root.path().join("app");
+        std::fs::create_dir_all(app.join("src/lib")).unwrap();
+        std::fs::write(
+            app.join("tsconfig.json"),
+            r#"{"compilerOptions":{"baseUrl":".","paths":{"@app/*":["src/*"]}}}"#,
+        )
+        .unwrap();
+        std::fs::write(app.join("src/lib/helper.ts"), "export const shout = 1;").unwrap();
+        let program = program_of("import trusted { shout } from \"@app/lib/helper\"\n");
+
+        let missing = find_missing_packages(
+            &program,
+            &HashMap::new(),
+            &TsconfigPaths::default(),
+            &app.join("src"),
+            root.path(),
+        );
+
+        assert!(missing.is_empty(), "got: {missing:?}");
+    }
+
+    #[test]
+    fn imported_packages_lists_what_the_cache_must_re_test() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("node_modules/present")).unwrap();
+        let program = program_of(
+            "import trusted { a } from \"present\"\nimport trusted { b } from \"present/sub\"\nimport { c } from \"./local\"\n",
+        );
+
+        let packages = imported_packages(
+            &program,
+            &HashMap::new(),
+            &TsconfigPaths::default(),
+            root.path(),
+            root.path(),
+        );
+
+        assert_eq!(packages, vec!["present".to_string()]);
     }
 
     #[test]
@@ -316,6 +635,7 @@ mod tests {
             &program,
             &HashMap::new(),
             &TsconfigPaths::default(),
+            root.path(),
             root.path(),
         );
 

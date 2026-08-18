@@ -16,8 +16,15 @@ use crate::parser::ast::{
 pub struct ParsedTsconfig {
     /// Absolute path to the tsconfig.json file
     pub tsconfig_path: PathBuf,
-    /// Resolved absolute baseUrl directory
+    /// Resolved absolute baseUrl directory. Falls back to the directory
+    /// holding the tsconfig when `baseUrl` is not set, because the probe
+    /// tsconfig needs some base either way.
     pub base_url: PathBuf,
+    /// The same directory, but only when `compilerOptions.baseUrl` is
+    /// actually set. TypeScript resolves a bare specifier against
+    /// `baseUrl` only then, so a reader that asks "does this tsconfig
+    /// claim the specifier" must not read the fallback as a setting.
+    pub explicit_base_url: Option<PathBuf>,
     /// Raw compilerOptions.paths object (if present)
     pub paths: Option<serde_json::Map<String, serde_json::Value>>,
 }
@@ -32,10 +39,12 @@ impl ParsedTsconfig {
 
         let tsconfig_dir = tsconfig_path.parent().unwrap_or(project_dir);
 
-        let base_url = json
+        let explicit_base_url = json
             .pointer("/compilerOptions/baseUrl")
             .and_then(|v| v.as_str())
-            .map(|b| tsconfig_dir.join(b))
+            .map(|b| tsconfig_dir.join(b));
+        let base_url = explicit_base_url
+            .clone()
             .unwrap_or_else(|| tsconfig_dir.to_path_buf());
 
         let paths = json
@@ -46,6 +55,7 @@ impl ParsedTsconfig {
         Some(Self {
             tsconfig_path,
             base_url,
+            explicit_base_url,
             paths,
         })
     }
@@ -91,6 +101,11 @@ impl ParsedTsconfig {
 pub struct TsconfigPaths {
     /// Alias prefix -> resolved base directories (e.g. "#/*" -> ["/abs/path/src"])
     pub mappings: Vec<(String, Vec<PathBuf>)>,
+    /// `compilerOptions.baseUrl`, when the tsconfig sets it. TypeScript
+    /// resolves a bare specifier such as `src/lib/helper` against this
+    /// directory, so a specifier that lands here is a path and not an
+    /// npm package (#1465).
+    pub base_url: Option<PathBuf>,
 }
 
 impl TsconfigPaths {
@@ -99,9 +114,13 @@ impl TsconfigPaths {
         let Some(parsed) = ParsedTsconfig::from_project_dir(project_dir) else {
             return Self::default();
         };
+        let base_url = parsed.explicit_base_url.clone();
 
         let Some(ref paths) = parsed.paths else {
-            return Self::default();
+            return Self {
+                mappings: Vec::new(),
+                base_url,
+            };
         };
 
         let mut mappings = Vec::new();
@@ -124,7 +143,7 @@ impl TsconfigPaths {
             }
         }
 
-        Self { mappings }
+        Self { mappings, base_url }
     }
 
     /// Try to resolve a specifier using tsconfig path aliases.
@@ -133,16 +152,8 @@ impl TsconfigPaths {
         for (prefix, dirs) in &self.mappings {
             if let Some(rest) = specifier.strip_prefix(prefix) {
                 for dir in dirs {
-                    let candidate = dir.join(rest);
-                    // Try .fl, .ts, .tsx extensions and /index variants
-                    for ext in &[".fl", ".ts", ".tsx", "/index.fl", "/index.ts", "/index.tsx"] {
-                        let path = PathBuf::from(format!("{}{}", candidate.display(), ext));
-                        if path.exists() {
-                            return Some(path);
-                        }
-                    }
-                    if candidate.exists() && candidate.is_file() {
-                        return Some(candidate);
+                    if let Some(found) = resolve_module_file(&dir.join(rest)) {
+                        return Some(found);
                     }
                 }
             }
@@ -156,6 +167,53 @@ impl TsconfigPaths {
             .iter()
             .any(|(prefix, _)| specifier.starts_with(prefix))
     }
+
+    /// True when this tsconfig claims the specifier as a path rather
+    /// than leaving it to `node_modules`: a `paths` alias covers it, or
+    /// `baseUrl` is set and a file sits at that relative path.
+    ///
+    /// Callers that decide whether a bare specifier names an npm package
+    /// must ask this first. `src/lib/helper` under `baseUrl` and
+    /// `@app/lib/helper` under a `paths` alias both look exactly like
+    /// package specifiers otherwise (#1465).
+    pub fn claims(&self, specifier: &str) -> bool {
+        if self.matches(specifier) {
+            return true;
+        }
+        let Some(base_url) = &self.base_url else {
+            return false;
+        };
+        if resolve_module_file(&base_url.join(specifier)).is_some() {
+            return true;
+        }
+
+        // The file is not there, but the directory it would sit in is,
+        // so the specifier is a path this project got wrong and not a
+        // package anybody can install. `src/lib/typo` must not produce
+        // "npm install src".
+        specifier
+            .split_once('/')
+            .is_some_and(|(head, _)| base_url.join(head).is_dir())
+    }
+}
+
+/// The extensions and `/index` forms TypeScript tries for a module path,
+/// plus Floe's own `.fl`.
+const MODULE_SUFFIXES: [&str; 6] = [".fl", ".ts", ".tsx", "/index.fl", "/index.ts", "/index.tsx"];
+
+/// Find the file a module path names, or `None` when nothing is there.
+fn resolve_module_file(candidate: &Path) -> Option<PathBuf> {
+    for suffix in MODULE_SUFFIXES {
+        let path = PathBuf::from(format!("{}{suffix}", candidate.display()));
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    if candidate.is_file() {
+        return Some(candidate.to_path_buf());
+    }
+
+    None
 }
 
 /// Strip comments and trailing commas from JSONC content so it can be parsed by serde_json.
@@ -864,6 +922,67 @@ fn collect_type_names(type_expr: &TypeExpr, names: &mut HashSet<String>) {
 
 #[cfg(test)]
 mod tests {
+    // ── tsconfig claims a specifier (#1465) ──────────────────
+
+    /// `baseUrl` makes a bare specifier a path. E013 must not read one
+    /// as a package and print "npm install src".
+    #[test]
+    fn claims_a_bare_specifier_that_base_url_resolves() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("src/lib")).unwrap();
+        std::fs::write(root.path().join("src/lib/helper.ts"), "export const x = 1;").unwrap();
+        let paths = TsconfigPaths {
+            mappings: Vec::new(),
+            base_url: Some(root.path().to_path_buf()),
+        };
+
+        assert!(paths.claims("src/lib/helper"));
+    }
+
+    /// The file is missing but the directory is there, so the specifier
+    /// is still a path this project got wrong, not a package.
+    #[test]
+    fn claims_a_base_url_directory_even_when_the_file_is_missing() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("src/lib")).unwrap();
+        let paths = TsconfigPaths {
+            mappings: Vec::new(),
+            base_url: Some(root.path().to_path_buf()),
+        };
+
+        assert!(paths.claims("src/lib/typo"));
+    }
+
+    /// A real package name must stay unclaimed, or `baseUrl` would hide
+    /// every missing package in the project.
+    #[test]
+    fn does_not_claim_a_package_name_under_base_url() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("src")).unwrap();
+        let paths = TsconfigPaths {
+            mappings: Vec::new(),
+            base_url: Some(root.path().to_path_buf()),
+        };
+
+        assert!(!paths.claims("react"));
+        assert!(!paths.claims("@scope/thing"));
+    }
+
+    /// Without `baseUrl` nothing is claimed by path, so the fallback
+    /// base that the probe tsconfig uses must not leak in here.
+    #[test]
+    fn does_not_claim_anything_without_an_explicit_base_url() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("src/lib")).unwrap();
+        std::fs::write(root.path().join("src/lib/helper.ts"), "export const x = 1;").unwrap();
+        let paths = TsconfigPaths {
+            mappings: Vec::new(),
+            base_url: None,
+        };
+
+        assert!(!paths.claims("src/lib/helper"));
+    }
+
     use super::*;
     use std::fs;
     use tempfile::TempDir;

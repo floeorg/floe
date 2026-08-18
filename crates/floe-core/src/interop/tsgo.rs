@@ -126,6 +126,7 @@ impl TsgoResolver {
                 program,
                 resolved_imports,
                 tsconfig_paths,
+                source_dir,
                 &self.project_dir,
             );
 

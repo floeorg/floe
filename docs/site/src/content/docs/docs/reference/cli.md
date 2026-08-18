@@ -25,6 +25,8 @@ The compiler automatically chooses `.ts` or `.tsx` based on whether the file con
 
 `floe build` writes the TypeScript for every file it can compile, so a partial build stays usable while you edit. It exits non-zero when any file reported an error.
 
+`--emit-stdout` and `floe build -` are the exception. Both print the diagnostics to stderr and still exit zero, because a dev server calls them for one file at a time and must keep serving while you fix the error. The Vite and esbuild plugins use `--emit-stdout`, so a type error never stops the dev server.
+
 #### The `// @ts-nocheck` header
 
 Every emitted file starts with `// @ts-nocheck`, so TypeScript skips it. Floe's

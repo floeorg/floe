@@ -863,6 +863,7 @@ fn an_unresolved_npm_import_is_the_checkers_diagnostic() {
         &HashMap::new(),
         &tsconfig_paths,
         project_dir,
+        project_dir,
     );
     assert_eq!(
         missing.get("fake-package-12345").map(String::as_str),
@@ -980,6 +981,7 @@ fn a_package_without_any_declaration_file_is_not_e013() {
         &program,
         &HashMap::new(),
         &floe_core::resolve::TsconfigPaths::default(),
+        root,
         root,
     );
     assert!(

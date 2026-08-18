@@ -38,6 +38,20 @@ error[E013]: cannot find module `"date-fns"`
 
 W004 is different. The package is there, so the code runs, but Floe cannot type the symbol and cannot check the arguments you pass to it. Install the matching `@types` package to clear it.
 
+### What Floe never reports as a missing package
+
+E013 names a package to install, so Floe stays quiet whenever the specifier is not a package or something other than `node_modules` resolves it:
+
+| Specifier | Why | What Floe does |
+|---|---|---|
+| `node:fs`, `fs`, `fs/promises` | a Node builtin, not a package | asks for `@types/node` instead, and only when that is missing |
+| `#lib/helper` | `package.json` `imports` resolves it | nothing |
+| `@app/lib/helper` | a tsconfig `paths` alias | nothing. Floe reads the tsconfig next to your source file as well as the one at the project root |
+| `src/lib/helper` | a tsconfig `baseUrl` path | nothing |
+| anything, under Yarn Plug'n'Play | there is no `node_modules` to read | nothing |
+
+A project that has simply not been installed yet still reports E013 on every npm import, because the package really is absent and `npm install` really is the fix.
+
 ## Untrusted imports (default)
 
 All npm imports are untrusted by default. The compiler auto-wraps calls in `Result<T, Error>`:

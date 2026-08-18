@@ -73,14 +73,14 @@ impl PackageCompiler {
     /// `CompiledFile`.
     pub fn compile_file(&self, path: &Path, source: String) -> CompiledFile {
         match self.analyse_path(path, &source) {
-            Ok((analysed, _dep_paths, resolved_imports)) => {
-                let output = Codegen::with_imports(&resolved_imports).generate(&analysed.program);
+            Ok(pass) => {
+                let output = Codegen::with_imports(&pass.resolved).generate(&pass.analysed.program);
                 CompiledFile {
                     source_path: path.to_path_buf(),
                     code: output.code,
                     has_jsx: output.has_jsx,
                     dts: output.dts,
-                    diagnostics: analysed.diagnostics,
+                    diagnostics: pass.analysed.diagnostics,
                     source,
                 }
             }
@@ -104,9 +104,9 @@ impl PackageCompiler {
             return Vec::new();
         }
         match self.analyse_path(path, source) {
-            Ok((analysed, dep_paths, resolved)) => {
-                self.write_cache(path, source, &analysed.diagnostics, &dep_paths, &resolved);
-                analysed.diagnostics
+            Ok(pass) => {
+                self.write_cache(path, source, &pass);
+                pass.analysed.diagnostics
             }
             Err(parse_errors) => parse_errors,
         }
@@ -125,7 +125,9 @@ impl PackageCompiler {
         let relative = self.relative_source(path)?;
         let interface = cache.read(&relative)?;
         let dep_sources = read_dep_sources(&interface.dependency_hashes);
-        if !CacheStore::is_fresh(&interface, source, &dep_sources) {
+        if !CacheStore::is_fresh(&interface, source, &dep_sources)
+            || !self.npm_packages_still_installed(&interface)
+        {
             return None;
         }
         Some(interface.resolved_imports)
@@ -145,30 +147,44 @@ impl PackageCompiler {
             return false;
         };
         let dep_sources = read_dep_sources(&interface.dependency_hashes);
-        CacheStore::is_fresh(&interface, source, &dep_sources)
+        if !CacheStore::is_fresh(&interface, source, &dep_sources) {
+            return false;
+        }
+
+        // The entry is clean, so every package it names was installed
+        // when it was written. Re-test them: a `stat` each, against a
+        // whole re-analyse (#1465).
+        self.npm_packages_still_installed(&interface)
+    }
+
+    /// True when every npm package a cached entry names is still on
+    /// disk. A removed package must re-analyse so E013 gets reported.
+    fn npm_packages_still_installed(&self, interface: &ModuleInterface) -> bool {
+        interface
+            .npm_packages
+            .iter()
+            .all(|package| crate::interop::packages::is_installed(package, &self.project_dir))
     }
 
     /// Persist the freshly-analysed interface so the next run can skip
     /// re-analyse. Writes are best-effort — a failure here just means
     /// the next run re-analyses, which is the same state we're in now.
-    fn write_cache(
-        &self,
-        path: &Path,
-        source: &str,
-        diagnostics: &[Diagnostic],
-        dep_paths: &std::collections::HashSet<PathBuf>,
-        resolved: &HashMap<String, ResolvedImports>,
-    ) {
+    fn write_cache(&self, path: &Path, source: &str, pass: &AnalysePass) {
         let Some(cache) = &self.cache else { return };
         let Some(relative) = self.relative_source(path) else {
             return;
         };
-        let had_errors = diagnostics.iter().any(|d| d.severity == Severity::Error);
+        let had_errors = pass
+            .analysed
+            .diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error);
         let interface = ModuleInterface {
             source_hash: ModuleInterface::fingerprint(source.as_bytes()),
-            dependency_hashes: fingerprint_paths(dep_paths),
+            dependency_hashes: fingerprint_paths(&pass.dep_paths),
             had_errors,
-            resolved_imports: resolved.clone(),
+            resolved_imports: pass.resolved.clone(),
+            npm_packages: pass.npm_packages.clone(),
         };
         let _ = cache.write(&relative, &interface);
     }
@@ -186,23 +202,8 @@ impl PackageCompiler {
     }
 
     /// Shared setup for `compile_file` / `check_file`: parse, resolve
-    /// imports, run tsgo, analyse. Returns `(analysed, dep_paths,
-    /// resolved)` — `dep_paths` are the `.fl` files transitively reached
-    /// during resolution, used by the cache to fingerprint dependencies
-    /// for invalidation.
-    #[allow(clippy::type_complexity)]
-    fn analyse_path(
-        &self,
-        path: &Path,
-        source: &str,
-    ) -> Result<
-        (
-            analyse::AnalysedModule,
-            std::collections::HashSet<PathBuf>,
-            HashMap<String, ResolvedImports>,
-        ),
-        Vec<Diagnostic>,
-    > {
+    /// imports, run tsgo, analyse.
+    fn analyse_path(&self, path: &Path, source: &str) -> Result<AnalysePass, Vec<Diagnostic>> {
         let program = Parser::new(source)
             .parse_program()
             .map_err(|errs| diagnostic::from_parse_errors(&errs))?;
@@ -216,6 +217,16 @@ impl PackageCompiler {
         let mut tsgo_resolver = TsgoResolver::new(&self.project_dir);
         let tsgo_result =
             tsgo_resolver.resolve_imports(&program, &resolved, &source_dir, &self.tsconfig_paths);
+        // Read the npm package list before `program` moves into the
+        // analyse pass. The cache stores it so a clean result stops
+        // being served once one of these packages goes away (#1465).
+        let npm_packages = crate::interop::packages::imported_packages(
+            &program,
+            &resolved,
+            &self.tsconfig_paths,
+            &source_dir,
+            &self.project_dir,
+        );
         let analysed = analyse::analyse_parsed(
             program,
             ModuleInputs {
@@ -229,8 +240,25 @@ impl PackageCompiler {
                 },
             },
         );
-        Ok((analysed, dep_paths, resolved))
+        Ok(AnalysePass {
+            analysed,
+            dep_paths,
+            resolved,
+            npm_packages,
+        })
     }
+}
+
+/// One analyse pass over a module, and everything its callers need
+/// beyond the diagnostics.
+struct AnalysePass {
+    analysed: analyse::AnalysedModule,
+    /// The `.fl` files reached during resolution. The cache fingerprints
+    /// them so an edit to a dependency invalidates this module.
+    dep_paths: std::collections::HashSet<PathBuf>,
+    resolved: HashMap<String, ResolvedImports>,
+    /// The npm packages this module imports.
+    npm_packages: Vec<String>,
 }
 
 /// Read every `.fl` dependency and compute its xxh3 fingerprint. Paths

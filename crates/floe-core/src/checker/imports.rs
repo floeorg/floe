@@ -197,7 +197,11 @@ impl Checker {
                 .imported_names
                 .push((effective_name.to_string(), spec.span));
 
-            if resolved.is_none() {
+            // A missing package registers nothing. The name binds to
+            // `Type::Error`, and codegen reads trust off that type, so a
+            // name left in these tables would make the checker wrap the
+            // call in `Result` while codegen emitted a bare call (#1465).
+            if resolved.is_none() && !package_missing {
                 self.npm_imports.insert(effective_name.to_string());
                 if spec_untrusted {
                     // The checker side-table is still used for diagnostics

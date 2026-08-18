@@ -74,7 +74,14 @@ for example in $examples; do
 
   # `floe build` names the output after the source path relative to the
   # working directory, so run it from the example root.
-  ( cd "$example_dir" && "$floe_bin" build src/ --out-dir .floe/typecheck --no-ts-nocheck >/dev/null )
+  #
+  # It exits non-zero when a file reported an error, and it still writes
+  # the TypeScript. This job counts tsc diagnostics, so let it run on
+  # what did get written rather than ending the whole ratchet here. A
+  # Floe error is the `Floe check examples` job's to report.
+  if ! ( cd "$example_dir" && "$floe_bin" build src/ --out-dir .floe/typecheck --no-ts-nocheck >/dev/null ); then
+    echo "note: floe build reported errors in $example, counting the output it wrote" >&2
+  fi
 
   # Reuse the example's own compiler options. Only the file set changes.
   cat > "$out_dir/tsconfig.json" <<'JSON'

@@ -235,14 +235,17 @@ fn cmd_build(path: &Path, out_dir: Option<&Path>, ts_nocheck: bool) -> Result<()
     for file in &files {
         match compile_and_write(&compiler, file, out_dir, &cwd, ts_nocheck) {
             Ok(output) => {
-                println!("  compiled {}", output.path.display());
                 // The TypeScript is still on disk, because a partial
                 // build is useful while a person edits. The exit code is
                 // not: a build that reported an error must not report
-                // success to CI as well.
+                // success to CI as well. Say which of the two happened,
+                // because "compiled x" above "0 compiled, 1 failed"
+                // reads as a contradiction.
                 if output.had_errors {
+                    println!("  failed {} (output written anyway)", output.path.display());
                     errors += 1;
                 } else {
+                    println!("  compiled {}", output.path.display());
                     compiled += 1;
                 }
             }
