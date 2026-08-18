@@ -212,7 +212,7 @@ impl<'src> CstParser<'src> {
 
         self.bump_remap(SyntaxKind::KW_DEFAULT);
         self.eat_trivia();
-        self.expect_ident();
+        self.expect_binding_name();
 
         self.builder.finish_node();
     }
@@ -350,7 +350,7 @@ impl<'src> CstParser<'src> {
         // Shape detection only. `expect_binding_name` rejects a reserved
         // word later, so `let for(x) = ...` still reads as def-form and
         // reports one clear error.
-        if !self.at_field_name() {
+        if !self.at_property_name() {
             return false;
         }
         let mut i = self.pos + 1;
@@ -430,7 +430,7 @@ impl<'src> CstParser<'src> {
             if self.at(&TokenKind::LeftParen) {
                 self.bump();
                 self.eat_trivia();
-                self.parse_comma_separated(Self::expect_ident_item, &TokenKind::RightParen);
+                self.parse_comma_separated(Self::expect_binding_name_item, &TokenKind::RightParen);
                 self.expect(&TokenKind::RightParen);
             } else if self.at(&TokenKind::LeftBrace) {
                 self.bump();
@@ -438,7 +438,7 @@ impl<'src> CstParser<'src> {
                 self.parse_comma_separated(Self::parse_destructure_field, &TokenKind::RightBrace);
                 self.expect(&TokenKind::RightBrace);
             } else {
-                self.expect_ident();
+                self.expect_binding_name();
             }
             self.eat_trivia();
         }
@@ -707,7 +707,7 @@ impl<'src> CstParser<'src> {
     fn parse_positional_variant_field(&mut self) {
         self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
 
-        if self.is_ident() && self.peek_is(&TokenKind::Colon) {
+        if self.at_property_name() && self.peek_is(&TokenKind::Colon) {
             self.error(
                 "named fields are not allowed in `(...)` variants; \
                  use `(Type)` for positional fields or `{ name: Type }` for named fields",
@@ -728,8 +728,8 @@ impl<'src> CstParser<'src> {
     fn parse_named_variant_field(&mut self) {
         self.builder.start_node(SyntaxKind::VARIANT_FIELD.into());
 
-        if self.is_ident() && self.peek_is(&TokenKind::Colon) {
-            self.bump(); // name
+        if self.at_property_name() && self.peek_is(&TokenKind::Colon) {
+            self.expect_property_name();
             self.eat_trivia();
             self.bump(); // :
             self.eat_trivia();
@@ -767,7 +767,7 @@ impl<'src> CstParser<'src> {
 
     fn parse_record_field(&mut self) {
         self.builder.start_node(SyntaxKind::RECORD_FIELD.into());
-        self.expect_field_name();
+        self.expect_property_name();
         self.eat_trivia();
         self.expect(&TokenKind::Colon);
         self.eat_trivia();
@@ -919,7 +919,7 @@ impl<'src> CstParser<'src> {
 
         self.expect(&TokenKind::Let);
         self.eat_trivia();
-        self.expect_ident();
+        self.expect_binding_name();
         self.eat_trivia();
 
         self.expect(&TokenKind::LeftParen);
@@ -957,7 +957,7 @@ impl<'src> CstParser<'src> {
 
         self.expect(&TokenKind::Let);
         self.eat_trivia();
-        self.expect_ident();
+        self.expect_binding_name();
         self.eat_trivia();
 
         self.expect(&TokenKind::LeftParen);
@@ -988,7 +988,7 @@ impl<'src> CstParser<'src> {
             // `self` parameter — bump as an ident-like token
             self.bump();
         } else {
-            self.expect_ident();
+            self.expect_binding_name();
             self.eat_trivia();
 
             if self.at(&TokenKind::Colon) {

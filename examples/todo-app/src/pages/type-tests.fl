@@ -84,9 +84,10 @@ let greet() -> string = {
 
 // let badReturn() -> string = { 42 }  // ✗ uncomment → return type mismatch
 
-// ── Words JavaScript reserves ────────────────────────────
-// A reserved word names a property, never a value. Real JSON and DOM
-// payloads carry these keys, so Floe accepts them as field names.
+// ── Any word names a property ────────────────────────────
+// A record field, a member, a named argument and a JSX attribute all take
+// any word. Real JSON and DOM payloads carry these keys. Only a value name
+// is restricted.
 
 type FieldMeta = {
     for: string,
@@ -104,5 +105,17 @@ let _target = fieldMeta.for
 let _class = fieldMeta.class
 
 // ✓ hover: string
+
+type WidgetMeta = {
+    match: string,
+    self: string,
+}
+
+let widgetMeta = WidgetMeta { match: "exact", self: "widget" }
+
+let _match = widgetMeta.match
+
+// ✓ hover: string — a Floe keyword names a property too
 // let for = 1                          // ✗ uncomment → `for` is a reserved word in JavaScript
 // let label(for: string) = { "x" }     // ✗ uncomment → same error, on the parameter
+// let match = 1                        // ✗ uncomment → `match` is a keyword in Floe

@@ -193,18 +193,21 @@ pub enum TokenKind {
 /// "may this word stand here" list in the lexer, the parser and the CST
 /// derives from that table, so a new keyword costs one arm and nothing else.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Every word may name a property. JavaScript accepts any word as a property
+/// name, and a property position in Floe is always followed by `:`, `=` or a
+/// closing delimiter, so no word is ambiguous there. The roles differ in one
+/// thing only: whether the word may name a value.
 pub enum IdentRole {
     /// A plain identifier, or a Floe keyword that JavaScript does not
-    /// reserve. It may name a value, a parameter, a record field, a member,
-    /// a JSX attribute and a named argument.
+    /// reserve. It may name a value, a parameter and a property.
     Binding,
-    /// A word that JavaScript reserves. JavaScript accepts a reserved word
-    /// as a property name, so Floe accepts it as a record field, a member
-    /// name, a JSX attribute and a named argument. It may never name a value
-    /// or a parameter, because the emitted TypeScript would not compile.
+    /// A word that JavaScript reserves. It may name a property, and it may
+    /// never name a value or a parameter, because the emitted TypeScript
+    /// would not compile.
     PropertyOnly,
-    /// A Floe keyword with no identifier role. It may still follow a `.`,
-    /// because a member name after a dot is never ambiguous.
+    /// A Floe keyword. It may name a property, and it may never name a
+    /// value or a parameter, because Floe needs the word in its own
+    /// syntactic position.
     Keyword,
 }
 
@@ -234,7 +237,8 @@ impl TokenKind {
             // `impl Trait for Type`.
             Self::For | Self::Banned(_) => Some(IdentRole::PropertyOnly),
 
-            // Floe keywords with no identifier role.
+            // Floe keywords. Floe needs each of these in its own position,
+            // so none of them names a value.
             Self::Let
             | Self::Fn
             | Self::Export
@@ -262,29 +266,37 @@ impl TokenKind {
     }
 
     /// True when this word may name a property: a record field, an
-    /// object-literal key, a named argument, or a JSX attribute.
-    pub fn can_name_field(&self) -> bool {
+    /// object-literal key, a member, a named argument, or a JSX attribute.
+    /// Every word may, for the reason on `IdentRole`.
+    ///
+    /// `true` and `false` are the exception, because Floe lexes them as
+    /// literals rather than as words. `{ true: 1 }` is legal JavaScript and
+    /// is not legal Floe.
+    pub fn can_name_property(&self) -> bool {
+        self.ident_role().is_some()
+    }
+
+    /// True when this token may follow a `.`. Every word may, and so may a
+    /// number, for tuple element access (`pair.0`).
+    pub fn can_name_member(&self) -> bool {
+        self.can_name_property() || matches!(self, Self::Number(_))
+    }
+
+    /// True when `{ word }` reads as a shorthand field rather than as a
+    /// block. A shorthand is the one property position that also reads a
+    /// value, so it is not open to every word.
+    ///
+    /// A word that binds reads the value of that name. A word that
+    /// JavaScript reserves cannot bind, but it cannot stand alone as an
+    /// expression either, so the shorthand reading is the only one left and
+    /// the parser can report the reserved word instead of a cascade. A Floe
+    /// keyword stays on the block side, because `{ self }` is a block that
+    /// returns `self`.
+    pub fn starts_shorthand_field(&self) -> bool {
         matches!(
             self.ident_role(),
             Some(IdentRole::Binding | IdentRole::PropertyOnly)
         )
-    }
-
-    /// True when this word may follow a `.`. Every word may, and so may a
-    /// number, for tuple element access (`pair.0`).
-    pub fn can_name_member(&self) -> bool {
-        self.ident_role().is_some() || matches!(self, Self::Number(_))
-    }
-
-    /// The source spelling of a word that JavaScript reserves. `None` for
-    /// every other token. The parser puts this in the diagnostic it writes
-    /// when somebody tries to bind such a word.
-    pub fn reserved_word(&self) -> Option<&'static str> {
-        match self {
-            Self::For => Some("for"),
-            Self::Banned(keyword) => Some(keyword.as_str()),
-            _ => None,
-        }
     }
 }
 
@@ -479,7 +491,7 @@ mod tests {
         let word = TokenKind::Identifier("total".to_string());
         assert_eq!(word.ident_role(), Some(IdentRole::Binding));
         assert!(word.can_bind());
-        assert!(word.can_name_field());
+        assert!(word.can_name_property());
         assert!(word.can_name_member());
     }
 
@@ -506,9 +518,8 @@ mod tests {
     fn for_names_a_property_only() {
         assert_eq!(TokenKind::For.ident_role(), Some(IdentRole::PropertyOnly));
         assert!(!TokenKind::For.can_bind());
-        assert!(TokenKind::For.can_name_field());
+        assert!(TokenKind::For.can_name_property());
         assert!(TokenKind::For.can_name_member());
-        assert_eq!(TokenKind::For.reserved_word(), Some("for"));
     }
 
     #[test]
@@ -535,13 +546,12 @@ mod tests {
                 "{keyword:?}"
             );
             assert!(!word.can_bind(), "{keyword:?}");
-            assert!(word.can_name_field(), "{keyword:?}");
-            assert_eq!(word.reserved_word(), Some(keyword.as_str()));
+            assert!(word.can_name_property(), "{keyword:?}");
         }
     }
 
     #[test]
-    fn hard_keyword_names_a_member_only() {
+    fn floe_keyword_names_a_property_but_binds_nothing() {
         for word in [
             TokenKind::Let,
             TokenKind::Fn,
@@ -549,12 +559,29 @@ mod tests {
             TokenKind::Impl,
             TokenKind::When,
             TokenKind::From,
+            TokenKind::SelfKw,
         ] {
             assert_eq!(word.ident_role(), Some(IdentRole::Keyword), "{word:?}");
             assert!(!word.can_bind(), "{word:?}");
-            assert!(!word.can_name_field(), "{word:?}");
+            assert!(word.can_name_property(), "{word:?}");
             assert!(word.can_name_member(), "{word:?}");
-            assert_eq!(word.reserved_word(), None, "{word:?}");
+        }
+    }
+
+    #[test]
+    fn every_word_names_a_property() {
+        // The one rule the table encodes: a word may always name a property,
+        // and the role decides only whether it may name a value.
+        for word in [
+            TokenKind::Identifier("total".to_string()),
+            TokenKind::Type,
+            TokenKind::For,
+            TokenKind::Banned(BannedKeyword::Class),
+            TokenKind::Match,
+            TokenKind::Let,
+        ] {
+            assert!(word.can_name_property(), "{word:?}");
+            assert!(word.can_name_member(), "{word:?}");
         }
     }
 
@@ -563,7 +590,7 @@ mod tests {
         let number = TokenKind::Number("0".to_string());
         assert_eq!(number.ident_role(), None);
         assert!(number.can_name_member());
-        assert!(!number.can_name_field());
+        assert!(!number.can_name_property());
     }
 
     #[test]

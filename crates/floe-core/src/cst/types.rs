@@ -106,8 +106,8 @@ impl<'src> CstParser<'src> {
     ///   `IDENT ':' TYPE_EXPR` (labelled) or `TYPE_EXPR` (bare).
     fn parse_fn_type_param(&mut self) {
         self.builder.start_node(SyntaxKind::FN_TYPE_PARAM.into());
-        if self.is_ident() && self.peek_is(&TokenKind::Colon) {
-            self.bump(); // ident
+        if self.at_property_name() && self.peek_is(&TokenKind::Colon) {
+            self.expect_property_name();
             self.eat_trivia();
             self.bump(); // :
             self.eat_trivia();

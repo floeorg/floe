@@ -973,6 +973,22 @@ RESERVED_WORD_BINDING = """\
 let for = 1
 """
 
+FLOE_KEYWORD_PROPERTIES = """\
+type Widget = {
+    match: string,
+    self: string,
+    let: string,
+}
+
+let pick(w: Widget) -> string = { w.match }
+
+let view(w: Widget) -> JSX.Element = { <label match="a" fn="b" /> }
+"""
+
+FLOE_KEYWORD_BINDING = """\
+let match = 1
+"""
+
 RESERVED_WORD_PARAMETER = """\
 let label(for: string) -> string = { "submit" }
 """

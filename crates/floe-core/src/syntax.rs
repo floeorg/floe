@@ -215,6 +215,16 @@ impl SyntaxKind {
 /// This derives from the one table in `lexer::token`. The parser wrote this
 /// token, so the text tells us which word it is and `can_name_member` tells
 /// us what that word may do. A new keyword needs no edit here.
+///
+/// The derivation re-lexes the text, so it answers for the word the user
+/// wrote, not for the `SyntaxKind` the parser stored. A token the parser
+/// created with `bump_remap` does not round-trip: `KW_USE` and `KW_DEFAULT`
+/// both come from an `Identifier`, so `lookup_keyword` returns `None` and
+/// this function answers `false` for them. Neither kind reaches the three
+/// nodes that call this, so neither is a live bug today. A future contextual
+/// keyword built the same way would get the wrong answer silently, so remap
+/// such a token to `IDENT` rather than to a `KW_*` kind, or give this
+/// function the token role directly.
 pub fn token_names_member(kind: SyntaxKind, text: &str) -> bool {
     if matches!(kind, SyntaxKind::IDENT | SyntaxKind::NUMBER) {
         return true;
@@ -253,6 +263,12 @@ pub type SyntaxToken = rowan::SyntaxToken<FloeLang>;
 
 /// Extract the full JSX tag name from a JSX_ELEMENT CST node, including member
 /// expressions (e.g., `Select.Trigger`). Returns `None` for fragments.
+///
+/// This walks tokens rather than the tag-name node, so on an element that
+/// already failed to parse it folds a rejected word into the name:
+/// `<label 1abc />` yields `"label1abc"`. That is error-recovery output on a
+/// tree that already carries a diagnostic, so it never reaches a user as a
+/// tag name. A real fix reads the tag-name node instead of the token run.
 pub fn jsx_tag_name_from_node(node: &SyntaxNode) -> Option<String> {
     let mut name = String::new();
     let mut past_lt = false;

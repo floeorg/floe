@@ -109,13 +109,13 @@
   name: (type_identifier) @constructor)
 
 (variant_field
-  name: [(identifier) (type_identifier) (reserved_property)] @property)
+  name: [(identifier) (type_identifier) (keyword_property)] @property)
 
 (variant_pattern
   name: (type_identifier) @constructor)
 
 (variant_field_pattern
-  name: [(identifier) (type_identifier) (reserved_property)] @property)
+  name: [(identifier) (type_identifier) (keyword_property)] @property)
 
 (variant_expression
   variant: (type_identifier) @constructor)
@@ -127,7 +127,7 @@
   type: (type_identifier) @constructor)
 
 (brace_construct_field
-  name: [(identifier) (type_identifier) (reserved_property)] @property)
+  name: [(identifier) (type_identifier) (keyword_property)] @property)
 
 ; ── Traits ──────────────────────────────────────────────
 (trait_declaration
@@ -138,7 +138,7 @@
 
 ; ── Record fields ────────────────────────────────────────
 (record_field
-  name: [(identifier) (type_identifier) (reserved_property)] @property)
+  name: [(identifier) (type_identifier) (keyword_property)] @property)
 
 ; ── Match ────────────────────────────────────────────────
 (match_arm
@@ -190,7 +190,7 @@
   property: (type_identifier) @tag)
 
 (jsx_attribute
-  name: [(identifier) (reserved_property)] @tag.attribute)
+  name: [(identifier) (keyword_property)] @tag.attribute)
 
 (jsx_expression
   "{" @punctuation.special
@@ -225,8 +225,8 @@
   type: (identifier) @type)
 
 (member_expression
-  property: [(identifier) (reserved_property)] @property)
+  property: [(identifier) (keyword_property)] @property)
 
-; A word JavaScript reserves reads as a property name, never as a keyword.
+; A keyword standing in a property position reads as a property, not as a keyword.
 ; This pattern comes last so it wins over the keyword patterns above.
-(reserved_property) @property
+(keyword_property) @property

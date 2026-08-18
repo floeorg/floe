@@ -15,3 +15,9 @@ function target(p: Payload): string {
 function style(p: Payload): string {
   return p.class;
 }
+
+type Widget = { match: string; self: string };
+
+function pick(w: Widget): string {
+  return w.match;
+}

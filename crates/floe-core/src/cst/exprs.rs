@@ -517,12 +517,9 @@ impl<'src> CstParser<'src> {
         self.builder
             .start_node(SyntaxKind::BRACE_CONSTRUCT_FIELD.into());
 
-        if self.at_field_name() && self.peek_is(&TokenKind::Colon) {
-            let reserved = self
-                .current_kind()
-                .as_ref()
-                .and_then(TokenKind::reserved_word);
-            self.expect_field_name();
+        if self.at_property_name() && self.peek_is(&TokenKind::Colon) {
+            let pun_word = self.word_that_cannot_bind();
+            self.expect_property_name();
             self.eat_trivia();
             self.bump(); // :
 
@@ -530,16 +527,16 @@ impl<'src> CstParser<'src> {
             let next = self.next_non_trivia_kind();
             let is_pun = matches!(next, Some(TokenKind::RightBrace | TokenKind::Comma) | None);
             if is_pun {
-                if let Some(word) = reserved {
-                    self.error_reserved_pun(word);
+                if let Some((word, why)) = pun_word {
+                    self.error_reserved_pun(word, why);
                 }
             } else {
                 self.eat_trivia();
                 self.parse_expr();
             }
-        } else if self.at_field_name() {
+        } else if self.at_property_name() {
             // Bare shorthand `{ name }` reads a value of that name.
-            self.expect_binding_name();
+            self.expect_shorthand_name();
         } else {
             self.error("expected a field name in record construction");
             self.bump();
@@ -600,12 +597,9 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::ARG.into());
 
         // Named arg: `label: expr` or punned `label:`.
-        if self.at_field_name() && self.peek_is(&TokenKind::Colon) {
-            let reserved = self
-                .current_kind()
-                .as_ref()
-                .and_then(TokenKind::reserved_word);
-            self.expect_field_name();
+        if self.at_property_name() && self.peek_is(&TokenKind::Colon) {
+            let pun_word = self.word_that_cannot_bind();
+            self.expect_property_name();
             self.eat_trivia();
             self.bump(); // :
 
@@ -613,8 +607,8 @@ impl<'src> CstParser<'src> {
             let next = self.next_non_trivia_kind();
             let is_pun = matches!(next, Some(TokenKind::RightParen | TokenKind::Comma) | None);
             if is_pun {
-                if let Some(word) = reserved {
-                    self.error_reserved_pun(word);
+                if let Some((word, why)) = pun_word {
+                    self.error_reserved_pun(word, why);
                 }
             } else {
                 self.eat_trivia();
@@ -634,7 +628,8 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::DOT_SHORTHAND.into());
         self.expect(&TokenKind::Dot);
         self.eat_trivia();
-        self.expect_ident();
+        // `.for` names a property, exactly like `row.for`.
+        self.expect_property_name();
         self.eat_trivia();
 
         // Optional binary-operator predicate following `.field` —
@@ -913,7 +908,7 @@ impl<'src> CstParser<'src> {
     /// Parse `name` (shorthand binding) or `field: pattern` (rename or nest).
     fn parse_record_pattern_field(&mut self) {
         if self.peek_is(&TokenKind::Colon) {
-            self.expect_field_name();
+            self.expect_property_name();
             self.eat_trivia();
             self.bump(); // :
             self.eat_trivia();
@@ -921,7 +916,7 @@ impl<'src> CstParser<'src> {
             return;
         }
 
-        self.expect_binding_name();
+        self.expect_shorthand_name();
     }
 
     /// Parse a named-field entry inside a brace-form variant pattern:
@@ -930,13 +925,13 @@ impl<'src> CstParser<'src> {
         self.builder
             .start_node(SyntaxKind::VARIANT_FIELD_PATTERN.into());
         if self.peek_is(&TokenKind::Colon) {
-            self.expect_field_name();
+            self.expect_property_name();
             self.eat_trivia();
             self.bump(); // :
             self.eat_trivia();
             self.parse_pattern();
         } else {
-            self.expect_binding_name();
+            self.expect_shorthand_name();
         }
         self.builder.finish_node();
     }
@@ -955,10 +950,11 @@ impl<'src> CstParser<'src> {
             return false;
         }
         let first = &self.tokens[i].kind;
-        if !first.can_name_field() {
+        if !first.can_name_property() {
             return false;
         }
-        // Next non-trivia token after the ident must be `:` (key: value) or `,` or `}` (shorthand)
+        // Next non-trivia token after the name must be `:` (key: value) or
+        // `,` or `}` (shorthand)
         i += 1;
         while i < self.tokens.len() && self.tokens[i].kind.is_trivia() {
             i += 1;
@@ -966,10 +962,13 @@ impl<'src> CstParser<'src> {
         if i >= self.tokens.len() {
             return false;
         }
-        matches!(
-            self.tokens[i].kind,
-            TokenKind::Colon | TokenKind::Comma | TokenKind::RightBrace
-        )
+        match self.tokens[i].kind {
+            TokenKind::Colon => true,
+            // A shorthand also reads a value of that name, so it is narrower
+            // than the `name: value` form. See `starts_shorthand_field`.
+            TokenKind::Comma | TokenKind::RightBrace => first.starts_shorthand_field(),
+            _ => false,
+        }
     }
 
     fn parse_object_literal(&mut self) {
@@ -984,7 +983,7 @@ impl<'src> CstParser<'src> {
     fn parse_object_field(&mut self) {
         self.builder.start_node(SyntaxKind::OBJECT_FIELD.into());
         if self.peek_is(&TokenKind::Colon) {
-            self.expect_field_name();
+            self.expect_property_name();
             self.eat_trivia();
             self.bump(); // :
             self.eat_trivia();
@@ -992,7 +991,7 @@ impl<'src> CstParser<'src> {
         } else {
             // Shorthand: `{ name }` means `{ name: name }`, so it reads a
             // value of that name.
-            self.expect_binding_name();
+            self.expect_shorthand_name();
         }
         self.builder.finish_node();
     }

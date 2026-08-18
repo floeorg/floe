@@ -56,6 +56,7 @@ VALID_SOURCES = [
     ("use bind forms", F.USE_BIND),
     ("use as identifier", F.USE_AS_IDENT),
     ("reserved words as field names", F.RESERVED_WORD_FIELDS),
+    ("Floe keywords as property names", F.FLOE_KEYWORD_PROPERTIES),
 ]
 
 
@@ -88,6 +89,15 @@ def test_reserved_word_parameter_errors(lsp):
     result = open_doc(lsp, URI, F.RESERVED_WORD_PARAMETER)
     assert len(result.errors) == 1, f"Expected one error, got: {result.errors}"
     assert "`for`" in result.errors[0].get("message", "")
+
+
+def test_floe_keyword_binding_errors(lsp):
+    """`let match = 1` should report one error that names the word."""
+    result = open_doc(lsp, URI, F.FLOE_KEYWORD_BINDING)
+    assert len(result.errors) == 1, f"Expected one error, got: {result.errors}"
+    message = result.errors[0].get("message", "")
+    assert "`match`" in message, f"Error should name the word, got: {message}"
+    assert "keyword in Floe" in message, f"Error should say Floe reserves it, got: {message}"
 
 
 def test_shadowing_detected(lsp):

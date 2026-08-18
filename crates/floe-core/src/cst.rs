@@ -4,7 +4,7 @@ mod jsx;
 mod types;
 
 use crate::lexer::span::Span;
-use crate::lexer::token::{Token, TokenKind};
+use crate::lexer::token::{IdentRole, Token, TokenKind};
 use crate::syntax::{SyntaxKind, SyntaxNode, token_kind_to_syntax};
 use rowan::GreenNode;
 
@@ -223,11 +223,33 @@ impl<'src> CstParser<'src> {
     }
 
     /// True when the current word may name a property: a record field, an
-    /// object-literal key, a named argument label, or a JSX attribute.
-    fn at_field_name(&self) -> bool {
+    /// object-literal key, a member, a named argument label, or a JSX
+    /// attribute.
+    fn at_property_name(&self) -> bool {
         self.current_kind()
             .as_ref()
-            .is_some_and(TokenKind::can_name_field)
+            .is_some_and(TokenKind::can_name_property)
+    }
+
+    /// The source text of the current token. Tied to the source lifetime, so
+    /// a caller may hold it across a `&mut self` call.
+    fn current_text(&self) -> &'src str {
+        match self.tokens.get(self.pos) {
+            Some(token) => &self.source[token.span.start..token.span.end],
+            None => "",
+        }
+    }
+
+    /// The spelling of the current word when that word cannot name a value,
+    /// paired with why. `None` for an identifier and for a non-word token.
+    fn word_that_cannot_bind(&self) -> Option<(&'src str, &'static str)> {
+        match self.current_kind()?.ident_role()? {
+            IdentRole::Binding => None,
+            IdentRole::PropertyOnly => {
+                Some((self.current_text(), "is a reserved word in JavaScript"))
+            }
+            IdentRole::Keyword => Some((self.current_text(), "is a keyword in Floe")),
+        }
     }
 
     /// True when the current token may follow a `.`.
@@ -255,10 +277,10 @@ impl<'src> CstParser<'src> {
             return;
         }
 
-        if let Some(word) = kind.as_ref().and_then(TokenKind::reserved_word) {
+        if let Some((word, why)) = self.word_that_cannot_bind() {
             self.error_kind(
                 &format!(
-                    "`{word}` is a reserved word in JavaScript, so it cannot name a value in Floe. \
+                    "`{word}` {why}, so it cannot name a value. Rename the value. \
                      Floe accepts `{word}` as a field name, a member name, a named argument and a JSX attribute."
                 ),
                 CstErrorKind::ReservedWord,
@@ -277,13 +299,27 @@ impl<'src> CstParser<'src> {
         self.expect_binding_name();
     }
 
+    /// Expect the name in a shorthand field: `{ name }`, `Foo { name }` and
+    /// `Foo { name: }` all read back as `name: name`. The name is a property,
+    /// and the shorthand also reads a value of that name, so a word that
+    /// cannot name a value is rejected with the punning advice.
+    fn expect_shorthand_name(&mut self) {
+        if let Some((word, why)) = self.word_that_cannot_bind() {
+            self.error_reserved_pun(word, why);
+            self.bump_remap(SyntaxKind::IDENT);
+            return;
+        }
+
+        self.expect_binding_name();
+    }
+
     /// Expect a name that names a property: a record field, an object-literal
-    /// key, a named argument label, or a JSX attribute. JavaScript accepts a
-    /// reserved word in each of those positions, so Floe accepts it too.
-    fn expect_field_name(&mut self) {
+    /// key, a member, a named argument label, or a JSX attribute. Every word
+    /// stands here, for the reason on `IdentRole`.
+    fn expect_property_name(&mut self) {
         match self.current_kind() {
             Some(TokenKind::Identifier(_)) => self.bump(),
-            Some(k) if k.can_name_field() => self.bump_remap(SyntaxKind::IDENT),
+            Some(k) if k.can_name_property() => self.bump_remap(SyntaxKind::IDENT),
             _ => self.error_kind(
                 &format!("expected a field name, found {:?}", self.current_kind()),
                 CstErrorKind::UnexpectedToken,
@@ -291,14 +327,14 @@ impl<'src> CstParser<'src> {
         }
     }
 
-    /// Write the reserved-word diagnostic for a punned field (`Foo { for: }`,
-    /// which reads back as `for: for`). The name is a field, but the pun also
-    /// reads a value of the same name, and a reserved word can never name one.
-    fn error_reserved_pun(&mut self, word: &str) {
+    /// Write the diagnostic for a punned field (`{ for }` and `Foo { for: }`
+    /// both read back as `for: for`). The name is a property, but the pun
+    /// also reads a value of the same name, and this word can never name one.
+    fn error_reserved_pun(&mut self, word: &str, why: &str) {
         self.error_kind(
             &format!(
-                "`{word}` is a reserved word in JavaScript, so it cannot name a value in Floe. \
-                 Write `{word}: <value>` instead of punning it."
+                "`{word}` {why}, so it cannot name a value. \
+                 Write the field out as `{word}: ...` instead of punning it."
             ),
             CstErrorKind::ReservedWord,
         );
@@ -664,7 +700,7 @@ impl<'src> CstParser<'src> {
     /// binds, so a reserved word is rejected.
     fn parse_destructure_field(&mut self) {
         if self.peek_is(&TokenKind::Colon) {
-            self.expect_field_name();
+            self.expect_property_name();
             self.eat_trivia();
             self.bump(); // eat ':'
             self.eat_trivia();
@@ -672,7 +708,8 @@ impl<'src> CstParser<'src> {
             return;
         }
 
-        self.expect_binding_name();
+        // `{ name }` binds `name` and reads the property of the same name.
+        self.expect_shorthand_name();
     }
 
     fn error(&mut self, message: &str) {
@@ -1175,6 +1212,33 @@ mod tests {
 
     // ── Reserved words as names ───────────────────────────────────
 
+    /// Assert the parse reports exactly one error, that error names the
+    /// word, and it carries the given advice.
+    fn assert_one_reserved_word_error_with(source: &str, word: &str, advice: &str) {
+        let parse = cst_parse(source);
+        let reserved: Vec<_> = parse
+            .errors
+            .iter()
+            .filter(|e| e.kind == CstErrorKind::ReservedWord)
+            .collect();
+        assert_eq!(
+            reserved.len(),
+            1,
+            "expected one reserved-word error for {source:?}, got: {:?}",
+            parse.errors
+        );
+        assert!(
+            reserved[0].message.contains(word),
+            "error should name `{word}`, got: {}",
+            reserved[0].message
+        );
+        assert!(
+            reserved[0].message.contains(advice),
+            "error should advise {advice:?}, got: {}",
+            reserved[0].message
+        );
+    }
+
     /// Assert the parse reports exactly one error, and that error names the
     /// reserved word.
     fn assert_one_reserved_word_error(source: &str, word: &str) {
@@ -1297,6 +1361,108 @@ mod tests {
     #[test]
     fn punned_field_named_for_is_rejected() {
         assert_one_reserved_word_error("let row = Form { for: }", "for");
+    }
+
+    // ── Every word names a property ───────────────────────────────
+
+    #[test]
+    fn jsx_prop_named_after_a_floe_keyword() {
+        // Regression: `is_keyword` used to accept these six, and the first
+        // cut of the role table dropped them.
+        for prop in ["match", "fn", "let", "import", "export", "trait"] {
+            assert_no_errors(&format!(r#"let v = <label {prop}="x" />"#));
+        }
+    }
+
+    #[test]
+    fn record_type_field_named_after_a_floe_keyword() {
+        assert_no_errors("type T = { match: string, self: string, let: string }");
+    }
+
+    #[test]
+    fn member_named_after_a_floe_keyword() {
+        assert_no_errors("let x = row.match");
+    }
+
+    #[test]
+    fn named_argument_labelled_after_a_floe_keyword() {
+        assert_no_errors(r#"let x = render(match: "a")"#);
+    }
+
+    #[test]
+    fn dot_shorthand_named_for() {
+        assert_no_errors("let names = rows |> map(.for)");
+    }
+
+    #[test]
+    fn named_variant_field_named_for() {
+        assert_no_errors("type T = A { for: string } | B");
+    }
+
+    #[test]
+    fn function_type_param_labelled_for() {
+        assert_no_errors("typealias L = (for: string) -> string");
+    }
+
+    #[test]
+    fn for_block_parameter_named_for_is_rejected() {
+        assert_one_reserved_word_error(
+            "for User {\n    let label(self, for: string) -> string = { self.id }\n}",
+            "for",
+        );
+    }
+
+    #[test]
+    fn a_floe_keyword_cannot_bind() {
+        assert_one_reserved_word_error_with("let match = 1", "match", "keyword in Floe");
+    }
+
+    #[test]
+    fn a_floe_keyword_parameter_is_rejected() {
+        assert_one_reserved_word_error_with(
+            r#"let f(match: string) -> string = { "x" }"#,
+            "match",
+            "keyword in Floe",
+        );
+    }
+
+    // ── A shorthand reads a value, so it takes the pun advice ─────
+
+    #[test]
+    fn object_shorthand_named_for_takes_the_pun_advice() {
+        assert_one_reserved_word_error_with("let row = { for, name }", "for", "punning");
+    }
+
+    #[test]
+    fn brace_construct_shorthand_named_for_takes_the_pun_advice() {
+        assert_one_reserved_word_error_with("let row = Form { for }", "for", "punning");
+    }
+
+    #[test]
+    fn destructure_shorthand_named_for_takes_the_pun_advice() {
+        assert_one_reserved_word_error_with("let { for } = props", "for", "punning");
+    }
+
+    #[test]
+    fn punned_field_with_colon_takes_the_pun_advice() {
+        assert_one_reserved_word_error_with("let row = Form { for: }", "for", "punning");
+    }
+
+    #[test]
+    fn a_binding_takes_the_rename_advice() {
+        assert_one_reserved_word_error_with("let for = 1", "for", "Rename the value");
+    }
+
+    // ── A shorthand of a Floe keyword stays a block ───────────────
+
+    #[test]
+    fn lone_self_in_braces_is_a_block() {
+        assert_no_errors("for User {\n    let me(self) -> User = { self }\n}");
+    }
+
+    #[test]
+    fn match_in_braces_is_a_block() {
+        assert_no_errors(r#"let f(x: number) -> string = { match x { 1 -> "a", _ -> "b" } }"#);
     }
 
     // ── `for` stays a keyword in its own three positions ──────────

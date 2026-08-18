@@ -12,7 +12,7 @@
             "named": true
           },
           {
-            "type": "reserved_property",
+            "type": "keyword_property",
             "named": true
           }
         ]
@@ -1184,7 +1184,7 @@
             "named": true
           },
           {
-            "type": "reserved_property",
+            "type": "keyword_property",
             "named": true
           },
           {
@@ -1710,7 +1710,7 @@
             "named": true
           },
           {
-            "type": "reserved_property",
+            "type": "keyword_property",
             "named": true
           },
           {
@@ -2714,7 +2714,7 @@
             "named": true
           },
           {
-            "type": "reserved_property",
+            "type": "keyword_property",
             "named": true
           }
         ]
@@ -3021,6 +3021,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "keyword_property",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "lambda_parameter",
@@ -3556,7 +3561,7 @@
             "named": true
           },
           {
-            "type": "reserved_property",
+            "type": "keyword_property",
             "named": true
           }
         ]
@@ -4368,7 +4373,7 @@
             "named": true
           },
           {
-            "type": "reserved_property",
+            "type": "keyword_property",
             "named": true
           },
           {
@@ -4445,7 +4450,7 @@
             "named": true
           },
           {
-            "type": "reserved_property",
+            "type": "keyword_property",
             "named": true
           },
           {
@@ -4500,11 +4505,6 @@
         }
       ]
     }
-  },
-  {
-    "type": "reserved_property",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "return_statement",
@@ -4604,6 +4604,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "self",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "source_file",
@@ -4937,6 +4942,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "todo",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "trait_declaration",
@@ -5390,6 +5400,11 @@
     "fields": {}
   },
   {
+    "type": "unreachable",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "unwrap_expression",
     "named": true,
     "fields": {},
@@ -5793,7 +5808,7 @@
             "named": true
           },
           {
-            "type": "reserved_property",
+            "type": "keyword_property",
             "named": true
           },
           {
@@ -5855,7 +5870,7 @@
             "named": true
           },
           {
-            "type": "reserved_property",
+            "type": "keyword_property",
             "named": true
           },
           {
@@ -6144,6 +6159,10 @@
     "named": false
   },
   {
+    "type": "fn",
+    "named": false
+  },
+  {
     "type": "for",
     "named": false
   },
@@ -6204,12 +6223,16 @@
     "named": true
   },
   {
+    "type": "parse",
+    "named": false
+  },
+  {
     "type": "return",
     "named": false
   },
   {
     "type": "self",
-    "named": true
+    "named": false
   },
   {
     "type": "string",
@@ -6233,7 +6256,7 @@
   },
   {
     "type": "todo",
-    "named": true
+    "named": false
   },
   {
     "type": "trait",
@@ -6260,6 +6283,10 @@
     "named": false
   },
   {
+    "type": "typeof",
+    "named": false
+  },
+  {
     "type": "unchanged",
     "named": true
   },
@@ -6273,7 +6300,7 @@
   },
   {
     "type": "unreachable",
-    "named": true
+    "named": false
   },
   {
     "type": "use",

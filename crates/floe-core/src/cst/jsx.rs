@@ -92,18 +92,18 @@ impl<'src> CstParser<'src> {
         // A JSX prop names a property, so any word that may name a field may
         // stand here: `type="text"`, `for="id"`, `class="x"`.
         // Hyphenated names like `aria-label` and `data-testid` also work.
-        if self.at_field_name() {
+        if self.at_property_name() {
             self.bump();
         } else {
-            self.expect_field_name();
+            self.expect_property_name();
         }
         // Continue consuming -ident sequences for hyphenated attribute names
         while self.at(&TokenKind::Minus) {
             self.bump(); // -
-            if self.at_field_name() {
+            if self.at_property_name() {
                 self.bump();
             } else {
-                self.expect_field_name();
+                self.expect_property_name();
                 break;
             }
         }
