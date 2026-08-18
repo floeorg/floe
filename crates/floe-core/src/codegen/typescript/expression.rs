@@ -301,7 +301,7 @@ impl<'a> TypeScriptGenerator<'a> {
             // a marker in the output is not one, and the file used to
             // ship with `undefined` in it and a green check (#1493).
             ExprKind::Invalid => {
-                self.report_unemittable(expr.span);
+                self.report_unemittable(expr.id, expr.span);
 
                 pretty::str("undefined")
             }

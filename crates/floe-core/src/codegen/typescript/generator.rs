@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::checker::Type;
 use crate::parser::ast::{
-    ForBlock, ItemKind, TypeDef, TypeExprKind, TypedForBlock, TypedProgram, TypedTraitDecl,
+    ExprId, ForBlock, ItemKind, TypeDef, TypeExprKind, TypedForBlock, TypedProgram, TypedTraitDecl,
     TypedTypeDecl, TypedTypeDef, TypedTypeExpr, file_scope_names,
 };
 use crate::pretty::{self, Document};
@@ -329,6 +329,9 @@ pub(crate) struct TypeScriptGenerator<'a> {
     pub(super) emitted_factories: HashSet<String>,
     /// Diagnostics raised while emitting. See `CodegenOutput::diagnostics`.
     pub(super) diagnostics: Vec<crate::diagnostic::Diagnostic>,
+    /// Expressions that already reported E059. Codegen emits some nodes
+    /// more than once, and one expression is one problem.
+    pub(super) reported_unemittable: HashSet<ExprId>,
 }
 
 impl<'a> TypeScriptGenerator<'a> {
@@ -342,6 +345,7 @@ impl<'a> TypeScriptGenerator<'a> {
             unwrap_counter: 0,
             emitted_factories: HashSet::new(),
             diagnostics: Vec::new(),
+            reported_unemittable: HashSet::new(),
         }
     }
 
@@ -391,11 +395,18 @@ impl<'a> TypeScriptGenerator<'a> {
     /// Report an expression codegen cannot emit. The checker already
     /// rejected it, so this diagnostic is the compiler's guarantee that
     /// no broken file leaves without a message (#1493).
-    pub(super) fn report_unemittable(&mut self, span: crate::lexer::span::Span) {
+    pub(super) fn report_unemittable(&mut self, id: ExprId, span: crate::lexer::span::Span) {
         // One message per expression. Codegen emits some nodes more than
         // once (a match scrutinee reappears in every arm), and the same
-        // span twice would read as two problems.
-        if self.diagnostics.iter().any(|d| d.span == span) {
+        // expression twice would read as two problems.
+        //
+        // `ExprId` is the identity of an expression in a file, so it is
+        // the key. A span is not: two expressions can cover one range,
+        // and collapsing those would drop a real problem. Only the
+        // checker marks an expression invalid, and it keys
+        // `invalid_exprs` by the same real id, so no `ExprId::SYNTHETIC`
+        // node ever reaches here.
+        if !self.reported_unemittable.insert(id) {
             return;
         }
 
