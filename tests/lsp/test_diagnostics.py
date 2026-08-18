@@ -57,6 +57,7 @@ VALID_SOURCES = [
     ("use as identifier", F.USE_AS_IDENT),
     ("reserved words as field names", F.RESERVED_WORD_FIELDS),
     ("Floe keywords as property names", F.FLOE_KEYWORD_PROPERTIES),
+    ("comparator sort", F.SORT_WITH),
 ]
 
 
@@ -98,6 +99,16 @@ def test_floe_keyword_binding_errors(lsp):
     message = result.errors[0].get("message", "")
     assert "`match`" in message, f"Error should name the word, got: {message}"
     assert "keyword in Floe" in message, f"Error should say Floe reserves it, got: {message}"
+
+
+def test_stdlib_pipe_extra_argument_errors(lsp):
+    """`[3, 1, 2] |> Array.sort(cmp)` should report the wrong arity (#1492)."""
+    result = open_doc(lsp, URI, F.STDLIB_PIPE_EXTRA_ARG)
+    assert len(result.errors) > 0, "Expected an arity error"
+    messages = " ".join(d.get("message", "") for d in result.errors)
+    assert "expects 1 argument, found 2" in messages, (
+        f"Expected an arity message, got: {messages}"
+    )
 
 
 def test_shadowing_detected(lsp):

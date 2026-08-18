@@ -2254,6 +2254,8 @@ impl Checker {
             let _ = unify::unify(&return_type, actual_ret);
         }
 
+        self.check_stdlib_pipe_arity(stdlib_fn, display_name, right);
+
         // Foreign input: generics can't be resolved, propagate Foreign
         // so chained calls like db.insert(...).values(...).returning() |> await
         // don't collapse to Unknown.
@@ -2268,6 +2270,50 @@ impl Checker {
             }
             _ => resolved_ret,
         }
+    }
+
+    /// Report a pipe that supplies the wrong number of arguments to a stdlib
+    /// function.
+    ///
+    /// A codegen template substitutes only the placeholders it declares, so
+    /// arity has to be enforced here or the mistake reaches the emitted
+    /// TypeScript. An extra argument disappears: `products |> Array.sort(cmp)`
+    /// emitted `[...products].sort((a, b) => a - b)` and dropped `cmp`
+    /// (glb #1492). A missing one leaves the placeholder behind: `xs |>
+    /// Array.take()` emitted `xs.slice(0, $1)`, which is not valid
+    /// TypeScript. `check_call` runs the same rule for the qualified form
+    /// `Array.sort(products, cmp)`; this is the pipe form of it.
+    ///
+    /// The piped value is argument 1, so a pipe supplies `1 + args.len()`
+    /// arguments. A variadic function takes any number and is exempt.
+    fn check_stdlib_pipe_arity(
+        &mut self,
+        stdlib_fn: &crate::stdlib::StdlibFn,
+        display_name: &str,
+        right: &Expr,
+    ) {
+        if stdlib_fn.is_variadic() {
+            return;
+        }
+
+        let expected = stdlib_fn.params.len();
+        let supplied = match &right.kind {
+            ExprKind::Call { args, .. } => 1 + args.len(),
+            _ => 1,
+        };
+        if supplied == expected {
+            return;
+        }
+
+        self.emit_error(
+            format!(
+                "`{display_name}` expects {expected} argument{}, found {supplied}",
+                if expected == 1 { "" } else { "s" }
+            ),
+            right.span,
+            ErrorCode::TypeMismatch,
+            "the piped value counts as argument 1",
+        );
     }
 
     /// Collect single-letter type param names used in a function signature.

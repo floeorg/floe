@@ -5467,6 +5467,119 @@ fn stdlib_array_sort_rejects_non_array() {
 }
 
 #[test]
+fn stdlib_array_sort_rejects_non_numeric_array() {
+    let diags = check(
+        r#"
+type Product = { id: string }
+let _x = Array.sort([Product { id: "a" }])
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::TypeMismatch),
+        "Array.sort on Array<Product> should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_array_sort_accepts_number_array() {
+    let diags = check("let _x = Array.sort([3, 1, 2])");
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "Array.sort on Array<number> should pass, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_array_sort_with_takes_a_comparator() {
+    let diags = check(
+        r#"
+type Product = { id: string, rating: number }
+let _x = [Product { id: "a", rating: 1 }] |> Array.sortWith((a, b) -> a.rating - b.rating)
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "Array.sortWith with a comparator should pass, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+// glb #1492. A pipe accepted any number of arguments, so
+// `products |> Array.sort(cmp)` type-checked and codegen dropped `cmp`.
+// The `Array.sort` template holds no `$1`, so the comparator vanished.
+#[test]
+fn stdlib_pipe_rejects_extra_argument() {
+    let diags = check("let _x = [3, 1, 2] |> Array.sort((a, b) -> a - b)");
+    assert!(
+        has_error_containing(&diags, "`Array.sort` expects 1 argument, found 2"),
+        "an extra argument in a pipe should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+// The same hole in the other direction. `xs |> Array.take()` left the
+// placeholder unsubstituted and emitted `xs.slice(0, $1)`.
+#[test]
+fn stdlib_pipe_rejects_missing_argument() {
+    let diags = check("let _x = [3, 1, 2] |> Array.take()");
+    assert!(
+        has_error_containing(&diags, "`Array.take` expects 2 arguments, found 1"),
+        "a missing argument in a pipe should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_pipe_rejects_extra_argument_on_bare_name() {
+    let diags = check("let _x = [3, 1, 2] |> reverse(1)");
+    assert!(
+        has_error_containing(&diags, "expects 1 argument, found 2"),
+        "an extra argument to a bare stdlib pipe should error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_pipe_accepts_a_variadic_function() {
+    let diags = check(r#"let _x = "a" |> Console.log("b", "c")"#);
+    assert!(
+        !has_error(&diags, ErrorCode::TypeMismatch),
+        "a variadic stdlib function takes any arity, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn stdlib_array_map_rejects_non_array_pipe() {
     let diags = check("let _x = 42 |> Array.map((n) -> n)");
     assert!(

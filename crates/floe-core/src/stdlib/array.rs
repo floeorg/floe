@@ -6,8 +6,9 @@ pub fn register(fns: &mut Vec<StdlibFn>) {
     let u = tv(1);
 
     fns.extend([
-        stdlib_fn!("Array", "sort", [array_of(t.clone())], array_of(t.clone()), "[...$0].sort((a, b) => a - b)"),
+        stdlib_fn!("Array", "sort", [array_of(Type::Number)], array_of(Type::Number), "[...$0].sort((a, b) => a - b)"),
         stdlib_fn!("Array", "sortBy", [array_of(t.clone()), fun(vec![t.clone()], Type::Number)], array_of(t.clone()), "[...$0].sort((a, b) => ($1)(a) - ($1)(b))"),
+        stdlib_fn!("Array", "sortWith", [array_of(t.clone()), fun(vec![t.clone(), t.clone()], Type::Number)], array_of(t.clone()), "[...$0].sort($1)"),
         stdlib_fn!("Array", "map", [array_of(t.clone()), fun(vec![t.clone()], u.clone())], array_of(u.clone()), "$0.map($1)"),
         stdlib_fn!("Array", "filter", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], array_of(t.clone()), "$0.filter($1)"),
         stdlib_fn!("Array", "find", [array_of(t.clone()), fun(vec![t.clone()], Type::Bool)], option_of(t.clone()), "$0.find($1)"),

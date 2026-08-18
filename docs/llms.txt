@@ -449,6 +449,9 @@ users |> Array.mapResult(validateUser)          // Result<Array<ValidUser>, Erro
 result |> Result.orElse((e) -> tryFallback(e))   // lazy fallback chain
 
 // Array helpers
+nums |> Array.sort                                // Array<number> only — sorts numerically
+products |> Array.sortBy(.price)                  // sort by a numeric key
+products |> Array.sortWith((a, b) -> compare(a, b))  // sort with a comparator: negative, zero, positive
 items |> Array.filterMap((x) -> if_valid(x))     // map + filter in one pass (callback returns Option)
 items |> Array.partition(.active)                 // (active, inactive) — split by predicate
 nested |> Array.flatten                           // Array<Array<T>> -> Array<T>
