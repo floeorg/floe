@@ -258,6 +258,13 @@ impl Checker {
                     // Accept ambient type names from TypeScript lib definitions
                     // (e.g., Date, RegExp, URL, HTMLElement) as valid type annotations.
                     Type::Named(name.to_string())
+                } else if type_layout::is_stdlib_type_module(name) {
+                    // A stdlib module whose name is also a runtime type, such as
+                    // `URL`. Ambient loading finds these only when the project
+                    // tsconfig lists the lib that declares them, so the resolver
+                    // accepts them on its own. Ambient wins when it has the name,
+                    // because it carries the member types with it.
+                    Type::Named(name.to_string())
                 } else if type_layout::is_ts_utility_type(name) {
                     // Resolve args so inner references are marked used; TS resolves
                     // the utility-type semantics at its own compile time.

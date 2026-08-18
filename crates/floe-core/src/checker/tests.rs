@@ -9978,3 +9978,78 @@ let u = User { id, name }
             .collect::<Vec<_>>()
     );
 }
+
+// ── Stdlib type modules resolve without a matching TS lib (#1430) ─
+
+#[test]
+fn url_type_annotation_resolves_without_dom_lib() {
+    // The checker here loads no tsconfig, so `ambient_types` is empty. That is
+    // the same state a project reaches with `"lib": ["es2022"]`, which does not
+    // declare `URL`.
+    let diags = check(
+        r#"
+type User = { avatarUrl: Option<URL> }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`URL` is a stdlib type module and must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn regexp_type_annotation_resolves_without_dom_lib() {
+    let diags = check(
+        r#"
+type Rule = { pattern: RegExp }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`RegExp` is a stdlib type module and must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn url_search_params_type_annotation_resolves_without_dom_lib() {
+    let diags = check(
+        r#"
+type Query = { params: URLSearchParams }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`URLSearchParams` is a stdlib type module and must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn date_type_annotation_resolves_without_es5_lib() {
+    let diags = check(
+        r#"
+type Post = { createdAt: Date }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`Date` is a stdlib type module and must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_type_module_does_not_admit_arbitrary_names() {
+    let diags = check(
+        r#"
+type Bad = { field: Console }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Console`"),
+        "a stdlib module that is not a runtime type must stay unknown; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
