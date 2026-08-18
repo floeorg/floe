@@ -126,19 +126,26 @@ jobs:
           npx tsc --noEmit -p examples/todo-app/tsconfig.json
 
   typecheck-emitted:
-    name: Type-check emitted TypeScript (advisory)
+    name: Type-check emitted TypeScript (ratchet)
     needs: rust
     runs-on: ubuntu-latest
-    # ADVISORY, NOT BLOCKING. `floe build` writes `// @ts-nocheck` on every
-    # emitted file, so tsc has never checked any of it. The first run of this
-    # job found 89 diagnostics across the store and todo-app examples, in 15
-    # groups: dropped generic type arguments on `useState<T>`, a literal
-    # `undefined /* type error */` placeholder for `useSuspenseQuery`, trait
-    # impl methods that are neither exported nor imported, `JSX.Element` under
-    # React 19, and more. Issue #1470 carries the full list. Flip
-    # `continue-on-error` off once those are fixed. A job that is red on the
-    # day it lands teaches everyone to ignore it.
-    continue-on-error: true
+    # `floe build` writes `// @ts-nocheck` on every emitted file, so tsc has
+    # never checked any of it. The first run of this job found 89 diagnostics
+    # across the store and todo-app examples, in 15 groups: dropped generic
+    # type arguments on `useState<T>`, a literal `undefined /* type error */`
+    # placeholder for `useSuspenseQuery`, trait impl methods that are neither
+    # exported nor imported, `JSX.Element` under React 19, and more. Epic
+    # #1490 groups them, #1492 to #1499 break out the serious ones, and #1470
+    # is the original report.
+    #
+    # This job is a RATCHET, not a pass or fail. It counts diagnostics per
+    # TypeScript error code and compares each count against
+    # scripts/typecheck-emitted-baseline.txt. It passes at or below the
+    # baseline and fails above it, so it is green today, red the moment
+    # somebody adds a new diagnostic, and it walks to zero as the issues
+    # above land. It does NOT use `continue-on-error`: that leaves the check
+    # run reporting FAILURE on every pull request, and a red job teaches
+    # everyone to ignore it.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -168,7 +175,9 @@ jobs:
       - name: Install example dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Emit without @ts-nocheck and run tsc
+      - name: Emit without @ts-nocheck and run tsc against the ratchet
+        # The script writes the per-code table to $GITHUB_STEP_SUMMARY, so
+        # the counts show on the run page without opening the log.
         run: ./scripts/typecheck-emitted.sh ./floe
 
   lsp:
