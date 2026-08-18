@@ -14,14 +14,12 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{
-    Declaration, Statement, TSModuleDeclaration, TSModuleDeclarationBody, TSModuleDeclarationName,
-};
+use oxc_ast::ast::Statement;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
 use super::dts::{
-    collect_and_resolve_interfaces, collect_type_aliases, convert_function,
+    collect_and_resolve_interfaces, collect_namespaces, collect_type_aliases, convert_function,
     convert_variable_declarator,
 };
 use super::wrapper::wrap_boundary_type;
@@ -33,14 +31,18 @@ pub struct AmbientDeclarations {
     /// Global variables/functions (e.g., `window`, `document`, `navigator`, `fetch`).
     pub globals: Vec<(String, Type)>,
     /// Type definitions (interfaces) for resolving member access.
+    ///
+    /// A namespace member is here twice: under its bare name, and under its
+    /// qualified name (`DateTimeFormat` and `Intl.DateTimeFormat`). The
+    /// qualified key is what a dotted type annotation writes, so the type
+    /// resolver reads it to tell `Intl.DateTimeFormat` from `Intl.Nope`.
     pub types: HashMap<String, Type>,
     /// Names of ambient namespaces (`declare namespace Intl { ... }`), including
     /// the qualified name of a nested one (`NodeJS`, `Intl`, `JSX`, `A.B`).
     ///
-    /// Floe does not model namespaces yet (#848), so `types` holds each member
-    /// under its bare name and loses the namespace it came from. This set keeps
-    /// the namespace names themselves, which is what the type resolver needs to
-    /// tell `Intl.DateTimeFormat` apart from a typo.
+    /// The type resolver reads this set to decide whether a dotted name that
+    /// `types` does not carry names a real namespace, and so reports a bad
+    /// member, or names nothing at all.
     pub namespaces: HashSet<String>,
 }
 
@@ -572,85 +574,18 @@ fn parse_ambient_lib(content: &str) -> AmbientDeclarations {
         collect_globals_from_stmt(stmt, &mut globals, &mut seen_globals, false);
     }
 
-    // Phase 3: Collect namespace names. Phase 1 flattens a namespace member to
-    // its bare name, so the namespace itself would otherwise be invisible.
-    let mut namespaces: HashSet<String> = HashSet::new();
-    for stmt in &ret.program.body {
-        collect_namespace_names(stmt, None, &mut namespaces);
+    // Phase 3: Walk the namespaces. Phase 1 flattens a namespace member to
+    // its bare name, so both the namespace and the qualified member name are
+    // invisible without this pass.
+    let found = collect_namespaces(&ret.program.body);
+    for (qualified, ts_type) in found.member_types {
+        types.insert(qualified, wrap_boundary_type(&ts_type));
     }
 
     AmbientDeclarations {
         globals,
         types,
-        namespaces,
-    }
-}
-
-/// Record the name of every ambient namespace, and recurse into it.
-///
-/// `prefix` is the qualified name of the enclosing namespace, so
-/// `namespace A { namespace B { } }` records both `A` and `A.B`.
-///
-/// The statement kinds match `collect_interface_info` and
-/// `collect_type_alias_info` in `dts.rs`. A namespace that those two passes
-/// reach must appear here too, or the resolver rejects a type that the type
-/// tables carry.
-fn collect_namespace_names(
-    stmt: &Statement<'_>,
-    prefix: Option<&str>,
-    namespaces: &mut HashSet<String>,
-) {
-    match stmt {
-        Statement::TSModuleDeclaration(ns_decl) => {
-            collect_namespace_declaration(ns_decl, prefix, namespaces);
-        }
-        // `export namespace Foo { ... }` and `export declare namespace Foo
-        // { ... }`. `csstype` and `undici-types` both ship this shape.
-        Statement::ExportNamedDeclaration(export_decl) => {
-            if let Some(Declaration::TSModuleDeclaration(ns_decl)) = &export_decl.declaration {
-                collect_namespace_declaration(ns_decl, prefix, namespaces);
-            }
-        }
-        // `declare global { ... }` adds no name of its own, so its members
-        // keep the prefix they already had.
-        Statement::TSGlobalDeclaration(global_decl) => {
-            for inner in &global_decl.body.body {
-                collect_namespace_names(inner, prefix, namespaces);
-            }
-        }
-        _ => {}
-    }
-}
-
-/// Record one namespace or module declaration, and walk into its body.
-///
-/// A `declare module "pkg"` block carries a string literal name. It is a
-/// module and not a namespace, so it contributes no name of its own, and it
-/// leaves the prefix unchanged for its children, the way `declare global`
-/// does. The walk still enters it, because `@types/node` declares the
-/// `NodeJS` namespace inside `declare module "buffer"` and five more like it.
-fn collect_namespace_declaration(
-    ns_decl: &TSModuleDeclaration<'_>,
-    prefix: Option<&str>,
-    namespaces: &mut HashSet<String>,
-) {
-    let qualified = match &ns_decl.id {
-        TSModuleDeclarationName::Identifier(ident) => match prefix {
-            Some(outer) => Some(format!("{outer}.{}", ident.name)),
-            None => Some(ident.name.to_string()),
-        },
-        TSModuleDeclarationName::StringLiteral(_) => None,
-    };
-
-    let inner_prefix = qualified.as_deref().or(prefix);
-    if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
-        for inner in &block.body {
-            collect_namespace_names(inner, inner_prefix, namespaces);
-        }
-    }
-
-    if let Some(qualified) = qualified {
-        namespaces.insert(qualified);
+        namespaces: found.names,
     }
 }
 
@@ -966,6 +901,81 @@ interface Foo { x: number; }
 
         assert!(result.namespaces.contains("A"), "{:?}", result.namespaces);
         assert!(result.namespaces.contains("A.B"), "{:?}", result.namespaces);
+    }
+
+    #[test]
+    fn namespace_members_are_recorded_under_their_qualified_names() {
+        // #1543. The bare key stays, because every existing lookup uses it.
+        // The qualified key is the one a dotted type annotation writes.
+        let content = r#"
+            declare namespace Intl {
+                interface DateTimeFormat { format(d: string): string; }
+                type Locale = string;
+                class Segmenter { segment(s: string): string; }
+                enum Weekday { Mon, Tue }
+            }
+        "#;
+        let result = parse_ambient_lib(content);
+
+        for name in [
+            "Intl.DateTimeFormat",
+            "Intl.Locale",
+            "Intl.Segmenter",
+            "Intl.Weekday",
+        ] {
+            assert!(
+                result.types.contains_key(name),
+                "expected {name}, got {:?}",
+                result.types.keys().collect::<Vec<_>>()
+            );
+        }
+        assert!(
+            result.types.contains_key("DateTimeFormat"),
+            "the bare key must stay, got {:?}",
+            result.types.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_namespace_member_that_names_a_value_is_not_recorded_as_a_type() {
+        // `var` and `function` name values. A dotted type that points at one
+        // is a mistake, so the qualified key must not carry it.
+        let content = r#"
+            declare namespace Intl {
+                var DateTimeFormat: number;
+                function of(x: string): string;
+            }
+        "#;
+        let result = parse_ambient_lib(content);
+
+        assert!(
+            !result.types.contains_key("Intl.DateTimeFormat"),
+            "a var is not a type, got {:?}",
+            result.types.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !result.types.contains_key("Intl.of"),
+            "a function is not a type, got {:?}",
+            result.types.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_nested_namespace_member_carries_the_full_prefix() {
+        let content = r#"
+            declare namespace React {
+                namespace JSX {
+                    interface Element { type: string; }
+                }
+            }
+        "#;
+        let result = parse_ambient_lib(content);
+
+        assert!(
+            result.types.contains_key("React.JSX.Element"),
+            "expected React.JSX.Element, got {:?}",
+            result.types.keys().collect::<Vec<_>>()
+        );
     }
 
     #[test]

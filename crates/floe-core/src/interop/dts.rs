@@ -6,8 +6,8 @@ use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     Class, ClassElement, Declaration, ExportDefaultDeclarationKind, ExportNamedDeclaration,
     FormalParameters, MethodDefinitionKind, PropertyKey, Statement, TSEnumDeclaration,
-    TSModuleDeclarationBody, TSModuleDeclarationName, TSPropertySignature, TSSignature,
-    TSTupleElement, TSType as OxcTSType, TSTypeName, VariableDeclarator,
+    TSModuleDeclaration, TSModuleDeclarationBody, TSModuleDeclarationName, TSPropertySignature,
+    TSSignature, TSTupleElement, TSType as OxcTSType, TSTypeName, VariableDeclarator,
 };
 use oxc_parser::Parser;
 use oxc_span::SourceType;
@@ -341,6 +341,20 @@ fn parse_dts_content(content: &str) -> Result<ParseResult, String> {
             if seen_names.insert(export.name.clone()) {
                 exports.push(export);
             }
+        }
+    }
+
+    // Record every namespace member type under its qualified name too, such
+    // as `Foo.Bar`. A bare member name reaches the export list only through
+    // the `export = Foo` branch above, but a dotted type annotation writes
+    // the qualified name, so the checker needs that key whether the module
+    // exports the namespace or not (#1543).
+    for (qualified, ts_type) in collect_namespaces(&ret.program.body).member_types {
+        if seen_names.insert(qualified.clone()) {
+            exports.push(DtsExport {
+                name: qualified,
+                ts_type,
+            });
         }
     }
 
@@ -872,6 +886,140 @@ fn extract_from_namespace_body(body: &Option<TSModuleDeclarationBody<'_>>) -> Ve
     }
 
     exports
+}
+
+// ── Namespace walk ──────────────────────────────────────────────
+
+/// What a walk of the namespace declarations in one file found.
+pub(super) struct NamespaceContents {
+    /// The qualified name of every namespace, such as `Intl` and `A.B`.
+    pub names: HashSet<String>,
+    /// Every member type under its qualified name, such as
+    /// `Intl.DateTimeFormat`.
+    pub member_types: HashMap<String, TsType>,
+}
+
+/// Walk every namespace in `stmts`, and record both the namespaces and the
+/// types they declare.
+///
+/// Both interop loaders call this, so a namespace member carries the same
+/// key whether it arrives from a TypeScript lib file or from an npm package.
+/// The type resolver reads that key to tell `Intl.DateTimeFormat` apart from
+/// `Intl.Nope` (#1543).
+///
+/// A `declare module "pkg"` block names a module and not a namespace, so it
+/// adds no name of its own and leaves the prefix unchanged for its children.
+/// The walk still enters it, because `@types/node` declares the `NodeJS`
+/// namespace inside `declare module "buffer"` and five more like it. A
+/// `declare global { ... }` block behaves the same way.
+pub(super) fn collect_namespaces(stmts: &[Statement<'_>]) -> NamespaceContents {
+    let mut found = NamespaceContents {
+        names: HashSet::new(),
+        member_types: HashMap::new(),
+    };
+    for stmt in stmts {
+        walk_namespaces(stmt, None, &mut found);
+    }
+
+    found
+}
+
+/// Walk one statement for namespace declarations.
+///
+/// `prefix` is the qualified name of the enclosing namespace, so
+/// `namespace A { namespace B { } }` records both `A` and `A.B`.
+fn walk_namespaces(stmt: &Statement<'_>, prefix: Option<&str>, found: &mut NamespaceContents) {
+    match stmt {
+        Statement::TSModuleDeclaration(ns_decl) => {
+            walk_namespace_declaration(ns_decl, prefix, found);
+        }
+        // `export namespace Foo { ... }` and `export declare namespace Foo
+        // { ... }`. `csstype` and `undici-types` both ship this shape.
+        Statement::ExportNamedDeclaration(export_decl) => {
+            if let Some(Declaration::TSModuleDeclaration(ns_decl)) = &export_decl.declaration {
+                walk_namespace_declaration(ns_decl, prefix, found);
+            }
+        }
+        Statement::TSGlobalDeclaration(global_decl) => {
+            for inner in &global_decl.body.body {
+                walk_namespaces(inner, prefix, found);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Record one namespace or module declaration, and walk into its body.
+fn walk_namespace_declaration(
+    ns_decl: &TSModuleDeclaration<'_>,
+    prefix: Option<&str>,
+    found: &mut NamespaceContents,
+) {
+    let qualified = match &ns_decl.id {
+        TSModuleDeclarationName::Identifier(ident) => match prefix {
+            Some(outer) => Some(format!("{outer}.{}", ident.name)),
+            None => Some(ident.name.to_string()),
+        },
+        TSModuleDeclarationName::StringLiteral(_) => None,
+    };
+    let inner_prefix = qualified.as_deref().or(prefix);
+
+    match &ns_decl.body {
+        Some(TSModuleDeclarationBody::TSModuleBlock(block)) => {
+            for inner in &block.body {
+                if let Some(inner_prefix) = inner_prefix {
+                    for (name, ts_type) in type_entries(inner) {
+                        found
+                            .member_types
+                            .entry(format!("{inner_prefix}.{name}"))
+                            .or_insert(ts_type);
+                    }
+                }
+                walk_namespaces(inner, inner_prefix, found);
+            }
+        }
+        // `declare namespace A.B { ... }` parses as nested modules.
+        Some(TSModuleDeclarationBody::TSModuleDeclaration(nested)) => {
+            walk_namespace_declaration(nested, inner_prefix, found);
+        }
+        None => {}
+    }
+
+    if let Some(qualified) = qualified {
+        found.names.insert(qualified);
+    }
+}
+
+/// Every type name one statement declares, with its converted type.
+///
+/// TypeScript declares a type with `interface`, `type`, `class` or `enum`.
+/// A `function` or a `var` names a value only, so a dotted type that points
+/// at one is a mistake, and this list leaves it out.
+fn type_entries(stmt: &Statement<'_>) -> Vec<(String, TsType)> {
+    match stmt {
+        Statement::TSInterfaceDeclaration(_)
+        | Statement::TSTypeAliasDeclaration(_)
+        | Statement::ClassDeclaration(_)
+        | Statement::TSEnumDeclaration(_) => statement_entries(stmt),
+        Statement::ExportNamedDeclaration(export_decl) => export_decl
+            .declaration
+            .as_ref()
+            .filter(|decl| declaration_names_a_type(decl))
+            .map(declaration_entries)
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+/// True when a declaration introduces a type name in TypeScript.
+fn declaration_names_a_type(decl: &Declaration<'_>) -> bool {
+    matches!(
+        decl,
+        Declaration::TSInterfaceDeclaration(_)
+            | Declaration::TSTypeAliasDeclaration(_)
+            | Declaration::ClassDeclaration(_)
+            | Declaration::TSEnumDeclaration(_)
+    )
 }
 
 // ── Type conversion helpers ─────────────────────────────────────
