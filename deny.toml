@@ -6,11 +6,16 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+# cargo-deny accepts only `id` and `reason` on an ignore entry. It has no
+# expiry field, so the review date lives in the reason string and in this
+# comment. Read this entry again on 2026-11-18, and delete it when #1403
+# closes. osv-scanner.toml holds the same ignore with a real `ignoreUntil`.
 ignore = [
-    # bincode 2.x — the maintainers ceased development in 2025 (no
-    # security issue, no migration path). Re-evaluate if a fork or
-    # successor crate (postcard, bitcode, rkyv) becomes a better fit.
-    "RUSTSEC-2025-0141",
+    # bincode 2.x. The maintainers stopped development in 2025. That is a
+    # maintenance signal, not a vulnerability: RUSTSEC-2025-0141 reports no
+    # exploitable defect. Re-evaluate a successor crate (postcard, bitcode,
+    # rkyv) when the migration is worth the churn.
+    { id = "RUSTSEC-2025-0141", reason = "bincode is unmaintained, not vulnerable. Review on 2026-11-18, tracked in #1403." },
 ]
 
 [licenses]
