@@ -115,27 +115,6 @@ pub const MOD_RECORD: &str = "Record";
 pub const MOD_SET: &str = "Set";
 pub const MOD_DATE: &str = "Date";
 pub const MOD_PROMISE: &str = "Promise";
-pub const MOD_URL: &str = "URL";
-pub const MOD_URL_SEARCH_PARAMS: &str = "URLSearchParams";
-pub const MOD_REGEXP: &str = "RegExp";
-
-/// Stdlib modules whose name is also the name of a runtime type, so the name
-/// is valid in a type position.
-///
-/// The resolver cannot learn these from TypeScript. `URL` and
-/// `URLSearchParams` live in `lib.dom.d.ts`, and `Date` and `RegExp` live in
-/// `lib.es5.d.ts`, so ambient loading finds a name only when the project
-/// tsconfig lists the matching lib. A server-only project with
-/// `"lib": ["es2022"]` gets no `URL`, and `type X = URL` then fails with E002
-/// even though the stdlib declares `URL.parse(string) -> Result<URL, ParseError>`.
-///
-/// Floe owns these surfaces, so the resolver accepts the names on its own.
-pub const STDLIB_TYPE_MODULES: &[&str] = &[MOD_DATE, MOD_URL, MOD_URL_SEARCH_PARAMS, MOD_REGEXP];
-
-/// True when `name` is a stdlib module that is also a runtime type name.
-pub fn is_stdlib_type_module(name: &str) -> bool {
-    STDLIB_TYPE_MODULES.contains(&name)
-}
 
 // ── Variant classification ───────────────────────────────────────
 

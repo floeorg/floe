@@ -15,7 +15,7 @@ mod traits;
 mod type_compat;
 mod type_registration;
 mod type_resolve;
-mod type_var;
+pub(crate) mod type_var;
 mod types;
 mod unify;
 

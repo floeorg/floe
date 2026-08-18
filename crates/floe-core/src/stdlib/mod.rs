@@ -26,7 +26,7 @@ mod url_search_params;
 
 use std::sync::Arc;
 
-use crate::checker::Type;
+use crate::checker::{Type, type_var};
 
 /// A standard library function definition.
 #[derive(Debug, Clone)]
@@ -96,6 +96,30 @@ impl StdlibRegistry {
     /// Check if a name is a stdlib module.
     pub fn is_module(&self, name: &str) -> bool {
         self.functions.iter().any(|f| f.module == name)
+    }
+
+    /// True when the stdlib declares `name` as a type, so a user can write
+    /// the name in a type position.
+    ///
+    /// The answer comes from the registered signatures, not from a second
+    /// list beside them. A name counts when a stdlib function takes it or
+    /// returns it as `Type::Named`, at any depth. `URL.parse` returns
+    /// `Result<URL, ParseError>`, so both `URL` and `ParseError` are types
+    /// a user can name.
+    ///
+    /// The resolver cannot learn these names from TypeScript. `URL` and
+    /// `URLSearchParams` live in `lib.dom.d.ts`, and `Date` and `RegExp`
+    /// live in `lib.es5.d.ts`, so ambient loading finds a name only when
+    /// the project tsconfig lists the matching lib. A server project with
+    /// `"lib": ["es2022"]` gets none of them. No lib file declares
+    /// `ParseError` at all, because Floe alone owns it.
+    pub fn declares_type(&self, name: &str) -> bool {
+        let is_name = |t: &Type| matches!(t, Type::Named(n) if n == name);
+
+        self.functions.iter().any(|f| {
+            f.params.iter().any(|t| type_var::any_nested(t, &is_name))
+                || type_var::any_nested(&f.return_type, &is_name)
+        })
     }
 }
 

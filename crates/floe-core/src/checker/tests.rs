@@ -10053,3 +10053,107 @@ type Bad = { field: Console }
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn stdlib_type_module_rejects_type_arguments() {
+    // None of the stdlib type names is generic, so an argument list is an
+    // error the user must hear about.
+    let diags = check(
+        r#"
+type X = { d: URL<string> }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "`URL` takes no type arguments"),
+        "`URL<string>` must report an arity error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_type_module_reports_an_unknown_type_argument() {
+    // The resolver still walks the arguments, so a bad name inside them
+    // reports instead of disappearing.
+    let diags = check(
+        r#"
+type X = { d: URL<Bogus> }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Bogus`"),
+        "`URL<Bogus>` must report the unknown inner type; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn stdlib_type_module_marks_a_type_argument_used() {
+    // Walking the arguments also marks the names used, so the import is
+    // not reported as unused.
+    let diags = check(
+        r#"
+import trusted { Foo } from "some-lib"
+type X = { d: URL<Foo> }
+export let g(x: X) -> number = { 1 }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unused import"),
+        "`Foo` is used inside `URL<Foo>`; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn parse_error_resolves_as_a_type() {
+    // `URL.parse` returns `Result<URL, ParseError>`, so a user must be able
+    // to write that return type down.
+    let diags = check(
+        r#"
+export let f(s: string) -> Result<URL, ParseError> = { URL.parse(s) }
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "the signature of `URL.parse` must be writable; got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn an_ambient_global_value_does_not_shadow_a_stdlib_type() {
+    use crate::interop::ambient::AmbientDeclarations;
+
+    // lib.dom.d.ts declares `URL` twice: an interface, and a constructor
+    // value. When the loader keeps only the constructor, `ambient.types`
+    // has no `URL` entry and the env holds `URL` as a function. The type
+    // name must still resolve.
+    let mut ambient = AmbientDeclarations::default();
+    ambient.globals.push((
+        "URL".to_string(),
+        Type::Function {
+            params: vec![Type::String],
+            return_type: std::sync::Arc::new(Type::Named("URL".to_string())),
+            required_params: 1,
+        },
+    ));
+
+    let source = "export let f(u: URL) -> number = { 0 }";
+    let program = Parser::new(source).parse_program().expect("parse");
+    let checker = Checker::from_context(
+        HashMap::new(),
+        HashMap::new(),
+        Some(ambient),
+        HashSet::new(),
+    );
+    let diags = checker.check(&program);
+    assert!(
+        !has_error_containing(&diags, "is a value, not a type"),
+        "an ambient constructor value must not shadow the `URL` type; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
