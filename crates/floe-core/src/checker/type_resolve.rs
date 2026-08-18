@@ -351,6 +351,8 @@ impl Checker {
     /// describe. A namespace that no loader described at all leaves the
     /// member unchecked, because there is no member list to test it against.
     ///
+    /// `JSX` is unchecked on purpose. See the arm that names it.
+    ///
     /// The first segment is deliberately not looked up as a value, as a Floe
     /// type, or as an ambient interface. None of the three has members, so
     /// `Option.Option.Aaa` and `Element.Anything` are both typos, and neither
@@ -365,10 +367,20 @@ impl Checker {
 
         let root = name.split('.').next().unwrap_or(name);
 
-        // `JSX` is the one namespace Floe owns, and its members are Floe
-        // built-ins, which the test above already covered.
+        // `JSX` is unchecked, and this arm is deliberate. Floe holds one
+        // hardcoded name for the namespace it owns, `JSX.Element` in
+        // `type_layout`, and one name is not a member list. `JSX` is
+        // therefore a namespace whose contents Floe cannot describe, so the
+        // member stays unchecked, the same as an imported root that no
+        // loader listed.
+        //
+        // TypeScript does describe it. An emitted component names React's
+        // `JSX` namespace, so `JSX.IntrinsicElements` type checks there. A
+        // checker that rejected the name would disagree with the code it
+        // emits, which is worse than not checking it. #1544 gives `JSX` a
+        // real member list, and this arm moves to the member check then.
         if type_layout::is_builtin_namespace(root) {
-            return DottedType::unknown_member(name, root);
+            return DottedType::Unlisted;
         }
 
         // An ambient namespace always carries its member list, because one

@@ -10468,21 +10468,24 @@ type User = {
 }
 
 #[test]
-fn a_jsx_member_floe_does_not_own_errors() {
-    // Floe owns the `JSX` namespace, and `JSX.Element` is the one member it
-    // declares. `@types/react` 19 declares the namespace as `React.JSX`, so
-    // the ambient tables carry no global `JSX` to check any other member
-    // against, and the emitted TypeScript reports `Cannot find namespace
-    // 'JSX'` for it. #1544 gives `JSX` a real declaration; until then every
-    // other member is a typo (#1543).
+fn jsx_namespace_members_resolve() {
+    // Floe owns the `JSX` namespace. `@types/react` 19 declares it as
+    // `React.JSX`, so the ambient tables never carry a global `JSX`.
+    //
+    // The member check of #1543 leaves this namespace alone on purpose.
+    // Floe holds one hardcoded name for it, `JSX.Element`, and one name is
+    // not a member list. TypeScript does hold the list: an emitted component
+    // names React's `JSX` namespace, so `JSX.IntrinsicElements` type checks
+    // there. #1544 gives Floe the same list, and the member check covers
+    // `JSX` then.
     let diags = check(
         r#"
 type Props = { intrinsics: JSX.IntrinsicElements }
 "#,
     );
     assert!(
-        has_error_containing(&diags, "unknown type `JSX.IntrinsicElements`"),
-        "Floe declares no such member; got: {:?}",
+        !has_error_containing(&diags, "unknown type"),
+        "`JSX.*` must resolve without ambient help; got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
@@ -10638,40 +10641,6 @@ type Bad = { x: React.JSX.Nope }
             .is_some_and(|h| h.contains("`React.JSX` declares no type `Nope`"))),
         "the help must name the longest namespace prefix; got: {:?}",
         diags.iter().map(|d| &d.help).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn unknown_member_of_the_builtin_jsx_namespace_errors() {
-    // #1543, the reported defect. `JSX` is the one namespace Floe owns, and
-    // `JSX.Element` is its one member. Every other member is a typo, and the
-    // checker used to answer only with a return-type mismatch.
-    let diags = check(
-        r#"
-type Bad = { x: JSX.Whatever }
-"#,
-    );
-    assert!(
-        has_error_containing(&diags, "unknown type `JSX.Whatever`"),
-        "a member Floe does not own must error; got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn jsx_element_still_resolves_without_an_ambient_jsx_namespace() {
-    // The emitted TSX never meets a real global `JSX` namespace, so nothing
-    // ambient backs this name. #1544 tracks that. The member check must not
-    // break it.
-    let diags = check(
-        r#"
-let View() -> JSX.Element = { <div></div> }
-"#,
-    );
-    assert!(
-        !has_error_containing(&diags, "unknown type"),
-        "`JSX.Element` must keep resolving; got: {:?}",
-        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
