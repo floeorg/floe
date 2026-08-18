@@ -146,6 +146,41 @@ jobs:
           npx tsc --noEmit -p examples/store/tsconfig.json
           npx tsc --noEmit -p examples/todo-app/tsconfig.json
 
+      # The Vite plugin's test suite compiles fresh fixtures in temporary
+      # directories, so it has no `.floe/` output to read and must spawn a
+      # real compiler. It looks for `target/debug/floe`, the path a developer
+      # box builds and the path the example Vite configs name. This job
+      # downloads the `ci` profile build instead, so copy it under that name.
+      # The two profiles differ in optimisation only.
+      #
+      # The example bundles below no longer need the spawn. `Floe build
+      # examples` runs from inside each example and writes
+      # `examples/store/.floe/src/`, which is where the plugin looks, so every
+      # `.fl` reads that output: the store bundle takes 0.2 seconds rather
+      # than the 12.5 seconds it took when the plugin spawned the compiler
+      # once per file. This copy still covers them if that output ever goes
+      # stale.
+      - name: Put the binary where the example Vite configs look for it
+        run: |
+          mkdir -p target/debug
+          cp floe target/debug/floe
+
+      # A .fl file that a hand-written .tsx imports broke every production
+      # bundle under Vite 8 (#1567). These two builds are the proof that a
+      # person who follows the documented setup can still ship.
+      - name: Bundle the React examples with Vite
+        run: |
+          pnpm --filter floe-store build
+          pnpm --filter floe-todo-app build
+
+      - name: Bundler plugin tests
+        # The esbuild plugin's tests call `floe` from PATH. The Vite plugin's
+        # tests use `target/debug/floe` from the step above, and fall back to
+        # PATH, so the export serves both suites.
+        run: |
+          PATH="$PWD:$PATH" pnpm --filter @floeorg/vite-plugin test
+          PATH="$PWD:$PATH" pnpm --filter @floeorg/esbuild-plugin test
+
   typecheck-emitted:
     name: Type-check emitted TypeScript (ratchet)
     needs: rust

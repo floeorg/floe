@@ -48,6 +48,36 @@ describe("@floeorg/esbuild-plugin", () => {
     assert.match(bundle, /hello\("world"\)/);
   });
 
+  it("bundles a .fl component that emits JSX", async () => {
+    mkdirSync(join(projectDir, "src", "jsx"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "src", "jsx", "greeting.fl"),
+      `export let Greeting(name: string) -> JSX.Element = {\n    <div className="greeting">{\`Hello, \${name}!\`}</div>\n}\n`,
+    );
+    writeFileSync(
+      join(projectDir, "src", "jsx-entry.ts"),
+      `import { Greeting } from "./jsx/greeting";\nexport const component = Greeting;\n`,
+    );
+    execFileSync("floe", ["build", "src/"], { cwd: projectDir, stdio: "pipe" });
+
+    const outfile = join(projectDir, "out-jsx.js");
+    const result = await build({
+      entryPoints: [join(projectDir, "src", "jsx-entry.ts")],
+      bundle: true,
+      format: "esm",
+      jsx: "automatic",
+      external: ["react", "react/jsx-runtime"],
+      outfile,
+      plugins: [floe()],
+      absWorkingDir: projectDir,
+      logLevel: "silent",
+    });
+    assert.equal(result.errors.length, 0);
+
+    const bundle = readFileSync(outfile, "utf8");
+    assert.match(bundle, /className: "greeting"/);
+  });
+
   it("respects user-written .ts siblings over .fl", async () => {
     mkdirSync(join(projectDir, "src", "ts-wins"), { recursive: true });
     writeFileSync(

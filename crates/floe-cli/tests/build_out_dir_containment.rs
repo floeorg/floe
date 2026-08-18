@@ -6,6 +6,12 @@
 //! wrote the emitted TypeScript beside the `.fl` source instead. That is how
 //! the example apps grew 30 committed emitted files. See issue #1557.
 //!
+//! `--emit-stdout` is the exception, and the last two tests below pin it.
+//! There the TypeScript on stdout is the output and the `.d.fl.ts` is a side
+//! effect, so a declaration that cannot be placed is skipped rather than
+//! fatal. The rule that matters, that nothing lands beside the source, holds
+//! on every path.
+//!
 //! These tests run the real binary from a sibling directory and read the
 //! source tree afterwards.
 
@@ -133,14 +139,42 @@ fn an_emit_stdout_build_from_a_sibling_directory_writes_no_declarations_beside_t
         stdout.contains("Todo"),
         "the command must still print the compiled TypeScript, got: {stdout}"
     );
+    // The caller asked for TypeScript on stdout and got it. The `.d.fl.ts`
+    // is a side effect whose write already ignores its own failures, so a
+    // declaration that cannot be placed skips and the run succeeds. The
+    // Vite plugin compiles fixtures outside its working directory, and a
+    // non-zero exit here breaks every one of them.
     assert!(
-        !ok,
-        "a declaration that cannot be placed must fail, stderr: {stderr}"
+        ok,
+        "an emit-stdout build must succeed when only the declaration cannot          be placed, stderr: {stderr}"
     );
     assert_eq!(
         before,
         list_files(&tree.app()),
         "the build wrote a declaration beside the source, stderr: {stderr}"
+    );
+}
+
+#[test]
+fn an_emit_stdout_build_from_a_sibling_directory_says_why_it_skipped_the_declaration() {
+    let tree = Tree::new();
+
+    let (_ok, _stdout, stderr) = run_floe(
+        &tree.other(),
+        &["build", "--emit-stdout", "../app/src/todo.fl"],
+    );
+
+    assert!(
+        stderr.contains("todo.fl"),
+        "the note must name the source file, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("no .d.fl.ts"),
+        "the note must say what is missing, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("outside the working directory"),
+        "the note must say why, got: {stderr}"
     );
 }
 

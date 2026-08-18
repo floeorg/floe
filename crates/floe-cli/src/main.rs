@@ -36,6 +36,12 @@ fn current_working_dir() -> Result<PathBuf> {
 /// one of them writes output that no `rootDirs` entry reads, which is the
 /// same silent failure under a new path. The caller reports the error, and
 /// the message names the one action that fixes it.
+///
+/// The caller decides what the refusal costs. `cmd_build` and `cmd_watch`
+/// end the run, because the file output is the whole point there. The
+/// `--emit-stdout` path skips the declaration and keeps going, because the
+/// output it was asked for already went to stdout. See
+/// `place_stdout_declaration`.
 fn source_relative_to_cwd<'a>(canonical: &'a Path, cwd: &Path) -> Result<&'a Path> {
     canonical.strip_prefix(cwd).map_err(|_| {
         anyhow!(
@@ -223,27 +229,65 @@ fn cmd_build_file_stdout(path: &Path) -> Result<()> {
     }
     print!("{}", output.code);
 
-    // Write .d.fl.ts to .floe/ so TypeScript can resolve types via rootDirs
-    if !output.dts.is_empty() {
-        let canonical = path
-            .canonicalize()
-            .with_context(|| format!("failed to canonicalize {}", path.display()))?;
-        let cwd = current_working_dir()?;
-        let relative = source_relative_to_cwd(&canonical, &cwd)?;
-        let project_dir = find_project_dir(&cwd);
-        let out_dir = project_dir.join(".floe");
-        let dts_name = format!(
-            "{}.d.fl.ts",
-            relative.file_stem().unwrap_or_default().to_string_lossy()
-        );
-        let dts_path = out_dir.join(relative).with_file_name(dts_name);
-        if let Some(parent) = dts_path.parent() {
-            std::fs::create_dir_all(parent).ok();
-        }
-        std::fs::write(&dts_path, &output.dts).ok();
-    }
+    place_stdout_declaration(path, &output.dts);
 
     Ok(())
+}
+
+/// Write the `.d.fl.ts` for an `--emit-stdout` build under `.floe/`.
+///
+/// This is a side effect, not the output. The TypeScript already went to
+/// stdout, and the declaration exists only so an editor can resolve types
+/// through `rootDirs`. Every failure here is therefore a skip and never a
+/// failed run.
+///
+/// That rule is the one the function already followed: both the directory
+/// creation and the write itself discard their errors. A source that
+/// `source_relative_to_cwd` cannot place is the same class of event as a
+/// write that fails, so it now skips too. Until then this path printed the
+/// TypeScript and then exited non-zero, which broke the Vite plugin for
+/// every source outside the caller's working directory.
+///
+/// `cmd_build` and `cmd_watch` keep the refusal. There the file output is
+/// what the caller asked for, and a source that escapes `out_dir` writes
+/// TypeScript beside the `.fl` file, which is the bug in issue #1557.
+fn place_stdout_declaration(path: &Path, dts: &str) {
+    if dts.is_empty() {
+        return;
+    }
+
+    let Ok(canonical) = path.canonicalize() else {
+        return;
+    };
+    let Ok(cwd) = current_working_dir() else {
+        return;
+    };
+
+    let Ok(relative) = source_relative_to_cwd(&canonical, &cwd) else {
+        // Say so. A person chasing a missing declaration deserves the
+        // reason, and stderr does not disturb the TypeScript on stdout.
+        eprintln!(
+            "note: floe wrote no .d.fl.ts for {}. The source is outside the working \
+             directory {}, so no path under .floe/ names it. The TypeScript went to \
+             stdout as asked. Run the build from a directory that contains the source \
+             if you need the declaration.",
+            canonical.display(),
+            cwd.display()
+        );
+        return;
+    };
+
+    let project_dir = find_project_dir(&cwd);
+    let out_dir = project_dir.join(".floe");
+    let dts_name = format!(
+        "{}.d.fl.ts",
+        relative.file_stem().unwrap_or_default().to_string_lossy()
+    );
+    let dts_path = out_dir.join(relative).with_file_name(dts_name);
+    if let Some(parent) = dts_path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    std::fs::write(&dts_path, dts).ok();
 }
 
 // ── Build (stdin -> stdout) ───────────────────────────────────────
