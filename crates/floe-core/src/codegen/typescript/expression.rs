@@ -73,13 +73,32 @@ impl<'a> TypeScriptGenerator<'a> {
             ExprKind::Pipe { left, right } => self.emit_pipe(left, right),
 
             ExprKind::Unwrap(inner) => {
+                // The wrapper runs the inner expression inside its own arrow,
+                // so an `await` in that expression lands in the arrow and not
+                // in the enclosing function. The arrow was plain every time,
+                // and `Http.get(url) |> Promise.await?` emitted
+                // `(() => { const __r = (await fetch(url)); ... })()`. tsc read
+                // that as `TS2311: Cannot find name 'await'` (glb #1499).
+                //
+                // `expr_contains_await` is the checker's own
+                // `body_has_promise_await`, and the checker marks the enclosing
+                // function `async` from the same answer, so the added `await`
+                // always has an async function to sit in. `emit_parse` and the
+                // two match wrappers build this same shape.
+                let is_async = expr_contains_await(inner);
                 let inner_doc = self.emit_expr(inner);
+                let (open, close) = if is_async {
+                    ("(await (async () => { const __r = ", " })())")
+                } else {
+                    ("(() => { const __r = ", " })()")
+                };
                 pretty::concat([
-                    pretty::str("(() => { const __r = "),
+                    pretty::str(open),
                     inner_doc,
                     pretty::str(
-                        "; if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })()",
+                        "; if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r;",
                     ),
+                    pretty::str(close),
                 ])
             }
 
@@ -89,11 +108,28 @@ impl<'a> TypeScriptGenerator<'a> {
                 args,
             } => {
                 if self.is_untrusted_call(callee) {
-                    let is_async = matches!(&*expr.ty, crate::checker::Type::Promise(_));
+                    let returns_promise = matches!(&*expr.ty, crate::checker::Type::Promise(_));
+                    // The wrapper evaluates the callee and every argument
+                    // inside its own arrow. An `await` in one of them lands in
+                    // that arrow, so the arrow has to be `async` even when the
+                    // call itself hands back no promise. The wrapper's value
+                    // stays the `Result` the checker typed, so this shape
+                    // awaits the arrow back at the call site (glb #1499).
+                    let inner_awaits = expr_contains_await(callee)
+                        || args.iter().any(|arg| match arg {
+                            Arg::Positional(value) | Arg::Named { value, .. } => {
+                                expr_contains_await(value)
+                            }
+                        });
+                    let await_wrapper = !returns_promise && inner_awaits;
                     let mut docs = Vec::new();
-                    if is_async {
+                    if returns_promise {
                         docs.push(pretty::str(format!(
                             "(async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: await "
+                        )));
+                    } else if await_wrapper {
+                        docs.push(pretty::str(format!(
+                            "(await (async () => {{ try {{ return {{ {OK_FIELD}: true as const, {VALUE_FIELD}: "
                         )));
                     } else {
                         docs.push(pretty::str(format!(
@@ -105,9 +141,13 @@ impl<'a> TypeScriptGenerator<'a> {
                     docs.push(pretty::str("("));
                     docs.push(self.emit_args(args));
                     docs.push(pretty::str(")"));
-                    docs.push(pretty::str(format!(
+                    let mut close = format!(
                         " }}; }} catch (_e) {{ return {{ {OK_FIELD}: false as const, {ERROR_FIELD}: _e instanceof Error ? _e : new Error(String(_e)) }}; }} }})()"
-                    )));
+                    );
+                    if await_wrapper {
+                        close.push(')');
+                    }
+                    docs.push(pretty::str(close));
                     pretty::concat(docs)
                 } else if let Some(output) = self.try_emit_stdlib_call(callee, args) {
                     pretty::str(output)

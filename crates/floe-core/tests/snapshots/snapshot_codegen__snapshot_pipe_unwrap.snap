@@ -1,5 +1,5 @@
 ---
-source: tests/snapshot_codegen.rs
+source: crates/floe-core/tests/snapshot_codegen.rs
 expression: output
 ---
 function validate(s: string): { ok: true; value: string } | { ok: false; error: string } {
@@ -36,4 +36,14 @@ function _testPipeUnwrapOpMixed(): { ok: true; value: string } | { ok: false; er
 
 function _testPipeUnwrapOpOption(): number | null | undefined {
   return (() => { const __r = [1, 2, 3][0]; if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })();
+}
+
+type Post = { id: number; title: string };
+
+async function _testAwaitChainTail(url: string): Promise<{ ok: true; value: Post } | { ok: false; error: Error }> {
+  return (await (async () => { const __v = (await (async () => { const __r = (await (async () => { try { const _r = await ((await (async () => { const __r = (await (async () => { try { const _r = await fetch(url); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()); if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })())).json(); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()); if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })()); if (typeof __v !== "object" || __v === null) return { ok: false as const, error: new Error("expected object, got " + typeof __v) }; return { ok: true as const, value: __v as Post }; })());
+}
+
+async function _testAwaitSingleTail(url: string): Promise<{ ok: true; value: Response } | { ok: false; error: Error }> {
+  return { ok: true as const, value: (await (async () => { const __r = (await (async () => { try { const _r = await fetch(url); return { ok: true as const, value: _r }; } catch (_e) { return { ok: false as const, error: _e instanceof Error ? _e : new Error(String(_e)) }; } })()); if (typeof __r === 'object' && __r !== null && 'ok' in __r && typeof __r.ok === 'boolean') { if (!__r.ok) throw __r.error; return __r.value; } return __r; })()) };
 }

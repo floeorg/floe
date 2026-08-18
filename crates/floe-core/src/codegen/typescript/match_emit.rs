@@ -71,10 +71,24 @@ impl<'a> TypeScriptGenerator<'a> {
                 let body_str = Self::doc_to_string(&body_doc);
                 let next_str = Self::doc_to_string(&next_doc);
 
+                // The arrow holds the bindings, the guard, this arm's body and
+                // a copy of every later arm, so an `await` in any one of them
+                // lands inside the arrow. A plain arrow with an `await` in it
+                // is not TypeScript (glb #1499).
+                let has_await = expr_contains_await(subject)
+                    || expr_contains_await(guard)
+                    || expr_contains_await(&arm.body)
+                    || arms_contain_await(&arms[index + 1..]);
+                let prefix = if has_await {
+                    "await (async () => {"
+                } else {
+                    "(() => {"
+                };
+
                 return pretty::concat([
                     cond_doc,
                     pretty::str(format!(
-                        " ? (() => {{ {binding_strs}if ({guard_str}) {{ return {body_str}; }} return {next_str}; }})()"
+                        " ? {prefix} {binding_strs}if ({guard_str}) {{ return {body_str}; }} return {next_str}; }})()"
                     )),
                     pretty::str(format!(" : {next_str}")),
                 ]);
@@ -258,7 +272,16 @@ impl<'a> TypeScriptGenerator<'a> {
             }
 
             let subj_str = self.emit_expr_string(subject);
-            let mut s = format!("(() => {{ const _m = {subj_str}.match(/^");
+            // Same rule as the non-string arm below: the arrow holds the
+            // subject and the arm body, so an `await` in either one has to
+            // make the arrow `async` (glb #1499).
+            let has_await = expr_contains_await(subject) || expr_contains_await(body);
+            let prefix = if has_await {
+                "await (async () => {"
+            } else {
+                "(() => {"
+            };
+            let mut s = format!("{prefix} const _m = {subj_str}.match(/^");
             append_string_pattern_regex_body(&mut s, segments);
             s.push_str("$/); ");
 
@@ -367,6 +390,16 @@ impl<'a> TypeScriptGenerator<'a> {
             out.push(';');
         }
     }
+}
+
+/// True when any of these arms awaits, in its guard or in its body.
+///
+/// The guard-arm wrapper copies every later arm into its own arrow, so an
+/// `await` in a later arm decides whether that arrow is `async` (glb #1499).
+fn arms_contain_await(arms: &[TypedMatchArm]) -> bool {
+    arms.iter().any(|arm| {
+        expr_contains_await(&arm.body) || arm.guard.as_ref().is_some_and(expr_contains_await)
+    })
 }
 
 fn append_string_pattern_regex_body(s: &mut String, segments: &[StringPatternSegment]) {

@@ -3507,3 +3507,160 @@ fn unwrap_chain_awaits_a_parenthesised_async_collect_block() {
         "the step after the collect block must still run, got: {result}"
     );
 }
+
+// ── `await` inside an emitted wrapper (#1499) ────────────────────
+//
+// Codegen wraps several shapes in an arrow it calls at once. Whenever the
+// wrapped code awaits, the arrow has to be `async` and the call site has to
+// await it back. A plain arrow with an `await` in it is not TypeScript, and
+// tsc reads the `await` as a name: `TS2311: Cannot find name 'await'`.
+
+#[test]
+fn piped_await_unwrap_emits_an_async_arrow() {
+    // The shape from #1499: two `Promise.await?` steps in one tail
+    // expression. Each `?` builds an arrow around an `await`.
+    let result = emit_typed(
+        r#"
+type Post = { id: number, title: string }
+
+export async let fetchPost(url: string) -> Result<Post, Error> = {
+    Http.get(url) |> Promise.await? |> Http.json |> Promise.await? |> parse<Post>
+}
+"#,
+    );
+    assert!(
+        result.contains("(await (async () => { const __r = "),
+        "each unwrap wrapper around an await must be an awaited async arrow, got: {result}"
+    );
+    assert!(
+        !result.contains("(() => { const __r = "),
+        "no unwrap wrapper in this chain may stay a plain arrow, got: {result}"
+    );
+    assert_eq!(
+        result.matches("(await (async () => { const __r = ").count(),
+        2,
+        "both unwrap steps must be marked, got: {result}"
+    );
+}
+
+#[test]
+fn unwrap_without_an_await_keeps_the_plain_arrow() {
+    // The single-step chain with no await emits what it emitted before.
+    let result = emit_typed(
+        r#"
+let validate(s: string) -> Result<string, string> = { Ok(s) }
+
+export let run() -> Result<string, string> = {
+    "hello" |> validate? |> validate
+}
+"#,
+    );
+    assert!(
+        result.contains("(() => { const __r = "),
+        "an unwrap with no await stays a plain arrow, got: {result}"
+    );
+    assert!(
+        !result.contains("async"),
+        "an unwrap with no await emits no async marker, got: {result}"
+    );
+}
+
+#[test]
+fn guarded_match_arm_awaiting_emits_an_async_arrow() {
+    // The guard-arm wrapper holds the bindings, the guard and the body.
+    let result = emit_typed(
+        r#"
+async let g() -> number = { 1 }
+
+export async let pick(x: Option<number>) -> number = {
+    match x {
+        Some(n) when n > 0 -> n + (g() |> Promise.await),
+        _ -> 0,
+    }
+}
+"#,
+    );
+    assert!(
+        result.contains("await (async () => {"),
+        "a guard arm that awaits must emit an awaited async arrow, got: {result}"
+    );
+    assert!(
+        !result.contains("? (() => {"),
+        "the guard arm must not stay a plain arrow, got: {result}"
+    );
+}
+
+#[test]
+fn guarded_match_arm_awaiting_in_a_later_arm_emits_an_async_arrow() {
+    // The wrapper copies every later arm into its own arrow, so an await
+    // in a later arm decides the marker too.
+    let result = emit_typed(
+        r#"
+async let g() -> number = { 1 }
+
+export async let pick(x: Option<number>) -> number = {
+    match x {
+        Some(n) when n > 0 -> n,
+        _ -> g() |> Promise.await,
+    }
+}
+"#,
+    );
+    assert!(
+        result.contains("await (async () => {"),
+        "an await in a later arm must mark the guard arm's arrow, got: {result}"
+    );
+}
+
+#[test]
+fn string_pattern_match_arm_awaiting_emits_an_async_arrow() {
+    let result = emit_typed(
+        r#"
+async let g() -> number = { 1 }
+
+export async let route(s: string) -> number = {
+    match s {
+        "user/${id}" -> {
+            let y = g() |> Promise.await
+            y
+        },
+        _ -> 0,
+    }
+}
+"#,
+    );
+    assert!(
+        result.contains("await (async () => { const _m = "),
+        "a string-pattern arm that awaits must emit an awaited async arrow, got: {result}"
+    );
+    assert!(
+        !result.contains("(() => { const _m = "),
+        "the string-pattern arm must not stay a plain arrow, got: {result}"
+    );
+}
+
+#[test]
+fn untrusted_call_with_an_awaiting_argument_emits_an_async_arrow() {
+    // The try/catch wrapper evaluates the arguments inside its own arrow.
+    // The call returns no promise, so the wrapper is awaited back and the
+    // value stays the `Result` the checker typed.
+    let result = emit_typed(
+        r#"
+import { someFn } from "untrusted-pkg"
+
+async let g() -> number = { 1 }
+
+export async let wrap() -> Result<number, Error> = {
+    someFn(g() |> Promise.await)
+}
+"#,
+    );
+    assert!(
+        result.contains("(await (async () => { try {"),
+        "an awaiting argument must mark the untrusted-call wrapper, got: {result}"
+    );
+    assert!(
+        !result.contains("value: await someFn"),
+        "the call itself returns no promise, so its value must not be awaited, got: {result}"
+    );
+}

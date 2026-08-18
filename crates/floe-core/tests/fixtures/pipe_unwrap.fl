@@ -33,3 +33,19 @@ let _testPipeUnwrapOpMixed() -> Result<string, string> = {
 let _testPipeUnwrapOpOption() -> Option<number> = {
     [1, 2, 3] |>? Array.head
 }
+
+type Post = {
+    id: number,
+    title: string,
+}
+
+// Two `Promise.await?` steps in one tail expression. Each `?` builds an
+// arrow around an `await`, so both arrows must be `async` (#1499).
+async let _testAwaitChainTail(url: string) -> Result<Post, Error> = {
+    Http.get(url) |> Promise.await? |> Http.json |> Promise.await? |> parse<Post>
+}
+
+// One `Promise.await?` step, for the single-step chain.
+async let _testAwaitSingleTail(url: string) -> Result<Response, Error> = {
+    Ok(Http.get(url) |> Promise.await?)
+}
