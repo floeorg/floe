@@ -41,6 +41,10 @@ const NODE_TYPES_PACKAGE: &str = "@types/node";
 /// deprecated stub and breaks the project (#1465, #1509 review). Both
 /// spellings route to `@types/node`, which is the package that actually
 /// types them.
+///
+/// A builtin is never E013. The module is there whatever is installed,
+/// so a missing `@types/node` leaves it typed but unresolvable, which
+/// is W004. See [`is_node_builtin`].
 const NODE_BUILTINS: [&str; 44] = [
     "assert",
     "async_hooks",
@@ -104,7 +108,7 @@ const NODE_BUILTINS: [&str; 44] = [
 /// - a Node subpath import, `#lib/helper`, which `package.json`
 ///   resolves through its own `imports` field
 fn required_package(specifier: &str) -> Option<&str> {
-    if specifier.starts_with("node:") {
+    if is_node_builtin(specifier) {
         return Some(NODE_TYPES_PACKAGE);
     }
     // `package.json` `imports` owns every `#` specifier. It is a private
@@ -113,14 +117,28 @@ fn required_package(specifier: &str) -> Option<&str> {
         return None;
     }
     let (package, _subpath) = split_specifier(specifier);
-    if NODE_BUILTINS.contains(&package) {
-        return Some(NODE_TYPES_PACKAGE);
-    }
     if !is_valid_package_name(package) {
         return None;
     }
 
     Some(package)
+}
+
+/// True for a module Node itself supplies: `node:crypto`, `fs`,
+/// `fs/promises`.
+///
+/// The checker asks this before it picks a severity. A builtin resolves
+/// at run time with nothing installed, so "cannot find module" is
+/// simply false about one. A missing `@types/node` leaves it untyped
+/// instead, which is a warning, and a Bun or Deno project that never
+/// adds `@types/node` still builds (#1465).
+pub fn is_node_builtin(specifier: &str) -> bool {
+    if specifier.starts_with("node:") {
+        return true;
+    }
+    let (head, _subpath) = split_specifier(specifier);
+
+    NODE_BUILTINS.contains(&head)
 }
 
 /// The advice printed under an E013 diagnostic. It names the command
@@ -195,20 +213,26 @@ pub fn find_missing_packages(
     .collect()
 }
 
-/// The npm packages `program` imports, sorted and deduplicated.
+/// Every npm package `program` imports, paired with whether it is
+/// installed right now. Sorted and deduplicated.
 ///
-/// `floe check` stores this beside a module's cached diagnostics. A
-/// clean cached module means every one of these was installed when it
-/// was written, so re-testing them is enough to notice that somebody
-/// has since removed one (#1465).
-pub fn imported_packages(
+/// `floe check` stores this beside a module's cached diagnostics and
+/// re-tests it on the next run. Source fingerprints cannot see
+/// `node_modules`, so without this a clean result outlived the package
+/// it depended on and `floe check` disagreed with `floe build` (#1465).
+///
+/// The pair carries the answer rather than assuming it. A clean module
+/// can name a package that is absent: a `node:` import warns W004 and
+/// stays clean while `@types/node` is missing, and installing
+/// `@types/node` later must still invalidate it.
+pub fn imported_package_state(
     program: &Program,
     resolved_imports: &HashMap<String, ResolvedImports>,
     tsconfig_paths: &TsconfigPaths,
     source_dir: &Path,
     project_dir: &Path,
-) -> Vec<String> {
-    let mut packages: Vec<String> = npm_package_imports(
+) -> Vec<(String, bool)> {
+    let mut packages: Vec<(String, bool)> = npm_package_imports(
         program,
         resolved_imports,
         tsconfig_paths,
@@ -216,7 +240,7 @@ pub fn imported_packages(
         project_dir,
     )
     .into_iter()
-    .map(|(_, package)| package.to_string())
+    .map(|(_, package)| (package.to_string(), is_installed(package, project_dir)))
     .collect();
     packages.sort_unstable();
     packages.dedup();
@@ -607,14 +631,14 @@ mod tests {
     }
 
     #[test]
-    fn imported_packages_lists_what_the_cache_must_re_test() {
+    fn imported_package_state_lists_what_the_cache_must_re_test() {
         let root = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(root.path().join("node_modules/present")).unwrap();
         let program = program_of(
             "import trusted { a } from \"present\"\nimport trusted { b } from \"present/sub\"\nimport { c } from \"./local\"\n",
         );
 
-        let packages = imported_packages(
+        let packages = imported_package_state(
             &program,
             &HashMap::new(),
             &TsconfigPaths::default(),
@@ -622,7 +646,26 @@ mod tests {
             root.path(),
         );
 
-        assert_eq!(packages, vec!["present".to_string()]);
+        assert_eq!(packages, vec![("present".to_string(), true)]);
+    }
+
+    #[test]
+    fn imported_package_state_records_a_package_that_is_absent() {
+        // A `node:` import stays clean while `@types/node` is missing,
+        // so the cache has to remember that it was missing.
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("node_modules")).unwrap();
+        let program = program_of("import trusted { randomUUID } from \"node:crypto\"\n");
+
+        let packages = imported_package_state(
+            &program,
+            &HashMap::new(),
+            &TsconfigPaths::default(),
+            root.path(),
+            root.path(),
+        );
+
+        assert_eq!(packages, vec![("@types/node".to_string(), false)]);
     }
 
     #[test]

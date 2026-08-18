@@ -126,7 +126,7 @@ impl PackageCompiler {
         let interface = cache.read(&relative)?;
         let dep_sources = read_dep_sources(&interface.dependency_hashes);
         if !CacheStore::is_fresh(&interface, source, &dep_sources)
-            || !self.npm_packages_still_installed(&interface)
+            || !self.npm_packages_unchanged(&interface)
         {
             return None;
         }
@@ -151,19 +151,19 @@ impl PackageCompiler {
             return false;
         }
 
-        // The entry is clean, so every package it names was installed
-        // when it was written. Re-test them: a `stat` each, against a
-        // whole re-analyse (#1465).
-        self.npm_packages_still_installed(&interface)
+        // Re-test what the entry recorded about `node_modules`: a
+        // `stat` each, against a whole re-analyse (#1465).
+        self.npm_packages_unchanged(&interface)
     }
 
-    /// True when every npm package a cached entry names is still on
-    /// disk. A removed package must re-analyse so E013 gets reported.
-    fn npm_packages_still_installed(&self, interface: &ModuleInterface) -> bool {
-        interface
-            .npm_packages
-            .iter()
-            .all(|package| crate::interop::packages::is_installed(package, &self.project_dir))
+    /// True when every npm package a cached entry names is in the same
+    /// state as when the entry was written. A package that went away
+    /// must re-analyse so E013 gets reported, and one that arrived must
+    /// re-analyse so its declarations get read.
+    fn npm_packages_unchanged(&self, interface: &ModuleInterface) -> bool {
+        interface.npm_packages.iter().all(|(package, installed)| {
+            crate::interop::packages::is_installed(package, &self.project_dir) == *installed
+        })
     }
 
     /// Persist the freshly-analysed interface so the next run can skip
@@ -220,7 +220,7 @@ impl PackageCompiler {
         // Read the npm package list before `program` moves into the
         // analyse pass. The cache stores it so a clean result stops
         // being served once one of these packages goes away (#1465).
-        let npm_packages = crate::interop::packages::imported_packages(
+        let npm_packages = crate::interop::packages::imported_package_state(
             &program,
             &resolved,
             &self.tsconfig_paths,
@@ -257,8 +257,10 @@ struct AnalysePass {
     /// them so an edit to a dependency invalidates this module.
     dep_paths: std::collections::HashSet<PathBuf>,
     resolved: HashMap<String, ResolvedImports>,
-    /// The npm packages this module imports.
-    npm_packages: Vec<String>,
+    /// The npm packages this module imports, and whether each is
+    /// installed. The cache re-tests these to notice a change under
+    /// `node_modules` that no `.fl` fingerprint can see.
+    npm_packages: Vec<(String, bool)>,
 }
 
 /// Read every `.fl` dependency and compute its xxh3 fingerprint. Paths

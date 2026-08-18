@@ -106,3 +106,42 @@ def test_installed_package_variants_report_no_e013(lsp, tmp_path, specifier, ins
     assert "E013" not in result.codes, (
         f"`{specifier}` resolves to an installed package, got: {result.codes}"
     )
+
+
+NODE_SOURCE = """import trusted {{ randomUUID }} from "{specifier}"
+
+export let main() -> string = {{
+    randomUUID()
+}}
+"""
+
+
+@pytest.mark.parametrize("specifier", ["node:crypto", "crypto"])
+def test_a_node_builtin_without_types_node_is_not_an_error(lsp, tmp_path, specifier):
+    """Node supplies the module, so `cannot find module` is false about it.
+
+    A Bun or Deno project, or any Node project that never adds
+    `@types/node`, must still build. Only the declarations are missing,
+    which is W004 (#1465).
+    """
+    uri = project(tmp_path, {})
+    result = open_doc(lsp, uri, NODE_SOURCE.format(specifier=specifier), timeout=5.0)
+    assert "E013" not in result.codes, (
+        f"`{specifier}` is a Node builtin and must not report E013, got: {result.codes}"
+    )
+    assert result.errors == [], (
+        f"`{specifier}` must not fail the build, got: "
+        f"{[d.get('message', '') for d in result.errors]}"
+    )
+
+
+def test_a_node_builtin_warns_and_names_the_types_package(lsp, tmp_path):
+    uri = project(tmp_path, {})
+    result = open_doc(lsp, uri, NODE_SOURCE.format(specifier="node:crypto"), timeout=5.0)
+    helps = " ".join(str(d.get("message", "")) for d in result.all)
+    assert "W004" in result.codes, (
+        f"a builtin with no declarations must warn W004, got: {result.codes}"
+    )
+    assert "node:crypto" in helps, (
+        f"the warning must name the module, got: {helps}"
+    )

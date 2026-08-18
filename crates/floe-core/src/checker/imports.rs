@@ -21,25 +21,46 @@ impl Checker {
             return;
         }
 
-        // An npm package that is not installed is a hard error. The
-        // editor already reported E013 here while `floe check` warned and
-        // exited 0, so the same source gave two answers (#1465). Every
-        // name from the import then binds to `Type::Error`, which keeps
-        // this one diagnostic from turning into a W004 warning at each
-        // call site and an "undefined name" error at each other use.
+        // The package that would type this import is not installed.
+        // Which diagnostic that deserves depends on whether the module
+        // itself is there.
+        //
+        // A Node builtin is always there. `node:crypto` resolves at run
+        // time with nothing installed, so "cannot find module" is false
+        // about it: only its declarations are missing, which is W004.
+        // A Bun or Deno project, or any Node project that never adds
+        // `@types/node`, still builds (#1465).
+        //
+        // Anything else is absent, and that is E013. The editor already
+        // reported it while `floe check` warned and exited 0, so the
+        // same source gave two answers. Every name from the import then
+        // binds to `Type::Error`, which keeps this one diagnostic from
+        // turning into a W004 warning at each call site and an
+        // "undefined name" error at each other use.
         let install_hint = self
             .missing_npm_packages
             .get(&decl.source)
             .map(|package| interop::packages::install_hint(package));
-        let package_missing = install_hint.is_some();
+        let module_is_a_builtin = interop::packages::is_node_builtin(&decl.source);
+        let package_missing = install_hint.is_some() && !module_is_a_builtin;
         if let Some(hint) = install_hint {
-            self.emit_error_with_help(
-                format!("cannot find module `\"{}\"`", decl.source),
-                item_span,
-                ErrorCode::PackageNotFound,
-                "package not found",
-                hint,
-            );
+            if module_is_a_builtin {
+                self.emit_warning_with_help(
+                    format!("module `\"{}\"` has no type declarations", decl.source),
+                    item_span,
+                    ErrorCode::UncheckedForeignArguments,
+                    "types could not be resolved",
+                    hint,
+                );
+            } else {
+                self.emit_error_with_help(
+                    format!("cannot find module `\"{}\"`", decl.source),
+                    item_span,
+                    ErrorCode::PackageNotFound,
+                    "package not found",
+                    hint,
+                );
+            }
         }
 
         // Look up resolved symbols for this import source

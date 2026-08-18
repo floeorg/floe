@@ -44,7 +44,7 @@ E013 names a package to install, so Floe stays quiet whenever the specifier is n
 
 | Specifier | Why | What Floe does |
 |---|---|---|
-| `node:fs`, `fs`, `fs/promises` | a Node builtin, not a package | asks for `@types/node` instead, and only when that is missing |
+| `node:fs`, `fs`, `fs/promises` | a Node builtin. Node supplies the module, so it always resolves | warns **W004** when `@types/node` is missing, and names it in the help. Never an error, so a Bun or Deno project still builds |
 | `#lib/helper` | `package.json` `imports` resolves it | nothing |
 | `@app/lib/helper` | a tsconfig `paths` alias | nothing. Floe reads the tsconfig next to your source file as well as the one at the project root |
 | `src/lib/helper` | a tsconfig `baseUrl` path | nothing |

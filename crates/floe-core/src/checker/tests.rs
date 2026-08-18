@@ -10771,6 +10771,99 @@ export let main() -> string = { shout("hello") }
 }
 
 #[test]
+fn a_node_builtin_without_types_node_warns_and_does_not_fail() {
+    // `node:crypto` resolves at run time with nothing installed, so
+    // "cannot find module" is false about it. A Bun or Deno project, or
+    // any Node project that never adds `@types/node`, must still build.
+    let diags = check_npm_import(
+        r#"
+import trusted { randomUUID } from "node:crypto"
+export let main() -> string = { randomUUID() }
+"#,
+        &[("node:crypto", "@types/node")],
+        HashMap::new(),
+    );
+
+    assert!(
+        !has_error(&diags, ErrorCode::PackageNotFound),
+        "a builtin must not report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "a builtin must keep the check green, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+    let warning = diags
+        .iter()
+        .find(|d| d.severity == Severity::Warning && d.message.contains("node:crypto"))
+        .expect("the import warns about its declarations");
+    assert_eq!(warning.code.as_deref(), Some("W004"));
+    let help = warning.help.clone().unwrap_or_default();
+    assert!(
+        help.contains("@types/node"),
+        "the help must still name @types/node, got: {help}"
+    );
+}
+
+#[test]
+fn a_bare_node_builtin_answers_the_same_as_the_node_scheme() {
+    // `fs` and `node:fs` are one module, so one answer.
+    let diags = check_npm_import(
+        r#"
+import trusted { readFileSync } from "fs"
+export let main() -> string = { readFileSync("a.txt") }
+"#,
+        &[("fs", "@types/node")],
+        HashMap::new(),
+    );
+
+    assert!(
+        !has_error(&diags, ErrorCode::PackageNotFound),
+        "a bare builtin must not report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "a bare builtin must keep the check green, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a_node_builtin_still_binds_its_names_as_foreign() {
+    // The names must not bind to `Type::Error`. That marker is for a
+    // module that is not there, and it would strip the untrusted
+    // wrapper codegen reads off the type.
+    let diags = check_npm_import(
+        r#"
+import { randomUUID } from "node:crypto"
+export let main() -> Result<unknown, Error> = { randomUUID() }
+"#,
+        &[("node:crypto", "@types/node")],
+        HashMap::new(),
+    );
+
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "an untrusted builtin call must still type as Result, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn a_missing_package_types_its_default_import_too() {
     let diags = check_npm_import(
         r#"

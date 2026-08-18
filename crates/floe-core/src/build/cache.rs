@@ -42,14 +42,16 @@ pub struct ModuleInterface {
     /// module could import. Indexed by import-source string (e.g. the
     /// `./types` in `import { Foo } from "./types"`).
     pub resolved_imports: HashMap<String, ResolvedImports>,
-    /// Every npm package this module imports.
+    /// Every npm package this module imports, paired with whether it
+    /// was installed when this entry was written.
     ///
     /// Source fingerprints cannot see `node_modules`, so a clean result
     /// used to be served after somebody deleted a package and `floe
     /// check` reported nothing while `floe build` reported E013 (#1465).
-    /// A clean entry means all of these were installed when it was
-    /// written, so the freshness check re-tests them.
-    pub npm_packages: Vec<String>,
+    /// The freshness check re-tests each pair, so both directions
+    /// invalidate: removing a package that was there, and installing one
+    /// that was not.
+    pub npm_packages: Vec<(String, bool)>,
 }
 
 impl ModuleInterface {
