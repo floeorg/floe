@@ -859,6 +859,22 @@ export let Card(props: CardProps) -> JSX.Element = {
 <ListBox.Item key="a">Alpha</ListBox.Item>
 ```
 
+You write `JSX.Element`. React 19 declares no global `JSX` namespace, so the
+compiler puts `import type { JSX } from "react";` at the top of every emitted
+file that names the type. The import is type-only and erases at build time.
+
+```floe
+export let Badge() -> JSX.Element = { <span>New</span> }
+```
+
+```typescript
+import type { JSX } from "react";
+
+export function Badge(): JSX.Element {
+  return <span>New</span>;
+}
+```
+
 ## Tests
 
 ```floe

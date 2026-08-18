@@ -48,6 +48,7 @@ export let App() -> JSX.Element = {
 This compiles to clean, readable TypeScript:
 
 ```typescript
+import type { JSX } from "react";
 import { useState } from "react";
 
 type Todo = {

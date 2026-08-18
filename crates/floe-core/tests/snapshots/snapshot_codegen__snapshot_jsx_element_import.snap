@@ -1,0 +1,24 @@
+---
+source: tests/snapshot_codegen.rs
+expression: output
+---
+// ── jsx_element_import.tsx ──
+import type { JSX } from "react";
+import { useState } from "react";
+
+type CardProps = { title: string };
+
+function Badge(): JSX.Element {
+  return <span>New</span>;
+}
+
+export function Card(props: CardProps): JSX.Element {
+  const [_open, _setOpen] = useState(false);
+  return <div><h2>{props.title}</h2><Badge /></div>;
+}
+
+// ── jsx_element_import.d.ts ──
+import type { JSX } from "react";
+import { useState } from "react";
+type CardProps = { title: string };
+export declare function Card(props: CardProps): JSX.Element;

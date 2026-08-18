@@ -125,6 +125,20 @@ This is common in component libraries like React Aria, Radix UI, and similar. Th
 
 The compiler automatically emits `.tsx` when JSX is detected, and `.ts` otherwise. No configuration needed.
 
+## The `JSX` namespace in the emitted file
+
+React 19 removed the global `JSX` namespace and moved it under `React.JSX`. You still write `JSX.Element` in Floe. The compiler adds the import the emitted file needs:
+
+```typescript
+import type { JSX } from "react";
+
+export function Counter(): JSX.Element {
+  // ...
+}
+```
+
+The import is type-only, so every bundler erases it and the emitted module gains no runtime dependency on React. Import the namespace yourself, as `import { JSX } from "react"`, and the compiler leaves your import alone.
+
 ## What's Different from React + TypeScript
 
 - No `class` components - only function components

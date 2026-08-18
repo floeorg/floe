@@ -323,6 +323,12 @@ pub(crate) struct TypeScriptGenerator<'a> {
     pub(super) current_type_param_bounds: HashMap<String, Vec<String>>,
     pub(super) needs_deep_equal: bool,
     pub(super) has_jsx: bool,
+    /// Set when a type annotation emitted the name `JSX.Element`. It
+    /// decides whether the file gets `type_layout::JSX_TYPE_IMPORT`.
+    /// `generate` clears it between the `.ts` and the `.d.ts`, because
+    /// the two files carry different items and only one may need the
+    /// import.
+    pub(super) wrote_jsx_element: bool,
     pub(super) unwrap_counter: usize,
     /// Types whose `{T}__make` factory has already been emitted, so
     /// subsequent trait-impl for-blocks for the same type don't re-emit it.
@@ -337,6 +343,7 @@ impl<'a> TypeScriptGenerator<'a> {
             current_type_param_bounds: HashMap::new(),
             needs_deep_equal: false,
             has_jsx: false,
+            wrote_jsx_element: false,
             unwrap_counter: 0,
             emitted_factories: HashSet::new(),
         }
@@ -365,23 +372,56 @@ impl<'a> TypeScriptGenerator<'a> {
         let main_doc = pretty::concat(docs);
 
         // Prepend structural equality helper if any == or != was used
-        let final_doc = if self.needs_deep_equal {
+        let with_helpers = if self.needs_deep_equal {
             pretty::concat([deep_equal_doc(), main_doc])
         } else {
             main_doc
         };
 
+        let final_doc = self.with_jsx_import(with_helpers);
+
         let mut code = String::new();
         final_doc
             .pretty_print_to(PRINT_WIDTH, &mut code)
             .expect("String as fmt::Write never fails");
-        let dts = self.generate_dts(program);
+
+        // The `.d.ts` declares only the exported items, so it may name
+        // `JSX.Element` where the `.ts` does not, or the other way
+        // round. Ask the question again over the declarations alone.
+        self.wrote_jsx_element = false;
+        let mut dts = self.generate_dts(program);
+        if self.needs_jsx_import() {
+            dts.insert_str(0, &format!("{}\n", type_layout::JSX_TYPE_IMPORT));
+        }
 
         CodegenOutput {
             code,
             has_jsx: self.has_jsx,
             dts,
         }
+    }
+
+    /// True when the file names `JSX.Element` and declares no `JSX` of
+    /// its own.
+    ///
+    /// A Floe file may import the namespace itself, as
+    /// `import trusted { JSX } from "react"`, and that import already
+    /// emits `type JSX`. A second import of the same name would be a
+    /// duplicate identifier, so the written one wins.
+    fn needs_jsx_import(&self) -> bool {
+        self.wrote_jsx_element && !self.ctx.local_names.contains(type_layout::JSX_NAMESPACE)
+    }
+
+    /// Put `JSX_TYPE_IMPORT` above `doc` when the file needs it.
+    fn with_jsx_import(&self, doc: Document) -> Document {
+        if !self.needs_jsx_import() {
+            return doc;
+        }
+
+        pretty::concat([
+            pretty::str(format!("{}\n", type_layout::JSX_TYPE_IMPORT)),
+            doc,
+        ])
     }
 
     /// Render a Document to a String (for embedding in format strings, templates, etc.).

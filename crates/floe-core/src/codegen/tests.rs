@@ -816,6 +816,80 @@ fn no_jsx_detection() {
     assert!(!output.has_jsx);
 }
 
+// ── JSX namespace import (#1498) ─────────────────────────────
+
+/// Compile a source and return the emitted `.ts` and `.d.ts`.
+fn emit_ts_and_dts(input: &str) -> (String, String) {
+    let mut program = Parser::new(input).parse_program().unwrap_or_else(|errs| {
+        panic!(
+            "parse failed:\n{}",
+            errs.iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let (_diags, expr_types, invalid_exprs, shadowed) =
+        crate::checker::Checker::new().check_full(&program);
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
+    let typed = crate::checker::attach_types(program, &expr_types, &invalid_exprs, &shadowed);
+    let output = Codegen::new().generate(&typed);
+
+    (output.code, output.dts)
+}
+
+#[test]
+fn jsx_element_return_type_imports_the_namespace() {
+    let (code, _dts) = emit_ts_and_dts("let Badge() -> JSX.Element = { <span /> }");
+    assert!(
+        code.starts_with(crate::type_layout::JSX_TYPE_IMPORT),
+        "the emitted file should import the JSX namespace, got: {code}"
+    );
+}
+
+#[test]
+fn jsx_element_in_dts_imports_the_namespace() {
+    let (_code, dts) = emit_ts_and_dts("export let Badge() -> JSX.Element = { <span /> }");
+    assert!(
+        dts.starts_with(crate::type_layout::JSX_TYPE_IMPORT),
+        "the emitted declarations should import the JSX namespace, got: {dts}"
+    );
+}
+
+/// A component the file keeps to itself declares no `.d.ts` entry, so the
+/// declarations name no `JSX.Element` and take no import.
+#[test]
+fn unexported_component_leaves_the_dts_import_out() {
+    let (code, dts) = emit_ts_and_dts("let Badge() -> JSX.Element = { <span /> }");
+    assert!(code.contains(crate::type_layout::JSX_TYPE_IMPORT));
+    assert!(
+        !dts.contains(crate::type_layout::JSX_TYPE_IMPORT),
+        "the declarations name no JSX.Element, got: {dts}"
+    );
+}
+
+/// A file that imports `JSX` itself already binds the name. A second
+/// import would be a duplicate identifier, so the written one wins.
+#[test]
+fn written_jsx_import_wins_over_the_emitted_one() {
+    let (code, _dts) = emit_ts_and_dts(
+        "import trusted { JSX } from \"react\"\n\nlet Badge() -> JSX.Element = { <span /> }",
+    );
+    assert!(
+        !code.contains(crate::type_layout::JSX_TYPE_IMPORT),
+        "codegen should not add a second JSX import, got: {code}"
+    );
+    assert!(code.contains("JSX.Element"), "got: {code}");
+}
+
+/// A file that names no `JSX.Element` gets no import, even when it holds
+/// JSX. The type is what needs the namespace, not the syntax.
+#[test]
+fn a_file_without_the_type_gets_no_import() {
+    let (code, _dts) = emit_ts_and_dts("let render() = { <span /> }");
+    assert!(!code.contains("from \"react\""), "got: {code}");
+}
+
 // ── Generic Functions ─────────────────────────────────────────
 
 #[test]
