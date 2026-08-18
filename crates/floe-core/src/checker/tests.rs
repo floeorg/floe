@@ -10471,6 +10471,13 @@ type User = {
 fn jsx_namespace_members_resolve() {
     // Floe owns the `JSX` namespace. `@types/react` 19 declares it as
     // `React.JSX`, so the ambient tables never carry a global `JSX`.
+    //
+    // The member check of #1543 leaves this namespace alone on purpose.
+    // Floe holds one hardcoded name for it, `JSX.Element`, and one name is
+    // not a member list. TypeScript does hold the list: an emitted component
+    // names React's `JSX` namespace, so `JSX.IntrinsicElements` type checks
+    // there. #1544 gives Floe the same list, and the member check covers
+    // `JSX` then.
     let diags = check(
         r#"
 type Props = { intrinsics: JSX.IntrinsicElements }
@@ -10561,21 +10568,79 @@ fn check_with_ambient_namespaces(source: &str, namespaces: &[&str]) -> Vec<Diagn
 
 #[test]
 fn dotted_type_rooted_at_ambient_namespace_resolves() {
-    // `load_ambient_types` flattens `declare namespace NodeJS { interface
-    // Timeout }` to the bare key `Timeout`, so the namespace set is the only
-    // record that `NodeJS` exists.
-    let diags = check_with_ambient_namespaces(
+    // `load_ambient_types` records `declare namespace NodeJS { interface
+    // Timeout }` under both `Timeout` and `NodeJS.Timeout`, and records the
+    // namespace name beside them.
+    let diags = check_with_ambient(
         r#"
 type Handle = { t: NodeJS.Timeout }
 type Fmt = { f: Intl.DateTimeFormat }
 type Props = { c: JSX.IntrinsicElements }
 "#,
+        &[
+            "NodeJS.Timeout",
+            "Intl.DateTimeFormat",
+            "JSX.IntrinsicElements",
+        ],
         &["NodeJS", "Intl", "JSX"],
     );
     assert!(
         !has_error_containing(&diags, "unknown type"),
         "a namespace-qualified lib type must resolve; got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn unknown_member_of_an_ambient_namespace_errors() {
+    // #1543. The loader records every member of `Intl` under its qualified
+    // name, so a member that is absent is a typo. Before this check the
+    // resolver read the first segment only and accepted any member.
+    let diags = check_with_ambient(
+        r#"
+type Bad = { f: Intl.Whatever }
+"#,
+        &["Intl.DateTimeFormat"],
+        &["Intl"],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Intl.Whatever`"),
+        "an absent member must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().any(|d| d
+            .help
+            .as_deref()
+            .is_some_and(|h| h.contains("`Intl` declares no type `Whatever`"))),
+        "the help must name the namespace and the member; got: {:?}",
+        diags.iter().map(|d| &d.help).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn unknown_member_of_a_qualified_ambient_namespace_errors() {
+    // The namespace is `React.JSX`, so the help names `React.JSX` and not
+    // the bare root `React`.
+    let diags = check_with_ambient(
+        r#"
+type Bad = { x: React.JSX.Nope }
+"#,
+        &["React.JSX.Element"],
+        &["React.JSX"],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `React.JSX.Nope`"),
+        "an absent member must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().any(|d| d
+            .help
+            .as_deref()
+            .is_some_and(|h| h.contains("`React.JSX` declares no type `Nope`"))),
+        "the help must name the longest namespace prefix; got: {:?}",
+        diags.iter().map(|d| &d.help).collect::<Vec<_>>()
     );
 }
 
@@ -10625,12 +10690,14 @@ type Bad = {
 #[test]
 fn dotted_type_matches_a_qualified_ambient_namespace() {
     // `@types/react` 19 declares `namespace React { namespace JSX { ... } }`,
-    // so the loader records the qualified name `React.JSX`. A resolver that
-    // tests the first segment alone never reads that entry.
-    let diags = check_with_ambient_namespaces(
+    // so the loader records the qualified names `React.JSX` and
+    // `React.JSX.Element`. A resolver that tests the first segment alone
+    // never reads either entry.
+    let diags = check_with_ambient(
         r#"
 type Props = { child: React.JSX.Element }
 "#,
+        &["React.JSX.Element"],
         &["React.JSX"],
     );
     assert!(

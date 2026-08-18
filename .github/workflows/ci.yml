@@ -124,12 +124,24 @@ jobs:
           ./floe check examples/hono-api/src/
 
       - name: Floe build examples
+        # Run from inside each example, not from the repository root.
+        # `floe build` names the output after the source path relative to
+        # the working directory, so a run from the root writes to
+        # `.floe/examples/store/src/`, and a run from the example writes to
+        # `examples/store/.floe/src/`. Only the second path is the one each
+        # example's `rootDirs` reads, and the type-check step below needs it.
         run: |
-          ./floe build examples/todo-app/src/
-          ./floe build examples/store/src/
-          ./floe build examples/hono-api/src/
+          floe="$PWD/floe"
+          (cd examples/todo-app && "$floe" build src/)
+          (cd examples/store && "$floe" build src/)
+          (cd examples/hono-api && "$floe" build src/)
 
       - name: TypeScript type-check examples
+        # This reads the output the step above just wrote. The examples
+        # commit no emitted TypeScript any more (issue #1557), so tsc
+        # checks the hand-written React against fresh Floe declarations.
+        # The emitted bodies carry `// @ts-nocheck`; the typecheck-emitted
+        # job below is what checks those.
         run: |
           npx tsc --noEmit -p examples/store/tsconfig.json
           npx tsc --noEmit -p examples/todo-app/tsconfig.json
