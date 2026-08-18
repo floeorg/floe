@@ -580,6 +580,15 @@ impl Checker {
             if PRESERVED.contains(&name.as_str()) {
                 continue;
             }
+            // Same rule, read from the stdlib instead of a list: a global
+            // that binds a name Floe owns as a type is the constructor for
+            // that type, not a name of the user's own. lib.dom.d.ts binds
+            // `URL` this way. Defining it as a value would put it in front
+            // of the type in `resolve_named_type`, and `type X = URL` would
+            // then report "`URL` is a value, not a type".
+            if self.stdlib.declares_type(&name) {
+                continue;
+            }
             // Skip constructor entries (`declare var Foo: { prototype: Foo }`)
             // that shadow interface definitions — we want the interface for
             // member access, not the constructor object.

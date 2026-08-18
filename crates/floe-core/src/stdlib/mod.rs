@@ -24,9 +24,10 @@ mod string;
 mod url;
 mod url_search_params;
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::checker::Type;
+use crate::checker::{Type, type_any_nested};
 
 /// A standard library function definition.
 #[derive(Debug, Clone)]
@@ -58,12 +59,20 @@ impl StdlibFn {
 #[derive(Default)]
 pub struct StdlibRegistry {
     functions: Vec<StdlibFn>,
+    /// Every type name the stdlib declares. Derived from `functions` once,
+    /// because `resolve_named_type` asks about it on a hot path. See
+    /// `declares_type`.
+    declared_types: HashSet<String>,
 }
 
 impl StdlibRegistry {
     pub fn new() -> Self {
+        let functions = build_stdlib();
+        let declared_types = collect_declared_types(&functions);
+
         Self {
-            functions: build_stdlib(),
+            functions,
+            declared_types,
         }
     }
 
@@ -96,6 +105,27 @@ impl StdlibRegistry {
     /// Check if a name is a stdlib module.
     pub fn is_module(&self, name: &str) -> bool {
         self.functions.iter().any(|f| f.module == name)
+    }
+
+    /// True when the stdlib declares `name` as a type, so a user can write
+    /// the name in a type position.
+    ///
+    /// The answer comes from the registered signatures, not from a second
+    /// list beside them. See `collect_declared_types` for the rule.
+    ///
+    /// The resolver cannot learn these names from TypeScript. `URL` and
+    /// `URLSearchParams` live in `lib.dom.d.ts`, and `Date` and `RegExp`
+    /// live in `lib.es5.d.ts`, so ambient loading finds a name only when
+    /// the project tsconfig lists the matching lib. A server project with
+    /// `"lib": ["es2022"]` gets none of them.
+    pub fn declares_type(&self, name: &str) -> bool {
+        self.declared_types.contains(name)
+    }
+
+    /// Every type name the stdlib declares. A test pins the exact set, so a
+    /// new signature cannot make a name writable without anybody noticing.
+    pub fn declared_types(&self) -> &HashSet<String> {
+        &self.declared_types
     }
 }
 
@@ -213,6 +243,36 @@ macro_rules! try_catch_result {
 
 // Make the macros available to submodules.
 use {err_value, ok_value, stdlib_fn, try_catch_async_result, try_catch_result};
+
+/// Collect every type name the stdlib declares: a stdlib module whose name
+/// a registered signature also uses as `Type::Named`, at any depth.
+///
+/// Both halves of that rule matter, and both read the registry itself.
+/// `URL.parse` returns `Result<URL, ParseError>`, so a signature names both
+/// `URL` and `ParseError`. Only `URL` has a module behind it, and that
+/// module is what declares the shape: `URL.href`, `URL.host` and the rest
+/// say what a value of type `URL` can do. Nothing declares `ParseError`,
+/// so a user who writes the name would get a type with no members, and
+/// `e.message` on it falls back to member access on an opaque name. That
+/// is glb #1469, and the name stays unwritable until #1469 gives it a
+/// shape. `Console` fails the other half of the rule: it is a module, but
+/// no signature names it as a type.
+fn collect_declared_types(functions: &[StdlibFn]) -> HashSet<String> {
+    let modules: HashSet<&str> = functions.iter().map(|f| f.module).collect();
+
+    modules
+        .into_iter()
+        .filter(|module| {
+            let is_module_name = |t: &Type| matches!(t, Type::Named(n) if n == module);
+
+            functions.iter().any(|f| {
+                f.params.iter().any(|t| type_any_nested(t, &is_module_name))
+                    || type_any_nested(&f.return_type, &is_module_name)
+            })
+        })
+        .map(str::to_string)
+        .collect()
+}
 
 /// Build the full stdlib registry.
 fn build_stdlib() -> Vec<StdlibFn> {
@@ -638,6 +698,44 @@ mod tests {
     }
 
     // ── URL ───────────────────────────────────────────────────
+
+    #[test]
+    fn declared_types_is_exactly_the_four_stdlib_types() {
+        // Pin the whole set, not one membership at a time. A new signature
+        // that writes `Type::Named("Blob")` must not make `Blob` writable in
+        // a type position without a person deciding that it should be.
+        let reg = StdlibRegistry::new();
+        let mut names: Vec<&str> = reg.declared_types().iter().map(String::as_str).collect();
+        names.sort_unstable();
+
+        assert_eq!(names, ["Date", "RegExp", "URL", "URLSearchParams"]);
+    }
+
+    #[test]
+    fn declared_types_excludes_a_type_with_no_module_behind_it() {
+        // `URL.parse` returns `Result<URL, ParseError>`, so a signature does
+        // name `ParseError`. No module declares its shape, so it is not a
+        // type a user can write. See glb #1469.
+        let reg = StdlibRegistry::new();
+
+        assert!(!reg.declares_type("ParseError"));
+        assert!(!reg.declares_type("Error"));
+        assert!(!reg.declares_type("Response"));
+    }
+
+    #[test]
+    fn declared_types_excludes_a_module_that_is_not_a_type() {
+        // `Console` is a module and never a type. `Map` and `Set` are
+        // modules whose values are `Type::Map` and `Type::Set`, never
+        // `Type::Named`, so they stay out of the resolver branch and wait
+        // for glb #1459.
+        let reg = StdlibRegistry::new();
+
+        assert!(!reg.declares_type("Console"));
+        assert!(!reg.declares_type("Map"));
+        assert!(!reg.declares_type("Set"));
+        assert!(!reg.declares_type("Promise"));
+    }
 
     #[test]
     fn url_is_module() {
