@@ -80,16 +80,19 @@ impl<'a> TypeScriptGenerator<'a> {
                 if !members.is_empty()
                     && members.iter().all(|m| matches!(m, Type::StringLiteral(_))) =>
             {
-                // A string-literal union, such as the one a
-                // `type Method = OneOf<"GET", "POST">` declares. Every
-                // member is a string at run time.
+                // A union of string literals is a string at run time.
+                //
+                // `OneOf<"GET", "POST">` does not reach here. The checker
+                // resolves `OneOf` to `Type::Named("OneOf")` and models
+                // nothing about its members, so `parse` reads it as an
+                // opaque name and checks for an object. #1524 carries that.
                 self.emit_typeof_check(out, accessor, "string", path);
             }
             Type::Array(inner) => {
                 self.emit_array_check(out, accessor, path);
                 let idx_var = format!("__i{}", accessor.len());
                 let elem_accessor = format!("{accessor}[{idx_var}]");
-                let elem_path = element_path(path, &idx_var);
+                let elem_path = element_path(path, &format!("\" + {idx_var} + \""));
                 out.push_str(&format!(
                     "for (let {idx_var} = 0; {idx_var} < {accessor}.length; {idx_var}++) {{ "
                 ));
@@ -145,6 +148,17 @@ impl<'a> TypeScriptGenerator<'a> {
                 self.emit_parse_checks(out, accessor, &target_ty, path, expanding);
                 expanding.pop();
             }
+            Type::Tuple(members) => {
+                // A tuple is an array at run time, with a fixed length.
+                self.emit_array_check(out, accessor, path);
+                self.emit_length_check(out, accessor, members.len(), path);
+                for (index, member) in members.iter().enumerate() {
+                    let member_accessor = format!("{accessor}[{index}]");
+                    let member_path = element_path(path, &index.to_string());
+                    self.emit_parse_checks(out, &member_accessor, member, &member_path, expanding);
+                }
+            }
+            Type::Function { .. } => self.emit_typeof_check(out, accessor, "function", path),
             Type::Foreign { .. }
             | Type::Promise(_)
             | Type::Map { .. }
@@ -155,11 +169,18 @@ impl<'a> TypeScriptGenerator<'a> {
             | Type::Never
             | Type::Unit
             | Type::Undefined
-            | Type::Var(_)
-            | Type::Tuple(_)
             | Type::TsUnion(_)
-            | Type::Function { .. } => {
-                // No run-time witness to check.
+            | Type::Var(_) => {
+                // Nothing to check at run time.
+                //
+                // `unknown` is safe to leave open, because the checker
+                // refuses to use an `unknown` where a concrete type
+                // belongs. Nothing downstream trusts the value.
+                //
+                // A type parameter is not safe that way: the caller reads
+                // the result as a concrete type. So the checker refuses
+                // the program with E058 rather than let this arm emit a
+                // silent `Ok`, and this arm never reaches a built file.
             }
         }
     }
@@ -177,6 +198,16 @@ impl<'a> TypeScriptGenerator<'a> {
         let err_prefix = error_prefix(path);
         out.push_str(&format!(
             "if (typeof {accessor} !== \"object\" || {accessor} === null) return {{ {OK_FIELD}: false as const, {ERROR_FIELD}: new Error(\"{err_prefix}expected object, got \" + typeof {accessor}) }}; "
+        ));
+    }
+
+    /// A tuple carries a fixed number of elements, so the length is part
+    /// of the shape the checker validated.
+    #[allow(clippy::unused_self)]
+    fn emit_length_check(&self, out: &mut String, accessor: &str, expected: usize, path: &str) {
+        let err_prefix = error_prefix(path);
+        out.push_str(&format!(
+            "if ({accessor}.length !== {expected}) return {{ {OK_FIELD}: false as const, {ERROR_FIELD}: new Error(\"{err_prefix}expected {expected} elements, got \" + {accessor}.length) }}; "
         ));
     }
 
@@ -457,11 +488,14 @@ fn error_prefix(path: &str) -> String {
     format!("{path}: ")
 }
 
-/// The path an array element reports, built from the path of the array.
-fn element_path(path: &str, idx_var: &str) -> String {
+/// The path an element reports, built from the path of the array or the
+/// tuple that holds it. `index` is already rendered: an array passes the
+/// loop variable inside a string concatenation, and a tuple passes a
+/// literal position.
+fn element_path(path: &str, index: &str) -> String {
     if path.is_empty() {
-        return format!("element [\" + {idx_var} + \"]");
+        return format!("element [{index}]");
     }
 
-    format!("{path} element [\" + {idx_var} + \"]")
+    format!("{path} element [{index}]")
 }

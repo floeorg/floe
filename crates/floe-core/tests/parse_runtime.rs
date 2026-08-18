@@ -11,25 +11,35 @@
 
 use floe_core::checker::{self, Checker};
 use floe_core::codegen::Codegen;
-use floe_core::desugar;
 use floe_core::parser::Parser;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::process::Command;
 
-/// Compile Floe source to TypeScript through the full pipeline, so every
-/// expression carries the type the checker gave it.
+/// Compile Floe source to TypeScript through the same pipeline the CLI
+/// runs, so every expression carries the type the checker gave it.
+///
+/// `lower_to_typed` is the whole post-check pipeline in one call. Calling
+/// `desugar_program` and `attach_types` by hand here would skip
+/// `mark_async_functions`, and the harness would emit `export function f`
+/// where the compiler emits `export async function f`. A test of an async
+/// `parse` would then fail as a broken program rather than show the bug.
 fn compile(source: &str) -> String {
-    let mut program = Parser::new(source)
+    let program = Parser::new(source)
         .parse_program()
         .expect("the source should parse");
-    let (diagnostics, expr_types, _, shadowed) = Checker::new().check_full(&program);
+    let (diagnostics, expr_types, invalid_exprs, shadowed) = Checker::new().check_full(&program);
     let errors: Vec<_> = diagnostics
         .iter()
         .filter(|d| d.severity == floe_core::diagnostic::Severity::Error)
         .collect();
     assert!(errors.is_empty(), "the source should check: {errors:?}");
-    desugar::desugar_program(&mut program, &HashMap::new());
-    let typed = checker::attach_types(program, &expr_types, &HashSet::new(), &shadowed);
+    let typed = checker::lower_to_typed(
+        program,
+        &expr_types,
+        &invalid_exprs,
+        &shadowed,
+        &HashMap::new(),
+    );
 
     Codegen::new().generate(&typed).code
 }
@@ -126,6 +136,40 @@ fn parse_accepts_a_valid_array_of_an_aliased_element() {
     assert_eq!(
         output, "true\nfalse\n",
         "parse<Array<Id>> must validate each element as a string, got: {output}"
+    );
+}
+
+#[test]
+fn parse_refuses_a_value_that_is_not_a_tuple() {
+    let output = compile_and_run(
+        "typealias Pair = (number, number)\n\
+         \n\
+         export let parsePair(raw: unknown) -> Result<Pair, Error> = { parse<Pair>(raw) }\n",
+        "console.log(parsePair([1, 2]).ok);\n\
+         console.log(parsePair(\"nope\").ok);\n\
+         console.log(parsePair([1]).ok);\n\
+         console.log(parsePair([1, \"two\"]).ok);\n",
+    );
+
+    assert_eq!(
+        output, "true\nfalse\nfalse\nfalse\n",
+        "parse<Pair> must check the array, the length and each element, got: {output}"
+    );
+}
+
+#[test]
+fn parse_refuses_a_value_that_is_not_a_function() {
+    let output = compile_and_run(
+        "typealias Handler = (a: number) -> number\n\
+         \n\
+         export let parseHandler(raw: unknown) -> Result<Handler, Error> = { parse<Handler>(raw) }\n",
+        "console.log(parseHandler((a: number) => a).ok);\n\
+         console.log(parseHandler(\"nope\").ok);\n",
+    );
+
+    assert_eq!(
+        output, "true\nfalse\n",
+        "parse<Handler> must accept a function and refuse a string, got: {output}"
     );
 }
 

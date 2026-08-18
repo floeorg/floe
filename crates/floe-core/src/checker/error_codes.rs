@@ -148,6 +148,11 @@ pub enum ErrorCode {
     /// function types, intersections can't anchor an impl. Wrap in a
     /// named `type` first.
     StructuralImpl,
+    /// `parse<T>` where `T` is a type parameter. The emitted validation
+    /// runs inside the generic function and cannot know what `T` is, so
+    /// it would return `Ok` for every value while the checker and
+    /// TypeScript both call that value a `T`.
+    UnvalidatableParseType,
 }
 
 impl ErrorCode {
@@ -216,6 +221,7 @@ impl ErrorCode {
             Self::OrphanImpl => "E055",
             Self::DuplicateImpl => "E056",
             Self::StructuralImpl => "E057",
+            Self::UnvalidatableParseType => "E058",
         }
     }
 }

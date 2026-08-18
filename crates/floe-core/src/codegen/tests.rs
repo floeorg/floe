@@ -2127,11 +2127,38 @@ fn parse_in_a_pipe_validates_the_type_an_alias_resolves_to() {
 }
 
 #[test]
-fn parse_validates_nothing_for_a_type_parameter() {
-    let result = emit_with_types("let f<T>(raw: unknown) -> Result<T, Error> = { parse<T>(raw) }");
+fn parse_validates_a_tuple_as_an_array_of_a_fixed_length() {
+    let result = emit_with_types(
+        "typealias Pair = (number, number)\n\
+         let f(raw: unknown) -> Result<Pair, Error> = { parse<Pair>(raw) }",
+    );
     assert!(
-        !result.contains("expected object"),
-        "the checker validates no shape for `T`, so parse<T> must not either, got: {result}"
+        result.contains("!Array.isArray(__v)"),
+        "a tuple is an array at run time, got: {result}"
+    );
+    assert!(
+        result.contains("__v.length !== 2"),
+        "a tuple carries a fixed number of elements, got: {result}"
+    );
+    assert!(
+        result.contains("typeof __v[0] !== \"number\""),
+        "each element carries its own type, got: {result}"
+    );
+    assert!(
+        result.contains("typeof __v[1] !== \"number\""),
+        "each element carries its own type, got: {result}"
+    );
+}
+
+#[test]
+fn parse_validates_a_function_type_with_typeof() {
+    let result = emit_with_types(
+        "typealias Handler = (a: number) -> number\n\
+         let f(raw: unknown) -> Result<Handler, Error> = { parse<Handler>(raw) }",
+    );
+    assert!(
+        result.contains("typeof __v !== \"function\""),
+        "a function type checks as a function, got: {result}"
     );
 }
 
