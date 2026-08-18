@@ -16,6 +16,42 @@ import { clsx } from "clsx"
 
 The compiler reads `.d.ts` type definitions to understand the types of imported values. npm imports are **untrusted by default** -- calls are auto-wrapped in `Result<T, Error>`.
 
+## A package that is not installed is an error
+
+Floe looks for the package in `node_modules`. Two different situations follow, and they get two different answers:
+
+| The package | Floe reports | `floe check` |
+|---|---|---|
+| is not in `node_modules` | **E013**, an error, and the fix to run | fails |
+| is installed but ships no declarations | **W004**, a warning on each call | passes |
+| is installed with declarations | nothing | passes |
+
+The editor and the command line give the same answer, so a red line in your editor also fails continuous integration.
+
+E013 names the command that fixes it:
+
+```
+error[E013]: cannot find module `"date-fns"`
+  help: install the package: `npm install date-fns`. If it ships no type
+        declarations, also add `npm install --save-dev @types/date-fns`
+```
+
+W004 is different. The package is there, so the code runs, but Floe cannot type the symbol and cannot check the arguments you pass to it. Install the matching `@types` package to clear it.
+
+### What Floe never reports as a missing package
+
+E013 names a package to install, so Floe stays quiet whenever the specifier is not a package or something other than `node_modules` resolves it:
+
+| Specifier | Why | What Floe does |
+|---|---|---|
+| `node:fs`, `fs`, `fs/promises` | a Node builtin. Node supplies the module, so it always resolves | warns **W004** when `@types/node` is missing, and names it in the help. Never an error, so a Bun or Deno project still builds |
+| `#lib/helper` | `package.json` `imports` resolves it | nothing |
+| `@app/lib/helper` | a tsconfig `paths` alias | nothing. Floe reads the tsconfig next to your source file as well as the one at the project root |
+| `src/lib/helper` | a tsconfig `baseUrl` path | nothing |
+| anything, under Yarn Plug'n'Play | there is no `node_modules` to read | nothing |
+
+A project that has simply not been installed yet still reports E013 on every npm import, because the package really is absent and `npm install` really is the fix.
+
 ## Untrusted imports (default)
 
 All npm imports are untrusted by default. The compiler auto-wraps calls in `Result<T, Error>`:

@@ -10708,3 +10708,312 @@ let target = f.for
         "reading a field the type does not have should still fail"
     );
 }
+
+// ── A missing npm package is an error, not a warning (#1465) ────
+//
+// Four rows, one for each state an npm import can be in. The compiler
+// and the language server both read `missing_npm_packages`, so these
+// four also fix what the editor reports.
+
+/// Build the checker the way `analyse` does, with the two extern
+/// tables an npm import reads: which packages are absent, and which
+/// declarations resolved.
+fn check_npm_import(
+    source: &str,
+    missing: &[(&str, &str)],
+    dts: HashMap<String, Vec<crate::interop::DtsExport>>,
+) -> Vec<Diagnostic> {
+    let program = Parser::new(source).parse_program().expect("parse");
+    let mut checker = Checker::from_context(HashMap::new(), dts, None, HashSet::new());
+    checker.set_missing_npm_packages(
+        missing
+            .iter()
+            .map(|(specifier, package)| ((*specifier).to_string(), (*package).to_string()))
+            .collect(),
+    );
+
+    checker.check(&program)
+}
+
+fn shout_declaration() -> HashMap<String, Vec<crate::interop::DtsExport>> {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+
+    let mut dts = HashMap::new();
+    dts.insert(
+        "has-types".to_string(),
+        vec![DtsExport {
+            name: "shout".to_string(),
+            ts_type: TsType::Function {
+                params: vec![FunctionParam {
+                    ty: TsType::Primitive("string".to_string()),
+                    optional: false,
+                }],
+                return_type: Box::new(TsType::Primitive("string".to_string())),
+            },
+        }],
+    );
+
+    dts
+}
+
+#[test]
+fn an_uninstalled_package_is_an_error() {
+    let diags = check_npm_import(
+        r#"
+import trusted { shout } from "absent-package"
+export let main() -> string = { shout("hello") }
+"#,
+        &[("absent-package", "absent-package")],
+        HashMap::new(),
+    );
+    assert!(
+        has_error(&diags, ErrorCode::PackageNotFound),
+        "an uninstalled package must report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().any(
+            |d| d.code.as_deref() == Some(ErrorCode::PackageNotFound.code())
+                && d.severity == Severity::Error
+        ),
+        "E013 must carry error severity, got: {:?}",
+        diags
+            .iter()
+            .map(|d| (&d.severity, &d.message))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn an_uninstalled_package_names_the_install_command() {
+    let diags = check_npm_import(
+        r#"
+import trusted { format } from "date-fns/format"
+export let main() -> string = { format("today") }
+"#,
+        &[("date-fns/format", "date-fns")],
+        HashMap::new(),
+    );
+    let e013 = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some(ErrorCode::PackageNotFound.code()))
+        .expect("E013 reported");
+    let help = e013.help.clone().unwrap_or_default();
+    assert!(
+        help.contains("npm install date-fns"),
+        "the help must name the package to install, got: {help}"
+    );
+    assert!(
+        help.contains("@types/date-fns"),
+        "the help must name the types package too, got: {help}"
+    );
+}
+
+#[test]
+fn an_uninstalled_package_reports_once_and_does_not_also_warn() {
+    // One import, two calls. The names bind to `Type::Error`, so the
+    // single E013 stands alone: no W004 per call, no "is not defined".
+    let diags = check_npm_import(
+        r#"
+import trusted { shout } from "absent-package"
+export let first() -> string = { shout("a") }
+export let second() -> string = { shout("b") }
+"#,
+        &[("absent-package", "absent-package")],
+        HashMap::new(),
+    );
+    let package_errors = diags
+        .iter()
+        .filter(|d| d.code.as_deref() == Some(ErrorCode::PackageNotFound.code()))
+        .count();
+    assert_eq!(
+        package_errors, 1,
+        "E013 must be reported once, got: {diags:?}"
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "a missing package must not also warn W004, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error_containing(&diags, "is not defined"),
+        "a missing package must not cascade, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn an_installed_package_without_declarations_still_warns() {
+    let diags = check_npm_import(
+        r#"
+import trusted { whisper } from "no-types"
+export let main() -> string = { whisper("hello") }
+"#,
+        &[],
+        HashMap::new(),
+    );
+    assert!(
+        has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "a package with no declarations must keep W004, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::PackageNotFound),
+        "a package that resolves must not report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "W004 must stay a warning so the check still exits 0, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn an_installed_package_with_declarations_reports_nothing() {
+    let diags = check_npm_import(
+        r#"
+import trusted { shout } from "has-types"
+export let main() -> string = { shout("hello") }
+"#,
+        &[],
+        shout_declaration(),
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::PackageNotFound),
+        "a resolvable package must not report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "a typed call must not warn W004, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.is_empty(),
+        "a resolvable, typed import must report nothing, got: {:?}",
+        diags
+            .iter()
+            .map(|d| (&d.severity, &d.message))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a_node_builtin_without_types_node_warns_and_does_not_fail() {
+    // `node:crypto` resolves at run time with nothing installed, so
+    // "cannot find module" is false about it. A Bun or Deno project, or
+    // any Node project that never adds `@types/node`, must still build.
+    let diags = check_npm_import(
+        r#"
+import trusted { randomUUID } from "node:crypto"
+export let main() -> string = { randomUUID() }
+"#,
+        &[("node:crypto", "@types/node")],
+        HashMap::new(),
+    );
+
+    assert!(
+        !has_error(&diags, ErrorCode::PackageNotFound),
+        "a builtin must not report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "a builtin must keep the check green, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+    let warning = diags
+        .iter()
+        .find(|d| d.severity == Severity::Warning && d.message.contains("node:crypto"))
+        .expect("the import warns about its declarations");
+    assert_eq!(warning.code.as_deref(), Some("W004"));
+    let help = warning.help.clone().unwrap_or_default();
+    assert!(
+        help.contains("@types/node"),
+        "the help must still name @types/node, got: {help}"
+    );
+}
+
+#[test]
+fn a_bare_node_builtin_answers_the_same_as_the_node_scheme() {
+    // `fs` and `node:fs` are one module, so one answer.
+    let diags = check_npm_import(
+        r#"
+import trusted { readFileSync } from "fs"
+export let main() -> string = { readFileSync("a.txt") }
+"#,
+        &[("fs", "@types/node")],
+        HashMap::new(),
+    );
+
+    assert!(
+        !has_error(&diags, ErrorCode::PackageNotFound),
+        "a bare builtin must not report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "a bare builtin must keep the check green, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a_node_builtin_still_binds_its_names_as_foreign() {
+    // The names must not bind to `Type::Error`. That marker is for a
+    // module that is not there, and it would strip the untrusted
+    // wrapper codegen reads off the type.
+    let diags = check_npm_import(
+        r#"
+import { randomUUID } from "node:crypto"
+export let main() -> Result<unknown, Error> = { randomUUID() }
+"#,
+        &[("node:crypto", "@types/node")],
+        HashMap::new(),
+    );
+
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "an untrusted builtin call must still type as Result, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a_missing_package_types_its_default_import_too() {
+    let diags = check_npm_import(
+        r#"
+import shout from "absent-package"
+export let main() -> string = { shout("hello") }
+"#,
+        &[("absent-package", "absent-package")],
+        HashMap::new(),
+    );
+    assert!(
+        has_error(&diags, ErrorCode::PackageNotFound),
+        "a default import from a missing package must report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "the default binding must not also warn W004, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

@@ -21,6 +21,48 @@ impl Checker {
             return;
         }
 
+        // The package that would type this import is not installed.
+        // Which diagnostic that deserves depends on whether the module
+        // itself is there.
+        //
+        // A Node builtin is always there. `node:crypto` resolves at run
+        // time with nothing installed, so "cannot find module" is false
+        // about it: only its declarations are missing, which is W004.
+        // A Bun or Deno project, or any Node project that never adds
+        // `@types/node`, still builds (#1465).
+        //
+        // Anything else is absent, and that is E013. The editor already
+        // reported it while `floe check` warned and exited 0, so the
+        // same source gave two answers. Every name from the import then
+        // binds to `Type::Error`, which keeps this one diagnostic from
+        // turning into a W004 warning at each call site and an
+        // "undefined name" error at each other use.
+        let install_hint = self
+            .missing_npm_packages
+            .get(&decl.source)
+            .map(|package| interop::packages::install_hint(package));
+        let module_is_a_builtin = interop::packages::is_node_builtin(&decl.source);
+        let package_missing = install_hint.is_some() && !module_is_a_builtin;
+        if let Some(hint) = install_hint {
+            if module_is_a_builtin {
+                self.emit_warning_with_help(
+                    format!("module `\"{}\"` has no type declarations", decl.source),
+                    item_span,
+                    ErrorCode::UncheckedForeignArguments,
+                    "types could not be resolved",
+                    hint,
+                );
+            } else {
+                self.emit_error_with_help(
+                    format!("cannot find module `\"{}\"`", decl.source),
+                    item_span,
+                    ErrorCode::PackageNotFound,
+                    "package not found",
+                    hint,
+                );
+            }
+        }
+
         // Look up resolved symbols for this import source
         let resolved = self.resolved_imports.get(&decl.source).cloned();
         let dts_exports = self.dts_imports.get(&decl.source).cloned();
@@ -31,7 +73,9 @@ impl Checker {
         let is_npm = !decl.source.starts_with("./") && !decl.source.starts_with("../");
         let default_untrusted = is_npm && !decl.trusted;
         if let Some(ref default_name) = decl.default_import {
-            let ty = if let Some(ref exports) = dts_exports {
+            let ty = if package_missing {
+                Type::Error
+            } else if let Some(ref exports) = dts_exports {
                 if let Some(dts_export) = exports.iter().find(|e| e.name == "default") {
                     let raw = interop::wrap_boundary_type(&dts_export.ts_type);
                     mark_foreign_untrusted(raw, default_untrusted)
@@ -80,7 +124,9 @@ impl Checker {
             }
 
             // Try to find the actual type from resolved imports
-            let ty = if let Some(ref resolved) = resolved {
+            let ty = if package_missing {
+                Type::Error
+            } else if let Some(ref resolved) = resolved {
                 if let Some(ty) = self.lookup_resolved_symbol(&spec.name, resolved) {
                     ty
                 } else {
@@ -172,7 +218,11 @@ impl Checker {
                 .imported_names
                 .push((effective_name.to_string(), spec.span));
 
-            if resolved.is_none() {
+            // A missing package registers nothing. The name binds to
+            // `Type::Error`, and codegen reads trust off that type, so a
+            // name left in these tables would make the checker wrap the
+            // call in `Result` while codegen emitted a bare call (#1465).
+            if resolved.is_none() && !package_missing {
                 self.npm_imports.insert(effective_name.to_string());
                 if spec_untrusted {
                     // The checker side-table is still used for diagnostics

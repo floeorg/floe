@@ -820,13 +820,18 @@ fn lambda_event_completions_not_in_normal_lambda() {
     );
 }
 
-// ── Unresolved import diagnostic test (#142) ───────────────
+// ── Unresolved import diagnostic test (#142, #1465) ────────
 
 #[test]
-fn unresolved_npm_import_diagnostic() {
+fn an_unresolved_npm_import_is_the_checkers_diagnostic() {
+    use floe_core::interop::packages;
     use floe_core::parser::Parser;
     use std::path::Path;
 
+    // The language server used to report E013 here on its own, so
+    // `floe check` and the editor disagreed about the same file
+    // (#1465). `enrich_from_imports` now only adds type information,
+    // and `interop::packages` makes the call for both paths.
     let source = r#"import { nonexistent } from "fake-package-12345""#;
     let program = Parser::new(source).parse_program().unwrap();
     let analysed = analyse::analyse_parsed(program, ModuleInputs::default());
@@ -849,13 +854,21 @@ fn unresolved_npm_import_diagnostic() {
         &tsconfig_paths,
     );
     assert!(
-        !diags.is_empty(),
-        "should report error for unresolved npm import"
+        diags.is_empty(),
+        "enrichment must not report the package, got: {diags:?}"
     );
-    assert!(
-        diags[0].message.contains("cannot find module"),
-        "diagnostic should say 'cannot find module', got: {}",
-        diags[0].message
+
+    let missing = packages::find_missing_packages(
+        &Parser::new(source).parse_program().unwrap(),
+        &HashMap::new(),
+        &tsconfig_paths,
+        project_dir,
+        project_dir,
+    );
+    assert_eq!(
+        missing.get("fake-package-12345").map(String::as_str),
+        Some("fake-package-12345"),
+        "the shared resolver must report the package instead"
     );
 }
 
@@ -938,10 +951,13 @@ fn exports_without_a_types_condition_reports_no_diagnostic() {
     );
 }
 
-/// A package that ships only JavaScript still reports E013, so the fallback
-/// cannot silently type an import as `unknown`.
+/// A package that ships only JavaScript is installed, so it is not E013.
+///
+/// The import is still not silent: the checker types the symbol `Foreign`
+/// and warns W004 on every call, on both paths. E013 now means one thing
+/// only, which is that the package is absent from `node_modules` (#1465).
 #[test]
-fn a_package_without_any_declaration_file_still_reports_e013() {
+fn a_package_without_any_declaration_file_is_not_e013() {
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path();
     install_package(
@@ -952,9 +968,26 @@ fn a_package_without_any_declaration_file_still_reports_e013() {
     );
 
     let (diags, _) = enrich(r#"import trusted { value } from "jsonly""#, root);
+    assert!(
+        diags.is_empty(),
+        "an installed package must not report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
 
-    assert_eq!(diags.len(), 1, "should report exactly one diagnostic");
-    assert_eq!(diags[0].code.as_deref(), Some("E013"));
+    let program = Parser::new(r#"import trusted { value } from "jsonly""#)
+        .parse_program()
+        .unwrap();
+    let missing = floe_core::interop::packages::find_missing_packages(
+        &program,
+        &HashMap::new(),
+        &floe_core::resolve::TsconfigPaths::default(),
+        root,
+        root,
+    );
+    assert!(
+        missing.is_empty(),
+        "the package is installed, so nothing is missing, got: {missing:?}"
+    );
 }
 
 /// A workspace hoists `node_modules` above the package that imports from it,

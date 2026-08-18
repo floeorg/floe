@@ -22,7 +22,7 @@ Only the `.fl` files in these apps are Floe integration tests. The `examples/sto
 
 Run on **every** PR that touches the compiler or `.fl` files.
 
-**Important:** Run `pnpm install --frozen-lockfile` first if `node_modules/` is missing — `floe check` needs npm dependencies to resolve TypeScript types. Without them, all external imports resolve to `unknown`.
+**Important:** Run `pnpm install --frozen-lockfile` first if `node_modules/` is missing — `floe check` needs npm dependencies to resolve TypeScript types. Without them, every external import reports **E013**, and `floe check` and `floe build` both fail.
 
 ```bash
 pnpm install --frozen-lockfile

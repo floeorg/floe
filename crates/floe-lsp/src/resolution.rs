@@ -112,15 +112,10 @@ pub(super) fn enrich_from_imports<T>(
                 Err(_) => continue,
             }
         } else {
-            import_diags.push(
-                floe_diag::Diagnostic::error(
-                    format!("cannot find module `\"{specifier}\"`"),
-                    item.span,
-                )
-                .with_label("package not found")
-                .with_help("check that the package is installed (`npm install`)")
-                .with_error_code(ErrorCode::PackageNotFound),
-            );
+            // No declarations for this package. The checker owns the
+            // "package is not installed" call now and reports E013 from
+            // `interop::packages`, so both the editor and `floe check`
+            // give one answer (#1465). Nothing to enrich here either way.
             continue;
         };
 

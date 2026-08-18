@@ -148,6 +148,7 @@ fn compile_source(file_path: &Path, filename: &str, source: &str) -> Result<Comp
                 dts_generic_params: tsgo_result.generic_param_defs,
                 ambient,
                 ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
+                missing_npm_packages: tsgo_result.missing_npm_packages,
             },
         },
     );
@@ -233,9 +234,20 @@ fn cmd_build(path: &Path, out_dir: Option<&Path>, ts_nocheck: bool) -> Result<()
 
     for file in &files {
         match compile_and_write(&compiler, file, out_dir, &cwd, ts_nocheck) {
-            Ok(out_path) => {
-                println!("  compiled {}", out_path.display());
-                compiled += 1;
+            Ok(output) => {
+                // The TypeScript is still on disk, because a partial
+                // build is useful while a person edits. The exit code is
+                // not: a build that reported an error must not report
+                // success to CI as well. Say which of the two happened,
+                // because "compiled x" above "0 compiled, 1 failed"
+                // reads as a contradiction.
+                if output.had_errors {
+                    println!("  failed {} (output written anyway)", output.path.display());
+                    errors += 1;
+                } else {
+                    println!("  compiled {}", output.path.display());
+                    compiled += 1;
+                }
             }
             Err(e) => {
                 eprintln!("  error {}: {e}", file.display());
@@ -250,6 +262,14 @@ fn cmd_build(path: &Path, out_dir: Option<&Path>, ts_nocheck: bool) -> Result<()
     }
     println!("{compiled} file(s) compiled successfully");
     Ok(())
+}
+
+/// One written file: where the TypeScript landed, and whether the
+/// checker reported an error for it. `cmd_build` reads `had_errors` to
+/// pick its exit code.
+struct WrittenFile {
+    path: PathBuf,
+    had_errors: bool,
 }
 
 /// The header that stops TypeScript from checking an emitted file.
@@ -282,11 +302,12 @@ fn compile_and_write(
     out_dir: &Path,
     cwd: &Path,
     ts_nocheck: bool,
-) -> Result<PathBuf> {
+) -> Result<WrittenFile> {
     let source = read_fl_file(file)?;
     let compiled = compiler.compile_file(file, source);
 
-    if has_errors(&compiled.diagnostics) {
+    let had_errors = has_errors(&compiled.diagnostics);
+    if had_errors {
         report_diagnostics(
             &file.to_string_lossy(),
             &compiled.source,
@@ -320,7 +341,10 @@ fn compile_and_write(
             .with_context(|| format!("failed to write {}", dts_path.display()))?;
     }
 
-    Ok(out_path)
+    Ok(WrittenFile {
+        path: out_path,
+        had_errors,
+    })
 }
 
 // ── Check ────────────────────────────────────────────────────────
@@ -577,7 +601,7 @@ fn cmd_watch(path: &Path, out_dir: Option<&Path>) -> Result<()> {
     for changed_file in rx {
         println!("\n  changed: {}", changed_file.display());
         match compile_and_write(&compiler, &changed_file, out_dir, &cwd, true) {
-            Ok(out_path) => println!("  compiled {}", out_path.display()),
+            Ok(output) => println!("  compiled {}", output.path.display()),
             Err(e) => eprintln!("  error: {e}"),
         }
     }

@@ -312,10 +312,19 @@ impl Checker {
         span: Span,
     ) -> Type {
         if let Some(tsgo_ty) = tsgo_type {
-            if matches!(tsgo_ty, Type::Unknown) && !value_type.is_undetermined() {
+            if matches!(tsgo_ty, Type::Unknown)
+                && (!value_type.is_undetermined() || matches!(value_type.resolved(), Type::Error))
+            {
                 // Probe resolved to Unknown (e.g. useMemo callback with free
                 // variables) but the checker inferred a concrete type via
                 // generic inference — prefer the checker's type.
+                //
+                // `Error` counts as knowing better. tsgo emits `any` for a
+                // module it cannot resolve, which reads back as Unknown and
+                // would overwrite the marker that says a diagnostic already
+                // went out. The binding would then start a fresh W006
+                // cascade under the E013 that already named the cause
+                // (#1465).
                 value_type
             } else if let Type::Function {
                 params: tsgo_params,
