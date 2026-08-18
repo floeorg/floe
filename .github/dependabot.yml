@@ -40,6 +40,17 @@ updates:
       # release, so pin this and lift it by hand together with engines.vscode.
       - dependency-name: "@types/vscode"
 
+      # starlight 0.39.0 removed the `{ label, autogenerate }` sidebar shape,
+      # 0.40.0 raised the astro minimum to 6.4.5, and 0.41.0 dropped astro 6.
+      # docs/site still pins astro ^6.1.8, so any release after 0.38.x breaks
+      # the Deploy Site build. This package is 0.x, so the minor is its
+      # breaking boundary: block minor and major, let patch updates through.
+      # Remove this entry when the astro 7 upgrade lands, issue #1461.
+      - dependency-name: "@astrojs/starlight"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
