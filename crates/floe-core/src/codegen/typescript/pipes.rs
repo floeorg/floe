@@ -1,7 +1,7 @@
 use crate::parser::ast::{Arg, ExprKind, TypedArg, TypedExpr};
 use crate::pretty::{self, Document};
 
-use super::super::{GlobalName, checker_agrees, has_placeholder_arg};
+use super::super::has_placeholder_arg;
 use super::generator::TypeScriptGenerator;
 
 impl<'a> TypeScriptGenerator<'a> {
@@ -71,15 +71,7 @@ impl<'a> TypeScriptGenerator<'a> {
     /// of it. `checker_agrees` reads the type the checker resolved and drops
     /// the map's answer when the two part.
     fn for_block_fn_for(&self, name: &str, ty: &crate::checker::Type) -> Option<String> {
-        let entry = self.ctx.lookup_for_block_fn_by_name(name)?;
-        if !checker_agrees(
-            ty,
-            &GlobalName::ForBlockFn {
-                receiver: entry.guard_receiver(),
-            },
-        ) {
-            return None;
-        }
+        let entry = self.ctx.resolved_for_block_fn(name, ty)?;
 
         Some(entry.emitted_name(&self.import_aliases))
     }

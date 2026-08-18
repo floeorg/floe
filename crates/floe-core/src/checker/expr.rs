@@ -1044,6 +1044,14 @@ impl Checker {
             && let Some(first_arg) = arg_types.first()
             && let Some(resolved) = self.resolve_for_block_overload(name, first_arg)
         {
+            // Record the overload this call uses over the type `check_expr`
+            // wrote for the callee. That type came from a bare `env.lookup`,
+            // which holds the last registration of the name, so it can name
+            // a different for-block from the one the call is checked
+            // against. Codegen reads the recorded type to pick which
+            // for-block function to emit, so the two must be the same one.
+            self.expr_types
+                .insert(callee.id, std::sync::Arc::new(resolved.clone()));
             resolved
         } else {
             callee_ty

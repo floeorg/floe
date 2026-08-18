@@ -41,6 +41,20 @@ pub(crate) fn for_block_base_type_name<T>(type_expr: &TypeExpr<T>) -> Option<&st
     }
 }
 
+/// The name a written type annotation carries, when it carries one.
+///
+/// `Entry` gives `Entry` and `Array<number>` gives `Array`, which is what
+/// the resolved `Type` for the same annotation prints. A structural
+/// annotation (a record, a tuple, a function type) carries no name, so it
+/// gives `None` and the guard skips that position rather than guessing.
+pub(crate) fn written_annotation_name<T>(type_expr: &TypeExpr<T>) -> Option<String> {
+    match &type_expr.kind {
+        TypeExprKind::Named { name, .. } => Some(name.clone()),
+        TypeExprKind::Array(_) => Some(crate::type_layout::TYPE_ARRAY.to_string()),
+        _ => None,
+    }
+}
+
 /// Mangle a type expression into a valid identifier fragment.
 fn mangle_type_name<T>(type_expr: &TypeExpr<T>) -> String {
     match &type_expr.kind {
@@ -125,11 +139,23 @@ pub(crate) enum GlobalName<'a> {
     Variant { union: &'a str },
     /// A variant that carries fields, used bare as a constructor function.
     Constructor { union: &'a str },
-    /// A for-block function. `receiver` carries the type name in the
-    /// for-block header when the function takes `self` first, because the
-    /// checker types that first parameter as the receiver. A for-block
-    /// function without a `self` receiver carries `None`.
-    ForBlockFn { receiver: Option<&'a str> },
+    /// A for-block function, against the signature its declaration writes.
+    ForBlockFn { shape: &'a FnShape },
+}
+
+/// The signature a for-block function declares, as written type names.
+///
+/// A position holds `None` where the declaration writes no name for it: an
+/// unannotated parameter, an inferred return type, or a structural
+/// annotation. The guard skips those positions, because it has nothing to
+/// compare there.
+#[derive(Clone)]
+pub(crate) struct FnShape {
+    /// One entry per declared parameter, in order. `self` carries the type
+    /// name in the for-block header, because that is what the checker types
+    /// the receiver as.
+    pub params: Vec<Option<String>>,
+    pub ret: Option<String>,
 }
 
 /// The name a resolved type is written with, without its type arguments.
@@ -169,16 +195,32 @@ pub(crate) fn checker_agrees(ty: &Type, global: &GlobalName<'_>) -> bool {
             }
             _ => false,
         },
-        GlobalName::ForBlockFn { receiver } => match ty.resolved() {
-            Type::Function { params, .. } => match (receiver, params.first()) {
-                (Some(receiver), Some(first)) => {
-                    first.is_undetermined() || written_type_name(first) == **receiver
-                }
-                _ => true,
-            },
+        GlobalName::ForBlockFn { shape } => match ty.resolved() {
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => {
+                params.len() == shape.params.len()
+                    && std::iter::zip(params.iter(), shape.params.iter())
+                        .all(|(resolved, declared)| position_agrees(resolved, declared))
+                    && position_agrees(&return_type, &shape.ret)
+            }
             _ => false,
         },
     }
+}
+
+/// True when one resolved type agrees with one written name.
+///
+/// A declaration that writes no name for the position, and a type the
+/// checker left undetermined, both agree: neither carries evidence.
+fn position_agrees(resolved: &Type, declared: &Option<String>) -> bool {
+    let Some(declared) = declared else {
+        return true;
+    };
+
+    resolved.is_undetermined() || written_type_name(resolved) == *declared
 }
 
 // ── Public Helpers ───────────────────────────────────────────────

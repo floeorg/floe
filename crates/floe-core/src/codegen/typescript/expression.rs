@@ -378,14 +378,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 return self.emit_variant_constructor_fn(name, field_names);
             }
         }
-        if let Some(entry) = ctx.lookup_for_block_fn_by_name(name)
-            && checker_agrees(
-                ty,
-                &GlobalName::ForBlockFn {
-                    receiver: entry.guard_receiver(),
-                },
-            )
-        {
+        if let Some(entry) = ctx.resolved_for_block_fn(name, ty) {
             return pretty::str(entry.emitted_name(&self.import_aliases));
         }
 
@@ -409,7 +402,7 @@ impl<'a> TypeScriptGenerator<'a> {
             && checker_agrees(
                 ty,
                 &GlobalName::ForBlockFn {
-                    receiver: entry.guard_receiver(),
+                    shape: &entry.shape,
                 },
             )
         {
