@@ -2,6 +2,11 @@
 # we don't get the same finding flagged by two tools. Migration off
 # bincode is tracked in #1403.
 
+# The ignore expires on 2026-11-18. After that date osv-scanner reports
+# RUSTSEC-2025-0141 again, so somebody re-reads it instead of letting the
+# ignore live forever. cargo-deny has no expiry field, so deny.toml carries
+# the same date in a comment.
 [[IgnoredVulns]]
 id = "RUSTSEC-2025-0141"
-reason = "bincode unmaintained — no security vulnerability, no migration path. Tracked in #1403."
+ignoreUntil = 2026-11-18
+reason = "bincode is unmaintained, not vulnerable. Unmaintained is a maintenance signal, and RUSTSEC-2025-0141 reports no exploitable defect. Tracked in #1403."
