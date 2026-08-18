@@ -480,6 +480,58 @@ fn tsconfig_not_found() {
 // ── Namespace + export = parsing (oxc_parser) ──────────────
 
 #[test]
+fn parse_dts_records_namespace_members_under_qualified_names() {
+    // #1543. A dotted type annotation writes `z.ZodString`, so the export
+    // list carries that key beside whatever bare names the module exports.
+    let dts = r#"
+declare namespace z {
+    interface ZodString { parse(v: unknown): string; }
+    type Infer = string;
+}
+export = z;
+"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+
+    for name in ["z.ZodString", "z.Infer"] {
+        assert!(
+            exports.iter().any(|e| e.name == name),
+            "expected {name}, got {:?}",
+            exports.iter().map(|e| &e.name).collect::<Vec<_>>()
+        );
+    }
+    assert!(
+        exports.iter().any(|e| e.name == "ZodString"),
+        "the bare name must stay, got {:?}",
+        exports.iter().map(|e| &e.name).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn parse_dts_records_qualified_names_without_an_export_assignment() {
+    // The bare names reach the export list only through `export = z`. The
+    // qualified name is recorded either way, because a dotted type
+    // annotation can write it after a plain `import { z }`.
+    let dts = r#"
+declare namespace z {
+    interface ZodString { parse(v: unknown): string; }
+}
+export declare const z: number;
+"#;
+    let exports = parse_dts_exports_from_str(dts).unwrap();
+
+    assert!(
+        exports.iter().any(|e| e.name == "z.ZodString"),
+        "expected z.ZodString, got {:?}",
+        exports.iter().map(|e| &e.name).collect::<Vec<_>>()
+    );
+    assert!(
+        !exports.iter().any(|e| e.name == "ZodString"),
+        "no `export =`, so the bare name must not appear: {:?}",
+        exports.iter().map(|e| &e.name).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn parse_dts_namespace_with_export_assignment() {
     // React-like pattern: export = React; declare namespace React { function useState<S>(...): ...; }
     let dts = r#"
@@ -653,7 +705,11 @@ declare namespace Lib {
 "#;
     let exports = parse_dts_exports_from_str(dts).unwrap();
 
-    assert_eq!(exports.len(), 3);
+    // Five, not three. `export = Lib` lifts all three members under their
+    // bare names, and the two types are recorded again under `Lib.Options`
+    // and `Lib.Result` (#1543). `VERSION` is a const, so it names a value
+    // and takes no qualified key.
+    assert_eq!(exports.len(), 5);
 
     let version = exports.iter().find(|e| e.name == "VERSION").unwrap();
     assert_eq!(version.ts_type, TsType::Primitive("string".to_string()));

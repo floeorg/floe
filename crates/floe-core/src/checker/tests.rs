@@ -10471,6 +10471,13 @@ type User = {
 fn jsx_namespace_members_resolve() {
     // Floe owns the `JSX` namespace. `@types/react` 19 declares it as
     // `React.JSX`, so the ambient tables never carry a global `JSX`.
+    //
+    // The member check of #1543 leaves this namespace alone on purpose.
+    // Floe holds one hardcoded name for it, `JSX.Element`, and one name is
+    // not a member list. TypeScript does hold the list: an emitted component
+    // names React's `JSX` namespace, so `JSX.IntrinsicElements` type checks
+    // there. #1544 gives Floe the same list, and the member check covers
+    // `JSX` then.
     let diags = check(
         r#"
 type Props = { intrinsics: JSX.IntrinsicElements }
@@ -10561,21 +10568,79 @@ fn check_with_ambient_namespaces(source: &str, namespaces: &[&str]) -> Vec<Diagn
 
 #[test]
 fn dotted_type_rooted_at_ambient_namespace_resolves() {
-    // `load_ambient_types` flattens `declare namespace NodeJS { interface
-    // Timeout }` to the bare key `Timeout`, so the namespace set is the only
-    // record that `NodeJS` exists.
-    let diags = check_with_ambient_namespaces(
+    // `load_ambient_types` records `declare namespace NodeJS { interface
+    // Timeout }` under both `Timeout` and `NodeJS.Timeout`, and records the
+    // namespace name beside them.
+    let diags = check_with_ambient(
         r#"
 type Handle = { t: NodeJS.Timeout }
 type Fmt = { f: Intl.DateTimeFormat }
 type Props = { c: JSX.IntrinsicElements }
 "#,
+        &[
+            "NodeJS.Timeout",
+            "Intl.DateTimeFormat",
+            "JSX.IntrinsicElements",
+        ],
         &["NodeJS", "Intl", "JSX"],
     );
     assert!(
         !has_error_containing(&diags, "unknown type"),
         "a namespace-qualified lib type must resolve; got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn unknown_member_of_an_ambient_namespace_errors() {
+    // #1543. The loader records every member of `Intl` under its qualified
+    // name, so a member that is absent is a typo. Before this check the
+    // resolver read the first segment only and accepted any member.
+    let diags = check_with_ambient(
+        r#"
+type Bad = { f: Intl.Whatever }
+"#,
+        &["Intl.DateTimeFormat"],
+        &["Intl"],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Intl.Whatever`"),
+        "an absent member must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().any(|d| d
+            .help
+            .as_deref()
+            .is_some_and(|h| h.contains("`Intl` declares no type `Whatever`"))),
+        "the help must name the namespace and the member; got: {:?}",
+        diags.iter().map(|d| &d.help).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn unknown_member_of_a_qualified_ambient_namespace_errors() {
+    // The namespace is `React.JSX`, so the help names `React.JSX` and not
+    // the bare root `React`.
+    let diags = check_with_ambient(
+        r#"
+type Bad = { x: React.JSX.Nope }
+"#,
+        &["React.JSX.Element"],
+        &["React.JSX"],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `React.JSX.Nope`"),
+        "an absent member must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().any(|d| d
+            .help
+            .as_deref()
+            .is_some_and(|h| h.contains("`React.JSX` declares no type `Nope`"))),
+        "the help must name the longest namespace prefix; got: {:?}",
+        diags.iter().map(|d| &d.help).collect::<Vec<_>>()
     );
 }
 
@@ -10625,12 +10690,14 @@ type Bad = {
 #[test]
 fn dotted_type_matches_a_qualified_ambient_namespace() {
     // `@types/react` 19 declares `namespace React { namespace JSX { ... } }`,
-    // so the loader records the qualified name `React.JSX`. A resolver that
-    // tests the first segment alone never reads that entry.
-    let diags = check_with_ambient_namespaces(
+    // so the loader records the qualified names `React.JSX` and
+    // `React.JSX.Element`. A resolver that tests the first segment alone
+    // never reads either entry.
+    let diags = check_with_ambient(
         r#"
 type Props = { child: React.JSX.Element }
 "#,
+        &["React.JSX.Element"],
         &["React.JSX"],
     );
     assert!(
@@ -11060,5 +11127,74 @@ export let main() -> string = { shout("hello") }
         !has_error(&diags, ErrorCode::UncheckedForeignArguments),
         "the default binding must not also warn W004, got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+// ── A warning must not delete the expression (#1493) ───────────
+
+/// `useSuspenseQuery` resolves to a `typeof` reference that tsgo could
+/// not expand, so the checker types it `Foreign` and warns W004 on the
+/// call. The call is still real code. Before #1493, `check_expr`
+/// counted every diagnostic, so the warning marked the call invalid,
+/// `attach_types` replaced it with `Invalid`, and codegen wrote
+/// `undefined /* type error */` into the shipped file while `floe
+/// check` exited 0.
+#[test]
+fn a_warning_alone_does_not_mark_an_expression_invalid() {
+    use crate::interop::{DtsExport, TsType};
+
+    let source = r#"
+import trusted { mystery } from "mystery-pkg"
+export let main() -> unknown = { mystery(1) }
+"#;
+    let program = Parser::new(source).parse_program().expect("parse");
+    let mut dts = HashMap::new();
+    dts.insert(
+        "mystery-pkg".to_string(),
+        vec![DtsExport {
+            name: "mystery".to_string(),
+            ts_type: TsType::Named("typeof mystery".to_string()),
+        }],
+    );
+    let checker = Checker::from_context(HashMap::new(), dts, None, HashSet::new());
+    let (diags, _types, invalid_exprs, _shadowed) = checker.check_full(&program);
+
+    assert!(
+        has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "the unresolved npm callee must still warn, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "the warning must not come with an error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        invalid_exprs.is_empty(),
+        "a warning must leave the expression emittable, got {} invalid expressions",
+        invalid_exprs.len()
+    );
+}
+
+/// The other half of the rule: an error still marks the expression
+/// invalid, so codegen knows it has nothing to emit.
+#[test]
+fn an_error_still_marks_an_expression_invalid() {
+    let source = "export let main() -> number = { bogusName(1) }";
+    let program = Parser::new(source).parse_program().expect("parse");
+    let (diags, _types, invalid_exprs, _shadowed) = Checker::new().check_full(&program);
+
+    assert!(
+        has_error(&diags, ErrorCode::UndefinedName),
+        "the undefined name must report E002, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !invalid_exprs.is_empty(),
+        "an error must mark the expression invalid"
     );
 }
