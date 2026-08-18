@@ -1,4 +1,6 @@
 {
+  "//": "A word follows the TypeScript rule, so double-click and word-based navigation take a Unicode name as well.",
+  "wordPattern": "(-?\\d*\\.\\d\\w*)|([^`~!@#%^&*()\\-=+[{\\]}\\\\|;:'\",.<>/?\\s]+)",
   "comments": {
     "lineComment": "//",
     "blockComment": ["/*", "*/"]

@@ -596,3 +596,28 @@ class TestHoverChainCallSignature:
         # Arg list must not be dropped — the whole point of the synthesis.
         assert "string" in h, f"Hover should include the arg type, got: {h}"
         assert "(())" not in h, f"Hover must not drop the arg list, got: {h}"
+
+
+class TestHoverUnicodeNames:
+    """Hover reads a Unicode name, not only an ASCII one (#1576)."""
+
+    def test_hover_on_a_japanese_binding(self, lsp):
+        open_doc(lsp, URI, F.UNICODE_NAMES)
+        h = hover_text(lsp.hover(URI, *at(F.UNICODE_NAMES, "名前")))
+        assert h is not None and "名前" in h, f"Expected the name in the hover, got: {h}"
+
+    def test_hover_on_a_japanese_usage(self, lsp):
+        open_doc(lsp, URI, F.UNICODE_NAMES)
+        h = hover_text(lsp.hover(URI, *at(F.UNICODE_NAMES, "名前", nth=1)))
+        assert h is not None and "string" in h, f"Expected the type, got: {h}"
+
+    def test_hover_on_an_accented_binding(self, lsp):
+        open_doc(lsp, URI, F.UNICODE_NAMES)
+        h = hover_text(lsp.hover(URI, *at(F.UNICODE_NAMES, "café")))
+        assert h is not None and "café" in h, f"Expected the name in the hover, got: {h}"
+
+    def test_hover_reads_the_whole_unicode_name(self, lsp):
+        """The cursor sits after the accent, and hover still reads `café`."""
+        open_doc(lsp, URI, F.UNICODE_NAMES)
+        h = hover_text(lsp.hover(URI, *at(F.UNICODE_NAMES, "café", offset=4)))
+        assert h is not None and "café" in h, f"Expected the whole name, got: {h}"

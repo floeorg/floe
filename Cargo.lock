@@ -326,6 +326,7 @@ dependencies = [
  "oxc_ast",
  "oxc_parser",
  "oxc_span",
+ "oxc_syntax",
  "rowan",
  "serde",
  "serde_json",

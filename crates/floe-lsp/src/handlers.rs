@@ -6,10 +6,10 @@ use tower_lsp::lsp_types::{
     DidOpenTextDocumentParams, DocumentFormattingParams, DocumentSymbolParams,
     DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
     HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, Location,
-    MessageType, OneOf, Position, PrepareRenameResponse, Range, ReferenceParams, RenameOptions,
-    RenameParams, ServerCapabilities, ServerInfo, SymbolInformation, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, WorkDoneProgressOptions,
-    WorkspaceEdit,
+    MessageType, OneOf, Position, PositionEncodingKind, PrepareRenameResponse, Range,
+    ReferenceParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
+    SymbolInformation, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, WorkDoneProgressOptions, WorkspaceEdit,
 };
 
 use super::rename::{for_each_symbol_site, resolve_def_span};
@@ -20,6 +20,9 @@ impl LanguageServer for FloeLsp {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
+                // Say the unit out loud. A position counts UTF-16 code units,
+                // which is what `offset_to_position` produces.
+                position_encoding: Some(PositionEncodingKind::UTF16),
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),

@@ -184,7 +184,7 @@
         {
           "comment": "User-defined types (PascalCase identifiers)",
           "name": "entity.name.type.floe",
-          "match": "\\b[A-Z][a-zA-Z0-9]*\\b"
+          "match": "\\b[\\p{Lu}\\p{Lt}][_$\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*\\b"
         }
       ]
     },
@@ -233,7 +233,7 @@
       "patterns": [
         {
           "comment": "let-def function declarations (with optional async modifier and generic type parameters) — matches `let NAME(` shape",
-          "match": "\\b(?:(async)\\s+)?(let)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:<([A-Z][a-zA-Z0-9]*(?:\\s*,\\s*[A-Z][a-zA-Z0-9]*)*)>)?(?=\\s*\\()",
+          "match": "\\b(?:(async)\\s+)?(let)\\s+([_$\\p{L}\\p{Nl}][_$\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*)(?:<([\\p{Lu}\\p{Lt}][_$\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*(?:\\s*,\\s*[\\p{Lu}\\p{Lt}][_$\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*)*)>)?(?=\\s*\\()",
           "captures": {
             "1": { "name": "storage.modifier.async.floe" },
             "2": { "name": "storage.type.function.floe" },
@@ -243,7 +243,7 @@
         },
         {
           "comment": "Function calls (including generic calls like name<Type>(...))",
-          "match": "\\b([a-z_][a-zA-Z0-9_]*)\\s*(?=<[A-Z]|\\()",
+          "match": "\\b([_$\\p{Ll}\\p{Lm}\\p{Lo}\\p{Nl}][_$\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*)\\s*(?=<[\\p{Lu}\\p{Lt}]|\\()",
           "captures": {
             "1": { "name": "entity.name.function.floe" }
           }
@@ -341,7 +341,7 @@
         },
         {
           "comment": "JSX string attribute: prop=\"value\"",
-          "match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)\\s*(\"[^\"]*\")",
+          "match": "([_$\\p{L}\\p{Nl}][_$\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*)\\s*(=)\\s*(\"[^\"]*\")",
           "captures": {
             "1": { "name": "entity.other.attribute-name.floe" },
             "2": { "name": "keyword.operator.assignment.floe" },
@@ -350,7 +350,7 @@
         },
         {
           "comment": "JSX bare attribute name",
-          "match": "([a-zA-Z_][a-zA-Z0-9_]*)",
+          "match": "([_$\\p{L}\\p{Nl}][_$\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*)",
           "captures": {
             "1": { "name": "entity.other.attribute-name.floe" }
           }
@@ -369,7 +369,7 @@
       "patterns": [
         {
           "name": "variable.other.floe",
-          "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
+          "match": "\\b[_$\\p{Ll}\\p{Lm}\\p{Lo}\\p{Nl}][_$\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*\\b"
         }
       ]
     }

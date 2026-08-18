@@ -39,6 +39,8 @@ pub enum CstErrorKind {
     UnexpectedToken,
     /// A JSX closing tag did not match the opening tag.
     MismatchedTag,
+    /// Text that cannot name anything stood where a name belongs.
+    InvalidName,
     /// Anything else.
     General,
 }
@@ -265,6 +267,12 @@ impl<'src> CstParser<'src> {
     /// A word that JavaScript reserves is rejected here, because the emitted
     /// TypeScript would not compile. The diagnostic names the word.
     fn expect_binding_name(&mut self) {
+        if let Some(text) = self.text_that_cannot_name() {
+            self.error_not_a_name(&text);
+
+            return;
+        }
+
         let kind = self.current_kind();
 
         if matches!(kind, Some(TokenKind::Identifier(_))) {
@@ -317,6 +325,12 @@ impl<'src> CstParser<'src> {
     /// key, a member, a named argument label, or a JSX attribute. Every word
     /// stands here, for the reason on `IdentRole`.
     fn expect_property_name(&mut self) {
+        if let Some(text) = self.text_that_cannot_name() {
+            self.error_not_a_name(&text);
+
+            return;
+        }
+
         match self.current_kind() {
             Some(TokenKind::Identifier(_)) => self.bump(),
             Some(k) if k.can_name_property() => self.bump_remap(SyntaxKind::IDENT),
@@ -325,6 +339,31 @@ impl<'src> CstParser<'src> {
                 CstErrorKind::UnexpectedToken,
             ),
         }
+    }
+
+    /// The current token when it holds non-ASCII text that cannot name
+    /// anything: an emoji, a symbol or punctuation.
+    fn text_that_cannot_name(&self) -> Option<String> {
+        match self.current_kind() {
+            Some(TokenKind::UnicodeText(text)) => Some(text),
+            _ => None,
+        }
+    }
+
+    /// Write the diagnostic for text that cannot name anything, then step
+    /// over it so one bad character does not cascade.
+    ///
+    /// Floe emits TypeScript, so a Floe name follows the TypeScript rule.
+    fn error_not_a_name(&mut self, text: &str) {
+        self.error_kind(
+            &format!(
+                "`{text}` cannot name anything. A Floe name starts with a Unicode letter, \
+                 `$` or `_`, and continues with a letter, a digit, `$` or `_`. \
+                 An emoji is not a letter, and TypeScript rejects it in a name as well."
+            ),
+            CstErrorKind::InvalidName,
+        );
+        self.bump();
     }
 
     /// Write the diagnostic for a punned field (`{ for }` and `Foo { for: }`
@@ -669,6 +708,12 @@ impl<'src> CstParser<'src> {
     }
 
     fn expect_ident(&mut self) {
+        if let Some(text) = self.text_that_cannot_name() {
+            self.error_not_a_name(&text);
+
+            return;
+        }
+
         match self.current_kind() {
             Some(TokenKind::Identifier(_)) => self.bump(),
             Some(TokenKind::Parse) => self.bump_remap(SyntaxKind::IDENT),
@@ -1499,5 +1544,57 @@ mod tests {
             .filter(|c| c.kind() == SyntaxKind::ITEM)
             .collect();
         assert_eq!(items.len(), 2);
+    }
+
+    // ── Unicode names (#1576) ─────────────────────────────────────
+
+    #[test]
+    fn an_accented_name_parses() {
+        assert_no_errors("let café = 1");
+    }
+
+    #[test]
+    fn a_japanese_name_parses() {
+        assert_no_errors("let 名前 = \"kotoko\"");
+    }
+
+    #[test]
+    fn a_unicode_name_round_trips() {
+        assert_lossless("let café = 1\nlet 名前 = café\n");
+    }
+
+    #[test]
+    fn an_emoji_name_reports_the_rule() {
+        let parse = cst_parse("let 🎉 = 1");
+        let error = parse
+            .errors
+            .first()
+            .expect("an emoji cannot name a value, so the parser reports it");
+        assert_eq!(error.kind, CstErrorKind::InvalidName);
+        assert!(
+            error.message.contains("cannot name anything"),
+            "the message must say what is wrong: {}",
+            error.message
+        );
+        assert!(
+            error.message.contains("emoji"),
+            "the message must name the emoji rule: {}",
+            error.message
+        );
+    }
+
+    #[test]
+    fn an_emoji_name_reports_once() {
+        // The parser steps over the bad text, so one emoji does not produce
+        // a cascade of follow-on errors.
+        let parse = cst_parse("let 🎉 = 1");
+        assert_eq!(parse.errors.len(), 1, "got: {:?}", parse.errors);
+    }
+
+    #[test]
+    fn jsx_content_carries_emoji_and_japanese_text() {
+        let source = "let View() -> JSX.Element = {\n    <p>こんにちは 🎉 world</p>\n}";
+        assert_no_errors(source);
+        assert_lossless(source);
     }
 }

@@ -209,10 +209,9 @@ pub(super) fn import_path_completions(
 pub(super) fn identifier_before_dot(source: &str, offset: usize) -> Option<&str> {
     let bytes = source.as_bytes();
 
-    let mut pos = offset;
-    while pos > 0 && (bytes[pos - 1].is_ascii_alphanumeric() || bytes[pos - 1] == b'_') {
-        pos -= 1;
-    }
+    // The name rule comes from `floe_core::lexer`, so a Unicode name reads
+    // its members the same way an ASCII one does.
+    let mut pos = super::name_start_at_offset(source, offset);
 
     if pos == 0 || bytes[pos - 1] != b'.' {
         return None;
@@ -220,9 +219,7 @@ pub(super) fn identifier_before_dot(source: &str, offset: usize) -> Option<&str>
     pos -= 1;
 
     let end = pos;
-    while pos > 0 && (bytes[pos - 1].is_ascii_alphanumeric() || bytes[pos - 1] == b'_') {
-        pos -= 1;
-    }
+    pos = super::name_start_at_offset(source, pos);
 
     if pos == end {
         return None;

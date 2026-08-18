@@ -1,0 +1,21 @@
+---
+source: crates/floe-core/tests/snapshot_codegen.rs
+expression: output
+---
+const café = 1;
+
+const café = 2;
+
+const 名前 = "kotoko";
+
+const Δt = 0.5;
+
+function greet(名: string): string {
+  return `こんにちは、${名}`;
+}
+
+const total = café + café;
+
+const message = greet(名前);
+
+const step = Δt * 2.0;

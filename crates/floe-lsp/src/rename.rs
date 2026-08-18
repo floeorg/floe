@@ -6,6 +6,7 @@ use tower_lsp::lsp_types::{
 };
 
 use floe_core::lexer::span::Span;
+use floe_core::lexer::{is_name_part, is_name_start};
 use floe_core::reference::ReferenceTracker;
 
 use super::{
@@ -157,15 +158,20 @@ fn renameable_word_range(doc: &Document, offset: usize, word: &str) -> Option<(u
     word_range_at_offset(&doc.content, offset)
 }
 
+/// True when `s` names something in Floe.
+///
+/// The rule comes from `floe_core::lexer`, so a rename to a Unicode name is
+/// accepted for the same names the lexer accepts.
 fn is_valid_identifier(s: &str) -> bool {
     let mut chars = s.chars();
     let Some(first) = chars.next() else {
         return false;
     };
-    if !(first.is_ascii_alphabetic() || first == '_') {
+    if !is_name_start(first) {
         return false;
     }
-    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+
+    chars.all(is_name_part)
 }
 
 #[cfg(test)]

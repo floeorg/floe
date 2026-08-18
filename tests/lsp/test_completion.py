@@ -1,6 +1,6 @@
 """Tests for textDocument/completion."""
 
-from .conftest import URI, completion_labels, open_doc
+from .conftest import URI, at, completion_labels, open_doc
 from . import fixtures as F
 
 KEYWORDS = ["fn", "const", "type", "match", "import", "export"]
@@ -235,3 +235,25 @@ class TestCompletionUseBind:
         assert resp is not None, "Expected a completion response after `use `"
         labels = completion_labels(resp)
         assert isinstance(labels, list), f"Expected list of labels, got: {labels!r}"
+
+
+class TestCompletionUnicodeNames:
+    """Completion filters on a Unicode prefix (#1576)."""
+
+    def test_a_japanese_prefix_offers_the_binding(self, lsp):
+        source = F.UNICODE_NAMES + "let use名 = 名\n"
+        open_doc(lsp, URI, source)
+        line, col = at(source, "let use名 = 名")
+        labels = completion_labels(lsp.completion(URI, line, col + len("let use名 = 名")))
+        assert "名前" in labels, f"Expected `名前` in the completions, got: {labels[:15]}"
+
+    def test_a_unicode_name_offers_its_members(self, lsp):
+        source = (
+            "type User = { name: string, age: number }\n"
+            'let 利用者 = User { name: "a", age: 1 }\n'
+            "let n = 利用者.\n"
+        )
+        open_doc(lsp, URI, source)
+        labels = completion_labels(lsp.completion(URI, 2, len("let n = 利用者.")))
+        assert "name" in labels, f"Expected the record fields, got: {labels[:15]}"
+        assert "age" in labels, f"Expected the record fields, got: {labels[:15]}"

@@ -2,7 +2,7 @@
 
 import pytest
 
-from .conftest import URI, open_doc
+from .conftest import URI, at, open_doc
 from . import fixtures as F
 
 
@@ -198,3 +198,45 @@ def test_generic_fn_no_type_mismatch(lsp):
     result = open_doc(lsp, URI, F.GENERIC_FN)
     type_errs = [c for c in result.codes if c == "E001"]
     assert type_errs == [], f"Expected no E001 errors for generics, got: {[e.get('message','') for e in result.errors]}"
+
+
+# ── Unicode names (#1576) ────────────────────────────────────────
+
+
+def test_unicode_names_produce_no_errors(lsp):
+    """A Unicode name is a legal Floe name, so it reports nothing."""
+    result = open_doc(lsp, URI, F.UNICODE_NAMES)
+    assert result.errors == [], f"Expected no errors, got: {result.errors}"
+
+
+def test_two_normalizations_are_two_names(lsp):
+    """Floe does not normalize, so these are two bindings, not a redeclaration."""
+    result = open_doc(lsp, URI, F.UNICODE_NAMES_NOT_NORMALIZED)
+    assert result.errors == [], f"Expected no errors, got: {result.errors}"
+
+
+def test_emoji_name_reports_the_rule(lsp):
+    """An emoji cannot name a value, and the message says why."""
+    result = open_doc(lsp, URI, F.UNICODE_EMOJI_NAME)
+    assert len(result.errors) > 0, "Expected an error for an emoji name"
+    message = result.errors[0].get("message", "")
+    assert "cannot name anything" in message, f"Got: {message}"
+    assert "emoji" in message, f"Error should name the emoji rule, got: {message}"
+
+
+def test_jsx_content_carries_emoji_and_japanese_text(lsp):
+    """The JSX text path still takes emoji and non-Latin text."""
+    result = open_doc(lsp, URI, F.UNICODE_JSX_CONTENT)
+    assert result.errors == [], f"Expected no errors, got: {result.errors}"
+
+
+def test_diagnostic_column_on_a_line_with_a_unicode_name(lsp):
+    """A diagnostic points at the right column on a line holding a Unicode name."""
+    result = open_doc(lsp, URI, F.UNICODE_NAME_WITH_ERROR)
+    assert len(result.errors) > 0, "Expected a type error"
+    start = result.errors[0].get("range", {}).get("start", {})
+    want_line, want_char = at(F.UNICODE_NAME_WITH_ERROR, "let bad")
+    assert start.get("line") == want_line, f"Expected line {want_line}, got: {start}"
+    assert start.get("character") == want_char, (
+        f"Expected character {want_char}, got: {start}"
+    )

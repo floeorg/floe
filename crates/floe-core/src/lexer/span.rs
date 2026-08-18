@@ -1,4 +1,10 @@
 /// A source location span tracking where a token appears in the source file.
+///
+/// `start` and `end` count **bytes**. `line` and `column` count
+/// **characters**, so a multi-byte character advances the column by one.
+/// A consumer that needs another unit converts: the CLI reporter hands
+/// ariadne the byte offsets and tells it to index by byte, and the language
+/// server rebuilds a position in UTF-16 code units from the byte offsets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct Span {
     /// Byte offset of the start of this span in the source.
@@ -7,7 +13,7 @@ pub struct Span {
     pub end: usize,
     /// 1-based line number where this span starts.
     pub line: usize,
-    /// 1-based column number where this span starts.
+    /// 1-based column number where this span starts, counted in characters.
     pub column: usize,
 }
 

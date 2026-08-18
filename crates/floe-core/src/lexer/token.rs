@@ -30,6 +30,10 @@ pub enum TokenKind {
     // -- Identifiers & Keywords --
     /// Any identifier: variable names, type names, etc.
     Identifier(String),
+    /// A run of non-ASCII characters that cannot stand in a name: emoji,
+    /// symbols and punctuation. Floe carries this text inside JSX content.
+    /// It never names anything, because TypeScript rejects such a name.
+    UnicodeText(String),
 
     // Floe keywords
     /// `let` — universal binding keyword (values and functions)
