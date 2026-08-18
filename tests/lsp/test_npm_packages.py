@@ -53,7 +53,7 @@ def project(tmp_path, packages):
 
 def test_absent_package_reports_e013(lsp, tmp_path):
     uri = project(tmp_path, {})
-    result = open_doc(lsp, uri, SOURCE.format(package="absent-package"), timeout=5.0)
+    result = open_doc(lsp, uri, SOURCE.format(package="absent-package"))
     assert "E013" in result.codes, (
         f"the editor must report E013 for a package that is not installed, "
         f"got: {result.codes}"
@@ -62,7 +62,7 @@ def test_absent_package_reports_e013(lsp, tmp_path):
 
 def test_absent_package_help_names_the_install(lsp, tmp_path):
     uri = project(tmp_path, {})
-    result = open_doc(lsp, uri, SOURCE.format(package="absent-package"), timeout=5.0)
+    result = open_doc(lsp, uri, SOURCE.format(package="absent-package"))
     messages = " ".join(d.get("message", "") for d in result.all)
     assert "absent-package" in messages, (
         f"the diagnostic must name the package, got: {messages}"
@@ -71,7 +71,7 @@ def test_absent_package_help_names_the_install(lsp, tmp_path):
 
 def test_installed_package_without_declarations_is_not_an_error(lsp, tmp_path):
     uri = project(tmp_path, {"no-types": None})
-    result = open_doc(lsp, uri, SOURCE.format(package="no-types"), timeout=5.0)
+    result = open_doc(lsp, uri, SOURCE.format(package="no-types"))
     assert "E013" not in result.codes, (
         f"a package that resolves must not report E013, got: {result.codes}"
     )
@@ -83,7 +83,7 @@ def test_installed_package_without_declarations_is_not_an_error(lsp, tmp_path):
 
 def test_installed_package_with_declarations_reports_no_error(lsp, tmp_path):
     uri = project(tmp_path, {"has-types": DECLARATION})
-    result = open_doc(lsp, uri, SOURCE.format(package="has-types"), timeout=5.0)
+    result = open_doc(lsp, uri, SOURCE.format(package="has-types"))
     assert "E013" not in result.codes, (
         f"a resolvable package must not report E013, got: {result.codes}"
     )
@@ -102,7 +102,7 @@ def test_installed_package_with_declarations_reports_no_error(lsp, tmp_path):
 )
 def test_installed_package_variants_report_no_e013(lsp, tmp_path, specifier, installed):
     uri = project(tmp_path, {installed: DECLARATION})
-    result = open_doc(lsp, uri, SOURCE.format(package=specifier), timeout=5.0)
+    result = open_doc(lsp, uri, SOURCE.format(package=specifier))
     assert "E013" not in result.codes, (
         f"`{specifier}` resolves to an installed package, got: {result.codes}"
     )
@@ -125,7 +125,7 @@ def test_a_node_builtin_without_types_node_is_not_an_error(lsp, tmp_path, specif
     which is W004 (#1465).
     """
     uri = project(tmp_path, {})
-    result = open_doc(lsp, uri, NODE_SOURCE.format(specifier=specifier), timeout=5.0)
+    result = open_doc(lsp, uri, NODE_SOURCE.format(specifier=specifier))
     assert "E013" not in result.codes, (
         f"`{specifier}` is a Node builtin and must not report E013, got: {result.codes}"
     )
@@ -137,7 +137,7 @@ def test_a_node_builtin_without_types_node_is_not_an_error(lsp, tmp_path, specif
 
 def test_a_node_builtin_warns_and_names_the_types_package(lsp, tmp_path):
     uri = project(tmp_path, {})
-    result = open_doc(lsp, uri, NODE_SOURCE.format(specifier="node:crypto"), timeout=5.0)
+    result = open_doc(lsp, uri, NODE_SOURCE.format(specifier="node:crypto"))
     helps = " ".join(str(d.get("message", "")) for d in result.all)
     assert "W004" in result.codes, (
         f"a builtin with no declarations must warn W004, got: {result.codes}"

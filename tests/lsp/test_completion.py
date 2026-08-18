@@ -71,7 +71,7 @@ class TestCompletionAdvanced:
 
     def test_imported_symbols(self, lsp):
         lsp.open_doc("file:///tmp/helpers.fl", "export let helperFn() -> number = { 42 }\n")
-        lsp.collect_notifications("textDocument/publishDiagnostics", timeout=1)
+        lsp.drain_notifications("textDocument/publishDiagnostics")
         open_doc(lsp, URI, 'import { helperFn } from "./helpers"\n\n')
         labels = completion_labels(lsp.completion(URI, 1, 0))
         assert "helperFn" in labels, f"Labels: {labels[:15]}"
@@ -82,12 +82,12 @@ class TestCompletionAdvanced:
         assert "local" in labels, f"Labels: {labels[:15]}"
 
     def test_union_constructors(self, lsp):
-        open_doc(lsp, URI, "type Color = | Red | Green | Blue\nconst c = \n", timeout=2.0)
+        open_doc(lsp, URI, "type Color = | Red | Green | Blue\nconst c = \n")
         labels = completion_labels(lsp.completion(URI, 1, 10))
         assert any(v in labels for v in ["Red", "Green", "Blue"]), f"Labels: {labels[:15]}"
 
     def test_ok_err_builtins(self, lsp):
-        open_doc(lsp, URI, "type Color = | Red | Green | Blue\nconst c = \n", timeout=2.0)
+        open_doc(lsp, URI, "type Color = | Red | Green | Blue\nconst c = \n")
         labels = completion_labels(lsp.completion(URI, 1, 10))
         assert "Ok" in labels and "Err" in labels, f"Labels: {labels[:15]}"
 
