@@ -4,6 +4,13 @@
 //! maps positions in the emitted `.ts`/`.tsx` output back to the original
 //! `.fl` source. This enables debugging in browser devtools with the
 //! original Floe source.
+//!
+//! **A column counts UTF-16 code units.** The Source Map v3 specification
+//! says so, and a browser reads a map that way. A `Span` counts characters,
+//! and the lexer counts bytes for `start` and `end`, so a caller must
+//! convert before it calls [`SourceMapBuilder::add_mapping_1based`].
+//! Nothing calls this module yet, and #1576 left this note so that the
+//! first caller converts rather than passes a `Span` column straight in.
 
 use serde::Serialize;
 
@@ -57,6 +64,10 @@ impl SourceMapBuilder {
 
     /// Add a mapping using 1-based line numbers (as from Span).
     /// Converts to 0-based internally.
+    ///
+    /// A column must count UTF-16 code units. A `Span` column counts
+    /// characters, so convert an astral character, an emoji for example,
+    /// before you call this.
     pub fn add_mapping_1based(&mut self, gen_line: u32, gen_col: u32, src_line: u32, src_col: u32) {
         self.add_mapping(Mapping {
             gen_line: gen_line.saturating_sub(1),

@@ -201,6 +201,57 @@ jobs:
         # the counts show on the run page without opening the log.
         run: ./scripts/typecheck-emitted.sh ./floe
 
+  identifier-parity:
+    name: Identifier rule parity with TypeScript
+    runs-on: ubuntu-latest
+    # Floe emits TypeScript, so a name Floe accepts and `tsc` refuses would
+    # make the emitted file invalid. This job reads the pinned TypeScript
+    # compiler's own scanner, not a table anybody maintains here, and fails
+    # when TypeScript accepts a code point Floe refuses.
+    #
+    # The other direction is allowed and reported. Floe reads the current
+    # Unicode tables through `oxc_syntax`, TypeScript ships tables that lag
+    # Unicode by a version or two, so Floe accepts some code points `tsc` has
+    # not caught up with. Those are very recently added scripts, the gap
+    # closes on its own when TypeScript updates, and narrowing Floe would
+    # need a hand-maintained range table. `--nocapture` prints the count.
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
+        with:
+          toolchain: "1.94.0"
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - name: Setup Aikido safe-chain
+        # Same control as the other install jobs: PATH shims check every
+        # package against Aikido's feed before the install runs.
+        env:
+          npm_config_minimum_release_age: "0"
+        run: pnpm dlx @aikidosec/safe-chain@1.5.1 setup-ci
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Read the pinned TypeScript identifier tables
+        # The test skips when this file cannot be produced, so produce it
+        # here first. A missing toolchain then fails the job rather than
+        # passing it quietly.
+        run: node scripts/typescript-identifier-table.mjs "$RUNNER_TEMP/identifier-table.bin"
+
+      - name: Compare the Floe name rule against TypeScript
+        run: cargo test -p floe-core --test identifier_parity -- --nocapture
+
   lsp:
     name: LSP integration tests
     needs: rust

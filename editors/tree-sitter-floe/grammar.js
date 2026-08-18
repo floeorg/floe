@@ -343,7 +343,11 @@ module.exports = grammar({
     primitive_type: ($) =>
       choice("number", "string", "boolean", "unknown"),
 
-    type_identifier: ($) => /[A-Z][a-zA-Z0-9]*/,
+    // A name follows the TypeScript rule, because Floe emits TypeScript:
+    // `ID_Start`, `$` or `_` starts it and `ID_Continue`, `$`, a zero width
+    // joiner or a zero width non-joiner continues it. An uppercase letter
+    // starts a type name, and every other name start is an identifier.
+    type_identifier: ($) => /[\p{Lu}\p{Lt}][\p{ID_Continue}$\u200c\u200d]*/u,
 
     generic_type: ($) =>
       seq($.type_identifier, $.type_arguments),
@@ -482,7 +486,7 @@ module.exports = grammar({
         $.underscore,
       ),
 
-    identifier: ($) => /[a-z_$][a-zA-Z0-9_$]*/,
+    identifier: ($) => /[\p{Ll}\p{Lm}\p{Lo}\p{Nl}_$][\p{ID_Continue}$\u200c\u200d]*/u,
 
     number: ($) =>
       choice(

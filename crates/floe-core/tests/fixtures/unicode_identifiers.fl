@@ -1,0 +1,15 @@
+// Floe names follow the TypeScript rule, so a Unicode letter names a value.
+// Floe does not normalize a name. `café` written with one code point and
+// `café` written with a combining accent are two different names.
+let café = 1
+let café = 2
+let 名前 = "kotoko"
+let Δt = 0.5
+
+let greet(名: string) -> string = {
+    `こんにちは、${名}`
+}
+
+let total = café + café
+let message = greet(名前)
+let step = Δt * 2.0

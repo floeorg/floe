@@ -119,3 +119,25 @@ let _match = widgetMeta.match
 // let for = 1                          // ✗ uncomment → `for` is a reserved word in JavaScript
 // let label(for: string) = { "x" }     // ✗ uncomment → same error, on the parameter
 // let match = 1                        // ✗ uncomment → `match` is a keyword in Floe
+
+// ── Unicode names ────────────────────────────────────────
+// Floe emits TypeScript, so a Floe name follows the TypeScript rule: a
+// Unicode letter, `$` or `_` starts a name, and a letter, a digit, `$` or
+// `_` continues it. An emoji is not a letter, so it names nothing.
+
+let 名前 = "kotoko"
+
+let _greeting = `こんにちは、${名前}`
+
+// ✓ hover: string
+
+let café = 1
+
+let café = 2
+
+let _twoNames = café + café
+
+// ✓ Floe does not normalize a name, because TypeScript does not. `café`
+// written with one code point and `café` written with a combining accent
+// are two different names, and this adds 1 and 2.
+// let 🎉 = 1                          // ✗ uncomment → an emoji cannot name anything

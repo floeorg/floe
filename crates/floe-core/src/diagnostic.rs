@@ -92,7 +92,12 @@ impl std::fmt::Display for Diagnostic {
 
 /// Render diagnostics with pretty source annotations using ariadne.
 pub fn render_diagnostics(filename: &str, source: &str, diagnostics: &[Diagnostic]) -> String {
-    use ariadne::{Color, Label, Report, ReportKind, Source};
+    use ariadne::{Color, Config, IndexType, Label, Report, ReportKind, Source};
+
+    // A `Span` carries byte offsets. ariadne indexes by character by default,
+    // so a line that holds a multi-byte character would put the caret to the
+    // right of the token it names.
+    let config = Config::new().with_index_type(IndexType::Byte);
 
     let mut output = Vec::new();
 
@@ -104,7 +109,7 @@ pub fn render_diagnostics(filename: &str, source: &str, diagnostics: &[Diagnosti
         };
 
         let span = (filename, diag.span.start..diag.span.end);
-        let mut builder = Report::build(kind, span.clone());
+        let mut builder = Report::build(kind, span.clone()).with_config(config);
 
         if let Some(code) = &diag.code {
             builder = builder.with_code(code);
@@ -161,6 +166,11 @@ pub fn from_parse_errors(errors: &[crate::parser::ParseError]) -> Vec<Diagnostic
                 }
                 ParseErrorKind::MismatchedTag => {
                     diag = diag.with_label("mismatched tag");
+                }
+                ParseErrorKind::InvalidName => {
+                    diag = diag
+                        .with_label("this cannot name anything")
+                        .with_help("Floe emits TypeScript, so a Floe name follows the TypeScript rule: Unicode letters, digits, `$` and `_`.");
                 }
                 ParseErrorKind::General => {}
             }
@@ -224,6 +234,89 @@ mod tests {
         let output = render_diagnostics("test.fl", "let x = 42\nlet y = 20", &diags);
         assert!(output.contains("first error"));
         assert!(output.contains("second error"));
+    }
+
+    // ── Multi-byte characters (#1592) ────────────────────────────
+    //
+    // A `Span` carries byte offsets. ariadne indexes by character unless
+    // the report says otherwise, so a multi-byte character earlier in the
+    // file used to push every later span to the right. It moved the
+    // underline onto the wrong line, and it pushed a late span past the end
+    // of the source, where ariadne dropped the location and printed the
+    // message with no file, no line and no snippet.
+
+    /// Remove the colour codes, because ariadne colours each character on
+    /// its own and a plain `contains` then never matches.
+    fn plain(rendered: &str) -> String {
+        let mut out = String::new();
+        let mut chars = rendered.chars();
+        while let Some(ch) = chars.next() {
+            if ch != '\u{1b}' {
+                out.push(ch);
+                continue;
+            }
+            for escaped in chars.by_ref() {
+                if escaped == 'm' {
+                    break;
+                }
+            }
+        }
+
+        out
+    }
+
+    #[test]
+    fn a_multi_byte_character_does_not_move_a_later_column() {
+        // `✓` is three bytes and one character. `let` on line 2 starts at
+        // byte 7, and a character index reads that as character 7, which
+        // lands two columns further on, inside line 3.
+        let source = "// ✓\nlet good = 1\nlet bad: string = 42\n";
+        let diag = Diagnostic::warning("unused variable `good`", Span::new(7, 19, 2, 1))
+            .with_label("defined but never used");
+
+        let rendered = plain(&render_diagnostics("test.fl", source, &[diag]));
+
+        assert!(
+            rendered.contains("test.fl:2:1"),
+            "expected the warning at 2:1, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("let good = 1"),
+            "expected the snippet to show line 2, got:\n{rendered}"
+        );
+        // The label names line 2 only. A shifted span stretches onto line 3
+        // and underlines a statement that has nothing to do with `good`.
+        assert!(
+            !rendered.contains("let bad: string = 42"),
+            "the underline must stop at the end of line 2, got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn a_second_error_after_a_multi_byte_character_keeps_its_location() {
+        // The last span ends at the end of the source. Read as characters,
+        // its offsets run past the end, ariadne drops the label, and the
+        // error prints with no file, no line and no snippet.
+        let source = "// ✓\nlet good = 1\nlet bad: string = 42\n";
+        let diags = vec![
+            Diagnostic::warning("unused variable `good`", Span::new(7, 19, 2, 1)),
+            Diagnostic::error("expected `string`, found `number`", Span::new(20, 40, 3, 1)),
+        ];
+
+        let rendered = plain(&render_diagnostics("test.fl", source, &diags));
+
+        assert!(
+            rendered.contains("test.fl:2:1"),
+            "expected the warning at 2:1, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("test.fl:3:1"),
+            "expected the error at 3:1, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("let bad: string = 42"),
+            "expected the error to keep its snippet, got:\n{rendered}"
+        );
     }
 
     #[test]

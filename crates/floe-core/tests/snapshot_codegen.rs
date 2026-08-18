@@ -471,3 +471,9 @@ fn snapshot_unicode_escapes() {
     let output = compile_fixture("unicode_escapes");
     insta::assert_snapshot!(output);
 }
+
+#[test]
+fn snapshot_unicode_identifiers() {
+    let output = compile_fixture("unicode_identifiers");
+    insta::assert_snapshot!(output);
+}

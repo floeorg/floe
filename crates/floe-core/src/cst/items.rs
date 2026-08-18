@@ -590,7 +590,11 @@ impl<'src> CstParser<'src> {
         let Some(TokenKind::Identifier(name)) = self.current_kind() else {
             return false;
         };
-        if !name.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+        // An uppercase letter starts a type name, and a Unicode letter has a
+        // case as well. `cst/exprs.rs` reads the same rule this way, and the
+        // two must agree or a Greek variant name parses one way and checks
+        // the other (#1576 review).
+        if !name.starts_with(char::is_uppercase) {
             return false;
         }
 

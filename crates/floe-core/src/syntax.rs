@@ -18,6 +18,8 @@ pub enum SyntaxKind {
 
     // Identifiers & keywords
     IDENT,
+    /// Non-ASCII text that cannot name anything. It stands inside JSX content.
+    UNICODE_TEXT,
     KW_LET,
     KW_FN,
     KW_EXPORT,
@@ -305,6 +307,7 @@ pub fn token_kind_to_syntax(kind: &TokenKind) -> SyntaxKind {
         TokenKind::TemplateLiteral(_) => SyntaxKind::TEMPLATE_LITERAL,
         TokenKind::Bool(_) => SyntaxKind::BOOL,
         TokenKind::Identifier(_) => SyntaxKind::IDENT,
+        TokenKind::UnicodeText(_) => SyntaxKind::UNICODE_TEXT,
         TokenKind::Let => SyntaxKind::KW_LET,
         TokenKind::Fn => SyntaxKind::KW_FN,
         TokenKind::Export => SyntaxKind::KW_EXPORT,

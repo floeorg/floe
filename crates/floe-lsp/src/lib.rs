@@ -28,6 +28,7 @@ use floe_core::analyse::{self, ExternTypes, ModuleInputs};
 use floe_core::checker::Type;
 use floe_core::diagnostic::{self as floe_diag, Severity};
 use floe_core::interop::ambient::AmbientDeclarations;
+use floe_core::lexer::is_name_part;
 use floe_core::parser::Parser;
 use floe_core::parser::ast::TypedProgram;
 use floe_core::reference::ReferenceTracker;
@@ -137,6 +138,18 @@ fn offset_to_range(source: &str, start: usize, end: usize) -> Range {
     }
 }
 
+/// The width of a character in UTF-16 code units, which is the unit an LSP
+/// position counts. A character outside the Basic Multilingual Plane, an
+/// emoji for example, is a surrogate pair and counts as two.
+const fn utf16_width(ch: char) -> u32 {
+    if (ch as u32) > 0xFFFF { 2 } else { 1 }
+}
+
+/// The width of a string in UTF-16 code units.
+fn utf16_len(text: &str) -> u32 {
+    text.chars().map(utf16_width).sum()
+}
+
 fn offset_to_position(source: &str, offset: usize) -> Position {
     let mut line = 0u32;
     let mut col = 0u32;
@@ -148,7 +161,7 @@ fn offset_to_position(source: &str, offset: usize) -> Position {
             line += 1;
             col = 0;
         } else {
-            col += 1;
+            col += utf16_width(ch);
         }
     }
     Position::new(line, col)
@@ -158,7 +171,9 @@ fn position_to_offset(source: &str, position: Position) -> usize {
     let mut line = 0u32;
     let mut col = 0u32;
     for (i, ch) in source.char_indices() {
-        if line == position.line && col == position.character {
+        // `>=` and not `==`, so a position that lands inside a surrogate pair
+        // still answers a character boundary.
+        if line == position.line && col >= position.character {
             return i;
         }
         if ch == '\n' {
@@ -168,7 +183,7 @@ fn position_to_offset(source: &str, position: Position) -> usize {
             line += 1;
             col = 0;
         } else {
-            col += 1;
+            col += utf16_width(ch);
         }
     }
     source.len()
@@ -181,38 +196,47 @@ fn word_at_offset(source: &str, offset: usize) -> &str {
     }
 }
 
+/// Walk back from `offset` over the characters that may stand in a name, and
+/// return the byte index where that name starts.
+///
+/// The rule comes from `floe_core::lexer`, so the language server reads the
+/// same names the lexer does, Unicode ones included.
+pub(crate) fn name_start_at_offset(source: &str, offset: usize) -> usize {
+    source[..offset]
+        .char_indices()
+        .rev()
+        .take_while(|&(_, ch)| is_name_part(ch))
+        .last()
+        .map_or(offset, |(index, _)| index)
+}
+
+/// Walk forward from `offset` over the characters that may stand in a name,
+/// and return the byte index just past that name.
+fn name_end_at_offset(source: &str, offset: usize) -> usize {
+    source[offset..]
+        .char_indices()
+        .find(|&(_, ch)| !is_name_part(ch))
+        .map_or(source.len(), |(index, _)| offset + index)
+}
+
 fn word_range_at_offset(source: &str, offset: usize) -> Option<(usize, usize)> {
-    let bytes = source.as_bytes();
-    if offset > bytes.len() {
+    if offset > source.len() || !source.is_char_boundary(offset) {
         return None;
     }
-    let mut start = offset;
-    while start > 0 && is_word_char(bytes[start - 1]) {
-        start -= 1;
-    }
-    let mut end = offset;
-    while end < bytes.len() && is_word_char(bytes[end]) {
-        end += 1;
-    }
+    let start = name_start_at_offset(source, offset);
+    let end = name_end_at_offset(source, offset);
     if start == end {
-        None
-    } else {
-        Some((start, end))
+        return None;
     }
+
+    Some((start, end))
 }
 
 /// Get the word prefix before the cursor (for completion filtering).
 fn word_prefix_at_offset(source: &str, offset: usize) -> String {
-    let bytes = source.as_bytes();
-    let mut start = offset;
-    while start > 0 && is_word_char(bytes[start - 1]) {
-        start -= 1;
-    }
-    source[start..offset].to_string()
-}
+    let start = name_start_at_offset(source, offset);
 
-fn is_word_char(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_'
+    source[start..offset].to_string()
 }
 
 /// Check if the cursor is on the definition name itself (not in the body).
@@ -1031,10 +1055,14 @@ impl FloeLsp {
                     || trimmed.contains(&format!("fn {symbol_name}")));
 
             if is_export_of_symbol {
-                // Find the column where the symbol name starts on this line
-                let col = line.find(symbol_name).unwrap_or(0) as u32;
+                // Find the column where the symbol name starts on this line.
+                // `find` answers a byte index, and a position counts UTF-16
+                // code units, so convert both ends.
+                let byte_col = line.find(symbol_name).unwrap_or(0);
+                let col = utf16_len(&line[..byte_col]);
+                let end_col = col + utf16_len(symbol_name);
                 let pos = Position::new(line_num as u32, col);
-                let end_pos = Position::new(line_num as u32, col + symbol_name.len() as u32);
+                let end_pos = Position::new(line_num as u32, end_col);
                 return Some(Location {
                     uri: target_uri,
                     range: Range {

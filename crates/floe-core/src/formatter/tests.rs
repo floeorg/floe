@@ -1157,3 +1157,31 @@ fn use_decl_no_binding() {
         "let f() = {\n    use <- wrap()\n\n    done\n}",
     );
 }
+
+// ── Unicode names (#1576) ───────────────────────────────────
+
+#[test]
+fn format_a_unicode_name() {
+    assert_fmt("let   café   =   1", "let café = 1");
+}
+
+#[test]
+fn format_a_japanese_name() {
+    assert_fmt("let 名前=\"kotoko\"", "let 名前 = \"kotoko\"");
+}
+
+#[test]
+fn format_a_unicode_parameter() {
+    assert_fmt(
+        "let greet( 名:string ) -> string = {名}",
+        "let greet(名: string) -> string = {\n    名\n}",
+    );
+}
+
+#[test]
+fn format_keeps_jsx_emoji_and_japanese_text() {
+    assert_fmt(
+        "let View() -> JSX.Element = {\n<p>こんにちは 🎉 world</p>\n}",
+        "let View() -> JSX.Element = {\n    <p>こんにちは 🎉 world</p>\n}",
+    );
+}

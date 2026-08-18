@@ -45,3 +45,19 @@ class TestReferences:
         # The tracker has no entry, so we return no references.
         refs = result_list(lsp.references(URI, 0, 0))
         assert refs == []
+
+
+class TestReferencesUnicodeNames:
+    """References find every use of a Unicode name (#1576)."""
+
+    def test_japanese_name_def_and_usage(self, lsp):
+        open_doc(lsp, URI, F.UNICODE_NAMES)
+        line, col = at(F.UNICODE_NAMES, "名前")
+        refs = result_list(lsp.references(URI, line, col))
+        assert len(refs) >= 2, f"Expected def + usage, got {len(refs)} refs"
+
+    def test_accented_name_def_and_usage(self, lsp):
+        open_doc(lsp, URI, F.UNICODE_NAMES)
+        line, col = at(F.UNICODE_NAMES, "café")
+        refs = result_list(lsp.references(URI, line, col))
+        assert len(refs) >= 2, f"Expected def + usage, got {len(refs)} refs"

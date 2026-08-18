@@ -93,3 +93,28 @@ class TestGotoDefDefaultExport:
         assert len(locs) > 0, "Expected goto-def from default export to resolve"
         target_line = locs[0].get("range", {}).get("start", {}).get("line", -1)
         assert target_line == 0, f"Expected jump to line 0 (the `let app` binding), got {target_line}"
+
+
+class TestGotoDefUnicodeNames:
+    """Go to definition works on a Unicode name (#1576)."""
+
+    def test_japanese_usage_jumps_to_its_definition(self, lsp):
+        open_doc(lsp, URI, F.UNICODE_NAMES)
+        # The third `名前` is the argument in `greet(名前)`.
+        locs = def_locations(
+            lsp.goto_definition(URI, *at(F.UNICODE_NAMES, "名前", nth=1))
+        )
+        assert locs, "Expected a definition for `名前`"
+        target_line = locs[0].get("range", {}).get("start", {}).get("line", -1)
+        want, _ = at(F.UNICODE_NAMES, "名前")
+        assert target_line == want, f"Expected line {want}, got {target_line}"
+
+    def test_accented_usage_jumps_to_its_definition(self, lsp):
+        open_doc(lsp, URI, F.UNICODE_NAMES)
+        locs = def_locations(
+            lsp.goto_definition(URI, *at(F.UNICODE_NAMES, "café", nth=1))
+        )
+        assert locs, "Expected a definition for `café`"
+        target_line = locs[0].get("range", {}).get("start", {}).get("line", -1)
+        want, _ = at(F.UNICODE_NAMES, "café")
+        assert target_line == want, f"Expected line {want}, got {target_line}"

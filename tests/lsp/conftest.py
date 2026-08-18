@@ -418,8 +418,11 @@ def open_and_diagnose(
 def at(source: str, target: str, nth: int = 0, offset: int = 0) -> tuple[int, int]:
     """Find the nth occurrence of `target` in `source` and return (line, col).
 
-    Returns the position of the first character of the match, offset by `offset`
-    bytes. Useful for writing position-agnostic tests:
+    `col` counts UTF-16 code units, which is what an LSP position counts. An
+    emoji earlier on the line therefore adds two, not one.
+
+    Returns the position of the first character of the match, offset by
+    `offset` characters. Useful for writing position-agnostic tests:
 
         at(SOURCE, "add")          # cursor on `add`
         at(SOURCE, "|>", nth=1)    # cursor on the second `|>`
@@ -432,7 +435,8 @@ def at(source: str, target: str, nth: int = 0, offset: int = 0) -> tuple[int, in
         start = idx + 1
     idx += offset
     line = source[:idx].count("\n")
-    col = idx - (source.rfind("\n", 0, idx) + 1)
+    line_start = source.rfind("\n", 0, idx) + 1
+    col = len(source[line_start:idx].encode("utf-16-le")) // 2
     return line, col
 
 

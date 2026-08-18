@@ -1529,7 +1529,8 @@
     },
     "type_identifier": {
       "type": "PATTERN",
-      "value": "[A-Z][a-zA-Z0-9]*"
+      "value": "[\\p{Lu}\\p{Lt}][\\p{ID_Continue}$\\u200c\\u200d]*",
+      "flags": "u"
     },
     "generic_type": {
       "type": "SEQ",
@@ -2241,7 +2242,8 @@
     },
     "identifier": {
       "type": "PATTERN",
-      "value": "[a-z_$][a-zA-Z0-9_$]*"
+      "value": "[\\p{Ll}\\p{Lm}\\p{Lo}\\p{Nl}_$][\\p{ID_Continue}$\\u200c\\u200d]*",
+      "flags": "u"
     },
     "number": {
       "type": "CHOICE",

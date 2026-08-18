@@ -22,18 +22,6 @@ fn markdown_hover(value: impl Into<String>) -> Hover {
     }
 }
 
-/// Walk back from `offset` over identifier characters (`a-zA-Z0-9_`) and
-/// return the start index of the identifier. Returns `offset` when the
-/// previous byte is not an identifier character.
-fn word_start_at_offset(content: &str, offset: usize) -> usize {
-    let bytes = content.as_bytes();
-    let mut s = offset;
-    while s > 0 && (bytes[s - 1].is_ascii_alphanumeric() || bytes[s - 1] == b'_') {
-        s -= 1;
-    }
-    s
-}
-
 impl FloeLsp {
     #[allow(clippy::too_many_lines)]
     pub(super) async fn handle_hover(&self, params: HoverParams) -> Result<Option<Hover>> {
@@ -76,7 +64,7 @@ impl FloeLsp {
         };
 
         // Compute word start position and whether this is member access (X.word)
-        let word_start = word_start_at_offset(&doc.content, offset);
+        let word_start = super::name_start_at_offset(&doc.content, offset);
         let is_member_access =
             word_start > 0 && doc.content.as_bytes().get(word_start - 1) == Some(&b'.');
 
@@ -110,7 +98,7 @@ impl FloeLsp {
         // Check for member access (e.g. z.object, Array.map, user.name)
         if is_member_access {
             let dot_pos = word_start - 1;
-            let obj_start = word_start_at_offset(&doc.content, dot_pos);
+            let obj_start = super::name_start_at_offset(&doc.content, dot_pos);
             let obj_name = &doc.content[obj_start..dot_pos];
 
             // Check stdlib module method (e.g., Array.map, String.split)

@@ -432,7 +432,11 @@ impl<'src> CstParser<'src> {
 
             _ => {
                 self.builder.start_node(SyntaxKind::ERROR.into());
-                if let Some(kind) = self.current_kind() {
+                // Text that cannot name anything reads back as a name here,
+                // so it earns the rule rather than the token's debug form.
+                if let Some(text) = self.text_that_cannot_name() {
+                    self.error_not_a_name(&text);
+                } else if let Some(kind) = self.current_kind() {
                     self.error(&format!("unexpected token: {kind:?}"));
                     self.bump();
                 }
@@ -892,12 +896,16 @@ impl<'src> CstParser<'src> {
                 }
             }
             _ => {
-                self.error(&format!(
-                    "unexpected token in pattern: {:?}",
-                    self.current_kind()
-                ));
-                if !self.at_end() {
-                    self.bump();
+                if let Some(text) = self.text_that_cannot_name() {
+                    self.error_not_a_name(&text);
+                } else {
+                    self.error(&format!(
+                        "unexpected token in pattern: {:?}",
+                        self.current_kind()
+                    ));
+                    if !self.at_end() {
+                        self.bump();
+                    }
                 }
             }
         }

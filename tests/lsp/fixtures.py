@@ -1007,3 +1007,57 @@ let match = 1
 RESERVED_WORD_PARAMETER = """\
 let label(for: string) -> string = { "submit" }
 """
+
+# ── Unicode names (#1576) ────────────────────────────────────────
+# Floe names follow the TypeScript rule, so a Unicode letter names a value.
+
+UNICODE_NAMES = """\
+let 名前 = "kotoko"
+
+let greet(名: string) -> string = {
+    `Hello, ${名}!`
+}
+
+let message = greet(名前)
+
+let café = 1
+let doubled = café + café
+"""
+
+# Floe does not normalize a name, because TypeScript does not. These two
+# spell the same word with different code points, so they are two names.
+CAFE_COMPOSED = "caf\u00e9"
+CAFE_DECOMPOSED = "cafe\u0301"
+
+UNICODE_NAMES_NOT_NORMALIZED = (
+    f"let {CAFE_COMPOSED} = 1\n"
+    f"let {CAFE_DECOMPOSED} = 2\n"
+    f"let total = {CAFE_COMPOSED} + {CAFE_DECOMPOSED}\n"
+)
+
+# An emoji cannot name a value, because TypeScript rejects it.
+UNICODE_EMOJI_NAME = """\
+let 🎉 = 1
+"""
+
+# JSX content still carries emoji and non-Latin text.
+UNICODE_JSX_CONTENT = """\
+let View() -> JSX.Element = {
+    <p>こんにちは 🎉 world</p>
+}
+"""
+
+# An emoji and a Unicode name on one line. The emoji sits outside the Basic
+# Multilingual Plane, so it is one character and two UTF-16 code units. A
+# position after it separates a character count from the UTF-16 count an LSP
+# position uses, which nothing else in this file does.
+UNICODE_EMOJI_THEN_NAME = """\
+let 名前 = "kotoko"
+let greeting = "🎉 " + 名前
+"""
+
+# A type error on a line that also holds a Unicode name.
+UNICODE_NAME_WITH_ERROR = """\
+let 名前 = "kotoko"
+let bad: number = 名前
+"""

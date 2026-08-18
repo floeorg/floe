@@ -110,3 +110,31 @@ class TestRename:
         resp = lsp.rename(URI, line, col, "2bad")
         assert resp is not None
         assert resp.get("error") is not None
+
+
+class TestRenameUnicodeNames:
+    """Rename reads and writes a Unicode name (#1576)."""
+
+    def test_prepare_rename_covers_the_whole_unicode_name(self, lsp):
+        open_doc(lsp, URI, F.UNICODE_NAMES)
+        line, col = at(F.UNICODE_NAMES, "名前")
+        resp = lsp.prepare_rename(URI, line, col)
+        assert resp is not None and resp.get("result") is not None
+        rng = resp["result"]
+        assert rng["start"] == {"line": line, "character": col}
+        assert rng["end"] == {"line": line, "character": col + len("名前")}
+
+    def test_renames_an_ascii_name_to_a_unicode_one(self, lsp):
+        open_doc(lsp, URI, F.GOTO_DEF)
+        line, col = at(F.GOTO_DEF, "add")
+        resp = lsp.rename(URI, line, col, "加算")
+        edits = edits_for(resp, URI)
+        assert len(edits) == 2, f"Expected def + 1 usage, got {len(edits)} edits"
+        new_source = apply_edits(F.GOTO_DEF, edits)
+        assert "let 加算(a: number, b: number)" in new_source
+
+    def test_refuses_an_emoji_as_the_new_name(self, lsp):
+        open_doc(lsp, URI, F.GOTO_DEF)
+        line, col = at(F.GOTO_DEF, "add")
+        resp = lsp.rename(URI, line, col, "🎉")
+        assert not edits_for(resp, URI), "An emoji cannot name anything"

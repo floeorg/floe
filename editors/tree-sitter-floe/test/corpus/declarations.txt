@@ -586,3 +586,80 @@ type T = { match: string, self: string }
       (record_field
         name: (keyword_property)
         type: (primitive_type)))))
+
+===
+Unicode name, accented
+===
+
+let café = 1
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (primary_expression
+      (number))))
+
+===
+Unicode name, Japanese
+===
+
+let 名前 = "kotoko"
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (primary_expression
+      (string
+        (string_content)))))
+
+===
+Unicode name, combining accent
+===
+
+let café = 2
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (primary_expression
+      (number))))
+
+===
+Unicode name, uppercase Greek letter names a type
+===
+
+type Δt = number
+
+---
+
+(source_file
+  (type_declaration
+    (type_identifier)
+    (primitive_type)))
+
+===
+Unicode name, function parameter
+===
+
+let greet(名: string) -> string = { 名 }
+
+---
+
+(source_file
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter
+        (identifier)
+        (primitive_type)))
+    (primitive_type)
+    (block
+      (expression_statement
+        (primary_expression
+          (identifier))))))

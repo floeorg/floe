@@ -1459,3 +1459,72 @@ fn fingerprint_moves_when_node_modules_disappears() {
 
     assert_ne!(before, AmbientFingerprint::read(dir.path()));
 }
+
+// ── Unicode positions and names (#1576) ──────────────────────
+
+#[test]
+fn a_position_counts_utf16_code_units() {
+    // `名前` is two characters and two UTF-16 code units, so `=` stands at
+    // character 7. A byte count would answer 11.
+    let source = "let 名前 = 1";
+    let offset = source.find('=').expect("the source holds an `=`");
+
+    assert_eq!(offset_to_position(source, offset), Position::new(0, 7));
+}
+
+#[test]
+fn a_position_counts_an_emoji_as_two_code_units() {
+    // An emoji is outside the Basic Multiplane, so it is a surrogate pair
+    // and it counts as two UTF-16 code units.
+    let source = "// 🎉\nlet x = 1";
+    let offset = source.find("let").expect("the source holds `let`");
+
+    assert_eq!(offset_to_position(source, offset), Position::new(1, 0));
+    assert_eq!(offset_to_position(source, 3 + 4), Position::new(0, 5));
+}
+
+#[test]
+fn a_position_round_trips_through_an_offset() {
+    let source = "let 名前 = 1\nlet café = 2";
+    for (index, _) in source.char_indices() {
+        let position = offset_to_position(source, index);
+        assert_eq!(
+            position_to_offset(source, position),
+            index,
+            "offset {index} did not round-trip"
+        );
+    }
+}
+
+#[test]
+fn a_word_range_covers_a_whole_unicode_name() {
+    let source = "let café = 1";
+    let start = source.find("café").expect("the source holds the name");
+
+    assert_eq!(word_at_offset(source, start), "café");
+    // The cursor sits after the accent, and the range still covers the name.
+    assert_eq!(word_at_offset(source, start + 5), "café");
+}
+
+#[test]
+fn a_word_range_covers_a_japanese_name() {
+    let source = "let 名前 = 1";
+    let start = source.find("名前").expect("the source holds the name");
+
+    assert_eq!(word_at_offset(source, start), "名前");
+}
+
+#[test]
+fn a_word_prefix_takes_a_unicode_name() {
+    let source = "let 名前 = 1\nlet x = 名";
+
+    assert_eq!(word_prefix_at_offset(source, source.len()), "名");
+}
+
+#[test]
+fn an_emoji_is_not_a_word() {
+    let source = "let x = 1 🎉";
+    let start = source.find('🎉').expect("the source holds the emoji");
+
+    assert_eq!(word_at_offset(source, start), "");
+}

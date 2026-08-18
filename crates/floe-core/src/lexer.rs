@@ -9,6 +9,50 @@ const UTF8_MULTIBYTE_FLAG: u8 = 0x80;
 /// Minimum value for a UTF-8 lead byte (starts a new character).
 const UTF8_LEAD_BYTE_MIN: u8 = 0xC0;
 
+/// True when this byte continues a multi-byte UTF-8 character.
+const fn is_utf8_continuation(byte: u8) -> bool {
+    byte >= UTF8_MULTIBYTE_FLAG && byte < UTF8_LEAD_BYTE_MIN
+}
+
+/// True when this character may start a Floe name.
+///
+/// Floe emits TypeScript, so every Floe name must be a legal TypeScript name.
+/// The rule is the ECMAScript one, which `oxc_syntax` implements: a character
+/// with the Unicode `ID_Start` property, `$`, or `_`. Floe does not normalize
+/// a name, because TypeScript does not.
+///
+/// This function is the source of the rule for the compiler. The lexer and
+/// the language server both read it. The editor grammars listed in
+/// `.claude/rules/syntax-sources.md` hold their own copy of the rule, so
+/// change them in the same commit.
+pub fn is_name_start(ch: char) -> bool {
+    oxc_syntax::identifier::is_identifier_start(ch)
+}
+
+/// True when this character may continue a Floe name.
+///
+/// The rule is the ECMAScript one: a character with the Unicode `ID_Continue`
+/// property, `$`, a zero width joiner, or a zero width non-joiner.
+pub fn is_name_part(ch: char) -> bool {
+    oxc_syntax::identifier::is_identifier_part(ch)
+}
+
+/// Where a token starts: the byte offset, plus the line and the character
+/// column at that offset.
+///
+/// The lexer already tracks all three as it walks, so a token records them
+/// when it starts instead of counting the prefix again when it ends. The
+/// count-again form was O(n squared) over a file (#1576 review).
+#[derive(Debug, Clone, Copy)]
+struct Mark {
+    /// Byte offset into the source.
+    pos: usize,
+    /// 1-based line number at `pos`.
+    line: usize,
+    /// 1-based column number at `pos`, counted in characters.
+    column: usize,
+}
+
 /// The Floe lexer. Converts source text into a sequence of tokens.
 pub struct Lexer<'src> {
     /// The full source text being lexed.
@@ -66,13 +110,13 @@ impl<'src> Lexer<'src> {
     /// Advance to the next token, emitting trivia tokens for whitespace/comments.
     pub fn next_token_with_trivia(&mut self) -> Token {
         if self.is_at_end() {
-            return self.make_token(TokenKind::Eof, self.pos);
+            return self.make_token(TokenKind::Eof, self.mark());
         }
 
         // Check for trivia first
         match self.peek() {
             Some(b' ' | b'\t' | b'\r' | b'\n') => {
-                let start = self.pos;
+                let start = self.mark();
                 while !self.is_at_end() && matches!(self.peek(), Some(b' ' | b'\t' | b'\r' | b'\n'))
                 {
                     self.advance();
@@ -80,14 +124,14 @@ impl<'src> Lexer<'src> {
                 return self.make_token(TokenKind::Whitespace, start);
             }
             Some(b'/') if self.peek_at(1) == Some(b'/') => {
-                let start = self.pos;
+                let start = self.mark();
                 while !self.is_at_end() && self.peek() != Some(b'\n') {
                     self.advance();
                 }
                 return self.make_token(TokenKind::Comment, start);
             }
             Some(b'/') if self.peek_at(1) == Some(b'*') => {
-                let start = self.pos;
+                let start = self.mark();
                 self.consume_block_comment();
                 return self.make_token(TokenKind::BlockComment, start);
             }
@@ -103,7 +147,7 @@ impl<'src> Lexer<'src> {
         self.skip_whitespace_and_comments();
 
         if self.is_at_end() {
-            return self.make_token(TokenKind::Eof, self.pos);
+            return self.make_token(TokenKind::Eof, self.mark());
         }
 
         self.scan_non_trivia_token()
@@ -112,7 +156,16 @@ impl<'src> Lexer<'src> {
     /// Scan a non-trivia token. Assumes we are NOT at whitespace/comment/EOF.
     #[allow(clippy::too_many_lines)]
     fn scan_non_trivia_token(&mut self) -> Token {
-        let start = self.pos;
+        let start = self.mark();
+
+        // A non-ASCII character decides between a name and JSX content, so read
+        // the whole character before the byte match below splits it.
+        if self.bytes[self.pos] >= UTF8_MULTIBYTE_FLAG {
+            let kind = self.scan_non_ascii(start.pos);
+
+            return self.make_token(kind, start);
+        }
+
         let ch = self.advance();
 
         let kind = match ch {
@@ -241,14 +294,11 @@ impl<'src> Lexer<'src> {
             b'`' => self.scan_template_literal(),
 
             // Numbers
-            b'0'..=b'9' => self.scan_number(start),
+            b'0'..=b'9' => self.scan_number(start.pos),
 
             // Identifiers and keywords (including _ as standalone)
             b'_' if !self.peek_is_ident_char() => TokenKind::Underscore,
-            b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$' => self.scan_identifier(start),
-
-            // Non-ASCII — consume full UTF-8 character(s) as an identifier
-            UTF8_MULTIBYTE_FLAG..=0xFF => self.scan_unicode_text(start),
+            b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$' => self.scan_identifier(start.pos),
 
             other => {
                 // Unknown ASCII character — emit as identifier for error recovery
@@ -427,21 +477,37 @@ impl<'src> Lexer<'src> {
     }
 
     fn scan_identifier(&mut self, start: usize) -> TokenKind {
-        while !self.is_at_end() && self.peek_is_ident_char() {
-            self.advance();
+        while self.peek_char().is_some_and(is_name_part) {
+            self.advance_char();
         }
         let word = &self.source[start..self.pos];
         token::lookup_keyword(word).unwrap_or_else(|| TokenKind::Identifier(word.to_string()))
     }
 
-    /// Consume a run of non-ASCII (UTF-8 multi-byte) characters as an identifier.
-    /// This handles emoji, unicode symbols, and non-Latin text in JSX content.
+    /// Scan a token that starts with a non-ASCII character.
+    ///
+    /// Floe names follow the TypeScript rule, because Floe emits TypeScript.
+    /// A character that may start a TypeScript identifier starts a name here.
+    /// Every other character, an emoji for example, is JSX content.
+    fn scan_non_ascii(&mut self, start: usize) -> TokenKind {
+        if self.peek_char().is_some_and(is_name_start) {
+            return self.scan_identifier(start);
+        }
+
+        self.scan_unicode_text(start)
+    }
+
+    /// Consume a run of non-ASCII characters that cannot stand in a name.
+    /// This carries emoji, symbols and punctuation inside JSX content.
     fn scan_unicode_text(&mut self, start: usize) -> TokenKind {
-        while !self.is_at_end() && self.bytes[self.pos] >= UTF8_MULTIBYTE_FLAG {
-            self.advance();
+        while self
+            .peek_char()
+            .is_some_and(|ch| !ch.is_ascii() && !is_name_start(ch))
+        {
+            self.advance_char();
         }
         let text = &self.source[start..self.pos];
-        TokenKind::Identifier(text.to_string())
+        TokenKind::UnicodeText(text.to_string())
     }
 
     // -- Extracted helpers --
@@ -558,11 +624,37 @@ impl<'src> Lexer<'src> {
         self.bytes.get(self.pos + offset).copied()
     }
 
+    /// True when a name may continue at the current position.
     fn peek_is_ident_char(&self) -> bool {
-        matches!(
-            self.peek(),
-            Some(b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'$')
-        )
+        self.peek_char().is_some_and(is_name_part)
+    }
+
+    /// The current position, for a token that starts here.
+    const fn mark(&self) -> Mark {
+        Mark {
+            pos: self.pos,
+            line: self.line,
+            column: self.column,
+        }
+    }
+
+    /// The whole character at the current position.
+    fn peek_char(&self) -> Option<char> {
+        self.source[self.pos..].chars().next()
+    }
+
+    /// Consume the whole character at the current position.
+    fn advance_char(&mut self) -> Option<char> {
+        let ch = self.peek_char()?;
+        self.pos += ch.len_utf8();
+        if ch == '\n' {
+            self.line += 1;
+            self.column = 1;
+        } else {
+            self.column += 1;
+        }
+
+        Some(ch)
     }
 
     fn advance(&mut self) -> u8 {
@@ -571,33 +663,24 @@ impl<'src> Lexer<'src> {
         if ch == b'\n' {
             self.line += 1;
             self.column = 1;
-        } else {
+        } else if !is_utf8_continuation(ch) {
+            // A column counts characters, so the trailing bytes of a
+            // multi-byte character do not advance it.
             self.column += 1;
         }
         ch
     }
 
-    fn make_token(&self, kind: TokenKind, start: usize) -> Token {
-        // Calculate the line/column of the start position by counting back
-        let mut line = self.line;
-        let mut col = self.column;
-
-        // We need the line/col at `start`, not at `self.pos`.
-        // Recompute from the source up to `start`.
-        if start < self.pos {
-            line = 1;
-            col = 1;
-            for &b in &self.bytes[..start] {
-                if b == b'\n' {
-                    line += 1;
-                    col = 1;
-                } else {
-                    col += 1;
-                }
-            }
-        }
-
-        Token::new(kind, Span::new(start, self.pos, line, col))
+    /// Build a token that runs from `start` to the current position.
+    ///
+    /// `start` carries the line and the column, so this does no counting.
+    /// `advance` and `advance_char` keep `self.line` and `self.column` on
+    /// the character the lexer stands on, and `mark` copies them.
+    fn make_token(&self, kind: TokenKind, start: Mark) -> Token {
+        Token::new(
+            kind,
+            Span::new(start.pos, self.pos, start.line, start.column),
+        )
     }
 }
 
@@ -976,5 +1059,211 @@ mod tests {
                 TokenKind::Eof,
             ]
         );
+    }
+
+    // ── Unicode names (#1576) ────────────────────────────────────
+    //
+    // Floe emits TypeScript, so a Floe name follows the TypeScript rule.
+    // A character with `ID_Start` starts a name, a character with
+    // `ID_Continue` continues one, and `$`, `_`, a zero width joiner and a
+    // zero width non-joiner stand as well.
+
+    #[test]
+    fn accented_letter_is_one_name() {
+        assert_eq!(
+            lex("let café = 1"),
+            vec![
+                TokenKind::Let,
+                TokenKind::Identifier("café".to_string()),
+                TokenKind::Equal,
+                TokenKind::Number("1".to_string()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn japanese_letters_are_one_name() {
+        assert_eq!(
+            lex("let 名前 = \"kotoko\""),
+            vec![
+                TokenKind::Let,
+                TokenKind::Identifier("名前".to_string()),
+                TokenKind::Equal,
+                TokenKind::String("kotoko".to_string()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_name_mixes_ascii_and_unicode_letters() {
+        assert_eq!(
+            lex("caféLatte1"),
+            vec![
+                TokenKind::Identifier("caféLatte1".to_string()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_combining_mark_continues_a_name() {
+        // "cafe" plus U+0301 COMBINING ACUTE ACCENT. The mark carries
+        // `ID_Continue`, so it belongs to the name before it.
+        assert_eq!(
+            lex("cafe\u{301}"),
+            vec![
+                TokenKind::Identifier("cafe\u{301}".to_string()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn two_names_that_differ_only_by_normalization_are_two_names() {
+        // Floe does not normalize a name, because TypeScript does not.
+        let composed = lex("café");
+        let decomposed = lex("cafe\u{301}");
+        assert_ne!(composed, decomposed);
+    }
+
+    #[test]
+    fn a_zero_width_joiner_continues_a_name() {
+        assert_eq!(
+            lex("a\u{200d}b"),
+            vec![
+                TokenKind::Identifier("a\u{200d}b".to_string()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn an_emoji_is_not_a_name() {
+        // TypeScript rejects an emoji in a name, so Floe rejects it too.
+        assert_eq!(
+            lex("let 🎉 = 1"),
+            vec![
+                TokenKind::Let,
+                TokenKind::UnicodeText("🎉".to_string()),
+                TokenKind::Equal,
+                TokenKind::Number("1".to_string()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn jsx_content_carries_emoji_and_japanese_text() {
+        // The text splits into a name token and a symbol token, and the two
+        // together hold the source text. The parser reads JSX text back from
+        // the source span, so the split does not change the content.
+        let source = "こんにちは 🎉 world";
+        let kinds = lex(source);
+        assert_eq!(
+            kinds,
+            vec![
+                TokenKind::Identifier("こんにちは".to_string()),
+                TokenKind::UnicodeText("🎉".to_string()),
+                TokenKind::Identifier("world".to_string()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_symbol_run_stops_at_the_next_name() {
+        assert_eq!(
+            lex("🎉✨名前"),
+            vec![
+                TokenKind::UnicodeText("🎉✨".to_string()),
+                TokenKind::Identifier("名前".to_string()),
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_column_counts_characters_not_bytes() {
+        // `café` is five characters and six bytes. The `=` after it stands
+        // at character 11, and a byte count would report 12.
+        let tokens = Lexer::new("let café = 1").tokenize();
+        let equal = tokens
+            .iter()
+            .find(|t| t.kind == TokenKind::Equal)
+            .expect("the source holds an `=`");
+        assert_eq!(equal.span.line, 1);
+        assert_eq!(equal.span.column, 10);
+    }
+
+    #[test]
+    fn a_column_counts_characters_on_a_later_line() {
+        let tokens = Lexer::new("let 名前 = 1\nlet x = 2").tokenize();
+        let last = tokens
+            .iter()
+            .find(|t| t.kind == TokenKind::Number("2".to_string()))
+            .expect("the source holds a `2`");
+        assert_eq!(last.span.line, 2);
+        assert_eq!(last.span.column, 9);
+    }
+
+    /// The line and the column of every byte offset in `source`, counted
+    /// the way the definition reads: a column counts characters, and a
+    /// newline starts the next line.
+    fn positions_of(source: &str) -> Vec<(usize, usize)> {
+        let mut out = Vec::with_capacity(source.len() + 1);
+        let (mut line, mut col) = (1, 1);
+        for ch in source.chars() {
+            for _ in 0..ch.len_utf8() {
+                out.push((line, col));
+            }
+            if ch == '\n' {
+                line += 1;
+                col = 1;
+            } else {
+                col += 1;
+            }
+        }
+        out.push((line, col));
+
+        out
+    }
+
+    #[test]
+    fn every_token_records_the_position_of_its_first_character() {
+        // The lexer carries the line and the column forward as it walks,
+        // rather than counting the prefix again for every token. This
+        // holds that carried pair to the definition, over trivia, a
+        // comment, a string, a template literal, JSX and Unicode names.
+        let source = "// caf\u{e9} \u{1F389}\nlet \u{540D}\u{524D} = \"kotoko\"\n\nlet greet(\u{540D}: string) -> string = {\n    `\u{3053}\u{3093}\u{306B}\u{3061}\u{306F}\u{3001}${\u{540D}}`\n}\n\nlet View() -> JSX.Element = {\n    <p>\u{3053}\u{3093}\u{306B}\u{3061}\u{306F} \u{1F389} world</p>\n}\n";
+        let want = positions_of(source);
+
+        for token in Lexer::new(source).tokenize_with_trivia() {
+            assert_eq!(
+                (token.span.line, token.span.column),
+                want[token.span.start],
+                "token {:?} at byte {} reported the wrong position",
+                token.kind,
+                token.span.start
+            );
+        }
+    }
+
+    #[test]
+    fn a_span_stays_on_a_character_boundary() {
+        let source = "let café = 1";
+        for token in Lexer::new(source).tokenize() {
+            assert!(
+                source.is_char_boundary(token.span.start),
+                "span start {} is not a character boundary",
+                token.span.start
+            );
+            assert!(
+                source.is_char_boundary(token.span.end),
+                "span end {} is not a character boundary",
+                token.span.end
+            );
+        }
     }
 }
