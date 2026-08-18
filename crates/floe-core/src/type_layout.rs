@@ -328,7 +328,7 @@ pub fn type_to_stdlib_module(ty: &crate::checker::Type) -> Option<&'static str> 
         _ if ty.is_option() => Some(MOD_OPTION),
         _ if ty.is_result() => Some(MOD_RESULT),
         Type::Promise(_) => Some(MOD_PROMISE),
-        Type::Named(name) if name == "Date" => Some(MOD_DATE),
+        Type::Named(name) if name == MOD_DATE => Some(MOD_DATE),
         _ => None,
     }
 }

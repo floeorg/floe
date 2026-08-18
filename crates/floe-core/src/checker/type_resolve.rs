@@ -98,15 +98,30 @@ impl Checker {
     fn check_type_arg_arity(&mut self, name: &str, expected: usize, actual: usize, span: Span) {
         // Skip when no type args are provided — bare `Option`, `Result`, etc. are
         // valid (inner types default to Unknown and may be inferred later).
-        if actual != expected && actual != 0 {
-            self.emit_error_with_help(
-                format!("`{name}` expects {expected} type argument(s), found {actual}"),
-                span,
-                ErrorCode::TypeArgumentArity,
-                "wrong number of type arguments",
-                format!("`{name}` takes exactly {expected} type argument(s)"),
-            );
+        if actual == expected || actual == 0 {
+            return;
         }
+        // A stdlib type such as `URL` takes no arguments at all, so it needs
+        // its own wording. "expects 0 type argument(s)" reads as a bug.
+        let (message, help) = if expected == 0 {
+            (
+                format!("`{name}` takes no type arguments, found {actual}"),
+                format!("`{name}` is not a generic type"),
+            )
+        } else {
+            (
+                format!("`{name}` expects {expected} type argument(s), found {actual}"),
+                format!("`{name}` takes exactly {expected} type argument(s)"),
+            )
+        };
+
+        self.emit_error_with_help(
+            message,
+            span,
+            ErrorCode::TypeArgumentArity,
+            "wrong number of type arguments",
+            help,
+        );
     }
 
     #[allow(clippy::too_many_lines)]
@@ -256,6 +271,27 @@ impl Checker {
                 } else if self.ambient_types.contains_key(name) {
                     // Accept ambient type names from TypeScript lib definitions
                     // (e.g., Date, RegExp, URL, HTMLElement) as valid type annotations.
+                    Type::Named(name.to_string())
+                } else if self.stdlib.declares_type(name) && !self.is_imported_name(name) {
+                    // A type the stdlib itself declares, such as `URL`.
+                    // TypeScript cannot teach the resolver these names when
+                    // the project tsconfig omits the lib that holds them, so
+                    // the stdlib registry answers instead.
+                    //
+                    // Everything the user wrote is checked first. A value
+                    // binding of the same name reaches the branch above and
+                    // keeps its error, and an import keeps its own type, which
+                    // is what the `is_imported_name` guard covers for a name
+                    // that never reached the env. `register_ambient_types`
+                    // leaves the name unbound, so an ambient constructor value
+                    // does not shadow the type.
+                    self.check_type_arg_arity(name, 0, type_args.len(), span);
+                    // Resolve the arguments even though the type takes none.
+                    // The walk marks every name inside them used, and reports
+                    // a name that does not resolve.
+                    for arg in type_args {
+                        self.resolve_type(arg);
+                    }
                     Type::Named(name.to_string())
                 } else if type_layout::is_ts_utility_type(name) {
                     // Resolve args so inner references are marked used; TS resolves
