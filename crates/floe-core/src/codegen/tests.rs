@@ -40,9 +40,13 @@ fn emit_typed(input: &str) -> String {
                 .join("\n")
         )
     });
-    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
+    // Production order: the checker reads the tree lower.rs produced,
+    // then desugar rewrites it. Desugaring first hands the checker the
+    // synthetic ids desugar stamps on a spliced default (#1533), and the
+    // checker would key one type map entry for all of them.
     let (_diags, expr_types, invalid_exprs, shadowed) =
         crate::checker::Checker::new().check_full(&program);
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
     let typed = crate::checker::attach_types(program, &expr_types, &invalid_exprs, &shadowed);
     let output = Codegen::new().generate(&typed);
     output.code.trim().to_string()
