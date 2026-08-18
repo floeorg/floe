@@ -469,6 +469,26 @@ pub struct ForBlock<T = ()> {
     pub span: Span,
 }
 
+impl<T> ForBlock<T> {
+    /// True when the module exports this method of the block.
+    ///
+    /// A trait impl exports every method. Its visibility is the trait's and
+    /// not per-method, because the trait is what makes another module able
+    /// to name the method at all. An inherent `for X` block exports only
+    /// the methods that carry the `export` keyword.
+    ///
+    /// `resolve.rs` builds the import table from this function and codegen
+    /// writes the `export` keyword from it, so the table and the emitted
+    /// TypeScript cannot disagree. Codegen read `func.exported` on its own
+    /// until #1495, so a trait impl method landed in the import table and
+    /// emitted with no `export`, and every cross-module call to it named a
+    /// function TypeScript could not find.
+    #[must_use]
+    pub fn exports(&self, func: &FunctionDecl<T>) -> bool {
+        self.trait_name.is_some() || func.exported
+    }
+}
+
 // ── Test Blocks ─────────────────────────────────────────────────
 
 /// `test "name" { assert expr ... }` — inline test block.

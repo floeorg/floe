@@ -573,16 +573,14 @@ fn resolve_from_source(
     let flattened_map = flatten_spreads_in_type_decls(&type_map);
 
     // Collect exported for-blocks first so we can find their type dependencies.
-    // Trait impls (`impl T for X`) are always fully exported — their visibility
-    // is the trait's, not per-method. Inherent `for X` blocks still filter by
-    // per-method `export`.
+    // `ForBlock::exports` decides which methods leave the module. Codegen
+    // reads the same function, so the table below and the emitted `export`
+    // keyword name the same set.
     let mut exported_for_blocks = Vec::new();
     for item in &program.items {
         if let ItemKind::ForBlock(block) = &item.kind {
             let mut exported_block = block.clone();
-            if block.trait_name.is_none() {
-                exported_block.functions.retain(|f| f.exported);
-            }
+            exported_block.functions.retain(|f| block.exports(f));
             if !exported_block.functions.is_empty() {
                 exported_for_blocks.push(exported_block);
             }

@@ -1,0 +1,9 @@
+---
+source: crates/floe-core/tests/snapshot_codegen.rs
+expression: output
+---
+import { type Product, Product__effectivePrice, Product__make } from "./types";
+
+export function saving(p: Product): number {
+  return p.price - (Product__effectivePrice(p));
+}

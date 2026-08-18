@@ -1,0 +1,11 @@
+---
+source: crates/floe-core/tests/snapshot_codegen.rs
+expression: output
+---
+import "./label";
+
+import { type Tag, Tag__label, Tag__make } from "./tag";
+
+export function render(t: Tag): string {
+  return Tag__label(t);
+}
