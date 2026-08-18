@@ -110,6 +110,15 @@ fn snapshot_positional_variants() {
     insta::assert_snapshot!(output);
 }
 
+/// A user union whose variants are named `Ok`, `Err`, `Some` or `None`
+/// reads its own fields, and the builtin `Result` and `Option` keep theirs.
+/// Regression test for #1532.
+#[test]
+fn snapshot_variant_name_collisions() {
+    let output = compile_fixture("variant_name_collisions");
+    insta::assert_snapshot!(output);
+}
+
 #[test]
 fn snapshot_jsx_component() {
     let output = compile_fixture("jsx_component");
