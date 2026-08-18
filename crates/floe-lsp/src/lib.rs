@@ -26,6 +26,7 @@ use tower_lsp::{Client, LspService, Server};
 use floe_core::analyse::{self, ExternTypes, ModuleInputs};
 use floe_core::checker::Type;
 use floe_core::diagnostic::{self as floe_diag, Severity};
+use floe_core::interop::ambient::AmbientDeclarations;
 use floe_core::parser::Parser;
 use floe_core::parser::ast::TypedProgram;
 use floe_core::reference::ReferenceTracker;
@@ -320,6 +321,21 @@ pub struct FloeLsp {
     /// that transitively import it. Edits to a dependency trigger a
     /// re-check of every dependent so diagnostics don't go stale.
     reverse_deps: Arc<RwLock<HashMap<PathBuf, HashSet<Url>>>>,
+    /// Per-project cache of ambient declarations, keyed by project dir.
+    /// Loading them parses every TypeScript lib file the tsconfig names,
+    /// and the result depends on tsconfig alone, so the LSP reads it once
+    /// per project instead of once per keystroke.
+    ambient_cache: Arc<RwLock<HashMap<PathBuf, Option<AmbientDeclarations>>>>,
+}
+
+/// Filesystem context for one document, taken from its URI.
+///
+/// None of it comes from the AST, so a lossy parse does not change it.
+struct ModuleContext {
+    source_path: PathBuf,
+    source_dir: PathBuf,
+    project_dir: PathBuf,
+    tsconfig_paths: floe_core::resolve::TsconfigPaths,
 }
 
 impl FloeLsp {
@@ -331,6 +347,7 @@ impl FloeLsp {
             logged_projects: Arc::new(RwLock::new(HashSet::new())),
             resolve_cache: Arc::new(RwLock::new(HashMap::new())),
             reverse_deps: Arc::new(RwLock::new(HashMap::new())),
+            ambient_cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -412,59 +429,74 @@ impl FloeLsp {
         (resolved, dep_paths)
     }
 
-    /// Resolve `.fl` imports, tsgo exports, and ambient declarations for a
-    /// freshly parsed program. Returns the pieces analyse needs plus the
-    /// filesystem context the LSP reuses for post-analyse enrichment.
-    async fn gather_module_inputs(
-        &self,
-        uri: &Url,
-        program: &floe_core::parser::ast::Program,
-    ) -> (
-        HashMap<String, floe_core::resolve::ResolvedImports>,
-        ExternTypes,
-        Option<PathBuf>,
-        Option<PathBuf>,
-        floe_core::resolve::TsconfigPaths,
-        HashSet<PathBuf>,
-    ) {
-        let Ok(source_path) = uri.to_file_path() else {
-            return (
-                HashMap::new(),
-                ExternTypes::default(),
-                None,
-                None,
-                Default::default(),
-                HashSet::new(),
-            );
-        };
+    /// Locate the project that owns `uri`. Returns `None` when the URI does
+    /// not name a file on disk.
+    async fn module_context(&self, uri: &Url) -> Option<ModuleContext> {
+        let source_path = uri.to_file_path().ok()?;
         let source_dir = source_path.parent().unwrap_or(Path::new(".")).to_path_buf();
         let project_dir = find_project_dir(&source_dir);
         let tsconfig_paths = floe_core::resolve::TsconfigPaths::from_project_dir(&project_dir);
         self.log_project_info(&project_dir, &tsconfig_paths).await;
+
+        Some(ModuleContext {
+            source_path,
+            source_dir,
+            project_dir,
+            tsconfig_paths,
+        })
+    }
+
+    /// Ambient declarations for a project, read once and then served from
+    /// the cache. `load_ambient_types` parses every lib file the tsconfig
+    /// names, which is far too slow to repeat on each keystroke.
+    async fn ambient_types_cached(&self, project_dir: &Path) -> Option<AmbientDeclarations> {
+        if let Some(hit) = self.ambient_cache.read().await.get(project_dir) {
+            return hit.clone();
+        }
+        let loaded = floe_core::interop::ambient::load_ambient_types(project_dir);
+        self.ambient_cache
+            .write()
+            .await
+            .insert(project_dir.to_path_buf(), loaded.clone());
+
+        loaded
+    }
+
+    /// Resolve the module inputs that come from reading the AST: `.fl`
+    /// imports and the tsgo `.d.ts` exports.
+    ///
+    /// The returned `ExternTypes` carries no ambient declarations. Ambient
+    /// loading is driven by tsconfig and never reads the AST, so the caller
+    /// fills that field in whether or not the parse succeeded.
+    async fn gather_ast_module_inputs(
+        &self,
+        ctx: &ModuleContext,
+        program: &floe_core::parser::ast::Program,
+    ) -> (
+        HashMap<String, floe_core::resolve::ResolvedImports>,
+        ExternTypes,
+        HashSet<PathBuf>,
+    ) {
         let (resolved_imports, dep_paths) = self
-            .resolve_imports_cached(&source_path, program, &tsconfig_paths)
+            .resolve_imports_cached(&ctx.source_path, program, &ctx.tsconfig_paths)
             .await;
 
-        let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&project_dir);
-        let tsgo_result =
-            tsgo_resolver.resolve_imports(program, &resolved_imports, &source_dir, &tsconfig_paths);
-        let ambient = floe_core::interop::ambient::load_ambient_types(&project_dir);
+        let mut tsgo_resolver = floe_core::interop::TsgoResolver::new(&ctx.project_dir);
+        let tsgo_result = tsgo_resolver.resolve_imports(
+            program,
+            &resolved_imports,
+            &ctx.source_dir,
+            &ctx.tsconfig_paths,
+        );
 
         let externs = ExternTypes {
             dts_imports: tsgo_result.exports,
             dts_generic_params: tsgo_result.generic_param_defs,
-            ambient,
+            ambient: None,
             ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
         };
 
-        (
-            resolved_imports,
-            externs,
-            Some(project_dir),
-            Some(source_dir),
-            tsconfig_paths,
-            dep_paths,
-        )
+        (resolved_imports, externs, dep_paths)
     }
 
     /// Parse and type-check a document, update symbol index, publish diagnostics.
@@ -480,21 +512,23 @@ impl FloeLsp {
                 (program, diags, false)
             };
 
+        let ctx = self.module_context(&uri).await;
+
         // Partial trees from lossy parses skip import/extern resolution
         // since the module inputs may be incomplete.
-        let (resolved_imports, externs, project_dir, source_dir, tsconfig_paths, dep_paths) =
-            if full_parse_ok {
-                self.gather_module_inputs(&uri, &program).await
-            } else {
-                (
-                    HashMap::new(),
-                    ExternTypes::default(),
-                    None,
-                    None,
-                    Default::default(),
-                    HashSet::new(),
-                )
-            };
+        let (resolved_imports, mut externs, dep_paths) = match (&ctx, full_parse_ok) {
+            (Some(ctx), true) => self.gather_ast_module_inputs(ctx, &program).await,
+            _ => (HashMap::new(), ExternTypes::default(), HashSet::new()),
+        };
+
+        // Ambient declarations come from tsconfig and never from the AST, so
+        // a lossy parse must keep them. Dropping them made one stray
+        // semicolon report `Date`, `Promise` and every other TypeScript lib
+        // type as unknown, which is most of the time while a person types.
+        externs.ambient = match &ctx {
+            Some(ctx) => self.ambient_types_cached(&ctx.project_dir).await,
+            None => None,
+        };
 
         let analysed = analyse::analyse_parsed(
             program,
@@ -514,16 +548,19 @@ impl FloeLsp {
         );
 
         // Enrich imported symbols from .d.ts and validate relative imports.
+        // This reads the import statements out of the tree, so a lossy parse
+        // skips it: a recovered tree can drop an import and make a live
+        // binding look missing.
         let mut import_diags = Vec::new();
-        if let (Some(project_dir), Some(source_dir)) = (project_dir.as_ref(), source_dir.as_ref()) {
+        if let Some(ctx) = ctx.as_ref().filter(|_| full_parse_ok) {
             let cache = self.dts_cache.read().await.clone();
             let (diags, new_cache) = enrich_from_imports(
                 &typed_program,
-                project_dir,
-                source_dir,
+                &ctx.project_dir,
+                &ctx.source_dir,
                 &mut index,
                 &cache,
-                &tsconfig_paths,
+                &ctx.tsconfig_paths,
             );
             import_diags = diags;
             if !new_cache.is_empty() {
