@@ -1,6 +1,0 @@
-# `floe build` owns every TypeScript file under `src/`. The `.fl` file
-# beside it is the source, and the output goes to `.floe/src/`. See
-# issue #1557. This example has no hand-written TypeScript, so it needs
-# no exception.
-/src/**/*.ts
-/src/**/*.tsx

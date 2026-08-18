@@ -26,30 +26,50 @@ Run on **every** PR that touches the compiler or `.fl` files.
 
 ```bash
 pnpm install --frozen-lockfile
-floe fmt examples/todo-app/src/ examples/store/src/
-floe check examples/todo-app/src/ examples/store/src/
+floe fmt examples/todo-app/src/ examples/store/src/ examples/hono-api/src/
+floe check examples/todo-app/src/ examples/store/src/ examples/hono-api/src/
 (cd examples/todo-app && floe build src/)
 (cd examples/store && floe build src/)
+(cd examples/hono-api && floe build src/)
 ```
 
-Order: fmt -> check -> build. All must pass with zero errors.
+Order: fmt -> check -> build. All must pass with zero errors. CI runs these
+same three commands over these same three examples. Keep the two lists equal.
 
 **Run `floe build` from inside the example.** It names the output after the
 source path relative to the working directory. A run from the repository root
-writes to `.floe/examples/store/src/`; a run from the example writes to
-`examples/store/.floe/src/`, which is the path each example's `rootDirs` reads.
+writes to `.floe/examples/store/src/`, which no `rootDirs` entry reads. A run
+from the example writes to `examples/store/.floe/src/`, which is the path each
+example's `rootDirs` reads. A build refuses a source path that sits outside the
+working directory, because the output cannot stay inside the output directory.
 
-**The examples commit no emitted TypeScript.** Every `.ts` and `.tsx` file
-under an example `src/` is a build artifact, and `examples/<app>/.gitignore`
-keeps it out of git. The committed copies drifted from the compiler for four
-months before issue #1557 removed them. The exceptions are the hand-written
-React entry points, `main.tsx`, `router.tsx`, `store-context.tsx` and
-`env.d.ts`, which the ignore file re-includes by name.
+**The examples commit no emitted TypeScript.** `floe build` writes to `.floe/`,
+and the root `.gitignore` covers that directory. The examples carry no ignore
+file of their own, on purpose: a rule over `src/` hides a new hand-written
+`.tsx` from `git status`, and a person types `git add .`.
 
-Each example's `pnpm check` runs `floe check`, then `floe build`, then `tsc
---noEmit` over the fresh output. That checks the hand-written React against
-the declarations Floe emits today. The emitted bodies carry `// @ts-nocheck`,
-and `scripts/typecheck-emitted.sh` is what checks those, against a ratchet.
+The examples tracked 30 emitted files until issue #1557. Fifteen were `.ts` and
+`.tsx` bodies, and `// @ts-nocheck` silenced every one of them. The other
+fifteen were `.d.ts` files, and tsc never read those at all, because TypeScript
+drops `x.d.ts` when `x.ts` stands beside it. The gate therefore read the source
+tree and validated nothing, for four months. `examples/store` keeps four
+hand-written files, `env.d.ts`, `main.tsx`, `router.tsx` and
+`store-context.tsx`. `examples/todo-app` keeps the same list without
+`store-context.tsx`.
+
+`pnpm check` in `examples/store` and in `examples/todo-app` runs `floe check`,
+then `floe build`, then `tsc --noEmit` over the fresh output. `pnpm check` in
+`examples/hono-api` runs `floe check` alone, because no hand-written TypeScript
+reads that example's output.
+
+That gate checks the hand-written React against the emitted `.ts` and `.tsx`
+bodies, not against the `.d.fl.ts` declarations. An extensionless import such
+as `import type { ProductId } from "./types"` resolves through `rootDirs` to
+`.floe/src/types.ts`, and the `.d.fl.ts` file never enters the program. So the
+gate catches a name or a shape that the hand-written React gets wrong, and it
+does not catch a fault inside an emitted body, because every body carries
+`// @ts-nocheck`. `scripts/typecheck-emitted.sh` checks the bodies, against a
+ratchet. Issue #1586 tracks the stronger option.
 
 **Note:** `floe fmt` (without `--check`) writes formatted files in place — always run it before committing. CI uses `floe fmt --check` to enforce formatting without modifying files.
 
