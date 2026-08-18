@@ -10020,6 +10020,22 @@ type User = {
 }
 
 #[test]
+fn jsx_namespace_members_resolve() {
+    // Floe owns the `JSX` namespace. `@types/react` 19 declares it as
+    // `React.JSX`, so the ambient tables never carry a global `JSX`.
+    let diags = check(
+        r#"
+type Props = { intrinsics: JSX.IntrinsicElements }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`JSX.*` must resolve without ambient help; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn jsx_element_type_resolves() {
     let diags = check(
         r#"
@@ -10044,6 +10060,78 @@ type Schema = { shape: z.ZodString }
     assert!(
         !has_error_containing(&diags, "unknown type"),
         "a dotted name rooted at an import must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_import_below_it_resolves() {
+    // The import sits under the type that uses it. Nothing requires imports
+    // first, so the resolver must not depend on the order of the items.
+    let diags = check(
+        r#"
+type Schema = { shape: z.ZodString }
+import trusted { z } from "zod"
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "an import below the type must still resolve it; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+/// Build a checker whose ambient tables carry `namespaces`, the way
+/// `load_ambient_types` fills them from a TypeScript lib file.
+fn check_with_ambient_namespaces(source: &str, namespaces: &[&str]) -> Vec<Diagnostic> {
+    use crate::interop::ambient::AmbientDeclarations;
+
+    let mut ambient = AmbientDeclarations::default();
+    for name in namespaces {
+        ambient.namespaces.insert((*name).to_string());
+    }
+    let program = Parser::new(source).parse_program().expect("parse");
+    let checker = Checker::from_context(
+        HashMap::new(),
+        HashMap::new(),
+        Some(ambient),
+        HashSet::new(),
+    );
+
+    checker.check(&program)
+}
+
+#[test]
+fn dotted_type_rooted_at_ambient_namespace_resolves() {
+    // `load_ambient_types` flattens `declare namespace NodeJS { interface
+    // Timeout }` to the bare key `Timeout`, so the namespace set is the only
+    // record that `NodeJS` exists.
+    let diags = check_with_ambient_namespaces(
+        r#"
+type Handle = { t: NodeJS.Timeout }
+type Fmt = { f: Intl.DateTimeFormat }
+type Props = { c: JSX.IntrinsicElements }
+"#,
+        &["NodeJS", "Intl", "JSX"],
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "a namespace-qualified lib type must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_unknown_namespace_still_errors() {
+    let diags = check_with_ambient_namespaces(
+        r#"
+type Bad = { t: NotANamespace.Timeout }
+"#,
+        &["NodeJS"],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `NotANamespace.Timeout`"),
+        "an unknown namespace root must still error; got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

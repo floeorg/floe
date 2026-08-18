@@ -278,7 +278,7 @@ impl Checker {
         }
     }
 
-    /// Resolve a dotted type name such as `JSX.Element` or `React.JSX.Element`.
+    /// Resolve a dotted type name such as `JSX.Element` or `Intl.DateTimeFormat`.
     ///
     /// Floe does not model TypeScript namespaces yet (#848), so the resolver
     /// cannot walk a dotted name segment by segment. It accepts the name when
@@ -286,10 +286,11 @@ impl Checker {
     ///
     /// 1. A TypeScript lib or `@types` package declares the whole name.
     /// 2. Floe declares the whole name as a built-in, which is `JSX.Element`.
-    /// 3. The first segment names an import, so `React.JSX.Element` works
+    /// 3. The first segment names a namespace Floe owns, which is `JSX`.
+    /// 4. The first segment names an ambient namespace, which covers
+    ///    `Intl.DateTimeFormat` and `NodeJS.Timeout`.
+    /// 5. The first segment names an import, so `React.JSX.Element` works
     ///    after `import React from "react"`.
-    /// 4. The first segment names an ambient declaration, which covers a
-    ///    `declare namespace` from a lib file.
     ///
     /// The first segment is deliberately not looked up as a value or as a
     /// Floe type. A Floe type has no members, so `Option.Option.Aaa` is a
@@ -300,7 +301,11 @@ impl Checker {
         }
 
         let root = name.split('.').next().unwrap_or(name);
-        if self.is_imported_name(root) || self.ambient_types.contains_key(root) {
+        if type_layout::is_builtin_namespace(root)
+            || self.ambient_namespaces.contains(root)
+            || self.ambient_types.contains_key(root)
+            || self.imported_root_names.contains(root)
+        {
             return Type::Named(name.to_string());
         }
 
@@ -309,7 +314,9 @@ impl Checker {
             span,
             ErrorCode::UndefinedName,
             "not defined",
-            format!("`{root}` is not an imported or ambient namespace — check the spelling, or import the namespace this type comes from"),
+            format!(
+                "`{root}` is not an imported name and not an ambient namespace — check the spelling, or import the namespace this type comes from"
+            ),
         );
 
         Type::Error

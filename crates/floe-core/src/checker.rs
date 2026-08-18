@@ -268,6 +268,16 @@ pub struct Checker {
     /// Maps interface names (Window, Navigator, Console, etc.) to their Record types.
     /// Used by `resolve_type_to_concrete()` to resolve member access on globals.
     ambient_types: HashMap<String, Type>,
+    /// Names of ambient namespaces from TypeScript lib files: `Intl`, `NodeJS`,
+    /// `JSX`, and any nested one such as `A.B`. `ambient_types` holds a
+    /// namespace member under its bare name and loses the namespace, so this
+    /// set is the only record that the namespace exists. `resolve_dotted_type`
+    /// reads it to tell `Intl.DateTimeFormat` apart from a typo.
+    ambient_namespaces: HashSet<String>,
+    /// Names bound by an `import` item anywhere in this module, collected
+    /// before the item walk. `unused.imported_names` fills during the walk, so
+    /// it cannot answer a question asked by an item above the import.
+    imported_root_names: HashSet<String>,
     /// Import sources that resolve to `.ts`/`.tsx` files but could not be
     /// resolved because tsgo is not installed.
     ts_imports_missing_tsgo: HashSet<String>,
@@ -505,6 +515,8 @@ impl Checker {
             jsx_callback_hints: HashMap::new(),
             jsx_children_hints: HashMap::new(),
             ambient_types: HashMap::new(),
+            ambient_namespaces: HashSet::new(),
+            imported_root_names: HashSet::new(),
             ts_imports_missing_tsgo: HashSet::new(),
             active_type_params: HashMap::new(),
             references: crate::reference::ReferenceTracker::new(),
@@ -572,6 +584,7 @@ impl Checker {
     /// the hardcoded browser globals with real typed declarations.
     fn register_ambient_types(&mut self, ambient: crate::interop::ambient::AmbientDeclarations) {
         self.ambient_types = ambient.types;
+        self.ambient_namespaces = ambient.namespaces;
 
         // Preserve Floe-specific types (Response, Error, Event) from stdlib
         const PRESERVED: &[&str] = &["Response", "Error", "Event"];
@@ -714,6 +727,17 @@ impl Checker {
                 }
                 ItemKind::TraitDecl(decl) => {
                     self.local_trait_names.insert(decl.name.clone());
+                }
+                ItemKind::Import(decl) => {
+                    // Collected here, not during the item walk, so a type
+                    // written above its import still sees the import.
+                    if let Some(default_name) = &decl.default_import {
+                        self.imported_root_names.insert(default_name.clone());
+                    }
+                    for spec in &decl.specifiers {
+                        let bound = spec.alias.as_deref().unwrap_or(&spec.name);
+                        self.imported_root_names.insert(bound.to_string());
+                    }
                 }
                 _ => {}
             }

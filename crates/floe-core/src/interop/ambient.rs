@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::Statement;
+use oxc_ast::ast::{Statement, TSModuleDeclarationBody, TSModuleDeclarationName};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
@@ -32,6 +32,14 @@ pub struct AmbientDeclarations {
     pub globals: Vec<(String, Type)>,
     /// Type definitions (interfaces) for resolving member access.
     pub types: HashMap<String, Type>,
+    /// Names of ambient namespaces (`declare namespace Intl { ... }`), including
+    /// the qualified name of a nested one (`NodeJS`, `Intl`, `JSX`, `A.B`).
+    ///
+    /// Floe does not model namespaces yet (#848), so `types` holds each member
+    /// under its bare name and loses the namespace it came from. This set keeps
+    /// the namespace names themselves, which is what the type resolver needs to
+    /// tell `Intl.DateTimeFormat` apart from a typo.
+    pub namespaces: HashSet<String>,
 }
 
 impl AmbientDeclarations {
@@ -42,6 +50,7 @@ impl AmbientDeclarations {
             }
         }
         self.types.extend(other.types);
+        self.namespaces.extend(other.namespaces);
     }
 }
 
@@ -404,7 +413,57 @@ fn parse_ambient_lib(content: &str) -> AmbientDeclarations {
         collect_globals_from_stmt(stmt, &mut globals, &mut seen_globals, false);
     }
 
-    AmbientDeclarations { globals, types }
+    // Phase 3: Collect namespace names. Phase 1 flattens a namespace member to
+    // its bare name, so the namespace itself would otherwise be invisible.
+    let mut namespaces: HashSet<String> = HashSet::new();
+    for stmt in &ret.program.body {
+        collect_namespace_names(stmt, None, &mut namespaces);
+    }
+
+    AmbientDeclarations {
+        globals,
+        types,
+        namespaces,
+    }
+}
+
+/// Record the name of every ambient namespace, and recurse into it.
+///
+/// `prefix` is the qualified name of the enclosing namespace, so
+/// `namespace A { namespace B { } }` records both `A` and `A.B`.
+///
+/// A `declare module "pkg"` block carries a string literal name, not an
+/// identifier, and it is a module rather than a namespace, so this skips it.
+fn collect_namespace_names(
+    stmt: &Statement<'_>,
+    prefix: Option<&str>,
+    namespaces: &mut HashSet<String>,
+) {
+    match stmt {
+        Statement::TSModuleDeclaration(ns_decl) => {
+            let TSModuleDeclarationName::Identifier(ident) = &ns_decl.id else {
+                return;
+            };
+            let qualified = match prefix {
+                Some(outer) => format!("{outer}.{}", ident.name),
+                None => ident.name.to_string(),
+            };
+            if let Some(TSModuleDeclarationBody::TSModuleBlock(block)) = &ns_decl.body {
+                for inner in &block.body {
+                    collect_namespace_names(inner, Some(&qualified), namespaces);
+                }
+            }
+            namespaces.insert(qualified);
+        }
+        Statement::TSGlobalDeclaration(global_decl) => {
+            // `declare global { ... }` adds no name of its own, so its members
+            // keep the prefix they already had.
+            for inner in &global_decl.body.body {
+                collect_namespace_names(inner, prefix, namespaces);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Extract `declare var` and `declare function` from a statement.
@@ -671,6 +730,71 @@ interface Foo { x: number; }
         assert!(
             matches!(ty, Type::Record(_) | Type::Foreign { .. }),
             "expected the interface body to win, got {ty:?}"
+        );
+    }
+
+    #[test]
+    fn namespace_names_are_recorded() {
+        // The type collectors flatten a namespace member to its bare name, so
+        // the namespace set is the only record that the namespace exists.
+        let content = r#"
+            declare namespace Intl {
+                interface DateTimeFormat { format(d: Date): string; }
+                type LocalesArgument = string;
+            }
+            declare global {
+                namespace NodeJS {
+                    interface Timeout { ref(): Timeout; }
+                }
+            }
+        "#;
+        let result = parse_ambient_lib(content);
+
+        assert!(
+            result.namespaces.contains("Intl"),
+            "{:?}",
+            result.namespaces
+        );
+        assert!(
+            result.namespaces.contains("NodeJS"),
+            "a namespace inside `declare global` counts too: {:?}",
+            result.namespaces
+        );
+        // The members stay under their bare names, which is what this fixes.
+        assert!(result.types.contains_key("DateTimeFormat"));
+        assert!(result.types.contains_key("Timeout"));
+    }
+
+    #[test]
+    fn nested_namespace_records_its_qualified_name() {
+        let content = r#"
+            declare namespace A {
+                namespace B {
+                    interface C { x: number; }
+                }
+            }
+        "#;
+        let result = parse_ambient_lib(content);
+
+        assert!(result.namespaces.contains("A"), "{:?}", result.namespaces);
+        assert!(result.namespaces.contains("A.B"), "{:?}", result.namespaces);
+    }
+
+    #[test]
+    fn declare_module_is_not_a_namespace() {
+        // `declare module "pkg"` names a module, not a namespace, and a Floe
+        // type never writes `"pkg".Thing`.
+        let content = r#"
+            declare module "some-pkg" {
+                export interface Thing { x: number; }
+            }
+        "#;
+        let result = parse_ambient_lib(content);
+
+        assert!(
+            result.namespaces.is_empty(),
+            "expected no namespaces, got {:?}",
+            result.namespaces
         );
     }
 }
