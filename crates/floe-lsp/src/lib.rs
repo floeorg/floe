@@ -323,9 +323,38 @@ pub struct FloeLsp {
     reverse_deps: Arc<RwLock<HashMap<PathBuf, HashSet<Url>>>>,
     /// Per-project cache of ambient declarations, keyed by project dir.
     /// Loading them parses every TypeScript lib file the tsconfig names,
-    /// and the result depends on tsconfig alone, so the LSP reads it once
-    /// per project instead of once per keystroke.
-    ambient_cache: Arc<RwLock<HashMap<PathBuf, Option<AmbientDeclarations>>>>,
+    /// so the LSP reads them once per project instead of once per
+    /// keystroke. Each entry carries the tsconfig fingerprint it was built
+    /// from, the way `resolve_cache` carries a source hash, so a tsconfig
+    /// edit invalidates the entry on its own.
+    ambient_cache: Arc<RwLock<HashMap<PathBuf, (TsconfigFingerprint, AmbientDeclarations)>>>,
+}
+
+/// Identity of the tsconfig that an ambient cache entry was built from.
+///
+/// The path moves when a tsconfig appears or disappears above the project
+/// dir, and the content hash moves on every edit to it. Either move
+/// retires the entry.
+#[derive(Clone, PartialEq, Eq)]
+struct TsconfigFingerprint {
+    /// The tsconfig the project resolves to, or `None` when it has none.
+    path: Option<PathBuf>,
+    /// Hash of that file's bytes, or `None` when the read failed.
+    content_hash: Option<u64>,
+}
+
+impl TsconfigFingerprint {
+    /// Read the current fingerprint for `project_dir`. The file is small,
+    /// so hashing it costs far less than the ambient load it guards.
+    fn read(project_dir: &Path) -> Self {
+        let path = floe_core::resolve::find_tsconfig_from(project_dir);
+        let content_hash = path
+            .as_ref()
+            .and_then(|p| std::fs::read(p).ok())
+            .map(|bytes| floe_core::build::ModuleInterface::fingerprint(&bytes));
+
+        Self { path, content_hash }
+    }
 }
 
 /// Filesystem context for one document, taken from its URI.
@@ -446,20 +475,37 @@ impl FloeLsp {
         })
     }
 
-    /// Ambient declarations for a project, read once and then served from
-    /// the cache. `load_ambient_types` parses every lib file the tsconfig
-    /// names, which is far too slow to repeat on each keystroke.
+    /// Ambient declarations for a project, served from the cache while the
+    /// tsconfig behind them stays the same. `load_ambient_types` parses
+    /// every lib file the tsconfig names, which is far too slow to repeat
+    /// on each keystroke.
+    ///
+    /// A miss is never cached. `load_ambient_types` returns `None` when it
+    /// finds no TypeScript at all, which is what an open file sees while
+    /// `npm install` still runs. Caching that answer would hold it for the
+    /// life of the process, and the retry is cheap.
     async fn ambient_types_cached(&self, project_dir: &Path) -> Option<AmbientDeclarations> {
-        if let Some(hit) = self.ambient_cache.read().await.get(project_dir) {
-            return hit.clone();
+        let fingerprint = TsconfigFingerprint::read(project_dir);
+        if let Some((cached_fingerprint, ambient)) =
+            self.ambient_cache.read().await.get(project_dir)
+            && *cached_fingerprint == fingerprint
+        {
+            return Some(ambient.clone());
         }
-        let loaded = floe_core::interop::ambient::load_ambient_types(project_dir);
+
+        let Some(loaded) = floe_core::interop::ambient::load_ambient_types(project_dir) else {
+            // Drop any entry the stale fingerprint left behind, so a later
+            // revert of the tsconfig cannot resurrect it.
+            self.ambient_cache.write().await.remove(project_dir);
+
+            return None;
+        };
         self.ambient_cache
             .write()
             .await
-            .insert(project_dir.to_path_buf(), loaded.clone());
+            .insert(project_dir.to_path_buf(), (fingerprint, loaded.clone()));
 
-        loaded
+        Some(loaded)
     }
 
     /// Resolve the module inputs that come from reading the AST: `.fl`
