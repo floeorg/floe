@@ -8,9 +8,12 @@ import { fileURLToPath } from "node:url";
 import floe from "./index.ts";
 
 /**
- * The floe binary under test. CI downloads the release build and exports
- * `FLOE_BIN`; a developer box uses the debug build this repository produces,
- * and falls back to whatever `floe` is on PATH.
+ * The floe binary under test.
+ *
+ * `FLOE_BIN` wins when it is set, so a person can point the suite at any
+ * build. Nothing in CI sets it: the workflow copies the downloaded binary to
+ * `target/debug/floe`, which is the second candidate and the one a developer
+ * box already has. `floe` on PATH is the last resort.
  */
 function resolveCompiler(): string {
   const fromEnv = process.env.FLOE_BIN;
@@ -91,6 +94,46 @@ describe("@floeorg/vite-plugin", () => {
       expect(code).toContain(`className: "greeting"`);
       expect(code).toContain("Hello, ");
       expect(code).toContain("App");
+    } finally {
+      rmSync(project.root, { recursive: true, force: true });
+    }
+  });
+
+  it("tells the bundler the transformed module is JavaScript", async () => {
+    const project = createProject("module-type");
+    project.write(
+      "src/shout.fl",
+      `export let shout(text: string) -> string = {\n` + `    \`\${text}!\`\n` + `}\n`,
+    );
+
+    try {
+      // Vite types both hooks as `ObjectHook`, so name the plain function
+      // shape this plugin uses before calling either one.
+      const plugin = floe({ compiler: resolveCompiler() }) as {
+        configResolved: (config: { root: string }) => void;
+        transform: (
+          this: { error(message: string): never },
+          code: string,
+          id: string,
+        ) => Promise<{ code: string; moduleType?: string } | null>;
+      };
+      const context = {
+        error(message: string): never {
+          throw new Error(message);
+        },
+      };
+
+      plugin.configResolved({ root: project.root });
+      const result = await plugin.transform.call(
+        context,
+        "",
+        join(project.root, "src", "shout.fl"),
+      );
+
+      // Without this, rolldown reads the module type from the `.fl`
+      // extension and has to fall back. See the note in index.ts.
+      expect(result?.moduleType).toBe("js");
+      expect(result?.code).toContain("function shout(");
     } finally {
       rmSync(project.root, { recursive: true, force: true });
     }
