@@ -87,7 +87,7 @@ export default defineConfig({
             { label: "Types", slug: "docs/reference/types" },
             {
               label: "Standard Library",
-              items: [{ autogenerate: { directory: "docs/reference/stdlib" } }],
+              autogenerate: { directory: "docs/reference/stdlib" },
             },
             { label: "Vite", slug: "docs/reference/vite" },
             { label: "VS Code", slug: "docs/reference/vscode" },
