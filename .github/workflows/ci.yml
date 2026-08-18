@@ -125,6 +125,52 @@ jobs:
           npx tsc --noEmit -p examples/store/tsconfig.json
           npx tsc --noEmit -p examples/todo-app/tsconfig.json
 
+  typecheck-emitted:
+    name: Type-check emitted TypeScript (advisory)
+    needs: rust
+    runs-on: ubuntu-latest
+    # ADVISORY, NOT BLOCKING. `floe build` writes `// @ts-nocheck` on every
+    # emitted file, so tsc has never checked any of it. The first run of this
+    # job found 89 diagnostics across the store and todo-app examples, in 15
+    # groups: dropped generic type arguments on `useState<T>`, a literal
+    # `undefined /* type error */` placeholder for `useSuspenseQuery`, trait
+    # impl methods that are neither exported nor imported, `JSX.Element` under
+    # React 19, and more. Issue #1470 carries the full list. Flip
+    # `continue-on-error` off once those are fixed. A job that is red on the
+    # day it lands teaches everyone to ignore it.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download binary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: floe-binary
+
+      - name: Make binary executable
+        run: chmod +x floe
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - name: Setup Aikido safe-chain
+        # Same control as the integration job: PATH shims check every package
+        # against Aikido's feed before the install runs.
+        env:
+          npm_config_minimum_release_age: "0"
+        run: pnpm dlx @aikidosec/safe-chain@1.5.1 setup-ci
+
+      - name: Install example dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Emit without @ts-nocheck and run tsc
+        run: ./scripts/typecheck-emitted.sh ./floe
+
   lsp:
     name: LSP integration tests
     needs: rust
