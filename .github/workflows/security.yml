@@ -18,8 +18,102 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Two OSV jobs, one for each trigger, because the two triggers ask
+  # different questions.
+  #
+  # A pull request asks "does this branch add a vulnerability?". The
+  # reusable PR workflow scans the base branch, then scans the head
+  # branch, then fails only on the difference. The plain workflow fails on
+  # every advisory in the tree, so each pull request inherited the whole
+  # backlog on main and went red for advisories it never touched. That
+  # taught us to merge through a red check.
+  #
+  # A push to main and the weekly schedule ask "what is in the tree right
+  # now?". Those keep the full blocking scan. They stay red until somebody
+  # clears the backlog. Nothing here filters or hides a finding.
+  #
+  # The backlog on 2026-08-18 was 44 npm advisories in 12 packages. All of
+  # them sit in docs/site, in the example apps, or in dev tooling. None of
+  # them reaches a published @floeorg package, because those ship no
+  # third-party runtime dependency. Dependabot #1449 covers esbuild,
+  # #1487 covers sharp, and #1461 covers the astro 7 upgrade.
+  # This job repeats osv-scanner-reusable-pr.yml by hand, and leaves out one
+  # step. That reusable workflow ends with an `Export results` step, which
+  # writes the whole of old-results.json and new-results.json into
+  # $GITHUB_OUTPUT so it can expose them as workflow outputs. This tree
+  # produces more than 1 MB of JSON, GitHub caps job outputs at 1048576
+  # bytes, and the job fails with `Job outputs exceed 1,048,576 bytes` even
+  # when every scan step passes. v2.5.0 and v2.5.1 export the same way, so a
+  # version bump does not help. Nothing here reads those outputs, so the
+  # step is dropped and the rest is copied. The two osv-scanner-action pins
+  # and the codeql-action pin are the SHAs that reusable workflow uses. The
+  # checkout pin is not: it is the v6.0.2 SHA the rest of this file already
+  # carries, because one action must not sit at two versions in one file.
+  #
+  # Both OSV jobs carry the same `name:` on purpose. The `if:` guards are
+  # mutually exclusive, so exactly one runs per event, and main has no
+  # branch protection that names a required check.
+  osv-scanner-pr:
+    name: OSV-Scanner (Cargo + npm)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # The base branch checkout below is plain git, so it needs both
+          # the full history and the credentials this action leaves behind.
+          fetch-depth: 0
+
+      - name: Check out the base branch
+        run: git checkout "$GITHUB_BASE_REF"
+
+      - name: Scan the base branch
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=old-results.json
+            --lockfile=Cargo.lock
+            --lockfile=pnpm-lock.yaml
+
+      - name: Check out the pull request branch
+        # -f because the scan may leave the tree dirty.
+        run: git checkout -f "$GITHUB_SHA"
+
+      - name: Scan the pull request branch
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=new-results.json
+            --lockfile=Cargo.lock
+            --lockfile=pnpm-lock.yaml
+
+      - name: Report only what this pull request adds
+        uses: google/osv-scanner-action/osv-reporter-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --old=old-results.json
+            --new=new-results.json
+            --gh-annotations=true
+            --fail-on-vuln=true
+
+      - name: Upload to code scanning
+        if: ${{ !cancelled() }}
+        uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.31.10
+        with:
+          sarif_file: results.sarif
+
   osv-scanner:
     name: OSV-Scanner (Cargo + npm)
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
       security-events: write
