@@ -12,6 +12,7 @@
 
 pub mod ambient;
 mod dts;
+pub mod package_exports;
 mod ts_types;
 pub mod tsgo;
 #[cfg(feature = "native")]
@@ -31,6 +32,10 @@ use crate::checker::Type;
 pub use dts::{
     DtsExport, GenericParamInfo, collect_generic_param_defs_from_source, parse_dts_exports,
     parse_dts_exports_for_specifier,
+};
+pub use package_exports::{
+    ExportsTarget, find_dts_in_package, find_package_dts, resolve_exports_target, split_specifier,
+    types_package_name,
 };
 pub use ts_types::{FunctionParam, ObjectField, TsType, ts_type_to_string};
 pub use tsgo::{TsgoResolver, TsgoResult};
