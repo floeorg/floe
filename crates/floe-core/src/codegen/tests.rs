@@ -1983,6 +1983,33 @@ let f() -> Result<number, Array<string>> = {
     );
 }
 
+#[test]
+fn collect_awaiting_inside_an_array_emits_async_iife() {
+    // The await sits inside an array literal. Codegen used to carry its own
+    // walk, and that walk never entered an array, so it emitted `await`
+    // inside a plain `(() => {` arrow while the checker read the same body
+    // as async. Both passes now read `body_has_promise_await` (glb #1516).
+    let result = emit_with_types(
+        r#"
+async let g() -> number = { 1 }
+async let f() -> Result<number, Array<Error>> = {
+    collect {
+        let xs = [g() |> await]
+        xs |> length
+    }
+}
+"#,
+    );
+    assert!(
+        result.contains("(async () => {"),
+        "collect block that awaits inside an array must emit an async IIFE, got: {result}"
+    );
+    assert!(
+        result.contains("await g()"),
+        "should still emit the inner await, got: {result}"
+    );
+}
+
 // ── Parse<T> Built-in ────────────────────────────────────────
 
 #[test]
