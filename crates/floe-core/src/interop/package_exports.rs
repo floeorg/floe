@@ -194,6 +194,13 @@ pub fn find_package_dts(project_dir: &Path, specifier: &str) -> Option<PathBuf> 
         return find_node_builtin_dts(&node_modules, submodule);
     }
     let (package, subpath) = split_specifier(specifier);
+    // The package segment names the directory that every later containment
+    // check measures against, so a segment of `..` would move that directory
+    // up to the project. A package supplies this string: `import("...")`
+    // inside a `.d.ts` reaches here verbatim.
+    if !is_valid_package_name(package) {
+        return None;
+    }
     let candidates = [
         node_modules.join(package),
         node_modules
@@ -252,8 +259,14 @@ pub fn find_dts_in_package(pkg_dir: &Path, subpath: &str) -> Option<PathBuf> {
 
 /// Read and parse a package manifest. Returns `None` when the file is absent
 /// or malformed.
+///
+/// The read runs through `probe_file` like every other probe. That refuses a
+/// `package.json` that is not a regular file, so a symlink to `/dev/zero` or
+/// to a FIFO cannot make `read_to_string` run without end, and it refuses a
+/// symlink that points at a file outside the package.
 fn read_manifest(pkg_dir: &Path) -> Option<Value> {
-    let content = std::fs::read_to_string(pkg_dir.join("package.json")).ok()?;
+    let manifest = probe_file(pkg_dir, pkg_dir, "package.json")?;
+    let content = std::fs::read_to_string(manifest).ok()?;
 
     serde_json::from_str(&content).ok()
 }
@@ -376,6 +389,40 @@ fn probe_path(
     real_candidate
         .starts_with(real_pkg_dir)
         .then_some(candidate)
+}
+
+/// True when a string is a package name that npm can publish and that Node
+/// accepts in a specifier.
+///
+/// This guard exists for safety, not for tidiness. `split_specifier` hands
+/// the head of a specifier to `find_package_dts` as a directory name, and a
+/// head of `..` or `.` points that directory somewhere other than a package.
+fn is_valid_package_name(package: &str) -> bool {
+    let Some(scope_and_name) = package.strip_prefix('@') else {
+        return is_valid_name_segment(package);
+    };
+    let Some((scope, name)) = scope_and_name.split_once('/') else {
+        return false;
+    };
+
+    is_valid_name_segment(scope) && is_valid_name_segment(name)
+}
+
+/// True when one segment of a package name is safe to read as a directory
+/// name. A segment is never empty, never starts with a dot, and never holds a
+/// character that a path reads as structure.
+fn is_valid_name_segment(segment: &str) -> bool {
+    if segment.is_empty() || segment.starts_with('.') {
+        return false;
+    }
+
+    !segment.chars().any(|character| {
+        character.is_control()
+            || matches!(
+                character,
+                '/' | '\\' | '%' | ':' | '*' | '?' | '"' | '<' | '>' | '|'
+            )
+    })
 }
 
 /// Join a package-relative path onto a base directory, and reject the result
@@ -1207,6 +1254,196 @@ mod tests {
         assert_eq!(
             find_package_dts(root, "escapesub/../../outside/secret"),
             None
+        );
+    }
+
+    // ── the specifier names the containment root ───────────────
+
+    /// The package segment of a specifier picks the directory that every
+    /// later containment check measures against. A segment of `..` moves
+    /// that root up to the project, and then a `types` field inside the
+    /// attacker's own package can climb out of `node_modules` and stay
+    /// inside the moved root. A package supplies this string:
+    /// `import("../node_modules/evil/app")` inside a `.d.ts` reaches
+    /// `find_package_dts` verbatim.
+    #[test]
+    fn a_specifier_that_climbs_out_of_node_modules_stays_unresolved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        std::fs::write(root.join(".env"), "AWS_SECRET_ACCESS_KEY=hunter2").expect("write .env");
+        install(
+            root,
+            "evil",
+            r#"{ "name": "evil" }"#,
+            &[
+                ("app/package.json", r#"{ "types": "../../../.env" }"#),
+                (
+                    "index.d.ts",
+                    r#"export declare const x: import("../node_modules/evil/app").T;"#,
+                ),
+            ],
+        );
+
+        assert_eq!(find_package_dts(root, "../node_modules/evil/app"), None);
+        // The same climb is already blocked when the specifier names the
+        // package properly, because the root then stays on the package.
+        assert_eq!(find_package_dts(root, "evil/app"), None);
+    }
+
+    #[test]
+    fn a_specifier_without_a_valid_package_segment_stays_unresolved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "real",
+            r#"{ "name": "real" }"#,
+            &[("index.d.ts", "export declare const value: number;")],
+        );
+
+        for specifier in [
+            "..", ".", "../..", "", "/real", "./real", "../real", "@", "@scope",
+        ] {
+            assert_eq!(
+                find_package_dts(root, specifier),
+                None,
+                "specifier `{specifier}` should stay unresolved"
+            );
+        }
+        assert!(
+            find_package_dts(root, "real").is_some(),
+            "a valid package name should still resolve"
+        );
+    }
+
+    #[test]
+    fn a_scoped_subpath_specifier_still_resolves() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "@scope/name",
+            r#"{ "name": "@scope/name" }"#,
+            &[("sub/index.d.ts", "export declare const value: number;")],
+        );
+
+        let resolved = find_package_dts(root, "@scope/name/sub").expect("should resolve");
+        assert_eq!(
+            tail(&resolved, root),
+            "node_modules/@scope/name/sub/index.d.ts"
+        );
+    }
+
+    // ── the manifest read is a probe like any other ────────────
+
+    /// Run one resolution on a worker thread and fail when it does not
+    /// answer. A `package.json` that never reaches end of file blocks
+    /// `read_to_string` for ever, so the test must not wait for it.
+    fn resolve_within(root: &Path, specifier: &str, limit: std::time::Duration) -> Option<PathBuf> {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let root = root.to_path_buf();
+        let specifier = specifier.to_string();
+        std::thread::spawn(move || {
+            let _ = sender.send(find_package_dts(&root, &specifier));
+        });
+
+        receiver
+            .recv_timeout(limit)
+            .expect("the resolver should answer inside the time limit")
+    }
+
+    /// A `package.json` that is a FIFO never reaches end of file, so an
+    /// unguarded `read_to_string` hangs the compiler and the language
+    /// server. The reported fixture symlinks `package.json` to `/dev/zero`;
+    /// this test uses a FIFO instead, because `/dev/zero` grows the string
+    /// without bound and a regression would end in an OOM kill rather than a
+    /// failed assertion. Both are the same shape: a `package.json` that is
+    /// not a regular file.
+    #[cfg(unix)]
+    #[test]
+    fn a_package_json_that_never_ends_does_not_hang_the_resolver() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "fifopkg",
+            r#"{ "name": "fifopkg" }"#,
+            &[("index.d.ts", "export declare const value: number;")],
+        );
+        let manifest = root
+            .join("node_modules")
+            .join("fifopkg")
+            .join("package.json");
+        std::fs::remove_file(&manifest).expect("remove the regular manifest");
+        let made = std::process::Command::new("mkfifo")
+            .arg(&manifest)
+            .status()
+            .expect("run mkfifo");
+        assert!(made.success(), "mkfifo should create the fifo");
+
+        let resolved = resolve_within(root, "fifopkg", std::time::Duration::from_secs(5));
+
+        // The manifest is unreadable, so the resolver falls through to the
+        // package root index.
+        assert_eq!(
+            tail(&resolved.expect("should resolve"), root),
+            "node_modules/fifopkg/index.d.ts"
+        );
+    }
+
+    /// The reported fixture, checked at the guard rather than through
+    /// `find_package_dts`. Reading `/dev/zero` never ends and never stops
+    /// allocating, so this test must not let the resolver open it.
+    #[cfg(unix)]
+    #[test]
+    fn a_package_json_that_is_a_character_device_never_reaches_a_read() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(root, "devzero", r#"{ "name": "devzero" }"#, &[]);
+        let pkg_dir = root.join("node_modules").join("devzero");
+        let manifest = pkg_dir.join("package.json");
+        std::fs::remove_file(&manifest).expect("remove the regular manifest");
+        std::os::unix::fs::symlink("/dev/zero", &manifest).expect("link to /dev/zero");
+
+        assert_eq!(super::probe_file(&pkg_dir, &pkg_dir, "package.json"), None);
+    }
+
+    /// A `package.json` symlinked at a file outside the package steers the
+    /// result through its `types` field, so the manifest read is guarded the
+    /// same way every other probe is.
+    #[cfg(unix)]
+    #[test]
+    fn a_package_json_symlinked_out_of_the_package_stays_unread() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        let outside = root.join("outside");
+        std::fs::create_dir_all(&outside).expect("create outside dir");
+        std::fs::write(
+            outside.join("package.json"),
+            r#"{ "types": "./steered.d.ts" }"#,
+        )
+        .expect("write the outside manifest");
+        install(
+            root,
+            "linkedmanifest",
+            r#"{ "name": "linkedmanifest" }"#,
+            &[
+                ("steered.d.ts", "export declare const steered: number;"),
+                ("index.d.ts", "export declare const value: number;"),
+            ],
+        );
+        let manifest = root
+            .join("node_modules")
+            .join("linkedmanifest")
+            .join("package.json");
+        std::fs::remove_file(&manifest).expect("remove the regular manifest");
+        std::os::unix::fs::symlink(outside.join("package.json"), &manifest)
+            .expect("link the manifest outside");
+
+        let resolved = find_package_dts(root, "linkedmanifest").expect("should resolve");
+        assert_eq!(
+            tail(&resolved, root),
+            "node_modules/linkedmanifest/index.d.ts"
         );
     }
 
