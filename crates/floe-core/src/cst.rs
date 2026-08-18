@@ -33,6 +33,8 @@ pub struct CstError {
 pub enum CstErrorKind {
     /// A banned keyword was used (e.g. `let`, `var`).
     BannedKeyword,
+    /// A word that JavaScript reserves was used where a value name belongs.
+    ReservedWord,
     /// An expected token was missing.
     UnexpectedToken,
     /// A JSX closing tag did not match the opening tag.
@@ -220,50 +222,86 @@ impl<'src> CstParser<'src> {
         )
     }
 
-    fn is_ident_flex(&self) -> bool {
-        matches!(self.current_kind(), Some(TokenKind::Identifier(_)))
-            || self.current_kind().is_some_and(|k| k.is_contextual_ident())
+    /// True when the current word may name a property: a record field, an
+    /// object-literal key, a named argument label, or a JSX attribute.
+    fn at_field_name(&self) -> bool {
+        self.current_kind()
+            .as_ref()
+            .is_some_and(TokenKind::can_name_field)
     }
 
-    fn expect_ident_flex(&mut self) {
+    /// True when the current token may follow a `.`.
+    fn at_member_name(&self) -> bool {
+        self.current_kind()
+            .as_ref()
+            .is_some_and(TokenKind::can_name_member)
+    }
+
+    /// Expect a name that binds a value: a `let` binding, a parameter, a
+    /// destructured name, or a shorthand that reads the value back.
+    ///
+    /// A word that JavaScript reserves is rejected here, because the emitted
+    /// TypeScript would not compile. The diagnostic names the word.
+    fn expect_binding_name(&mut self) {
+        let kind = self.current_kind();
+
+        if matches!(kind, Some(TokenKind::Identifier(_))) {
+            self.bump();
+            return;
+        }
+
+        if kind.as_ref().is_some_and(TokenKind::can_bind) {
+            self.bump_remap(SyntaxKind::IDENT);
+            return;
+        }
+
+        if let Some(word) = kind.as_ref().and_then(TokenKind::reserved_word) {
+            self.error_kind(
+                &format!(
+                    "`{word}` is a reserved word in JavaScript, so it cannot name a value in Floe. \
+                     Floe accepts `{word}` as a field name, a member name, a named argument and a JSX attribute."
+                ),
+                CstErrorKind::ReservedWord,
+            );
+            self.bump();
+            return;
+        }
+
+        self.error_kind(
+            &format!("expected identifier, found {:?}", self.current_kind()),
+            CstErrorKind::UnexpectedToken,
+        );
+    }
+
+    fn expect_binding_name_item(&mut self) {
+        self.expect_binding_name();
+    }
+
+    /// Expect a name that names a property: a record field, an object-literal
+    /// key, a named argument label, or a JSX attribute. JavaScript accepts a
+    /// reserved word in each of those positions, so Floe accepts it too.
+    fn expect_field_name(&mut self) {
         match self.current_kind() {
             Some(TokenKind::Identifier(_)) => self.bump(),
-            Some(k) if k.is_contextual_ident() => self.bump_remap(SyntaxKind::IDENT),
+            Some(k) if k.can_name_field() => self.bump_remap(SyntaxKind::IDENT),
             _ => self.error_kind(
-                &format!("expected identifier, found {:?}", self.current_kind()),
+                &format!("expected a field name, found {:?}", self.current_kind()),
                 CstErrorKind::UnexpectedToken,
             ),
         }
     }
 
-    fn expect_ident_flex_item(&mut self) {
-        self.expect_ident_flex();
-    }
-
-    /// Keywords accepted as JSX prop names (`<input type="text" />`,
-    /// `<label for="..." />`).
-    fn is_keyword(&self) -> bool {
-        match self.current_kind() {
-            Some(k) if k.is_contextual_ident() => true,
-            Some(
-                TokenKind::For
-                | TokenKind::Match
-                | TokenKind::Fn
-                | TokenKind::Let
-                | TokenKind::Import
-                | TokenKind::Export
-                | TokenKind::Trait,
-            ) => true,
-            _ => false,
-        }
-    }
-
-    /// Check if the current token maps to a SyntaxKind that is a valid member
-    /// name (identifiers, keywords, numbers, etc.). Delegates to
-    /// `SyntaxKind::is_member_name` via `token_kind_to_syntax`.
-    fn is_member_name_token(&self) -> bool {
-        self.current_kind()
-            .is_some_and(|kind| crate::syntax::token_kind_to_syntax(&kind).is_member_name())
+    /// Write the reserved-word diagnostic for a punned field (`Foo { for: }`,
+    /// which reads back as `for: for`). The name is a field, but the pun also
+    /// reads a value of the same name, and a reserved word can never name one.
+    fn error_reserved_pun(&mut self, word: &str) {
+        self.error_kind(
+            &format!(
+                "`{word}` is a reserved word in JavaScript, so it cannot name a value in Floe. \
+                 Write `{word}: <value>` instead of punning it."
+            ),
+            CstErrorKind::ReservedWord,
+        );
     }
 
     fn at_end(&self) -> bool {
@@ -621,15 +659,20 @@ impl<'src> CstParser<'src> {
         }
     }
 
-    /// Parse a destructuring field: `ident` or `ident: ident` (with rename).
+    /// Parse a destructuring field: `name` or `field: name` (with rename).
+    /// `field` reads a property, so a reserved word is fine there. `name`
+    /// binds, so a reserved word is rejected.
     fn parse_destructure_field(&mut self) {
-        self.expect_ident_flex();
-        self.eat_trivia();
-        if self.at(&TokenKind::Colon) {
+        if self.peek_is(&TokenKind::Colon) {
+            self.expect_field_name();
+            self.eat_trivia();
             self.bump(); // eat ':'
             self.eat_trivia();
-            self.expect_ident_flex(); // alias
+            self.expect_binding_name(); // alias
+            return;
         }
+
+        self.expect_binding_name();
     }
 
     fn error(&mut self, message: &str) {
@@ -1128,6 +1171,149 @@ mod tests {
     #[test]
     fn lossless_for_block() {
         assert_lossless("for User { fn greet(self) -> string { self.name } }");
+    }
+
+    // ── Reserved words as names ───────────────────────────────────
+
+    /// Assert the parse reports exactly one error, and that error names the
+    /// reserved word.
+    fn assert_one_reserved_word_error(source: &str, word: &str) {
+        let parse = cst_parse(source);
+        let reserved: Vec<_> = parse
+            .errors
+            .iter()
+            .filter(|e| e.kind == CstErrorKind::ReservedWord)
+            .collect();
+        assert_eq!(
+            reserved.len(),
+            1,
+            "expected one reserved-word error for {source:?}, got: {:?}",
+            parse.errors
+        );
+        assert!(
+            reserved[0].message.contains(word),
+            "error should name `{word}`, got: {}",
+            reserved[0].message
+        );
+        assert!(
+            reserved[0].message.contains("JavaScript"),
+            "error should say JavaScript reserves the word, got: {}",
+            reserved[0].message
+        );
+    }
+
+    #[test]
+    fn record_type_field_named_for() {
+        assert_no_errors("type Form = { for: string }");
+    }
+
+    #[test]
+    fn record_type_fields_named_after_javascript_keywords() {
+        assert_no_errors(
+            "type Payload = { for: string, class: string, function: string, if: string }",
+        );
+    }
+
+    #[test]
+    fn record_type_field_named_for_is_lossless() {
+        assert_lossless("type Form = { for: string }");
+    }
+
+    #[test]
+    fn object_literal_key_named_for() {
+        assert_no_errors(r#"let row = { for: "name", class: "row" }"#);
+    }
+
+    #[test]
+    fn brace_construction_field_named_for() {
+        assert_no_errors(r#"let row = Form { for: "name", class: "row" }"#);
+    }
+
+    #[test]
+    fn named_argument_labelled_for() {
+        assert_no_errors(r#"let row = label(for: "name")"#);
+    }
+
+    #[test]
+    fn member_named_for() {
+        assert_no_errors("let name = f.for");
+    }
+
+    #[test]
+    fn member_named_class() {
+        assert_no_errors("let name = f.class");
+    }
+
+    #[test]
+    fn jsx_prop_named_for() {
+        assert_no_errors(r#"let view = <label for="name" />"#);
+    }
+
+    #[test]
+    fn jsx_prop_named_class() {
+        assert_no_errors(r#"let view = <label class="row" />"#);
+    }
+
+    #[test]
+    fn destructure_renames_a_reserved_field() {
+        assert_no_errors("let { for: htmlFor } = props");
+    }
+
+    #[test]
+    fn record_pattern_renames_a_reserved_field() {
+        assert_no_errors("let name = match row {\n    Form { for: target } -> target,\n}");
+    }
+
+    #[test]
+    fn let_binding_named_for_is_rejected() {
+        assert_one_reserved_word_error("let for = 1", "for");
+    }
+
+    #[test]
+    fn let_binding_named_class_is_rejected() {
+        assert_one_reserved_word_error("let class = 1", "class");
+    }
+
+    #[test]
+    fn parameter_named_for_is_rejected() {
+        assert_one_reserved_word_error(r#"let f(for: string) -> string = { "x" }"#, "for");
+    }
+
+    #[test]
+    fn function_binding_named_for_is_rejected() {
+        assert_one_reserved_word_error(r#"let for(x: string) -> string = { x }"#, "for");
+    }
+
+    #[test]
+    fn destructured_binding_named_for_is_rejected() {
+        assert_one_reserved_word_error("let { for } = props", "for");
+    }
+
+    #[test]
+    fn object_shorthand_named_for_is_rejected() {
+        assert_one_reserved_word_error("let row = { for, name }", "for");
+    }
+
+    #[test]
+    fn punned_field_named_for_is_rejected() {
+        assert_one_reserved_word_error("let row = Form { for: }", "for");
+    }
+
+    // ── `for` stays a keyword in its own three positions ──────────
+
+    #[test]
+    fn for_block_at_item_start_still_parses() {
+        assert_no_errors("for User {\n    let name(self) -> string = { self.id }\n}");
+    }
+
+    #[test]
+    fn import_for_specifier_still_parses() {
+        assert_no_errors(r#"import { for User } from "./user""#);
+    }
+
+    #[test]
+    fn impl_trait_for_type_still_parses() {
+        assert_no_errors("impl Show for User {\n    let show(self) -> string = { self.id }\n}");
     }
 
     // ── CST node kind checks ──────────────────────────────────────

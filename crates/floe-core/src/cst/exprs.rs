@@ -171,41 +171,9 @@ impl<'src> CstParser<'src> {
             .start_node_at(checkpoint, SyntaxKind::MEMBER_EXPR.into());
         self.bump();
         self.eat_trivia();
-        // Accept identifiers, keywords, and numbers after `.`
-        // (must match SyntaxKind::is_member_name)
-        if self.is_ident()
-            || matches!(
-                self.current_kind(),
-                Some(
-                    TokenKind::Number(_)
-                        | TokenKind::Banned(_)
-                        | TokenKind::Parse
-                        | TokenKind::Match
-                        | TokenKind::For
-                        | TokenKind::From
-                        | TokenKind::Type
-                        | TokenKind::Export
-                        | TokenKind::Import
-                        | TokenKind::Let
-                        | TokenKind::Fn
-                        | TokenKind::Trait
-                        | TokenKind::Collect
-                        | TokenKind::Impl
-                        | TokenKind::When
-                        | TokenKind::SelfKw
-                        | TokenKind::Value
-                        | TokenKind::Clear
-                        | TokenKind::Unchanged
-                        | TokenKind::Todo
-                        | TokenKind::Unreachable
-                        | TokenKind::Mock
-                        | TokenKind::Assert
-                        | TokenKind::Typeof
-                        | TokenKind::Opaque
-                        | TokenKind::Trusted
-                )
-            )
-        {
+        // A member name after `.` is never ambiguous, so any word stands
+        // here, and so does a number for tuple element access (`pair.0`).
+        if self.at_member_name() {
             self.bump();
         } else {
             self.expect_ident();
@@ -549,20 +517,29 @@ impl<'src> CstParser<'src> {
         self.builder
             .start_node(SyntaxKind::BRACE_CONSTRUCT_FIELD.into());
 
-        if self.is_ident_flex() && self.peek_is(&TokenKind::Colon) {
-            self.expect_ident_flex();
+        if self.at_field_name() && self.peek_is(&TokenKind::Colon) {
+            let reserved = self
+                .current_kind()
+                .as_ref()
+                .and_then(TokenKind::reserved_word);
+            self.expect_field_name();
             self.eat_trivia();
             self.bump(); // :
 
             // Punning: `name:` followed by `,` or `}` reads back as `name: name`.
             let next = self.next_non_trivia_kind();
             let is_pun = matches!(next, Some(TokenKind::RightBrace | TokenKind::Comma) | None);
-            if !is_pun {
+            if is_pun {
+                if let Some(word) = reserved {
+                    self.error_reserved_pun(word);
+                }
+            } else {
                 self.eat_trivia();
                 self.parse_expr();
             }
-        } else if self.is_ident_flex() {
-            self.expect_ident_flex();
+        } else if self.at_field_name() {
+            // Bare shorthand `{ name }` reads a value of that name.
+            self.expect_binding_name();
         } else {
             self.error("expected a field name in record construction");
             self.bump();
@@ -623,15 +600,23 @@ impl<'src> CstParser<'src> {
         self.builder.start_node(SyntaxKind::ARG.into());
 
         // Named arg: `label: expr` or punned `label:`.
-        if self.is_ident_flex() && self.peek_is(&TokenKind::Colon) {
-            self.expect_ident_flex();
+        if self.at_field_name() && self.peek_is(&TokenKind::Colon) {
+            let reserved = self
+                .current_kind()
+                .as_ref()
+                .and_then(TokenKind::reserved_word);
+            self.expect_field_name();
             self.eat_trivia();
             self.bump(); // :
 
             // Punning: `label:` without a value — next non-trivia is `)` or `,`
             let next = self.next_non_trivia_kind();
             let is_pun = matches!(next, Some(TokenKind::RightParen | TokenKind::Comma) | None);
-            if !is_pun {
+            if is_pun {
+                if let Some(word) = reserved {
+                    self.error_reserved_pun(word);
+                }
+            } else {
                 self.eat_trivia();
                 self.parse_expr();
             }
@@ -925,14 +910,18 @@ impl<'src> CstParser<'src> {
         self.builder.finish_node();
     }
 
+    /// Parse `name` (shorthand binding) or `field: pattern` (rename or nest).
     fn parse_record_pattern_field(&mut self) {
-        self.expect_ident_flex();
-        self.eat_trivia();
-        if self.at(&TokenKind::Colon) {
-            self.bump();
+        if self.peek_is(&TokenKind::Colon) {
+            self.expect_field_name();
+            self.eat_trivia();
+            self.bump(); // :
             self.eat_trivia();
             self.parse_pattern();
+            return;
         }
+
+        self.expect_binding_name();
     }
 
     /// Parse a named-field entry inside a brace-form variant pattern:
@@ -940,12 +929,14 @@ impl<'src> CstParser<'src> {
     fn parse_named_variant_pattern_field(&mut self) {
         self.builder
             .start_node(SyntaxKind::VARIANT_FIELD_PATTERN.into());
-        self.expect_ident_flex();
-        self.eat_trivia();
-        if self.at(&TokenKind::Colon) {
-            self.bump();
+        if self.peek_is(&TokenKind::Colon) {
+            self.expect_field_name();
+            self.eat_trivia();
+            self.bump(); // :
             self.eat_trivia();
             self.parse_pattern();
+        } else {
+            self.expect_binding_name();
         }
         self.builder.finish_node();
     }
@@ -964,7 +955,7 @@ impl<'src> CstParser<'src> {
             return false;
         }
         let first = &self.tokens[i].kind;
-        if !matches!(first, TokenKind::Identifier(_)) && !first.is_contextual_ident() {
+        if !first.can_name_field() {
             return false;
         }
         // Next non-trivia token after the ident must be `:` (key: value) or `,` or `}` (shorthand)
@@ -992,14 +983,17 @@ impl<'src> CstParser<'src> {
 
     fn parse_object_field(&mut self) {
         self.builder.start_node(SyntaxKind::OBJECT_FIELD.into());
-        self.expect_ident_flex();
-        self.eat_trivia();
-        if self.at(&TokenKind::Colon) {
+        if self.peek_is(&TokenKind::Colon) {
+            self.expect_field_name();
+            self.eat_trivia();
             self.bump(); // :
             self.eat_trivia();
             self.parse_expr();
+        } else {
+            // Shorthand: `{ name }` means `{ name: name }`, so it reads a
+            // value of that name.
+            self.expect_binding_name();
         }
-        // If no colon, it's shorthand: { name } means { name: name }
         self.builder.finish_node();
     }
 

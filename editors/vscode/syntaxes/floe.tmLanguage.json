@@ -8,6 +8,7 @@
     { "include": "#template-literals" },
     { "include": "#jsx" },
     { "include": "#braces" },
+    { "include": "#reserved-properties" },
     { "include": "#keywords" },
     { "include": "#storage" },
     { "include": "#constants" },
@@ -81,6 +82,26 @@
               ]
             }
           ]
+        }
+      ]
+    },
+    "reserved-properties": {
+      "comment": "A word JavaScript reserves reads as a property name after a `.` and before a `:`, never as a keyword. This block sits above #keywords so it wins there. The list is IdentRole::PropertyOnly in crates/floe-core/src/lexer/token.rs",
+      "patterns": [
+        {
+          "comment": "Member name: form.for, node.class",
+          "match": "(\\.)\\s*(for|const|class|throw|null|undefined|any|as|enum|void|function|if|else|return)\\b",
+          "captures": {
+            "1": { "name": "punctuation.accessor.floe" },
+            "2": { "name": "variable.other.property.floe" }
+          }
+        },
+        {
+          "comment": "Record field name or named-argument label: for: string",
+          "match": "\\b(for|const|class|throw|null|undefined|any|as|enum|void|function|if|else|return)\\b(?=\\s*:)",
+          "captures": {
+            "1": { "name": "variable.other.property.floe" }
+          }
         }
       ]
     },

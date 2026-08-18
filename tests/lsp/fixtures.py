@@ -946,3 +946,33 @@ let test() -> number = {
     42
 }
 """
+
+RESERVED_WORD_FIELDS = """\
+type Payload = {
+    for: string,
+    class: string,
+    function: string,
+    if: string,
+}
+
+let target(p: Payload) -> string = { p.for }
+
+let style(p: Payload) -> string = { p.class }
+
+let build() -> Payload = {
+    Payload {
+        for: "name",
+        class: "row",
+        function: "submit",
+        if: "always",
+    }
+}
+"""
+
+RESERVED_WORD_BINDING = """\
+let for = 1
+"""
+
+RESERVED_WORD_PARAMETER = """\
+let label(for: string) -> string = { "submit" }
+"""

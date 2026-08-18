@@ -262,8 +262,37 @@ module.exports = grammar({
       ),
 
     // Floe accepts both lowercase (standard identifier) and uppercase
-    // (type_identifier) names in field-name position.
-    _field_name: ($) => choice($.identifier, $.type_identifier),
+    // (type_identifier) names in field-name position, plus any word that
+    // JavaScript reserves.
+    _field_name: ($) =>
+      choice($.identifier, $.type_identifier, $.reserved_property),
+
+    // A word that JavaScript reserves. JavaScript accepts a reserved word as
+    // a property name, so Floe accepts one as a record field, a member name,
+    // a named argument and a JSX attribute, and never as a binding. This
+    // list is `IdentRole::PropertyOnly` in
+    // crates/floe-core/src/lexer/token.rs.
+    reserved_property: ($) =>
+      choice(
+        "for",
+        "const",
+        "class",
+        "throw",
+        "null",
+        "undefined",
+        "any",
+        "as",
+        "enum",
+        "void",
+        "function",
+        "if",
+        "else",
+        "return",
+      ),
+
+    // A name that reads a property: a member after `.`, a named argument
+    // label, or a JSX attribute.
+    _property_name: ($) => choice($.identifier, $.reserved_property),
 
     _type_expression: ($) =>
       choice(
@@ -618,7 +647,7 @@ module.exports = grammar({
 
     argument: ($) =>
       choice(
-        seq(field("label", $.identifier), ":", field("value", $._expression)),
+        seq(field("label", $._property_name), ":", field("value", $._expression)),
         $._expression,
       ),
 
@@ -627,7 +656,7 @@ module.exports = grammar({
     member_expression: ($) =>
       prec.left(
         "member",
-        seq(field("object", $._expression), ".", field("property", $.identifier)),
+        seq(field("object", $._expression), ".", field("property", $._property_name)),
       ),
 
     index_expression: ($) =>
@@ -750,11 +779,11 @@ module.exports = grammar({
     jsx_attribute: ($) =>
       choice(
         seq(
-          field("name", $.identifier),
+          field("name", $._property_name),
           "=",
           field("value", choice($.string, $.jsx_expression)),
         ),
-        field("name", $.identifier),
+        field("name", $._property_name),
       ),
 
     jsx_expression: ($) =>

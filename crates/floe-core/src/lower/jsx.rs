@@ -1,3 +1,5 @@
+use crate::syntax::token_names_member;
+
 use super::{JsxChild, JsxElement, JsxElementKind, JsxProp, Lowerer, SyntaxKind, SyntaxNode};
 
 impl<'src> Lowerer<'src> {
@@ -139,7 +141,7 @@ impl<'src> Lowerer<'src> {
                 if kind.is_trivia() {
                     continue;
                 }
-                if kind == SyntaxKind::MINUS || kind.is_member_name() {
+                if kind == SyntaxKind::MINUS || token_names_member(kind, tok.text()) {
                     name.push_str(tok.text());
                 } else {
                     break;

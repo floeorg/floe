@@ -187,23 +187,104 @@ pub enum TokenKind {
     BlockComment,
 }
 
+/// What a word may do where an identifier could stand.
+///
+/// `TokenKind::ident_role` is the single table that answers this. Every
+/// "may this word stand here" list in the lexer, the parser and the CST
+/// derives from that table, so a new keyword costs one arm and nothing else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdentRole {
+    /// A plain identifier, or a Floe keyword that JavaScript does not
+    /// reserve. It may name a value, a parameter, a record field, a member,
+    /// a JSX attribute and a named argument.
+    Binding,
+    /// A word that JavaScript reserves. JavaScript accepts a reserved word
+    /// as a property name, so Floe accepts it as a record field, a member
+    /// name, a JSX attribute and a named argument. It may never name a value
+    /// or a parameter, because the emitted TypeScript would not compile.
+    PropertyOnly,
+    /// A Floe keyword with no identifier role. It may still follow a `.`,
+    /// because a member name after a dot is never ambiguous.
+    Keyword,
+}
+
 impl TokenKind {
-    /// True for keywords that are reserved only in their specific syntactic
-    /// position and parse as identifiers elsewhere.
-    pub fn is_contextual_ident(&self) -> bool {
+    /// The single table: what this word may do where an identifier could
+    /// stand. Returns `None` when the token is not a word.
+    pub fn ident_role(&self) -> Option<IdentRole> {
+        match self {
+            // A plain identifier binds, and so does a Floe keyword that
+            // JavaScript does not reserve. Each of those keywords is a keyword
+            // only in its own syntactic position, and an identifier everywhere
+            // else.
+            Self::Identifier(_)
+            | Self::Type
+            | Self::Opaque
+            | Self::Trusted
+            | Self::Collect
+            | Self::Parse
+            | Self::Mock
+            | Self::Todo
+            | Self::Unreachable
+            | Self::Clear
+            | Self::Unchanged => Some(IdentRole::Binding),
+
+            // Words that JavaScript reserves. `for` is a Floe keyword as
+            // well, at item start, in `import { for Type }` and in
+            // `impl Trait for Type`.
+            Self::For | Self::Banned(_) => Some(IdentRole::PropertyOnly),
+
+            // Floe keywords with no identifier role.
+            Self::Let
+            | Self::Fn
+            | Self::Export
+            | Self::Import
+            | Self::From
+            | Self::Match
+            | Self::Typealias
+            | Self::Impl
+            | Self::SelfKw
+            | Self::Trait
+            | Self::Assert
+            | Self::When
+            | Self::Typeof
+            | Self::Async
+            | Self::Value => Some(IdentRole::Keyword),
+
+            _ => None,
+        }
+    }
+
+    /// True when this word may name a value: a `let` binding, a parameter, a
+    /// destructured name, or a shorthand that reads a value back.
+    pub fn can_bind(&self) -> bool {
+        self.ident_role() == Some(IdentRole::Binding)
+    }
+
+    /// True when this word may name a property: a record field, an
+    /// object-literal key, a named argument, or a JSX attribute.
+    pub fn can_name_field(&self) -> bool {
         matches!(
-            self,
-            Self::Type
-                | Self::Todo
-                | Self::Unreachable
-                | Self::Mock
-                | Self::Parse
-                | Self::Clear
-                | Self::Unchanged
-                | Self::Trusted
-                | Self::Opaque
-                | Self::Collect
+            self.ident_role(),
+            Some(IdentRole::Binding | IdentRole::PropertyOnly)
         )
+    }
+
+    /// True when this word may follow a `.`. Every word may, and so may a
+    /// number, for tuple element access (`pair.0`).
+    pub fn can_name_member(&self) -> bool {
+        self.ident_role().is_some() || matches!(self, Self::Number(_))
+    }
+
+    /// The source spelling of a word that JavaScript reserves. `None` for
+    /// every other token. The parser puts this in the diagnostic it writes
+    /// when somebody tries to bind such a word.
+    pub fn reserved_word(&self) -> Option<&'static str> {
+        match self {
+            Self::For => Some("for"),
+            Self::Banned(keyword) => Some(keyword.as_str()),
+            _ => None,
+        }
     }
 }
 
@@ -389,6 +470,160 @@ mod tests {
         assert_eq!(lookup_keyword("myVar"), None);
         assert_eq!(lookup_keyword("Component"), None);
         assert_eq!(lookup_keyword("fetch"), None);
+    }
+
+    // ── Identifier roles ─────────────────────────────────────
+
+    #[test]
+    fn plain_identifier_binds() {
+        let word = TokenKind::Identifier("total".to_string());
+        assert_eq!(word.ident_role(), Some(IdentRole::Binding));
+        assert!(word.can_bind());
+        assert!(word.can_name_field());
+        assert!(word.can_name_member());
+    }
+
+    #[test]
+    fn contextual_floe_keyword_binds() {
+        for word in [
+            TokenKind::Type,
+            TokenKind::Opaque,
+            TokenKind::Trusted,
+            TokenKind::Collect,
+            TokenKind::Parse,
+            TokenKind::Mock,
+            TokenKind::Todo,
+            TokenKind::Unreachable,
+            TokenKind::Clear,
+            TokenKind::Unchanged,
+        ] {
+            assert_eq!(word.ident_role(), Some(IdentRole::Binding), "{word:?}");
+            assert!(word.can_bind(), "{word:?}");
+        }
+    }
+
+    #[test]
+    fn for_names_a_property_only() {
+        assert_eq!(TokenKind::For.ident_role(), Some(IdentRole::PropertyOnly));
+        assert!(!TokenKind::For.can_bind());
+        assert!(TokenKind::For.can_name_field());
+        assert!(TokenKind::For.can_name_member());
+        assert_eq!(TokenKind::For.reserved_word(), Some("for"));
+    }
+
+    #[test]
+    fn every_banned_keyword_names_a_property_only() {
+        for keyword in [
+            BannedKeyword::Const,
+            BannedKeyword::Class,
+            BannedKeyword::Throw,
+            BannedKeyword::Null,
+            BannedKeyword::Undefined,
+            BannedKeyword::Any,
+            BannedKeyword::As,
+            BannedKeyword::Enum,
+            BannedKeyword::Void,
+            BannedKeyword::Function,
+            BannedKeyword::If,
+            BannedKeyword::Else,
+            BannedKeyword::Return,
+        ] {
+            let word = TokenKind::Banned(keyword.clone());
+            assert_eq!(
+                word.ident_role(),
+                Some(IdentRole::PropertyOnly),
+                "{keyword:?}"
+            );
+            assert!(!word.can_bind(), "{keyword:?}");
+            assert!(word.can_name_field(), "{keyword:?}");
+            assert_eq!(word.reserved_word(), Some(keyword.as_str()));
+        }
+    }
+
+    #[test]
+    fn hard_keyword_names_a_member_only() {
+        for word in [
+            TokenKind::Let,
+            TokenKind::Fn,
+            TokenKind::Match,
+            TokenKind::Impl,
+            TokenKind::When,
+            TokenKind::From,
+        ] {
+            assert_eq!(word.ident_role(), Some(IdentRole::Keyword), "{word:?}");
+            assert!(!word.can_bind(), "{word:?}");
+            assert!(!word.can_name_field(), "{word:?}");
+            assert!(word.can_name_member(), "{word:?}");
+            assert_eq!(word.reserved_word(), None, "{word:?}");
+        }
+    }
+
+    #[test]
+    fn a_number_names_a_member_for_tuple_access() {
+        let number = TokenKind::Number("0".to_string());
+        assert_eq!(number.ident_role(), None);
+        assert!(number.can_name_member());
+        assert!(!number.can_name_field());
+    }
+
+    #[test]
+    fn punctuation_has_no_identifier_role() {
+        for token in [TokenKind::Comma, TokenKind::LeftBrace, TokenKind::Equal] {
+            assert_eq!(token.ident_role(), None, "{token:?}");
+            assert!(!token.can_name_member(), "{token:?}");
+        }
+    }
+
+    #[test]
+    fn every_keyword_the_lexer_makes_has_a_role() {
+        // The table must cover every word `lookup_keyword` produces, so a new
+        // keyword cannot slip in without an answer. `true` and `false` are
+        // literals, not words that could stand for an identifier.
+        for word in [
+            "let",
+            "fn",
+            "export",
+            "import",
+            "from",
+            "match",
+            "type",
+            "typealias",
+            "opaque",
+            "for",
+            "impl",
+            "self",
+            "trusted",
+            "trait",
+            "assert",
+            "when",
+            "collect",
+            "typeof",
+            "async",
+            "Value",
+            "Clear",
+            "Unchanged",
+            "parse",
+            "mock",
+            "todo",
+            "unreachable",
+            "const",
+            "class",
+            "throw",
+            "null",
+            "undefined",
+            "any",
+            "as",
+            "enum",
+            "void",
+            "function",
+            "if",
+            "else",
+            "return",
+        ] {
+            let token =
+                lookup_keyword(word).unwrap_or_else(|| panic!("{word} should lex as a keyword"));
+            assert!(token.ident_role().is_some(), "{word} has no role");
+        }
     }
 
     #[test]

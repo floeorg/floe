@@ -10,6 +10,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "reserved_property",
+            "named": true
           }
         ]
       },
@@ -1180,6 +1184,10 @@
             "named": true
           },
           {
+            "type": "reserved_property",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }
@@ -1699,6 +1707,10 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "reserved_property",
             "named": true
           },
           {
@@ -2700,6 +2712,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "reserved_property",
+            "named": true
           }
         ]
       },
@@ -3538,6 +3554,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "reserved_property",
+            "named": true
           }
         ]
       }
@@ -4348,6 +4368,10 @@
             "named": true
           },
           {
+            "type": "reserved_property",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }
@@ -4421,6 +4445,10 @@
             "named": true
           },
           {
+            "type": "reserved_property",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }
@@ -4472,6 +4500,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "reserved_property",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "return_statement",
@@ -5760,6 +5793,10 @@
             "named": true
           },
           {
+            "type": "reserved_property",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }
@@ -5815,6 +5852,10 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "reserved_property",
             "named": true
           },
           {
@@ -6043,6 +6084,10 @@
     "named": false
   },
   {
+    "type": "any",
+    "named": false
+  },
+  {
     "type": "as",
     "named": false
   },
@@ -6059,6 +6104,10 @@
     "named": false
   },
   {
+    "type": "class",
+    "named": false
+  },
+  {
     "type": "clear",
     "named": true
   },
@@ -6067,11 +6116,23 @@
     "named": false
   },
   {
+    "type": "const",
+    "named": false
+  },
+  {
     "type": "default",
     "named": false
   },
   {
     "type": "deriving",
+    "named": false
+  },
+  {
+    "type": "else",
+    "named": false
+  },
+  {
+    "type": "enum",
     "named": false
   },
   {
@@ -6091,8 +6152,16 @@
     "named": false
   },
   {
+    "type": "function",
+    "named": false
+  },
+  {
     "type": "identifier",
     "named": true
+  },
+  {
+    "type": "if",
+    "named": false
   },
   {
     "type": "impl",
@@ -6116,6 +6185,10 @@
   },
   {
     "type": "mock",
+    "named": false
+  },
+  {
+    "type": "null",
     "named": false
   },
   {
@@ -6155,6 +6228,10 @@
     "named": false
   },
   {
+    "type": "throw",
+    "named": false
+  },
+  {
     "type": "todo",
     "named": true
   },
@@ -6187,6 +6264,10 @@
     "named": true
   },
   {
+    "type": "undefined",
+    "named": false
+  },
+  {
     "type": "unknown",
     "named": false
   },
@@ -6196,6 +6277,10 @@
   },
   {
     "type": "use",
+    "named": false
+  },
+  {
+    "type": "void",
     "named": false
   },
   {

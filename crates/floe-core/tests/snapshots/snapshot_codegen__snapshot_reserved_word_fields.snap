@@ -1,0 +1,17 @@
+---
+source: crates/floe-core/tests/snapshot_codegen.rs
+expression: output
+---
+type Payload = { for: string; class: string; function: string; if: string };
+
+function make(): Payload {
+  return { for: "name", class: "row", function: "submit", if: "always" };
+}
+
+function target(p: Payload): string {
+  return p.for;
+}
+
+function style(p: Payload): string {
+  return p.class;
+}

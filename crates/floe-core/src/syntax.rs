@@ -1,4 +1,4 @@
-use crate::lexer::token::TokenKind;
+use crate::lexer::token::{TokenKind, lookup_keyword};
 
 /// All syntax kinds for the Floe CST.
 ///
@@ -207,45 +207,20 @@ impl SyntaxKind {
     pub fn is_trivia(self) -> bool {
         matches!(self, Self::WHITESPACE | Self::COMMENT | Self::BLOCK_COMMENT)
     }
+}
 
-    /// Whether this token kind can appear as a member name after `.` in a
-    /// member expression (e.g. `Date.from`, `Number.parse`, `pair.0`).
-    /// Must stay in sync with the parser's member-expression handling in
-    /// `cst/exprs.rs`.
-    pub fn is_member_name(self) -> bool {
-        matches!(
-            self,
-            Self::IDENT
-                | Self::NUMBER
-                | Self::BANNED
-                | Self::KW_PARSE
-                | Self::KW_MATCH
-                | Self::KW_FOR
-                | Self::KW_FROM
-                | Self::KW_TYPE
-                | Self::KW_TYPEALIAS
-                | Self::KW_EXPORT
-                | Self::KW_IMPORT
-                | Self::KW_LET
-                | Self::KW_FN
-                | Self::KW_TRAIT
-                | Self::KW_COLLECT
-                | Self::KW_IMPL
-                | Self::KW_WHEN
-                | Self::KW_SELF
-                | Self::KW_VALUE
-                | Self::KW_CLEAR
-                | Self::KW_UNCHANGED
-                | Self::KW_TODO
-                | Self::KW_UNREACHABLE
-                | Self::KW_MOCK
-                | Self::KW_ASSERT
-                | Self::KW_USE
-                | Self::KW_TYPEOF
-                | Self::KW_OPAQUE
-                | Self::KW_TRUSTED
-        )
+/// Whether a CST token may name a member after `.` (`Date.from`, `pair.0`,
+/// `form.for`), or name a JSX attribute part.
+///
+/// This derives from the one table in `lexer::token`. The parser wrote this
+/// token, so the text tells us which word it is and `can_name_member` tells
+/// us what that word may do. A new keyword needs no edit here.
+pub fn token_names_member(kind: SyntaxKind, text: &str) -> bool {
+    if matches!(kind, SyntaxKind::IDENT | SyntaxKind::NUMBER) {
+        return true;
     }
+
+    lookup_keyword(text).is_some_and(|word| word.can_name_member())
 }
 
 impl From<SyntaxKind> for rowan::SyntaxKind {
@@ -294,7 +269,7 @@ pub fn jsx_tag_name_from_node(node: &SyntaxNode) -> Option<String> {
             if kind.is_trivia() {
                 continue;
             }
-            if kind.is_member_name() {
+            if token_names_member(kind, tok.text()) {
                 name.push_str(tok.text());
             } else if kind == SyntaxKind::DOT && !name.is_empty() {
                 name.push('.');

@@ -1,5 +1,5 @@
 use crate::pretty::{self, Document};
-use crate::syntax::{SyntaxKind, SyntaxNode};
+use crate::syntax::{SyntaxKind, SyntaxNode, token_names_member};
 
 use super::Formatter;
 
@@ -155,7 +155,7 @@ impl Formatter<'_> {
                 if kind.is_trivia() {
                     continue;
                 }
-                if kind == SyntaxKind::MINUS || kind.is_member_name() {
+                if kind == SyntaxKind::MINUS || token_names_member(kind, tok.text()) {
                     parts.push(pretty::str(tok.text()));
                 } else {
                     break;

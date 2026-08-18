@@ -99,6 +99,17 @@ class TestCompletionDotAccess:
         assert "name" in labels, f"Labels: {labels[:15]}"
         assert "age" in labels, f"Labels: {labels[:15]}"
 
+    def test_record_fields_named_after_reserved_words(self, lsp):
+        source = (
+            'type Payload = { for: string, class: string }\n'
+            'let p = Payload { for: "a", class: "b" }\n'
+            'let n = p.\n'
+        )
+        open_doc(lsp, URI, source)
+        labels = completion_labels(lsp.completion(URI, 2, 11))
+        assert "for" in labels, f"Labels: {labels[:15]}"
+        assert "class" in labels, f"Labels: {labels[:15]}"
+
     def test_no_unrelated_fields(self, lsp):
         source = 'type User = { name: string, age: number }\ntype Item = { title: string }\nconst u = User { name: "a", age: 1 }\nconst n = u.\n'
         open_doc(lsp, URI, source)

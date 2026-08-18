@@ -150,6 +150,11 @@ pub fn from_parse_errors(errors: &[crate::parser::ParseError]) -> Vec<Diagnostic
                         diag = diag.with_label("banned in Floe").with_help(help_text);
                     }
                 }
+                ParseErrorKind::ReservedWord => {
+                    diag = diag
+                        .with_label("reserved by JavaScript")
+                        .with_help("Rename the value, or keep the word as a field name only");
+                }
                 ParseErrorKind::UnexpectedToken => {
                     diag = diag.with_label("unexpected token here");
                 }

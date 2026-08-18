@@ -268,6 +268,17 @@ mock<User>(name: "Alice")         // with field overrides
 
 ### Contextual keywords
 
+Every word in Floe has one of three roles. The role says where the word may
+stand.
+
+| Role | May name | May not name |
+|---|---|---|
+| Binding | A value, a parameter, a record field, a member, a named argument, a JSX attribute | — |
+| Property only | A record field, a member, a named argument, a JSX attribute | A value or a parameter |
+| Keyword | A member after `.` | Everything else |
+
+#### Binding words
+
 Some keywords are only reserved in specific positions so they don't block
 common names in user code (`type` as a JSON/DOM field, `todo` as a variable,
 etc.). Outside those positions they parse as ordinary identifiers.
@@ -300,6 +311,46 @@ let make(type: string, body: string) -> Message = {
 let todo = validateTodo(text)?
 saveTodo(todo)   // reads the local — not the panic placeholder
 ```
+
+#### Property-only words
+
+`for`, `const`, `class`, `throw`, `null`, `undefined`, `any`, `as`, `enum`,
+`void`, `function`, `if`, `else` and `return` name a property and nothing
+else. JavaScript accepts a reserved word as a property name, so Floe accepts
+one as a record field, a member name, a named argument and a JSX attribute.
+
+```floe
+type Payload = {
+    for: string,
+    class: string,
+    function: string,
+    if: string,
+}
+
+let target(p: Payload) -> string = { p.for }
+
+let view(p: Payload) -> JSX.Element = { <label for="name" class="row" /> }
+
+let call() -> Payload = { render(for: "name") }
+```
+
+JavaScript reserves each of these words, so none of them may name a value or
+a parameter. Floe reports one error that names the word:
+
+```floe,ignore
+let for = 1                     // error: `for` is a reserved word in JavaScript
+let f(for: string) -> string = { "x" }   // same error, on the parameter
+```
+
+Rename the value instead. Floe rejects the binding because the emitted
+TypeScript would not compile: TypeScript reports `TS1389` for a variable named
+`for` and `TS1390` for a parameter named `for`.
+
+`for` also stays a keyword in three positions:
+
+- `for Type { ... }` at item start
+- `import { for Type } from "..."`
+- `impl Trait for Type { ... }`
 
 ### Qualified Variants
 

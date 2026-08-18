@@ -415,3 +415,40 @@ import { use } from "react"
     (string
       (string_content))))
 
+
+===
+Member named after a JavaScript reserved word
+===
+
+let target = payload.for
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (member_expression
+      object: (primary_expression
+        (identifier))
+      property: (reserved_property))))
+
+===
+Named argument labelled with a JavaScript reserved word
+===
+
+let e = render(for: "name")
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (call_expression
+      function: (primary_expression
+        (identifier))
+      (argument_list
+        (argument
+          label: (reserved_property)
+          value: (primary_expression
+            (string
+              (string_content))))))))
