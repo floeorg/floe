@@ -18,8 +18,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Two OSV jobs, one for each trigger, because the two triggers ask
+  # different questions.
+  #
+  # A pull request asks "does this branch add a vulnerability?". The
+  # reusable PR workflow scans the base branch, then scans the head
+  # branch, then fails only on the difference. The plain workflow fails on
+  # every advisory in the tree, so each pull request inherited the whole
+  # backlog on main and went red for advisories it never touched. That
+  # taught us to merge through a red check.
+  #
+  # A push to main and the weekly schedule ask "what is in the tree right
+  # now?". Those keep the full blocking scan. They stay red until somebody
+  # clears the backlog. Nothing here filters or hides a finding.
+  #
+  # The backlog on 2026-08-18 was 44 npm advisories in 12 packages. All of
+  # them sit in docs/site, in the example apps, or in dev tooling. None of
+  # them reaches a published @floeorg package, because those ship no
+  # third-party runtime dependency. Dependabot #1449 covers esbuild,
+  # #1487 covers sharp, and #1461 covers the astro 7 upgrade.
+  osv-scanner-pr:
+    name: OSV-Scanner (Cargo + npm)
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+    with:
+      scan-args: |-
+        --lockfile=Cargo.lock
+        --lockfile=pnpm-lock.yaml
+      upload-sarif: true
+
   osv-scanner:
     name: OSV-Scanner (Cargo + npm)
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
       security-events: write
