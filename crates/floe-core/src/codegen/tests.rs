@@ -2963,3 +2963,150 @@ let captures = match RegExp.compile("(\\d+)", "") {
         "expected `r.exec(...)`, got: {result}"
     );
 }
+
+// ── The file-global name maps are guarded on the resolved type (#1520) ──
+//
+// Codegen holds every unit variant, every variant constructor and every
+// for-block function in a file-global map with no scope in it. The checker
+// resolves a name with a scoped lookup. A local binding that shadows one of
+// these names parted the two passes: the checker read the local, codegen
+// read the map, and the program checked clean and emitted something else.
+// Every emission below now reads `expr.ty` first.
+
+#[test]
+fn a_parameter_shadows_a_unit_variant() {
+    let result = emit_typed(
+        r#"
+type Color = Red | Green
+export let f(Red: number) -> number = { Red + 1 }
+"#,
+    );
+    assert!(
+        result.contains("return Red + 1;"),
+        "the parameter shadows the variant, so the parameter must be emitted, got: {result}"
+    );
+    assert!(
+        !result.contains("__tag: \"Red\" } + 1"),
+        "the variant must not be emitted where the checker read the parameter, got: {result}"
+    );
+}
+
+#[test]
+fn a_unit_variant_the_checker_resolved_still_emits_its_tag() {
+    let result = emit_typed(
+        r#"
+type Color = Red | Green
+export let f() -> Color = { Red }
+"#,
+    );
+    assert!(
+        result.contains("{ __tag: \"Red\" }"),
+        "an unshadowed unit variant must still emit its tag, got: {result}"
+    );
+}
+
+#[test]
+fn a_parameter_shadows_a_variant_constructor() {
+    let result = emit_typed(
+        r#"
+type Route = | Home | Profile(string)
+export let f(Profile: number) -> number = { Profile + 1 }
+"#,
+    );
+    assert!(
+        result.contains("return Profile + 1;"),
+        "the parameter shadows the constructor, so the parameter must be emitted, got: {result}"
+    );
+    assert!(
+        !result.contains("=> ({ __tag: \"Profile\""),
+        "the constructor must not be emitted where the checker read the parameter, got: {result}"
+    );
+}
+
+#[test]
+fn a_variant_constructor_the_checker_resolved_still_emits_its_function() {
+    let result = emit_typed(
+        r#"
+type Route = | Home | Profile(string)
+export let f() -> (a: string) -> Route = { Profile }
+"#,
+    );
+    assert!(
+        result.contains("=> ({ __tag: \"Profile\""),
+        "an unshadowed constructor must still emit its function, got: {result}"
+    );
+}
+
+#[test]
+fn a_parameter_shadows_a_for_block_function() {
+    let result = emit_typed(
+        r#"
+type Entry = { n: number }
+for Entry { export let double(self) -> number = { self.n * 2 } }
+export let g(double: (a: number) -> number) -> number = { double(4) }
+"#,
+    );
+    assert!(
+        result.contains("return double(4);"),
+        "the parameter shadows the for-block function, so the parameter must be called, got: {result}"
+    );
+    assert!(
+        !result.contains("return Entry__double(4);"),
+        "the for-block function must not be called where the checker read the parameter, got: {result}"
+    );
+}
+
+#[test]
+fn a_parameter_shadows_a_for_block_function_in_a_pipe() {
+    let result = emit_typed(
+        r#"
+type Entry = { n: number }
+for Entry { export let double(self) -> number = { self.n * 2 } }
+export let g(double: (a: number) -> number) -> number = { 4 |> double() }
+"#,
+    );
+    assert!(
+        result.contains("return double(4);"),
+        "the parameter shadows the for-block function, so the parameter must be called, got: {result}"
+    );
+    assert!(
+        !result.contains("return Entry__double(4);"),
+        "the for-block function must not be called where the checker read the parameter, got: {result}"
+    );
+}
+
+#[test]
+fn a_for_block_function_the_checker_resolved_still_uses_its_mangled_name() {
+    let result = emit_typed(
+        r#"
+type Entry = { n: number }
+for Entry { export let double(self) -> number = { self.n * 2 } }
+export let g(e: Entry) -> number = { e |> double() }
+"#,
+    );
+    assert!(
+        result.contains("Entry__double(e)"),
+        "an unshadowed for-block call must still use the mangled name, got: {result}"
+    );
+}
+
+#[test]
+fn a_for_block_on_a_stdlib_type_does_not_take_the_stdlib_name() {
+    // The checker reads `Array.sum` as the stdlib function, because a
+    // for-block never enters the stdlib module namespace. Codegen read its
+    // own for-block map and emitted the for-block function instead.
+    let result = emit_typed(
+        r#"
+for Array<number> { export let sum(self) -> number = { 1 } }
+export let f() -> number = { Array.sum }
+"#,
+    );
+    assert!(
+        result.contains("return Array.sum;"),
+        "codegen must emit the name the checker resolved, got: {result}"
+    );
+    assert!(
+        !result.contains("return Array_number__sum;"),
+        "the for-block function must not be emitted where the checker read the stdlib, got: {result}"
+    );
+}

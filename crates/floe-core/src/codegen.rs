@@ -12,6 +12,7 @@ mod tests;
 
 use std::collections::{HashMap, HashSet};
 
+use crate::checker::Type;
 use crate::parser::ast::{
     Arg, BinOp, ExprKind, ItemKind, JsxChild, JsxElementKind, JsxProp, TemplatePart, TypeExpr,
     TypeExprKind, TypedArg, TypedExpr, TypedItem, TypedJsxElement, TypedProgram, UnaryOp,
@@ -110,6 +111,73 @@ impl Codegen {
 impl Default for Codegen {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ── Scope Guard For The File-Global Name Maps ────────────────────
+
+/// A name that one of codegen's file-global maps claims to own.
+///
+/// The maps hold every variant, every variant constructor and every
+/// for-block function in the file, under a bare name and with no scope.
+pub(crate) enum GlobalName<'a> {
+    /// A union variant, bare (`Red`) or qualified (`Color.Red`).
+    Variant { union: &'a str },
+    /// A variant that carries fields, used bare as a constructor function.
+    Constructor { union: &'a str },
+    /// A for-block function. `receiver` carries the type name in the
+    /// for-block header when the function takes `self` first, because the
+    /// checker types that first parameter as the receiver. A for-block
+    /// function without a `self` receiver carries `None`.
+    ForBlockFn { receiver: Option<&'a str> },
+}
+
+/// The name a resolved type is written with, without its type arguments.
+///
+/// `Type::Named("Entry")` gives `Entry` and `Array<number>` gives `Array`.
+/// A structural type gives its own printed form, which matches no declared
+/// name, so a comparison against one fails, which is what it must do.
+fn written_type_name(ty: &Type) -> String {
+    let printed = ty.to_string();
+    match printed.split_once('<') {
+        Some((head, _)) => head.to_string(),
+        None => printed,
+    }
+}
+
+/// True when the type the checker resolved for an expression agrees that
+/// the expression names `global`.
+///
+/// Codegen must not resolve a name. The name maps are file global and carry
+/// no scope, so a local binding that shadows a global name leaves them
+/// answering for a name they no longer own. The checker resolved that name
+/// with a scoped lookup and wrote the answer into `expr.ty`. Codegen reads
+/// the type back and takes the map's answer only when the two agree, so the
+/// two passes cannot part however odd the source is.
+///
+/// An undetermined type is no evidence, so it agrees. The checker left no
+/// opinion for codegen to contradict.
+pub(crate) fn checker_agrees(ty: &Type, global: &GlobalName<'_>) -> bool {
+    if ty.is_undetermined() {
+        return true;
+    }
+    match global {
+        GlobalName::Variant { union } => written_type_name(ty) == **union,
+        GlobalName::Constructor { union } => match ty.resolved() {
+            Type::Function { return_type, .. } => {
+                return_type.is_undetermined() || written_type_name(&return_type) == **union
+            }
+            _ => false,
+        },
+        GlobalName::ForBlockFn { receiver } => match ty.resolved() {
+            Type::Function { params, .. } => match (receiver, params.first()) {
+                (Some(receiver), Some(first)) => {
+                    first.is_undetermined() || written_type_name(first) == **receiver
+                }
+                _ => true,
+            },
+            _ => false,
+        },
     }
 }
 

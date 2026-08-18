@@ -1,7 +1,7 @@
 use crate::parser::ast::{Arg, ExprKind, TypedArg, TypedExpr};
 use crate::pretty::{self, Document};
 
-use super::super::has_placeholder_arg;
+use super::super::{GlobalName, checker_agrees, has_placeholder_arg};
 use super::generator::TypeScriptGenerator;
 
 impl<'a> TypeScriptGenerator<'a> {
@@ -63,6 +63,27 @@ impl<'a> TypeScriptGenerator<'a> {
         }
     }
 
+    /// The emitted name of the for-block function a bare name calls, when
+    /// the checker resolved that name to it.
+    ///
+    /// `for_block_fns_by_name` is file global and holds no scope, so a local
+    /// binding that shadows a for-block method name gets the same answer out
+    /// of it. `checker_agrees` reads the type the checker resolved and drops
+    /// the map's answer when the two part.
+    fn for_block_fn_for(&self, name: &str, ty: &crate::checker::Type) -> Option<String> {
+        let entry = self.ctx.lookup_for_block_fn_by_name(name)?;
+        if !checker_agrees(
+            ty,
+            &GlobalName::ForBlockFn {
+                receiver: entry.guard_receiver(),
+            },
+        ) {
+            return None;
+        }
+
+        Some(entry.emitted_name(&self.import_aliases))
+    }
+
     fn try_emit_for_block_pipe(
         &mut self,
         left: &TypedExpr,
@@ -70,15 +91,11 @@ impl<'a> TypeScriptGenerator<'a> {
         field: &str,
         args: &[TypedArg],
     ) -> Option<Document> {
-        let mangled = self
+        let entry = self
             .ctx
             .for_block_fns
             .get(&(type_name.to_string(), field.to_string()))?;
-        let name = self
-            .import_aliases
-            .get(mangled)
-            .cloned()
-            .unwrap_or_else(|| mangled.clone());
+        let name = entry.emitted_name(&self.import_aliases);
         let mut docs = vec![pretty::str(&name), pretty::str("(")];
         docs.push(self.emit_expr(left));
         if !args.is_empty() {
@@ -177,9 +194,7 @@ impl<'a> TypeScriptGenerator<'a> {
                     return doc;
                 }
                 if let ExprKind::Identifier(name) = &callee.kind
-                    && let Some(mangled) = self
-                        .ctx
-                        .lookup_for_block_fn_by_name(name, &self.import_aliases)
+                    && let Some(mangled) = self.for_block_fn_for(name, &callee.ty)
                 {
                     let mut docs = vec![pretty::str(&mangled), pretty::str("(")];
                     docs.push(self.emit_expr(left));
@@ -268,10 +283,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 if let Some(output) = self.try_emit_bare_stdlib_pipe(left, right, &[]) {
                     return pretty::str(output);
                 }
-                if let Some(mangled) = self
-                    .ctx
-                    .lookup_for_block_fn_by_name(name, &self.import_aliases)
-                {
+                if let Some(mangled) = self.for_block_fn_for(name, &right.ty) {
                     return pretty::concat([
                         pretty::str(&mangled),
                         pretty::str("("),

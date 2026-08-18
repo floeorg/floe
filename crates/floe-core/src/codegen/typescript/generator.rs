@@ -37,21 +37,51 @@ pub(super) const THROW_MOCK_FUNCTION: &str = "(() => { throw new Error(\"mock fu
 /// so `limit as isize` in `pretty::render` stays positive.
 const PRINT_WIDTH: usize = 1_000_000;
 
+/// A for-block function, as codegen's file-global name maps hold it.
+#[derive(Clone)]
+pub(crate) struct ForBlockFn {
+    /// The emitted name, `Entry__double`.
+    pub mangled: String,
+    /// The type name in the for-block header, `Entry`.
+    pub receiver: String,
+    /// True when the first parameter is `self`. The checker types that
+    /// parameter as the receiver, so a caller can tell the function apart
+    /// from a local binding of the same name by reading the resolved type.
+    pub takes_self: bool,
+}
+
+impl ForBlockFn {
+    /// The emitted name, after import aliasing.
+    pub(super) fn emitted_name(&self, import_aliases: &HashMap<String, String>) -> String {
+        import_aliases
+            .get(&self.mangled)
+            .cloned()
+            .unwrap_or_else(|| self.mangled.clone())
+    }
+
+    /// The receiver to guard a resolved type against, which the checker
+    /// only types as the receiver when the function takes `self` first.
+    pub(super) fn guard_receiver(&self) -> Option<&str> {
+        self.takes_self.then_some(self.receiver.as_str())
+    }
+}
+
 /// Read-only type metadata collected during the first pass.
 /// Borrowed by the generator — no cloning needed for sub-expressions.
 pub(crate) struct TypeContext {
     pub stdlib: StdlibRegistry,
-    pub unit_variants: HashSet<String>,
+    /// Every union variant in the file: `variant_name` → (union name, field
+    /// names). An empty field list marks a unit variant.
     pub variant_info: HashMap<String, (String, Vec<String>)>,
     pub type_defs: HashMap<String, TypedTypeDef>,
     pub local_names: HashSet<String>,
     pub resolved_imports: HashMap<String, ResolvedImports>,
     pub test_mode: bool,
     pub value_used_names: HashSet<String>,
-    pub for_block_fns: HashMap<(String, String), String>,
-    /// Bare-name index into `for_block_fns`: maps `fn_name` → mangled name.
+    pub for_block_fns: HashMap<(String, String), ForBlockFn>,
+    /// Bare-name index into `for_block_fns`: maps `fn_name` → the function.
     /// Lets pipe/identifier lookup hit a HashMap instead of scanning.
-    pub for_block_fns_by_name: HashMap<String, String>,
+    pub for_block_fns_by_name: HashMap<String, ForBlockFn>,
     pub for_block_type_names: HashSet<String>,
     pub constructor_used_names: HashSet<String>,
     pub trait_decls: HashMap<String, TypedTraitDecl>,
@@ -74,7 +104,6 @@ impl TypeContext {
     ) -> Self {
         let mut ctx = Self {
             stdlib: StdlibRegistry::new(),
-            unit_variants: HashSet::new(),
             variant_info: HashMap::new(),
             type_defs: HashMap::new(),
             local_names: HashSet::new(),
@@ -176,9 +205,6 @@ impl TypeContext {
                         })
                     })
                     .collect();
-                if variant.fields.is_empty() {
-                    self.unit_variants.insert(variant.name.clone());
-                }
                 self.variant_info
                     .insert(variant.name.clone(), (decl.name.clone(), field_names));
             }
@@ -191,31 +217,29 @@ impl TypeContext {
         };
         self.for_block_type_names.insert(type_name.clone());
         for func in &block.functions {
-            let mangled = for_block_fn_name(&block.type_name, &func.name);
+            let entry = ForBlockFn {
+                mangled: for_block_fn_name(&block.type_name, &func.name),
+                receiver: type_name.clone(),
+                takes_self: func.params.first().is_some_and(|p| p.name == "self"),
+            };
             self.for_block_fns
-                .insert((type_name.clone(), func.name.clone()), mangled.clone());
+                .insert((type_name.clone(), func.name.clone()), entry.clone());
             // First registration wins for the bare-name lookup. Method names
             // are unique across for-blocks in practice because codegen would
             // emit ambiguous calls otherwise.
             self.for_block_fns_by_name
                 .entry(func.name.clone())
-                .or_insert(mangled);
+                .or_insert(entry);
         }
     }
 
     /// Look up a for-block function by bare name (without type qualifier).
-    pub(super) fn lookup_for_block_fn_by_name(
-        &self,
-        name: &str,
-        import_aliases: &HashMap<String, String>,
-    ) -> Option<String> {
-        let mangled = self.for_block_fns_by_name.get(name)?;
-        Some(
-            import_aliases
-                .get(mangled)
-                .cloned()
-                .unwrap_or_else(|| mangled.clone()),
-        )
+    ///
+    /// The caller must guard the result on the checker's resolved type with
+    /// `checker_agrees`. This map is file global and holds no scope, so it
+    /// answers for a name a local binding shadows.
+    pub(super) fn lookup_for_block_fn_by_name(&self, name: &str) -> Option<&ForBlockFn> {
+        self.for_block_fns_by_name.get(name)
     }
 
     /// Returns true if the name is used as a for-block type prefix but NOT
