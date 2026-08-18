@@ -1154,6 +1154,15 @@ mod tests {
 
     // ── Structural validation ─────────────────────────────────
 
+    /// Every declared parameter must reach the emitted TypeScript.
+    ///
+    /// A template substitutes `$0` through `$n` and nothing else, so a
+    /// parameter with no matching placeholder is accepted by the checker
+    /// and then dropped by codegen. That is one half of glb #1492: the
+    /// user writes an argument, the compiler reports nothing, and the
+    /// argument is missing at runtime. The arity check in the checker
+    /// closes the other half, where a call passes more arguments than the
+    /// signature declares.
     #[test]
     fn all_functions_have_valid_codegen_placeholders() {
         let reg = StdlibRegistry::new();
@@ -1905,36 +1914,5 @@ mod tests {
         let f = reg.lookup("Array", "sortWith").unwrap();
         assert_eq!(f.params.len(), 2);
         assert_eq!(f.codegen, "[...$0].sort($1)");
-    }
-
-    /// Every declared parameter must reach the emitted TypeScript.
-    ///
-    /// A template substitutes `$0` through `$n` and nothing else, so a
-    /// parameter with no matching placeholder is accepted by the checker
-    /// and then dropped by codegen. That is one half of glb #1492: the
-    /// user writes an argument, the compiler reports nothing, and the
-    /// argument is missing at runtime. The arity check in the checker
-    /// closes the other half, where a call passes more arguments than the
-    /// signature declares.
-    #[test]
-    fn every_declared_parameter_appears_in_its_template() {
-        let reg = StdlibRegistry::new();
-        let mut dropped = Vec::new();
-
-        for f in reg.all_functions() {
-            if f.is_variadic() {
-                continue;
-            }
-            for i in 0..f.params.len() {
-                if !f.codegen.contains(&format!("${i}")) {
-                    dropped.push(format!("{}.{} drops ${i}", f.module, f.name));
-                }
-            }
-        }
-
-        assert!(
-            dropped.is_empty(),
-            "these signatures declare a parameter their template never uses: {dropped:?}"
-        );
     }
 }

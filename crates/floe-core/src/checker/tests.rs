@@ -21,6 +21,15 @@ fn has_error_containing(diagnostics: &[Diagnostic], text: &str) -> bool {
         .any(|d| d.severity == Severity::Error && d.message.contains(text))
 }
 
+/// The error messages only, for an assertion that has to name what it got.
+fn error_messages(diagnostics: &[Diagnostic]) -> Vec<&str> {
+    diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .map(|d| d.message.as_str())
+        .collect()
+}
+
 fn has_warning_containing(diagnostics: &[Diagnostic], text: &str) -> bool {
     diagnostics
         .iter()
@@ -5477,11 +5486,7 @@ let _x = Array.sort([Product { id: "a" }])
     assert!(
         has_error(&diags, ErrorCode::TypeMismatch),
         "Array.sort on Array<Product> should error, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
+        error_messages(&diags)
     );
 }
 
@@ -5491,11 +5496,7 @@ fn stdlib_array_sort_accepts_number_array() {
     assert!(
         !has_error(&diags, ErrorCode::TypeMismatch),
         "Array.sort on Array<number> should pass, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
+        error_messages(&diags)
     );
 }
 
@@ -5510,11 +5511,7 @@ let _x = [Product { id: "a", rating: 1 }] |> Array.sortWith((a, b) -> a.rating -
     assert!(
         !has_error(&diags, ErrorCode::TypeMismatch),
         "Array.sortWith with a comparator should pass, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
+        error_messages(&diags)
     );
 }
 
@@ -5527,11 +5524,7 @@ fn stdlib_pipe_rejects_extra_argument() {
     assert!(
         has_error_containing(&diags, "`Array.sort` expects 1 argument, found 2"),
         "an extra argument in a pipe should error, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
+        error_messages(&diags)
     );
 }
 
@@ -5543,11 +5536,7 @@ fn stdlib_pipe_rejects_missing_argument() {
     assert!(
         has_error_containing(&diags, "`Array.take` expects 2 arguments, found 1"),
         "a missing argument in a pipe should error, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
+        error_messages(&diags)
     );
 }
 
@@ -5557,11 +5546,7 @@ fn stdlib_pipe_rejects_extra_argument_on_bare_name() {
     assert!(
         has_error_containing(&diags, "expects 1 argument, found 2"),
         "an extra argument to a bare stdlib pipe should error, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
+        error_messages(&diags)
     );
 }
 
@@ -5571,11 +5556,7 @@ fn stdlib_pipe_accepts_a_variadic_function() {
     assert!(
         !has_error(&diags, ErrorCode::TypeMismatch),
         "a variadic stdlib function takes any arity, got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
+        error_messages(&diags)
     );
 }
 

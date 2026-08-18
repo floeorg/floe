@@ -879,7 +879,6 @@ impl Checker {
             // carry concrete types that unify into the fresh vars), then
             // check arrow args with lambda_param_hints set — by that point
             // the vars are bound, so hints carry concrete types.
-            let mut arg_count = 0;
 
             // Pass 1: check non-arrow args and unify each with the matching param.
             let mut non_arrow_args: Vec<(usize, Type, Span)> = Vec::new();
@@ -891,7 +890,6 @@ impl Checker {
                         let _ = unify::unify(param_ty, &actual_ty);
                     }
                     non_arrow_args.push((i, actual_ty, e.span));
-                    arg_count += 1;
                 }
             }
 
@@ -926,23 +924,19 @@ impl Checker {
                         let _ = unify::unify(param_ty, &actual_ty);
                     }
                     self.ctx.lambda_param_hints.clear();
-                    arg_count += 1;
                 }
             }
 
-            if !variadic && arg_count != expected_param_count {
-                self.emit_error(
-                    format!(
-                        "`{display}` expects {} argument{}, found {}",
-                        expected_param_count,
-                        if expected_param_count == 1 { "" } else { "s" },
-                        arg_count
-                    ),
-                    span,
-                    ErrorCode::TypeMismatch,
-                    "wrong number of arguments",
-                );
-            }
+            // Every argument goes through exactly one of the two passes, so
+            // `args.len()` is what the call supplies.
+            self.check_stdlib_arity(
+                &display,
+                expected_param_count,
+                args.len(),
+                variadic,
+                span,
+                "wrong number of arguments",
+            );
 
             return inst_ret.deep_resolved();
         }
@@ -2183,6 +2177,13 @@ impl Checker {
         left_ty: &Type,
         right: &Expr,
     ) -> Type {
+        // `x |> f` and `x |> f(a, b)` both reach here. The bare form supplies
+        // no arguments beyond the piped value.
+        let call_args: &[Arg] = match &right.kind {
+            ExprKind::Call { args, .. } => args,
+            _ => &[],
+        };
+
         // Instantiate the stdlib signature so Generics become fresh Unbounds.
         let (inst_params, inst_ret) = hydrator::instantiate_signature(
             &stdlib_fn.params,
@@ -2220,30 +2221,28 @@ impl Checker {
         // lambda return (first right-side arg's fn return) and unify it with
         // the matching instantiated param's return type.
         let mut lambda_return: Option<Type> = None;
-        if let ExprKind::Call { args, .. } = &right.kind {
-            for (i, arg) in args.iter().enumerate() {
-                let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
-                // Hints for lambda args: if the matching inst param is a
-                // Function, pre-populate lambda_param_hints so the inner
-                // params know their types.
-                let inst_param = inst_params.get(i + 1).cloned();
-                if matches!(e.kind, ExprKind::Arrow { .. })
-                    && let Some(p) = &inst_param
-                    && let Type::Function { params, .. } = p.resolved()
-                {
-                    self.ctx.lambda_param_hints = params.iter().map(|p| p.resolved()).collect();
-                }
-                let actual_ty = self.check_expr(e);
-                self.ctx.lambda_param_hints.clear();
+        for (i, arg) in call_args.iter().enumerate() {
+            let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
+            // Hints for lambda args: if the matching inst param is a
+            // Function, pre-populate lambda_param_hints so the inner
+            // params know their types.
+            let inst_param = inst_params.get(i + 1).cloned();
+            if matches!(e.kind, ExprKind::Arrow { .. })
+                && let Some(p) = &inst_param
+                && let Type::Function { params, .. } = p.resolved()
+            {
+                self.ctx.lambda_param_hints = params.iter().map(|p| p.resolved()).collect();
+            }
+            let actual_ty = self.check_expr(e);
+            self.ctx.lambda_param_hints.clear();
 
-                if i == 0
-                    && let Type::Function { return_type, .. } = &actual_ty
-                {
-                    lambda_return = Some(return_type.as_ref().clone());
-                }
-                if let Some(p) = &inst_param {
-                    let _ = unify::unify(p, &actual_ty);
-                }
+            if i == 0
+                && let Type::Function { return_type, .. } = &actual_ty
+            {
+                lambda_return = Some(return_type.as_ref().clone());
+            }
+            if let Some(p) = &inst_param {
+                let _ = unify::unify(p, &actual_ty);
             }
         }
 
@@ -2254,7 +2253,15 @@ impl Checker {
             let _ = unify::unify(&return_type, actual_ret);
         }
 
-        self.check_stdlib_pipe_arity(stdlib_fn, display_name, right);
+        // The piped value is argument 1, so a pipe supplies `1 + call_args.len()`.
+        self.check_stdlib_arity(
+            display_name,
+            stdlib_fn.params.len(),
+            1 + call_args.len(),
+            stdlib_fn.is_variadic(),
+            right.span,
+            "the piped value counts as argument 1",
+        );
 
         // Foreign input: generics can't be resolved, propagate Foreign
         // so chained calls like db.insert(...).values(...).returning() |> await
@@ -2272,8 +2279,7 @@ impl Checker {
         }
     }
 
-    /// Report a pipe that supplies the wrong number of arguments to a stdlib
-    /// function.
+    /// Report a stdlib call that supplies the wrong number of arguments.
     ///
     /// A codegen template substitutes only the placeholders it declares, so
     /// arity has to be enforced here or the mistake reaches the emitted
@@ -2281,27 +2287,23 @@ impl Checker {
     /// emitted `[...products].sort((a, b) => a - b)` and dropped `cmp`
     /// (glb #1492). A missing one leaves the placeholder behind: `xs |>
     /// Array.take()` emitted `xs.slice(0, $1)`, which is not valid
-    /// TypeScript. `check_call` runs the same rule for the qualified form
-    /// `Array.sort(products, cmp)`; this is the pipe form of it.
+    /// TypeScript.
     ///
-    /// The piped value is argument 1, so a pipe supplies `1 + args.len()`
-    /// arguments. A variadic function takes any number and is exempt.
-    fn check_stdlib_pipe_arity(
+    /// The qualified form `Array.sort(products, cmp)` and the pipe form
+    /// `products |> Array.sort(cmp)` share this rule and this wording. They
+    /// differ only in the span they blame and the label they attach, so both
+    /// come in as arguments. A variadic function takes any number and is
+    /// exempt.
+    fn check_stdlib_arity(
         &mut self,
-        stdlib_fn: &crate::stdlib::StdlibFn,
         display_name: &str,
-        right: &Expr,
+        expected: usize,
+        supplied: usize,
+        variadic: bool,
+        span: Span,
+        label: &'static str,
     ) {
-        if stdlib_fn.is_variadic() {
-            return;
-        }
-
-        let expected = stdlib_fn.params.len();
-        let supplied = match &right.kind {
-            ExprKind::Call { args, .. } => 1 + args.len(),
-            _ => 1,
-        };
-        if supplied == expected {
+        if variadic || supplied == expected {
             return;
         }
 
@@ -2310,9 +2312,9 @@ impl Checker {
                 "`{display_name}` expects {expected} argument{}, found {supplied}",
                 if expected == 1 { "" } else { "s" }
             ),
-            right.span,
+            span,
             ErrorCode::TypeMismatch,
-            "the piped value counts as argument 1",
+            label,
         );
     }
 
