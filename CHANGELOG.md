@@ -5,6 +5,74 @@ All notable changes to Floe will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-alpha.6](https://github.com/floeorg/floe/compare/v0.1.0-alpha.5...v0.1.0-alpha.6) (2026-08-18)
+
+
+### Features
+
+* [[#1432](https://github.com/floeorg/floe/issues/1432)] every word names a property; only a value name is restricted ([#1503](https://github.com/floeorg/floe/issues/1503)) ([fee30e5](https://github.com/floeorg/floe/commit/fee30e53e7ebe39d9cc93792cbf26070013d58db))
+
+
+### Bug Fixes
+
+* [[#1429](https://github.com/floeorg/floe/issues/1429)] validate dotted type names instead of accepting all ([#1455](https://github.com/floeorg/floe/issues/1455)) ([8451e24](https://github.com/floeorg/floe/commit/8451e24a15184f51f2699cfb053debf3b81351c9))
+* [[#1430](https://github.com/floeorg/floe/issues/1430)] resolve stdlib type modules without a matching TS lib ([#1456](https://github.com/floeorg/floe/issues/1456)) ([67839ba](https://github.com/floeorg/floe/commit/67839baaa88c59a9373d39c96f0a2209c1aa496b))
+* [[#1431](https://github.com/floeorg/floe/issues/1431)] keep ambient types when the parse is lossy ([#1457](https://github.com/floeorg/floe/issues/1457)) ([c748ed8](https://github.com/floeorg/floe/commit/c748ed8ef171bf0f7f496143bcf8751188a7c39a))
+* [[#1433](https://github.com/floeorg/floe/issues/1433)] read package.json exports when resolving .d.ts files ([#1474](https://github.com/floeorg/floe/issues/1474)) ([3fa976a](https://github.com/floeorg/floe/commit/3fa976a0b7225d4667f502fdd84d88b02daf035a))
+* [[#1465](https://github.com/floeorg/floe/issues/1465)] an npm package Floe cannot find is an error ([#1509](https://github.com/floeorg/floe/issues/1509)) ([4581699](https://github.com/floeorg/floe/commit/4581699998a1e170f074685cf623c4cb547b675d))
+* [[#1492](https://github.com/floeorg/floe/issues/1492)] check stdlib arity in pipes, and add Array.sortWith ([#1506](https://github.com/floeorg/floe/issues/1506)) ([a2c0b8a](https://github.com/floeorg/floe/commit/a2c0b8a8214224fce1e9ccc285105188ba4c12cd))
+* [[#1493](https://github.com/floeorg/floe/issues/1493)] report the expression codegen cannot emit, instead of writing a placeholder ([#1565](https://github.com/floeorg/floe/issues/1565)) ([c589d0c](https://github.com/floeorg/floe/commit/c589d0c4aa0216351491a12653822b1f4b9614c2))
+* [[#1494](https://github.com/floeorg/floe/issues/1494)] codegen emits the type arguments a call site wrote ([#1536](https://github.com/floeorg/floe/issues/1536)) ([9259327](https://github.com/floeorg/floe/commit/9259327956b2aa104d0c2c35c5738213ed61ef2a))
+* [[#1495](https://github.com/floeorg/floe/issues/1495)] a trait impl method is exported, and a trait name is not imported ([#1540](https://github.com/floeorg/floe/issues/1540)) ([a821aa2](https://github.com/floeorg/floe/commit/a821aa2551971fff24dfd14565ef763cf46833e6))
+* [[#1498](https://github.com/floeorg/floe/issues/1498)] emitted components name a JSX namespace React 19 dropped ([#1560](https://github.com/floeorg/floe/issues/1560)) ([157a33e](https://github.com/floeorg/floe/commit/157a33eded42226c5abf19613f683f6236dcf208))
+* [[#1499](https://github.com/floeorg/floe/issues/1499)] every arrow that holds an await is async ([#1542](https://github.com/floeorg/floe/issues/1542)) ([fcc4b30](https://github.com/floeorg/floe/commit/fcc4b303b02139002defe9a0d9b5cd9255e5a24f))
+* [[#1520](https://github.com/floeorg/floe/issues/1520)] codegen asks the checker before it resolves a name ([#1526](https://github.com/floeorg/floe/issues/1526)) ([de92195](https://github.com/floeorg/floe/commit/de92195c464e998a6044dc58df15744e53a41a96))
+* [[#1521](https://github.com/floeorg/floe/issues/1521)] codegen walks the resolved type, not the written name ([#1527](https://github.com/floeorg/floe/issues/1527)) ([180f4dc](https://github.com/floeorg/floe/commit/180f4dc995610798b1557acdb2fd0aea0ca0cbab))
+* [[#1532](https://github.com/floeorg/floe/issues/1532)] a match arm reads the field the type declares, not the name ([#1535](https://github.com/floeorg/floe/issues/1535)) ([541bfea](https://github.com/floeorg/floe/commit/541bfea5fe802397c6df718ee7310925dd27cd30))
+* [[#1533](https://github.com/floeorg/floe/issues/1533)] desugar stamps a synthetic id on every spliced default ([#1538](https://github.com/floeorg/floe/issues/1538)) ([3d10ff8](https://github.com/floeorg/floe/commit/3d10ff851777c173fec32adf264959eda0a952fb))
+* [[#1543](https://github.com/floeorg/floe/issues/1543)] check the member of a dotted type name, not only the namespace ([#1566](https://github.com/floeorg/floe/issues/1566)) ([2901573](https://github.com/floeorg/floe/commit/2901573ca396379642024eac086b2db202f0d985))
+* [[#1557](https://github.com/floeorg/floe/issues/1557)] stop the build writing TypeScript beside the source, and delete what it wrote ([#1591](https://github.com/floeorg/floe/issues/1591)) ([ee87104](https://github.com/floeorg/floe/commit/ee87104e294d36bdb707c163e9d81570307b5081))
+
+
+### Miscellaneous Chores
+
+* release as 0.1.0-alpha.6 ([bb8050f](https://github.com/floeorg/floe/commit/bb8050fe3a5458a35243da0a4ba50dbfe9c8ebef))
+* release as 0.1.0-alpha.6 ([15b66bd](https://github.com/floeorg/floe/commit/15b66bd1bd0bf5ccf5b52e755309941d7b687df7))
+* release as 0.1.0-alpha.6 ([44bfe89](https://github.com/floeorg/floe/commit/44bfe89082021e5f0fe64b895ca1a2192778012f))
+* release as 0.1.0-alpha.6 ([79b7330](https://github.com/floeorg/floe/commit/79b733033e6e28181a285e37caa5261590155725))
+* release as 0.1.0-alpha.6 ([ac52b6c](https://github.com/floeorg/floe/commit/ac52b6c57c69a659dc07304cdcf6a78380180530))
+* release as 0.1.0-alpha.6 ([c330b82](https://github.com/floeorg/floe/commit/c330b8256f4edca23b9126755a68f8e09078979b))
+* release as 0.1.0-alpha.6 ([60b4570](https://github.com/floeorg/floe/commit/60b4570b5473d39f0feede6aaabe3e747a7c3c30))
+* release as 0.1.0-alpha.6 ([13b451b](https://github.com/floeorg/floe/commit/13b451b177147299e2a6abb6eca241b864a34323))
+* release as 0.1.0-alpha.6 ([a80d670](https://github.com/floeorg/floe/commit/a80d6709424da7b1921ea4987c385fca60822114))
+* release as 0.1.0-alpha.6 ([cdc3e23](https://github.com/floeorg/floe/commit/cdc3e232b5a108a4d66f1524287185dc515c0572))
+* release as 0.1.0-alpha.6 ([856ed8c](https://github.com/floeorg/floe/commit/856ed8ccc2709594000a90d42e88b00464a16458))
+* release as 0.1.0-alpha.6 ([c4c1550](https://github.com/floeorg/floe/commit/c4c1550f1c685490ac966a9721a44b5c94453081))
+* release as 0.1.0-alpha.6 ([5ed48a9](https://github.com/floeorg/floe/commit/5ed48a9122ad5273063cc373e480b1aae27552ac))
+* release as 0.1.0-alpha.6 ([04a9345](https://github.com/floeorg/floe/commit/04a93455869950cc14411e3725f27266eece6387))
+* release as 0.1.0-alpha.6 ([5ffb34d](https://github.com/floeorg/floe/commit/5ffb34dffbfd03a1fb6aedcc222ebb269e995e11))
+* release as 0.1.0-alpha.6 ([84d7fc0](https://github.com/floeorg/floe/commit/84d7fc00bdec54ad5f41d1bc71096a096157ca25))
+* release as 0.1.0-alpha.6 ([d661865](https://github.com/floeorg/floe/commit/d66186580353e365c0ba93d1442ae0aa2b0e7d7f))
+* release as 0.1.0-alpha.6 ([614a0c7](https://github.com/floeorg/floe/commit/614a0c7a06a0b0fba7f309ee50ef5b79963ab895))
+* release as 0.1.0-alpha.6 ([7d075de](https://github.com/floeorg/floe/commit/7d075defff41365f49712509ded97622c7397a14))
+* release as 0.1.0-alpha.6 ([30c9711](https://github.com/floeorg/floe/commit/30c97119643c6b3e9bc87e99de360b636e4b89a1))
+* release as 0.1.0-alpha.6 ([a05766d](https://github.com/floeorg/floe/commit/a05766dd0ba5b7b7d04263f05263806f5016c2c5))
+* release as 0.1.0-alpha.6 ([8d99207](https://github.com/floeorg/floe/commit/8d992072f577fb67c9a615a416b322b7807dc84c))
+* release as 0.1.0-alpha.6 ([c91609c](https://github.com/floeorg/floe/commit/c91609c6ec9afee2fd1f53ce0fdae54c77a1f5f5))
+* release as 0.1.0-alpha.6 ([53a522d](https://github.com/floeorg/floe/commit/53a522d191320bfc12ed07209d7e5d747534f1d8))
+* release as 0.1.0-alpha.6 ([289ee46](https://github.com/floeorg/floe/commit/289ee4677b3057f0253f0168e0cdee57b89ad121))
+* release as 0.1.0-alpha.6 ([0820cb0](https://github.com/floeorg/floe/commit/0820cb0430913c05e8112fde8e6266de2d5553ae))
+* release as 0.1.0-alpha.6 ([b918e76](https://github.com/floeorg/floe/commit/b918e7658732954c2f5ed5bcf345a2aaec639812))
+* release as 0.1.0-alpha.6 ([c6406c5](https://github.com/floeorg/floe/commit/c6406c54da440d5f58d36809a5f326896d9e2c0e))
+* release as 0.1.0-alpha.6 ([1d4c758](https://github.com/floeorg/floe/commit/1d4c758be8d9c1df22f0f24d3b2e0e6382e270a2))
+* release as 0.1.0-alpha.6 ([85ecd46](https://github.com/floeorg/floe/commit/85ecd4647a5c397a19f7e40ffe4cc728ccbbb329))
+* release as 0.1.0-alpha.6 ([3eaf33f](https://github.com/floeorg/floe/commit/3eaf33fac152f1911710a163491fc7ccca243119))
+* release as 0.1.0-alpha.6 ([05b680e](https://github.com/floeorg/floe/commit/05b680e72cbc2ae1ea2487c55041383f14435b73))
+* release as 0.1.0-alpha.6 ([6df538d](https://github.com/floeorg/floe/commit/6df538d3a290e04b20cbf3f4f1790e149477c72d))
+* release as 0.1.0-alpha.6 ([4e6d1b6](https://github.com/floeorg/floe/commit/4e6d1b6d67823b28e8fb29951ebd8c2a8c5fe1cb))
+* release as 0.1.0-alpha.6 ([22677c5](https://github.com/floeorg/floe/commit/22677c5352dbc097d3ae55853bc986ec0ee3d501))
+* release as 0.1.0-alpha.6 ([891975b](https://github.com/floeorg/floe/commit/891975b15ffbf07fe76e7115319a335916e8f29a))
+
 ## [0.1.0-alpha.5](https://github.com/floeorg/floe/compare/v0.1.0-alpha.4...v0.1.0-alpha.5) (2026-05-04)
 
 
