@@ -9978,3 +9978,72 @@ let u = User { id, name }
             .collect::<Vec<_>>()
     );
 }
+
+// ── Dotted type names (#1429) ────────────────────────────────────
+
+#[test]
+fn dotted_type_with_unknown_root_errors() {
+    let diags = check(
+        r#"
+type Thing = { field: Foo.Bar<number> }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Foo.Bar`"),
+        "a dotted name with an unknown root must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_on_floe_type_errors() {
+    // Repro from #1429: `Option` is a known Floe type, but a Floe type has no
+    // members, so a dotted name under it is a typo and must not resolve.
+    let diags = check(
+        r#"
+type User = {
+    firebaseUid: Option.Option.Aaa<string>,
+    foo: Literally.Anything.You.Want<number, string>,
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Option.Option.Aaa`"),
+        "`Option.Option.Aaa` must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Literally.Anything.You.Want`"),
+        "`Literally.Anything.You.Want` must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn jsx_element_type_resolves() {
+    let diags = check(
+        r#"
+type Props = { child: JSX.Element }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`JSX.Element` is a built-in and must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_import_resolves() {
+    let diags = check(
+        r#"
+import trusted { z } from "zod"
+type Schema = { shape: z.ZodString }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "a dotted name rooted at an import must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

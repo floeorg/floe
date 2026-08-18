@@ -227,11 +227,10 @@ impl Checker {
                             Type::foreign(format!("{}<{}>", name, args_str.join(", ")))
                         }
                     }
-                } else if self.registering_types
-                    || self.env.lookup_type(name).is_some()
-                    || name.contains('.')
-                {
+                } else if self.registering_types || self.env.lookup_type(name).is_some() {
                     Type::Named(name.to_string())
+                } else if name.contains('.') {
+                    self.resolve_dotted_type(name, span)
                 } else if let Some(ty) = self.env.lookup(name) {
                     // Accept values as type names if they represent type-like values:
                     // unions (variant constructors), records (imported TS objects),
@@ -277,6 +276,43 @@ impl Checker {
                 }
             }
         }
+    }
+
+    /// Resolve a dotted type name such as `JSX.Element` or `React.JSX.Element`.
+    ///
+    /// Floe does not model TypeScript namespaces yet (#848), so the resolver
+    /// cannot walk a dotted name segment by segment. It accepts the name when
+    /// one of these holds, and it reports E002 for every other dotted name:
+    ///
+    /// 1. A TypeScript lib or `@types` package declares the whole name.
+    /// 2. Floe declares the whole name as a built-in, which is `JSX.Element`.
+    /// 3. The first segment names an import, so `React.JSX.Element` works
+    ///    after `import React from "react"`.
+    /// 4. The first segment names an ambient declaration, which covers a
+    ///    `declare namespace` from a lib file.
+    ///
+    /// The first segment is deliberately not looked up as a value or as a
+    /// Floe type. A Floe type has no members, so `Option.Option.Aaa` is a
+    /// typo, and it must not resolve.
+    fn resolve_dotted_type(&mut self, name: &str, span: Span) -> Type {
+        if self.ambient_types.contains_key(name) || type_layout::is_builtin_type(name) {
+            return Type::Named(name.to_string());
+        }
+
+        let root = name.split('.').next().unwrap_or(name);
+        if self.is_imported_name(root) || self.ambient_types.contains_key(root) {
+            return Type::Named(name.to_string());
+        }
+
+        self.emit_error_with_help(
+            format!("unknown type `{name}`"),
+            span,
+            ErrorCode::UndefinedName,
+            "not defined",
+            format!("`{root}` is not an imported or ambient namespace — check the spelling, or import the namespace this type comes from"),
+        );
+
+        Type::Error
     }
 
     /// True if `ty` contains anywhere in its tree an unresolved type-parameter
