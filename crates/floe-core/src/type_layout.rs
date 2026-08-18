@@ -69,14 +69,27 @@ pub const TS_UTILITY_TYPES: &[&str] = &[
     "Uncapitalize",
 ];
 
+/// The namespace part of `TYPE_JSX_ELEMENT`.
+pub const JSX_NAMESPACE: &str = "JSX";
+
+/// The import that gives the emitted file its own `JSX` namespace.
+///
+/// React 19 dropped the global `JSX` namespace and moved it under
+/// `React.JSX`, so `tsc` answers TS2503 for a bare `JSX.Element`. The
+/// namespace is still a named member of the `react` module, and a
+/// type-only import brings it into one file without adding a runtime
+/// import. See #1498.
+pub const JSX_TYPE_IMPORT: &str = "import type { JSX } from \"react\";";
+
 /// Namespaces Floe owns, so a member under one resolves with no help from
 /// TypeScript.
 ///
 /// `JSX` is the only one. `JSX.Element` is a Floe built-in, and the emitted
 /// TSX never meets a real global `JSX` namespace: `@types/react` 19 declares
 /// it as `React.JSX`. So the ambient tables never carry `JSX`, and the type
-/// resolver has to know it on its own.
-pub const BUILTIN_NAMESPACES: &[&str] = &["JSX"];
+/// resolver has to know it on its own. Codegen closes the other half by
+/// writing `JSX_TYPE_IMPORT` into every file that names `JSX.Element`.
+pub const BUILTIN_NAMESPACES: &[&str] = &[JSX_NAMESPACE];
 
 /// True when `name` is a namespace Floe owns.
 pub fn is_builtin_namespace(name: &str) -> bool {

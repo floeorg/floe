@@ -64,6 +64,34 @@ fn compile_fixture(name: &str) -> String {
     compile(&source)
 }
 
+/// Compile a fixture and return both emitted files, one after the other.
+///
+/// Use this when a change writes into the `.d.ts` as well as the `.ts`.
+/// The two files carry different items, so a snapshot of the `.ts` alone
+/// proves nothing about the declarations.
+fn compile_fixture_with_dts(name: &str) -> String {
+    let path = format!("tests/fixtures/{name}.fl");
+    let source =
+        std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("failed to read fixture {path}"));
+    let mut program = Parser::new(&source)
+        .parse_program()
+        .expect("fixture should parse");
+    let (_, expr_types, _, shadowed) = Checker::new().check_full(&program);
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
+    let typed = checker::attach_types(
+        program,
+        &expr_types,
+        &std::collections::HashSet::new(),
+        &shadowed,
+    );
+    let output = Codegen::new().generate(&typed);
+
+    format!(
+        "// ── {name}.tsx ──\n{}\n// ── {name}.d.ts ──\n{}",
+        output.code, output.dts
+    )
+}
+
 #[test]
 fn snapshot_hello() {
     let output = compile_fixture("hello");
@@ -124,6 +152,16 @@ fn snapshot_variant_name_collisions() {
 #[test]
 fn snapshot_jsx_component() {
     let output = compile_fixture("jsx_component");
+    insta::assert_snapshot!(output);
+}
+
+/// React 19 declares no global `JSX`, so codegen imports the namespace
+/// into every emitted file that names `JSX.Element`. The import is
+/// type-only, so it erases at build time and adds no runtime dependency
+/// on React. Regression test for #1498.
+#[test]
+fn snapshot_jsx_element_import() {
+    let output = compile_fixture_with_dts("jsx_element_import");
     insta::assert_snapshot!(output);
 }
 

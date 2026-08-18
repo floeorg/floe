@@ -248,7 +248,7 @@ impl Checker {
             ExprKind::Unit => Type::Unit,
             ExprKind::Jsx(element) => {
                 self.check_jsx(element);
-                Type::Named("JSX.Element".to_string())
+                Type::Named(type_layout::TYPE_JSX_ELEMENT.to_string())
             }
             ExprKind::Collect(items) => self.check_collect(items),
             ExprKind::Block(items) => self.in_scope(|this| {
