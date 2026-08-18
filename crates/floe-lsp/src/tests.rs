@@ -1192,3 +1192,99 @@ fn end_position_utf16_surrogate_pair_on_last_line() {
     let pos = end_position("let s = \"𝕊\"");
     assert_eq!(pos, Position::new(0, 12));
 }
+
+// ── Ambient cache fingerprint (#1431) ───────────────────────────
+
+/// Build a project dir with a tsconfig and an empty `node_modules`.
+fn ambient_project() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        dir.path().join("tsconfig.json"),
+        r#"{"compilerOptions": {"lib": ["es5"]}}"#,
+    )
+    .expect("write tsconfig");
+    std::fs::create_dir(dir.path().join("node_modules")).expect("create node_modules");
+
+    dir
+}
+
+#[test]
+fn fingerprint_moves_when_tsconfig_content_changes() {
+    let dir = ambient_project();
+    let before = AmbientFingerprint::read(dir.path());
+    std::fs::write(
+        dir.path().join("tsconfig.json"),
+        r#"{"compilerOptions": {"lib": ["es6"]}}"#,
+    )
+    .expect("rewrite tsconfig");
+
+    // The rewrite keeps the byte count, so a length check alone misses it.
+    assert_ne!(before, AmbientFingerprint::read(dir.path()));
+}
+
+#[test]
+fn fingerprint_holds_still_when_nothing_changes() {
+    let dir = ambient_project();
+
+    assert_eq!(
+        AmbientFingerprint::read(dir.path()),
+        AmbientFingerprint::read(dir.path())
+    );
+}
+
+#[test]
+fn install_stamp_prefers_the_npm_lockfile() {
+    let dir = ambient_project();
+    let lockfile = dir.path().join("node_modules/.package-lock.json");
+    std::fs::write(&lockfile, "{}").expect("write lockfile");
+    let before = InstallStamp::read(dir.path());
+    assert_eq!(before.path, Some(lockfile.clone()));
+
+    std::fs::write(&lockfile, r#"{"packages": {}}"#).expect("rewrite lockfile");
+
+    assert_ne!(before, InstallStamp::read(dir.path()));
+}
+
+#[test]
+fn install_stamp_falls_back_to_the_pnpm_manifest() {
+    let dir = ambient_project();
+    let manifest = dir.path().join("node_modules/.modules.yaml");
+    std::fs::write(&manifest, "hoistPattern:\n").expect("write manifest");
+
+    assert_eq!(InstallStamp::read(dir.path()).path, Some(manifest));
+}
+
+#[test]
+fn install_stamp_falls_back_to_the_types_dir() {
+    let dir = ambient_project();
+    let types = dir.path().join("node_modules/@types");
+    std::fs::create_dir(&types).expect("create @types");
+
+    assert_eq!(InstallStamp::read(dir.path()).path, Some(types));
+}
+
+#[test]
+fn install_stamp_falls_back_to_node_modules() {
+    let dir = ambient_project();
+
+    assert_eq!(
+        InstallStamp::read(dir.path()).path,
+        Some(dir.path().join("node_modules"))
+    );
+}
+
+#[test]
+fn install_stamp_is_empty_without_node_modules() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    assert_eq!(InstallStamp::read(dir.path()), InstallStamp::default());
+}
+
+#[test]
+fn fingerprint_moves_when_node_modules_disappears() {
+    let dir = ambient_project();
+    let before = AmbientFingerprint::read(dir.path());
+    std::fs::remove_dir_all(dir.path().join("node_modules")).expect("remove node_modules");
+
+    assert_ne!(before, AmbientFingerprint::read(dir.path()));
+}

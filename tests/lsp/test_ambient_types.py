@@ -5,6 +5,7 @@ parse must not drop them. Before the fix, one stray semicolon made every
 TypeScript lib type report E002 until the file parsed again.
 """
 
+import shutil
 import time
 
 import pytest
@@ -171,4 +172,84 @@ def test_ambient_types_load_after_typescript_is_installed(lsp, tmp_path):
     diags = diag_all(notifs)
     assert not any("AmbientProbe" in d["message"] for d in diags), (
         f"the install must end the miss, got: {diags}"
+    )
+
+
+# ── node_modules invalidation ───────────────────────────────────
+#
+# The fingerprint also stamps the installed packages, because
+# `npm install @types/...` is the action a person takes exactly when the
+# editor calls a global unknown.
+
+# A stub `@types` package. `LateProbe` exists nowhere else.
+TYPES_STUB = """interface LateProbe {
+    id: string;
+}
+"""
+
+# The lockfile npm rewrites on every install, add and remove.
+NPM_MARKER_BEFORE = '{"name": "types-install", "packages": {}}'
+NPM_MARKER_AFTER = '{"name": "types-install", "packages": {"node_modules/@types/late": {}}}'
+
+BOTH_PROBES_SOURCE = """type Holder = {
+    probe: AmbientProbe,
+    late: LateProbe,
+}
+"""
+
+
+def install_types_package(project_dir):
+    """Write a stub `@types/late` package into a project directory."""
+    types_dir = project_dir / "node_modules" / "@types" / "late"
+    types_dir.mkdir(parents=True, exist_ok=True)
+    (types_dir / "index.d.ts").write_text(TYPES_STUB)
+
+
+def test_ambient_types_reload_after_types_package_install(lsp, tmp_path):
+    """`npm install @types/...` takes effect on the next edit."""
+    (tmp_path / "package.json").write_text('{"name": "types-install"}')
+    install_ts_lib(tmp_path, with_es5=False)
+    (tmp_path / "node_modules" / ".package-lock.json").write_text(NPM_MARKER_BEFORE)
+    (tmp_path / "tsconfig.json").write_text(TSCONFIG)
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    uri = f"file://{src_dir / 'types.fl'}"
+
+    # The first open caches the ambient tables for this project.
+    opened = open_doc(lsp, uri, CLEAN_SOURCE, timeout=5.0)
+    assert not any("AmbientProbe" in d["message"] for d in opened.errors), (
+        f"the lib stub must resolve on the first open, got: {opened.errors}"
+    )
+
+    # Simulate `npm install @types/late`, which rewrites the lockfile.
+    install_types_package(tmp_path)
+    (tmp_path / "node_modules" / ".package-lock.json").write_text(NPM_MARKER_AFTER)
+    notifs = change_doc(lsp, uri, BOTH_PROBES_SOURCE)
+    assert notifs, "the edit must republish diagnostics for the document"
+    diags = diag_all(notifs)
+    assert not any("LateProbe" in d["message"] for d in diags), (
+        f"the installed types package must resolve, got: {diags}"
+    )
+
+
+def test_ambient_types_drop_after_node_modules_removed(lsp, tmp_path):
+    """Deleting `node_modules` retires the tables it produced."""
+    (tmp_path / "package.json").write_text('{"name": "uninstall"}')
+    install_ts_lib(tmp_path, with_es5=False)
+    (tmp_path / "tsconfig.json").write_text(TSCONFIG)
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    uri = f"file://{src_dir / 'gone.fl'}"
+
+    opened = open_doc(lsp, uri, CLEAN_SOURCE, timeout=5.0)
+    assert not any("AmbientProbe" in d["message"] for d in opened.errors), (
+        f"the lib stub must resolve on the first open, got: {opened.errors}"
+    )
+
+    shutil.rmtree(tmp_path / "node_modules")
+    notifs = change_doc(lsp, uri, EDITED_SOURCE)
+    assert notifs, "the edit must republish diagnostics for the document"
+    diags = diag_all(notifs)
+    assert any("AmbientProbe" in d["message"] for d in diags), (
+        f"the lib files are gone, so the type must be unknown again, got: {diags}"
     )
