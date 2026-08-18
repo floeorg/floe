@@ -10105,22 +10105,21 @@ export let g(x: X) -> number = { 1 }
 }
 
 #[test]
-fn parse_error_resolves_as_a_type() {
-    // `URL.parse` returns `Result<URL, ParseError>`, so a user must be able
-    // to write that return type down.
+fn parse_error_stays_unwritable_until_it_has_a_shape() {
+    // `URL.parse` returns `Result<URL, ParseError>`, but nothing declares
+    // what a `ParseError` is: the codegen builds `{ message: String(e) }`
+    // while the signature says `ParseError`. A user who could write the
+    // name would get a type with no members, so the name stays unknown
+    // until glb #1469 gives it a shape.
     let diags = check(
         r#"
-export let f(s: string) -> Result<URL, ParseError> = { URL.parse(s) }
+export let f(e: ParseError) -> number = { 0 }
 "#,
     );
     assert!(
-        diags.iter().all(|d| d.severity != Severity::Error),
-        "the signature of `URL.parse` must be writable; got: {:?}",
-        diags
-            .iter()
-            .filter(|d| d.severity == Severity::Error)
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
+        has_error_containing(&diags, "unknown type `ParseError`"),
+        "`ParseError` has no declared shape and must stay unknown; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
@@ -10155,5 +10154,97 @@ fn an_ambient_global_value_does_not_shadow_a_stdlib_type() {
         !has_error_containing(&diags, "is a value, not a type"),
         "an ambient constructor value must not shadow the `URL` type; got: {:?}",
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn an_imported_value_keeps_its_own_type_over_a_stdlib_type_name() {
+    use crate::interop::{DtsExport, FunctionParam, TsType};
+
+    // A library may export its own `URL`. The import is the user's choice,
+    // so the imported function type must win over the stdlib type name.
+    let program = Parser::new(
+        r#"
+import trusted { URL } from "some-lib"
+export let f(u: URL) -> string = { u("x") }
+"#,
+    )
+    .parse_program()
+    .expect("parse");
+
+    let url_export = DtsExport {
+        name: "URL".to_string(),
+        ts_type: TsType::Function {
+            params: vec![FunctionParam {
+                ty: TsType::Primitive("string".to_string()),
+                optional: false,
+            }],
+            return_type: Box::new(TsType::Primitive("string".to_string())),
+        },
+    };
+    let mut dts_imports = HashMap::new();
+    dts_imports.insert("some-lib".to_string(), vec![url_export]);
+
+    let checker = Checker::with_all_imports(HashMap::new(), dts_imports);
+    let diags = checker.check(&program);
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "the imported `URL` stays callable; got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a_local_binding_still_reports_a_stdlib_type_name_as_a_value() {
+    // The user named their own function `URL`. That name is theirs, so the
+    // old error must stay. Silently reading it as the stdlib type would
+    // give the parameter a type the user never wrote.
+    let diags = check(
+        r#"
+let URL(x: string) -> string = { x }
+export let f(u: URL) -> number = { 0 }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "is a value, not a type"),
+        "a local binding must keep the value-as-type error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn an_ambient_global_does_not_replace_a_stdlib_module() {
+    use crate::interop::ambient::AmbientDeclarations;
+
+    // `register_ambient_types` now skips a global that names a stdlib type,
+    // so the ambient `Date` constructor never enters the value namespace.
+    // The stdlib module must still answer `Date.now()`.
+    let mut ambient = AmbientDeclarations::default();
+    ambient.globals.push((
+        "Date".to_string(),
+        Type::Record(vec![("now".to_string(), Type::String)]),
+    ));
+
+    let source = "export let f() -> Date = { Date.now() }";
+    let program = Parser::new(source).parse_program().expect("parse");
+    let checker = Checker::from_context(
+        HashMap::new(),
+        HashMap::new(),
+        Some(ambient),
+        HashSet::new(),
+    );
+    let diags = checker.check(&program);
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "`Date.now()` must still resolve through the stdlib; got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
     );
 }

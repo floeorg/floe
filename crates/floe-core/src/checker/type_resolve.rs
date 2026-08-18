@@ -247,25 +247,6 @@ impl Checker {
                     || name.contains('.')
                 {
                     Type::Named(name.to_string())
-                } else if self.stdlib.declares_type(name) {
-                    // A type the stdlib itself declares, such as `URL`, or the
-                    // `ParseError` that `URL.parse` returns. TypeScript cannot
-                    // teach the resolver these names, so the stdlib registry
-                    // answers instead.
-                    //
-                    // This branch sits above the value branch on purpose.
-                    // Ambient globals bind `URL` as a constructor value, and
-                    // that binding must not stop the name from being a type.
-                    // A user-declared type and a Foreign import of the same
-                    // name both still win, because their branches run first.
-                    self.check_type_arg_arity(name, 0, type_args.len(), span);
-                    // Resolve the arguments even though the type takes none.
-                    // The walk marks every name inside them used, and reports
-                    // a name that does not resolve.
-                    for arg in type_args {
-                        self.resolve_type(arg);
-                    }
-                    Type::Named(name.to_string())
                 } else if let Some(ty) = self.env.lookup(name) {
                     // Accept values as type names if they represent type-like values:
                     // unions (variant constructors), records (imported TS objects),
@@ -290,8 +271,28 @@ impl Checker {
                     }
                 } else if self.ambient_types.contains_key(name) {
                     // Accept ambient type names from TypeScript lib definitions
-                    // (e.g., HTMLElement, AlgorithmIdentifier) as valid type
-                    // annotations.
+                    // (e.g., Date, RegExp, URL, HTMLElement) as valid type annotations.
+                    Type::Named(name.to_string())
+                } else if self.stdlib.declares_type(name) && !self.is_imported_name(name) {
+                    // A type the stdlib itself declares, such as `URL`.
+                    // TypeScript cannot teach the resolver these names when
+                    // the project tsconfig omits the lib that holds them, so
+                    // the stdlib registry answers instead.
+                    //
+                    // Everything the user wrote is checked first. A value
+                    // binding of the same name reaches the branch above and
+                    // keeps its error, and an import keeps its own type, which
+                    // is what the `is_imported_name` guard covers for a name
+                    // that never reached the env. `register_ambient_types`
+                    // leaves the name unbound, so an ambient constructor value
+                    // does not shadow the type.
+                    self.check_type_arg_arity(name, 0, type_args.len(), span);
+                    // Resolve the arguments even though the type takes none.
+                    // The walk marks every name inside them used, and reports
+                    // a name that does not resolve.
+                    for arg in type_args {
+                        self.resolve_type(arg);
+                    }
                     Type::Named(name.to_string())
                 } else if type_layout::is_ts_utility_type(name) {
                     // Resolve args so inner references are marked used; TS resolves

@@ -15,7 +15,7 @@ mod traits;
 mod type_compat;
 mod type_registration;
 mod type_resolve;
-pub(crate) mod type_var;
+mod type_var;
 mod types;
 mod unify;
 
@@ -578,6 +578,15 @@ impl Checker {
 
         for (name, ty) in ambient.globals {
             if PRESERVED.contains(&name.as_str()) {
+                continue;
+            }
+            // Same rule, read from the stdlib instead of a list: a global
+            // that binds a name Floe owns as a type is the constructor for
+            // that type, not a name of the user's own. lib.dom.d.ts binds
+            // `URL` this way. Defining it as a value would put it in front
+            // of the type in `resolve_named_type`, and `type X = URL` would
+            // then report "`URL` is a value, not a type".
+            if self.stdlib.declares_type(&name) {
                 continue;
             }
             // Skip constructor entries (`declare var Foo: { prototype: Foo }`)
