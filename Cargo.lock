@@ -311,6 +311,7 @@ dependencies = [
  "floe-core",
  "floe-lsp",
  "notify",
+ "tempfile",
  "tokio",
 ]
 
