@@ -10504,3 +10504,74 @@ type Bad = { x: Display.Whatever }
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── Rule: reserved words name fields, never values ──────────
+
+#[test]
+fn record_fields_named_after_javascript_keywords() {
+    let diags = check(
+        r#"
+type Payload = { for: string, class: string, function: string, if: string }
+let readFor(p: Payload) -> string = { p.for }
+let readClass(p: Payload) -> string = { p.class }
+let readFunction(p: Payload) -> string = { p.function }
+let readIf(p: Payload) -> string = { p.if }
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "reserved words should name record fields; got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn brace_construction_with_a_reserved_field_name() {
+    let diags = check(
+        r#"
+type Form = { for: string }
+let f = Form { for: "name" }
+let target = f.for
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "a reserved field name should construct and read back; got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn reserved_field_keeps_its_type() {
+    let diags = check(
+        r#"
+type Form = { for: string }
+let f = Form { for: 1 }
+"#,
+    );
+    assert!(
+        diags.iter().any(|d| d.severity == Severity::Error),
+        "a number in a string field should still fail"
+    );
+}
+
+#[test]
+fn unknown_reserved_field_is_reported() {
+    let diags = check(
+        r#"
+type Form = { name: string }
+let f = Form { name: "a" }
+let target = f.for
+"#,
+    );
+    assert!(
+        diags.iter().any(|d| d.severity == Severity::Error),
+        "reading a field the type does not have should still fail"
+    );
+}

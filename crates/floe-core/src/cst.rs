@@ -4,7 +4,7 @@ mod jsx;
 mod types;
 
 use crate::lexer::span::Span;
-use crate::lexer::token::{Token, TokenKind};
+use crate::lexer::token::{IdentRole, Token, TokenKind};
 use crate::syntax::{SyntaxKind, SyntaxNode, token_kind_to_syntax};
 use rowan::GreenNode;
 
@@ -33,6 +33,8 @@ pub struct CstError {
 pub enum CstErrorKind {
     /// A banned keyword was used (e.g. `let`, `var`).
     BannedKeyword,
+    /// A word that JavaScript reserves was used where a value name belongs.
+    ReservedWord,
     /// An expected token was missing.
     UnexpectedToken,
     /// A JSX closing tag did not match the opening tag.
@@ -220,50 +222,122 @@ impl<'src> CstParser<'src> {
         )
     }
 
-    fn is_ident_flex(&self) -> bool {
-        matches!(self.current_kind(), Some(TokenKind::Identifier(_)))
-            || self.current_kind().is_some_and(|k| k.is_contextual_ident())
+    /// True when the current word may name a property: a record field, an
+    /// object-literal key, a member, a named argument label, or a JSX
+    /// attribute.
+    fn at_property_name(&self) -> bool {
+        self.current_kind()
+            .as_ref()
+            .is_some_and(TokenKind::can_name_property)
     }
 
-    fn expect_ident_flex(&mut self) {
+    /// The source text of the current token. Tied to the source lifetime, so
+    /// a caller may hold it across a `&mut self` call.
+    fn current_text(&self) -> &'src str {
+        match self.tokens.get(self.pos) {
+            Some(token) => &self.source[token.span.start..token.span.end],
+            None => "",
+        }
+    }
+
+    /// The spelling of the current word when that word cannot name a value,
+    /// paired with why. `None` for an identifier and for a non-word token.
+    fn word_that_cannot_bind(&self) -> Option<(&'src str, &'static str)> {
+        match self.current_kind()?.ident_role()? {
+            IdentRole::Binding => None,
+            IdentRole::PropertyOnly => {
+                Some((self.current_text(), "is a reserved word in JavaScript"))
+            }
+            IdentRole::Keyword => Some((self.current_text(), "is a keyword in Floe")),
+        }
+    }
+
+    /// True when the current token may follow a `.`.
+    fn at_member_name(&self) -> bool {
+        self.current_kind()
+            .as_ref()
+            .is_some_and(TokenKind::can_name_member)
+    }
+
+    /// Expect a name that binds a value: a `let` binding, a parameter, a
+    /// destructured name, or a shorthand that reads the value back.
+    ///
+    /// A word that JavaScript reserves is rejected here, because the emitted
+    /// TypeScript would not compile. The diagnostic names the word.
+    fn expect_binding_name(&mut self) {
+        let kind = self.current_kind();
+
+        if matches!(kind, Some(TokenKind::Identifier(_))) {
+            self.bump();
+            return;
+        }
+
+        if kind.as_ref().is_some_and(TokenKind::can_bind) {
+            self.bump_remap(SyntaxKind::IDENT);
+            return;
+        }
+
+        if let Some((word, why)) = self.word_that_cannot_bind() {
+            self.error_kind(
+                &format!(
+                    "`{word}` {why}, so it cannot name a value. Rename the value. \
+                     Floe accepts `{word}` as a field name, a member name, a named argument and a JSX attribute."
+                ),
+                CstErrorKind::ReservedWord,
+            );
+            self.bump();
+            return;
+        }
+
+        self.error_kind(
+            &format!("expected identifier, found {:?}", self.current_kind()),
+            CstErrorKind::UnexpectedToken,
+        );
+    }
+
+    fn expect_binding_name_item(&mut self) {
+        self.expect_binding_name();
+    }
+
+    /// Expect the name in a shorthand field: `{ name }`, `Foo { name }` and
+    /// `Foo { name: }` all read back as `name: name`. The name is a property,
+    /// and the shorthand also reads a value of that name, so a word that
+    /// cannot name a value is rejected with the punning advice.
+    fn expect_shorthand_name(&mut self) {
+        if let Some((word, why)) = self.word_that_cannot_bind() {
+            self.error_reserved_pun(word, why);
+            self.bump_remap(SyntaxKind::IDENT);
+            return;
+        }
+
+        self.expect_binding_name();
+    }
+
+    /// Expect a name that names a property: a record field, an object-literal
+    /// key, a member, a named argument label, or a JSX attribute. Every word
+    /// stands here, for the reason on `IdentRole`.
+    fn expect_property_name(&mut self) {
         match self.current_kind() {
             Some(TokenKind::Identifier(_)) => self.bump(),
-            Some(k) if k.is_contextual_ident() => self.bump_remap(SyntaxKind::IDENT),
+            Some(k) if k.can_name_property() => self.bump_remap(SyntaxKind::IDENT),
             _ => self.error_kind(
-                &format!("expected identifier, found {:?}", self.current_kind()),
+                &format!("expected a field name, found {:?}", self.current_kind()),
                 CstErrorKind::UnexpectedToken,
             ),
         }
     }
 
-    fn expect_ident_flex_item(&mut self) {
-        self.expect_ident_flex();
-    }
-
-    /// Keywords accepted as JSX prop names (`<input type="text" />`,
-    /// `<label for="..." />`).
-    fn is_keyword(&self) -> bool {
-        match self.current_kind() {
-            Some(k) if k.is_contextual_ident() => true,
-            Some(
-                TokenKind::For
-                | TokenKind::Match
-                | TokenKind::Fn
-                | TokenKind::Let
-                | TokenKind::Import
-                | TokenKind::Export
-                | TokenKind::Trait,
-            ) => true,
-            _ => false,
-        }
-    }
-
-    /// Check if the current token maps to a SyntaxKind that is a valid member
-    /// name (identifiers, keywords, numbers, etc.). Delegates to
-    /// `SyntaxKind::is_member_name` via `token_kind_to_syntax`.
-    fn is_member_name_token(&self) -> bool {
-        self.current_kind()
-            .is_some_and(|kind| crate::syntax::token_kind_to_syntax(&kind).is_member_name())
+    /// Write the diagnostic for a punned field (`{ for }` and `Foo { for: }`
+    /// both read back as `for: for`). The name is a property, but the pun
+    /// also reads a value of the same name, and this word can never name one.
+    fn error_reserved_pun(&mut self, word: &str, why: &str) {
+        self.error_kind(
+            &format!(
+                "`{word}` {why}, so it cannot name a value. \
+                 Write the field out as `{word}: ...` instead of punning it."
+            ),
+            CstErrorKind::ReservedWord,
+        );
     }
 
     fn at_end(&self) -> bool {
@@ -621,15 +695,21 @@ impl<'src> CstParser<'src> {
         }
     }
 
-    /// Parse a destructuring field: `ident` or `ident: ident` (with rename).
+    /// Parse a destructuring field: `name` or `field: name` (with rename).
+    /// `field` reads a property, so a reserved word is fine there. `name`
+    /// binds, so a reserved word is rejected.
     fn parse_destructure_field(&mut self) {
-        self.expect_ident_flex();
-        self.eat_trivia();
-        if self.at(&TokenKind::Colon) {
+        if self.peek_is(&TokenKind::Colon) {
+            self.expect_property_name();
+            self.eat_trivia();
             self.bump(); // eat ':'
             self.eat_trivia();
-            self.expect_ident_flex(); // alias
+            self.expect_binding_name(); // alias
+            return;
         }
+
+        // `{ name }` binds `name` and reads the property of the same name.
+        self.expect_shorthand_name();
     }
 
     fn error(&mut self, message: &str) {
@@ -1128,6 +1208,278 @@ mod tests {
     #[test]
     fn lossless_for_block() {
         assert_lossless("for User { fn greet(self) -> string { self.name } }");
+    }
+
+    // ── Reserved words as names ───────────────────────────────────
+
+    /// Assert the parse reports exactly one error, that error names the
+    /// word, and it carries the given advice.
+    fn assert_one_reserved_word_error_with(source: &str, word: &str, advice: &str) {
+        let parse = cst_parse(source);
+        let reserved: Vec<_> = parse
+            .errors
+            .iter()
+            .filter(|e| e.kind == CstErrorKind::ReservedWord)
+            .collect();
+        assert_eq!(
+            reserved.len(),
+            1,
+            "expected one reserved-word error for {source:?}, got: {:?}",
+            parse.errors
+        );
+        assert!(
+            reserved[0].message.contains(word),
+            "error should name `{word}`, got: {}",
+            reserved[0].message
+        );
+        assert!(
+            reserved[0].message.contains(advice),
+            "error should advise {advice:?}, got: {}",
+            reserved[0].message
+        );
+    }
+
+    /// Assert the parse reports exactly one error, and that error names the
+    /// reserved word.
+    fn assert_one_reserved_word_error(source: &str, word: &str) {
+        let parse = cst_parse(source);
+        let reserved: Vec<_> = parse
+            .errors
+            .iter()
+            .filter(|e| e.kind == CstErrorKind::ReservedWord)
+            .collect();
+        assert_eq!(
+            reserved.len(),
+            1,
+            "expected one reserved-word error for {source:?}, got: {:?}",
+            parse.errors
+        );
+        assert!(
+            reserved[0].message.contains(word),
+            "error should name `{word}`, got: {}",
+            reserved[0].message
+        );
+        assert!(
+            reserved[0].message.contains("JavaScript"),
+            "error should say JavaScript reserves the word, got: {}",
+            reserved[0].message
+        );
+    }
+
+    #[test]
+    fn record_type_field_named_for() {
+        assert_no_errors("type Form = { for: string }");
+    }
+
+    #[test]
+    fn record_type_fields_named_after_javascript_keywords() {
+        assert_no_errors(
+            "type Payload = { for: string, class: string, function: string, if: string }",
+        );
+    }
+
+    #[test]
+    fn record_type_field_named_for_is_lossless() {
+        assert_lossless("type Form = { for: string }");
+    }
+
+    #[test]
+    fn object_literal_key_named_for() {
+        assert_no_errors(r#"let row = { for: "name", class: "row" }"#);
+    }
+
+    #[test]
+    fn brace_construction_field_named_for() {
+        assert_no_errors(r#"let row = Form { for: "name", class: "row" }"#);
+    }
+
+    #[test]
+    fn named_argument_labelled_for() {
+        assert_no_errors(r#"let row = label(for: "name")"#);
+    }
+
+    #[test]
+    fn member_named_for() {
+        assert_no_errors("let name = f.for");
+    }
+
+    #[test]
+    fn member_named_class() {
+        assert_no_errors("let name = f.class");
+    }
+
+    #[test]
+    fn jsx_prop_named_for() {
+        assert_no_errors(r#"let view = <label for="name" />"#);
+    }
+
+    #[test]
+    fn jsx_prop_named_class() {
+        assert_no_errors(r#"let view = <label class="row" />"#);
+    }
+
+    #[test]
+    fn destructure_renames_a_reserved_field() {
+        assert_no_errors("let { for: htmlFor } = props");
+    }
+
+    #[test]
+    fn record_pattern_renames_a_reserved_field() {
+        assert_no_errors("let name = match row {\n    Form { for: target } -> target,\n}");
+    }
+
+    #[test]
+    fn let_binding_named_for_is_rejected() {
+        assert_one_reserved_word_error("let for = 1", "for");
+    }
+
+    #[test]
+    fn let_binding_named_class_is_rejected() {
+        assert_one_reserved_word_error("let class = 1", "class");
+    }
+
+    #[test]
+    fn parameter_named_for_is_rejected() {
+        assert_one_reserved_word_error(r#"let f(for: string) -> string = { "x" }"#, "for");
+    }
+
+    #[test]
+    fn function_binding_named_for_is_rejected() {
+        assert_one_reserved_word_error(r#"let for(x: string) -> string = { x }"#, "for");
+    }
+
+    #[test]
+    fn destructured_binding_named_for_is_rejected() {
+        assert_one_reserved_word_error("let { for } = props", "for");
+    }
+
+    #[test]
+    fn object_shorthand_named_for_is_rejected() {
+        assert_one_reserved_word_error("let row = { for, name }", "for");
+    }
+
+    #[test]
+    fn punned_field_named_for_is_rejected() {
+        assert_one_reserved_word_error("let row = Form { for: }", "for");
+    }
+
+    // ── Every word names a property ───────────────────────────────
+
+    #[test]
+    fn jsx_prop_named_after_a_floe_keyword() {
+        // Regression: `is_keyword` used to accept these six, and the first
+        // cut of the role table dropped them.
+        for prop in ["match", "fn", "let", "import", "export", "trait"] {
+            assert_no_errors(&format!(r#"let v = <label {prop}="x" />"#));
+        }
+    }
+
+    #[test]
+    fn record_type_field_named_after_a_floe_keyword() {
+        assert_no_errors("type T = { match: string, self: string, let: string }");
+    }
+
+    #[test]
+    fn member_named_after_a_floe_keyword() {
+        assert_no_errors("let x = row.match");
+    }
+
+    #[test]
+    fn named_argument_labelled_after_a_floe_keyword() {
+        assert_no_errors(r#"let x = render(match: "a")"#);
+    }
+
+    #[test]
+    fn dot_shorthand_named_for() {
+        assert_no_errors("let names = rows |> map(.for)");
+    }
+
+    #[test]
+    fn named_variant_field_named_for() {
+        assert_no_errors("type T = A { for: string } | B");
+    }
+
+    #[test]
+    fn function_type_param_labelled_for() {
+        assert_no_errors("typealias L = (for: string) -> string");
+    }
+
+    #[test]
+    fn for_block_parameter_named_for_is_rejected() {
+        assert_one_reserved_word_error(
+            "for User {\n    let label(self, for: string) -> string = { self.id }\n}",
+            "for",
+        );
+    }
+
+    #[test]
+    fn a_floe_keyword_cannot_bind() {
+        assert_one_reserved_word_error_with("let match = 1", "match", "keyword in Floe");
+    }
+
+    #[test]
+    fn a_floe_keyword_parameter_is_rejected() {
+        assert_one_reserved_word_error_with(
+            r#"let f(match: string) -> string = { "x" }"#,
+            "match",
+            "keyword in Floe",
+        );
+    }
+
+    // ── A shorthand reads a value, so it takes the pun advice ─────
+
+    #[test]
+    fn object_shorthand_named_for_takes_the_pun_advice() {
+        assert_one_reserved_word_error_with("let row = { for, name }", "for", "punning");
+    }
+
+    #[test]
+    fn brace_construct_shorthand_named_for_takes_the_pun_advice() {
+        assert_one_reserved_word_error_with("let row = Form { for }", "for", "punning");
+    }
+
+    #[test]
+    fn destructure_shorthand_named_for_takes_the_pun_advice() {
+        assert_one_reserved_word_error_with("let { for } = props", "for", "punning");
+    }
+
+    #[test]
+    fn punned_field_with_colon_takes_the_pun_advice() {
+        assert_one_reserved_word_error_with("let row = Form { for: }", "for", "punning");
+    }
+
+    #[test]
+    fn a_binding_takes_the_rename_advice() {
+        assert_one_reserved_word_error_with("let for = 1", "for", "Rename the value");
+    }
+
+    // ── A shorthand of a Floe keyword stays a block ───────────────
+
+    #[test]
+    fn lone_self_in_braces_is_a_block() {
+        assert_no_errors("for User {\n    let me(self) -> User = { self }\n}");
+    }
+
+    #[test]
+    fn match_in_braces_is_a_block() {
+        assert_no_errors(r#"let f(x: number) -> string = { match x { 1 -> "a", _ -> "b" } }"#);
+    }
+
+    // ── `for` stays a keyword in its own three positions ──────────
+
+    #[test]
+    fn for_block_at_item_start_still_parses() {
+        assert_no_errors("for User {\n    let name(self) -> string = { self.id }\n}");
+    }
+
+    #[test]
+    fn import_for_specifier_still_parses() {
+        assert_no_errors(r#"import { for User } from "./user""#);
+    }
+
+    #[test]
+    fn impl_trait_for_type_still_parses() {
+        assert_no_errors("impl Show for User {\n    let show(self) -> string = { self.id }\n}");
     }
 
     // ── CST node kind checks ──────────────────────────────────────

@@ -199,3 +199,47 @@ let e = <div><span>hi</span></div>
           name: (identifier)))
       (jsx_closing_element
         name: (identifier)))))
+
+===
+JSX attributes named after JavaScript reserved words
+===
+
+let e = <label for="name" class="row" />
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_self_closing
+      name: (identifier)
+      (jsx_attribute
+        name: (keyword_property)
+        value: (string
+          (string_content)))
+      (jsx_attribute
+        name: (keyword_property)
+        value: (string
+          (string_content))))))
+
+===
+JSX attributes named after Floe keywords
+===
+
+let v = <label match="a" fn="b" />
+
+---
+
+(source_file
+  (const_declaration
+    (identifier)
+    (jsx_self_closing
+      name: (identifier)
+      (jsx_attribute
+        name: (keyword_property)
+        value: (string
+          (string_content)))
+      (jsx_attribute
+        name: (keyword_property)
+        value: (string
+          (string_content))))))

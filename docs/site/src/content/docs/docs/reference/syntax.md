@@ -268,6 +268,22 @@ mock<User>(name: "Alice")         // with field overrides
 
 ### Contextual keywords
 
+**Every word may name a property.** JavaScript accepts any word as a property
+name and so does Floe, so a record field, a member, a named argument and a JSX
+attribute take any word. The three roles differ in one thing only: whether the
+word may also name a **value**.
+
+| Role | Words | May name a value |
+|---|---|---|
+| Binding | `type`, `opaque`, `trusted`, `collect`, `parse`, `mock`, `todo`, `unreachable`, `clear`, `unchanged` | Yes |
+| Property only | `for`, `const`, `class`, `throw`, `null`, `undefined`, `any`, `as`, `enum`, `void`, `function`, `if`, `else`, `return` | No: JavaScript reserves it |
+| Keyword | `let`, `fn`, `match`, `impl`, `when`, `self`, `import`, `export`, `trait`, and the rest | No: Floe reserves it |
+
+`true` and `false` are the one exception. Floe reads them as literals, not as
+words, so `{ true: 1 }` is legal JavaScript and is not legal Floe.
+
+#### Binding words
+
 Some keywords are only reserved in specific positions so they don't block
 common names in user code (`type` as a JSON/DOM field, `todo` as a variable,
 etc.). Outside those positions they parse as ordinary identifiers.
@@ -300,6 +316,56 @@ let make(type: string, body: string) -> Message = {
 let todo = validateTodo(text)?
 saveTodo(todo)   // reads the local — not the panic placeholder
 ```
+
+#### Any word names a property
+
+A record field, a member, a named argument, a dot shorthand and a JSX
+attribute all take any word.
+
+```floe
+type Payload = {
+    for: string,
+    class: string,
+    function: string,
+    if: string,
+}
+
+let target(p: Payload) -> string = { p.for }
+
+let view(p: Payload) -> JSX.Element = { <label for="name" class="row" /> }
+
+let call() -> string = { render(for: "name", match: "exact") }
+
+let targets(rows: Array<Payload>) -> Array<string> = { rows |> map(.for) }
+```
+
+#### Words that cannot name a value
+
+A word JavaScript reserves cannot name a value, because the emitted
+TypeScript would not compile: TypeScript reports `TS1389` for a variable named
+`for` and `TS1390` for a parameter named `for`. A word Floe reserves cannot
+either, because Floe needs it in its own position. Both report one error that
+names the word:
+
+```floe,ignore
+let for = 1                     // `for` is a reserved word in JavaScript
+let f(for: string) -> string = { "x" }   // same, on the parameter
+let match = 1                   // `match` is a keyword in Floe
+```
+
+Rename the value instead.
+
+A shorthand field is the one property position that also reads a value, so it
+is narrower than the rest. `{ for }` and `Form { for }` both read back as
+`for: for`, so Floe reports the word and tells you to write the field out.
+`{ self }` and `{ match ... }` stay blocks rather than object literals, for
+the same reason.
+
+`for` also stays a keyword in three positions:
+
+- `for Type { ... }` at item start
+- `import { for Type } from "..."`
+- `impl Trait for Type { ... }`
 
 ### Qualified Variants
 

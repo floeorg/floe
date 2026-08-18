@@ -65,7 +65,7 @@ impl<'src> CstParser<'src> {
     fn parse_jsx_member_segments(&mut self) {
         while self.at(&TokenKind::Dot) {
             self.bump();
-            if self.is_member_name_token() {
+            if self.at_member_name() {
                 self.bump();
             } else {
                 self.expect_ident();
@@ -89,20 +89,21 @@ impl<'src> CstParser<'src> {
         }
 
         self.builder.start_node(SyntaxKind::JSX_PROP.into());
-        // Accept identifiers and keywords as JSX prop names (e.g., type="text", for="id")
-        // Also support hyphenated names like aria-label, data-testid
-        if self.is_ident() || self.is_keyword() {
+        // A JSX prop names a property, so any word that may name a field may
+        // stand here: `type="text"`, `for="id"`, `class="x"`.
+        // Hyphenated names like `aria-label` and `data-testid` also work.
+        if self.at_property_name() {
             self.bump();
         } else {
-            self.expect_ident();
+            self.expect_property_name();
         }
         // Continue consuming -ident sequences for hyphenated attribute names
         while self.at(&TokenKind::Minus) {
             self.bump(); // -
-            if self.is_ident() || self.is_keyword() {
+            if self.at_property_name() {
                 self.bump();
             } else {
-                self.expect_ident();
+                self.expect_property_name();
                 break;
             }
         }

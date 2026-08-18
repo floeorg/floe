@@ -51,6 +51,18 @@ fn snapshot_error_banned_null() {
     insta::assert_snapshot!(output);
 }
 
+#[test]
+fn snapshot_error_reserved_word_binding() {
+    let output = error_fixture("reserved_word_binding");
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_error_reserved_word_parameter() {
+    let output = error_fixture("reserved_word_parameter");
+    insta::assert_snapshot!(output);
+}
+
 // ── Type Checker Error Snapshots ────────────────────────────────
 
 #[test]

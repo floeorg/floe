@@ -7,6 +7,15 @@ from . import fixtures as F
 class TestHoverBasic:
     """Hover on constants, functions, and types."""
 
+    def test_binding_of_a_record_with_reserved_field_names(self, lsp):
+        source = (
+            "type Payload = { for: string, class: string }\n"
+            'let p = Payload { for: "a", class: "b" }\n'
+        )
+        open_doc(lsp, URI, source)
+        h = hover_text(lsp.hover(URI, 1, 4))
+        assert h is not None and "Payload" in h, f"Expected Payload type, got: {h}"
+
     def test_const_number(self, lsp):
         open_doc(lsp, URI, F.SIMPLE)
         h = hover_text(lsp.hover(URI, *at(F.SIMPLE, "x")))

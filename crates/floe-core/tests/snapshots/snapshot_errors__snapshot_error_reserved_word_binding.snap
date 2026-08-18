@@ -1,0 +1,11 @@
+---
+source: crates/floe-core/tests/snapshot_errors.rs
+expression: output
+---
+[31mError:[0m `for` is a reserved word in JavaScript, so it cannot name a value. Rename the value. Floe accepts `for` as a field name, a member name, a named argument and a JSX attribute.
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m reserved_word_binding.fl:1:5 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m1 │[0m [38;5;249ml[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249m [0m[31mf[0m[31mo[0m[31mr[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m1[0m
+ [38;5;240m  │[0m     [31m─[0m[31m┬[0m[31m─[0m  
+ [38;5;240m  │[0m      [31m╰[0m[31m─[0m[31m─[0m[31m─[0m this word cannot name a value
+[38;5;246m───╯[0m
