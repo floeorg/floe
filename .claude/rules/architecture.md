@@ -57,3 +57,16 @@ After the checker runs, `annotate_types()` walks the AST and fills in `expr.ty` 
 | `interop/` | npm/.d.ts import resolution via tsgo |
 | `interop/ambient.rs` | Ambient type loading from tsconfig (lib files, @types packages, `declare global` blocks) |
 | `desugar.rs` | AST transforms between checker and codegen |
+
+### `ExprId` is a per-file key
+
+`lower.rs` hands out `ExprId`s from one counter per file, starting at 0,
+and the checker keys `ExprTypeMap`, `invalid_exprs` and
+`shadowed_keyword_exprs` by that id. Two rules follow:
+
+1. One id names one expression in one file. A pass that clones a subtree
+   into the tree must stamp `ExprId::SYNTHETIC` on every node of the
+   copy, or `attach_types` gives the copy another node's answer (#1533).
+2. `ExprId::SYNTHETIC` reads back `Type::Unknown`. Codegen treats an
+   undetermined type as agreement (`checker_agrees`), so name-directed
+   emission still works, and type-directed emission does not.

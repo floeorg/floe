@@ -772,10 +772,24 @@ mod tests {
     // ── Expression ids are unique across the whole file (#1530) ───
 
     /// Collect every `ExprId` in a program, in walk order.
-    fn expr_ids(source: &str) -> Vec<ExprId> {
-        let program = lower(source);
+    ///
+    /// The immutable `walk_program` reaches neither a parameter default
+    /// nor a record field default, and desugar splices copies of both.
+    /// The mutable walker does reach parameter defaults, so this runs it
+    /// over a clone and adds the field defaults by hand.
+    fn expr_ids(program: &Program) -> Vec<ExprId> {
         let mut ids = Vec::new();
-        crate::walk::walk_program(&program, &mut |e: &Expr| ids.push(e.id));
+        let mut clone = program.clone();
+        crate::walk::walk_program_mut(&mut clone, &mut |e: &mut Expr| ids.push(e.id));
+        for item in &program.items {
+            if let ItemKind::TypeDecl(decl) = &item.kind {
+                for field in decl.def.record_fields() {
+                    if let Some(default) = &field.default {
+                        crate::walk::walk_expr(default, &mut |e: &Expr| ids.push(e.id));
+                    }
+                }
+            }
+        }
 
         ids
     }
@@ -784,10 +798,16 @@ mod tests {
     /// one id make `annotate_types` write one expression's type onto the
     /// other. A nested lowerer with its own counter restarts at 0 and does
     /// exactly that, which is what #1530 was.
-    fn assert_ids_are_unique(source: &str) {
-        let ids = expr_ids(source);
+    ///
+    /// `ExprId::SYNTHETIC` is exempt. It is the sentinel for a node that
+    /// no map holds an answer for, so many nodes may carry it.
+    fn assert_program_ids_are_unique(program: &Program, source: &str) {
+        let ids = expr_ids(program);
         let mut seen = std::collections::HashSet::new();
-        let duplicates: Vec<_> = ids.iter().filter(|id| !seen.insert(**id)).collect();
+        let duplicates: Vec<_> = ids
+            .iter()
+            .filter(|id| **id != ExprId::SYNTHETIC && !seen.insert(**id))
+            .collect();
         assert!(
             duplicates.is_empty(),
             "every expression needs its own id, found {} duplicate(s) among {} \
@@ -795,6 +815,19 @@ mod tests {
             duplicates.len(),
             ids.len(),
         );
+    }
+
+    fn assert_ids_are_unique(source: &str) {
+        assert_program_ids_are_unique(&lower(source), source);
+    }
+
+    /// Desugar clones a declared default into every call or constructor
+    /// that leaves the slot out, so the same source expression can appear
+    /// many times in one tree. Each copy has to be synthetic (#1533).
+    fn assert_ids_are_unique_after_desugar(source: &str) {
+        let mut program = lower(source);
+        crate::desugar::desugar_program(&mut program, &std::collections::HashMap::new());
+        assert_program_ids_are_unique(&program, source);
     }
 
     #[test]
@@ -826,6 +859,49 @@ export let name(s: string) -> string = { `hi ${s}` }
 export let a(x: number, y: number) -> string = { `${x} and ${y}` }
 export let b(x: number) -> string = { `outer ${`inner ${x + 1}`}` }
 export let c(x: number) -> string = { `${x} ${x} ${x}` }
+"#,
+        );
+    }
+
+    #[test]
+    fn ids_stay_unique_after_desugar_splices_a_record_default() {
+        assert_ids_are_unique_after_desugar(
+            r#"
+type Cfg = { a: number = 111, b: number = 222 }
+export let g() -> Cfg = { Cfg { a: 9 } }
+export let h() -> Cfg = { Cfg { b: 9 } }
+"#,
+        );
+    }
+
+    #[test]
+    fn ids_stay_unique_after_desugar_splices_a_parameter_default() {
+        assert_ids_are_unique_after_desugar(
+            r#"
+export let add(a: number, b: number = 222) -> number = { a + b }
+export let g() -> number = { add(a: 9) }
+export let h() -> number = { add(a: 1) }
+"#,
+        );
+    }
+
+    #[test]
+    fn ids_stay_unique_after_desugar_splices_a_nested_record_default() {
+        assert_ids_are_unique_after_desugar(
+            r#"
+type Inner = { n: number = 1 }
+type Outer = { inner: Inner = Inner { }, tag: string = "x" }
+export let g() -> Outer = { Outer { tag: "y" } }
+"#,
+        );
+    }
+
+    #[test]
+    fn ids_stay_unique_after_desugar_rewrites_some_and_value() {
+        assert_ids_are_unique_after_desugar(
+            r#"
+export let f(x: number) -> Option<number> = { Some(x) }
+export let g() -> Option<number> = { None }
 "#,
         );
     }

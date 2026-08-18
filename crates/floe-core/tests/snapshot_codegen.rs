@@ -45,7 +45,9 @@ fn compile_cross_file(consumer: &str, siblings: &[(&str, &str)]) -> String {
         floe_core::resolve::resolve_imports(&consumer_path, &program, &tsconfig);
 
     let (_, expr_types, _, shadowed) = Checker::with_imports(resolved.clone()).check_full(&program);
-    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
+    // Desugar needs the resolved imports: it splices a default declared
+    // in another file from exactly this map.
+    desugar::desugar_program(&mut program, &resolved);
     let typed = checker::attach_types(
         program,
         &expr_types,
