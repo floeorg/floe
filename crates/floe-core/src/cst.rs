@@ -358,8 +358,9 @@ impl<'src> CstParser<'src> {
         self.error_kind(
             &format!(
                 "`{text}` cannot name anything. A Floe name starts with a Unicode letter, \
-                 `$` or `_`, and continues with a letter, a digit, `$` or `_`. \
-                 An emoji is not a letter, and TypeScript rejects it in a name as well."
+                 `$` or `_`, and it continues with a letter, a digit, `$` or `_`. \
+                 This text is a symbol, an emoji or punctuation. TypeScript rejects \
+                 each of those in a name as well."
             ),
             CstErrorKind::InvalidName,
         );
@@ -1596,5 +1597,60 @@ mod tests {
         let source = "let View() -> JSX.Element = {\n    <p>こんにちは 🎉 world</p>\n}";
         assert_no_errors(source);
         assert_lossless(source);
+    }
+
+    /// Every position where text that cannot name anything can stand.
+    fn assert_reports_the_name_rule(source: &str) {
+        let parse = cst_parse(source);
+        let error = parse
+            .errors
+            .first()
+            .unwrap_or_else(|| panic!("expected a diagnostic for: {source}"));
+        assert_eq!(
+            error.kind,
+            CstErrorKind::InvalidName,
+            "got: {:?}",
+            parse.errors
+        );
+        assert!(
+            error.message.contains("cannot name anything"),
+            "the message must say what is wrong: {}",
+            error.message
+        );
+        assert!(
+            !error.message.contains("UnicodeText"),
+            "the message must not print the token's debug form: {}",
+            error.message
+        );
+    }
+
+    #[test]
+    fn an_emoji_in_expression_position_reports_the_rule() {
+        assert_reports_the_name_rule("let x = 🎉");
+    }
+
+    #[test]
+    fn an_emoji_after_an_expression_reports_the_rule() {
+        assert_reports_the_name_rule("let x = 1 🎉");
+    }
+
+    #[test]
+    fn an_emoji_in_a_pattern_reports_the_rule() {
+        assert_reports_the_name_rule(
+            "let f(x: number) -> number = {\n    match x {\n        🎉 -> 1\n        _ -> 2\n    }\n}",
+        );
+    }
+
+    #[test]
+    fn a_unicode_uppercase_name_declares_a_tagged_union() {
+        // `Δ` is uppercase, so it names a variant the way `Red` does. The
+        // parser used to read "uppercase" as ASCII only, which made this
+        // a structural alias and then a parse error (#1576 review).
+        assert_no_errors("type Χρώμα = Κόκκινο | Πράσινο");
+    }
+
+    #[test]
+    fn a_unicode_uppercase_name_declares_a_newtype() {
+        assert_no_errors("type Μέτρα = Μέτρα(number)");
     }
 }

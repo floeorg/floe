@@ -621,3 +621,16 @@ class TestHoverUnicodeNames:
         open_doc(lsp, URI, F.UNICODE_NAMES)
         h = hover_text(lsp.hover(URI, *at(F.UNICODE_NAMES, "café", offset=4)))
         assert h is not None and "café" in h, f"Expected the whole name, got: {h}"
+
+    def test_hover_after_an_emoji_on_the_same_line(self, lsp):
+        """An emoji is two UTF-16 code units, so a later name shifts by one.
+
+        A server that counted characters would answer one column early, and
+        every other test on this file holds only Basic Multilingual Plane
+        text, where the two counts agree.
+        """
+        open_doc(lsp, URI, F.UNICODE_EMOJI_THEN_NAME)
+        line, col = at(F.UNICODE_EMOJI_THEN_NAME, "名前", nth=1)
+        assert col == 23, f"the fixture must put the name at UTF-16 column 23, got {col}"
+        h = hover_text(lsp.hover(URI, line, col))
+        assert h is not None and "string" in h, f"Expected the type, got: {h}"

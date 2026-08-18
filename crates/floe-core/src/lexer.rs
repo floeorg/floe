@@ -21,8 +21,10 @@ const fn is_utf8_continuation(byte: u8) -> bool {
 /// with the Unicode `ID_Start` property, `$`, or `_`. Floe does not normalize
 /// a name, because TypeScript does not.
 ///
-/// This function is the single source of the rule. The lexer, the language
-/// server and the formatter all read it.
+/// This function is the source of the rule for the compiler. The lexer and
+/// the language server both read it. The editor grammars listed in
+/// `.claude/rules/syntax-sources.md` hold their own copy of the rule, so
+/// change them in the same commit.
 pub fn is_name_start(ch: char) -> bool {
     oxc_syntax::identifier::is_identifier_start(ch)
 }
@@ -33,6 +35,22 @@ pub fn is_name_start(ch: char) -> bool {
 /// property, `$`, a zero width joiner, or a zero width non-joiner.
 pub fn is_name_part(ch: char) -> bool {
     oxc_syntax::identifier::is_identifier_part(ch)
+}
+
+/// Where a token starts: the byte offset, plus the line and the character
+/// column at that offset.
+///
+/// The lexer already tracks all three as it walks, so a token records them
+/// when it starts instead of counting the prefix again when it ends. The
+/// count-again form was O(n squared) over a file (#1576 review).
+#[derive(Debug, Clone, Copy)]
+struct Mark {
+    /// Byte offset into the source.
+    pos: usize,
+    /// 1-based line number at `pos`.
+    line: usize,
+    /// 1-based column number at `pos`, counted in characters.
+    column: usize,
 }
 
 /// The Floe lexer. Converts source text into a sequence of tokens.
@@ -92,13 +110,13 @@ impl<'src> Lexer<'src> {
     /// Advance to the next token, emitting trivia tokens for whitespace/comments.
     pub fn next_token_with_trivia(&mut self) -> Token {
         if self.is_at_end() {
-            return self.make_token(TokenKind::Eof, self.pos);
+            return self.make_token(TokenKind::Eof, self.mark());
         }
 
         // Check for trivia first
         match self.peek() {
             Some(b' ' | b'\t' | b'\r' | b'\n') => {
-                let start = self.pos;
+                let start = self.mark();
                 while !self.is_at_end() && matches!(self.peek(), Some(b' ' | b'\t' | b'\r' | b'\n'))
                 {
                     self.advance();
@@ -106,14 +124,14 @@ impl<'src> Lexer<'src> {
                 return self.make_token(TokenKind::Whitespace, start);
             }
             Some(b'/') if self.peek_at(1) == Some(b'/') => {
-                let start = self.pos;
+                let start = self.mark();
                 while !self.is_at_end() && self.peek() != Some(b'\n') {
                     self.advance();
                 }
                 return self.make_token(TokenKind::Comment, start);
             }
             Some(b'/') if self.peek_at(1) == Some(b'*') => {
-                let start = self.pos;
+                let start = self.mark();
                 self.consume_block_comment();
                 return self.make_token(TokenKind::BlockComment, start);
             }
@@ -129,7 +147,7 @@ impl<'src> Lexer<'src> {
         self.skip_whitespace_and_comments();
 
         if self.is_at_end() {
-            return self.make_token(TokenKind::Eof, self.pos);
+            return self.make_token(TokenKind::Eof, self.mark());
         }
 
         self.scan_non_trivia_token()
@@ -138,12 +156,12 @@ impl<'src> Lexer<'src> {
     /// Scan a non-trivia token. Assumes we are NOT at whitespace/comment/EOF.
     #[allow(clippy::too_many_lines)]
     fn scan_non_trivia_token(&mut self) -> Token {
-        let start = self.pos;
+        let start = self.mark();
 
         // A non-ASCII character decides between a name and JSX content, so read
         // the whole character before the byte match below splits it.
         if self.bytes[self.pos] >= UTF8_MULTIBYTE_FLAG {
-            let kind = self.scan_non_ascii(start);
+            let kind = self.scan_non_ascii(start.pos);
 
             return self.make_token(kind, start);
         }
@@ -276,11 +294,11 @@ impl<'src> Lexer<'src> {
             b'`' => self.scan_template_literal(),
 
             // Numbers
-            b'0'..=b'9' => self.scan_number(start),
+            b'0'..=b'9' => self.scan_number(start.pos),
 
             // Identifiers and keywords (including _ as standalone)
             b'_' if !self.peek_is_ident_char() => TokenKind::Underscore,
-            b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$' => self.scan_identifier(start),
+            b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$' => self.scan_identifier(start.pos),
 
             other => {
                 // Unknown ASCII character — emit as identifier for error recovery
@@ -611,6 +629,15 @@ impl<'src> Lexer<'src> {
         self.peek_char().is_some_and(is_name_part)
     }
 
+    /// The current position, for a token that starts here.
+    const fn mark(&self) -> Mark {
+        Mark {
+            pos: self.pos,
+            line: self.line,
+            column: self.column,
+        }
+    }
+
     /// The whole character at the current position.
     fn peek_char(&self) -> Option<char> {
         self.source[self.pos..].chars().next()
@@ -644,28 +671,16 @@ impl<'src> Lexer<'src> {
         ch
     }
 
-    fn make_token(&self, kind: TokenKind, start: usize) -> Token {
-        // Calculate the line/column of the start position by counting back
-        let mut line = self.line;
-        let mut col = self.column;
-
-        // We need the line/col at `start`, not at `self.pos`.
-        // Recompute from the source up to `start`. A column counts
-        // characters, so a multi-byte character advances it by one.
-        if start < self.pos {
-            line = 1;
-            col = 1;
-            for ch in self.source[..start].chars() {
-                if ch == '\n' {
-                    line += 1;
-                    col = 1;
-                } else {
-                    col += 1;
-                }
-            }
-        }
-
-        Token::new(kind, Span::new(start, self.pos, line, col))
+    /// Build a token that runs from `start` to the current position.
+    ///
+    /// `start` carries the line and the column, so this does no counting.
+    /// `advance` and `advance_char` keep `self.line` and `self.column` on
+    /// the character the lexer stands on, and `mark` copies them.
+    fn make_token(&self, kind: TokenKind, start: Mark) -> Token {
+        Token::new(
+            kind,
+            Span::new(start.pos, self.pos, start.line, start.column),
+        )
     }
 }
 
@@ -1191,6 +1206,48 @@ mod tests {
             .expect("the source holds a `2`");
         assert_eq!(last.span.line, 2);
         assert_eq!(last.span.column, 9);
+    }
+
+    /// The line and the column of every byte offset in `source`, counted
+    /// the way the definition reads: a column counts characters, and a
+    /// newline starts the next line.
+    fn positions_of(source: &str) -> Vec<(usize, usize)> {
+        let mut out = Vec::with_capacity(source.len() + 1);
+        let (mut line, mut col) = (1, 1);
+        for ch in source.chars() {
+            for _ in 0..ch.len_utf8() {
+                out.push((line, col));
+            }
+            if ch == '\n' {
+                line += 1;
+                col = 1;
+            } else {
+                col += 1;
+            }
+        }
+        out.push((line, col));
+
+        out
+    }
+
+    #[test]
+    fn every_token_records_the_position_of_its_first_character() {
+        // The lexer carries the line and the column forward as it walks,
+        // rather than counting the prefix again for every token. This
+        // holds that carried pair to the definition, over trivia, a
+        // comment, a string, a template literal, JSX and Unicode names.
+        let source = "// caf\u{e9} \u{1F389}\nlet \u{540D}\u{524D} = \"kotoko\"\n\nlet greet(\u{540D}: string) -> string = {\n    `\u{3053}\u{3093}\u{306B}\u{3061}\u{306F}\u{3001}${\u{540D}}`\n}\n\nlet View() -> JSX.Element = {\n    <p>\u{3053}\u{3093}\u{306B}\u{3061}\u{306F} \u{1F389} world</p>\n}\n";
+        let want = positions_of(source);
+
+        for token in Lexer::new(source).tokenize_with_trivia() {
+            assert_eq!(
+                (token.span.line, token.span.column),
+                want[token.span.start],
+                "token {:?} at byte {} reported the wrong position",
+                token.kind,
+                token.span.start
+            );
+        }
     }
 
     #[test]

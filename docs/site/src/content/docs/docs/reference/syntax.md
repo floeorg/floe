@@ -4,9 +4,8 @@ title: Syntax Reference
 
 ## Identifiers
 
-Floe compiles to TypeScript, so **every name Floe accepts is a legal
-TypeScript name**. Floe uses the TypeScript rule and not a wider one, because
-a name that TypeScript refuses would make the emitted file invalid.
+Floe compiles to TypeScript, so a Floe name follows the TypeScript rule.
+**Every name TypeScript accepts, Floe accepts.**
 
 A name **starts** with a character that has the Unicode `ID_Start` property,
 or with `$` or `_`. It **continues** with a character that has the Unicode
@@ -32,7 +31,7 @@ and so does Floe. The compiler says so:
 ```floe,ignore
 let 🎉 = 1
 // error: `🎉` cannot name anything. A Floe name starts with a Unicode letter,
-// `$` or `_`, and continues with a letter, a digit, `$` or `_`.
+// `$` or `_`, and it continues with a letter, a digit, `$` or `_`.
 ```
 
 **JSX content is different.** An emoji and non-Latin text stand freely inside
@@ -41,6 +40,26 @@ a JSX element, because that text is content and not a name.
 ```floe,ignore
 <p>こんにちは 🎉 world</p>
 ```
+
+### Floe reads a newer Unicode than TypeScript
+
+Floe reads the current Unicode tables. TypeScript ships its own tables, and
+they lag Unicode by a version or two. So Floe accepts a small set of
+characters that TypeScript has not caught up with yet.
+
+Measured on 2026-08-18 against `typescript@6.0.3`: Floe starts a name with
+**8,949** code points that TypeScript refuses, and continues a name with
+**9,132**. TypeScript accepts **none** that Floe refuses.
+
+Every one of them belongs to a writing system Unicode added in the last few
+years, Garay and Todhri and Sunuwar among them. A name in one of those passes
+`floe check` and then fails `tsc` with `TS1127: Invalid character`. The set
+shrinks to nothing on its own each time TypeScript updates its tables, so Floe
+does not carry a narrower copy of them.
+
+`cargo test -p floe-core --test identifier_parity -- --nocapture` prints
+today's count, and CI fails if TypeScript ever accepts a character Floe
+refuses.
 
 ### Floe does not normalize a name
 

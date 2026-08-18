@@ -1047,6 +1047,15 @@ let View() -> JSX.Element = {
 }
 """
 
+# An emoji and a Unicode name on one line. The emoji sits outside the Basic
+# Multilingual Plane, so it is one character and two UTF-16 code units. A
+# position after it separates a character count from the UTF-16 count an LSP
+# position uses, which nothing else in this file does.
+UNICODE_EMOJI_THEN_NAME = """\
+let 名前 = "kotoko"
+let greeting = "🎉 " + 名前
+"""
+
 # A type error on a line that also holds a Unicode name.
 UNICODE_NAME_WITH_ERROR = """\
 let 名前 = "kotoko"
