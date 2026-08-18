@@ -3390,3 +3390,30 @@ fn unwrap_chain_awaits_an_async_collect_block() {
         "an async collect block must be awaited before `.ok` is read, got: {result}"
     );
 }
+
+#[test]
+fn unwrap_chain_awaits_a_parenthesised_async_collect_block() {
+    // `emit_expr` reaches `emit_collect_block` through `Grouped` too, so a
+    // pair of parentheses builds the same async IIFE. The step rule matched
+    // `Collect` at the top of the step only, so the temp bound the promise,
+    // `_r0.ok` read `undefined`, the guard always returned, and every later
+    // step was skipped without a word (glb #1522).
+    let result = emit_with_types(
+        "export let shout(s: string) -> string = { `${s}!` }\n\
+         export async let f(u: string) -> Result<string, Error> = {\n\
+         \x20   let a = (collect {\n\
+         \x20       let b = Http.get(u) |> Promise.await? |> Http.text |> Promise.await?\n\
+         \x20       b\n\
+         \x20   })? |> shout\n\
+         \x20   Ok(a)\n\
+         }",
+    );
+    assert!(
+        result.contains("const _r0 = await ((async () => {"),
+        "a parenthesised async collect block must be awaited before `.ok` is read, got: {result}"
+    );
+    assert!(
+        result.contains("const _r1 = shout(_r0.value);"),
+        "the step after the collect block must still run, got: {result}"
+    );
+}

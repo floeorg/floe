@@ -286,14 +286,22 @@ impl<'a> TypeScriptGenerator<'a> {
     /// not record is a `collect { ... }` block with an await inside, which
     /// codegen wraps in an async IIFE while the block keeps its `Result` type,
     /// so this reads the same predicate `emit_collect_block` reads.
+    ///
+    /// `emit_expr` reaches `emit_collect_block` through `ExprKind::Grouped` as
+    /// well, so `(collect { ... })?` builds the same async IIFE. Look through
+    /// the parentheses, or this rule misses that spelling: the temp binds the
+    /// promise, `_r0.ok` reads `undefined`, the guard returns every time, and
+    /// every later step in the chain is dropped without a diagnostic.
     fn step_needs_await(step: &PipeStep) -> bool {
         if matches!(&*step.ty, crate::checker::Type::Promise(_)) {
             return false;
         }
-        match &step.expr.kind {
-            ExprKind::Collect(items) => collect_block_is_async(items),
-            _ => false,
+        let mut expr = &step.expr;
+        while let ExprKind::Grouped(inner) = &expr.kind {
+            expr = inner;
         }
+
+        matches!(&expr.kind, ExprKind::Collect(items) if collect_block_is_async(items))
     }
 
     #[allow(clippy::unused_self)]
