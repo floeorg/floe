@@ -830,6 +830,92 @@ fn generic_function_multi_params_codegen() {
     );
 }
 
+// ── Explicit Type Arguments at a Call Site ────────────────────
+
+#[test]
+fn call_with_an_explicit_type_argument_keeps_it() {
+    let result = emit_typed("let identity<T>(x: T) -> T = { x }\nlet a = identity<string>(\"hi\")");
+    assert!(
+        result.contains("const a = identity<string>(\"hi\");"),
+        "the call must carry the type argument the user wrote, got: {result}"
+    );
+}
+
+#[test]
+fn tuple_destructure_keeps_the_type_arguments() {
+    let result = emit_typed(
+        "let pair<A, B>(a: A, b: B) -> (A, B) = { (a, b) }\nlet (p, q) = pair<string, number>(\"a\", 1)",
+    );
+    assert!(
+        result.contains("const [p, q] = pair<string, number>(\"a\", 1);"),
+        "a tuple destructure must carry both type arguments, got: {result}"
+    );
+}
+
+#[test]
+fn call_in_expression_position_keeps_the_type_argument() {
+    let result = emit_typed("let identity<T>(x: T) -> T = { x }\nlet b = identity<number>(1) + 2");
+    assert!(
+        result.contains("const b = identity<number>(1) + 2;"),
+        "a call inside an expression must carry the type argument, got: {result}"
+    );
+}
+
+#[test]
+fn call_inside_a_pipe_keeps_the_type_argument() {
+    let result =
+        emit_typed("let identity<T>(x: T) -> T = { x }\nlet c = \"x\" |> identity<string>()");
+    assert!(
+        result.contains("const c = identity<string>(\"x\");"),
+        "a piped call must carry the type argument, got: {result}"
+    );
+}
+
+#[test]
+fn partial_application_keeps_the_type_arguments() {
+    let result =
+        emit_typed("let take<A, B>(a: A, b: B) -> A = { a }\nlet f = take<string, number>(_, 1)");
+    assert!(
+        result.contains("take<string, number>(_x, 1)"),
+        "a partial application must carry the type arguments, got: {result}"
+    );
+}
+
+#[test]
+fn a_piped_placeholder_call_keeps_the_type_arguments() {
+    let result = emit_typed(
+        "let take<A, B>(a: A, b: B) -> A = { a }\nlet g = \"z\" |> take<string, number>(_, 1)",
+    );
+    assert!(
+        result.contains("take<string, number>(\"z\", 1)"),
+        "a piped placeholder call must carry the type arguments, got: {result}"
+    );
+}
+
+#[test]
+fn an_array_type_argument_emits_its_typescript_form() {
+    let result = emit_typed(
+        "type Todo = { id: string }\nlet identity<T>(x: T) -> T = { x }\nlet e = identity<Array<Todo>>([])",
+    );
+    assert!(
+        result.contains("const e = identity<Array<Todo>>([]);"),
+        "an `Array<T>` type argument must emit as an array type, got: {result}"
+    );
+}
+
+#[test]
+fn a_call_without_type_arguments_emits_none() {
+    let result = emit_typed("let identity<T>(x: T) -> T = { x }\nlet d = identity(\"hi\")");
+    assert!(
+        result.contains("const d = identity(\"hi\");"),
+        "a call the user left to inference must stay bare, got: {result}"
+    );
+    assert!(
+        !result.contains("identity<string>"),
+        "codegen must not invent a type argument the user did not write, got: {result}"
+    );
+}
+
 // ── Pipe Lambdas ─────────────────────────────────────────────
 
 #[test]

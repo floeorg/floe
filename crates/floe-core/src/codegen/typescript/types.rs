@@ -58,19 +58,7 @@ impl<'a> TypeScriptGenerator<'a> {
                     };
                 }
 
-                if type_args.is_empty() {
-                    pretty::str(name)
-                } else {
-                    let mut docs = vec![pretty::str(name), pretty::str("<")];
-                    for (i, arg) in type_args.iter().enumerate() {
-                        if i > 0 {
-                            docs.push(pretty::str(", "));
-                        }
-                        docs.push(self.emit_type_expr(arg));
-                    }
-                    docs.push(pretty::str(">"));
-                    pretty::concat(docs)
-                }
+                pretty::concat([pretty::str(name), self.emit_type_args(type_args)])
             }
             TypeExprKind::Record(fields) => self.emit_record_type(fields),
             TypeExprKind::Function {
@@ -108,6 +96,36 @@ impl<'a> TypeScriptGenerator<'a> {
             TypeExprKind::Intersection(types) => self.emit_type_joined(types, " & "),
             TypeExprKind::StringLiteral(value) => pretty::str(format!("\"{value}\"")),
         }
+    }
+
+    /// Emit a type-argument list as `<A, B>`, or nothing when the list is
+    /// empty. Both a named type (`Result<T, E>`) and a call site
+    /// (`useState<Filter>(All)`) print their arguments this way.
+    ///
+    /// A call site prints only the arguments the user wrote. Codegen never
+    /// prints an argument the checker inferred: Floe's inference and
+    /// TypeScript's are separate, so a printed guess would pin the call to
+    /// Floe's answer and break every call where the two differ. An absent
+    /// list leaves the call to TypeScript, which is what it did before.
+    ///
+    /// A stdlib call carries no list either. Its template rewrites the whole
+    /// call, and the checker drops explicit arguments on that path as well,
+    /// so the two passes stay on one answer.
+    pub(super) fn emit_type_args(&mut self, type_args: &[TypedTypeExpr]) -> Document {
+        if type_args.is_empty() {
+            return pretty::nil();
+        }
+
+        let mut docs = vec![pretty::str("<")];
+        for (i, arg) in type_args.iter().enumerate() {
+            if i > 0 {
+                docs.push(pretty::str(", "));
+            }
+            docs.push(self.emit_type_expr(arg));
+        }
+        docs.push(pretty::str(">"));
+
+        pretty::concat(docs)
     }
 
     /// Emit the type argument at `index`, or `unknown` when the user wrote

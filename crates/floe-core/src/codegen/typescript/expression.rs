@@ -1,6 +1,6 @@
 use crate::parser::ast::{
     Arg, BinOp, ConstBinding, ExprKind, ItemKind, TemplatePart, TypedArg, TypedExpr, TypedItem,
-    TypedTemplatePart,
+    TypedTemplatePart, TypedTypeExpr,
 };
 use crate::pretty::{self, Document};
 use crate::type_layout::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
@@ -83,7 +83,11 @@ impl<'a> TypeScriptGenerator<'a> {
                 ])
             }
 
-            ExprKind::Call { callee, args, .. } => {
+            ExprKind::Call {
+                callee,
+                type_args,
+                args,
+            } => {
                 if self.is_untrusted_call(callee) {
                     let is_async = matches!(&*expr.ty, crate::checker::Type::Promise(_));
                     let mut docs = Vec::new();
@@ -97,6 +101,7 @@ impl<'a> TypeScriptGenerator<'a> {
                         )));
                     }
                     docs.push(self.emit_expr(callee));
+                    docs.push(self.emit_type_args(type_args));
                     docs.push(pretty::str("("));
                     docs.push(self.emit_args(args));
                     docs.push(pretty::str(")"));
@@ -107,10 +112,11 @@ impl<'a> TypeScriptGenerator<'a> {
                 } else if let Some(output) = self.try_emit_stdlib_call(callee, args) {
                     pretty::str(output)
                 } else if has_placeholder_arg(args) {
-                    self.emit_partial_application(callee, args)
+                    self.emit_partial_application(callee, type_args, args)
                 } else {
                     pretty::concat([
                         self.emit_expr(callee),
+                        self.emit_type_args(type_args),
                         pretty::str("("),
                         self.emit_args(args),
                         pretty::str(")"),
@@ -785,6 +791,7 @@ impl<'a> TypeScriptGenerator<'a> {
     pub(super) fn emit_partial_application(
         &mut self,
         callee: &TypedExpr,
+        type_args: &[TypedTypeExpr],
         args: &[TypedArg],
     ) -> Document {
         // Each `_` placeholder becomes a distinct arrow parameter. A single
@@ -815,6 +822,7 @@ impl<'a> TypeScriptGenerator<'a> {
         let mut docs = vec![
             pretty::str(format!("({param_list}) => ")),
             self.emit_expr(callee),
+            self.emit_type_args(type_args),
             pretty::str("("),
         ];
         let mut placeholder_idx = 0;
