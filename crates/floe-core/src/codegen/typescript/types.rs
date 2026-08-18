@@ -58,6 +58,13 @@ impl<'a> TypeScriptGenerator<'a> {
                     };
                 }
 
+                // React 19 declares no global `JSX`, so the emitted file
+                // has to import the namespace it names. Record the use
+                // here, and `generate` writes the import. See #1498.
+                if name == type_layout::TYPE_JSX_ELEMENT {
+                    self.wrote_jsx_element = true;
+                }
+
                 pretty::concat([pretty::str(name), self.emit_type_args(type_args)])
             }
             TypeExprKind::Record(fields) => self.emit_record_type(fields),

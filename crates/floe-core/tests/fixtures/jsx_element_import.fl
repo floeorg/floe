@@ -1,0 +1,22 @@
+// React 19 moved the `JSX` namespace under `React.JSX` and declares no
+// global one. Codegen writes `import type { JSX } from "react"` into every
+// emitted file that names `JSX.Element`, in the `.ts` and in the `.d.ts`.
+// See #1498.
+import trusted { useState } from "react"
+
+type CardProps = {
+    title: string,
+}
+
+let Badge() -> JSX.Element = {
+    <span>New</span>
+}
+
+export let Card(props: CardProps) -> JSX.Element = {
+    let (_open, _setOpen) = useState(false)
+
+    <div>
+        <h2>{props.title}</h2>
+        <Badge />
+    </div>
+}
