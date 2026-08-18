@@ -262,8 +262,68 @@ module.exports = grammar({
       ),
 
     // Floe accepts both lowercase (standard identifier) and uppercase
-    // (type_identifier) names in field-name position.
-    _field_name: ($) => choice($.identifier, $.type_identifier),
+    // (type_identifier) names in field-name position, plus any keyword.
+    _field_name: ($) =>
+      choice($.identifier, $.type_identifier, $.keyword_property),
+
+    // A keyword standing in a property position. Every word may name a
+    // property in Floe, exactly as in JavaScript, so a keyword may name a
+    // record field, a member, a named argument and a JSX attribute. See
+    // `IdentRole` in crates/floe-core/src/lexer/token.rs: every word names a
+    // property, and the role decides only whether it may also name a value.
+    //
+    // A word that is not a valid token in the state reaches the parser as an
+    // `identifier` through tree-sitter keyword extraction, so it needs no
+    // entry here. The entries below matter where the keyword token is also
+    // valid, and extraction would otherwise win and break the parse: a
+    // named argument labelled `match`, a record field named `for`.
+    keyword_property: ($) =>
+      choice(
+        // JavaScript reserves these. `IdentRole::PropertyOnly`.
+        "for",
+        "const",
+        "class",
+        "throw",
+        "null",
+        "undefined",
+        "any",
+        "as",
+        "enum",
+        "void",
+        "function",
+        "if",
+        "else",
+        "return",
+        // Floe reserves these. `IdentRole::Keyword`.
+        "let",
+        "fn",
+        "export",
+        "import",
+        "from",
+        "match",
+        "typealias",
+        "impl",
+        "trait",
+        "assert",
+        "when",
+        "typeof",
+        "async",
+        "self",
+        // Floe reads these as identifiers outside their own position.
+        // `IdentRole::Binding`.
+        "type",
+        "opaque",
+        "trusted",
+        "collect",
+        "parse",
+        "mock",
+        "todo",
+        "unreachable",
+      ),
+
+    // A name that reads a property: a member after `.`, a named argument
+    // label, a dot shorthand, or a JSX attribute.
+    _property_name: ($) => choice($.identifier, $.keyword_property),
 
     _type_expression: ($) =>
       choice(
@@ -618,7 +678,7 @@ module.exports = grammar({
 
     argument: ($) =>
       choice(
-        seq(field("label", $.identifier), ":", field("value", $._expression)),
+        seq(field("label", $._property_name), ":", field("value", $._expression)),
         $._expression,
       ),
 
@@ -627,7 +687,7 @@ module.exports = grammar({
     member_expression: ($) =>
       prec.left(
         "member",
-        seq(field("object", $._expression), ".", field("property", $.identifier)),
+        seq(field("object", $._expression), ".", field("property", $._property_name)),
       ),
 
     index_expression: ($) =>
@@ -750,11 +810,11 @@ module.exports = grammar({
     jsx_attribute: ($) =>
       choice(
         seq(
-          field("name", $.identifier),
+          field("name", $._property_name),
           "=",
           field("value", choice($.string, $.jsx_expression)),
         ),
-        field("name", $.identifier),
+        field("name", $._property_name),
       ),
 
     jsx_expression: ($) =>

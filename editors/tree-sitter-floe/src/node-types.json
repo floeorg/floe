@@ -10,6 +10,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "keyword_property",
+            "named": true
           }
         ]
       },
@@ -1180,6 +1184,10 @@
             "named": true
           },
           {
+            "type": "keyword_property",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }
@@ -1699,6 +1707,10 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "keyword_property",
             "named": true
           },
           {
@@ -2700,6 +2712,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "keyword_property",
+            "named": true
           }
         ]
       },
@@ -3005,6 +3021,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "keyword_property",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "lambda_parameter",
@@ -3537,6 +3558,10 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "keyword_property",
             "named": true
           }
         ]
@@ -4348,6 +4373,10 @@
             "named": true
           },
           {
+            "type": "keyword_property",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }
@@ -4418,6 +4447,10 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "keyword_property",
             "named": true
           },
           {
@@ -4571,6 +4604,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "self",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "source_file",
@@ -4904,6 +4942,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "todo",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "trait_declaration",
@@ -5357,6 +5400,11 @@
     "fields": {}
   },
   {
+    "type": "unreachable",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "unwrap_expression",
     "named": true,
     "fields": {},
@@ -5760,6 +5808,10 @@
             "named": true
           },
           {
+            "type": "keyword_property",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }
@@ -5815,6 +5867,10 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "keyword_property",
             "named": true
           },
           {
@@ -6043,6 +6099,10 @@
     "named": false
   },
   {
+    "type": "any",
+    "named": false
+  },
+  {
     "type": "as",
     "named": false
   },
@@ -6059,11 +6119,19 @@
     "named": false
   },
   {
+    "type": "class",
+    "named": false
+  },
+  {
     "type": "clear",
     "named": true
   },
   {
     "type": "collect",
+    "named": false
+  },
+  {
+    "type": "const",
     "named": false
   },
   {
@@ -6075,11 +6143,23 @@
     "named": false
   },
   {
+    "type": "else",
+    "named": false
+  },
+  {
+    "type": "enum",
+    "named": false
+  },
+  {
     "type": "export",
     "named": false
   },
   {
     "type": "false",
+    "named": false
+  },
+  {
+    "type": "fn",
     "named": false
   },
   {
@@ -6091,8 +6171,16 @@
     "named": false
   },
   {
+    "type": "function",
+    "named": false
+  },
+  {
     "type": "identifier",
     "named": true
+  },
+  {
+    "type": "if",
+    "named": false
   },
   {
     "type": "impl",
@@ -6119,6 +6207,10 @@
     "named": false
   },
   {
+    "type": "null",
+    "named": false
+  },
+  {
     "type": "number",
     "named": false
   },
@@ -6131,12 +6223,16 @@
     "named": true
   },
   {
+    "type": "parse",
+    "named": false
+  },
+  {
     "type": "return",
     "named": false
   },
   {
     "type": "self",
-    "named": true
+    "named": false
   },
   {
     "type": "string",
@@ -6155,8 +6251,12 @@
     "named": false
   },
   {
+    "type": "throw",
+    "named": false
+  },
+  {
     "type": "todo",
-    "named": true
+    "named": false
   },
   {
     "type": "trait",
@@ -6183,8 +6283,16 @@
     "named": false
   },
   {
+    "type": "typeof",
+    "named": false
+  },
+  {
     "type": "unchanged",
     "named": true
+  },
+  {
+    "type": "undefined",
+    "named": false
   },
   {
     "type": "unknown",
@@ -6192,10 +6300,14 @@
   },
   {
     "type": "unreachable",
-    "named": true
+    "named": false
   },
   {
     "type": "use",
+    "named": false
+  },
+  {
+    "type": "void",
     "named": false
   },
   {

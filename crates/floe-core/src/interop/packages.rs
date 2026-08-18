@@ -2,15 +2,18 @@
 //!
 //! This module answers one question, and only that question: does a
 //! `node_modules/<package>` directory exist at or above the project
-//! directory? It does not look for declaration files. Finding the
-//! `.d.ts` inside an installed package is [`super::tsgo`]'s job.
+//! directory? It never opens a declaration file. Finding the `.d.ts`
+//! inside an installed package is [`super::package_exports`]'s job, and
+//! this module borrows that module's specifier parsing so the two agree
+//! on what a package name is.
 //!
 //! The split matters, because the two failures need two answers:
 //!
 //! - The package is **not there**. Nothing can type it, and nothing can
 //!   run it either. The checker reports **E013** and the build fails.
-//! - The package **is there** but ships no declarations. Its symbols
-//!   type as `Foreign`, and the checker warns **W004** on each call.
+//! - The package **is there** but ships no declarations, or ships them
+//!   somewhere this compiler cannot follow. Its symbols type as
+//!   `Foreign`, and the checker warns **W004** on each call.
 //!
 //! `floe check` used to give the second answer to both situations while
 //! the language server gave the first, so a build the editor called
@@ -19,6 +22,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use super::package_exports::{is_valid_package_name, split_specifier, types_package_name};
 use crate::parser::ast::{ItemKind, Program};
 use crate::resolve::{ResolvedImports, TsconfigPaths};
 
@@ -26,45 +30,27 @@ use crate::resolve::{ResolvedImports, TsconfigPaths};
 /// import of `node:crypto` needs that package and no other.
 const NODE_TYPES_PACKAGE: &str = "@types/node";
 
-/// The npm package a specifier imports from, with any subpath removed.
+/// The npm package a specifier needs, with any subpath removed.
 ///
-/// - `"react"` stays `"react"`
-/// - `"date-fns/format"` becomes `"date-fns"`
-/// - `"@scope/pkg/sub"` becomes `"@scope/pkg"`
-/// - every `"node:*"` specifier becomes `"@types/node"`
-pub fn package_name(specifier: &str) -> &str {
+/// - `"react"` needs `"react"`
+/// - `"date-fns/format"` needs `"date-fns"`
+/// - `"@scope/pkg/sub"` needs `"@scope/pkg"`
+/// - every `"node:*"` specifier needs `"@types/node"`
+///
+/// Returns `None` when the head of the specifier is not a name npm can
+/// publish. No install fixes such an import, but naming a package to
+/// install would be nonsense, so this module leaves it to the existing
+/// unknown-type warning.
+pub fn required_package(specifier: &str) -> Option<&str> {
     if specifier.starts_with("node:") {
-        return NODE_TYPES_PACKAGE;
+        return Some(NODE_TYPES_PACKAGE);
     }
-    if let Some(scoped) = specifier.strip_prefix('@') {
-        let Some((scope, rest)) = scoped.split_once('/') else {
-            return specifier;
-        };
-        let name = rest.split('/').next().unwrap_or(rest);
-
-        // `@` + scope + `/` + name, counted rather than rebuilt so the
-        // caller keeps borrowing the original specifier.
-        return &specifier[..1 + scope.len() + 1 + name.len()];
+    let (package, _subpath) = split_specifier(specifier);
+    if !is_valid_package_name(package) {
+        return None;
     }
 
-    specifier.split('/').next().unwrap_or(specifier)
-}
-
-/// The `@types` package that carries declarations for `package`.
-/// A scope collapses into the name: `@scope/pkg` becomes
-/// `@types/scope__pkg`, which is the convention DefinitelyTyped uses.
-pub fn types_package_name(package: &str) -> String {
-    if package.starts_with("@types/") {
-        return package.to_string();
-    }
-    let Some(scoped) = package.strip_prefix('@') else {
-        return format!("@types/{package}");
-    };
-    let Some((scope, name)) = scoped.split_once('/') else {
-        return format!("@types/{package}");
-    };
-
-    format!("@types/{scope}__{name}")
+    Some(package)
 }
 
 /// The advice printed under an E013 diagnostic. It names the command
@@ -79,7 +65,7 @@ pub fn install_hint(package: &str) -> String {
     }
 
     format!(
-        "install the package: `npm install {package}`. If it ships no type declarations, also add `npm install --save-dev {}`",
+        "install the package: `npm install {package}`. If it ships no type declarations, also add `npm install --save-dev @types/{}`",
         types_package_name(package)
     )
 }
@@ -92,13 +78,17 @@ pub fn install_hint(package: &str) -> String {
 /// dependency into the repository root, so the nearest `node_modules`
 /// is often not the one holding the package.
 pub fn find_package_dir(package: &str, project_dir: &Path) -> Option<PathBuf> {
-    let types_package = types_package_name(package);
     let mut dir = project_dir.to_path_buf();
     loop {
         let modules = dir.join("node_modules");
-        for candidate in [modules.join(package), modules.join(&types_package)] {
-            if candidate.is_dir() {
-                return Some(candidate);
+        if modules.join(package).is_dir() {
+            return Some(modules.join(package));
+        }
+        // A package already under `@types` has no companion of its own.
+        if !package.starts_with("@types/") {
+            let companion = modules.join("@types").join(types_package_name(package));
+            if companion.is_dir() {
+                return Some(companion);
             }
         }
         if !dir.pop() {
@@ -136,7 +126,9 @@ pub fn find_missing_packages(
         if missing.contains_key(specifier) {
             continue;
         }
-        let package = package_name(specifier);
+        let Some(package) = required_package(specifier) else {
+            continue;
+        };
         if find_package_dir(package, project_dir).is_none() {
             missing.insert(specifier.to_string(), package.to_string());
         }
@@ -150,41 +142,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn package_name_keeps_a_plain_specifier() {
-        assert_eq!(package_name("react"), "react");
+    fn required_package_keeps_a_plain_specifier() {
+        assert_eq!(required_package("react"), Some("react"));
     }
 
     #[test]
-    fn package_name_drops_a_subpath() {
-        assert_eq!(package_name("date-fns/format"), "date-fns");
+    fn required_package_drops_a_subpath() {
+        assert_eq!(required_package("date-fns/format"), Some("date-fns"));
     }
 
     #[test]
-    fn package_name_keeps_both_segments_of_a_scoped_package() {
+    fn required_package_keeps_both_segments_of_a_scoped_package() {
         assert_eq!(
-            package_name("@tanstack/react-query"),
-            "@tanstack/react-query"
+            required_package("@tanstack/react-query"),
+            Some("@tanstack/react-query")
         );
     }
 
     #[test]
-    fn package_name_drops_a_subpath_under_a_scope() {
-        assert_eq!(package_name("@scope/pkg/deep/path"), "@scope/pkg");
+    fn required_package_drops_a_subpath_under_a_scope() {
+        assert_eq!(required_package("@scope/pkg/deep/path"), Some("@scope/pkg"));
     }
 
     #[test]
-    fn package_name_routes_the_node_scheme_to_types_node() {
-        assert_eq!(package_name("node:crypto"), "@types/node");
+    fn required_package_routes_the_node_scheme_to_types_node() {
+        assert_eq!(required_package("node:crypto"), Some("@types/node"));
     }
 
     #[test]
-    fn types_package_name_prefixes_a_plain_package() {
-        assert_eq!(types_package_name("react"), "@types/react");
-    }
-
-    #[test]
-    fn types_package_name_collapses_a_scope() {
-        assert_eq!(types_package_name("@scope/pkg"), "@types/scope__pkg");
+    fn required_package_refuses_a_name_npm_cannot_publish() {
+        // No install fixes `..`, and no diagnostic should tell a person
+        // to try one.
+        assert_eq!(required_package(".."), None);
     }
 
     #[test]
@@ -199,6 +188,12 @@ mod tests {
         let hint = install_hint("react");
         assert!(hint.contains("npm install react"), "got: {hint}");
         assert!(hint.contains("@types/react"), "got: {hint}");
+    }
+
+    #[test]
+    fn install_hint_collapses_a_scope_for_the_types_package() {
+        let hint = install_hint("@scope/pkg");
+        assert!(hint.contains("@types/scope__pkg"), "got: {hint}");
     }
 
     #[test]
@@ -217,6 +212,23 @@ mod tests {
         std::fs::create_dir_all(root.path().join("node_modules/@types/react")).unwrap();
 
         assert!(find_package_dir("react", root.path()).is_some());
+    }
+
+    #[test]
+    fn find_package_dir_collapses_a_scope_for_the_types_directory() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("node_modules/@types/scope__pkg")).unwrap();
+
+        assert!(find_package_dir("@scope/pkg", root.path()).is_some());
+    }
+
+    #[test]
+    fn find_package_dir_finds_types_node_for_the_node_scheme() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("node_modules/@types/node")).unwrap();
+
+        let package = required_package("node:crypto").expect("node: needs @types/node");
+        assert!(find_package_dir(package, root.path()).is_some());
     }
 
     #[test]

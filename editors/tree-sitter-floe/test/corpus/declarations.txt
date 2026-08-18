@@ -537,3 +537,52 @@ type Bindings = {
       (record_field
         name: (type_identifier)
         type: (primitive_type)))))
+
+===
+Record type with fields named after JavaScript reserved words
+===
+
+type Payload = {
+    for: string,
+    class: string,
+    function: string,
+    if: string,
+}
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    definition: (record_type
+      (record_field
+        name: (keyword_property)
+        type: (primitive_type))
+      (record_field
+        name: (keyword_property)
+        type: (primitive_type))
+      (record_field
+        name: (keyword_property)
+        type: (primitive_type))
+      (record_field
+        name: (keyword_property)
+        type: (primitive_type)))))
+
+===
+Record type with fields named after Floe keywords
+===
+
+type T = { match: string, self: string }
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    definition: (record_type
+      (record_field
+        name: (keyword_property)
+        type: (primitive_type))
+      (record_field
+        name: (keyword_property)
+        type: (primitive_type)))))

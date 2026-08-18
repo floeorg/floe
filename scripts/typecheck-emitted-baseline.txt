@@ -1,0 +1,30 @@
+# Ratchet baseline for scripts/typecheck-emitted.sh.
+#
+# Each row is a TypeScript error code and how many times tsc reports it
+# over the emitted output of the example apps, with the `// @ts-nocheck`
+# header removed. The CI job fails when any count rises above its row.
+#
+# These numbers must come down. Epic #1490 groups every diagnostic by
+# cause, and #1492 to #1499 break out the serious ones. Lower the row
+# in the same pull request that fixes the cause. The job prints the new
+# number for you when it sees a drop.
+#
+# Regenerate with:
+#   pnpm install --frozen-lockfile
+#   cargo build -p floe
+#   scripts/typecheck-emitted.sh --update-baseline target/debug/floe
+#
+# Total at the time of writing: 89
+TS18046 3
+TS2304 10
+TS2305 3
+TS2311 4
+TS2322 20
+TS2339 14
+TS2345 3
+TS2353 3
+TS2362 1
+TS2363 1
+TS2503 21
+TS2698 1
+TS7006 5

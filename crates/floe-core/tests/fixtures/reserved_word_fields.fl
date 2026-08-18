@@ -1,0 +1,29 @@
+// Words that JavaScript reserves may name a record field, a member, a
+// named argument and a JSX attribute. They may never name a value.
+type Payload = {
+    for: string,
+    class: string,
+    function: string,
+    if: string,
+}
+
+let make() -> Payload = {
+    Payload {
+        for: "name",
+        class: "row",
+        function: "submit",
+        if: "always",
+    }
+}
+
+let target(p: Payload) -> string = { p.for }
+
+let style(p: Payload) -> string = { p.class }
+
+// A word Floe reserves names a property too.
+type Widget = {
+    match: string,
+    self: string,
+}
+
+let pick(w: Widget) -> string = { w.match }

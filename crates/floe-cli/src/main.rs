@@ -42,6 +42,9 @@ enum Command {
         /// Emit compiled output to stdout instead of writing files
         #[arg(long)]
         emit_stdout: bool,
+        /// Omit the `// @ts-nocheck` header so TypeScript checks the output
+        #[arg(long)]
+        no_ts_nocheck: bool,
     },
     /// Type-check .fl files without emitting output
     Check {
@@ -86,13 +89,14 @@ fn main() -> Result<()> {
             path,
             out_dir,
             emit_stdout,
+            no_ts_nocheck,
         } => {
             if path.as_os_str() == "-" {
                 cmd_build_stdin()
             } else if emit_stdout {
                 cmd_build_file_stdout(&path)
             } else {
-                cmd_build(&path, out_dir.as_deref())
+                cmd_build(&path, out_dir.as_deref(), !no_ts_nocheck)
             }
         }
         Command::Check { path } => cmd_check(&path),
@@ -217,7 +221,7 @@ fn cmd_build_stdin() -> Result<()> {
 
 // ── Build ────────────────────────────────────────────────────────
 
-fn cmd_build(path: &Path, out_dir: Option<&Path>) -> Result<()> {
+fn cmd_build(path: &Path, out_dir: Option<&Path>, ts_nocheck: bool) -> Result<()> {
     let files = ensure_fl_files_found(path)?;
     let cwd = std::env::current_dir().context("failed to get current directory")?;
     let project_dir = find_project_dir(&cwd);
@@ -229,7 +233,7 @@ fn cmd_build(path: &Path, out_dir: Option<&Path>) -> Result<()> {
     let mut errors = 0;
 
     for file in &files {
-        match compile_and_write(&compiler, file, out_dir, &cwd) {
+        match compile_and_write(&compiler, file, out_dir, &cwd, ts_nocheck) {
             Ok(output) => {
                 println!("  compiled {}", output.path.display());
                 // The TypeScript is still on disk, because a partial
@@ -265,11 +269,36 @@ struct WrittenFile {
     had_errors: bool,
 }
 
+/// The header that stops TypeScript from checking an emitted file.
+const TS_NOCHECK_HEADER: &str = "// @ts-nocheck";
+
+/// Build the text of an emitted `.ts`/`.tsx` file.
+///
+/// Every emitted file carries `// @ts-nocheck` by default. The header
+/// exists because Floe's own checker owns these files: the user edits the
+/// `.fl` source, never the output, so a second opinion from tsc can only
+/// report an error that the user cannot act on. PR #429, which added the
+/// `.d.ts` stubs, states the same reason: "Generated `.ts`/`.tsx` files get
+/// `// @ts-nocheck` - Floe's own type checker owns those files."
+///
+/// The header also hides codegen bugs, because Floe can emit a name that
+/// nothing declares and tsc never says so. `floe build --no-ts-nocheck`
+/// drops the header so CI can run tsc over the output and find those.
+/// See issue #1470.
+fn emit_source(code: &str, ts_nocheck: bool) -> String {
+    if !ts_nocheck {
+        return code.to_string();
+    }
+
+    format!("{TS_NOCHECK_HEADER}\n{code}")
+}
+
 fn compile_and_write(
     compiler: &PackageCompiler,
     file: &Path,
     out_dir: &Path,
     cwd: &Path,
+    ts_nocheck: bool,
 ) -> Result<WrittenFile> {
     let source = read_fl_file(file)?;
     let compiled = compiler.compile_file(file, source);
@@ -295,8 +324,8 @@ fn compile_and_write(
             .with_context(|| format!("failed to create output directory {}", parent.display()))?;
     }
 
-    let code_with_header = format!("// @ts-nocheck\n{}", compiled.code);
-    std::fs::write(&out_path, &code_with_header)
+    let emitted = emit_source(&compiled.code, ts_nocheck);
+    std::fs::write(&out_path, &emitted)
         .with_context(|| format!("failed to write {}", out_path.display()))?;
 
     if !compiled.dts.is_empty() {
@@ -537,7 +566,7 @@ fn cmd_watch(path: &Path, out_dir: Option<&Path>) -> Result<()> {
     let out_dir = out_dir.unwrap_or(&default_out_dir);
 
     // Initial build
-    if let Err(e) = cmd_build(path, Some(out_dir)) {
+    if let Err(e) = cmd_build(path, Some(out_dir), true) {
         eprintln!("{e}");
     }
 
@@ -568,7 +597,7 @@ fn cmd_watch(path: &Path, out_dir: Option<&Path>) -> Result<()> {
 
     for changed_file in rx {
         println!("\n  changed: {}", changed_file.display());
-        match compile_and_write(&compiler, &changed_file, out_dir, &cwd) {
+        match compile_and_write(&compiler, &changed_file, out_dir, &cwd, true) {
             Ok(output) => println!("  compiled {}", output.path.display()),
             Err(e) => eprintln!("  error: {e}"),
         }
@@ -708,4 +737,43 @@ fn collect_fl_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, Command, TS_NOCHECK_HEADER, emit_source};
+    use clap::Parser;
+
+    fn parse_build(args: &[&str]) -> bool {
+        let cli = Cli::parse_from(args);
+        let Command::Build { no_ts_nocheck, .. } = cli.command else {
+            panic!("expected the build command");
+        };
+
+        no_ts_nocheck
+    }
+
+    #[test]
+    fn emit_source_writes_the_header_first() {
+        let emitted = emit_source("export const x = 1;\n", true);
+        assert_eq!(emitted, "// @ts-nocheck\nexport const x = 1;\n");
+        assert!(emitted.starts_with(TS_NOCHECK_HEADER));
+    }
+
+    #[test]
+    fn emit_source_omits_the_header_when_told_to() {
+        let emitted = emit_source("export const x = 1;\n", false);
+        assert_eq!(emitted, "export const x = 1;\n");
+        assert!(!emitted.contains(TS_NOCHECK_HEADER));
+    }
+
+    #[test]
+    fn build_keeps_the_header_by_default() {
+        assert!(!parse_build(&["floe", "build", "src/"]));
+    }
+
+    #[test]
+    fn build_drops_the_header_with_the_flag() {
+        assert!(parse_build(&["floe", "build", "src/", "--no-ts-nocheck"]));
+    }
 }

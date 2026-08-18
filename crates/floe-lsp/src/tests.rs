@@ -871,6 +871,163 @@ fn an_unresolved_npm_import_is_the_checkers_diagnostic() {
     );
 }
 
+// ── npm `exports` resolution tests (#1433) ─────────────────
+
+/// Write a package into a synthetic `node_modules` tree under `root`.
+fn install_package(root: &std::path::Path, name: &str, manifest: &str, files: &[(&str, &str)]) {
+    let pkg_dir = root.join("node_modules").join(name);
+    std::fs::create_dir_all(&pkg_dir).expect("create package directory");
+    std::fs::write(pkg_dir.join("package.json"), manifest).expect("write manifest");
+    for (relative, content) in files {
+        let path = pkg_dir.join(relative);
+        std::fs::create_dir_all(path.parent().expect("file has a parent")).expect("create dir");
+        std::fs::write(path, content).expect("write file");
+    }
+}
+
+/// Run the language server's import enrichment over a source string, against
+/// a project directory that holds a synthetic `node_modules` tree.
+fn enrich(
+    source: &str,
+    project_dir: &std::path::Path,
+) -> (Vec<floe_diag::Diagnostic>, SymbolIndex) {
+    let program = Parser::new(source).parse_program().unwrap();
+    let analysed = analyse::analyse_parsed(program, ModuleInputs::default());
+    let mut index = SymbolIndex::build(
+        &analysed.program,
+        &analysed.name_types,
+        &analysed.name_type_map,
+    );
+    let cache = HashMap::new();
+    let tsconfig_paths = floe_core::resolve::TsconfigPaths::default();
+    let (diags, _) = super::resolution::enrich_from_imports(
+        &analysed.program,
+        project_dir,
+        project_dir,
+        &mut index,
+        &cache,
+        &tsconfig_paths,
+    );
+
+    (diags, index)
+}
+
+/// Issue #1433: `exports` names a `.js` file and declares no `types`
+/// condition, so the language server used to report E013.
+#[test]
+fn exports_without_a_types_condition_reports_no_diagnostic() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    install_package(
+        root,
+        "zoned",
+        r#"{ "name": "zoned", "exports": { ".": { "import": "./dist/esm/index.js" } } }"#,
+        &[
+            ("dist/esm/index.js", "export function toZonedTime() {}"),
+            (
+                "dist/esm/index.d.ts",
+                "export declare function toZonedTime(date: string, tz: string): string;\n",
+            ),
+        ],
+    );
+
+    let (diags, index) = enrich(r#"import trusted { toZonedTime } from "zoned""#, root);
+
+    assert!(
+        diags.is_empty(),
+        "should resolve without a diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let symbol = index
+        .symbols
+        .iter()
+        .find(|s| s.name == "toZonedTime")
+        .expect("import symbol should exist");
+    assert!(
+        symbol.detail.contains("->"),
+        "hover detail should carry a real function type, got: {}",
+        symbol.detail
+    );
+}
+
+/// A package that ships only JavaScript is installed, so it is not E013.
+///
+/// The import is still not silent: the checker types the symbol `Foreign`
+/// and warns W004 on every call, on both paths. E013 now means one thing
+/// only, which is that the package is absent from `node_modules` (#1465).
+#[test]
+fn a_package_without_any_declaration_file_is_not_e013() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    install_package(
+        root,
+        "jsonly",
+        r#"{ "name": "jsonly", "exports": { ".": { "import": "./dist/index.js" } } }"#,
+        &[("dist/index.js", "export const value = 1;\n")],
+    );
+
+    let (diags, _) = enrich(r#"import trusted { value } from "jsonly""#, root);
+    assert!(
+        diags.is_empty(),
+        "an installed package must not report E013, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+
+    let program = Parser::new(r#"import trusted { value } from "jsonly""#)
+        .parse_program()
+        .unwrap();
+    let missing = floe_core::interop::packages::find_missing_packages(
+        &program,
+        &HashMap::new(),
+        &floe_core::resolve::TsconfigPaths::default(),
+        root,
+    );
+    assert!(
+        missing.is_empty(),
+        "the package is installed, so nothing is missing, got: {missing:?}"
+    );
+}
+
+/// A workspace hoists `node_modules` above the package that imports from it,
+/// so the language server walks up from the project directory to find it.
+#[test]
+fn a_hoisted_node_modules_resolves_from_a_nested_project_directory() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    install_package(
+        root,
+        "hoisted",
+        r#"{ "name": "hoisted", "exports": { ".": { "import": "./dist/index.js" } } }"#,
+        &[
+            ("dist/index.js", "export function shout() {}"),
+            (
+                "dist/index.d.ts",
+                "export declare function shout(text: string): string;\n",
+            ),
+        ],
+    );
+    let nested = root.join("packages").join("app");
+    std::fs::create_dir_all(&nested).expect("create the nested project directory");
+
+    let (diags, index) = enrich(r#"import trusted { shout } from "hoisted""#, &nested);
+
+    assert!(
+        diags.is_empty(),
+        "the walk-up should reach the parent node_modules, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let symbol = index
+        .symbols
+        .iter()
+        .find(|s| s.name == "shout")
+        .expect("import symbol should exist");
+    assert!(
+        symbol.detail.contains("->"),
+        "hover detail should carry a real function type, got: {}",
+        symbol.detail
+    );
+}
+
 // ── Import path go-to-definition tests (#196) ──────────────
 
 #[test]

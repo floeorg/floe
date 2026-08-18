@@ -11,80 +11,22 @@ use floe_core::resolve::TsconfigPaths;
 use super::index::SymbolIndex;
 
 /// Resolve an npm package specifier to its .d.ts file path.
-/// Walks node_modules looking for package.json types/typings field.
 ///
-/// `node:X` imports route to `@types/node/X.d.ts` (or `index.d.ts`) — the
-/// actual declarations live inside `declare module "node:X" { ... }` blocks,
-/// which the caller reads via `parse_dts_exports_for_specifier`.
+/// Walks up from the project directory, because a workspace hoists
+/// `node_modules` above the package that imports from it. The per-directory
+/// lookup, including `exports` handling and the `node:` scheme, lives in
+/// `floe_core::interop`, so the language server and the compiler resolve a
+/// specifier the same way.
 pub(super) fn resolve_npm_dts(specifier: &str, project_dir: &Path) -> Option<PathBuf> {
-    if let Some(submodule) = specifier.strip_prefix("node:") {
-        return resolve_node_builtin_dts(submodule, project_dir);
-    }
-
-    // Walk up directories looking for node_modules
     let mut dir = project_dir.to_path_buf();
     loop {
-        let pkg_dir = dir.join("node_modules").join(specifier);
-        if pkg_dir.is_dir() {
-            // Check package.json for types/typings field
-            let pkg_json = pkg_dir.join("package.json");
-            if let Ok(content) = std::fs::read_to_string(&pkg_json)
-                && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
-            {
-                // Try "types", then "typings"
-                for field in &["types", "typings"] {
-                    if let Some(types_path) = json.get(field).and_then(|v| v.as_str()) {
-                        let full = pkg_dir.join(types_path);
-                        if full.exists() {
-                            return Some(full);
-                        }
-                    }
-                }
-            }
-            // Fallback: index.d.ts
-            let index_dts = pkg_dir.join("index.d.ts");
-            if index_dts.exists() {
-                return Some(index_dts);
-            }
-        }
-
-        // Also check @types/<pkg>
-        let at_types = dir.join("node_modules").join("@types").join(specifier);
-        if at_types.is_dir() {
-            let index_dts = at_types.join("index.d.ts");
-            if index_dts.exists() {
-                return Some(index_dts);
-            }
-        }
-
-        if !dir.pop() {
-            break;
-        }
-    }
-    None
-}
-
-/// Resolve a `node:X` scheme specifier to the matching `@types/node/X.d.ts`
-/// (preferred) or the package's `index.d.ts` (fallback).
-fn resolve_node_builtin_dts(submodule: &str, project_dir: &Path) -> Option<PathBuf> {
-    let mut dir = project_dir.to_path_buf();
-    loop {
-        let at_node = dir.join("node_modules").join("@types").join("node");
-        if at_node.is_dir() {
-            let sub_dts = at_node.join(format!("{submodule}.d.ts"));
-            if sub_dts.exists() {
-                return Some(sub_dts);
-            }
-            let index_dts = at_node.join("index.d.ts");
-            if index_dts.exists() {
-                return Some(index_dts);
-            }
+        if let Some(found) = interop::find_package_dts(&dir, specifier) {
+            return Some(found);
         }
         if !dir.pop() {
-            break;
+            return None;
         }
     }
-    None
 }
 
 /// Resolve a relative import to an actual file path.

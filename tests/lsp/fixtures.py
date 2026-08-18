@@ -946,3 +946,49 @@ let test() -> number = {
     42
 }
 """
+
+RESERVED_WORD_FIELDS = """\
+type Payload = {
+    for: string,
+    class: string,
+    function: string,
+    if: string,
+}
+
+let target(p: Payload) -> string = { p.for }
+
+let style(p: Payload) -> string = { p.class }
+
+let build() -> Payload = {
+    Payload {
+        for: "name",
+        class: "row",
+        function: "submit",
+        if: "always",
+    }
+}
+"""
+
+RESERVED_WORD_BINDING = """\
+let for = 1
+"""
+
+FLOE_KEYWORD_PROPERTIES = """\
+type Widget = {
+    match: string,
+    self: string,
+    let: string,
+}
+
+let pick(w: Widget) -> string = { w.match }
+
+let view(w: Widget) -> JSX.Element = { <label match="a" fn="b" /> }
+"""
+
+FLOE_KEYWORD_BINDING = """\
+let match = 1
+"""
+
+RESERVED_WORD_PARAMETER = """\
+let label(for: string) -> string = { "submit" }
+"""

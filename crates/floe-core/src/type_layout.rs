@@ -69,6 +69,20 @@ pub const TS_UTILITY_TYPES: &[&str] = &[
     "Uncapitalize",
 ];
 
+/// Namespaces Floe owns, so a member under one resolves with no help from
+/// TypeScript.
+///
+/// `JSX` is the only one. `JSX.Element` is a Floe built-in, and the emitted
+/// TSX never meets a real global `JSX` namespace: `@types/react` 19 declares
+/// it as `React.JSX`. So the ambient tables never carry `JSX`, and the type
+/// resolver has to know it on its own.
+pub const BUILTIN_NAMESPACES: &[&str] = &["JSX"];
+
+/// True when `name` is a namespace Floe owns.
+pub fn is_builtin_namespace(name: &str) -> bool {
+    BUILTIN_NAMESPACES.contains(&name)
+}
+
 pub fn is_ts_utility_type(name: &str) -> bool {
     TS_UTILITY_TYPES.contains(&name) || is_floe_native_utility_type(name)
 }

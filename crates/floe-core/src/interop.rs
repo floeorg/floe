@@ -12,6 +12,7 @@
 
 pub mod ambient;
 mod dts;
+pub mod package_exports;
 pub mod packages;
 mod ts_types;
 pub mod tsgo;
@@ -33,6 +34,10 @@ pub use dts::{
     DtsExport, GenericParamInfo, collect_generic_param_defs_from_source, parse_dts_exports,
     parse_dts_exports_for_specifier,
 };
+// `find_package_dts` is the whole surface other modules need. The rest of
+// `package_exports` stays reachable through the module path, which is how the
+// tests read it.
+pub use package_exports::find_package_dts;
 pub use ts_types::{FunctionParam, ObjectField, TsType, ts_type_to_string};
 pub use tsgo::{TsgoResolver, TsgoResult};
 pub use wrapper::{

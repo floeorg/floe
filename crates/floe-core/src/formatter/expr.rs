@@ -1,5 +1,5 @@
 use crate::pretty::{self, Document};
-use crate::syntax::{SyntaxKind, SyntaxNode};
+use crate::syntax::{SyntaxKind, SyntaxNode, token_names_member};
 
 use super::Formatter;
 
@@ -1085,7 +1085,7 @@ impl Formatter<'_> {
             if let Some(tok) = t.as_token() {
                 if tok.kind() == SyntaxKind::DOT {
                     found_dot = true;
-                } else if found_dot && tok.kind().is_member_name() {
+                } else if found_dot && token_names_member(tok.kind(), tok.text()) {
                     parts.push(pretty::str(tok.text()));
                     break;
                 }

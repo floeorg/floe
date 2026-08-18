@@ -129,6 +129,12 @@ fn snapshot_jsx_member_expr() {
 }
 
 #[test]
+fn snapshot_reserved_word_fields() {
+    let output = compile_fixture("reserved_word_fields");
+    insta::assert_snapshot!(output);
+}
+
+#[test]
 fn snapshot_imports() {
     let output = compile_fixture("imports");
     insta::assert_snapshot!(output);

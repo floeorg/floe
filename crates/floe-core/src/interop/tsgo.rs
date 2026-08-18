@@ -23,6 +23,7 @@ use super::dts::{
     collect_function_aliases_from_file, collect_referenced_modules, expand_cross_module_aliases,
     parse_dts_exports_from_str, parse_dts_exports_with_import_sources, strip_import_sentinels,
 };
+use super::package_exports::find_package_dts;
 
 use probe_gen::generate_probe;
 #[cfg(feature = "native")]
@@ -186,8 +187,7 @@ impl TsgoResolver {
             if !seen.insert(specifier.to_string()) {
                 continue;
             }
-            let Some(dts_path) = typeof_resolve::find_package_dts(&self.project_dir, specifier)
-            else {
+            let Some(dts_path) = find_package_dts(&self.project_dir, specifier) else {
                 continue;
             };
             let Ok(content) = std::fs::read_to_string(&dts_path) else {
@@ -284,7 +284,7 @@ impl TsgoResolver {
         }
         let mut aliases_by_module: HashMap<String, HashMap<String, _>> = HashMap::new();
         for module in &referenced {
-            if let Some(dts_path) = typeof_resolve::find_package_dts(&self.project_dir, module) {
+            if let Some(dts_path) = find_package_dts(&self.project_dir, module) {
                 let aliases = collect_function_aliases_from_file(&dts_path);
                 if !aliases.is_empty() {
                     aliases_by_module.insert(module.clone(), aliases);
@@ -373,8 +373,7 @@ impl TsgoResolver {
             if let crate::parser::ast::ItemKind::Import(decl) = &item.kind {
                 let is_relative = decl.source.starts_with("./") || decl.source.starts_with("../");
                 if !is_relative
-                    && let Some(dts_path) =
-                        typeof_resolve::find_package_dts(&self.project_dir, &decl.source)
+                    && let Some(dts_path) = find_package_dts(&self.project_dir, &decl.source)
                 {
                     import_paths.entry(decl.source.clone()).or_insert(dts_path);
                 }
@@ -644,8 +643,7 @@ impl TsgoResolver {
                 // npm import — find the package .d.ts
                 let is_relative = decl.source.starts_with("./") || decl.source.starts_with("../");
                 if !is_relative
-                    && let Some(dts_path) =
-                        typeof_resolve::find_package_dts(&self.project_dir, &decl.source)
+                    && let Some(dts_path) = find_package_dts(&self.project_dir, &decl.source)
                 {
                     for spec in &decl.specifiers {
                         let name = spec.alias.as_deref().unwrap_or(&spec.name);

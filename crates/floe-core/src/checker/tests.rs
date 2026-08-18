@@ -10249,6 +10249,333 @@ fn an_ambient_global_does_not_replace_a_stdlib_module() {
     );
 }
 
+// ── Dotted type names (#1429) ────────────────────────────────────
+
+#[test]
+fn dotted_type_with_unknown_root_errors() {
+    let diags = check(
+        r#"
+type Thing = { field: Foo.Bar<number> }
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Foo.Bar`"),
+        "a dotted name with an unknown root must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_on_floe_type_errors() {
+    // Repro from #1429: `Option` is a known Floe type, but a Floe type has no
+    // members, so a dotted name under it is a typo and must not resolve.
+    let diags = check(
+        r#"
+type User = {
+    firebaseUid: Option.Option.Aaa<string>,
+    foo: Literally.Anything.You.Want<number, string>,
+}
+"#,
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Option.Option.Aaa`"),
+        "`Option.Option.Aaa` must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Literally.Anything.You.Want`"),
+        "`Literally.Anything.You.Want` must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn jsx_namespace_members_resolve() {
+    // Floe owns the `JSX` namespace. `@types/react` 19 declares it as
+    // `React.JSX`, so the ambient tables never carry a global `JSX`.
+    let diags = check(
+        r#"
+type Props = { intrinsics: JSX.IntrinsicElements }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`JSX.*` must resolve without ambient help; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn jsx_element_type_resolves() {
+    let diags = check(
+        r#"
+type Props = { child: JSX.Element }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`JSX.Element` is a built-in and must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_import_resolves() {
+    let diags = check(
+        r#"
+import trusted { z } from "zod"
+type Schema = { shape: z.ZodString }
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "a dotted name rooted at an import must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_import_below_it_resolves() {
+    // The import sits under the type that uses it. Nothing requires imports
+    // first, so the resolver must not depend on the order of the items.
+    let diags = check(
+        r#"
+type Schema = { shape: z.ZodString }
+import trusted { z } from "zod"
+"#,
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "an import below the type must still resolve it; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+/// Build a checker whose ambient tables carry `interfaces` and `namespaces`,
+/// the way `load_ambient_types` fills them from a TypeScript lib file.
+fn check_with_ambient(source: &str, interfaces: &[&str], namespaces: &[&str]) -> Vec<Diagnostic> {
+    use crate::interop::ambient::AmbientDeclarations;
+
+    let mut ambient = AmbientDeclarations::default();
+    for name in interfaces {
+        ambient
+            .types
+            .insert((*name).to_string(), Type::Record(Vec::new()));
+    }
+    for name in namespaces {
+        ambient.namespaces.insert((*name).to_string());
+    }
+    let program = Parser::new(source).parse_program().expect("parse");
+    let checker = Checker::from_context(
+        HashMap::new(),
+        HashMap::new(),
+        Some(ambient),
+        HashSet::new(),
+    );
+
+    checker.check(&program)
+}
+
+/// Build a checker whose ambient tables carry `namespaces` and no interface.
+fn check_with_ambient_namespaces(source: &str, namespaces: &[&str]) -> Vec<Diagnostic> {
+    check_with_ambient(source, &[], namespaces)
+}
+
+#[test]
+fn dotted_type_rooted_at_ambient_namespace_resolves() {
+    // `load_ambient_types` flattens `declare namespace NodeJS { interface
+    // Timeout }` to the bare key `Timeout`, so the namespace set is the only
+    // record that `NodeJS` exists.
+    let diags = check_with_ambient_namespaces(
+        r#"
+type Handle = { t: NodeJS.Timeout }
+type Fmt = { f: Intl.DateTimeFormat }
+type Props = { c: JSX.IntrinsicElements }
+"#,
+        &["NodeJS", "Intl", "JSX"],
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "a namespace-qualified lib type must resolve; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_unknown_namespace_still_errors() {
+    let diags = check_with_ambient_namespaces(
+        r#"
+type Bad = { t: NotANamespace.Timeout }
+"#,
+        &["NodeJS"],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `NotANamespace.Timeout`"),
+        "an unknown namespace root must still error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_ambient_interface_errors() {
+    // `Element` and `Document` are ambient interfaces, not namespaces. An
+    // interface has no members in a type position, so a dotted name under
+    // one is a typo. Accepting an interface root would re-open the hole
+    // that #1429 closed, because nearly every DOM and ES name is one.
+    let diags = check_with_ambient(
+        r#"
+type Bad = {
+    a: Element.Anything.You.Want<number, string>,
+    b: Document.Nope,
+}
+"#,
+        &["Element", "Document"],
+        &[],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Element.Anything.You.Want`"),
+        "an ambient interface root must not accept a dotted name; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `Document.Nope`"),
+        "an ambient interface root must not accept a dotted name; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_matches_a_qualified_ambient_namespace() {
+    // `@types/react` 19 declares `namespace React { namespace JSX { ... } }`,
+    // so the loader records the qualified name `React.JSX`. A resolver that
+    // tests the first segment alone never reads that entry.
+    let diags = check_with_ambient_namespaces(
+        r#"
+type Props = { child: React.JSX.Element }
+"#,
+        &["React.JSX"],
+    );
+    assert!(
+        !has_error_containing(&diags, "unknown type"),
+        "`React.JSX.Element` must match the entry `React.JSX`; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_outside_a_qualified_ambient_namespace_errors() {
+    // The set holds `React.JSX` and not `React`, so `React.Nope` names no
+    // namespace. Matching prefixes is more precise than matching the root.
+    let diags = check_with_ambient_namespaces(
+        r#"
+type Bad = { x: React.Nope }
+"#,
+        &["React.JSX"],
+    );
+    assert!(
+        has_error_containing(&diags, "unknown type `React.Nope`"),
+        "a prefix that names no namespace must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn dotted_type_rooted_at_an_imported_trait_errors() {
+    // `check_import` takes the trait branch and binds no value name for a
+    // trait specifier, so a trait is not a root a dotted type can stand on.
+    use std::collections::HashMap;
+
+    let mut imports = HashMap::new();
+    imports.insert("./types".to_string(), resolved_module_with_display_trait());
+
+    let source = r#"
+import { Display } from "./types"
+
+type Bad = { x: Display.Whatever }
+"#;
+    let program = Parser::new(source)
+        .parse_program()
+        .expect("parse should succeed");
+    let diags = Checker::with_imports(imports).check(&program);
+
+    assert!(
+        has_error_containing(&diags, "unknown type `Display.Whatever`"),
+        "an imported trait binds no name, so this must error; got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+// ── Rule: reserved words name fields, never values ──────────
+
+#[test]
+fn record_fields_named_after_javascript_keywords() {
+    let diags = check(
+        r#"
+type Payload = { for: string, class: string, function: string, if: string }
+let readFor(p: Payload) -> string = { p.for }
+let readClass(p: Payload) -> string = { p.class }
+let readFunction(p: Payload) -> string = { p.function }
+let readIf(p: Payload) -> string = { p.if }
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "reserved words should name record fields; got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn brace_construction_with_a_reserved_field_name() {
+    let diags = check(
+        r#"
+type Form = { for: string }
+let f = Form { for: "name" }
+let target = f.for
+"#,
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "a reserved field name should construct and read back; got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn reserved_field_keeps_its_type() {
+    let diags = check(
+        r#"
+type Form = { for: string }
+let f = Form { for: 1 }
+"#,
+    );
+    assert!(
+        diags.iter().any(|d| d.severity == Severity::Error),
+        "a number in a string field should still fail"
+    );
+}
+
+#[test]
+fn unknown_reserved_field_is_reported() {
+    let diags = check(
+        r#"
+type Form = { name: string }
+let f = Form { name: "a" }
+let target = f.for
+"#,
+    );
+    assert!(
+        diags.iter().any(|d| d.severity == Severity::Error),
+        "reading a field the type does not have should still fail"
+    );
+}
+
 // ── A missing npm package is an error, not a warning (#1465) ────
 //
 // Four rows, one for each state an npm import can be in. The compiler

@@ -1,10 +1,11 @@
 //! Typeof resolution — resolves `typeof X` types in probe output.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::parser::ast::{ItemKind, Program};
 
+use super::super::package_exports::find_package_dts;
 use super::{DtsExport, TsType};
 
 /// Resolve `typeof X` types in the specifier map by looking up X's actual type
@@ -154,55 +155,4 @@ fn load_dts_exports_for(project_dir: &Path, specifier: &str) -> Vec<DtsExport> {
         super::super::dts::parse_dts_exports(&dts_path)
     };
     parsed.unwrap_or_default()
-}
-
-/// Find the main .d.ts file for an npm package by reading its package.json.
-/// Checks both `node_modules/<pkg>` and `node_modules/@types/<pkg>`.
-pub(super) fn find_package_dts(project_dir: &Path, module_name: &str) -> Option<PathBuf> {
-    // `node:X` imports live inside `@types/node/X.d.ts` (or its index fallback)
-    // as `declare module "node:X"` blocks. Callers pair this with
-    // `parse_dts_exports_for_specifier` to surface the block's exports.
-    if let Some(submodule) = module_name.strip_prefix("node:") {
-        let at_node = project_dir.join("node_modules/@types/node");
-        let sub_dts = at_node.join(format!("{submodule}.d.ts"));
-        if sub_dts.exists() {
-            return Some(sub_dts);
-        }
-        let index_dts = at_node.join("index.d.ts");
-        if index_dts.exists() {
-            return Some(index_dts);
-        }
-        return None;
-    }
-
-    // Try the package itself first, then @types
-    let candidates = [
-        project_dir.join("node_modules").join(module_name),
-        project_dir.join("node_modules/@types").join(module_name),
-    ];
-
-    for pkg_dir in &candidates {
-        let pkg_json_path = pkg_dir.join("package.json");
-
-        if let Ok(content) = std::fs::read_to_string(&pkg_json_path)
-            && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
-        {
-            for field in &["types", "typings"] {
-                if let Some(types_path) = json[field].as_str() {
-                    let full_path = pkg_dir.join(types_path);
-                    if full_path.exists() {
-                        return Some(full_path);
-                    }
-                }
-            }
-        }
-
-        // Fallback: try index.d.ts
-        let index_dts = pkg_dir.join("index.d.ts");
-        if index_dts.exists() {
-            return Some(index_dts);
-        }
-    }
-
-    None
 }

@@ -25,6 +25,21 @@ The compiler automatically chooses `.ts` or `.tsx` based on whether the file con
 
 `floe build` writes the TypeScript for every file it can compile, so a partial build stays usable while you edit. It exits non-zero when any file reported an error.
 
+#### The `// @ts-nocheck` header
+
+Every emitted file starts with `// @ts-nocheck`, so TypeScript skips it. Floe's
+own checker owns these files: you edit the `.fl` source and never the output, so
+a second opinion from `tsc` can only report an error you cannot act on.
+
+```bash
+# Emit without the header, so tsc checks the output
+floe build src/ --no-ts-nocheck
+```
+
+Use `--no-ts-nocheck` to test the compiler, not to build an app. The header also
+hides codegen bugs, and this flag is how CI finds them. See
+[issue #1470](https://github.com/floeorg/floe/issues/1470).
+
 ### `floe check`
 
 Type-check files without generating output.
