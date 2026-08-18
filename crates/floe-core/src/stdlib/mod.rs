@@ -1154,6 +1154,15 @@ mod tests {
 
     // ── Structural validation ─────────────────────────────────
 
+    /// Every declared parameter must reach the emitted TypeScript.
+    ///
+    /// A template substitutes `$0` through `$n` and nothing else, so a
+    /// parameter with no matching placeholder is accepted by the checker
+    /// and then dropped by codegen. That is one half of glb #1492: the
+    /// user writes an argument, the compiler reports nothing, and the
+    /// argument is missing at runtime. The arity check in the checker
+    /// closes the other half, where a call passes more arguments than the
+    /// signature declares.
     #[test]
     fn all_functions_have_valid_codegen_placeholders() {
         let reg = StdlibRegistry::new();
@@ -1890,5 +1899,20 @@ mod tests {
         let reg = StdlibRegistry::new();
         let f = reg.lookup("Result", "orElse").unwrap();
         assert!(f.codegen.contains("($1)($0.error)"));
+    }
+
+    #[test]
+    fn lookup_array_sort_takes_a_number_array() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "sort").unwrap();
+        assert_eq!(f.params, vec![Type::Array(Arc::new(Type::Number))]);
+    }
+
+    #[test]
+    fn lookup_array_sort_with_passes_the_comparator_through() {
+        let reg = StdlibRegistry::new();
+        let f = reg.lookup("Array", "sortWith").unwrap();
+        assert_eq!(f.params.len(), 2);
+        assert_eq!(f.codegen, "[...$0].sort($1)");
     }
 }

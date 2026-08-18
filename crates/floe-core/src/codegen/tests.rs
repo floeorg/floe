@@ -1074,6 +1074,14 @@ fn stdlib_array_sort() {
 }
 
 #[test]
+fn stdlib_array_sort_with_calls_the_comparator() {
+    assert_eq!(
+        emit("Array.sortWith([3, 1, 2], (a, b) -> a - b)"),
+        "[...[3, 1, 2]].sort((a, b) => a - b);"
+    );
+}
+
+#[test]
 fn stdlib_array_map() {
     assert_eq!(
         emit("Array.map([1, 2], (n) -> n * 2)"),
@@ -1321,6 +1329,16 @@ fn stdlib_pipe_bare() {
     assert_eq!(
         emit("[3, 1, 2] |> Array.sort"),
         "[...[3, 1, 2]].sort((a, b) => a - b);"
+    );
+}
+
+// glb #1492. The pipe form is what the store example uses, and it is the
+// form that dropped the comparator. Pin it so the argument reaches `sort`.
+#[test]
+fn stdlib_pipe_array_sort_with_keeps_the_comparator() {
+    assert_eq!(
+        emit("[3, 1, 2] |> Array.sortWith((a, b) -> b - a)"),
+        "[...[3, 1, 2]].sort((a, b) => b - a);"
     );
 }
 

@@ -101,6 +101,48 @@ pub struct Program<T = ()> {
     pub span: Span,
 }
 
+/// The names a file declares at its own top level.
+///
+/// A bare name in a pipe, `xs |> contains(1, 2)`, resolves against the
+/// stdlib only when the file declares no such name. Both the checker and
+/// codegen ask that question, so they read this one set and stay in step.
+/// They disagreed before: the checker let `Array.contains` win the
+/// type-directed branch while codegen emitted the user's `contains`
+/// (glb #1492).
+///
+/// The set is file-scoped, not lexical. A block-local `let reverse = 5`
+/// does not shadow `Array.reverse` in a pipe, and neither pass treats it
+/// as if it did.
+pub fn file_scope_names<T>(items: &[Item<T>]) -> std::collections::HashSet<String> {
+    let mut names = std::collections::HashSet::new();
+
+    for item in items {
+        match &item.kind {
+            ItemKind::Function(decl) => {
+                names.insert(decl.name.clone());
+            }
+            ItemKind::Const(decl) => {
+                if let ConstBinding::Name(name) = &decl.binding {
+                    names.insert(name.clone());
+                }
+            }
+            ItemKind::Import(decl) => {
+                for spec in &decl.specifiers {
+                    names.insert(spec.alias.as_ref().unwrap_or(&spec.name).clone());
+                }
+            }
+            ItemKind::ForBlock(block) => {
+                for func in &block.functions {
+                    names.insert(func.name.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    names
+}
+
 /// Top-level items in a Floe file.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Item<T = ()> {

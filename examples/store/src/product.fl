@@ -93,7 +93,7 @@ let compareBy(order: SortOrder, a: Product, b: Product) -> number = {
 }
 
 export let sortProducts(products: Array<Product>, order: SortOrder) -> Array<Product> = {
-    products |> Array.sort((a, b) -> compareBy(order, a, b))
+    products |> Array.sortWith((a, b) -> compareBy(order, a, b))
 }
 
 // ── Price filtering with range matching ────────────────

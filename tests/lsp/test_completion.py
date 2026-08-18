@@ -36,6 +36,11 @@ class TestCompletionPipe:
         labels = completion_labels(lsp.completion(URI, 1, len("r = nums |> Array.")))
         assert any(m in labels for m in ["map", "filter", "reduce", "sort", "length"]), f"Labels: {labels[:15]}"
 
+    def test_array_module_offers_comparator_sort(self, lsp):
+        open_doc(lsp, URI, "nums = [1, 2, 3]\nconst r = nums |> Array.\n")
+        labels = completion_labels(lsp.completion(URI, 1, len("r = nums |> Array.")))
+        assert "sortWith" in labels, f"Labels: {labels[:30]}"
+
     def test_string_module_methods(self, lsp):
         open_doc(lsp, URI, 'let s = "hello"\nlet r = s |> String.\n')
         labels = completion_labels(lsp.completion(URI, 1, len("let r = s |> String.")))

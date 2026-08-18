@@ -249,8 +249,8 @@ result |> Result.mapErr(Validation)  // instead of Result.mapErr((e) -> Validati
 
 ```floe
 // Default: piped value becomes first argument (shorthand)
-users |> filter(.active) |> map(.name) |> sort
-// filter(users, .active) -> map(result, .name) -> sort(result)
+users |> filter(.active) |> map(.name) |> sortWith(compareName)
+// filter(users, .active) -> map(result, .name) -> sortWith(result, compareName)
 
 let result = value
     |> multiply(2)       // multiply(value, 2)
@@ -449,6 +449,9 @@ users |> Array.mapResult(validateUser)          // Result<Array<ValidUser>, Erro
 result |> Result.orElse((e) -> tryFallback(e))   // lazy fallback chain
 
 // Array helpers
+nums |> Array.sort                                // Array<number> only — sorts numerically
+products |> Array.sortBy(.price)                  // sort by a numeric key
+products |> Array.sortWith((a, b) -> compare(a, b))  // sort with a comparator: negative, zero, positive
 items |> Array.filterMap((x) -> if_valid(x))     // map + filter in one pass (callback returns Option)
 items |> Array.partition(.active)                 // (active, inactive) — split by predicate
 nested |> Array.flatten                           // Array<Array<T>> -> Array<T>

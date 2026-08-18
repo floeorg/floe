@@ -24,7 +24,7 @@ let result = [1, 2, 3, 4, 5]
     |> map((n) -> n * 10)
     |> sort
 
-users |> filter(.active) |> map(.name) |> sort
+users |> filter(.active) |> map(.name) |> sortWith(compareName)
 
 5 |> add(3, _)              // add(3, 5)
 let addTen = add(10, _)   // partial application
