@@ -27,6 +27,8 @@ The compiler automatically chooses `.ts` or `.tsx` based on whether the file con
 
 `--emit-stdout` and `floe build -` are the exception. Both print the diagnostics to stderr and still exit zero, because a dev server calls them for one file at a time and must keep serving while you fix the error. The Vite and esbuild plugins use `--emit-stdout`, so a type error never stops the dev server.
 
+`--emit-stdout` also writes a `.d.fl.ts` under `.floe/`, so an editor can resolve types through `rootDirs`. That file is a side effect and never the output. When the source sits outside the working directory, no path under `.floe/` names it, so the build skips the declaration, prints a note on stderr, and still prints the TypeScript and exits zero. Run the build from a directory that contains the source when you need the declaration.
+
 #### The `// @ts-nocheck` header
 
 Every emitted file starts with `// @ts-nocheck`, so TypeScript skips it. Floe's
