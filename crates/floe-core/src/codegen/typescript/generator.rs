@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::parser::ast::{
-    ConstBinding, ForBlock, ItemKind, TypeDef, TypedForBlock, TypedProgram, TypedTraitDecl,
-    TypedTypeDecl, TypedTypeDef,
+    ForBlock, ItemKind, TypeDef, TypedForBlock, TypedProgram, TypedTraitDecl, TypedTypeDecl,
+    TypedTypeDef, file_scope_names,
 };
 use crate::pretty::{self, Document};
 use crate::resolve::ResolvedImports;
@@ -100,7 +100,12 @@ impl TypeContext {
             }
         }
 
-        // First pass: collect union variant info, local names, traits, etc.
+        // A local definition wins over a stdlib pipe template, and the
+        // checker reads the same set, so the two passes agree on which
+        // function a bare name in a pipe calls.
+        ctx.local_names = file_scope_names(&program.items);
+
+        // First pass: collect union variant info, traits, etc.
         for item in &program.items {
             match &item.kind {
                 ItemKind::TypeDecl(decl) => {
@@ -108,23 +113,13 @@ impl TypeContext {
                     ctx.type_defs.insert(decl.name.clone(), decl.def.clone());
                 }
                 ItemKind::Function(decl) => {
-                    ctx.local_names.insert(decl.name.clone());
                     for tp in &decl.type_params {
                         for bound in &tp.bounds {
                             ctx.traits_needing_interface.insert(bound.clone());
                         }
                     }
                 }
-                ItemKind::Const(decl) => {
-                    if let ConstBinding::Name(name) = &decl.binding {
-                        ctx.local_names.insert(name.clone());
-                    }
-                }
                 ItemKind::Import(decl) => {
-                    for spec in &decl.specifiers {
-                        let name = spec.alias.as_ref().unwrap_or(&spec.name);
-                        ctx.local_names.insert(name.clone());
-                    }
                     if let Some(resolved) = ctx.resolved_imports.get(&decl.source).cloned() {
                         for block in &resolved.for_blocks {
                             ctx.register_for_block_fns(block);
@@ -145,9 +140,6 @@ impl TypeContext {
                 }
                 ItemKind::ForBlock(block) => {
                     ctx.register_for_block_fns(block);
-                    for func in &block.functions {
-                        ctx.local_names.insert(func.name.clone());
-                    }
                     if let Some(trait_name) = &block.trait_name
                         && let Some(name) = for_block_base_type_name(&block.type_name)
                     {

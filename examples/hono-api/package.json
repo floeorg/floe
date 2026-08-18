@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@floeorg/hono": "workspace:*",
-    "hono": "^4.12.18"
+    "hono": "^4.13.1"
   },
   "devDependencies": {
     "typescript": "^6.0.3"

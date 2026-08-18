@@ -879,7 +879,6 @@ impl Checker {
             // carry concrete types that unify into the fresh vars), then
             // check arrow args with lambda_param_hints set — by that point
             // the vars are bound, so hints carry concrete types.
-            let mut arg_count = 0;
 
             // Pass 1: check non-arrow args and unify each with the matching param.
             let mut non_arrow_args: Vec<(usize, Type, Span)> = Vec::new();
@@ -891,7 +890,6 @@ impl Checker {
                         let _ = unify::unify(param_ty, &actual_ty);
                     }
                     non_arrow_args.push((i, actual_ty, e.span));
-                    arg_count += 1;
                 }
             }
 
@@ -926,23 +924,19 @@ impl Checker {
                         let _ = unify::unify(param_ty, &actual_ty);
                     }
                     self.ctx.lambda_param_hints.clear();
-                    arg_count += 1;
                 }
             }
 
-            if !variadic && arg_count != expected_param_count {
-                self.emit_error(
-                    format!(
-                        "`{display}` expects {} argument{}, found {}",
-                        expected_param_count,
-                        if expected_param_count == 1 { "" } else { "s" },
-                        arg_count
-                    ),
-                    span,
-                    ErrorCode::TypeMismatch,
-                    "wrong number of arguments",
-                );
-            }
+            // Every argument goes through exactly one of the two passes, so
+            // `args.len()` is what the call supplies.
+            self.check_stdlib_arity(
+                &display,
+                expected_param_count,
+                args.len(),
+                variadic,
+                span,
+                "wrong number of arguments",
+            );
 
             return inst_ret.deep_resolved();
         }
@@ -2053,25 +2047,38 @@ impl Checker {
             _ => None,
         };
 
-        // If it's a bare name not locally defined (or is a known stdlib function),
-        // try stdlib resolution
+        // A bare name in a pipe: `xs |> reverse` or `xs |> take(2)`.
+        //
+        // A name the file declares wins over the stdlib, and codegen says the
+        // same: `try_emit_bare_stdlib_pipe` returns early for every name in
+        // its own `local_names`, so it emits the user's function. Both sets
+        // come from `ast::file_scope_names`. The type-directed branch below
+        // used to run even for a declared name, so `[1, 2] |> contains(1, 2)`
+        // typed as `Array.contains` while codegen emitted the user's
+        // `contains`. The two passes disagreed about which function the line
+        // calls, and the arity check made that audible (glb #1492).
         if let Some(name) = bare_name
             && !self.stdlib.is_module(name)
-            && (self.env.lookup(name).is_none() || !self.stdlib.lookup_by_name(name).is_empty())
+            && !self.local_names.contains(name)
         {
-            let module = type_layout::type_to_stdlib_module(left_ty);
-            let fallback_matches = self.stdlib.lookup_by_name(name);
-
-            if let Some(m) = module
+            // Type-directed: the piped type names the module, so
+            // `[1, 2] |> reverse` is `Array.reverse`.
+            if let Some(m) = type_layout::type_to_stdlib_module(left_ty)
                 && let Some(stdlib_fn) = self.stdlib.lookup(m, name).cloned()
             {
-                // Found via type-directed resolution
                 self.unused.used_names.insert(name.to_string());
                 let display = format!("{m}.{name}");
                 return self.validate_stdlib_pipe_call(&stdlib_fn, &display, left_ty, right);
-            } else if !fallback_matches.is_empty() && self.env.lookup(name).is_none() {
-                // Found via name-based fallback (only if not locally defined)
-                let stdlib_fn = fallback_matches[0].clone();
+            }
+
+            // Name-based fallback: the piped type names no module, so take the
+            // first stdlib function that carries the name.
+            if let Some(stdlib_fn) = self
+                .stdlib
+                .lookup_by_name(name)
+                .first()
+                .map(|f| (*f).clone())
+            {
                 self.unused.used_names.insert(name.to_string());
                 return self.validate_stdlib_pipe_call(&stdlib_fn, name, left_ty, right);
             }
@@ -2183,6 +2190,13 @@ impl Checker {
         left_ty: &Type,
         right: &Expr,
     ) -> Type {
+        // `x |> f` and `x |> f(a, b)` both reach here. The bare form supplies
+        // no arguments beyond the piped value.
+        let call_args: &[Arg] = match &right.kind {
+            ExprKind::Call { args, .. } => args,
+            _ => &[],
+        };
+
         // Instantiate the stdlib signature so Generics become fresh Unbounds.
         let (inst_params, inst_ret) = hydrator::instantiate_signature(
             &stdlib_fn.params,
@@ -2220,30 +2234,28 @@ impl Checker {
         // lambda return (first right-side arg's fn return) and unify it with
         // the matching instantiated param's return type.
         let mut lambda_return: Option<Type> = None;
-        if let ExprKind::Call { args, .. } = &right.kind {
-            for (i, arg) in args.iter().enumerate() {
-                let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
-                // Hints for lambda args: if the matching inst param is a
-                // Function, pre-populate lambda_param_hints so the inner
-                // params know their types.
-                let inst_param = inst_params.get(i + 1).cloned();
-                if matches!(e.kind, ExprKind::Arrow { .. })
-                    && let Some(p) = &inst_param
-                    && let Type::Function { params, .. } = p.resolved()
-                {
-                    self.ctx.lambda_param_hints = params.iter().map(|p| p.resolved()).collect();
-                }
-                let actual_ty = self.check_expr(e);
-                self.ctx.lambda_param_hints.clear();
+        for (i, arg) in call_args.iter().enumerate() {
+            let (Arg::Positional(e) | Arg::Named { value: e, .. }) = arg;
+            // Hints for lambda args: if the matching inst param is a
+            // Function, pre-populate lambda_param_hints so the inner
+            // params know their types.
+            let inst_param = inst_params.get(i + 1).cloned();
+            if matches!(e.kind, ExprKind::Arrow { .. })
+                && let Some(p) = &inst_param
+                && let Type::Function { params, .. } = p.resolved()
+            {
+                self.ctx.lambda_param_hints = params.iter().map(|p| p.resolved()).collect();
+            }
+            let actual_ty = self.check_expr(e);
+            self.ctx.lambda_param_hints.clear();
 
-                if i == 0
-                    && let Type::Function { return_type, .. } = &actual_ty
-                {
-                    lambda_return = Some(return_type.as_ref().clone());
-                }
-                if let Some(p) = &inst_param {
-                    let _ = unify::unify(p, &actual_ty);
-                }
+            if i == 0
+                && let Type::Function { return_type, .. } = &actual_ty
+            {
+                lambda_return = Some(return_type.as_ref().clone());
+            }
+            if let Some(p) = &inst_param {
+                let _ = unify::unify(p, &actual_ty);
             }
         }
 
@@ -2253,6 +2265,16 @@ impl Checker {
         ) {
             let _ = unify::unify(&return_type, actual_ret);
         }
+
+        // The piped value is argument 1, so a pipe supplies `1 + call_args.len()`.
+        self.check_stdlib_arity(
+            display_name,
+            stdlib_fn.params.len(),
+            1 + call_args.len(),
+            stdlib_fn.is_variadic(),
+            right.span,
+            "the piped value counts as argument 1",
+        );
 
         // Foreign input: generics can't be resolved, propagate Foreign
         // so chained calls like db.insert(...).values(...).returning() |> await
@@ -2268,6 +2290,45 @@ impl Checker {
             }
             _ => resolved_ret,
         }
+    }
+
+    /// Report a stdlib call that supplies the wrong number of arguments.
+    ///
+    /// A codegen template substitutes only the placeholders it declares, so
+    /// arity has to be enforced here or the mistake reaches the emitted
+    /// TypeScript. An extra argument disappears: `products |> Array.sort(cmp)`
+    /// emitted `[...products].sort((a, b) => a - b)` and dropped `cmp`
+    /// (glb #1492). A missing one leaves the placeholder behind: `xs |>
+    /// Array.take()` emitted `xs.slice(0, $1)`, which is not valid
+    /// TypeScript.
+    ///
+    /// The qualified form `Array.sort(products, cmp)` and the pipe form
+    /// `products |> Array.sort(cmp)` share this rule and this wording. They
+    /// differ only in the span they blame and the label they attach, so both
+    /// come in as arguments. A variadic function takes any number and is
+    /// exempt.
+    fn check_stdlib_arity(
+        &mut self,
+        display_name: &str,
+        expected: usize,
+        supplied: usize,
+        variadic: bool,
+        span: Span,
+        label: &'static str,
+    ) {
+        if variadic || supplied == expected {
+            return;
+        }
+
+        self.emit_error(
+            format!(
+                "`{display_name}` expects {expected} argument{}, found {supplied}",
+                if expected == 1 { "" } else { "s" }
+            ),
+            span,
+            ErrorCode::TypeMismatch,
+            label,
+        );
     }
 
     /// Collect single-letter type param names used in a function signature.

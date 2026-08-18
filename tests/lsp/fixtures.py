@@ -699,6 +699,21 @@ let never(x: boolean) -> string = {
 }
 """
 
+SORT_WITH = """\
+type Product = { title: string, rating: number }
+
+let products: Array<Product> = []
+let byRating = products |> Array.sortWith((a, b) -> b.rating - a.rating)
+let byNumber = [3, 1, 2] |> Array.sort
+"""
+
+# glb #1492. A pipe used to accept any number of arguments, so the
+# comparator here was dropped from the emitted TypeScript with no
+# diagnostic at all. `Array.sort` takes only the array.
+STDLIB_PIPE_EXTRA_ARG = """\
+let sorted = [3, 1, 2] |> Array.sort((a, b) -> a - b)
+"""
+
 MAP_SET = """\
 let config = Map.fromArray([("host", "localhost"), ("port", "8080")])
 let updated = config |> Map.set("port", "3000")

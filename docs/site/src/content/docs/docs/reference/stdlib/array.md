@@ -22,6 +22,7 @@ All stdlib functions are **pipe-friendly**: the first argument is the data, so t
 |----------|-----------|-------------|
 | `Array.sort` | `(Array<number>) -> Array<number>` | Sort numerically (returns new array) |
 | `Array.sortBy` | `(Array<T>, (T) -> number) -> Array<T>` | Sort by numeric key function |
+| `Array.sortWith` | `(Array<T>, (T, T) -> number) -> Array<T>` | Sort with a comparator (negative, zero, positive) |
 | `Array.map` | `(Array<T>, (T) -> U) -> Array<U>` | Transform each element |
 | `Array.filter` | `(Array<T>, (T) -> boolean) -> Array<T>` | Keep elements matching predicate |
 | `Array.find` | `(Array<T>, (T) -> boolean) -> Option<T>` | First element matching predicate |
@@ -67,6 +68,12 @@ All stdlib functions are **pipe-friendly**: the first argument is the data, so t
 let nums = [3, 1, 2]
 let sorted = Array.sort(nums)     // [1, 2, 3]
 // nums is still [3, 1, 2]
+
+// Array.sort takes an Array<number> and nothing else. Sort any other
+// element type by a numeric key with sortBy, or by a comparator with
+// sortWith.
+let byPrice = products |> Array.sortBy(.price)
+let byTitle = products |> Array.sortWith((a, b) -> a.title |> String.localeCompare(b.title))
 
 // Safe access returns Option
 let first = Array.head([1, 2, 3])  // Some(1)

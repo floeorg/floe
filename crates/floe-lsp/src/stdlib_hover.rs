@@ -225,7 +225,7 @@ mod tests {
         assert!(result.is_some());
         let text = result.unwrap();
         assert!(text.contains("Array.sort"));
-        assert!(text.contains("Array<T>"));
+        assert!(text.contains("Array<number>"));
         assert!(text.contains("Stdlib function from `Array`"));
     }
 

@@ -285,6 +285,13 @@ class TestHoverImprovements403:
         h = hover_text(lsp.hover(URI, 0, 4))
         assert h is not None and '= ""' in h and "= 20" in h, f"Got: {h}"
 
+    def test_array_sort_with_shows_the_comparator(self, lsp):
+        """`Array.sortWith` hover names the two-argument comparator (#1492)."""
+        open_doc(lsp, URI, F.SORT_WITH)
+        h = hover_text(lsp.hover(URI, 3, len("let byRating = products |> Array.so")))
+        assert h is not None and "sortWith" in h, f"Got: {h}"
+        assert "(T, T) -> number" in h, f"Expected a comparator signature, got: {h}"
+
     def test_from_keyword_not_array_from(self, lsp):
         """Issue #507: 'from' in import should not show Array.from."""
         open_doc(lsp, URI,'import { useState } from "react"\nconst x = 42\n')

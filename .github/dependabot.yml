@@ -66,3 +66,14 @@ updates:
     # the full set.
     cooldown:
       default-days: 7
+    groups:
+      # security.yml reaches into google/osv-scanner-action three times: the
+      # reusable workflow for pushes and the schedule, plus the scanner
+      # action and the reporter action inlined in the pull request job.
+      # Dependabot tracks each path as its own dependency, so an ungrouped
+      # release arrives as three pull requests that can land out of order and
+      # leave the three on different versions. Group them so they move
+      # together.
+      osv-scanner-action:
+        patterns:
+          - "google/osv-scanner-action*"

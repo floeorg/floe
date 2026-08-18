@@ -18,14 +18,14 @@ let result = "hello" |> toUpperCase
 let result = users
   |> filter(.active)
   |> map(.name)
-  |> sort
+  |> sortWith(compareName)
   |> join(", ")
 ```
 
 Compiles to:
 
 ```typescript
-let result = join(sort(map(filter(users, (u) => u.active), (u) => u.name)), ", ");
+let result = join(sortWith(map(filter(users, (u) => u.active), (u) => u.name), compareName), ", ");
 ```
 
 The piped version reads like a recipe: take users, filter, map, sort, join.
@@ -86,8 +86,11 @@ let result = users
   |> Array.filter(.active)
   |> tap(Console.log)          // logs filtered users, passes them through
   |> Array.map(.name)
-  |> Array.sort
+  |> Array.sortWith((a, b) -> a |> String.localeCompare(b))
 ```
+
+`Array.sort` takes an `Array<number>`, so a list of names sorts with
+`Array.sortWith` and a comparator.
 
 `tap` calls the function you give it (for side effects like logging), then returns the original value unchanged. It compiles to an IIFE that calls the function and returns the value.
 
