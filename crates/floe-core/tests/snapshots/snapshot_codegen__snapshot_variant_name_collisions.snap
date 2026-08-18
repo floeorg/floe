@@ -1,0 +1,21 @@
+---
+source: crates/floe-core/tests/snapshot_codegen.rs
+expression: output
+---
+type Bag = { __tag: "Ok"; _0: number; _1: number } | { __tag: "Err"; value: number } | { __tag: "Some"; value: number } | { __tag: "None" } | { __tag: "Missing" };
+
+function readBag(b: Bag): number {
+  return b.__tag === "Ok" ? (() => { const a = b._0; const c = b._1; return a + c; })() : b.__tag === "Err" ? (() => { const code = b.value; return code; })() : b.__tag === "Some" ? (() => { const v = b.value; return v; })() : b.__tag === "None" ? 1 : b.__tag === "Missing" ? 0 : (() => { throw new Error("non-exhaustive match"); })();
+}
+
+function readGuarded(b: Bag): number {
+  return b.__tag === "Ok" ? (() => { const a = b._0; const c = b._1; if (a > 0) { return a + c; } return b.__tag === "Err" ? (() => { const code = b.value; if (code > 0) { return code; } return b.__tag === "Some" ? (() => { const v = b.value; if (v > 0) { return v; } return 0; })() : 0; })() : b.__tag === "Some" ? (() => { const v = b.value; if (v > 0) { return v; } return 0; })() : 0; })() : b.__tag === "Err" ? (() => { const code = b.value; if (code > 0) { return code; } return b.__tag === "Some" ? (() => { const v = b.value; if (v > 0) { return v; } return 0; })() : 0; })() : b.__tag === "Some" ? (() => { const v = b.value; if (v > 0) { return v; } return 0; })() : 0;
+}
+
+function readResult(r: { ok: true; value: number } | { ok: false; error: string }): number {
+  return r.ok === true ? (() => { const v = r.value; return v; })() : r.ok === false ? 0 : (() => { throw new Error("non-exhaustive match"); })();
+}
+
+function readOption(o: number | null | undefined): number {
+  return o != null ? (() => { const v = o; return v; })() : o == null ? 0 : (() => { throw new Error("non-exhaustive match"); })();
+}

@@ -1,0 +1,49 @@
+// A user union may name a variant Ok, Err, Some or None. The subject's
+// type picks the runtime layout, the variant name does not. See #1532.
+//
+// Every arm below must read the same shape the emitted `type Bag` declares:
+// `._0` and `._1` for two positional fields, `.value` for one, and a
+// `__tag` test for the unit variant.
+
+type Bag = | Ok(number, number)
+    | Err(number)
+    | Some(number)
+    | None
+    | Missing
+
+let readBag(b: Bag) -> number = {
+    match b {
+        Ok(a, c) -> a + c,
+        Err(code) -> code,
+        Some(v) -> v,
+        None -> 1,
+        Missing -> 0,
+    }
+}
+
+// The guard path collects bindings through a second call site.
+
+let readGuarded(b: Bag) -> number = {
+    match b {
+        Ok(a, c) when a > 0 -> a + c,
+        Err(code) when code > 0 -> code,
+        Some(v) when v > 0 -> v,
+        _ -> 0,
+    }
+}
+
+// The builtin Result and Option keep their own layouts.
+
+let readResult(r: Result<number, string>) -> number = {
+    match r {
+        Ok(v) -> v,
+        Err(_) -> 0,
+    }
+}
+
+let readOption(o: Option<number>) -> number = {
+    match o {
+        Some(v) -> v,
+        None -> 0,
+    }
+}

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::checker::Type;
 use crate::lexer::span::Span;
 use crate::parser::ast::{
     ExprKind, ItemKind, LiteralPattern, Pattern, PatternKind, StringPatternSegment, TypedExpr,
@@ -44,7 +45,12 @@ impl<'a> TypeScriptGenerator<'a> {
 
         if let Some(guard) = &arm.guard {
             let subject_str = self.emit_expr_string(subject);
-            let bindings = collect_bindings(&subject_str, &arm.pattern, &self.ctx.variant_info);
+            let bindings = collect_bindings(
+                &subject_str,
+                &subject.ty,
+                &arm.pattern,
+                &self.ctx.variant_info,
+            );
             let has_bindings = !bindings.is_empty();
 
             if has_bindings {
@@ -266,7 +272,7 @@ impl<'a> TypeScriptGenerator<'a> {
         }
 
         let subject_str = self.emit_expr_string(subject);
-        let bindings = collect_bindings(&subject_str, pattern, &self.ctx.variant_info);
+        let bindings = collect_bindings(&subject_str, &subject.ty, pattern, &self.ctx.variant_info);
         let needs_iife = !bindings.is_empty() || matches!(body.kind, ExprKind::Block(_));
         if needs_iife {
             let has_await = expr_contains_await(subject) || expr_contains_await(body);
@@ -373,19 +379,30 @@ fn append_string_pattern_regex_body(s: &mut String, segments: &[StringPatternSeg
 }
 
 /// Collect variable bindings from a match pattern. `subject_str` is the
-/// already-rendered JS expression for the subject (e.g. `"user.role"`).
+/// already-rendered JS expression for the subject (e.g. `"user.role"`), and
+/// `subject_ty` is the type the checker resolved for it. The type picks the
+/// runtime layout, so a user union with a variant named `Ok`, `Err`, `Some`
+/// or `None` reads its own fields instead of the builtin ones.
 pub(super) fn collect_bindings(
     subject_str: &str,
+    subject_ty: &Type,
     pattern: &Pattern,
     variant_info: &HashMap<String, (String, Vec<String>)>,
 ) -> Vec<(String, String)> {
     let mut bindings = Vec::new();
-    collect_bindings_inner(subject_str, pattern, variant_info, &mut bindings);
+    collect_bindings_inner(
+        subject_str,
+        subject_ty,
+        pattern,
+        variant_info,
+        &mut bindings,
+    );
     bindings
 }
 
 fn collect_bindings_inner(
     subject_str: &str,
+    subject_ty: &Type,
     pattern: &Pattern,
     variant_info: &HashMap<String, (String, Vec<String>)>,
     bindings: &mut Vec<(String, String)>,
@@ -400,7 +417,8 @@ fn collect_bindings_inner(
             for (i, field_name, field_pat) in fields.entries() {
                 let field_access = match field_name {
                     Some(fname) => format!("{subject_str}.{fname}"),
-                    None => type_layout::variant_field_accessor(
+                    None => type_layout::variant_field_accessor_for(
+                        subject_ty,
                         name,
                         i,
                         total,
@@ -408,25 +426,33 @@ fn collect_bindings_inner(
                         subject_str,
                     ),
                 };
-                collect_bindings_inner(&field_access, field_pat, variant_info, bindings);
+                // A field's own type is not carried on the pattern, so a
+                // nested variant pattern falls back to name-based layout.
+                collect_bindings_inner(
+                    &field_access,
+                    &Type::Unknown,
+                    field_pat,
+                    variant_info,
+                    bindings,
+                );
             }
         }
         PatternKind::Record { fields } => {
             for (name, pat) in fields {
                 let field_access = format!("{subject_str}.{name}");
-                collect_bindings_inner(&field_access, pat, variant_info, bindings);
+                collect_bindings_inner(&field_access, &Type::Unknown, pat, variant_info, bindings);
             }
         }
         PatternKind::Tuple(patterns) => {
             for (i, pat) in patterns.iter().enumerate() {
                 let elem_access = format!("{subject_str}[{i}]");
-                collect_bindings_inner(&elem_access, pat, variant_info, bindings);
+                collect_bindings_inner(&elem_access, &Type::Unknown, pat, variant_info, bindings);
             }
         }
         PatternKind::Array { elements, rest } => {
             for (i, pat) in elements.iter().enumerate() {
                 let elem_access = format!("{subject_str}[{i}]");
-                collect_bindings_inner(&elem_access, pat, variant_info, bindings);
+                collect_bindings_inner(&elem_access, &Type::Unknown, pat, variant_info, bindings);
             }
             if let Some(name) = rest
                 && name != "_"
