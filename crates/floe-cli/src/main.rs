@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 
 use floe_core::analyse::{self, ExternTypes, ModuleInputs};
@@ -10,6 +10,42 @@ use floe_core::codegen::Codegen;
 use floe_core::diagnostic;
 use floe_core::find_project_dir;
 use floe_core::resolve::{self, ResolvedImports, TsconfigPaths};
+
+/// The working directory, with every symlink resolved.
+///
+/// The build names a source file relative to this directory, and it
+/// canonicalizes the source first. Both sides of that comparison must be
+/// canonical, or the comparison fails on a machine whose working directory
+/// holds a symlink.
+fn current_working_dir() -> Result<PathBuf> {
+    let cwd = std::env::current_dir().context("failed to get current directory")?;
+
+    Ok(cwd.canonicalize().unwrap_or(cwd))
+}
+
+/// Name a canonical source path relative to the working directory.
+///
+/// The build writes to `out_dir.join(relative)`, and `Path::join` throws the
+/// base away when the argument is absolute. A source that sits outside the
+/// working directory therefore used to escape `out_dir` and land beside its
+/// own `.fl` file: `floe build ../other/src/` wrote TypeScript into the
+/// source tree. That is how the example apps grew 30 committed emitted
+/// files, and issue #1557 removed them.
+///
+/// This function refuses instead. No invented name is safe, because every
+/// one of them writes output that no `rootDirs` entry reads, which is the
+/// same silent failure under a new path. The caller reports the error, and
+/// the message names the one action that fixes it.
+fn source_relative_to_cwd<'a>(canonical: &'a Path, cwd: &Path) -> Result<&'a Path> {
+    canonical.strip_prefix(cwd).map_err(|_| {
+        anyhow!(
+            "cannot place the output for {}: the source is outside the working directory {}. \
+             Run `floe build` from a directory that contains the source.",
+            canonical.display(),
+            cwd.display()
+        )
+    })
+}
 
 /// Resolve the source directory, project directory, and tsconfig paths for a file.
 fn resolve_context(file_path: &Path) -> (PathBuf, PathBuf, TsconfigPaths) {
@@ -192,8 +228,8 @@ fn cmd_build_file_stdout(path: &Path) -> Result<()> {
         let canonical = path
             .canonicalize()
             .with_context(|| format!("failed to canonicalize {}", path.display()))?;
-        let cwd = std::env::current_dir().context("failed to get current directory")?;
-        let relative = canonical.strip_prefix(&cwd).unwrap_or(&canonical);
+        let cwd = current_working_dir()?;
+        let relative = source_relative_to_cwd(&canonical, &cwd)?;
         let project_dir = find_project_dir(&cwd);
         let out_dir = project_dir.join(".floe");
         let dts_name = format!(
@@ -240,7 +276,7 @@ fn cmd_build_stdin() -> Result<()> {
 
 fn cmd_build(path: &Path, out_dir: Option<&Path>, ts_nocheck: bool) -> Result<()> {
     let files = ensure_fl_files_found(path)?;
-    let cwd = std::env::current_dir().context("failed to get current directory")?;
+    let cwd = current_working_dir()?;
     let project_dir = find_project_dir(&cwd);
     let default_out_dir = project_dir.join(".floe");
     let out_dir = out_dir.unwrap_or(&default_out_dir);
@@ -336,7 +372,7 @@ fn compile_and_write(
     let canonical = file
         .canonicalize()
         .with_context(|| format!("failed to canonicalize {}", file.display()))?;
-    let relative = canonical.strip_prefix(cwd).unwrap_or(&canonical);
+    let relative = source_relative_to_cwd(&canonical, cwd)?;
     let out_path = out_dir.join(relative).with_extension(ext);
 
     if let Some(parent) = out_path.parent() {
@@ -595,7 +631,7 @@ fn cmd_watch(path: &Path, out_dir: Option<&Path>) -> Result<()> {
         eprintln!("{e}");
     }
 
-    let cwd = std::env::current_dir().context("failed to get current directory")?;
+    let cwd = current_working_dir()?;
     let project_dir = find_project_dir(&cwd);
     let compiler = PackageCompiler::new(project_dir);
 

@@ -87,7 +87,7 @@ const productRoute = createRoute({
   component: () => {
     const { productId } = productRoute.useParams();
     const { addToCart } = useStore();
-    const pid: ProductId = { tag: "ProductId" as const, value: Number(productId) };
+    const pid: ProductId = { __tag: "ProductId" as const, value: Number(productId) };
     return (
       <ProductDetailPage
         productId={pid}
