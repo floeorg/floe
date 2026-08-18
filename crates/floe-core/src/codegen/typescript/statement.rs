@@ -9,6 +9,7 @@ use crate::type_layout;
 use crate::type_layout::TAG_FIELD;
 
 use super::super::{escape_string, for_block_base_type_name, for_block_fn_name};
+use super::expression::{PipeStep, collect_block_is_async};
 use super::generator::TypeScriptGenerator;
 
 impl<'a> TypeScriptGenerator<'a> {
@@ -229,7 +230,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 self.emit_expr_string(&step.expr)
             };
 
-            let needs_await = step_code.starts_with("(async ");
+            let needs_await = Self::step_needs_await(step);
 
             if i > 0 {
                 docs.push(pretty::line());
@@ -268,6 +269,31 @@ impl<'a> TypeScriptGenerator<'a> {
             }
         }
         pretty::concat(docs)
+    }
+
+    /// Decide whether an unwrap-chain step binds a promise its temp must
+    /// resolve before the next line reads it.
+    ///
+    /// This used to test `step_code.starts_with("(async ")`, a string test on
+    /// generated text, and the string answered the wrong question. It fired on
+    /// every async IIFE, including the ones whose type already says
+    /// `Promise<...>`, so `x? |> Http.get` put `await` inside a function
+    /// codegen never marked `async` (glb #1522).
+    ///
+    /// The step's type is what the chain wants the temp to hold. A
+    /// `Promise<...>` step keeps its promise: the next step is `Promise.await`,
+    /// which resolves it, or the const binds it. The one promise the type does
+    /// not record is a `collect { ... }` block with an await inside, which
+    /// codegen wraps in an async IIFE while the block keeps its `Result` type,
+    /// so this reads the same predicate `emit_collect_block` reads.
+    fn step_needs_await(step: &PipeStep) -> bool {
+        if matches!(&*step.ty, crate::checker::Type::Promise(_)) {
+            return false;
+        }
+        match &step.expr.kind {
+            ExprKind::Collect(items) => collect_block_is_async(items),
+            _ => false,
+        }
     }
 
     #[allow(clippy::unused_self)]

@@ -26,19 +26,14 @@ impl<'a> TypeScriptGenerator<'a> {
             return Some(self.apply_stdlib_template(template, &arg_strings));
         }
 
-        // Receiver-style stdlib call: `arr.map(f)` where `arr: Array<T>` —
-        // dispatch through the receiver's type. The receiver becomes the
-        // first stdlib argument so the emitted template lines up with the
-        // pipe form.
-        if let Some(module) = crate::type_layout::type_to_stdlib_module(&object.ty)
-            && let Some(stdlib_fn) = self.ctx.stdlib.lookup(module, field)
-        {
-            let template = stdlib_fn.codegen.to_string();
-            let object_str = self.emit_expr_string(object);
-            let mut arg_strings = vec![object_str];
-            arg_strings.extend(self.emit_arg_strings(args));
-            return Some(self.apply_stdlib_template(&template, &arg_strings));
-        }
+        // Receiver style, `x.field(args)`, gets no stdlib dispatch here. The
+        // checker has no receiver-style rule, so a dispatch on the receiver's
+        // type fires only where the checker decided something else. On a user
+        // `type Date = { month: () -> number }` the checker resolves the
+        // record field and codegen emitted `(x.getMonth() + 1)` against a
+        // record with no such method (glb #1522). Receiver style now emits the
+        // plain member call the checker validated. `Array.map(arr, f)` above
+        // and `arr |> map(f)` remain the two forms that reach the stdlib.
 
         None
     }

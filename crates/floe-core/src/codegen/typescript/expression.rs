@@ -14,6 +14,11 @@ use super::generator::{THROW_NOT_IMPLEMENTED, THROW_UNREACHABLE, TypeScriptGener
 /// A single step in a flattened pipe+unwrap chain.
 pub(super) struct PipeStep {
     pub expr: TypedExpr,
+    /// The checker's type for the value this step produces. For a pipe step
+    /// that is the enclosing `Pipe` node, not `expr`: `expr` holds only the
+    /// right side, and the step emits the whole pipe. `emit_const_unwrap`
+    /// reads this to decide whether the step needs `await`.
+    pub ty: std::sync::Arc<crate::checker::Type>,
     pub unwrap: bool,
     pub is_pipe: bool,
 }
@@ -643,11 +648,7 @@ impl<'a> TypeScriptGenerator<'a> {
     // ── Collect Block ───────────────────────────────────────────
 
     fn emit_collect_block(&mut self, items: &[TypedItem]) -> Document {
-        let has_await = items.iter().any(|item| match &item.kind {
-            ItemKind::Expr(e) => expr_contains_await(e),
-            ItemKind::Const(c) => expr_contains_await(&c.value),
-            _ => false,
-        });
+        let has_await = collect_block_is_async(items);
 
         let mut inner = Vec::new();
         inner.push(pretty::line());
@@ -861,6 +862,7 @@ impl<'a> TypeScriptGenerator<'a> {
                     Self::collect_pipe_steps(left, steps);
                     steps.push(PipeStep {
                         expr: (**right).clone(),
+                        ty: inner.ty.clone(),
                         unwrap: true,
                         is_pipe: true,
                     });
@@ -868,6 +870,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 _ => {
                     steps.push(PipeStep {
                         expr: (**inner).clone(),
+                        ty: inner.ty.clone(),
                         unwrap: true,
                         is_pipe: false,
                     });
@@ -877,6 +880,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 Self::collect_pipe_steps(left, steps);
                 steps.push(PipeStep {
                     expr: (**right).clone(),
+                    ty: expr.ty.clone(),
                     unwrap: false,
                     is_pipe: true,
                 });
@@ -884,12 +888,29 @@ impl<'a> TypeScriptGenerator<'a> {
             _ => {
                 steps.push(PipeStep {
                     expr: expr.clone(),
+                    ty: expr.ty.clone(),
                     unwrap: false,
                     is_pipe: false,
                 });
             }
         }
     }
+}
+
+/// Check whether `emit_collect_block` wraps these items in an async IIFE.
+///
+/// A `collect { ... }` block that awaits inside emits `(async () => { ... })()`,
+/// so the emitted expression is a promise. The block's own type stays the
+/// `Result` it collects, so no type read can see that promise. This is the one
+/// async IIFE codegen builds for a reason the checker's type does not record,
+/// and `emit_const_unwrap` reads this same function rather than the emitted
+/// text (glb #1522).
+pub(super) fn collect_block_is_async(items: &[TypedItem]) -> bool {
+    items.iter().any(|item| match &item.kind {
+        ItemKind::Expr(e) => expr_contains_await(e),
+        ItemKind::Const(c) => expr_contains_await(&c.value),
+        _ => false,
+    })
 }
 
 /// Check if an expression tree contains a Promise.await stdlib call.
