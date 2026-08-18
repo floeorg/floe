@@ -11129,3 +11129,72 @@ export let main() -> string = { shout("hello") }
         diags.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+// ── A warning must not delete the expression (#1493) ───────────
+
+/// `useSuspenseQuery` resolves to a `typeof` reference that tsgo could
+/// not expand, so the checker types it `Foreign` and warns W004 on the
+/// call. The call is still real code. Before #1493, `check_expr`
+/// counted every diagnostic, so the warning marked the call invalid,
+/// `attach_types` replaced it with `Invalid`, and codegen wrote
+/// `undefined /* type error */` into the shipped file while `floe
+/// check` exited 0.
+#[test]
+fn a_warning_alone_does_not_mark_an_expression_invalid() {
+    use crate::interop::{DtsExport, TsType};
+
+    let source = r#"
+import trusted { mystery } from "mystery-pkg"
+export let main() -> unknown = { mystery(1) }
+"#;
+    let program = Parser::new(source).parse_program().expect("parse");
+    let mut dts = HashMap::new();
+    dts.insert(
+        "mystery-pkg".to_string(),
+        vec![DtsExport {
+            name: "mystery".to_string(),
+            ts_type: TsType::Named("typeof mystery".to_string()),
+        }],
+    );
+    let checker = Checker::from_context(HashMap::new(), dts, None, HashSet::new());
+    let (diags, _types, invalid_exprs, _shadowed) = checker.check_full(&program);
+
+    assert!(
+        has_error(&diags, ErrorCode::UncheckedForeignArguments),
+        "the unresolved npm callee must still warn, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        diags.iter().all(|d| d.severity != Severity::Error),
+        "the warning must not come with an error, got: {:?}",
+        diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        invalid_exprs.is_empty(),
+        "a warning must leave the expression emittable, got {} invalid expressions",
+        invalid_exprs.len()
+    );
+}
+
+/// The other half of the rule: an error still marks the expression
+/// invalid, so codegen knows it has nothing to emit.
+#[test]
+fn an_error_still_marks_an_expression_invalid() {
+    let source = "export let main() -> number = { bogusName(1) }";
+    let program = Parser::new(source).parse_program().expect("parse");
+    let (diags, _types, invalid_exprs, _shadowed) = Checker::new().check_full(&program);
+
+    assert!(
+        has_error(&diags, ErrorCode::UndefinedName),
+        "the undefined name must report E002, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    assert!(
+        !invalid_exprs.is_empty(),
+        "an error must mark the expression invalid"
+    );
+}

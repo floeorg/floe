@@ -174,6 +174,17 @@ fn cmd_build_file_stdout(path: &Path) -> Result<()> {
 
     let result = compile_source(path, &filename, &source)?;
     let output = Codegen::with_imports(&result.resolved).generate(&result.program);
+    // Codegen reports what it could not emit. Render it here, because
+    // this path prints the TypeScript and never runs `floe check`.
+    report_diagnostics(&filename, &source, &output.diagnostics);
+    // Then fail the run. `@floeorg/core` drives this path with
+    // `execFileSync`, which throws on a non-zero exit only and drops
+    // stderr when the exit is zero. A zero exit here hands the Vite and
+    // esbuild plugins a file holding `undefined` where a value belongs,
+    // and prints the reason onto a stream nobody reads (#1493).
+    if has_errors(&output.diagnostics) {
+        bail!("{filename}: codegen has no TypeScript for this file");
+    }
     print!("{}", output.code);
 
     // Write .d.fl.ts to .floe/ so TypeScript can resolve types via rootDirs
@@ -214,6 +225,12 @@ fn cmd_build_stdin() -> Result<()> {
 
     let result = compile_source(file_path, &filename, &source)?;
     let output = Codegen::with_imports(&result.resolved).generate(&result.program);
+    report_diagnostics(&filename, &source, &output.diagnostics);
+    // Same contract as the file path above: exit non-zero, so the caller
+    // that pipes this stdout learns the file is not usable (#1493).
+    if has_errors(&output.diagnostics) {
+        bail!("{filename}: codegen has no TypeScript for this file");
+    }
     print!("{}", output.code);
 
     Ok(())
@@ -453,6 +470,11 @@ fn cmd_test(path: &Path) -> Result<()> {
         let output = Codegen::with_imports(&resolved)
             .with_test_mode()
             .generate(&analysed.program);
+        if has_errors(&output.diagnostics) {
+            report_diagnostics(filename, source, &output.diagnostics);
+            errors += 1;
+            continue;
+        }
 
         // Write to a temp file and execute with a JS runtime
         let ext = if output.has_jsx { "tsx" } else { "ts" };

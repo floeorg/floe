@@ -82,6 +82,17 @@ fn compile_inner(source: &str) -> CompileResult {
     let typed_program =
         floe_core::checker::attach_types(program, &expr_types, &invalid_exprs, &shadowed_keywords);
     let output = Codegen::new().generate(&typed_program);
+    // Codegen reports the expressions it could not emit, so the
+    // playground shows them next to the checker's (#1493).
+    for d in &output.diagnostics {
+        all_diagnostics.push(JsDiagnostic {
+            severity: format!("{:?}", d.severity),
+            message: d.message.clone(),
+            line: d.span.line as u32,
+            column: d.span.column as u32,
+            code: d.code.clone(),
+        });
+    }
 
     CompileResult {
         output: output.code,
