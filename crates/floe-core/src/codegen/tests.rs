@@ -3766,3 +3766,109 @@ export async let wrap() -> Result<number, Error> = {
         "the call itself returns no promise, so its value must not be awaited, got: {result}"
     );
 }
+
+// ── Codegen reports what it cannot emit (#1493) ────────────────
+
+/// Run the production pipeline and hand back the whole codegen result,
+/// so a test can read the emitted code and the diagnostics together.
+fn emit_with_diagnostics(input: &str) -> CodegenOutput {
+    let mut program = Parser::new(input).parse_program().expect("parse");
+    let (_diags, expr_types, invalid_exprs, shadowed) =
+        crate::checker::Checker::new().check_full(&program);
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
+    let typed = crate::checker::attach_types(program, &expr_types, &invalid_exprs, &shadowed);
+
+    Codegen::new().generate(&typed)
+}
+
+/// How many E059 diagnostics the run reported.
+fn count_unemittable(output: &CodegenOutput) -> usize {
+    output
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            d.code.as_deref()
+                == Some(crate::checker::error_codes::ErrorCode::UnemittableExpression.code())
+        })
+        .count()
+}
+
+/// Codegen used to write the string `undefined /* type error */` into
+/// the file for an expression the checker had rejected. A comment in
+/// the output is not a diagnostic: nothing reads it, and the build
+/// stayed green. Codegen now reports E059 instead.
+#[test]
+fn an_expression_codegen_cannot_emit_reports_a_diagnostic() {
+    let output = emit_with_diagnostics("export let main() -> number = { bogusName(1) }");
+
+    assert!(
+        !output.code.contains("/* type error */"),
+        "no marker may reach the output, got: {}",
+        output.code
+    );
+    assert_eq!(
+        count_unemittable(&output),
+        1,
+        "codegen must report E059 once, got: {:?}",
+        output
+            .diagnostics
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+/// One expression is one message. Three broken expressions must give
+/// three, so a reader can find each one. The count is the point: a
+/// dedup that collapsed them all would still satisfy an `any` check.
+#[test]
+fn three_expressions_codegen_cannot_emit_report_three_diagnostics() {
+    let output = emit_with_diagnostics(
+        "export let a() -> number = { bogusOne(1) }\n\
+         export let b() -> number = { bogusTwo(2) }\n\
+         export let c() -> number = { bogusThree(3) }\n",
+    );
+
+    assert_eq!(
+        count_unemittable(&output),
+        3,
+        "each broken expression must report once, got: {:?}",
+        output
+            .diagnostics
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+/// The other half of the rule. Codegen emits a match scrutinee once per
+/// arm, so one broken scrutinee reaches `ExprKind::Invalid` more than
+/// once. It is still one expression, so it is one message.
+#[test]
+fn a_scrutinee_codegen_emits_twice_reports_one_diagnostic() {
+    let output = emit_with_diagnostics(
+        "type Color = Red | Green\n\
+         export let pick() -> string = {\n\
+           match bogusScrutinee(1) {\n\
+             Red -> \"r\",\n\
+             Green -> \"g\",\n\
+           }\n\
+         }\n",
+    );
+
+    assert!(
+        output.code.matches("undefined.__tag").count() > 1,
+        "this test is only meaningful while codegen emits the scrutinee more than once, got: {}",
+        output.code
+    );
+    assert_eq!(
+        count_unemittable(&output),
+        1,
+        "one expression is one message, however many times codegen emits it, got: {:?}",
+        output
+            .diagnostics
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}

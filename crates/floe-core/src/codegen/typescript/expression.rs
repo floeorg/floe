@@ -295,7 +295,16 @@ impl<'a> TypeScriptGenerator<'a> {
                 None => pretty::concat([pretty::str("(_x) => _x."), pretty::str(field)]),
             },
 
-            ExprKind::Invalid => pretty::str("undefined /* type error */"),
+            // The checker rejected this expression, so `attach_types`
+            // replaced the subtree with `Invalid`. There is no
+            // TypeScript that stands for it. Say so as a diagnostic:
+            // a marker in the output is not one, and the file used to
+            // ship with `undefined` in it and a green check (#1493).
+            ExprKind::Invalid => {
+                self.report_unemittable(expr.id, expr.span);
+
+                pretty::str("undefined")
+            }
         }
     }
 

@@ -83,6 +83,10 @@ pub struct CodegenOutput {
     pub has_jsx: bool,
     /// Declaration stub content for `.d.ts` files.
     pub dts: String,
+    /// Diagnostics codegen itself raised. Codegen reports a state it
+    /// cannot emit here, rather than writing a marker into the output
+    /// that nothing reads (#1493).
+    pub diagnostics: Vec<crate::diagnostic::Diagnostic>,
 }
 
 /// The Floe code generator. Thin dispatcher that builds a `TypeContext` from

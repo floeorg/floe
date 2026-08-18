@@ -17,6 +17,9 @@ use super::error_codes::ErrorCode;
 #[derive(Default)]
 pub struct Problems {
     diagnostics: Vec<Diagnostic>,
+    /// How many of `diagnostics` carry `Severity::Error`. Kept as a
+    /// counter because `check_expr` reads it around every expression.
+    errors: usize,
 }
 
 impl Problems {
@@ -31,7 +34,7 @@ impl Problems {
         code: ErrorCode,
         label: impl Into<String>,
     ) {
-        self.diagnostics.push(
+        self.push(
             Diagnostic::error(msg, span)
                 .with_label(label)
                 .with_error_code(code),
@@ -46,7 +49,7 @@ impl Problems {
         label: impl Into<String>,
         help: impl Into<String>,
     ) {
-        self.diagnostics.push(
+        self.push(
             Diagnostic::error(msg, span)
                 .with_label(label)
                 .with_help(help)
@@ -62,7 +65,7 @@ impl Problems {
         label: impl Into<String>,
         help: impl Into<String>,
     ) {
-        self.diagnostics.push(
+        self.push(
             Diagnostic::warning(msg, span)
                 .with_label(label)
                 .with_help(help)
@@ -71,7 +74,17 @@ impl Problems {
     }
 
     pub fn push(&mut self, diagnostic: Diagnostic) {
+        if diagnostic.severity == Severity::Error {
+            self.errors += 1;
+        }
         self.diagnostics.push(diagnostic);
+    }
+
+    /// How many error-severity diagnostics the list holds. `check_expr`
+    /// reads this before and after each expression, so a warning cannot
+    /// mark that expression invalid (#1493).
+    pub fn error_count(&self) -> usize {
+        self.errors
     }
 
     pub fn len(&self) -> usize {
@@ -83,9 +96,7 @@ impl Problems {
     }
 
     pub fn has_errors(&self) -> bool {
-        self.diagnostics
-            .iter()
-            .any(|d| d.severity == Severity::Error)
+        self.errors > 0
     }
 
     /// Sort diagnostics by source location so the first error in the
@@ -96,6 +107,8 @@ impl Problems {
     }
 
     pub fn take(&mut self) -> Vec<Diagnostic> {
+        self.errors = 0;
+
         std::mem::take(&mut self.diagnostics)
     }
 
