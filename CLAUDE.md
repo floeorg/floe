@@ -7,6 +7,26 @@
 - **`docs/site/src/content/docs/`** — user-facing reference and guides
 - **`.claude/rules/architecture.md`** — compiler pipeline and module structure
 
+## File Architecture Debt, Do Not Fix It In Place
+
+**When you meet code that breaks SOLID or DRY, file it as a sub-issue of #1545. Do not fix it inside the branch you are on.** A drive-by refactor hides inside a bug fix, and the review then covers two changes at once.
+
+File it even when it sits far from your task. **The person who meets it is the only person who knows it is there.**
+
+What counts:
+
+- **Duplicate logic.** The same rule written twice. One copy gets the fix and the other becomes a bug.
+- **One type, two definitions.** The same domain shape declared in two modules instead of imported.
+- **A function with more than one job.** You cannot say what it does in one sentence.
+- **A module that knows too much.** The checker reaching into codegen, or codegen re-deriving what the checker already decided.
+- **A branch on a tag instead of a match.** An `if`/`else` chain over a discriminant, where the compiler cannot report a missing case.
+- **A special case that stands in for a rule.** A hardcoded name, where the general mechanism should answer.
+- **A cast or an `unknown`** that stands in for a type the code could name.
+
+What does not count: **taste.** A pattern you would have written another way is not debt. Debt is a shape that will produce a wrong answer, or that already produced one.
+
+Write the file and the line, the rule it breaks, what breaks later if nobody fixes it, and a points estimate. Read #1545 for the full form.
+
 ## Recommended Crates
 
 | Purpose | Crate |
