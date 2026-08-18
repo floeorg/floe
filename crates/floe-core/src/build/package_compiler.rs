@@ -75,12 +75,18 @@ impl PackageCompiler {
         match self.analyse_path(path, &source) {
             Ok(pass) => {
                 let output = Codegen::with_imports(&pass.resolved).generate(&pass.analysed.program);
+                // Codegen's own diagnostics ride with the checker's, so a
+                // file that codegen could not emit reports it and fails
+                // the build (#1493).
+                let mut diagnostics = pass.analysed.diagnostics;
+                diagnostics.extend(output.diagnostics);
+
                 CompiledFile {
                     source_path: path.to_path_buf(),
                     code: output.code,
                     has_jsx: output.has_jsx,
                     dts: output.dts,
-                    diagnostics: pass.analysed.diagnostics,
+                    diagnostics,
                     source,
                 }
             }

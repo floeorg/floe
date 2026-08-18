@@ -92,13 +92,18 @@ fn parse_foreign_generics(s: &str) -> Option<(String, Vec<String>)> {
 
 impl Checker {
     pub(super) fn check_expr(&mut self, expr: &Expr) -> Type {
-        let diag_count = self.problems.len();
+        let error_count = self.problems.error_count();
         let ty = self.check_expr_inner(expr);
         // If new errors were emitted while checking this expression and
         // the result type is indeterminate, mark it as invalid so
         // `attach_types` produces `ExprKind::Invalid` and codegen skips
         // the broken subtree.
-        if self.problems.len() > diag_count && ty.is_undetermined() {
+        //
+        // Count errors, not diagnostics. A warning says the compiler
+        // carried on, so it must not delete the expression: a call to an
+        // npm import whose type tsgo could not resolve (W004) is real
+        // code that TypeScript itself checks (#1493).
+        if self.problems.error_count() > error_count && ty.is_undetermined() {
             self.invalid_exprs.insert(expr.id);
         }
         self.expr_types

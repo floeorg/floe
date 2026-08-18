@@ -3664,3 +3664,39 @@ export async let wrap() -> Result<number, Error> = {
         "the call itself returns no promise, so its value must not be awaited, got: {result}"
     );
 }
+
+// ── Codegen reports what it cannot emit (#1493) ────────────────
+
+/// Codegen used to write the string `undefined /* type error */` into
+/// the file for an expression the checker had rejected. A comment in
+/// the output is not a diagnostic: nothing reads it, and the build
+/// stayed green. Codegen now reports E059 instead.
+#[test]
+fn an_expression_codegen_cannot_emit_reports_a_diagnostic() {
+    let mut program = Parser::new("export let main() -> number = { bogusName(1) }")
+        .parse_program()
+        .expect("parse");
+    let (_diags, expr_types, invalid_exprs, shadowed) =
+        crate::checker::Checker::new().check_full(&program);
+    desugar::desugar_program(&mut program, &std::collections::HashMap::new());
+    let typed = crate::checker::attach_types(program, &expr_types, &invalid_exprs, &shadowed);
+    let output = Codegen::new().generate(&typed);
+
+    assert!(
+        !output.code.contains("/* type error */"),
+        "no marker may reach the output, got: {}",
+        output.code
+    );
+    assert!(
+        output.diagnostics.iter().any(|d| {
+            d.code.as_deref()
+                == Some(crate::checker::error_codes::ErrorCode::UnemittableExpression.code())
+        }),
+        "codegen must report E059, got: {:?}",
+        output
+            .diagnostics
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}

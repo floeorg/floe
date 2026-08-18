@@ -327,6 +327,8 @@ pub(crate) struct TypeScriptGenerator<'a> {
     /// Types whose `{T}__make` factory has already been emitted, so
     /// subsequent trait-impl for-blocks for the same type don't re-emit it.
     pub(super) emitted_factories: HashSet<String>,
+    /// Diagnostics raised while emitting. See `CodegenOutput::diagnostics`.
+    pub(super) diagnostics: Vec<crate::diagnostic::Diagnostic>,
 }
 
 impl<'a> TypeScriptGenerator<'a> {
@@ -339,6 +341,7 @@ impl<'a> TypeScriptGenerator<'a> {
             has_jsx: false,
             unwrap_counter: 0,
             emitted_factories: HashSet::new(),
+            diagnostics: Vec::new(),
         }
     }
 
@@ -381,7 +384,30 @@ impl<'a> TypeScriptGenerator<'a> {
             code,
             has_jsx: self.has_jsx,
             dts,
+            diagnostics: std::mem::take(&mut self.diagnostics),
         }
+    }
+
+    /// Report an expression codegen cannot emit. The checker already
+    /// rejected it, so this diagnostic is the compiler's guarantee that
+    /// no broken file leaves without a message (#1493).
+    pub(super) fn report_unemittable(&mut self, span: crate::lexer::span::Span) {
+        // One message per expression. Codegen emits some nodes more than
+        // once (a match scrutinee reappears in every arm), and the same
+        // span twice would read as two problems.
+        if self.diagnostics.iter().any(|d| d.span == span) {
+            return;
+        }
+
+        self.diagnostics.push(
+            crate::diagnostic::Diagnostic::error(
+                "cannot emit TypeScript for an expression that failed to type-check",
+                span,
+            )
+            .with_label("codegen has no code for this expression")
+            .with_help("fix the error reported for this expression; the emitted file is not usable until then")
+            .with_error_code(crate::checker::error_codes::ErrorCode::UnemittableExpression),
+        );
     }
 
     /// Render a Document to a String (for embedding in format strings, templates, etc.).

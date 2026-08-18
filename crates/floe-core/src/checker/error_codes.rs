@@ -153,6 +153,9 @@ pub enum ErrorCode {
     /// it would return `Ok` for every value while the checker and
     /// TypeScript both call that value a `T`.
     UnvalidatableParseType,
+    /// Codegen reached an expression the checker had already rejected,
+    /// so there is no TypeScript it can stand for.
+    UnemittableExpression,
 }
 
 impl ErrorCode {
@@ -222,6 +225,7 @@ impl ErrorCode {
             Self::DuplicateImpl => "E056",
             Self::StructuralImpl => "E057",
             Self::UnvalidatableParseType => "E058",
+            Self::UnemittableExpression => "E059",
         }
     }
 }

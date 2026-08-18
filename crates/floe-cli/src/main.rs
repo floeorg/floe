@@ -174,6 +174,9 @@ fn cmd_build_file_stdout(path: &Path) -> Result<()> {
 
     let result = compile_source(path, &filename, &source)?;
     let output = Codegen::with_imports(&result.resolved).generate(&result.program);
+    // Codegen reports what it could not emit. Render it here, because
+    // this path prints the TypeScript and never runs `floe check`.
+    report_diagnostics(&filename, &source, &output.diagnostics);
     print!("{}", output.code);
 
     // Write .d.fl.ts to .floe/ so TypeScript can resolve types via rootDirs
@@ -214,6 +217,7 @@ fn cmd_build_stdin() -> Result<()> {
 
     let result = compile_source(file_path, &filename, &source)?;
     let output = Codegen::with_imports(&result.resolved).generate(&result.program);
+    report_diagnostics(&filename, &source, &output.diagnostics);
     print!("{}", output.code);
 
     Ok(())
@@ -453,6 +457,11 @@ fn cmd_test(path: &Path) -> Result<()> {
         let output = Codegen::with_imports(&resolved)
             .with_test_mode()
             .generate(&analysed.program);
+        if has_errors(&output.diagnostics) {
+            report_diagnostics(filename, source, &output.diagnostics);
+            errors += 1;
+            continue;
+        }
 
         // Write to a temp file and execute with a JS runtime
         let ext = if output.has_jsx { "tsx" } else { "ts" };
