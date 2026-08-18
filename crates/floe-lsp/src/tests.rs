@@ -820,13 +820,18 @@ fn lambda_event_completions_not_in_normal_lambda() {
     );
 }
 
-// ── Unresolved import diagnostic test (#142) ───────────────
+// ── Unresolved import diagnostic test (#142, #1465) ────────
 
 #[test]
-fn unresolved_npm_import_diagnostic() {
+fn an_unresolved_npm_import_is_the_checkers_diagnostic() {
+    use floe_core::interop::packages;
     use floe_core::parser::Parser;
     use std::path::Path;
 
+    // The language server used to report E013 here on its own, so
+    // `floe check` and the editor disagreed about the same file
+    // (#1465). `enrich_from_imports` now only adds type information,
+    // and `interop::packages` makes the call for both paths.
     let source = r#"import { nonexistent } from "fake-package-12345""#;
     let program = Parser::new(source).parse_program().unwrap();
     let analysed = analyse::analyse_parsed(program, ModuleInputs::default());
@@ -849,13 +854,20 @@ fn unresolved_npm_import_diagnostic() {
         &tsconfig_paths,
     );
     assert!(
-        !diags.is_empty(),
-        "should report error for unresolved npm import"
+        diags.is_empty(),
+        "enrichment must not report the package, got: {diags:?}"
     );
-    assert!(
-        diags[0].message.contains("cannot find module"),
-        "diagnostic should say 'cannot find module', got: {}",
-        diags[0].message
+
+    let missing = packages::find_missing_packages(
+        &Parser::new(source).parse_program().unwrap(),
+        &HashMap::new(),
+        &tsconfig_paths,
+        project_dir,
+    );
+    assert_eq!(
+        missing.get("fake-package-12345").map(String::as_str),
+        Some("fake-package-12345"),
+        "the shared resolver must report the package instead"
     );
 }
 

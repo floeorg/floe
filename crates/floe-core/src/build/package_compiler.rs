@@ -225,6 +225,7 @@ impl PackageCompiler {
                     dts_generic_params: tsgo_result.generic_param_defs,
                     ambient: self.ambient.clone(),
                     ts_imports_missing_tsgo: tsgo_result.ts_imports_missing_tsgo,
+                    missing_npm_packages: tsgo_result.missing_npm_packages,
                 },
             },
         );

@@ -32,6 +32,10 @@ pub struct ExternTypes {
     pub dts_generic_params: HashMap<String, Vec<crate::interop::GenericParamInfo>>,
     pub ambient: Option<AmbientDeclarations>,
     pub ts_imports_missing_tsgo: HashSet<String>,
+    /// npm imports whose package is not installed, as `import specifier
+    /// → package name`. Filled by `interop::packages`; the checker
+    /// reports each one as E013.
+    pub missing_npm_packages: HashMap<String, String>,
 }
 
 /// Everything `analyse_module` needs beyond raw source: resolved `.fl`
@@ -92,6 +96,7 @@ pub fn analyse_parsed(
     if !inputs.externs.dts_generic_params.is_empty() {
         checker.set_dts_generic_params(inputs.externs.dts_generic_params);
     }
+    checker.set_missing_npm_packages(inputs.externs.missing_npm_packages);
     let (diagnostics, name_types, expr_types, invalid_exprs) = checker.check_all(&program);
     let name_type_map = checker.take_name_type_map();
     let shadowed_keywords = checker.take_shadowed_keyword_exprs();

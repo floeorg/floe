@@ -21,6 +21,23 @@ impl Checker {
             return;
         }
 
+        // An npm package that is not installed is a hard error. The
+        // editor already reported E013 here while `floe check` warned and
+        // exited 0, so the same source gave two answers (#1465). Every
+        // name from the import then binds to `Type::Error`, which keeps
+        // this one diagnostic from turning into a W004 warning at each
+        // call site and an "undefined name" error at each other use.
+        let missing_package = self.missing_npm_packages.get(&decl.source).cloned();
+        if let Some(package) = &missing_package {
+            self.emit_error_with_help(
+                format!("cannot find module `\"{}\"`", decl.source),
+                item_span,
+                ErrorCode::PackageNotFound,
+                "package not found",
+                interop::packages::install_hint(package),
+            );
+        }
+
         // Look up resolved symbols for this import source
         let resolved = self.resolved_imports.get(&decl.source).cloned();
         let dts_exports = self.dts_imports.get(&decl.source).cloned();
@@ -31,7 +48,9 @@ impl Checker {
         let is_npm = !decl.source.starts_with("./") && !decl.source.starts_with("../");
         let default_untrusted = is_npm && !decl.trusted;
         if let Some(ref default_name) = decl.default_import {
-            let ty = if let Some(ref exports) = dts_exports {
+            let ty = if missing_package.is_some() {
+                Type::Error
+            } else if let Some(ref exports) = dts_exports {
                 if let Some(dts_export) = exports.iter().find(|e| e.name == "default") {
                     let raw = interop::wrap_boundary_type(&dts_export.ts_type);
                     mark_foreign_untrusted(raw, default_untrusted)
@@ -80,7 +99,9 @@ impl Checker {
             }
 
             // Try to find the actual type from resolved imports
-            let ty = if let Some(ref resolved) = resolved {
+            let ty = if missing_package.is_some() {
+                Type::Error
+            } else if let Some(ref resolved) = resolved {
                 if let Some(ty) = self.lookup_resolved_symbol(&spec.name, resolved) {
                     ty
                 } else {

@@ -271,6 +271,11 @@ pub struct Checker {
     /// Import sources that resolve to `.ts`/`.tsx` files but could not be
     /// resolved because tsgo is not installed.
     ts_imports_missing_tsgo: HashSet<String>,
+    /// npm imports whose package is not installed, as `import specifier
+    /// → package name`. `check_import` reports each one as E013 and
+    /// binds its names to `Type::Error`, so one diagnostic stands in for
+    /// the whole import instead of a warning at every call site.
+    missing_npm_packages: HashMap<String, String>,
     /// User-written generic type parameter names mapped to the `Generic`
     /// variables minted for them. Populated at the top of each fn decl
     /// (see `hydrator::Hydrator`) and cleared when the fn scope pops.
@@ -506,6 +511,7 @@ impl Checker {
             jsx_children_hints: HashMap::new(),
             ambient_types: HashMap::new(),
             ts_imports_missing_tsgo: HashSet::new(),
+            missing_npm_packages: HashMap::new(),
             active_type_params: HashMap::new(),
             references: crate::reference::ReferenceTracker::new(),
             local_type_names: HashSet::new(),
@@ -545,6 +551,15 @@ impl Checker {
         params: HashMap<String, Vec<crate::interop::GenericParamInfo>>,
     ) {
         self.dts_generic_params = params;
+    }
+
+    /// Register the npm imports whose package is not installed, as
+    /// `import specifier → package name`. Kept out of `from_context`'s
+    /// positional parameter list for the same reason as
+    /// `set_dts_generic_params`. `interop::packages` produces the map by
+    /// reading the filesystem, which keeps that I/O out of the checker.
+    pub fn set_missing_npm_packages(&mut self, missing: HashMap<String, String>) {
+        self.missing_npm_packages = missing;
     }
 
     /// Create a checker with all available type context.

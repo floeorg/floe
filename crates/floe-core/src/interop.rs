@@ -12,6 +12,7 @@
 
 pub mod ambient;
 mod dts;
+pub mod packages;
 mod ts_types;
 pub mod tsgo;
 #[cfg(feature = "native")]

@@ -44,6 +44,11 @@ pub struct TsgoResult {
     /// Import sources that resolve to `.ts`/`.tsx` files but could not be
     /// resolved because tsgo is not installed.
     pub ts_imports_missing_tsgo: HashSet<String>,
+    /// npm imports whose package is not installed, as `import specifier
+    /// → package name`. The checker turns each one into E013. A package
+    /// that is installed but ships no declarations never lands here: it
+    /// resolves, so its symbols warn (W004) instead of failing.
+    pub missing_npm_packages: HashMap<String, String>,
 }
 
 /// Resolves npm import types using probes, DTS parsing, and tsgo LSP.
@@ -104,6 +109,7 @@ impl TsgoResolver {
                 exports: HashMap::new(),
                 generic_param_defs: HashMap::new(),
                 ts_imports_missing_tsgo: HashSet::new(),
+                missing_npm_packages: HashMap::new(),
             };
         }
 
@@ -111,6 +117,16 @@ impl TsgoResolver {
         {
             let ts_imports =
                 find_relative_ts_imports(program, resolved_imports, source_dir, tsconfig_paths);
+
+            // Which npm packages are simply not installed. This reads the
+            // filesystem only, so it holds whether or not tsgo runs, and it
+            // is the compiler's half of E013 (#1465).
+            let missing_npm_packages = super::packages::find_missing_packages(
+                program,
+                resolved_imports,
+                tsconfig_paths,
+                &self.project_dir,
+            );
 
             // When .ts/.tsx imports exist and tsgo is not available, still
             // resolve npm imports (which use .d.ts and don't need tsgo) but
@@ -142,6 +158,7 @@ impl TsgoResolver {
                 exports: result,
                 generic_param_defs,
                 ts_imports_missing_tsgo: missing_tsgo,
+                missing_npm_packages,
             }
         }
     }
