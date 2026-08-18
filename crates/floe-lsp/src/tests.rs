@@ -957,6 +957,46 @@ fn a_package_without_any_declaration_file_still_reports_e013() {
     assert_eq!(diags[0].code.as_deref(), Some("E013"));
 }
 
+/// A workspace hoists `node_modules` above the package that imports from it,
+/// so the language server walks up from the project directory to find it.
+#[test]
+fn a_hoisted_node_modules_resolves_from_a_nested_project_directory() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path();
+    install_package(
+        root,
+        "hoisted",
+        r#"{ "name": "hoisted", "exports": { ".": { "import": "./dist/index.js" } } }"#,
+        &[
+            ("dist/index.js", "export function shout() {}"),
+            (
+                "dist/index.d.ts",
+                "export declare function shout(text: string): string;\n",
+            ),
+        ],
+    );
+    let nested = root.join("packages").join("app");
+    std::fs::create_dir_all(&nested).expect("create the nested project directory");
+
+    let (diags, index) = enrich(r#"import trusted { shout } from "hoisted""#, &nested);
+
+    assert!(
+        diags.is_empty(),
+        "the walk-up should reach the parent node_modules, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let symbol = index
+        .symbols
+        .iter()
+        .find(|s| s.name == "shout")
+        .expect("import symbol should exist");
+    assert!(
+        symbol.detail.contains("->"),
+        "hover detail should carry a real function type, got: {}",
+        symbol.detail
+    );
+}
+
 // ── Import path go-to-definition tests (#196) ──────────────
 
 #[test]

@@ -141,6 +141,10 @@ let _shifted = toZonedTime("2024-01-01", "Asia/Tokyo")
     assert_eq!(types.get("_shifted").map(String::as_str), Some("string"));
 }
 
+/// tsgo disagrees with this test. Node and TypeScript both refuse an
+/// `exports` target that names a directory and report the specifier as
+/// unresolved. This resolver accepts it. Issue #1466 owns that decision, so
+/// read this test as a record of today's behavior, not as a specification.
 #[test]
 fn a_target_that_names_a_directory_type_checks_its_calls() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -174,6 +178,10 @@ let _loud = shout("hey")
 
 /// Regression for `date-fns@4.1.0`, which declares `types` conditions inside
 /// nested `import` and `require` entries.
+///
+/// The `types` target names a file that the extension swap of its `default`
+/// sibling cannot reach, and a decoy sits where that swap lands. The test
+/// therefore fails if the resolver ignores the `types` condition.
 #[test]
 fn explicit_types_conditions_still_type_check_their_calls() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -185,17 +193,22 @@ fn explicit_types_conditions_still_type_check_their_calls() {
             "name": "dates",
             "exports": {
                 ".": {
-                    "require": { "types": "./index.d.cts", "default": "./index.cjs" },
-                    "import": { "types": "./index.d.ts", "default": "./index.js" }
+                    "require": { "types": "./types/index.d.cts", "default": "./index.cjs" },
+                    "import": { "types": "./types/index.d.ts", "default": "./index.js" }
                 }
             }
         }"#,
         &[
             (
-                "index.d.ts",
+                "types/index.d.ts",
                 "export declare function addDays(date: string, amount: number): string;\n",
             ),
-            ("index.d.cts", "export declare function addDays(): void;\n"),
+            (
+                "types/index.d.cts",
+                "export declare function addDays(): void;\n",
+            ),
+            // The decoy that the extension swap of `./index.js` reaches.
+            ("index.d.ts", "export declare function addDays(): void;\n"),
         ],
     );
 

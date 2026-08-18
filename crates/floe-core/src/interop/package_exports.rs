@@ -1,26 +1,40 @@
 //! Declaration file resolution for npm packages.
 //!
 //! Reads the `exports` field of a `package.json` the way TypeScript's
-//! `node16`, `nodenext` and `bundler` resolvers read it, then finds the
-//! `.d.ts` file that backs the target it names.
+//! `bundler` resolver reads it, then finds the `.d.ts` file that backs the
+//! target it names.
+//!
+//! This module matches `bundler` only. `node16` and `nodenext` read the same
+//! field in two ways that this module does not copy: they apply the `node`
+//! condition, and they honour the order in which the `package.json` declares
+//! its conditions. This module never applies `node`, and it walks a fixed
+//! condition order instead of the declared one.
 //!
 //! Many packages point `exports` at a `.js` file and declare no `types`
 //! condition. TypeScript still finds the declaration file, because it swaps
 //! the JavaScript extension for a declaration extension on the resolved path.
 //! This module does the same.
 //!
+//! A `package.json` inside `node_modules` is untrusted input. Every
+//! filesystem probe therefore runs through `probe_file` or `probe_dir`, which
+//! reject a path that leaves the package directory through `..`, through an
+//! absolute path, or through a symlink.
+//!
 //! The `exports` walk is pure: it reads a `serde_json::Value` and returns a
 //! relative path. The filesystem probes live in separate functions below it.
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde_json::{Map, Value};
 
 /// Declaration file extensions, in the order TypeScript tries them.
 const DTS_EXTENSIONS: [&str; 3] = [".d.ts", ".d.mts", ".d.cts"];
 
-/// JavaScript file extensions that an `exports` target can carry.
-const JS_EXTENSIONS: [&str; 3] = [".js", ".mjs", ".cjs"];
+/// The declaration extension that TypeScript pairs with each JavaScript
+/// extension. A target of `./index.mjs` names `./index.d.mts`, not
+/// `./index.d.ts`.
+const JS_TO_DTS_EXTENSION: [(&str, &str); 3] =
+    [(".mjs", ".d.mts"), (".cjs", ".d.cts"), (".js", ".d.ts")];
 
 /// The condition that names a declaration file.
 const TYPES_CONDITION: &str = "types";
@@ -101,13 +115,16 @@ fn select_subpath_entry<'a>(
     match_pattern_key(map, subpath)
 }
 
-/// Match a subpath against the `*` pattern keys of a subpath map. Node picks
-/// the key with the longest literal text before the `*`.
+/// Match a subpath against the `*` pattern keys of a subpath map.
+///
+/// This follows Node's `PATTERN_KEY_COMPARE`: the key with the longest
+/// literal text before the `*` wins, and the longer whole key breaks a tie.
+/// `./a*.js` therefore beats `./a*` for the subpath `./abc.js`.
 fn match_pattern_key<'a>(
     map: &'a Map<String, Value>,
     subpath: &str,
 ) -> Option<(&'a Value, Option<String>)> {
-    let mut best: Option<(usize, &Value, String)> = None;
+    let mut best: Option<((usize, usize), &Value, String)> = None;
     for (key, entry) in map {
         let Some((prefix, suffix)) = key.split_once('*') else {
             continue;
@@ -115,13 +132,11 @@ fn match_pattern_key<'a>(
         let Some(matched) = strip_pattern(subpath, prefix, suffix) else {
             continue;
         };
-        if best
-            .as_ref()
-            .is_some_and(|(best, _, _)| *best >= prefix.len())
-        {
+        let rank = (prefix.len(), key.len());
+        if best.as_ref().is_some_and(|(best, _, _)| *best >= rank) {
             continue;
         }
-        best = Some((prefix.len(), entry, matched.to_string()));
+        best = Some((rank, entry, matched.to_string()));
     }
 
     best.map(|(_, entry, matched)| (entry, Some(matched)))
@@ -186,8 +201,12 @@ pub fn find_package_dts(project_dir: &Path, specifier: &str) -> Option<PathBuf> 
             .join(types_package_name(package)),
     ];
 
+    // The `is_dir` guard keeps the walk-up in the language server cheap: an
+    // ancestor that holds no such package costs one `stat`, not two file
+    // reads.
     candidates
         .iter()
+        .filter(|pkg_dir| pkg_dir.is_dir())
         .find_map(|pkg_dir| find_dts_in_package(pkg_dir, &subpath))
 }
 
@@ -196,13 +215,11 @@ pub fn find_package_dts(project_dir: &Path, specifier: &str) -> Option<PathBuf> 
 /// blocks. Callers pair this with `parse_dts_exports_for_specifier`.
 fn find_node_builtin_dts(node_modules: &Path, submodule: &str) -> Option<PathBuf> {
     let at_node = node_modules.join("@types").join("node");
-    let sub_dts = at_node.join(format!("{submodule}.d.ts"));
-    if sub_dts.is_file() {
-        return Some(sub_dts);
+    if let Some(found) = probe_file(&at_node, &at_node, &format!("{submodule}.d.ts")) {
+        return Some(found);
     }
-    let index_dts = at_node.join("index.d.ts");
 
-    index_dts.is_file().then_some(index_dts)
+    probe_file(&at_node, &at_node, "index.d.ts")
 }
 
 /// Find the declaration file for one subpath inside an installed package.
@@ -225,12 +242,12 @@ pub fn find_dts_in_package(pkg_dir: &Path, subpath: &str) -> Option<PathBuf> {
     }
 
     if let Some(json) = manifest.as_ref()
-        && let Some(found) = probe_types_fields(pkg_dir, json)
+        && let Some(found) = probe_types_fields(pkg_dir, pkg_dir, json)
     {
         return Some(found);
     }
 
-    probe_extensions(pkg_dir, "index")
+    probe_dts_extensions(pkg_dir, pkg_dir, "index", DTS_EXTENSIONS[0])
 }
 
 /// Read and parse a package manifest. Returns `None` when the file is absent
@@ -243,61 +260,159 @@ fn read_manifest(pkg_dir: &Path) -> Option<Value> {
 
 /// Turn an `exports` target into the declaration file that backs it.
 fn probe_target(pkg_dir: &Path, target: &ExportsTarget) -> Option<PathBuf> {
-    let relative = target.path.trim_start_matches("./");
-    let full = pkg_dir.join(relative);
+    // Node rejects any target that does not start with `./`, and so does this
+    // resolver. A `package.json` inside `node_modules` is untrusted input, so
+    // a target of `../../../etc/passwd` must not reach the filesystem.
+    let relative = target.path.strip_prefix("./")?;
 
     // A `types` condition, or a map that names a declaration file outright,
     // already points at the file we want.
-    if (target.from_types_condition || is_declaration_path(relative)) && full.is_file() {
-        return Some(full);
+    if (target.from_types_condition || is_declaration_path(relative))
+        && let Some(found) = probe_file(pkg_dir, pkg_dir, relative)
+    {
+        return Some(found);
     }
 
     // The map named a JavaScript file, so swap its extension.
-    if let Some(stem) = strip_js_extension(relative)
-        && let Some(found) = probe_extensions(pkg_dir, stem)
+    if let Some((stem, dts_extension)) = strip_js_extension(relative)
+        && let Some(found) = probe_dts_extensions(pkg_dir, pkg_dir, stem, dts_extension)
     {
         return Some(found);
     }
 
     // The map named a directory, so read the index declaration file in it.
-    if full.is_dir() {
-        return probe_extensions(&full, "index");
-    }
+    // tsgo refuses a directory target; issue #1466 owns that difference.
+    let dir = probe_dir(pkg_dir, pkg_dir, relative)?;
 
-    None
+    probe_dts_extensions(pkg_dir, &dir, "index", DTS_EXTENSIONS[0])
 }
 
 /// Resolve a subpath the way `node10` does, for a package that ships no
 /// `exports` map or that omits this subpath from it.
 fn probe_subpath_without_exports(pkg_dir: &Path, subpath: &str) -> Option<PathBuf> {
     let relative = subpath.trim_start_matches("./");
-    if let Some(found) = probe_extensions(pkg_dir, relative) {
+    if let Some(found) = probe_dts_extensions(pkg_dir, pkg_dir, relative, DTS_EXTENSIONS[0]) {
         return Some(found);
     }
-    let dir = pkg_dir.join(relative);
-    if dir.is_dir() {
-        return probe_extensions(&dir, "index");
+    let dir = probe_dir(pkg_dir, pkg_dir, relative)?;
+
+    // A subpath directory carries its own manifest in `firebase@8` and in
+    // `date-fns@2`, and its `types` or `typings` field wins over the index
+    // file beside it. `firebase/app/package.json` says `../index.d.ts`, so
+    // the field can point outside its own directory but not outside the
+    // package.
+    if let Some(manifest) = read_manifest(&dir)
+        && let Some(found) = probe_types_fields(pkg_dir, &dir, &manifest)
+    {
+        return Some(found);
     }
 
-    None
+    probe_dts_extensions(pkg_dir, &dir, "index", DTS_EXTENSIONS[0])
 }
 
-/// Read the top-level `types` and `typings` fields of a package manifest.
-fn probe_types_fields(pkg_dir: &Path, manifest: &Value) -> Option<PathBuf> {
+/// Read the `types` and `typings` fields of a manifest. `base` is the
+/// directory that holds that manifest: the package root for the package
+/// manifest, or the subpath directory for a subpath manifest.
+fn probe_types_fields(pkg_dir: &Path, base: &Path, manifest: &Value) -> Option<PathBuf> {
     ["types", "typings"].iter().find_map(|field| {
         let declared = manifest[*field].as_str()?;
-        let full = pkg_dir.join(declared.trim_start_matches("./"));
 
-        full.is_file().then_some(full)
+        probe_file(pkg_dir, base, declared.trim_start_matches("./"))
     })
 }
 
-/// Try each declaration extension against one path stem inside a directory.
-fn probe_extensions(dir: &Path, stem: &str) -> Option<PathBuf> {
-    DTS_EXTENSIONS
-        .iter()
-        .map(|extension| dir.join(format!("{stem}{extension}")))
-        .find(|candidate| candidate.is_file())
+/// Try declaration extensions against one path stem inside a directory.
+///
+/// `preferred` goes first, because TypeScript maps the JavaScript extension
+/// of a target onto one declaration extension: `.mjs` names `.d.mts` and
+/// `.cjs` names `.d.cts`. The other extensions follow it, so a package that
+/// ships only `.d.ts` beside an `.mjs` target still resolves.
+fn probe_dts_extensions(
+    pkg_dir: &Path,
+    base: &Path,
+    stem: &str,
+    preferred: &str,
+) -> Option<PathBuf> {
+    std::iter::once(preferred)
+        .chain(
+            DTS_EXTENSIONS
+                .iter()
+                .copied()
+                .filter(|extension| *extension != preferred),
+        )
+        .find_map(|extension| probe_file(pkg_dir, base, &format!("{stem}{extension}")))
+}
+
+/// Resolve `relative` against `base` and keep it when it names a file inside
+/// `pkg_dir`.
+fn probe_file(pkg_dir: &Path, base: &Path, relative: &str) -> Option<PathBuf> {
+    probe_path(pkg_dir, base, relative, Path::is_file)
+}
+
+/// Resolve `relative` against `base` and keep it when it names a directory
+/// inside `pkg_dir`.
+fn probe_dir(pkg_dir: &Path, base: &Path, relative: &str) -> Option<PathBuf> {
+    probe_path(pkg_dir, base, relative, Path::is_dir)
+}
+
+/// Resolve one package-relative path and reject it when it leaves the package
+/// directory. The lexical check catches `..` and an absolute path, and the
+/// real-path check catches a symlink that points out of the package.
+fn probe_path(
+    pkg_dir: &Path,
+    base: &Path,
+    relative: &str,
+    accept: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    let candidate = join_inside_package(pkg_dir, base, relative)?;
+    if !accept(&candidate) {
+        return None;
+    }
+    let (Ok(real_pkg_dir), Ok(real_candidate)) = (pkg_dir.canonicalize(), candidate.canonicalize())
+    else {
+        return None;
+    };
+
+    real_candidate
+        .starts_with(real_pkg_dir)
+        .then_some(candidate)
+}
+
+/// Join a package-relative path onto a base directory, and reject the result
+/// when it leaves the package directory. This check is lexical: it reads no
+/// files, so it runs before the path reaches the filesystem.
+fn join_inside_package(pkg_dir: &Path, base: &Path, relative: &str) -> Option<PathBuf> {
+    let relative = Path::new(relative);
+    if relative.is_absolute() || relative.starts_with("/") {
+        return None;
+    }
+    let joined = normalise(&base.join(relative));
+
+    joined.starts_with(normalise(pkg_dir)).then_some(joined)
+}
+
+/// Remove every `.` and `..` component from a path without touching the
+/// filesystem. `Path::join` and `trim_start_matches("./")` both leave `..` in
+/// place, so the comparison above needs this first.
+fn normalise(path: &Path) -> PathBuf {
+    let mut normalised = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => match normalised.components().next_back() {
+                Some(Component::Normal(_)) => {
+                    normalised.pop();
+                }
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                _ => normalised.push(component),
+            },
+            Component::Normal(_) | Component::RootDir | Component::Prefix(_) => {
+                normalised.push(component);
+            }
+        }
+    }
+
+    normalised
 }
 
 /// True when a path already carries a declaration file extension.
@@ -307,12 +422,14 @@ fn is_declaration_path(path: &str) -> bool {
         .any(|extension| path.ends_with(extension))
 }
 
-/// Drop a JavaScript extension from a path, so the caller can add a
-/// declaration extension in its place.
-fn strip_js_extension(path: &str) -> Option<&str> {
-    JS_EXTENSIONS
+/// Drop a JavaScript extension from a path, and report the declaration
+/// extension that TypeScript pairs with it.
+fn strip_js_extension(path: &str) -> Option<(&str, &str)> {
+    JS_TO_DTS_EXTENSION
         .iter()
-        .find_map(|extension| path.strip_suffix(extension))
+        .find_map(|(js_extension, dts_extension)| {
+            Some((path.strip_suffix(js_extension)?, *dts_extension))
+        })
 }
 
 #[cfg(test)]
@@ -383,8 +500,12 @@ mod tests {
         );
     }
 
+    /// The pure walk only. `find_dts_in_package` still probes the filesystem
+    /// for this subpath and still finds a file, because it falls through to
+    /// the `node10` probes. Issue #1466 tracks whether `exports` should block
+    /// a subpath at all.
     #[test]
-    fn string_exports_serves_no_other_subpath() {
+    fn the_walk_yields_no_target_for_a_subpath_of_a_string_exports() {
         let exports = json(r#""./dist/index.js""#);
         assert_eq!(resolve_exports_target(&exports, "./sub"), None);
     }
@@ -410,8 +531,12 @@ mod tests {
         );
     }
 
+    /// The pure walk only. `find_dts_in_package` still probes the filesystem
+    /// for `./two` and still finds a file, because it falls through to the
+    /// `node10` probes. Issue #1466 tracks whether `exports` should block a
+    /// subpath at all.
     #[test]
-    fn subpath_map_returns_none_for_a_subpath_it_does_not_list() {
+    fn the_walk_yields_no_target_for_an_unlisted_subpath() {
         let exports = json(r#"{ ".": "./index.js", "./one": "./one.js" }"#);
         assert_eq!(resolve_exports_target(&exports, "./two"), None);
     }
@@ -431,8 +556,12 @@ mod tests {
 
     // ── exports shape: condition map for the root ──────────────
 
+    /// The pure walk only. A map with no `.` key describes the root, so the
+    /// walk yields no target for `./sub`. `find_dts_in_package` still probes
+    /// the filesystem for `./sub` and still finds a file. Issue #1466 tracks
+    /// whether `exports` should block a subpath at all.
     #[test]
-    fn condition_map_serves_the_root_subpath_only() {
+    fn the_walk_reads_a_condition_map_as_the_root_entry() {
         let exports = json(r#"{ "import": "./index.mjs", "require": "./index.cjs" }"#);
         assert_eq!(
             resolve_exports_target(&exports, "."),
@@ -468,8 +597,11 @@ mod tests {
         );
     }
 
+    /// `browser` is not in `CONDITION_ORDER`, so the walk never opens it and
+    /// never sees the `default` inside it. The old name said the walk falls
+    /// through to that `default`, which is the opposite of what it asserts.
     #[test]
-    fn nested_conditions_fall_through_to_default_without_a_types_condition() {
+    fn an_unapplied_condition_hides_the_default_nested_inside_it() {
         let exports = json(r#"{ ".": { "browser": { "default": "./browser.js" } } }"#);
         assert_eq!(resolve_exports_target(&exports, "."), None);
     }
@@ -483,8 +615,12 @@ mod tests {
         );
     }
 
+    /// The pure walk only. A `null` target does not block the subpath:
+    /// `find_dts_in_package` falls through to the `node10` probes and still
+    /// finds a file. Issue #1466 tracks whether `exports` should block a
+    /// subpath at all.
     #[test]
-    fn a_null_target_blocks_the_subpath() {
+    fn the_walk_yields_no_target_for_a_null_entry() {
         let exports = json(r#"{ ".": "./index.js", "./private": null }"#);
         assert_eq!(resolve_exports_target(&exports, "./private"), None);
     }
@@ -574,6 +710,11 @@ mod tests {
         );
     }
 
+    /// tsgo disagrees with this test. Node and TypeScript both refuse an
+    /// `exports` target that names a directory, and report the specifier as
+    /// unresolved. This resolver accepts it. Issue #1466 owns that decision,
+    /// so read this test as a record of today's behavior, not as a
+    /// specification.
     #[test]
     fn a_target_that_names_a_directory_resolves_its_index_declaration_file() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -591,6 +732,10 @@ mod tests {
 
     /// Regression for packages that do declare `types` conditions, such as
     /// `date-fns@4.1.0`. The nested `import` entry must still win.
+    ///
+    /// Each `types` target names a file that the extension swap of its
+    /// `default` sibling cannot reach, so the test fails if the resolver
+    /// ignores the `types` condition.
     #[test]
     fn explicit_types_conditions_still_resolve() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -600,27 +745,41 @@ mod tests {
             "date-fns",
             r#"{ "name": "date-fns", "exports": {
                 ".": {
-                    "require": { "types": "./index.d.cts", "default": "./index.cjs" },
-                    "import": { "types": "./index.d.ts", "default": "./index.js" }
+                    "require": { "types": "./types/index.d.cts", "default": "./index.cjs" },
+                    "import": { "types": "./types/index.d.ts", "default": "./index.js" }
                 },
                 "./addDays": {
-                    "require": { "types": "./addDays.d.cts", "default": "./addDays.cjs" },
-                    "import": { "types": "./addDays.d.ts", "default": "./addDays.js" }
+                    "require": { "types": "./types/addDays.d.cts", "default": "./addDays.cjs" },
+                    "import": { "types": "./types/addDays.d.ts", "default": "./addDays.js" }
                 }
             } }"#,
             &[
-                ("index.d.ts", "export declare function addDays(): Date;"),
-                ("index.d.cts", ""),
-                ("addDays.d.ts", "export declare function addDays(): Date;"),
+                (
+                    "types/index.d.ts",
+                    "export declare function addDays(): Date;",
+                ),
+                ("types/index.d.cts", ""),
+                (
+                    "types/addDays.d.ts",
+                    "export declare function addDays(): Date;",
+                ),
+                // Decoys. The extension swap of the `default` targets lands
+                // here, so a resolver that skips the `types` condition picks
+                // these instead.
+                ("index.d.ts", "export declare const decoy: number;"),
+                ("addDays.d.ts", "export declare const decoy: number;"),
             ],
         );
 
         let root_dts = find_package_dts(root, "date-fns").expect("should resolve root");
-        assert_eq!(tail(&root_dts, root), "node_modules/date-fns/index.d.ts");
+        assert_eq!(
+            tail(&root_dts, root),
+            "node_modules/date-fns/types/index.d.ts"
+        );
         let subpath_dts = find_package_dts(root, "date-fns/addDays").expect("should resolve");
         assert_eq!(
             tail(&subpath_dts, root),
-            "node_modules/date-fns/addDays.d.ts"
+            "node_modules/date-fns/types/addDays.d.ts"
         );
     }
 
@@ -693,5 +852,386 @@ mod tests {
     fn a_package_that_is_not_installed_stays_unresolved() {
         let dir = tempfile::tempdir().expect("tempdir");
         assert_eq!(find_package_dts(dir.path(), "never-installed"), None);
+    }
+
+    // ── subpath directories that carry their own manifest ──────
+
+    /// The shape of `firebase@8.10.1`. The package declares no `exports`,
+    /// `firebase/app/package.json` says `"typings": "../index.d.ts"`, and
+    /// `firebase/app/index.d.ts` does not exist. tsgo resolves
+    /// `firebase/app` to `firebase/index.d.ts`.
+    #[test]
+    fn a_subpath_directory_manifest_points_the_resolver_back_up_the_package() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "firebase",
+            r#"{ "name": "firebase", "typings": "index.d.ts" }"#,
+            &[
+                (
+                    "index.d.ts",
+                    "export declare function initializeApp(): void;",
+                ),
+                (
+                    "app/package.json",
+                    r#"{ "name": "firebase/app", "typings": "../index.d.ts" }"#,
+                ),
+                ("app/dist/index.cjs.js", ""),
+            ],
+        );
+
+        let resolved = find_package_dts(root, "firebase/app").expect("should resolve subpath");
+        assert_eq!(tail(&resolved, root), "node_modules/firebase/index.d.ts");
+    }
+
+    /// The shape of `date-fns@2.30.0`. `date-fns/addMonths/` holds both a
+    /// `package.json` with `"typings": "../typings.d.ts"` and an
+    /// `index.d.ts`. tsgo reads the manifest first and picks
+    /// `date-fns/typings.d.ts`.
+    #[test]
+    fn a_subpath_directory_manifest_wins_over_the_index_file_beside_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "date-fns",
+            r#"{ "name": "date-fns", "typings": "./typings.d.ts" }"#,
+            &[
+                ("typings.d.ts", "export declare function addMonths(): Date;"),
+                (
+                    "addMonths/package.json",
+                    r#"{ "module": "../esm/addMonths/index.js", "typings": "../typings.d.ts" }"#,
+                ),
+                (
+                    "addMonths/index.d.ts",
+                    "export declare const decoy: number;",
+                ),
+            ],
+        );
+
+        let resolved = find_package_dts(root, "date-fns/addMonths").expect("should resolve");
+        assert_eq!(tail(&resolved, root), "node_modules/date-fns/typings.d.ts");
+    }
+
+    /// No manifest in the subpath directory, so the index file wins.
+    #[test]
+    fn a_subpath_directory_without_a_manifest_resolves_its_index_declaration_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "plainsub",
+            r#"{ "name": "plainsub" }"#,
+            &[("sub/index.d.ts", "export declare const value: number;")],
+        );
+
+        let resolved = find_package_dts(root, "plainsub/sub").expect("should resolve");
+        assert_eq!(
+            tail(&resolved, root),
+            "node_modules/plainsub/sub/index.d.ts"
+        );
+    }
+
+    // ── field precedence ───────────────────────────────────────
+
+    /// `exports` outranks a top-level `types`, which is what tsgo does. This
+    /// changed the resolved file for `vue`, `tslib`, `entities` and others.
+    #[test]
+    fn an_exports_map_outranks_a_top_level_types_field() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "bothpkg",
+            r#"{ "name": "bothpkg", "types": "./legacy.d.ts",
+                 "exports": { ".": { "import": "./dist/index.js" } } }"#,
+            &[
+                ("legacy.d.ts", "export declare const legacy: number;"),
+                ("dist/index.js", ""),
+                ("dist/index.d.ts", "export declare const modern: number;"),
+            ],
+        );
+
+        let resolved = find_package_dts(root, "bothpkg").expect("should resolve");
+        assert_eq!(
+            tail(&resolved, root),
+            "node_modules/bothpkg/dist/index.d.ts"
+        );
+    }
+
+    /// A package that ships `typings` and no `types`.
+    #[test]
+    fn a_top_level_typings_field_still_resolves() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "typingspkg",
+            r#"{ "name": "typingspkg", "typings": "./types/main.d.ts" }"#,
+            &[("types/main.d.ts", "export declare const value: number;")],
+        );
+
+        let resolved = find_package_dts(root, "typingspkg").expect("should resolve");
+        assert_eq!(
+            tail(&resolved, root),
+            "node_modules/typingspkg/types/main.d.ts"
+        );
+    }
+
+    // ── declaration extensions ─────────────────────────────────
+
+    /// TypeScript maps `.mjs` onto `.d.mts`. Both declaration files sit in
+    /// the package, so a resolver that always tries `.d.ts` first picks the
+    /// CommonJS declarations.
+    #[test]
+    fn an_mjs_target_resolves_the_module_declaration_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "mjspkg",
+            r#"{ "name": "mjspkg",
+                 "exports": { ".": { "import": "./index.mjs", "require": "./index.cjs" } } }"#,
+            &[
+                ("index.mjs", ""),
+                (
+                    "index.d.mts",
+                    "export declare function mfn(a: string): string;",
+                ),
+                (
+                    "index.d.ts",
+                    "export declare function mfn(a: number): number;",
+                ),
+            ],
+        );
+
+        let resolved = find_package_dts(root, "mjspkg").expect("should resolve");
+        assert_eq!(tail(&resolved, root), "node_modules/mjspkg/index.d.mts");
+    }
+
+    /// TypeScript maps `.cjs` onto `.d.cts`.
+    #[test]
+    fn a_cjs_target_resolves_the_commonjs_declaration_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "cjspkg",
+            r#"{ "name": "cjspkg", "exports": { ".": { "require": "./index.cjs" } } }"#,
+            &[
+                ("index.cjs", ""),
+                ("index.d.cts", "export declare const value: number;"),
+                ("index.d.ts", "export declare const decoy: number;"),
+            ],
+        );
+
+        let resolved = find_package_dts(root, "cjspkg").expect("should resolve");
+        assert_eq!(tail(&resolved, root), "node_modules/cjspkg/index.d.cts");
+    }
+
+    /// The mapped extension is a preference, not a requirement. A package
+    /// that ships only `.d.ts` beside an `.mjs` target still resolves.
+    #[test]
+    fn an_mjs_target_falls_back_to_the_plain_declaration_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "mjsonly",
+            r#"{ "name": "mjsonly", "exports": { ".": { "import": "./index.mjs" } } }"#,
+            &[
+                ("index.mjs", ""),
+                ("index.d.ts", "export declare const value: number;"),
+            ],
+        );
+
+        let resolved = find_package_dts(root, "mjsonly").expect("should resolve");
+        assert_eq!(tail(&resolved, root), "node_modules/mjsonly/index.d.ts");
+    }
+
+    // ── `*` pattern ranking ────────────────────────────────────
+
+    /// Node's `PATTERN_KEY_COMPARE` breaks a prefix-length tie by taking the
+    /// longer whole key, so `./a*.js` beats `./a*` for `./abc.js`.
+    #[test]
+    fn a_star_pattern_tie_breaks_on_the_longer_key() {
+        let exports = json(r#"{ "./a*": "./short/*.js", "./a*.js": "./long/*.d.ts" }"#);
+        assert_eq!(
+            resolve_exports_target(&exports, "./abc.js"),
+            Some(target("./long/bc.d.ts", false))
+        );
+    }
+
+    #[test]
+    fn a_star_pattern_tie_break_reaches_the_longer_keys_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "starpkg",
+            r#"{ "name": "starpkg",
+                 "exports": { "./a*": "./short/*.js", "./a*.js": "./long/*.d.ts" } }"#,
+            &[
+                ("short/bc.js.d.ts", "export declare const decoy: number;"),
+                ("long/bc.d.ts", "export declare const value: number;"),
+            ],
+        );
+
+        let resolved = find_package_dts(root, "starpkg/abc.js").expect("should resolve");
+        assert_eq!(tail(&resolved, root), "node_modules/starpkg/long/bc.d.ts");
+    }
+
+    // ── `node:` specifiers ─────────────────────────────────────
+
+    #[test]
+    fn a_node_scheme_specifier_resolves_the_submodule_declaration_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "@types/node",
+            r#"{ "name": "@types/node", "types": "./index.d.ts" }"#,
+            &[
+                ("index.d.ts", "// index"),
+                ("fs.d.ts", "declare module \"node:fs\" {}"),
+            ],
+        );
+
+        let resolved = find_package_dts(root, "node:fs").expect("should resolve");
+        assert_eq!(tail(&resolved, root), "node_modules/@types/node/fs.d.ts");
+    }
+
+    #[test]
+    fn a_node_scheme_specifier_falls_back_to_the_node_types_index() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install(
+            root,
+            "@types/node",
+            r#"{ "name": "@types/node", "types": "./index.d.ts" }"#,
+            &[("index.d.ts", "declare module \"node:test\" {}")],
+        );
+
+        let resolved = find_package_dts(root, "node:test").expect("should resolve");
+        assert_eq!(tail(&resolved, root), "node_modules/@types/node/index.d.ts");
+    }
+
+    #[test]
+    fn a_node_scheme_specifier_stays_unresolved_without_the_node_types() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        assert_eq!(find_package_dts(dir.path(), "node:fs"), None);
+    }
+
+    // ── path escapes ───────────────────────────────────────────
+
+    /// Write a declaration file outside every package directory. A
+    /// `package.json` inside `node_modules` is untrusted input, so no target
+    /// may reach this file.
+    fn install_outsider(root: &Path) -> PathBuf {
+        let outside = root.join("outside");
+        std::fs::create_dir_all(&outside).expect("create outside dir");
+        let secret = outside.join("secret.d.ts");
+        std::fs::write(&secret, "export declare const leaked: number;").expect("write secret");
+
+        secret
+    }
+
+    #[test]
+    fn an_exports_target_that_climbs_out_of_the_package_stays_unresolved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install_outsider(root);
+        install(
+            root,
+            "escapepkg",
+            r#"{ "name": "escapepkg", "exports": { ".": "../../outside/secret.d.ts" } }"#,
+            &[],
+        );
+
+        assert_eq!(find_package_dts(root, "escapepkg"), None);
+    }
+
+    #[test]
+    fn a_types_condition_that_climbs_out_of_the_package_stays_unresolved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install_outsider(root);
+        install(
+            root,
+            "escapetypes",
+            r#"{ "name": "escapetypes",
+                 "exports": { ".": { "types": "./../../outside/secret.d.ts" } } }"#,
+            &[],
+        );
+
+        assert_eq!(find_package_dts(root, "escapetypes"), None);
+    }
+
+    #[test]
+    fn an_absolute_exports_target_stays_unresolved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        let secret = install_outsider(root);
+        let manifest = serde_json::json!({
+            "name": "abspkg",
+            "exports": { ".": secret.to_string_lossy() },
+        });
+        install(root, "abspkg", &manifest.to_string(), &[]);
+
+        assert_eq!(find_package_dts(root, "abspkg"), None);
+    }
+
+    #[test]
+    fn a_top_level_types_field_that_climbs_out_of_the_package_stays_unresolved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install_outsider(root);
+        install(
+            root,
+            "escapefield",
+            r#"{ "name": "escapefield", "types": "../../outside/secret.d.ts" }"#,
+            &[],
+        );
+
+        assert_eq!(find_package_dts(root, "escapefield"), None);
+    }
+
+    #[test]
+    fn a_subpath_that_climbs_out_of_the_package_stays_unresolved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        install_outsider(root);
+        install(root, "escapesub", r#"{ "name": "escapesub" }"#, &[]);
+
+        assert_eq!(
+            find_package_dts(root, "escapesub/../../outside/secret"),
+            None
+        );
+    }
+
+    /// A symlink survives the lexical check, so the resolver compares the
+    /// real paths as well.
+    #[cfg(unix)]
+    #[test]
+    fn an_exports_target_that_leaves_the_package_through_a_symlink_stays_unresolved() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        let secret = install_outsider(root);
+        install(
+            root,
+            "linkpkg",
+            r#"{ "name": "linkpkg", "exports": { ".": "./linked.d.ts" } }"#,
+            &[],
+        );
+        std::os::unix::fs::symlink(
+            &secret,
+            root.join("node_modules")
+                .join("linkpkg")
+                .join("linked.d.ts"),
+        )
+        .expect("create symlink");
+
+        assert_eq!(find_package_dts(root, "linkpkg"), None);
     }
 }
