@@ -37,6 +37,14 @@ if [ "${1:-}" = "--update-baseline" ]; then
 fi
 
 floe_bin="${1:-${FLOE:-$repo_root/target/debug/floe}}"
+
+# The build below runs from inside each example directory, so a relative
+# binary path would stop resolving there. CI passes `./floe`.
+if [ ! -x "$floe_bin" ]; then
+  echo "no floe binary at: $floe_bin" >&2
+  exit 2
+fi
+floe_bin="$(cd "$(dirname "$floe_bin")" && pwd)/$(basename "$floe_bin")"
 tsc_bin="$repo_root/node_modules/.bin/tsc"
 baseline_file="${TYPECHECK_BASELINE:-$repo_root/scripts/typecheck-emitted-baseline.txt}"
 
