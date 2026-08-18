@@ -60,8 +60,9 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
+    # Dependabot rejects the per-semver-level cooldown keys for this
+    # ecosystem: an action tag carries no semver level it can read. Only
+    # `default-days` is supported here. The cargo and npm blocks above keep
+    # the full set.
     cooldown:
       default-days: 7
-      semver-major-days: 7
-      semver-minor-days: 7
-      semver-patch-days: 7
