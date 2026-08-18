@@ -67,6 +67,9 @@ pub(crate) struct TypeContext {
     pub variant_info: HashMap<String, (String, Vec<String>)>,
     pub type_defs: HashMap<String, TypedTypeDef>,
     pub local_names: HashSet<String>,
+    /// True when the file's own imports bind the name `JSX`. Codegen
+    /// writes `type_layout::JSX_TYPE_IMPORT` only when they do not.
+    pub imports_jsx: bool,
     pub resolved_imports: HashMap<String, ResolvedImports>,
     pub test_mode: bool,
     pub value_used_names: HashSet<String>,
@@ -107,6 +110,7 @@ impl TypeContext {
             variant_info: HashMap::new(),
             type_defs: HashMap::new(),
             local_names: HashSet::new(),
+            imports_jsx: source_imports_jsx(program),
             resolved_imports: resolved_imports.clone(),
             test_mode,
             value_used_names: collect_value_used_names(program),
@@ -323,6 +327,12 @@ pub(crate) struct TypeScriptGenerator<'a> {
     pub(super) current_type_param_bounds: HashMap<String, Vec<String>>,
     pub(super) needs_deep_equal: bool,
     pub(super) has_jsx: bool,
+    /// Set when a type annotation emitted the name `JSX.Element`. It
+    /// decides whether the file gets `type_layout::JSX_TYPE_IMPORT`.
+    /// `generate` clears it between the `.ts` and the `.d.ts`, because
+    /// the two files carry different items and only one may need the
+    /// import.
+    pub(super) wrote_jsx_element: bool,
     pub(super) unwrap_counter: usize,
     /// Types whose `{T}__make` factory has already been emitted, so
     /// subsequent trait-impl for-blocks for the same type don't re-emit it.
@@ -337,6 +347,7 @@ impl<'a> TypeScriptGenerator<'a> {
             current_type_param_bounds: HashMap::new(),
             needs_deep_equal: false,
             has_jsx: false,
+            wrote_jsx_element: false,
             unwrap_counter: 0,
             emitted_factories: HashSet::new(),
         }
@@ -365,23 +376,66 @@ impl<'a> TypeScriptGenerator<'a> {
         let main_doc = pretty::concat(docs);
 
         // Prepend structural equality helper if any == or != was used
-        let final_doc = if self.needs_deep_equal {
+        let with_helpers = if self.needs_deep_equal {
             pretty::concat([deep_equal_doc(), main_doc])
         } else {
             main_doc
         };
 
+        let final_doc = self.with_jsx_import(with_helpers);
+
         let mut code = String::new();
         final_doc
             .pretty_print_to(PRINT_WIDTH, &mut code)
             .expect("String as fmt::Write never fails");
-        let dts = self.generate_dts(program);
+
+        // The `.d.ts` declares only the exported items, so it may name
+        // `JSX.Element` where the `.ts` does not, or the other way
+        // round. Ask the question again over the declarations alone.
+        self.wrote_jsx_element = false;
+        let mut dts = self.generate_dts(program);
+        if self.needs_jsx_import() {
+            // One newline, not the two the `.ts` takes. `generate_dts`
+            // puts no blank line between its declarations, so a blank
+            // line here would single the import out.
+            dts.insert_str(0, &format!("{}\n", type_layout::JSX_TYPE_IMPORT));
+        }
 
         CodegenOutput {
             code,
             has_jsx: self.has_jsx,
             dts,
         }
+    }
+
+    /// True when the file names `JSX.Element` and imports no `JSX` of
+    /// its own.
+    ///
+    /// A Floe file may import the namespace itself, as
+    /// `import trusted { JSX } from "react"`, and that import already
+    /// emits a `JSX` binding in type position. A second import of the
+    /// same name would be a duplicate identifier, so the written one
+    /// wins.
+    ///
+    /// Only an import can bind that name in type position, so only an
+    /// import suppresses this one. See `TypeContext::imports_jsx`.
+    fn needs_jsx_import(&self) -> bool {
+        self.wrote_jsx_element && !self.ctx.imports_jsx
+    }
+
+    /// Put `JSX_TYPE_IMPORT` above `doc` when the file needs it.
+    fn with_jsx_import(&self, doc: Document) -> Document {
+        if !self.needs_jsx_import() {
+            return doc;
+        }
+
+        // Every other top-level item ends with a blank line, so the
+        // import takes one too. `generate` writes that separator as a
+        // second newline.
+        pretty::concat([
+            pretty::str(format!("{}\n\n", type_layout::JSX_TYPE_IMPORT)),
+            doc,
+        ])
     }
 
     /// Render a Document to a String (for embedding in format strings, templates, etc.).
@@ -391,6 +445,33 @@ impl<'a> TypeScriptGenerator<'a> {
             .expect("String as fmt::Write never fails");
         out
     }
+}
+
+/// True when the source itself imports the name `JSX`.
+///
+/// Both written forms count, `import { JSX } from "react"` and
+/// `import trusted { JSX } from "react"`, because both emit a `JSX`
+/// binding the emitted file can name in type position.
+///
+/// This asks the import list and not `TypeContext::local_names`. That set
+/// is the value scope: it also holds functions, consts and for-block
+/// methods. A value named `JSX` binds no namespace, so it must not
+/// suppress the import. It did, and the emitted file then named
+/// `JSX.Element` with nothing to resolve it, which is the TS2503 that
+/// #1498 removes.
+///
+/// A local `type JSX` does not suppress the import either. TypeScript
+/// holds an imported namespace and a local type alias in separate
+/// declaration spaces, so the two stand together with no diagnostic, and
+/// only the import makes `JSX.Element` resolve at all.
+fn source_imports_jsx(program: &TypedProgram) -> bool {
+    program.items.iter().any(|item| match &item.kind {
+        ItemKind::Import(decl) => decl
+            .specifiers
+            .iter()
+            .any(|spec| spec.alias.as_ref().unwrap_or(&spec.name) == type_layout::JSX_NAMESPACE),
+        _ => false,
+    })
 }
 
 /// The deep-equality helper function, prepended when `==` or `!=` is used.
