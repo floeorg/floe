@@ -588,10 +588,25 @@ impl Expr<std::sync::Arc<crate::checker::Type>> {
         kind: ExprKind<std::sync::Arc<crate::checker::Type>>,
         span: Span,
     ) -> Self {
+        Self::synthetic_with_type(
+            kind,
+            std::sync::Arc::new(crate::checker::Type::Unknown),
+            span,
+        )
+    }
+
+    /// Create a synthetic `Expr` that keeps a type the checker resolved.
+    /// Use this when codegen rebuilds a node whose emission reads
+    /// `expr.ty`: `synthetic_typed` would hand it `Unknown` instead.
+    pub fn synthetic_with_type(
+        kind: ExprKind<std::sync::Arc<crate::checker::Type>>,
+        ty: std::sync::Arc<crate::checker::Type>,
+        span: Span,
+    ) -> Self {
         Self {
             id: ExprId::SYNTHETIC,
             kind,
-            ty: std::sync::Arc::new(crate::checker::Type::Unknown),
+            ty,
             span,
         }
     }

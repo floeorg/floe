@@ -57,13 +57,36 @@ No runtime dependency. No schema definition to maintain. Change the type, the va
 
 ### Supported types
 
+The compiler validates the type it resolved, not the name you wrote. A
+`typealias Id = string` validates as a string.
+
 | Type | Validation |
 |------|-----------|
 | `string`, `number`, `boolean` | `typeof` check |
 | Record types | Object check + recursive field validation |
 | `Array<T>` | `Array.isArray` + element validation loop |
+| Tuple types | `Array.isArray` + length check + element validation |
+| Function types | `typeof` check against `"function"` |
 | `Option<T>` | Allow `undefined` or validate inner type |
-| Named types | Object structure check |
+| `typealias X = ...` | Resolve the alias first, then validate the target |
+| `opaque type X = ...` | Validate the type the opaque type wraps |
+| Named `type` declarations | Object structure check |
+| `unknown` | No check. Nothing is known about the shape |
+
+### `parse<T>` needs a concrete type
+
+`T` cannot be a type parameter. The validation runs inside the generic
+function, so it cannot know what `T` is, and it would return `Ok` for
+every value while the caller reads that value as a `T`. The compiler
+reports **E058** instead:
+
+```floe
+// E058: parse cannot validate the type parameter `T` at run time
+let pGen<T>(raw: unknown) -> Result<T, Error> = { parse<T>(raw) }
+```
+
+Call `parse` with a concrete type, or take an already validated value as
+a parameter.
 
 ### Common patterns
 

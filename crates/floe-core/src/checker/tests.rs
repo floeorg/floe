@@ -9869,6 +9869,51 @@ impl Show for (number, string) {
     );
 }
 
+// ── parse<T> on a type parameter rejected (E058) ─────────────
+
+#[test]
+fn parse_on_a_type_parameter_is_an_error() {
+    let diags = check(
+        r#"
+export let pGen<T>(raw: unknown) -> Result<T, Error> = { parse<T>(raw) }
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::UnvalidatableParseType),
+        "expected E058 for parse<T> on a type parameter: {:?}",
+        error_messages(&diags)
+    );
+}
+
+#[test]
+fn parse_on_a_type_parameter_in_a_pipe_is_an_error() {
+    let diags = check(
+        r#"
+export let pGen<T>(raw: unknown) -> Result<T, Error> = { raw |> parse<T> }
+"#,
+    );
+    assert!(
+        has_error(&diags, ErrorCode::UnvalidatableParseType),
+        "expected E058 for the pipe form too: {:?}",
+        error_messages(&diags)
+    );
+}
+
+#[test]
+fn parse_on_a_concrete_type_is_not_an_error() {
+    let diags = check(
+        r#"
+typealias Id = string
+export let pId(raw: unknown) -> Result<Id, Error> = { parse<Id>(raw) }
+"#,
+    );
+    assert!(
+        !has_error(&diags, ErrorCode::UnvalidatableParseType),
+        "a concrete type is validatable: {:?}",
+        error_messages(&diags)
+    );
+}
+
 // ── Ambient type aliases (#1357) ─────────────────────────────
 
 #[test]

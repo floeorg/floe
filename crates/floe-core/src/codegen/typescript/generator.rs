@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::parser::ast::{
-    ForBlock, ItemKind, TypeDef, TypedForBlock, TypedProgram, TypedTraitDecl, TypedTypeDecl,
-    TypedTypeDef, file_scope_names,
+    ForBlock, ItemKind, TypeDef, TypeExprKind, TypedForBlock, TypedProgram, TypedTraitDecl,
+    TypedTypeDecl, TypedTypeDef, TypedTypeExpr, file_scope_names,
 };
 use crate::pretty::{self, Document};
 use crate::resolve::ResolvedImports;
@@ -222,6 +222,43 @@ impl TypeContext {
     /// as a runtime value (constructor, call, etc).
     pub(super) fn is_for_block_type_only(&self, name: &str) -> bool {
         self.for_block_type_names.contains(name) && !self.constructor_used_names.contains(name)
+    }
+
+    /// The annotation a type name stands for, when the name is an alias.
+    ///
+    /// `typealias Id = string` gives back `string`, and `opaque type Pw =
+    /// string` gives back `string` too, because both lower to
+    /// `TypeDef::Alias`. A record, a tagged union or a string-literal union
+    /// declares its own shape, so the answer is `None`. A chain of aliases
+    /// walks to its end, and a cycle answers `None` instead of hanging.
+    ///
+    /// `parse<T>` and `mock<T>` both read this one function, so the two
+    /// built-ins cannot part on what a name means. Before #1521 `mock`
+    /// followed the chain through `type_defs` and `parse` read the written
+    /// name only, so `parse<Id>` validated an alias of `string` as an
+    /// object and rejected every valid string at run time.
+    pub(super) fn alias_target(&self, name: &str) -> Option<&TypedTypeExpr> {
+        let mut seen: HashSet<&str> = HashSet::new();
+        let mut current = name;
+        let mut target: Option<&TypedTypeExpr> = None;
+
+        loop {
+            if !seen.insert(current) {
+                return None;
+            }
+            let Some(TypeDef::Alias(type_expr)) = self.type_defs.get(current) else {
+                return target;
+            };
+            target = Some(type_expr);
+            match &type_expr.kind {
+                TypeExprKind::Named {
+                    name: next,
+                    type_args,
+                    ..
+                } if type_args.is_empty() => current = next,
+                _ => return target,
+            }
+        }
     }
 }
 

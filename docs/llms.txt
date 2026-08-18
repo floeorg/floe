@@ -504,6 +504,11 @@ let user = json |> parse<User>?
 let items = data |> parse<Array<Product>>?
 let point = raw |> parse<{ x: number, y: number }>?
 // parse<T> returns Result<T, Error> — validates unknown data matches the type
+// parse<T> resolves a `typealias` and an `opaque type` before it checks, so
+// `typealias Id = string` validates as a string, not as an object
+// E058: `T` cannot be a type parameter. The check runs inside the generic
+// function and cannot know what `T` is, so it would accept every value:
+//   let pGen<T>(raw: unknown) -> Result<T, Error> = { parse<T>(raw) }  // E058
 
 // mock<T> — compiler built-in for test data generation
 // No faker.js needed — the compiler generates object literals from the type

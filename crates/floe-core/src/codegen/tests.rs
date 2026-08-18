@@ -1987,7 +1987,7 @@ let f() -> Result<number, Array<string>> = {
 
 #[test]
 fn parse_string_type() {
-    let result = emit("parse<string>(x)");
+    let result = emit_with_types("parse<string>(x)");
     assert!(
         result.contains("typeof __v !== \"string\""),
         "should check typeof for string, got: {result}"
@@ -2004,7 +2004,7 @@ fn parse_string_type() {
 
 #[test]
 fn parse_number_type() {
-    let result = emit("parse<number>(x)");
+    let result = emit_with_types("parse<number>(x)");
     assert!(
         result.contains("typeof __v !== \"number\""),
         "should check typeof for number, got: {result}"
@@ -2013,7 +2013,7 @@ fn parse_number_type() {
 
 #[test]
 fn parse_boolean_type() {
-    let result = emit("parse<boolean>(x)");
+    let result = emit_with_types("parse<boolean>(x)");
     assert!(
         result.contains("typeof __v !== \"boolean\""),
         "should check typeof for boolean, got: {result}"
@@ -2022,7 +2022,7 @@ fn parse_boolean_type() {
 
 #[test]
 fn parse_record_type_codegen() {
-    let result = emit("parse<{ name: string, age: number }>(data)");
+    let result = emit_with_types("parse<{ name: string, age: number }>(data)");
     assert!(
         result.contains("typeof __v !== \"object\""),
         "should check for object, got: {result}"
@@ -2047,7 +2047,7 @@ fn parse_record_type_codegen() {
 
 #[test]
 fn parse_array_type_codegen() {
-    let result = emit("parse<Array<number>>(items)");
+    let result = emit_with_types("parse<Array<number>>(items)");
     assert!(
         result.contains("Array.isArray"),
         "should check Array.isArray, got: {result}"
@@ -2060,7 +2060,7 @@ fn parse_array_type_codegen() {
 
 #[test]
 fn parse_in_pipe() {
-    let result = emit("x |> parse<string>");
+    let result = emit_with_types("x |> parse<string>");
     assert!(
         result.contains("const __v = x"),
         "should use piped value, got: {result}"
@@ -2087,7 +2087,7 @@ fn parse_with_awaited_value_emits_async_iife() {
 
 #[test]
 fn parse_without_await_keeps_sync_iife() {
-    let result = emit("x |> parse<string>");
+    let result = emit_with_types("x |> parse<string>");
     assert!(
         result.contains("(() => {"),
         "parse without await should stay sync, got: {result}"
@@ -2095,6 +2095,121 @@ fn parse_without_await_keeps_sync_iife() {
     assert!(
         !result.contains("async () =>"),
         "parse without await must not produce async IIFE, got: {result}"
+    );
+}
+
+// ── Codegen reads the resolved type, not the annotation (#1521) ──
+
+#[test]
+fn parse_validates_the_type_an_alias_resolves_to() {
+    let result = emit_with_types(
+        "typealias Id = string\nlet f(raw: unknown) -> Result<Id, Error> = { parse<Id>(raw) }",
+    );
+    assert!(
+        result.contains("typeof __v !== \"string\""),
+        "parse<Id> must validate the string the alias resolves to, got: {result}"
+    );
+    assert!(
+        !result.contains("expected object"),
+        "parse<Id> must not validate an alias of string as an object, got: {result}"
+    );
+}
+
+#[test]
+fn parse_in_a_pipe_validates_the_type_an_alias_resolves_to() {
+    let result = emit_with_types(
+        "typealias Id = string\nlet f(raw: unknown) -> Result<Id, Error> = { raw |> parse<Id> }",
+    );
+    assert!(
+        result.contains("typeof __v !== \"string\""),
+        "the pipe form must resolve the alias too, got: {result}"
+    );
+}
+
+#[test]
+fn parse_validates_a_tuple_as_an_array_of_a_fixed_length() {
+    let result = emit_with_types(
+        "typealias Pair = (number, number)\n\
+         let f(raw: unknown) -> Result<Pair, Error> = { parse<Pair>(raw) }",
+    );
+    assert!(
+        result.contains("!Array.isArray(__v)"),
+        "a tuple is an array at run time, got: {result}"
+    );
+    assert!(
+        result.contains("__v.length !== 2"),
+        "a tuple carries a fixed number of elements, got: {result}"
+    );
+    assert!(
+        result.contains("typeof __v[0] !== \"number\""),
+        "each element carries its own type, got: {result}"
+    );
+    assert!(
+        result.contains("typeof __v[1] !== \"number\""),
+        "each element carries its own type, got: {result}"
+    );
+}
+
+#[test]
+fn parse_validates_a_function_type_with_typeof() {
+    let result = emit_with_types(
+        "typealias Handler = (a: number) -> number\n\
+         let f(raw: unknown) -> Result<Handler, Error> = { parse<Handler>(raw) }",
+    );
+    assert!(
+        result.contains("typeof __v !== \"function\""),
+        "a function type checks as a function, got: {result}"
+    );
+}
+
+#[test]
+fn parse_and_mock_agree_on_an_alias() {
+    let source = "typealias Id = string\n\
+                  let f(raw: unknown) -> Result<Id, Error> = { parse<Id>(raw) }\n\
+                  let g() -> Id = { mock<Id>() }";
+    let result = emit_with_types(source);
+    assert!(
+        result.contains("typeof __v !== \"string\""),
+        "parse<Id> must read the alias as a string, got: {result}"
+    );
+    assert!(
+        result.contains("\"mock-Id-1\""),
+        "mock<Id> must read the alias as a string too, got: {result}"
+    );
+}
+
+#[test]
+fn bare_option_emits_what_option_unknown_means() {
+    let result = emit_with_types("let f(x: Option) -> number = { 1 }");
+    assert!(
+        result.contains("x: unknown | null | undefined"),
+        "the checker reads a bare `Option` as `Option<Unknown>`, got: {result}"
+    );
+    assert!(
+        !result.contains("x: Option"),
+        "`Option` is a name TypeScript does not declare, got: {result}"
+    );
+}
+
+#[test]
+fn bare_settable_emits_what_settable_unknown_means() {
+    let result = emit_with_types("let f(x: Settable) -> number = { 1 }");
+    assert!(
+        result.contains("x: unknown | null | undefined"),
+        "the checker reads a bare `Settable` as `Settable<Unknown>`, got: {result}"
+    );
+}
+
+#[test]
+fn bare_result_emits_what_result_unknown_unknown_means() {
+    let result = emit_with_types("let f(x: Result) -> number = { 1 }");
+    assert!(
+        result.contains("{ ok: true; value: unknown } | { ok: false; error: unknown }"),
+        "the checker reads a bare `Result` as `Result<Unknown, Unknown>`, got: {result}"
+    );
+    assert!(
+        !result.contains("x: Result"),
+        "`Result` is a name TypeScript does not declare, got: {result}"
     );
 }
 

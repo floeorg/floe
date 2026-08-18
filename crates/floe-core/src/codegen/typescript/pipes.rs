@@ -250,11 +250,16 @@ impl<'a> TypeScriptGenerator<'a> {
                 pretty::concat(docs)
             }
             ExprKind::Parse { type_arg, value } if matches!(value.kind, ExprKind::Placeholder) => {
-                let substituted = TypedExpr::synthetic_typed(
+                // Carry the type the checker gave `parse<T>` onto the
+                // rebuilt node. `emit_parse` reads it to decide what to
+                // validate, so a synthetic `Unknown` here would emit no
+                // checks at all. See #1521.
+                let substituted = TypedExpr::synthetic_with_type(
                     ExprKind::Parse {
                         type_arg: type_arg.clone(),
                         value: Box::new(left.clone()),
                     },
+                    right.ty.clone(),
                     right.span,
                 );
                 self.emit_expr(&substituted)

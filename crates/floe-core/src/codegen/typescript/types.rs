@@ -13,24 +13,28 @@ impl<'a> TypeScriptGenerator<'a> {
             TypeExprKind::Named {
                 name, type_args, ..
             } => {
-                if name == type_layout::TYPE_OPTION && type_args.len() == 1 {
+                // `Option`, `Settable` and `Result` match on the name alone,
+                // and a missing argument means `unknown`. The checker
+                // decides these three the same way, in
+                // `Checker::resolve_named_type`, which reads the name and
+                // defaults every absent argument to `Type::Unknown`.
+                //
+                // Matching on the arity as well used to part the two
+                // passes: the checker read a bare `Option` as
+                // `Option<Unknown>` and codegen emitted the bare name
+                // `Option`, which TypeScript does not declare. See #1521.
+                if name == type_layout::TYPE_OPTION || name == type_layout::TYPE_SETTABLE {
                     return pretty::concat([
-                        self.emit_type_expr(&type_args[0]),
+                        self.emit_type_arg_or_unknown(type_args, 0),
                         pretty::str(" | null | undefined"),
                     ]);
                 }
-                if name == type_layout::TYPE_SETTABLE && type_args.len() == 1 {
-                    return pretty::concat([
-                        self.emit_type_expr(&type_args[0]),
-                        pretty::str(" | null | undefined"),
-                    ]);
-                }
-                if name == type_layout::TYPE_RESULT && type_args.len() == 2 {
+                if name == type_layout::TYPE_RESULT {
                     return pretty::concat([
                         pretty::str(format!("{{ {OK_FIELD}: true; {VALUE_FIELD}: ")),
-                        self.emit_type_expr(&type_args[0]),
+                        self.emit_type_arg_or_unknown(type_args, 0),
                         pretty::str(format!(" }} | {{ {OK_FIELD}: false; {ERROR_FIELD}: ")),
-                        self.emit_type_expr(&type_args[1]),
+                        self.emit_type_arg_or_unknown(type_args, 1),
                         pretty::str(" }"),
                     ]);
                 }
@@ -104,6 +108,17 @@ impl<'a> TypeScriptGenerator<'a> {
             TypeExprKind::Intersection(types) => self.emit_type_joined(types, " & "),
             TypeExprKind::StringLiteral(value) => pretty::str(format!("\"{value}\"")),
         }
+    }
+
+    /// Emit the type argument at `index`, or `unknown` when the user wrote
+    /// no argument there. The checker defaults an absent argument to
+    /// `Type::Unknown`, so this keeps the two passes on the same answer.
+    fn emit_type_arg_or_unknown(&mut self, type_args: &[TypedTypeExpr], index: usize) -> Document {
+        let Some(arg) = type_args.get(index) else {
+            return pretty::str(type_layout::TYPE_UNKNOWN);
+        };
+
+        self.emit_type_expr(arg)
     }
 
     fn emit_type_joined(&mut self, types: &[TypedTypeExpr], sep: &str) -> Document {

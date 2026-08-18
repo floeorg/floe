@@ -3,7 +3,7 @@ use std::sync::Arc;
 use super::{
     Arg, BinOp, Checker, ConstructSyntax, Diagnostic, ErrorCode, Expr, ExprId, ExprKind, HashMap,
     Item, ItemKind, MatchArm, Param, ParamDestructure, Span, TemplatePart, Type, TypeDef, TypeExpr,
-    UnaryOp, hydrator, interop, unify,
+    TypeExprKind, UnaryOp, hydrator, interop, unify,
 };
 use crate::type_layout;
 
@@ -189,6 +189,7 @@ impl Checker {
             ExprKind::Match { subject, arms } => self.check_match(subject, arms, expr.span),
             ExprKind::Parse { type_arg, value } => {
                 let t = self.resolve_type(type_arg);
+                self.reject_unvalidatable_parse_type(&t, type_arg);
                 if !matches!(value.kind, ExprKind::Placeholder) {
                     self.check_expr(value);
                 }
@@ -700,6 +701,33 @@ impl Checker {
             return_type: Arc::new(return_type),
             required_params,
         }
+    }
+
+    /// Refuse `parse<T>` where `T` is a type parameter.
+    ///
+    /// The validation `parse` emits runs inside the generic function, so
+    /// it cannot know what `T` is and can check nothing. It would return
+    /// `Ok` for every value, and both the checker and TypeScript would
+    /// call that value a `T`. A caller writing `pGen<number>("text")`
+    /// would get a `number` holding a string. Report it here instead, at
+    /// the annotation the user wrote. See #1521.
+    fn reject_unvalidatable_parse_type(&mut self, resolved: &Type, type_arg: &TypeExpr) {
+        if !matches!(resolved.resolved(), Type::Var(_)) {
+            return;
+        }
+        let name = match &type_arg.kind {
+            TypeExprKind::Named { name, .. } => name.clone(),
+            _ => "T".to_string(),
+        };
+        self.emit_error_with_help(
+            format!("`parse` cannot validate the type parameter `{name}` at run time"),
+            type_arg.span,
+            ErrorCode::UnvalidatableParseType,
+            "a type parameter has no shape to check",
+            format!(
+                "the emitted check does not know what `{name}` is, so it would accept every value. Call `parse` with a concrete type, or take an already validated value as a parameter."
+            ),
+        );
     }
 
     fn check_match(&mut self, subject: &Expr, arms: &[MatchArm], span: Span) -> Type {
