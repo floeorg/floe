@@ -201,20 +201,36 @@ pub fn find_package_dts(project_dir: &Path, specifier: &str) -> Option<PathBuf> 
     if !is_valid_package_name(package) {
         return None;
     }
-    let candidates = [
-        node_modules.join(package),
-        node_modules
-            .join("@types")
-            .join(types_package_name(package)),
-    ];
-
     // The `is_dir` guard keeps the walk-up in the language server cheap: an
     // ancestor that holds no such package costs one `stat`, not two file
     // reads.
-    candidates
-        .iter()
+    package_dir_candidates(&node_modules, package)
+        .into_iter()
         .filter(|pkg_dir| pkg_dir.is_dir())
-        .find_map(|pkg_dir| find_dts_in_package(pkg_dir, &subpath))
+        .find_map(|pkg_dir| find_dts_in_package(&pkg_dir, &subpath))
+}
+
+/// Every directory inside one `node_modules` that can hold `package`:
+/// the package itself, then its DefinitelyTyped companion.
+///
+/// This is the one place that says where a package lives, so
+/// [`find_package_dts`], which reads the declarations, and
+/// [`super::packages`], which only asks whether the package is there,
+/// cannot drift apart about it (#1465).
+///
+/// A package already under `@types/` has no companion of its own, so
+/// that candidate drops out rather than naming `@types/types__node`.
+pub(super) fn package_dir_candidates(node_modules: &Path, package: &str) -> Vec<PathBuf> {
+    let mut candidates = vec![node_modules.join(package)];
+    if !package.starts_with("@types/") {
+        candidates.push(
+            node_modules
+                .join("@types")
+                .join(types_package_name(package)),
+        );
+    }
+
+    candidates
 }
 
 /// Resolve a `node:X` specifier. Those declarations live inside

@@ -3,9 +3,10 @@
 //! This module answers one question, and only that question: does a
 //! `node_modules/<package>` directory exist at or above the project
 //! directory? It never opens a declaration file. Finding the `.d.ts`
-//! inside an installed package is [`super::package_exports`]'s job, and
-//! this module borrows that module's specifier parsing so the two agree
-//! on what a package name is.
+//! inside an installed package is [`super::package_exports`]'s job.
+//! This module borrows that module's specifier parsing and its
+//! directory layout, so the two agree both on what a package name is
+//! and on where a package lives.
 //!
 //! The split matters, because the two failures need two answers:
 //!
@@ -20,9 +21,11 @@
 //! broken passed on the command line (#1465).
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use super::package_exports::{is_valid_package_name, split_specifier, types_package_name};
+use super::package_exports::{
+    is_valid_package_name, package_dir_candidates, split_specifier, types_package_name,
+};
 use crate::parser::ast::{ItemKind, Program};
 use crate::resolve::{ResolvedImports, TsconfigPaths};
 
@@ -41,7 +44,7 @@ const NODE_TYPES_PACKAGE: &str = "@types/node";
 /// publish. No install fixes such an import, but naming a package to
 /// install would be nonsense, so this module leaves it to the existing
 /// unknown-type warning.
-pub fn required_package(specifier: &str) -> Option<&str> {
+fn required_package(specifier: &str) -> Option<&str> {
     if specifier.starts_with("node:") {
         return Some(NODE_TYPES_PACKAGE);
     }
@@ -57,7 +60,7 @@ pub fn required_package(specifier: &str) -> Option<&str> {
 /// that fixes the import, because "cannot find module" on its own
 /// leaves the reader guessing between a missing install and a missing
 /// `@types` package.
-pub fn install_hint(package: &str) -> String {
+pub(crate) fn install_hint(package: &str) -> String {
     if package == NODE_TYPES_PACKAGE {
         return format!(
             "install the Node type declarations: `npm install --save-dev {NODE_TYPES_PACKAGE}`"
@@ -70,31 +73,23 @@ pub fn install_hint(package: &str) -> String {
     )
 }
 
-/// Find `package` in a `node_modules` directory at or above
-/// `project_dir`. Either the package itself or its `@types` companion
-/// counts as installed, since either one gives the import a meaning.
+/// True when a `node_modules` directory at or above `project_dir`
+/// holds `package`. Either the package itself or its `@types` companion
+/// counts, since either one gives the import a meaning.
+///
+/// [`package_dir_candidates`] names the directories, so this answer and
+/// the declaration lookup in [`super::package_exports`] read the same
+/// two places.
 ///
 /// The walk upward matters for a workspace: pnpm and npm both hoist a
 /// dependency into the repository root, so the nearest `node_modules`
 /// is often not the one holding the package.
-pub fn find_package_dir(package: &str, project_dir: &Path) -> Option<PathBuf> {
-    let mut dir = project_dir.to_path_buf();
-    loop {
-        let modules = dir.join("node_modules");
-        if modules.join(package).is_dir() {
-            return Some(modules.join(package));
-        }
-        // A package already under `@types` has no companion of its own.
-        if !package.starts_with("@types/") {
-            let companion = modules.join("@types").join(types_package_name(package));
-            if companion.is_dir() {
-                return Some(companion);
-            }
-        }
-        if !dir.pop() {
-            return None;
-        }
-    }
+fn is_installed(package: &str, project_dir: &Path) -> bool {
+    project_dir.ancestors().any(|dir| {
+        package_dir_candidates(&dir.join("node_modules"), package)
+            .iter()
+            .any(|candidate| candidate.is_dir())
+    })
 }
 
 /// Every npm import in `program` whose package is not installed, as
@@ -129,7 +124,7 @@ pub fn find_missing_packages(
         let Some(package) = required_package(specifier) else {
             continue;
         };
-        if find_package_dir(package, project_dir).is_none() {
+        if !is_installed(package, project_dir) {
             missing.insert(specifier.to_string(), package.to_string());
         }
     }
@@ -197,50 +192,50 @@ mod tests {
     }
 
     #[test]
-    fn find_package_dir_walks_up_to_a_workspace_root() {
+    fn is_installed_walks_up_to_a_workspace_root() {
         let root = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(root.path().join("node_modules/react")).unwrap();
         let app = root.path().join("apps/web");
         std::fs::create_dir_all(&app).unwrap();
 
-        assert!(find_package_dir("react", &app).is_some());
+        assert!(is_installed("react", &app));
     }
 
     #[test]
-    fn find_package_dir_accepts_a_types_only_install() {
+    fn is_installed_accepts_a_types_only_install() {
         let root = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(root.path().join("node_modules/@types/react")).unwrap();
 
-        assert!(find_package_dir("react", root.path()).is_some());
+        assert!(is_installed("react", root.path()));
     }
 
     #[test]
-    fn find_package_dir_collapses_a_scope_for_the_types_directory() {
+    fn is_installed_collapses_a_scope_for_the_types_directory() {
         let root = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(root.path().join("node_modules/@types/scope__pkg")).unwrap();
 
-        assert!(find_package_dir("@scope/pkg", root.path()).is_some());
+        assert!(is_installed("@scope/pkg", root.path()));
     }
 
     #[test]
-    fn find_package_dir_finds_types_node_for_the_node_scheme() {
+    fn is_installed_finds_types_node_for_the_node_scheme() {
         let root = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(root.path().join("node_modules/@types/node")).unwrap();
 
         let package = required_package("node:crypto").expect("node: needs @types/node");
-        assert!(find_package_dir(package, root.path()).is_some());
+        assert!(is_installed(package, root.path()));
     }
 
     #[test]
-    fn find_package_dir_reports_an_absent_package() {
+    fn is_installed_reports_an_absent_package() {
         let root = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(root.path().join("node_modules/react")).unwrap();
 
-        assert!(find_package_dir("preact", root.path()).is_none());
+        assert!(!is_installed("preact", root.path()));
     }
 
     #[test]
-    fn find_package_dir_accepts_a_package_without_declarations() {
+    fn is_installed_accepts_a_package_without_declarations() {
         // No `.d.ts` anywhere in it. Presence is the whole question here:
         // a package with no types is W004's problem, not E013's.
         let root = tempfile::tempdir().unwrap();
@@ -248,7 +243,7 @@ mod tests {
         std::fs::create_dir_all(&pkg).unwrap();
         std::fs::write(pkg.join("package.json"), r#"{"name":"no-types"}"#).unwrap();
 
-        assert!(find_package_dir("no-types", root.path()).is_some());
+        assert!(is_installed("no-types", root.path()));
     }
 
     fn program_of(source: &str) -> Program {

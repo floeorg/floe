@@ -27,14 +27,18 @@ impl Checker {
         // name from the import then binds to `Type::Error`, which keeps
         // this one diagnostic from turning into a W004 warning at each
         // call site and an "undefined name" error at each other use.
-        let missing_package = self.missing_npm_packages.get(&decl.source).cloned();
-        if let Some(package) = &missing_package {
+        let install_hint = self
+            .missing_npm_packages
+            .get(&decl.source)
+            .map(|package| interop::packages::install_hint(package));
+        let package_missing = install_hint.is_some();
+        if let Some(hint) = install_hint {
             self.emit_error_with_help(
                 format!("cannot find module `\"{}\"`", decl.source),
                 item_span,
                 ErrorCode::PackageNotFound,
                 "package not found",
-                interop::packages::install_hint(package),
+                hint,
             );
         }
 
@@ -48,7 +52,7 @@ impl Checker {
         let is_npm = !decl.source.starts_with("./") && !decl.source.starts_with("../");
         let default_untrusted = is_npm && !decl.trusted;
         if let Some(ref default_name) = decl.default_import {
-            let ty = if missing_package.is_some() {
+            let ty = if package_missing {
                 Type::Error
             } else if let Some(ref exports) = dts_exports {
                 if let Some(dts_export) = exports.iter().find(|e| e.name == "default") {
@@ -99,7 +103,7 @@ impl Checker {
             }
 
             // Try to find the actual type from resolved imports
-            let ty = if missing_package.is_some() {
+            let ty = if package_missing {
                 Type::Error
             } else if let Some(ref resolved) = resolved {
                 if let Some(ty) = self.lookup_resolved_symbol(&spec.name, resolved) {
