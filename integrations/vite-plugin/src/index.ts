@@ -33,15 +33,20 @@ export default function floe(options: FloeOptions = {}): import("vite").Plugin {
       projectRoot = config.root;
     },
 
+    // `.fl` joins `resolve.extensions` so that `import { Page } from "./page"`
+    // finds `page.fl`. It must NOT join Vite's own transform filter
+    // (`esbuild.include` on Vite 5 to 7, `oxc.include` on Vite 8): the
+    // `transform` hook below already returns plain JavaScript, and Vite 8 runs
+    // that filter inside rolldown, whose `builtin:vite-transform` reads the
+    // language from the file extension alone and fails with "Failed to detect
+    // the lang of <file>.fl". Rolldown treats an extension it does not know as
+    // JavaScript, which is what the compiled output is.
     config(config: { resolve?: { extensions?: string[] } }) {
       const existing = config.resolve?.extensions ?? [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"];
       const extensions = existing.includes(".fl") ? existing : [...existing, ".fl"];
+
       return {
         resolve: { extensions },
-        esbuild: {
-          include: /\.(tsx?|jsx?|fl)$/,
-          loader: "tsx" as const,
-        },
       };
     },
 

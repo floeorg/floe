@@ -66,10 +66,26 @@ The compiler generates `.d.fl.ts` type declarations in the `.floe/` directory, a
 1. Vite encounters a `.fl` import
 2. The plugin reads pre-compiled output from `.floe/` if `floe watch` is running and the output is fresh
 3. Otherwise, it falls back to calling `floe build --emit-stdout` to compile on-demand
-4. The TypeScript output is passed to Vite's normal pipeline
+4. The plugin transforms that TypeScript into plain JavaScript itself, so Vite's own TypeScript and JSX transform never sees a `.fl` file
 5. Hot Module Replacement works automatically
 
 Running `floe watch src/` alongside Vite is optional but recommended -- it avoids per-file process spawns and shares the same `.floe/` output that other tools use.
+
+### Do not add `.fl` to Vite's transform filter
+
+The plugin adds `.fl` to `resolve.extensions` and nothing else. Do **not** add `.fl` to Vite's own transform filter:
+
+```typescript
+// vite.config.ts - WRONG, this breaks `vite build`
+export default defineConfig({
+  plugins: [floe()],
+  esbuild: {                          // `oxc` on Vite 8
+    include: /\.(tsx?|jsx?|fl)$/,
+  },
+})
+```
+
+Vite 8 runs that filter inside Rolldown, and Rolldown's `builtin:vite-transform` reads the language of a file from its extension. It knows `.fl` is neither `.ts` nor `.tsx`, so the build stops with `Failed to detect the lang of <file>.fl`. The filter buys nothing either way, because the plugin already hands Vite plain JavaScript.
 
 ## With React
 

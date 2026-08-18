@@ -74,12 +74,12 @@ export default function floe(options: FloeOptions = {}): Plugin {
         const projectRoot = findRoot(args.path);
         const cached = readCompiledOutput(args.path, projectRoot);
         if (cached !== null) {
-          return { contents: cached, loader: "ts", resolveDir };
+          return { contents: cached, loader: "tsx", resolveDir };
         }
 
         try {
           const { code } = compileFloe(compiler, args.path);
-          return { contents: code, loader: "ts", resolveDir };
+          return { contents: code, loader: "tsx", resolveDir };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           return {
