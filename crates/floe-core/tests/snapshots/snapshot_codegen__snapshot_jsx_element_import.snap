@@ -4,6 +4,7 @@ expression: output
 ---
 // ── jsx_element_import.tsx ──
 import type { JSX } from "react";
+
 import { useState } from "react";
 
 type CardProps = { title: string };

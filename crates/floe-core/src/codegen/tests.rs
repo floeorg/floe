@@ -882,6 +882,34 @@ fn written_jsx_import_wins_over_the_emitted_one() {
     assert!(code.contains("JSX.Element"), "got: {code}");
 }
 
+/// A file-scope value named `JSX` binds no namespace, so it must not
+/// suppress the import. The first guard read the value scope, so it did,
+/// and the emitted file kept the `TS2503` this fix removes.
+#[test]
+fn a_value_named_jsx_still_gets_the_import() {
+    let (code, _dts) =
+        emit_ts_and_dts("let JSX() = { 1 }\n\nlet Badge() -> JSX.Element = { <span /> }");
+    assert!(
+        code.starts_with(crate::type_layout::JSX_TYPE_IMPORT),
+        "a value named JSX binds no namespace, so it must not suppress the import, got: {code}"
+    );
+}
+
+/// A local `type JSX` does not suppress the import either. TypeScript
+/// holds an imported namespace and a local type alias in separate
+/// declaration spaces, so the two stand together, and only the import
+/// makes `JSX.Element` resolve.
+#[test]
+fn a_type_named_jsx_still_gets_the_import() {
+    let (code, _dts) = emit_ts_and_dts(
+        "type JSX = { Element: unknown }\n\nexport let take(a: JSX.Element) -> number = { 1 }",
+    );
+    assert!(
+        code.starts_with(crate::type_layout::JSX_TYPE_IMPORT),
+        "a type named JSX must not suppress the import, got: {code}"
+    );
+}
+
 /// A file that names no `JSX.Element` gets no import, even when it holds
 /// JSX. The type is what needs the namespace, not the syntax.
 #[test]
