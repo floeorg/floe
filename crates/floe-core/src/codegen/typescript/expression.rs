@@ -5,7 +5,10 @@ use crate::parser::ast::{
 use crate::pretty::{self, Document};
 use crate::type_layout::{ERROR_FIELD, OK_FIELD, TAG_FIELD, VALUE_FIELD};
 
-use super::super::{DEEP_EQUAL_FN, binop_str, escape_string, has_placeholder_arg, unaryop_str};
+use super::super::{
+    DEEP_EQUAL_FN, GlobalName, binop_str, checker_agrees, escape_string, has_placeholder_arg,
+    unaryop_str,
+};
 use super::generator::{THROW_NOT_IMPLEMENTED, THROW_UNREACHABLE, TypeScriptGenerator};
 
 /// A single step in a flattened pipe+unwrap chain.
@@ -27,26 +30,7 @@ impl<'a> TypeScriptGenerator<'a> {
             ExprKind::TemplateLiteral(parts) => self.emit_template(None, parts),
             ExprKind::TaggedTemplate { tag, parts } => self.emit_template(Some(tag), parts),
             ExprKind::Bool(b) => pretty::str(if *b { "true" } else { "false" }),
-            ExprKind::Identifier(name) => {
-                if self.ctx.unit_variants.contains(name.as_str()) {
-                    pretty::str(format!("{{ {TAG_FIELD}: \"{name}\" }}"))
-                } else if let Some(field_names) = self
-                    .ctx
-                    .variant_info
-                    .get(name.as_str())
-                    .filter(|(_, f)| !f.is_empty())
-                    .map(|(_, f)| f.clone())
-                {
-                    self.emit_variant_constructor_fn(name, &field_names)
-                } else if let Some(mangled) = self
-                    .ctx
-                    .lookup_for_block_fn_by_name(name, &self.import_aliases)
-                {
-                    pretty::str(mangled)
-                } else {
-                    pretty::str(name)
-                }
-            }
+            ExprKind::Identifier(name) => self.emit_identifier(name, &expr.ty),
             ExprKind::Placeholder => pretty::str("_"),
 
             ExprKind::Binary { left, op, right } => match op {
@@ -136,7 +120,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 ..
             } => self.emit_construct(type_name, spread.as_deref(), args),
 
-            ExprKind::Member { object, field } => self.emit_member(object, field),
+            ExprKind::Member { object, field } => self.emit_member(object, field, &expr.ty),
 
             ExprKind::Index { object, index } => pretty::concat([
                 self.emit_expr(object),
@@ -373,22 +357,56 @@ impl<'a> TypeScriptGenerator<'a> {
         pretty::concat(docs)
     }
 
+    // ── Identifiers ─────────────────────────────────────────────
+
+    /// Emit a bare identifier.
+    ///
+    /// Three file-global maps claim bare names: unit variants, variant
+    /// constructors and for-block functions. None of them carries a scope,
+    /// so each answer is guarded on `ty`, the type the checker resolved for
+    /// this expression. A local binding that shadows one of these names
+    /// resolves to its own type, the guard fails, and codegen emits the
+    /// plain name the checker validated.
+    fn emit_identifier(&mut self, name: &str, ty: &crate::checker::Type) -> Document {
+        let ctx = self.ctx;
+        if let Some((union, field_names)) = ctx.variant_info.get(name) {
+            if field_names.is_empty() {
+                if checker_agrees(ty, &GlobalName::Variant { union }) {
+                    return pretty::str(format!("{{ {TAG_FIELD}: \"{name}\" }}"));
+                }
+            } else if checker_agrees(ty, &GlobalName::Constructor { union }) {
+                return self.emit_variant_constructor_fn(name, field_names);
+            }
+        }
+        if let Some(entry) = ctx.resolved_for_block_fn(name, ty) {
+            return pretty::str(entry.emitted_name(&self.import_aliases));
+        }
+
+        pretty::str(name)
+    }
+
     // ── Member Access ───────────────────────────────────────────
 
-    fn emit_member(&mut self, object: &TypedExpr, field: &str) -> Document {
+    fn emit_member(
+        &mut self,
+        object: &TypedExpr,
+        field: &str,
+        ty: &crate::checker::Type,
+    ) -> Document {
         // For-block function: Entry.toModel → Entry__toModel
         if let ExprKind::Identifier(type_name) = &object.kind
-            && let Some(mangled) = self
+            && let Some(entry) = self
                 .ctx
                 .for_block_fns
                 .get(&(type_name.clone(), field.to_string()))
+            && checker_agrees(
+                ty,
+                &GlobalName::ForBlockFn {
+                    shape: &entry.shape,
+                },
+            )
         {
-            let name = self
-                .import_aliases
-                .get(mangled)
-                .cloned()
-                .unwrap_or_else(|| mangled.clone());
-            return pretty::str(name);
+            return pretty::str(entry.emitted_name(&self.import_aliases));
         }
         // Union variant access: Filter.All → { tag: "All" }
         if let ExprKind::Identifier(type_name) = &object.kind
@@ -397,6 +415,7 @@ impl<'a> TypeScriptGenerator<'a> {
                 .variant_info
                 .get(field)
                 .is_some_and(|(union_name, _)| union_name == type_name)
+            && checker_agrees(ty, &GlobalName::Variant { union: type_name })
         {
             return pretty::str(format!("{{ {TAG_FIELD}: \"{field}\" }}"));
         }

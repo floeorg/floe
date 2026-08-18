@@ -3,7 +3,7 @@ use super::{
     VariantPatternFields, parse_string_pattern_segments,
 };
 
-impl<'src> Lowerer<'src> {
+impl Lowerer<'_, '_> {
     pub(super) fn lower_match_arm(&mut self, node: &SyntaxNode) -> Option<MatchArm> {
         let span = self.node_span(node);
         let mut pattern = None;

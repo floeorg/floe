@@ -12,6 +12,7 @@ mod tests;
 
 use std::collections::{HashMap, HashSet};
 
+use crate::checker::Type;
 use crate::parser::ast::{
     Arg, BinOp, ExprKind, ItemKind, JsxChild, JsxElementKind, JsxProp, TemplatePart, TypeExpr,
     TypeExprKind, TypedArg, TypedExpr, TypedItem, TypedJsxElement, TypedProgram, UnaryOp,
@@ -36,6 +37,20 @@ pub fn for_block_fn_name<T>(type_expr: &TypeExpr<T>, fn_name: &str) -> String {
 pub(crate) fn for_block_base_type_name<T>(type_expr: &TypeExpr<T>) -> Option<&str> {
     match &type_expr.kind {
         TypeExprKind::Named { name, .. } => Some(name),
+        _ => None,
+    }
+}
+
+/// The name a written type annotation carries, when it carries one.
+///
+/// `Entry` gives `Entry` and `Array<number>` gives `Array`, which is what
+/// the resolved `Type` for the same annotation prints. A structural
+/// annotation (a record, a tuple, a function type) carries no name, so it
+/// gives `None` and the guard skips that position rather than guessing.
+pub(crate) fn written_annotation_name<T>(type_expr: &TypeExpr<T>) -> Option<String> {
+    match &type_expr.kind {
+        TypeExprKind::Named { name, .. } => Some(name.clone()),
+        TypeExprKind::Array(_) => Some(crate::type_layout::TYPE_ARRAY.to_string()),
         _ => None,
     }
 }
@@ -111,6 +126,101 @@ impl Default for Codegen {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// ── Scope Guard For The File-Global Name Maps ────────────────────
+
+/// A name that one of codegen's file-global maps claims to own.
+///
+/// The maps hold every variant, every variant constructor and every
+/// for-block function in the file, under a bare name and with no scope.
+pub(crate) enum GlobalName<'a> {
+    /// A union variant, bare (`Red`) or qualified (`Color.Red`).
+    Variant { union: &'a str },
+    /// A variant that carries fields, used bare as a constructor function.
+    Constructor { union: &'a str },
+    /// A for-block function, against the signature its declaration writes.
+    ForBlockFn { shape: &'a FnShape },
+}
+
+/// The signature a for-block function declares, as written type names.
+///
+/// A position holds `None` where the declaration writes no name for it: an
+/// unannotated parameter, an inferred return type, or a structural
+/// annotation. The guard skips those positions, because it has nothing to
+/// compare there.
+#[derive(Clone)]
+pub(crate) struct FnShape {
+    /// One entry per declared parameter, in order. `self` carries the type
+    /// name in the for-block header, because that is what the checker types
+    /// the receiver as.
+    pub params: Vec<Option<String>>,
+    pub ret: Option<String>,
+}
+
+/// The name a resolved type is written with, without its type arguments.
+///
+/// `Type::Named("Entry")` gives `Entry` and `Array<number>` gives `Array`.
+/// A structural type gives its own printed form, which matches no declared
+/// name, so a comparison against one fails, which is what it must do.
+fn written_type_name(ty: &Type) -> String {
+    let printed = ty.to_string();
+    match printed.split_once('<') {
+        Some((head, _)) => head.to_string(),
+        None => printed,
+    }
+}
+
+/// True when the type the checker resolved for an expression agrees that
+/// the expression names `global`.
+///
+/// Codegen must not resolve a name. The name maps are file global and carry
+/// no scope, so a local binding that shadows a global name leaves them
+/// answering for a name they no longer own. The checker resolved that name
+/// with a scoped lookup and wrote the answer into `expr.ty`. Codegen reads
+/// the type back and takes the map's answer only when the two agree, so the
+/// two passes cannot part however odd the source is.
+///
+/// An undetermined type is no evidence, so it agrees. The checker left no
+/// opinion for codegen to contradict.
+pub(crate) fn checker_agrees(ty: &Type, global: &GlobalName<'_>) -> bool {
+    if ty.is_undetermined() {
+        return true;
+    }
+    match global {
+        GlobalName::Variant { union } => written_type_name(ty) == **union,
+        GlobalName::Constructor { union } => match ty.resolved() {
+            Type::Function { return_type, .. } => {
+                return_type.is_undetermined() || written_type_name(&return_type) == **union
+            }
+            _ => false,
+        },
+        GlobalName::ForBlockFn { shape } => match ty.resolved() {
+            Type::Function {
+                params,
+                return_type,
+                ..
+            } => {
+                params.len() == shape.params.len()
+                    && std::iter::zip(params.iter(), shape.params.iter())
+                        .all(|(resolved, declared)| position_agrees(resolved, declared))
+                    && position_agrees(&return_type, &shape.ret)
+            }
+            _ => false,
+        },
+    }
+}
+
+/// True when one resolved type agrees with one written name.
+///
+/// A declaration that writes no name for the position, and a type the
+/// checker left undetermined, both agree: neither carries evidence.
+fn position_agrees(resolved: &Type, declared: &Option<String>) -> bool {
+    let Some(declared) = declared else {
+        return true;
+    };
+
+    resolved.is_undetermined() || written_type_name(resolved) == *declared
 }
 
 // ── Public Helpers ───────────────────────────────────────────────

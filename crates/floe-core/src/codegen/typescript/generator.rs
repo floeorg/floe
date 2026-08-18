@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::checker::Type;
 use crate::parser::ast::{
     ForBlock, ItemKind, TypeDef, TypeExprKind, TypedForBlock, TypedProgram, TypedTraitDecl,
     TypedTypeDecl, TypedTypeDef, TypedTypeExpr, file_scope_names,
@@ -10,8 +11,8 @@ use crate::stdlib::StdlibRegistry;
 use crate::type_layout;
 
 use super::super::{
-    CodegenOutput, DEEP_EQUAL_FN, collect_constructor_names, collect_value_used_names,
-    for_block_base_type_name, for_block_fn_name,
+    CodegenOutput, DEEP_EQUAL_FN, FnShape, GlobalName, checker_agrees, collect_constructor_names,
+    collect_value_used_names, for_block_base_type_name, for_block_fn_name, written_annotation_name,
 };
 
 // ── Runtime codegen constants ───────────────────────────────────
@@ -37,21 +38,46 @@ pub(super) const THROW_MOCK_FUNCTION: &str = "(() => { throw new Error(\"mock fu
 /// so `limit as isize` in `pretty::render` stays positive.
 const PRINT_WIDTH: usize = 1_000_000;
 
+/// A for-block function, as codegen's file-global name maps hold it.
+#[derive(Clone)]
+pub(crate) struct ForBlockFn {
+    /// The emitted name, `Entry__double`.
+    pub mangled: String,
+    /// The signature the declaration writes, which the guard compares
+    /// against the type the checker resolved at the use site.
+    pub shape: FnShape,
+}
+
+impl ForBlockFn {
+    /// The emitted name, after import aliasing.
+    pub(super) fn emitted_name(&self, import_aliases: &HashMap<String, String>) -> String {
+        import_aliases
+            .get(&self.mangled)
+            .cloned()
+            .unwrap_or_else(|| self.mangled.clone())
+    }
+}
+
 /// Read-only type metadata collected during the first pass.
 /// Borrowed by the generator — no cloning needed for sub-expressions.
 pub(crate) struct TypeContext {
     pub stdlib: StdlibRegistry,
-    pub unit_variants: HashSet<String>,
+    /// Every union variant in the file: `variant_name` → (union name, field
+    /// names). An empty field list marks a unit variant.
     pub variant_info: HashMap<String, (String, Vec<String>)>,
     pub type_defs: HashMap<String, TypedTypeDef>,
     pub local_names: HashSet<String>,
     pub resolved_imports: HashMap<String, ResolvedImports>,
     pub test_mode: bool,
     pub value_used_names: HashSet<String>,
-    pub for_block_fns: HashMap<(String, String), String>,
-    /// Bare-name index into `for_block_fns`: maps `fn_name` → mangled name.
-    /// Lets pipe/identifier lookup hit a HashMap instead of scanning.
-    pub for_block_fns_by_name: HashMap<String, String>,
+    pub for_block_fns: HashMap<(String, String), ForBlockFn>,
+    /// Bare-name index into `for_block_fns`: maps `fn_name` → every
+    /// for-block that declares it, in registration order. Two for-blocks
+    /// may declare one method name on different types, and the checker
+    /// picks between them by the receiver, so codegen holds them all and
+    /// picks the same way. Keeping only the first registration made
+    /// codegen answer `A__show` for a call the checker resolved to `B`.
+    pub for_block_fns_by_name: HashMap<String, Vec<ForBlockFn>>,
     pub for_block_type_names: HashSet<String>,
     pub constructor_used_names: HashSet<String>,
     pub trait_decls: HashMap<String, TypedTraitDecl>,
@@ -74,7 +100,6 @@ impl TypeContext {
     ) -> Self {
         let mut ctx = Self {
             stdlib: StdlibRegistry::new(),
-            unit_variants: HashSet::new(),
             variant_info: HashMap::new(),
             type_defs: HashMap::new(),
             local_names: HashSet::new(),
@@ -176,9 +201,6 @@ impl TypeContext {
                         })
                     })
                     .collect();
-                if variant.fields.is_empty() {
-                    self.unit_variants.insert(variant.name.clone());
-                }
                 self.variant_info
                     .insert(variant.name.clone(), (decl.name.clone(), field_names));
             }
@@ -191,31 +213,54 @@ impl TypeContext {
         };
         self.for_block_type_names.insert(type_name.clone());
         for func in &block.functions {
-            let mangled = for_block_fn_name(&block.type_name, &func.name);
+            let shape = FnShape {
+                params: func
+                    .params
+                    .iter()
+                    .map(|p| {
+                        if p.name == "self" {
+                            return Some(type_name.clone());
+                        }
+
+                        p.type_ann.as_ref().and_then(written_annotation_name)
+                    })
+                    .collect(),
+                ret: func.return_type.as_ref().and_then(written_annotation_name),
+            };
+            let entry = ForBlockFn {
+                mangled: for_block_fn_name(&block.type_name, &func.name),
+                shape,
+            };
             self.for_block_fns
-                .insert((type_name.clone(), func.name.clone()), mangled.clone());
-            // First registration wins for the bare-name lookup. Method names
-            // are unique across for-blocks in practice because codegen would
-            // emit ambiguous calls otherwise.
+                .insert((type_name.clone(), func.name.clone()), entry.clone());
             self.for_block_fns_by_name
                 .entry(func.name.clone())
-                .or_insert(mangled);
+                .or_default()
+                .push(entry);
         }
     }
 
-    /// Look up a for-block function by bare name (without type qualifier).
-    pub(super) fn lookup_for_block_fn_by_name(
-        &self,
-        name: &str,
-        import_aliases: &HashMap<String, String>,
-    ) -> Option<String> {
-        let mangled = self.for_block_fns_by_name.get(name)?;
-        Some(
-            import_aliases
-                .get(mangled)
-                .cloned()
-                .unwrap_or_else(|| mangled.clone()),
-        )
+    /// The for-block function a bare name calls, as the checker resolved it.
+    ///
+    /// `ty` is the type the checker recorded for the name at this use site.
+    /// It picks between two for-blocks that declare one method name, and it
+    /// rejects the map's answer when a local binding shadows the name. An
+    /// undetermined type carries no evidence either way, so the first
+    /// registration answers, which is what an untyped tree needs.
+    pub(super) fn resolved_for_block_fn(&self, name: &str, ty: &Type) -> Option<&ForBlockFn> {
+        let entries = self.for_block_fns_by_name.get(name)?;
+        if ty.is_undetermined() {
+            return entries.first();
+        }
+
+        entries.iter().find(|entry| {
+            checker_agrees(
+                ty,
+                &GlobalName::ForBlockFn {
+                    shape: &entry.shape,
+                },
+            )
+        })
     }
 
     /// Returns true if the name is used as a for-block type prefix but NOT

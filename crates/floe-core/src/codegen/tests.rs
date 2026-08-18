@@ -2963,3 +2963,324 @@ let captures = match RegExp.compile("(\\d+)", "") {
         "expected `r.exec(...)`, got: {result}"
     );
 }
+
+// ── The file-global name maps are guarded on the resolved type (#1520) ──
+//
+// Codegen holds every unit variant, every variant constructor and every
+// for-block function in a file-global map with no scope in it. The checker
+// resolves a name with a scoped lookup. A local binding that shadows one of
+// these names parted the two passes: the checker read the local, codegen
+// read the map, and the program checked clean and emitted something else.
+// Every emission below now reads `expr.ty` first.
+
+#[test]
+fn a_parameter_shadows_a_unit_variant() {
+    let result = emit_typed(
+        r#"
+type Color = Red | Green
+export let f(Red: number) -> number = { Red + 1 }
+"#,
+    );
+    assert!(
+        result.contains("return Red + 1;"),
+        "the parameter shadows the variant, so the parameter must be emitted, got: {result}"
+    );
+    assert!(
+        !result.contains("__tag: \"Red\" } + 1"),
+        "the variant must not be emitted where the checker read the parameter, got: {result}"
+    );
+}
+
+#[test]
+fn a_unit_variant_the_checker_resolved_still_emits_its_tag() {
+    let result = emit_typed(
+        r#"
+type Color = Red | Green
+export let f() -> Color = { Red }
+"#,
+    );
+    assert!(
+        result.contains("{ __tag: \"Red\" }"),
+        "an unshadowed unit variant must still emit its tag, got: {result}"
+    );
+}
+
+#[test]
+fn a_parameter_shadows_a_variant_constructor() {
+    let result = emit_typed(
+        r#"
+type Route = | Home | Profile(string)
+export let f(Profile: number) -> number = { Profile + 1 }
+"#,
+    );
+    assert!(
+        result.contains("return Profile + 1;"),
+        "the parameter shadows the constructor, so the parameter must be emitted, got: {result}"
+    );
+    assert!(
+        !result.contains("=> ({ __tag: \"Profile\""),
+        "the constructor must not be emitted where the checker read the parameter, got: {result}"
+    );
+}
+
+#[test]
+fn a_variant_constructor_the_checker_resolved_still_emits_its_function() {
+    let result = emit_typed(
+        r#"
+type Route = | Home | Profile(string)
+export let f() -> (a: string) -> Route = { Profile }
+"#,
+    );
+    assert!(
+        result.contains("=> ({ __tag: \"Profile\""),
+        "an unshadowed constructor must still emit its function, got: {result}"
+    );
+}
+
+#[test]
+fn a_parameter_shadows_a_for_block_function() {
+    let result = emit_typed(
+        r#"
+type Entry = { n: number }
+for Entry { export let double(self) -> number = { self.n * 2 } }
+export let g(double: (a: number) -> number) -> number = { double(4) }
+"#,
+    );
+    assert!(
+        result.contains("return double(4);"),
+        "the parameter shadows the for-block function, so the parameter must be called, got: {result}"
+    );
+    assert!(
+        !result.contains("return Entry__double(4);"),
+        "the for-block function must not be called where the checker read the parameter, got: {result}"
+    );
+}
+
+#[test]
+fn a_parameter_shadows_a_for_block_function_in_a_pipe() {
+    let result = emit_typed(
+        r#"
+type Entry = { n: number }
+for Entry { export let double(self) -> number = { self.n * 2 } }
+export let g(double: (a: number) -> number) -> number = { 4 |> double() }
+"#,
+    );
+    assert!(
+        result.contains("return double(4);"),
+        "the parameter shadows the for-block function, so the parameter must be called, got: {result}"
+    );
+    assert!(
+        !result.contains("return Entry__double(4);"),
+        "the for-block function must not be called where the checker read the parameter, got: {result}"
+    );
+}
+
+#[test]
+fn a_for_block_function_the_checker_resolved_still_uses_its_mangled_name() {
+    let result = emit_typed(
+        r#"
+type Entry = { n: number }
+for Entry { export let double(self) -> number = { self.n * 2 } }
+export let g(e: Entry) -> number = { e |> double() }
+"#,
+    );
+    assert!(
+        result.contains("Entry__double(e)"),
+        "an unshadowed for-block call must still use the mangled name, got: {result}"
+    );
+}
+
+#[test]
+fn a_for_block_on_a_stdlib_type_does_not_answer_for_a_stdlib_member() {
+    // The checker reads `Array.sum` as the stdlib function, because a
+    // for-block never enters the stdlib module namespace. Codegen read its
+    // own for-block map and emitted a different function.
+    //
+    // The guard refuses the map here because the checker types an uncalled
+    // stdlib member as that function's return type, so `expr.ty` is
+    // `number` and no function can match it. That is not a signature
+    // comparison, and it would not survive the checker giving the member
+    // its own function type: `Array.sum` and this for-block declare the
+    // same signature, so no reading of `expr.ty` separates them. What
+    // codegen should emit for a stdlib function used as a bare value is
+    // #1525, and this test does not fix the emission.
+    let result = emit_typed(
+        r#"
+for Array<number> { export let sum(self) -> number = { 1 } }
+export let f() -> number = { Array.sum }
+"#,
+    );
+    assert!(
+        !result.contains("return Array_number__sum"),
+        "the for-block function must not be emitted where the checker read the stdlib, got: {result}"
+    );
+}
+
+#[test]
+fn two_for_blocks_sharing_a_method_name_each_get_their_own() {
+    // The language supports one method name on two types, and the checker
+    // picks between them by the receiver. Codegen kept only the first
+    // registration under the bare name, so every call emitted `A__show`.
+    let result = emit_typed(
+        r#"
+type A = { n: number }
+type B = { s: string }
+for A { export let show(self) -> string = { "a" } }
+for B { export let show(self) -> string = { "b" } }
+export let ga(x: A) -> string = { show(x) }
+export let gb(x: B) -> string = { show(x) }
+export let pa(x: A) -> string = { x |> show() }
+export let pb(x: B) -> string = { x |> show() }
+"#,
+    );
+    for (caller, callee) in [
+        ("ga", "A__show(x)"),
+        ("gb", "B__show(x)"),
+        ("pa", "A__show(x)"),
+        ("pb", "B__show(x)"),
+    ] {
+        assert!(
+            result.contains(&format!("return {callee};")),
+            "`{caller}` must call `{callee}`, got: {result}"
+        );
+    }
+}
+
+#[test]
+fn a_parameter_shadows_a_for_block_function_that_takes_no_self() {
+    let result = emit_typed(
+        r#"
+type Entry = { n: number }
+for Entry { export let make(n: number) -> Entry = { Entry { n: n } } }
+export let g(make: (a: number) -> number) -> number = { make(4) }
+"#,
+    );
+    assert!(
+        result.contains("return make(4);"),
+        "the parameter shadows the for-block function, so the parameter must be called, got: {result}"
+    );
+    assert!(
+        !result.contains("return Entry__make(4);"),
+        "the for-block function must not be called where the checker read the parameter, got: {result}"
+    );
+}
+
+#[test]
+fn a_for_block_function_that_takes_no_self_still_uses_its_mangled_name() {
+    let result = emit_typed(
+        r#"
+type Entry = { n: number }
+for Entry { export let make(n: number) -> Entry = { Entry { n: n } } }
+export let g() -> Entry = { make(4) }
+"#,
+    );
+    assert!(
+        result.contains("return Entry__make(4);"),
+        "an unshadowed for-block call must still use the mangled name, got: {result}"
+    );
+}
+
+#[test]
+fn a_template_interpolation_does_not_retype_an_earlier_variant() {
+    // Every expression inside `${...}` used to restart its id at 0, so the
+    // checker's type map wrote the interpolation's types onto the file's
+    // first expressions. `Red` reached codegen carrying `string`, and the
+    // guard, reading that type, refused to emit the variant. See #1530.
+    let result = emit_typed(
+        r#"
+type Color = Red | Green
+export let f() -> Color = { Red }
+export let name(s: string) -> string = { `hi ${s}` }
+"#,
+    );
+    assert!(
+        result.contains("return { __tag: \"Red\" };"),
+        "the variant must keep its own type across a later interpolation, got: {result}"
+    );
+}
+
+// ── A for-block on a foreign npm type (#1520) ────────────────────
+
+/// Compile source against one synthetic `.d.ts`, then emit.
+///
+/// The guard compares the for-block header's written type name against the
+/// name the checker's resolved receiver prints. A foreign type prints the
+/// name the header wrote, with its type arguments encoded into it, so this
+/// proves the two agree without a network or a tsgo probe.
+fn emit_with_dts(dts_source: &str, specifier: &str, source: &str) -> String {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("index.d.ts");
+    std::fs::write(&path, dts_source).expect("write .d.ts");
+    let exports = crate::interop::parse_dts_exports(&path).expect("parse .d.ts");
+    let mut dts_imports = std::collections::HashMap::new();
+    dts_imports.insert(specifier.to_string(), exports);
+    let analysed = crate::analyse::analyse_module(
+        source,
+        crate::analyse::ModuleInputs {
+            externs: crate::analyse::ExternTypes {
+                dts_imports,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let errors: Vec<_> = analysed
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == crate::diagnostic::Severity::Error)
+        .map(|d| d.message.clone())
+        .collect();
+    assert!(errors.is_empty(), "fixture should check clean: {errors:?}");
+
+    Codegen::new()
+        .generate(&analysed.program)
+        .code
+        .trim()
+        .to_string()
+}
+
+#[test]
+fn a_for_block_on_a_foreign_npm_type_keeps_its_mangled_name() {
+    let result = emit_with_dts(
+        "export declare class Router { path: string }\n",
+        "router",
+        r#"
+import trusted { Router } from "router"
+
+for Router {
+    export let describe(self) -> string = { "a router" }
+}
+
+export let g(r: Router) -> string = { r |> describe() }
+"#,
+    );
+    assert!(
+        result.contains("Router__describe(r)"),
+        "a for-block on a foreign type must still use the mangled name, got: {result}"
+    );
+}
+
+#[test]
+fn a_parameter_shadows_a_for_block_function_on_a_foreign_npm_type() {
+    let result = emit_with_dts(
+        "export declare class Router { path: string }\n",
+        "router",
+        r#"
+import trusted { Router } from "router"
+
+for Router {
+    export let describe(self) -> string = { "a router" }
+}
+
+export let g(describe: (a: number) -> string) -> string = { describe(4) }
+"#,
+    );
+    assert!(
+        result.contains("return describe(4);"),
+        "the parameter shadows the for-block function, so the parameter must be called, got: {result}"
+    );
+    assert!(
+        !result.contains("Router__describe(4)"),
+        "the for-block function must not be called where the checker read the parameter, got: {result}"
+    );
+}

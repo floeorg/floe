@@ -5,7 +5,7 @@ use super::{
     TraitDecl, TraitMethod, TypeDecl, TypeDef, TypeExpr, TypeExprKind,
 };
 
-impl<'src> Lowerer<'src> {
+impl Lowerer<'_, '_> {
     pub(super) fn lower_item(&mut self, node: &SyntaxNode) -> Option<Item> {
         let span = self.node_span(node);
 

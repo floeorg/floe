@@ -2,7 +2,7 @@ use crate::syntax::token_names_member;
 
 use super::{JsxChild, JsxElement, JsxElementKind, JsxProp, Lowerer, SyntaxKind, SyntaxNode};
 
-impl<'src> Lowerer<'src> {
+impl Lowerer<'_, '_> {
     pub(super) fn lower_jsx_element(&mut self, node: &SyntaxNode) -> JsxElement {
         let span = self.node_span(node);
 
